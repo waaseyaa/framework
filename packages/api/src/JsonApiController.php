@@ -15,6 +15,7 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\FieldableInterface;
 use Waaseyaa\Entity\Validation\EntityValidationException;
+use Waaseyaa\Entity\Write\EntityWritePayloadGuard;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
 use Waaseyaa\EntityStorage\SaveContext;
@@ -472,14 +473,50 @@ final class JsonApiController
             }
         }
 
+        // CW-v1 option-1 design §5 (findings #1/#2): reject-not-strip a
+        // payload key that is neither a declared field nor a writable entity
+        // key, or that is an identity/bookkeeping column (revision_id,
+        // published_revision_id, uuid, ...) regardless of declaration. Runs
+        // BEFORE create()/save() — nothing is persisted on refusal.
+        //
+        // Config-style entities (e.g. node_type) use the id key as a
+        // deliberately client-settable machine name at create time — a
+        // pre-existing, tested contract (JsonApiControllerConfigEntityTest,
+        // the $usesConfigMachineIds branch above). The guard's identity-kind
+        // refusal exists to stop a numeric/uuid PRIMARY KEY from being
+        // client-forged on a content entity; exempting the resolved id key
+        // here (rather than weakening the guard for every entity type) keeps
+        // that existing behavior while still refusing it for ordinary
+        // content entities (Node's `nid`, for example, is never a declared
+        // field or a writable key, so it is refused via the general branch).
+        $guardKeys = array_keys($attributes);
+        if ($usesConfigMachineIds) {
+            $guardKeys = array_values(array_diff($guardKeys, [$idKey]));
+        }
+        $guardBundle = $bundleKey !== null ? (string) ($attributes[$bundleKey] ?? '') : '';
+        $refusedKeys = EntityWritePayloadGuard::refusedKeys($definition, $guardBundle, $guardKeys, $this->entityTypeManager);
+        if ($refusedKeys !== []) {
+            return $this->errorDocument($this->writeAllowlistError($refusedKeys));
+        }
+
         // C-22 WP3: create/save now go through the canonical repository.
         $repository = $this->entityTypeManager->getRepository($entityTypeId);
         $entity = $repository->create($attributes);
 
         // Check create access.
         if ($this->accessHandler !== null && $this->account !== null) {
-            $bundle = $attributes['bundle'] ?? $entityTypeId;
-            $access = $this->accessHandler->checkCreateAccess($entityTypeId, (string) $bundle, $this->account);
+            // Pre-existing bug fix, found while adding the guard above: this
+            // used to read the LITERAL attribute key 'bundle' (`$attributes['bundle']
+            // ?? $entityTypeId`), which is almost never the entity type's real
+            // bundle key (node's is 'type') — so per-bundle create permissions
+            // (e.g. NodeAccessPolicy's `create article content`) silently
+            // checked `create node content` instead for any real client that
+            // never happened to send a bogus 'bundle' attribute alongside the
+            // real one. $guardBundle (computed above from the entity type's
+            // OWN bundle key) is the correct value; reuse it here rather than
+            // duplicating a second, buggy bundle resolution.
+            $bundle = $guardBundle !== '' ? $guardBundle : $entityTypeId;
+            $access = $this->accessHandler->checkCreateAccess($entityTypeId, $bundle, $this->account);
             if (!$access->isAllowed()) {
                 return $this->errorDocument(
                     JsonApiError::forbidden("Access denied for creating entity of type '{$entityTypeId}'."),
@@ -626,8 +663,27 @@ final class JsonApiController
             }
         }
 
-        // Check field edit access for submitted attributes.
+        // CW-v1 option-1 design §5 (findings #1/#2): reject-not-strip a
+        // payload key that is neither a declared field nor a writable entity
+        // key, or that is an identity/bookkeeping column (revision_id,
+        // published_revision_id, uuid, ...) regardless of declaration. Runs
+        // BEFORE the per-field access loop and BEFORE any set()/save() —
+        // nothing is applied on refusal. Unconditional (not gated on an
+        // access handler/account being wired): this is a structural
+        // validation, not an access decision, mirroring validateQueryFields()
+        // on the read path.
         $attributes = $data['data']['attributes'] ?? [];
+        $refusedKeys = EntityWritePayloadGuard::refusedKeys(
+            $this->entityTypeManager->getDefinition($entityTypeId),
+            $entity->bundle(),
+            array_keys($attributes),
+            $this->entityTypeManager,
+        );
+        if ($refusedKeys !== []) {
+            return $this->errorDocument($this->writeAllowlistError($refusedKeys));
+        }
+
+        // Check field edit access for submitted attributes.
         if ($this->accessHandler !== null && $this->account !== null) {
             foreach (array_keys($attributes) as $fieldName) {
                 $fieldResult = $this->accessHandler->checkFieldAccess(
@@ -759,6 +815,26 @@ final class JsonApiController
     {
         return JsonApiError::conflict(
             sprintf("Updating entity of type '%s' with ID '%s' violated a uniqueness constraint.", $entityTypeId, $entityId),
+        );
+    }
+
+    /**
+     * The 422 body for a write-side field-allowlist refusal
+     * ({@see EntityWritePayloadGuard}, CW-v1 option-1 design §5, findings
+     * #1/#2): a payload key is neither a declared field nor a writable
+     * entity key, or is an identity/bookkeeping column (`revision_id`,
+     * `published_revision_id`, ...). Names every refused key so the caller
+     * can see exactly what was rejected — reject, never strip (design
+     * invariant 5, Drupal JSON:API parity).
+     *
+     * @param list<string> $refusedKeys
+     */
+    private function writeAllowlistError(array $refusedKeys): JsonApiError
+    {
+        return JsonApiError::unprocessable(
+            sprintf('The following attribute(s) are not writable: %s.', implode(', ', $refusedKeys)),
+            code: 'FIELD_NOT_WRITABLE',
+            meta: ['refused_keys' => $refusedKeys],
         );
     }
 

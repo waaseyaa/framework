@@ -15,6 +15,7 @@ use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Field\FieldDefinition;
 
 /**
  * Full CRUD lifecycle integration test for the JSON:API layer.
@@ -48,6 +49,12 @@ final class JsonApiCrudIntegrationTest extends TestCase
                 'uuid' => 'uuid',
                 'label' => 'title',
                 'bundle' => 'type',
+            ],
+            // CW-v1 option-1 PR-4 (findings #1/#2): EntityWritePayloadGuard
+            // requires a payload key to be a declared field (or a writable
+            // entity key) — this fixture writes 'status' via attributes.
+            _fieldDefinitions: [
+                'status' => new FieldDefinition(name: 'status', type: 'boolean'),
             ],
         ));
 

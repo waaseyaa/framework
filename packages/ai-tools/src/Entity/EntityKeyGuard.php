@@ -14,11 +14,19 @@ use Waaseyaa\Entity\Validation\EntityValidationException;
  * Computes the per-entity-type refusal set — registered entity-key columns
  * for the kinds `id`, `uuid`, `revision`, `langcode`, `default_langcode`
  * (so renamed columns like `id => nid` are caught under their real name),
- * unioned with the literal names `uuid`, `langcode`, `default_langcode`
- * (the floor catches translatable schema columns on types that never
- * registered the kind). The `label` and `bundle` kinds are deliberately
- * NEVER refused: label is ordinary content (e.g. `title`) and bundle is
- * create-time structure.
+ * unioned with the literal names `uuid`, `langcode`, `default_langcode`,
+ * `revision_id`, `published_revision_id` (the floor catches translatable
+ * schema columns on types that never registered the kind, and — the
+ * `revision_id`/`published_revision_id` pair, added by CW-v1 option-1 PR-4 —
+ * the pointer/bookkeeping columns findings #1/#2 of
+ * `.superpowers/sdd/final-review-findings.md` name directly:
+ * `published_revision_id` in particular carries NO entity-key kind on any
+ * shipped entity type, so only the literal floor closes it; before this
+ * addition it was silently `set()`-able through this tool despite the
+ * class-level "identity fields cannot be written through this tool"
+ * contract). The `label` and `bundle` kinds are deliberately NEVER refused:
+ * label is ordinary content (e.g. `title`) and bundle is create-time
+ * structure.
  *
  * Contract: kitty-specs/live-entity-validation-key-protection-01KTWQT3/
  * contracts/tool-refusal.md (FR-005..FR-007, NFR-002/NFR-003).
@@ -37,7 +45,7 @@ final class EntityKeyGuard
      *
      * @var list<string>
      */
-    private const LITERAL_FLOOR = ['uuid', 'langcode', 'default_langcode'];
+    private const LITERAL_FLOOR = ['uuid', 'langcode', 'default_langcode', 'revision_id', 'published_revision_id'];
 
     private function __construct() {}
 

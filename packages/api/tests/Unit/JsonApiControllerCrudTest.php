@@ -11,6 +11,7 @@ use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Field\FieldDefinition;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -39,6 +40,12 @@ final class JsonApiControllerCrudTest extends TestCase
             label: 'Article',
             class: TestEntity::class,
             keys: TestEntity::definitionKeys(),
+            // CW-v1 option-1 PR-4 (findings #1/#2): EntityWritePayloadGuard
+            // requires a payload key to be a declared field (or a writable
+            // entity key) — this fixture writes 'body' via attributes.
+            _fieldDefinitions: [
+                'body' => new FieldDefinition(name: 'body', type: 'text'),
+            ],
         ));
 
         $this->serializer = new ResourceSerializer($this->entityTypeManager);

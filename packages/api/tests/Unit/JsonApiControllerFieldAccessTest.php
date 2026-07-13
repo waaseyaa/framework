@@ -20,6 +20,7 @@ use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Field\FieldDefinition;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 
 #[CoversClass(JsonApiController::class)]
@@ -44,6 +45,17 @@ final class JsonApiControllerFieldAccessTest extends TestCase
             label: 'Article',
             class: TestEntity::class,
             keys: TestEntity::definitionKeys(),
+            // CW-v1 option-1 PR-4 (findings #1/#2): EntityWritePayloadGuard
+            // requires a payload key to be a declared field (or a writable
+            // entity key). This fixture is written to directly via
+            // attributes/values throughout the file (body/secret/status), so
+            // it must declare them — matching how a real entity type (e.g.
+            // Node's status/workflow_state) always does.
+            _fieldDefinitions: [
+                'body' => new FieldDefinition(name: 'body', type: 'text'),
+                'secret' => new FieldDefinition(name: 'secret', type: 'string'),
+                'status' => new FieldDefinition(name: 'status', type: 'string'),
+            ],
         ));
 
         $this->account = $this->createMock(AccountInterface::class);

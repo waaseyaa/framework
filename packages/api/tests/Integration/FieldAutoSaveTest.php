@@ -314,6 +314,30 @@ final class FieldAutoSaveTest extends TestCase
         $this->assertSame('field_not_registered', $body['errors'][0]['code']);
     }
 
+    /**
+     * CW-v1 option-1 PR-4 (findings #1/#2) regression pin: FieldAutoSaveController
+     * is a per-field endpoint that already allowlists against the bundle
+     * field registry (step 5, `$allFields[$key]` — declared fields only), so
+     * `published_revision_id` — a real base column with no field definition
+     * — 404s here exactly like any other undeclared key. Pinning this so a
+     * future refactor cannot silently reopen findings #1/#2 on this surface.
+     */
+    #[Test]
+    public function publishedRevisionIdKeyReturns404(): void
+    {
+        $entity = $this->createSavedEntity(['title' => 'Exists', 'type' => 'article']);
+        $entityId = (string) $entity->id();
+
+        $controller = $this->makeController($this->allowAllHandler);
+        $request = $this->makePutRequest($entityId, 'published_revision_id', '99', $this->account);
+
+        $response = $controller->update($request, 'article', $entityId, 'published_revision_id');
+
+        $this->assertSame(404, $response->getStatusCode());
+        $body = json_decode($response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame('field_not_registered', $body['errors'][0]['code']);
+    }
+
     // --- 415 wrong Content-Type ---
 
     #[Test]

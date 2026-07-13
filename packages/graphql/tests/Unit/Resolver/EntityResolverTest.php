@@ -443,6 +443,24 @@ final class EntityResolverTest extends TestCase
         $resolver->resolveCreate('article', ['title' => 'OK', 'status' => true]);
     }
 
+    #[Test]
+    public function resolveCreateThrowsWhenInputContainsAnUnwritableKey(): void
+    {
+        // CW-v1 option-1 PR-4 (findings #1/#2), defense-in-depth: the
+        // pointer/bookkeeping column is refused even though the fixture's
+        // access policy is wide open — the guard runs before create()/save().
+        $resolver = $this->createResolver($this->openAccessHandler());
+
+        try {
+            $resolver->resolveCreate('article', ['title' => 'New', 'published_revision_id' => 99]);
+            self::fail('Expected a UserError for the unwritable key.');
+        } catch (UserError $e) {
+            self::assertStringContainsString('published_revision_id', $e->getMessage());
+        }
+
+        self::assertSame([], $this->storage->loadMultiple(), 'a refused create must persist nothing');
+    }
+
     // ── resolveUpdate ────────────────────────────────────────────
 
     #[Test]
@@ -454,6 +472,18 @@ final class EntityResolverTest extends TestCase
         $result = $resolver->resolveUpdate('article', $entity->id(), ['title' => 'New']);
 
         self::assertSame('New', $result['title']);
+    }
+
+    #[Test]
+    public function resolveUpdateThrowsWhenInputContainsAnUnwritableKey(): void
+    {
+        $entity = $this->seedArticle('Old');
+        $resolver = $this->createResolver($this->openAccessHandler());
+
+        $this->expectException(UserError::class);
+        $this->expectExceptionMessage('published_revision_id');
+
+        $resolver->resolveUpdate('article', $entity->id(), ['title' => 'New', 'published_revision_id' => 99]);
     }
 
     #[Test]

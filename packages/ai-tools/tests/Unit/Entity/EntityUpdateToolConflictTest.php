@@ -337,6 +337,35 @@ final class EntityUpdateToolConflictTest extends TestCase
         $this->assertSame('v1', $reloaded->label(), 'whole-write rejection');
     }
 
+    /**
+     * CW-v1 option-1 PR-4 (findings #1/#2) regression pin: `published_revision_id`
+     * is the exact pointer/bookkeeping column findings #1/#2 name — no
+     * entity-key KIND is registered for it on `test_revisionable` (only
+     * `revision` => `revision_id` is), so it is caught ONLY by
+     * EntityKeyGuard's literal floor. Before this PR's floor addition, this
+     * assertion failed (`published_revision_id` was silently `set()` and
+     * persisted — the same class of hole JSON:API had).
+     */
+    #[Test]
+    public function published_revision_id_inside_values_is_refused(): void
+    {
+        $this->seedEntity();
+
+        $result = $this->tool->execute(
+            ['entity_type' => 'test_revisionable', 'id' => '1', 'values' => ['published_revision_id' => 2, 'title' => 'x']],
+            $this->account(),
+        );
+
+        $this->assertTrue($result->isError);
+        $this->assertSame(
+            'entity.update: refused identity keys: published_revision_id — identity fields cannot be written through this tool',
+            $result->content[0]['text'] ?? null,
+        );
+        $reloaded = $this->repo->find('1');
+        \assert($reloaded instanceof TestRevisionableEntity);
+        $this->assertSame('v1', $reloaded->label(), 'whole-write rejection');
+    }
+
     // -----------------------------------------------------------------------
     // Dry-run parity (contract §6, T009)
     // -----------------------------------------------------------------------

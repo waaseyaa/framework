@@ -15,6 +15,7 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\EntityValues;
 use Waaseyaa\Entity\FieldableInterface;
+use Waaseyaa\Entity\Write\EntityWritePayloadGuard;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\GraphQL\Access\GraphQlAccessGuard;
@@ -220,6 +221,13 @@ final class EntityResolver
 
         $input = $this->injectAccountContext($entityTypeId, $input);
 
+        // CW-v1 option-1 PR-4 (findings #1/#2), defense-in-depth: the
+        // generated GraphQL input type already bounds this surface, but the
+        // shared guard closes the class of hole by construction rather than
+        // per-schema. Runs BEFORE create()/save() — nothing is persisted on
+        // refusal. Mirrors JsonApiController::store().
+        $this->assertWritable($entityTypeId, $this->resolveBundle($entityTypeId, $input), $input);
+
         // C-22 WP3: create/save now go through the canonical repository.
         $repository = $this->entityTypeManager->getRepository($entityTypeId);
         $entity = $repository->create($input);
@@ -290,6 +298,14 @@ final class EntityResolver
         } catch (UserError) {
             throw new UserError("Entity not found: {$entityTypeId}/{$id}");
         }
+
+        // CW-v1 option-1 PR-4 (findings #1/#2), defense-in-depth: same
+        // structural guard as resolveCreate()/JsonApiController::update().
+        // Runs only after update access is confirmed above (so it adds no
+        // existence oracle: the refusal depends only on the entity TYPE's
+        // schema, not this entity instance or the caller's access) and
+        // BEFORE any set()/save() — nothing is applied on refusal.
+        $this->assertWritable($entityTypeId, $entity->bundle(), $input);
 
         if (!$entity instanceof FieldableInterface) {
             throw new UserError("Entity type '{$entityTypeId}' does not support field updates.");
@@ -581,5 +597,46 @@ final class EntityResolver
         }
 
         return $input;
+    }
+
+    /**
+     * The bundle value for a create input, resolved from the entity type's
+     * own bundle key (mirrors `JsonApiController::store()`'s bundle
+     * resolution) — used only to scope
+     * {@see EntityWritePayloadGuard::refusedKeys()}'s bundle-aware field
+     * lookup, never to validate the bundle itself.
+     *
+     * @param array<string, mixed> $input
+     */
+    private function resolveBundle(string $entityTypeId, array $input): string
+    {
+        $bundleKey = $this->entityTypeManager->getDefinition($entityTypeId)->getKeys()['bundle'] ?? null;
+
+        return $bundleKey !== null ? (string) ($input[$bundleKey] ?? '') : '';
+    }
+
+    /**
+     * CW-v1 option-1 PR-4 (findings #1/#2): reject (UserError) an input key
+     * that is neither a declared field nor a writable entity key, or that is
+     * an identity/bookkeeping column (`revision_id`, `published_revision_id`,
+     * ...) regardless of declaration. Defense-in-depth alongside the
+     * generated GraphQL input type's own schema bound.
+     *
+     * @param array<string, mixed> $input
+     */
+    private function assertWritable(string $entityTypeId, string $bundle, array $input): void
+    {
+        $refused = EntityWritePayloadGuard::refusedKeys(
+            $this->entityTypeManager->getDefinition($entityTypeId),
+            $bundle,
+            array_keys($input),
+            $this->entityTypeManager,
+        );
+        if ($refused !== []) {
+            throw new UserError(sprintf(
+                'The following input field(s) are not writable: %s.',
+                implode(', ', $refused),
+            ));
+        }
     }
 }

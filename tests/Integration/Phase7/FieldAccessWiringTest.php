@@ -22,6 +22,7 @@ use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Field\FieldDefinition;
 
 /**
  * Integration test: field-access wiring through controllers.
@@ -53,6 +54,12 @@ final class FieldAccessWiringTest extends TestCase
             label: 'Article',
             class: \Waaseyaa\Api\Tests\Fixtures\ArticleContentTestEntity::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type'],
+            // CW-v1 option-1 PR-4 (findings #1/#2): EntityWritePayloadGuard
+            // requires a payload key to be a declared field (or a writable
+            // entity key) — this fixture writes 'status' via attributes.
+            _fieldDefinitions: [
+                'status' => new FieldDefinition(name: 'status', type: 'string'),
+            ],
         );
         $this->entityTypeManager->registerEntityType($this->entityType);
 
