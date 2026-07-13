@@ -87,6 +87,50 @@ final class WorkflowPointerMoveGuard
             return;
         }
 
+        // CW-v1 option-1 (#1920 PR-2, design §2.2/§2.3): the discipline
+        // event flag. `publish` (setPublishedRevision()) ALWAYS sets it
+        // when bound — promotion is the choke point that both moves the
+        // pointer AND, under discipline, copies the target revision's
+        // values into the base row (EntityRepository::setPublishedRevision()).
+        // `rollback` sets it only when the base row already carries a live
+        // published pointer — an entity that has never been published has
+        // no base-row "published revision" concept to discipline yet, so
+        // rollback there stays the pre-option-1 repoint+rewrite (unflagged).
+        if ($event->operation === 'publish') {
+            $event->applyDefaultRevisionSemantics();
+        } elseif ($event->operation === 'rollback' && $this->loadPublishedRevision($event->entityTypeId, $event->entityId) !== null) {
+            $event->applyDefaultRevisionSemantics();
+        }
+
+        // CW-v1 option-1 (#1920 PR-2, design §2.3): `revert`
+        // (setCurrentRevision()) on a bound entity with a live published
+        // pointer is denied outright — its only effect is a base-row
+        // repoint+rewrite, which has no coherent meaning once the base row
+        // belongs to the published pointer (the base row IS the published
+        // revision under discipline; "reverting" it directly bypasses both
+        // the working-copy/draft model and the promotion choke point).
+        // Callers restore old content via `rollback` (into the working
+        // copy) or go live through the transition path. Unbound or
+        // never-published (unpointered) entities are unaffected — this
+        // denial is scoped to the exact case where a base-row repoint
+        // would silently move served content with no pointer-move
+        // validation of its own. Deliberately checked BEFORE the
+        // same-state/different-state edge logic below: this is a
+        // structural rule, not an edge-legality or permission question.
+        if ($event->operation === 'revert' && $this->loadPublishedRevision($event->entityTypeId, $event->entityId) !== null) {
+            throw new TransitionDeniedException(
+                TransitionDeniedException::REASON_ILLEGAL_EDGE,
+                \sprintf(
+                    "Pointer-move operation 'revert' denied for entity '%s:%s': a live published pointer exists, "
+                    . 'so directly re-pointing the base row has no coherent meaning under default-revision '
+                    . "discipline. Use 'rollback' to restore content into the working copy, or promote it "
+                    . 'through the transition path.',
+                    $event->entityTypeId,
+                    $event->entityId,
+                ),
+            );
+        }
+
         $newState = $this->explicitState($event->revisionValues) ?? $workflow->getInitialState();
         $currentState = $this->currentlyEffectiveState($event, $workflow);
 
@@ -249,6 +293,15 @@ final class WorkflowPointerMoveGuard
         }
 
         return $this->groupConstraintChecker->satisfies($transition, $event->entityTypeId, $event->entityId, $account->id());
+    }
+
+    /**
+     * CW-v1 option-1 (#1920 PR-2): one repository read, used by both the
+     * discipline-flag gate and the revert-denial gate above.
+     */
+    private function loadPublishedRevision(string $entityTypeId, string $entityId): ?EntityInterface
+    {
+        return $this->entityTypeManager->getRepository($entityTypeId)->loadPublishedRevision($entityId);
     }
 
     /**

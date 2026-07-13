@@ -54,12 +54,13 @@ final class WorkflowPointerMoveGuardTest extends TestCase
     /**
      * @param array<int, ?string> $revisionStates revisionId => workflow_state (absent key => missing revision)
      */
-    private function entityTypeManager(?Workflow $workflow, array $revisionStates = []): EntityTypeManagerInterface
+    private function entityTypeManager(?Workflow $workflow, array $revisionStates = [], bool $hasPublishedPointer = false): EntityTypeManagerInterface
     {
-        return new class ($workflow, $revisionStates) implements EntityTypeManagerInterface {
+        return new class ($workflow, $revisionStates, $hasPublishedPointer) implements EntityTypeManagerInterface {
             public function __construct(
                 private readonly ?Workflow $workflow,
                 private readonly array $revisionStates,
+                private readonly bool $hasPublishedPointer,
             ) {}
 
             public function getDefinition(string $entityTypeId): EntityTypeInterface
@@ -88,11 +89,13 @@ final class WorkflowPointerMoveGuardTest extends TestCase
             {
                 $workflow = $this->workflow;
                 $revisionStates = $this->revisionStates;
+                $hasPublishedPointer = $this->hasPublishedPointer;
 
-                return new class ($workflow, $revisionStates) implements EntityRepositoryInterface {
+                return new class ($workflow, $revisionStates, $hasPublishedPointer) implements EntityRepositoryInterface {
                     public function __construct(
                         private readonly ?Workflow $workflow,
                         private readonly array $revisionStates,
+                        private readonly bool $hasPublishedPointer,
                     ) {}
 
                     public function create(array $values = []): EntityInterface { throw new \LogicException('not needed'); }
@@ -132,7 +135,27 @@ final class WorkflowPointerMoveGuardTest extends TestCase
                     public function rollback(string $entityId, int $targetRevisionId): EntityInterface { throw new \LogicException('not needed'); }
                     public function listRevisions(string $entityId): array { return []; }
                     public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface { throw new \LogicException('not needed'); }
-                    public function loadPublishedRevision(string $entityId): ?EntityInterface { return null; }
+
+                    public function loadPublishedRevision(string $entityId): ?EntityInterface
+                    {
+                        if (!$this->hasPublishedPointer) {
+                            return null;
+                        }
+
+                        return new class implements EntityInterface {
+                            public function id(): int|string|null { return 1; }
+                            public function uuid(): string { return 'u-1'; }
+                            public function label(): string { return 'Fixture'; }
+                            public function getEntityTypeId(): string { return 'fixture'; }
+                            public function bundle(): string { return 'article'; }
+                            public function isNew(): bool { return false; }
+                            public function get(string $name): mixed { return null; }
+                            public function set(string $name, mixed $value): static { return $this; }
+                            public function toArray(): array { return []; }
+                            public function language(): string { return 'en'; }
+                        };
+                    }
+
                     public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface { throw new \LogicException('not needed'); }
                     public function saveMany(array $entities, bool $validate = true): array { return []; }
                     public function deleteMany(array $entities): int { return 0; }
@@ -199,9 +222,9 @@ final class WorkflowPointerMoveGuardTest extends TestCase
     /**
      * @param array<int, ?string> $revisionStates
      */
-    private function guard(?Workflow $workflow, array $revisionStates, ?AccountInterface $account): WorkflowPointerMoveGuard
+    private function guard(?Workflow $workflow, array $revisionStates, ?AccountInterface $account, bool $hasPublishedPointer = false): WorkflowPointerMoveGuard
     {
-        $entityTypeManager = $this->entityTypeManager($workflow, $revisionStates);
+        $entityTypeManager = $this->entityTypeManager($workflow, $revisionStates, $hasPublishedPointer);
 
         return new WorkflowPointerMoveGuard(
             $this->bindings($workflow, $entityTypeManager),
@@ -632,5 +655,139 @@ final class WorkflowPointerMoveGuardTest extends TestCase
         } catch (TransitionDeniedException $e) {
             $this->assertSame(TransitionDeniedException::REASON_ILLEGAL_EDGE, $e->reason);
         }
+    }
+
+    // ------------------------------------------------------------------
+    // CW-v1 option-1 (#1920 PR-2): discipline event flag, revert denial.
+    // ------------------------------------------------------------------
+
+    #[Test]
+    public function publish_always_sets_the_discipline_flag_when_bound(): void
+    {
+        $account = $this->account(['use editorial transition publish']);
+        $guard = $this->guard($this->editorialWorkflow(), [10 => 'draft'], $account, hasPublishedPointer: false);
+        $event = new BeforeRevisionPointerMoveEvent(
+            entityTypeId: 'fixture',
+            entityId: '1',
+            operation: 'publish',
+            fromRevisionId: 10,
+            toRevisionId: 20,
+            actorUid: 7,
+            revisionValues: ['type' => 'article', 'workflow_state' => 'published'],
+        );
+
+        $guard->onBeforePointerMove($event);
+
+        $this->assertTrue($event->defaultRevisionSemantics(), "'publish' must set the discipline flag even when previously unpublished (no prior published pointer).");
+    }
+
+    #[Test]
+    public function rollback_sets_the_discipline_flag_only_when_a_published_pointer_already_exists(): void
+    {
+        $account = $this->account(['use editorial transition publish']);
+        $guard = $this->guard($this->editorialWorkflow(), [10 => 'published'], $account, hasPublishedPointer: true);
+        $event = new BeforeRevisionPointerMoveEvent(
+            entityTypeId: 'fixture',
+            entityId: '1',
+            operation: 'rollback',
+            fromRevisionId: 10,
+            toRevisionId: null,
+            actorUid: 7,
+            revisionValues: ['type' => 'article', 'workflow_state' => 'published'],
+        );
+
+        $guard->onBeforePointerMove($event);
+
+        $this->assertTrue($event->defaultRevisionSemantics());
+    }
+
+    #[Test]
+    public function rollback_leaves_the_discipline_flag_unset_when_never_published(): void
+    {
+        $account = $this->account(['use editorial transition publish']);
+        $guard = $this->guard($this->editorialWorkflow(), [10 => 'published'], $account, hasPublishedPointer: false);
+        $event = new BeforeRevisionPointerMoveEvent(
+            entityTypeId: 'fixture',
+            entityId: '1',
+            operation: 'rollback',
+            fromRevisionId: 10,
+            toRevisionId: null,
+            actorUid: 7,
+            revisionValues: ['type' => 'article', 'workflow_state' => 'published'],
+        );
+
+        $guard->onBeforePointerMove($event);
+
+        $this->assertFalse($event->defaultRevisionSemantics());
+    }
+
+    #[Test]
+    public function revert_on_a_bound_entity_with_a_live_published_pointer_is_denied(): void
+    {
+        $account = $this->account(['use editorial transition publish']);
+        $guard = $this->guard($this->editorialWorkflow(), [10 => 'published'], $account, hasPublishedPointer: true);
+        $event = new BeforeRevisionPointerMoveEvent(
+            entityTypeId: 'fixture',
+            entityId: '1',
+            operation: 'revert',
+            fromRevisionId: 10,
+            toRevisionId: 20,
+            actorUid: 7,
+            revisionValues: ['type' => 'article', 'workflow_state' => 'published'],
+        );
+
+        try {
+            $guard->onBeforePointerMove($event);
+            $this->fail('Expected TransitionDeniedException');
+        } catch (TransitionDeniedException $e) {
+            $this->assertSame(TransitionDeniedException::REASON_ILLEGAL_EDGE, $e->reason);
+            $this->assertStringContainsString('rollback', $e->getMessage());
+        }
+    }
+
+    #[Test]
+    public function revert_on_a_bound_but_never_published_entity_is_unaffected_by_the_denial(): void
+    {
+        // No live published pointer: the denial does not apply — the
+        // pre-existing same-state/different-state edge logic runs as
+        // before. 'draft' -> 'draft' (fromRevisionId falls back to the
+        // workflow's initial state since revision 10 is untracked here) is
+        // a same-state move; null account context passes outright.
+        $entityTypeManager = $this->entityTypeManager($this->editorialWorkflow(), [], false);
+        $guard = new WorkflowPointerMoveGuard(
+            $this->bindings($this->editorialWorkflow(), $entityTypeManager),
+            $entityTypeManager,
+            null,
+        );
+        $event = new BeforeRevisionPointerMoveEvent(
+            entityTypeId: 'fixture',
+            entityId: '1',
+            operation: 'revert',
+            fromRevisionId: null,
+            toRevisionId: 20,
+            actorUid: null,
+            revisionValues: ['type' => 'article', 'workflow_state' => 'draft'],
+        );
+
+        $guard->onBeforePointerMove($event);
+        $this->addToAssertionCount(1);
+    }
+
+    #[Test]
+    public function revert_on_an_unbound_entity_type_is_unaffected_by_the_denial(): void
+    {
+        $guard = $this->guard(null, [], $this->account(['use editorial transition publish']), hasPublishedPointer: true);
+        $event = new BeforeRevisionPointerMoveEvent(
+            entityTypeId: 'fixture',
+            entityId: '1',
+            operation: 'revert',
+            fromRevisionId: null,
+            toRevisionId: 20,
+            actorUid: 7,
+            revisionValues: ['type' => 'article', 'workflow_state' => 'draft'],
+        );
+
+        $guard->onBeforePointerMove($event);
+        $this->addToAssertionCount(1);
     }
 }
