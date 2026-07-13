@@ -32,10 +32,19 @@ use Waaseyaa\Workflows\Workflow;
  * `WorkflowTransitionController::transition()` must map a REAL
  * `RevisionConflictException` — thrown by `TransitionService::transition()`'s
  * deterministic content rule when the passed entity's revision id disagrees
- * with the working copy's — to a 409, not an uncaught 500. Modeled with a
- * repository whose `find()` (what the controller loads and passes) and
- * `loadWorkingCopy()` (what the service independently re-resolves) diverge —
- * the exact "stale caller" shape the rule protects against.
+ * with the working copy's — to a 409, not an uncaught 500.
+ *
+ * **Updated for #1920 PR-3 (design §4 item 1):** the controller now resolves
+ * `loadWorkingCopy()` ITSELF and passes that (not the `find()`-loaded gate
+ * entity) as the transition target — "passing it explicitly avoids the
+ * conflict path for this first-party caller" (PR-3 brief). A caller-supplied
+ * STALE object can therefore no longer trigger this conflict through the
+ * controller — the only way to reach `RevisionConflictException` here now is
+ * a genuine RACE: a concurrent transition landing between the controller's
+ * own `loadWorkingCopy()` call and `TransitionService::transition()`'s
+ * internal one. The fixture repository below models exactly that: its
+ * `loadWorkingCopy()` returns a DIFFERENT (newer) revision on its SECOND
+ * invocation, simulating the race window rather than caller staleness.
  *
  * @covers \Waaseyaa\Api\Controller\WorkflowTransitionController
  */
@@ -45,12 +54,18 @@ final class WorkflowTransitionControllerRevisionConflictTest extends TestCase
     private const string ENTITY_TYPE_ID = 'wf_conflict_article';
 
     #[Test]
-    public function a_stale_passed_entity_maps_to_409(): void
+    public function a_concurrent_transition_landing_mid_request_maps_to_409(): void
     {
-        $staleEntity = $this->entity(revisionId: 3, state: 'draft');
-        $workingCopy = $this->entity(revisionId: 9, state: 'draft');
+        // find() only feeds the R8 view gate now (PR-3) — its content no
+        // longer rides the transition.
+        $gateEntity = $this->entity(revisionId: 3, state: 'draft');
+        // First loadWorkingCopy() call (the controller's own PR-3 resolve).
+        $controllerFetchedCopy = $this->entity(revisionId: 9, state: 'draft');
+        // Second call (TransitionService's internal resolve) — a race
+        // winner landed in between.
+        $raceWinnerCopy = $this->entity(revisionId: 15, state: 'draft');
 
-        $repository = new ConflictFixtureRepository($staleEntity, $workingCopy);
+        $repository = new ConflictFixtureRepository($gateEntity, $controllerFetchedCopy, $raceWinnerCopy);
         $entityType = new EntityType(
             id: self::ENTITY_TYPE_ID,
             label: 'WF Conflict Article',
@@ -85,8 +100,8 @@ final class WorkflowTransitionControllerRevisionConflictTest extends TestCase
         $this->assertSame(409, $response->getStatusCode());
         $body = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
         $this->assertSame('REVISION_CONFLICT', $body['errors'][0]['code']);
-        $this->assertSame(3, $body['errors'][0]['meta']['expected_revision_id']);
-        $this->assertSame(9, $body['errors'][0]['meta']['current_revision_id']);
+        $this->assertSame(9, $body['errors'][0]['meta']['expected_revision_id'], 'expected_revision_id is what the CONTROLLER passed (its own loadWorkingCopy() resolve).');
+        $this->assertSame(15, $body['errors'][0]['meta']['current_revision_id'], "current_revision_id is the SERVICE's own (later) loadWorkingCopy() resolve — the race winner.");
     }
 
     private function entity(int $revisionId, string $state): ConflictFixtureEntity
@@ -157,14 +172,34 @@ final class ConflictFixtureEntity implements EntityInterface, RevisionableInterf
 
 final class ConflictFixtureRepository implements EntityRepositoryInterface
 {
+    private int $loadWorkingCopyCalls = 0;
+
+    /**
+     * $raceWinnerCopy defaults to $workingCopy (every call returns the same
+     * object — the no-race shape most fixture instantiations want).
+     * {@see WorkflowTransitionControllerRevisionConflictTest} passes a
+     * genuinely different third entity to model a concurrent transition
+     * landing between the controller's own `loadWorkingCopy()` call (PR-3)
+     * and `TransitionService::transition()`'s internal one.
+     */
     public function __construct(
         private readonly ConflictFixtureEntity $staleEntity,
         private readonly ConflictFixtureEntity $workingCopy,
+        private readonly ?ConflictFixtureEntity $raceWinnerCopy = null,
     ) {}
 
     public function create(array $values = []): EntityInterface { throw new \LogicException('not needed'); }
     public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return $this->staleEntity; }
-    public function loadWorkingCopy(string $id): ?EntityInterface { return $this->workingCopy; }
+
+    public function loadWorkingCopy(string $id): ?EntityInterface
+    {
+        ++$this->loadWorkingCopyCalls;
+
+        return $this->loadWorkingCopyCalls >= 2 && $this->raceWinnerCopy !== null
+            ? $this->raceWinnerCopy
+            : $this->workingCopy;
+    }
+
     public function findMany(array $ids, ?string $langcode = null, bool $fallback = false): array { return []; }
     public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array { return []; }
     public function getQuery(): EntityQueryInterface { throw new \LogicException('not needed'); }
@@ -218,7 +253,7 @@ final class ConflictFixtureEntityTypeManager implements EntityTypeManagerInterfa
 {
     public function __construct(
         private readonly EntityType $entityType,
-        private readonly ConflictFixtureRepository $repository,
+        private readonly EntityRepositoryInterface $repository,
         private readonly ConflictFixtureWorkflowLookupRepository $workflowRepository,
     ) {}
 

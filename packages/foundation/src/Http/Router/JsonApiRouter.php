@@ -56,7 +56,11 @@ final class JsonApiRouter implements DomainRouterInterface
 
         $document = match (true) {
             $ctx->method === 'GET' && $id === null => $jsonApiController->index($entityTypeId, $ctx->query),
-            $ctx->method === 'GET' && $id !== null => $jsonApiController->show($entityTypeId, $id),
+            // CW-v1 option-1 (#1920 PR-3): $ctx->query now reaches show() too
+            // — needed for the `?workingCopy=1` toggle (design §4). This also
+            // fixes a pre-existing gap where sparse fieldsets (`fields[type]`)
+            // silently never reached a single-resource GET over HTTP.
+            $ctx->method === 'GET' && $id !== null => $jsonApiController->show($entityTypeId, $id, $ctx->query),
             $ctx->method === 'POST' => $jsonApiController->store($entityTypeId, $ctx->parsedBody ?? []),
             $ctx->method === 'PATCH' && $id !== null => $jsonApiController->update($entityTypeId, $id, $ctx->parsedBody ?? []),
             $ctx->method === 'DELETE' && $id !== null => $jsonApiController->destroy($entityTypeId, $id),

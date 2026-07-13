@@ -365,7 +365,27 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             return AdminSurfaceResultData::error(403, 'Access denied', 'You do not have permission to view this entity.');
         }
 
-        $resource = $this->serializer()->serialize($entity, $this->accessHandler, $this->currentAccount);
+        // CW-v1 option-1 (#1920 PR-3, design §4): serve the WORKING COPY to
+        // accounts with entity UPDATE access. Documented choice
+        // ("unconditional for editors", not a query param like JSON:API's
+        // `?workingCopy=1`): the admin SPA's single edit-surface page
+        // (`packages/admin/app/pages/[entityType]/[id].vue`) reuses this ONE
+        // `get()` call for both its "view" and "edit" client-side sub-modes —
+        // there is no per-request signal distinguishing them at the
+        // transport layer (`AdminSurfaceTransportAdapter::get()` takes only
+        // `type`/`id`) — so gating on update access alone is the minimal
+        // coherent shape: the admin surface IS the edit surface, unlike
+        // JSON:API's generic-client GET, which has no such context and so
+        // requires an explicit opt-in param. An account without update
+        // access keeps seeing the published (`find()`) entity — it could
+        // never save a draft edit anyway. `loadWorkingCopy()` is mechanically
+        // safe for undisciplined entities (=== find()).
+        $target = $entity;
+        if ($this->accessHandler->check($entity, 'update', $this->currentAccount)->isAllowed()) {
+            $target = $this->entityTypeManager->getRepository($type)->loadWorkingCopy((string) $entity->id()) ?? $entity;
+        }
+
+        $resource = $this->serializer()->serialize($target, $this->accessHandler, $this->currentAccount);
 
         return AdminSurfaceResultData::success($this->jsonApiResourceToSurfaceEntity($resource));
     }

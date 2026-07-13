@@ -137,10 +137,19 @@ final class FieldAutoSaveController
             return $this->error(403, 'field_forbidden', "Update denied for field '{$key}'");
         }
 
+        // CW-v1 option-1 (#1920 PR-3, design §4 item 5): the SAVE TARGET
+        // becomes the WORKING COPY — same pattern as
+        // JsonApiController::update(). Steps 4-8 above (bundle resolution,
+        // entity/field-level access) intentionally still evaluate the
+        // `find()`-loaded $entity (type/bundle-scoped, no behavior change);
+        // `loadWorkingCopy()` is mechanically safe for undisciplined entities
+        // (=== find()).
+        $target = $repository->loadWorkingCopy($id) ?? $entity;
+
         // 9. Persist. The RAW, author-submitted value is what gets stored:
         //    sanitization (below) is a read/response-boundary concern only,
         //    so the stored value stays byte-for-byte as authored (non-lossy).
-        $entity->set($key, $body['value']);
+        $target->set($key, $body['value']);
 
         // CW-v1 option-1 (#1920 PR-2, design §3.1 finding A2): WorkflowStateGuard
         // denies from PRE_SAVE inside save() for workflow-bound types — this
@@ -148,7 +157,7 @@ final class FieldAutoSaveController
         // denial as an uncaught 500. Same permission->403 / other->422 policy
         // as JsonApiController::workflowTransitionDeniedError().
         try {
-            $repository->save($entity);
+            $repository->save($target);
         } catch (TransitionDeniedException $e) {
             return $this->workflowTransitionDeniedError($e);
         }
@@ -162,12 +171,12 @@ final class FieldAutoSaveController
         // unsanitized. $allFields[$key] is guaranteed set (checked in step 5).
         $fieldType = $allFields[$key]->getType();
         $responseValue = RichTextSanitizer::isHtmlFieldType($fieldType)
-            ? $this->richTextSanitizer->sanitizeValue($entity->get($key))
-            : $entity->get($key);
+            ? $this->richTextSanitizer->sanitizeValue($target->get($key))
+            : $target->get($key);
 
         return new JsonApiResponse([
             'data' => [
-                'id' => (string) $entity->id(),
+                'id' => (string) $target->id(),
                 'type' => $entityType,
                 'attributes' => [$key => $responseValue],
             ],

@@ -350,7 +350,8 @@ final class JsonApiController
      *
      * @param string               $entityTypeId The entity type.
      * @param int|string           $id           The entity ID.
-     * @param array<string, mixed> $query        Query parameters (supports 'fields' for sparse fieldsets).
+     * @param array<string, mixed> $query        Query parameters (supports 'fields' for sparse
+     *                                            fieldsets and CW-v1 option-1's `workingCopy`).
      */
     public function show(string $entityTypeId, int|string $id, array $query = []): JsonApiDocument
     {
@@ -375,6 +376,30 @@ final class JsonApiController
             }
         }
 
+        // CW-v1 option-1 (#1920 PR-3, design §4): `?workingCopy=1` serves the
+        // entity's WORKING COPY (the tip revision) instead of the published
+        // pointer `find()` above already resolved. This is a SEPARATE gate
+        // from the view check above — entity UPDATE access, not view — and
+        // is checked only once the view gate has passed, so denial here is a
+        // plain 403 (JsonApiError::forbidden), never an existence oracle: a
+        // missing/view-denied entity already exited via the canonical 404
+        // above. When no draft exists `loadWorkingCopy() === find()`
+        // (mechanically safe on any entity type — undisciplined ones and
+        // disciplined-but-undrafted ones both degrade to `find()`), so the
+        // response equals the plain GET byte-for-byte (pinned by test).
+        if ($this->workingCopyRequested($query)) {
+            if ($this->accessHandler === null || $this->account === null
+                || !$this->accessHandler->check($entity, 'update', $this->account)->isAllowed()
+            ) {
+                return $this->errorDocument(
+                    JsonApiError::forbidden("Access denied for viewing the working copy of entity '{$id}'."),
+                );
+            }
+
+            $repository = $this->entityTypeManager->getRepository($entityTypeId);
+            $entity = $repository->loadWorkingCopy((string) $entity->id()) ?? $entity;
+        }
+
         $resource = $this->serializer->serialize($entity, $this->accessHandler, $this->account);
 
         // Apply sparse fieldsets per JSON:API spec (attributes and relationships).
@@ -388,6 +413,31 @@ final class JsonApiController
             $resource,
             links: ['self' => "/api/{$entityTypeId}/{$resource->id}"],
         );
+    }
+
+    /**
+     * True when the request asked for the working copy via `?workingCopy=1`
+     * (CW-v1 option-1, #1920 PR-3). Accepts the same truthy shapes
+     * {@see \Waaseyaa\SSR\SsrPageHandler::isPreviewRequested()} does for its
+     * analogous `?preview` toggle, since both arrive through the same
+     * `Request::query->all()` -> plain-array query-param seam.
+     *
+     * @param array<string, mixed> $query
+     */
+    private function workingCopyRequested(array $query): bool
+    {
+        $value = $query['workingCopy'] ?? null;
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_int($value)) {
+            return $value === 1;
+        }
+        if (is_string($value)) {
+            return in_array(strtolower(trim($value)), ['1', 'true', 'yes'], true);
+        }
+
+        return false;
     }
 
     /**
@@ -664,6 +714,20 @@ final class JsonApiController
             }
         }
 
+        // CW-v1 option-1 (#1920 PR-3, design §4): the PATCH TARGET becomes
+        // the WORKING COPY — `loadWorkingCopy()` returns the tip revision
+        // when the entity is disciplined and a draft exists, else it is
+        // exactly `$entity` above (mechanically safe for every undisciplined
+        // entity — pinned by a regression test). The 404 shape and the
+        // entity/field-access GATES above and below intentionally still
+        // evaluate `$entity` (the `find()`-loaded, view/update-gated
+        // instance) — access decisions are type/bundle-scoped, not
+        // revision-scoped, so this is no behavior change (PR-3 report
+        // judgment note). `$target` is what receives the attribute writes
+        // and what gets saved/serialized. `$repository` was already resolved
+        // above (C-22 WP3).
+        $target = $repository->loadWorkingCopy((string) $entity->id()) ?? $entity;
+
         // CW-v1 option-1 design §5 (findings #1/#2), rework: echo-tolerant
         // rejection (Drupal JSON:API parity). A payload key that is neither a
         // declared field nor a writable entity key is reject-not-strip as
@@ -679,24 +743,39 @@ final class JsonApiController
         // gated on an access handler/account being wired): this is a
         // structural validation, not an access decision, mirroring
         // validateQueryFields() on the read path.
+        //
+        // CW-v1 option-1 PR-3 judgment note: `$currentValues` below is
+        // `$target->toArray()` (the WORKING COPY's stored values), not
+        // `$entity`'s (the published pointer's). A client that GETs the
+        // working copy (`?workingCopy=1`) and echoes ITS `revision_id` back
+        // on PATCH is echoing the TIP's revision id, which differs from the
+        // published pointer's `revision_id` whenever a draft is in flight —
+        // comparing against `$entity->toArray()` would misclassify that
+        // legitimate echo as a differing (refused) value. Comparing against
+        // the actual PATCH target's own stored values is the only basis that
+        // makes the echo tolerance meaningful once the target and the
+        // find()-loaded gate entity can diverge. Pinned by test (undisciplined
+        // entities: `$target === $entity` in content, so this is a no-op there).
         $attributes = $data['data']['attributes'] ?? [];
         $guardResult = EntityWritePayloadGuard::evaluateForUpdate(
             $this->entityTypeManager->getDefinition($entityTypeId),
-            $entity->bundle(),
+            $target->bundle(),
             $attributes,
             $this->entityTypeManager,
-            $entity->toArray(),
+            $target->toArray(),
         );
         if ($guardResult->refusedKeys !== []) {
             return $this->errorDocument($this->writeAllowlistError($guardResult->refusedKeys));
         }
         // Belt: an allowed echo must never reach the field-access loop or
-        // $entity->set() — strip it from the working payload before either
+        // $target->set() — strip it from the working payload before either
         // runs, so a stale in-memory pointer read before a concurrent
         // transition can never be written back over the real current value.
         $attributes = self::stripEchoedKeys($attributes, $guardResult);
 
-        // Check field edit access for submitted attributes.
+        // Check field edit access for submitted attributes. Evaluated
+        // against $entity (type/bundle-scoped — see the judgment note
+        // above), not the working-copy $target.
         if ($this->accessHandler !== null && $this->account !== null) {
             foreach (array_keys($attributes) as $fieldName) {
                 $fieldResult = $this->accessHandler->checkFieldAccess(
@@ -713,24 +792,24 @@ final class JsonApiController
             }
         }
 
-        // Apply attribute updates.
-        if (!$entity instanceof FieldableInterface) {
+        // Apply attribute updates to the WORKING COPY.
+        if (!$target instanceof FieldableInterface) {
             return $this->errorDocument(
                 JsonApiError::unprocessable("Entity type '{$entityTypeId}' does not support field updates."),
             );
         }
         foreach ($attributes as $field => $value) {
-            $entity->set($field, $value);
+            $target->set($field, $value);
         }
 
         if ($expectedRevisionId !== null) {
-            $failure = $this->saveWithExpectation($entityTypeId, $entity, $expectedRevisionId);
+            $failure = $this->saveWithExpectation($entityTypeId, $target, $expectedRevisionId);
             if ($failure !== null) {
                 return $failure;
             }
         } else {
             try {
-                $repository->save($entity);
+                $repository->save($target);
             } catch (UniqueConstraintViolationException) {
                 // Mirrors create()'s 409 mapping (WP2 review): a PATCH that
                 // trips a uniqueness constraint (e.g. the attachment
@@ -738,7 +817,7 @@ final class JsonApiController
                 // caller-visible Conflict, never a raw 500 with driver SQL
                 // in the body. Names the REAL entity id, not the request
                 // locator (contract §15 locator honesty).
-                return $this->errorDocument($this->uniquenessConflictError($entityTypeId, (string) $entity->id()));
+                return $this->errorDocument($this->uniquenessConflictError($entityTypeId, (string) $target->id()));
             } catch (TransitionDeniedException $e) {
                 // WP2 rework (review finding #8): same PRE_SAVE guard denial
                 // as create() and the expectation-stated PATCH path below.
@@ -746,7 +825,7 @@ final class JsonApiController
             }
         }
 
-        $resource = $this->serializer->serialize($entity, $this->accessHandler, $this->account);
+        $resource = $this->serializer->serialize($target, $this->accessHandler, $this->account);
 
         return JsonApiDocument::fromResource(
             $resource,

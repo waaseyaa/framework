@@ -296,6 +296,20 @@ final class EntityResolver
             throw new UserError("Entity not found: {$entityTypeId}/{$id}");
         }
 
+        // CW-v1 option-1 (#1920 PR-3, design §4 item 6): the SAVE TARGET —
+        // and the echo-comparison basis fed into assertWritableForUpdate()
+        // below — becomes the WORKING COPY. Same judgment as
+        // JsonApiController::update() (PR-3 report): a client that read the
+        // working copy's `revision_id` via a working-copy-aware read must be
+        // able to echo it back without a spurious refusal, which requires
+        // `evaluateForUpdate()`'s `$currentValues` to be the WORKING COPY's
+        // `toArray()`, not `$entity`'s (`find()`'s). Access checks above
+        // intentionally still evaluate `$entity` (type/bundle-scoped — no
+        // behavior change); `loadWorkingCopy()` is mechanically safe for
+        // undisciplined entities (=== find()).
+        $repository = $this->entityTypeManager->getRepository($entityTypeId);
+        $target = $repository->loadWorkingCopy((string) $entity->id()) ?? $entity;
+
         // CW-v1 option-1 PR-4 (findings #1/#2) rework, defense-in-depth: the
         // echo-tolerant companion to resolveCreate()'s hard
         // assertWritable()/JsonApiController::update()'s
@@ -307,14 +321,14 @@ final class EntityResolver
         // policy happens to field-forbid never 403s spuriously — parity with
         // JsonApiController::update()'s strip-before-field-access ordering),
         // and BEFORE any set()/save() — nothing is applied on refusal. An
-        // allowed echo (submitted value equals the entity's current stored
-        // value for an identity/bookkeeping column, e.g.
+        // allowed echo (submitted value equals the WORKING COPY's current
+        // stored value for an identity/bookkeeping column, e.g.
         // `revision_id`/`published_revision_id` — FR-008 documents these as
         // load-bearing READ attributes a read-modify-write client
         // legitimately echoes back) is stripped from `$input` here, before
         // the apply loop below (belt: an allowed echo must never reach
-        // `$entity->set()`).
-        $input = $this->assertWritableForUpdate($entityTypeId, $entity->bundle(), $input, $entity->toArray());
+        // `$target->set()`).
+        $input = $this->assertWritableForUpdate($entityTypeId, $target->bundle(), $input, $target->toArray());
 
         try {
             foreach (array_keys($input) as $fieldName) {
@@ -324,11 +338,11 @@ final class EntityResolver
             throw new UserError("Entity not found: {$entityTypeId}/{$id}");
         }
 
-        if (!$entity instanceof FieldableInterface) {
+        if (!$target instanceof FieldableInterface) {
             throw new UserError("Entity type '{$entityTypeId}' does not support field updates.");
         }
         foreach ($input as $field => $value) {
-            $entity->set($field, $value);
+            $target->set($field, $value);
         }
 
         // C-22 WP3: save path now goes through the canonical repository.
@@ -338,12 +352,12 @@ final class EntityResolver
         // content now requires any-of authorization" surface the design
         // makes routine.
         try {
-            $this->entityTypeManager->getRepository($entityTypeId)->save($entity);
+            $repository->save($target);
         } catch (TransitionDeniedException $e) {
             throw new UserError($e->getMessage());
         }
 
-        $values = EntityValues::toCastAwareMap($entity);
+        $values = EntityValues::toCastAwareMap($target);
         $values['_graphql_depth'] = 0;
 
         return $values;
