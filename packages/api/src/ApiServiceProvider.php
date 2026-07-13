@@ -139,8 +139,8 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
         }
 
         // CW-v1 WP-4 (#1920): workflow transition endpoints. Same
-        // indirection pattern as the workflow-guards block above —
-        // WorkflowServiceProvider (Layer 3) binds TransitionService; if the
+        // indirection pattern as the queue/scheduler/notification blocks
+        // above — WorkflowServiceProvider (Layer 3) binds TransitionService; if the
         // binding is absent (a core-only install without waaseyaa/workflows
         // wired) we skip the router AND the routes (see routes() below)
         // rather than crashing boot or routing to a controller that could

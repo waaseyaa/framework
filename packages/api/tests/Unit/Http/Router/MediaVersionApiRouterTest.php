@@ -95,7 +95,7 @@ final class MediaVersionApiRouterTest extends TestCase
     public function supports_false_for_unrelated_controller(): void
     {
         $request = Request::create('/api/something', 'GET');
-        $request->attributes->set('_controller', 'Waaseyaa\\Api\\Controller\\WorkflowGuardsController::index');
+        $request->attributes->set('_controller', 'Waaseyaa\\Api\\Controller\\NotificationController::index');
 
         self::assertFalse($this->router->supports($request));
     }

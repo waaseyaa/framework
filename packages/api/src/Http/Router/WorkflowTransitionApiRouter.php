@@ -21,8 +21,7 @@ use Waaseyaa\Foundation\Http\Router\DomainRouterInterface;
  * `httpDomainRouters()` both gate on `resolveOptional(TransitionService::class)`
  * — a core-only install without `waaseyaa/workflows` wired gets neither the
  * routes nor this router, so the request 404s naturally). Mirrors the
- * controller-router-resolveOptional shape of {@see WorkflowGuardsApiRouter}
- * (pattern only — that controller itself is retired WP-5 machinery).
+ * controller-router-resolveOptional shape of {@see MediaVersionApiRouter}.
  */
 final class WorkflowTransitionApiRouter implements DomainRouterInterface
 {
