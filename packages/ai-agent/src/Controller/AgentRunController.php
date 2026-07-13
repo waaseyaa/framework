@@ -189,28 +189,22 @@ final class AgentRunController
             return $this->error(409, 'already_terminal', "Run {$id} is already in a terminal state.");
         }
 
-        if ($status === RunStatus::Queued) {
-            $flipped = $this->runRepository->markTerminal(
-                id: $id,
-                status: RunStatus::Cancelled,
-                finishedAt: $now,
-                errorCode: 'cancelled_by_user',
-                errorMessage: 'Run cancelled before worker pickup.',
-            );
-
-            if ($flipped) {
-                $this->broadcaster->push($id, 'run_cancelled', [
-                    'cancelled_at' => $now->format(\DATE_ATOM),
-                ]);
-            }
-
+        if ($status === RunStatus::Cancelling) {
             return new Response('', status: 204);
         }
 
-        // Worker has picked the row up — mark it as cancelling so the
-        // loop transitions to cancelled at the next boundary.
-        $run->set('status', RunStatus::Cancelling->value);
-        $this->runRepository->save($run);
+        $flipped = $this->runRepository->requestCancellation($id, $status, $now);
+        if (!$flipped) {
+            return $this->error(409, 'run_status_changed', "Run {$id} changed state; retry against the current status.");
+        }
+
+        if ($status === RunStatus::Queued) {
+            $this->broadcaster->push($id, 'run_cancelled', [
+                'cancelled_at' => $now->format(\DATE_ATOM),
+            ]);
+
+            return new Response('', status: 204);
+        }
 
         return new Response('', status: 204);
     }
@@ -262,9 +256,9 @@ final class AgentRunController
         $now = new \DateTimeImmutable('now');
 
         if ($decision === 'approve') {
-            $run->set('status', RunStatus::Running->value);
-            $run->set('pending_approval_call_id', null);
-            $this->runRepository->save($run);
+            if (!$this->runRepository->grantApproval($id, $callId)) {
+                return $this->error(409, 'run_status_changed', "Run {$id} changed state; approval was not applied.");
+            }
 
             $this->auditRepository->append(AgentAuditLog::for(
                 id: Uuid::v4()->toRfc4122(),
@@ -285,16 +279,10 @@ final class AgentRunController
         }
 
         // Deny: terminal failure with approval_denied.
-        $flipped = $this->runRepository->markTerminal(
-            id: $id,
-            status: RunStatus::Failed,
-            finishedAt: $now,
-            errorCode: 'approval_denied',
-            errorMessage: 'Approval denied by user.',
-        );
+        $flipped = $this->runRepository->denyApproval($id, $callId, $now);
 
         if (!$flipped) {
-            return $this->error(409, 'already_terminal', "Run {$id} is already in a terminal state.");
+            return $this->error(409, 'run_status_changed', "Run {$id} changed state; denial was not applied.");
         }
 
         $this->auditRepository->append(AgentAuditLog::for(

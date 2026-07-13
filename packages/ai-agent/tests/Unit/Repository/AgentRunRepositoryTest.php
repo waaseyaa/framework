@@ -153,6 +153,30 @@ final class AgentRunRepositoryTest extends TestCase
     }
 
     #[Test]
+    public function cancellationAndApprovalTransitionsRequireExactObservedState(): void
+    {
+        $run = $this->makeQueuedRun('cas-run', 1, 'work');
+        $this->repository->save($run);
+        self::assertTrue($this->repository->markRunning('cas-run', new \DateTimeImmutable()));
+
+        self::assertFalse($this->repository->requestCancellation('cas-run', RunStatus::Queued, new \DateTimeImmutable()));
+        self::assertTrue($this->repository->requestCancellation('cas-run', RunStatus::Running, new \DateTimeImmutable()));
+        self::assertSame(RunStatus::Cancelling, $this->repository->find('cas-run')?->getStatus());
+
+        $approval = $this->makeQueuedRun('approval-run', 1, 'work');
+        $this->repository->save($approval);
+        $this->database->update('agent_run')->fields([
+            'status' => RunStatus::AwaitingApproval->value,
+            'pending_approval_call_id' => 'call-1',
+        ])->condition('id', 'approval-run')->execute();
+
+        self::assertFalse($this->repository->grantApproval('approval-run', 'wrong-call'));
+        self::assertTrue($this->repository->grantApproval('approval-run', 'call-1'));
+        self::assertSame(RunStatus::Running, $this->repository->find('approval-run')?->getStatus());
+        self::assertFalse($this->repository->denyApproval('approval-run', 'call-1', new \DateTimeImmutable()));
+    }
+
+    #[Test]
     public function findStuckRunningReturnsRunsStartedBeforeThreshold(): void
     {
         $oldStart = new \DateTimeImmutable('2026-05-18T10:00:00+00:00');

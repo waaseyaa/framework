@@ -152,6 +152,65 @@ final class InteractiveHitlTest extends TestCase
         self::assertSame($expected, $run->get('pending_approval_call_id'));
     }
 
+    #[Test]
+    public function denyCasLossReturnsStateChangedWithoutAuditOrBroadcast(): void
+    {
+        $callId = 'call_' . Uuid::v4()->toRfc4122();
+        $replacementCallId = 'call_' . Uuid::v4()->toRfc4122();
+        $runId = $this->seedAwaitingApprovalRun(callerId: 42, callId: $callId);
+        $request = $this->buildRequest('POST', "/api/ai/agent/run/{$runId}/approve", \json_encode([
+            'call_id' => $callId,
+            'decision' => 'deny',
+        ], \JSON_THROW_ON_ERROR));
+
+        $database = $this->database;
+        $request->attributes->set('_account', new class ($database, $runId, $replacementCallId) implements AccountInterface {
+            private bool $raced = false;
+
+            public function __construct(
+                private readonly DBALDatabase $database,
+                private readonly string $runId,
+                private readonly string $replacementCallId,
+            ) {}
+
+            public function id(): int|string
+            {
+                return 42;
+            }
+
+            public function hasPermission(string $permission): bool
+            {
+                if (!$this->raced) {
+                    $this->raced = true;
+                    $this->database->update('agent_run')
+                        ->fields(['pending_approval_call_id' => $this->replacementCallId])
+                        ->condition('id', $this->runId)
+                        ->execute();
+                }
+
+                return false;
+            }
+
+            public function getRoles(): array
+            {
+                return ['authenticated'];
+            }
+
+            public function isAuthenticated(): bool
+            {
+                return true;
+            }
+        });
+
+        $response = $this->controller->approve($request, $runId);
+
+        self::assertSame(409, $response->getStatusCode());
+        self::assertSame('run_status_changed', \json_decode((string) $response->getContent(), true, 512, \JSON_THROW_ON_ERROR)['error_code']);
+        self::assertSame($replacementCallId, $this->runRepository->find($runId)?->get('pending_approval_call_id'));
+        self::assertSame([], $this->auditRepository->findByRunId($runId));
+        self::assertNotContains('approval_resolved', $this->channelEvents('agent.run.' . $runId));
+    }
+
     private function seedAwaitingApprovalRun(int $callerId, string $callId): string
     {
         $id = Uuid::v4()->toRfc4122();
