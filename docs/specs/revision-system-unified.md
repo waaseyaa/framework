@@ -426,8 +426,15 @@ Mission CW-v1 option-1 forward-draft rebuild (#1920 PR-1). Design:
 `docs/history/plans/` session artifacts + the anchor issue; see
 `docs/specs/content-workflow.md` "Deferred: forward drafts on the shipped
 workflow" for why this exists. **Storage mechanics only** — this section
-describes mechanical primitives that ship dormant in PR-1 (no production
-caller sets the flags yet; the workflows engine wires them in the next PR).
+describes the mechanical primitives that shipped dormant in PR-1 (no
+production caller set the flags yet). **#1920 PR-2 wires them live** —
+`WorkflowStateGuard` now sets the entity flag on every guarded save and
+`WorkflowPointerMoveGuard` now sets the event flag for `publish`/`rollback`
+(plus a same-state republish two-step and a `revert`-denial addition of its
+own); see `docs/specs/content-workflow.md` "Default-revision discipline
+(CW-v1 option-1, #1920 PR-2 — as-built)" for the workflows-layer half — this
+section remains the storage-layer contract and is otherwise unchanged by
+PR-2 (no storage-mechanics edit was needed to wire the flags).
 
 ### 7a. The keystone: discipline is a workflow-layer signal, honored mechanically
 
@@ -443,13 +450,14 @@ two transient flags, honored mechanically wherever they are found:
   (private bool, default `false`), with `setDefaultRevisionDiscipline(bool): void`
   and `isDefaultRevisionDisciplined(): bool`. Transient — never persisted,
   like the trait's existing `$newRevision`. Set as an **unconditional
-  boolean on every guarded save** (never set-on-true only) by the
-  forthcoming `WorkflowStateGuard`, so a stale `true` from a prior save of a
-  long-lived entity object can never leak into a later, unguarded save.
+  boolean on every guarded save** (never set-on-true only) by
+  `WorkflowStateGuard` (wired #1920 PR-2), so a stale `true` from a prior
+  save of a long-lived entity object can never leak into a later, unguarded
+  save.
 - **Event flag** — `Waaseyaa\EntityStorage\Event\BeforeRevisionPointerMoveEvent::$defaultRevisionSemantics`
   (private bool, default `false`), with `applyDefaultRevisionSemantics(): void`
   and `defaultRevisionSemantics(): bool`. Set by a binding-aware subscriber
-  (the forthcoming `WorkflowPointerMoveGuard`) on the pre-write choke point
+  (`WorkflowPointerMoveGuard`, wired #1920 PR-2) on the pre-write choke point
   (§4 "Pre-write choke point") for the specific pointer operation in flight.
 - **No workflows package / no binding / no pointer ⇒ byte-identical
   behavior to today.** This is the hard regression gate, verified by a
@@ -565,6 +573,7 @@ knowing whether it is bound to a workflow. Every in-repo implementor of
 the same change so the interface addition does not break any consumer.
 
 <!-- Spec reviewed 2026-07-13 - CW-v1 option-1 forward-draft rebuild, #1920 PR-1: added §7 "Default-revision discipline (CW-v1 option-1)" — the entity + event transient discipline flags, revision-only saves in doSave(), setPublishedRevision() as a complete promotion primitive, rollback() gone revision-only under discipline, the latest-revision immortality extension to pruning/deletion, and loadWorkingCopy(). All dormant in PR-1 (storage mechanics only; the workflows engine wires the flags in the next PR). Undisciplined behavior is byte-identical to before this section, including for pointered-but-unbound (Playbook-H-shaped) entities. -->
+<!-- Spec reviewed 2026-07-13 - CW-v1 option-1 forward-draft rebuild, #1920 PR-2: §7's flags are no longer dormant — WorkflowStateGuard/WorkflowPointerMoveGuard wire them live (removed "forthcoming" wording); cross-referenced docs/specs/content-workflow.md's new "Default-revision discipline (CW-v1 option-1, #1920 PR-2 — as-built)" section for the workflows-layer half (guard wiring, same-state republish, working-copy basis, revert denial, read-side re-sourcing). No storage-mechanics change in this file was needed for PR-2 — the primitives PR-1 shipped were already complete. -->
 
 ## 8. Acceptance
 
