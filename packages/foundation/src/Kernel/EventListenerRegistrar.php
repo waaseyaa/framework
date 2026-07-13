@@ -11,8 +11,10 @@ use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Cache\TagAwareCacheInterface;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
+use Waaseyaa\EntityStorage\Event\RevisionPointerMovedEvent;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
@@ -140,12 +142,16 @@ final class EventListenerRegistrar
     /**
      * @param array<string, mixed> $config
      */
-    public function registerEmbeddingLifecycleListeners(SqliteEmbeddingStorage $embeddingStorage, array $config): void
-    {
+    public function registerEmbeddingLifecycleListeners(
+        SqliteEmbeddingStorage $embeddingStorage,
+        array $config,
+        ?EntityTypeManagerInterface $entityTypeManager = null,
+    ): void {
         $embeddingProvider = EmbeddingProviderFactory::fromConfig($config);
         $embeddingListener = new EntityEmbeddingListener(
             storage: $embeddingStorage,
             embeddingProvider: $embeddingProvider,
+            entityTypeManager: $entityTypeManager,
         );
         $cleanupListener = new EntityEmbeddingCleanupListener($embeddingStorage);
         $this->dispatcher->addListener(
@@ -155,6 +161,18 @@ final class EventListenerRegistrar
         $this->dispatcher->addListener(
             EntityEvents::POST_DELETE->value,
             [$cleanupListener, 'onPostDelete'],
+        );
+        // CW-v1 option-1 (#1920 PR-2, design §3.3): a standalone pointer
+        // move (rollback/revert/promote with no accompanying save()) now
+        // changes served content with no POST_SAVE of its own — mirrors
+        // Waaseyaa\Cache\Listener\EntityCacheSubscriber's identical pattern.
+        $this->dispatcher->addListener(
+            RevisionPointerMovedEvent::class,
+            [$embeddingListener, 'onRevisionPointerMoved'],
+        );
+        $this->dispatcher->addListener(
+            EntityEvents::REVISION_REVERTED->value,
+            [$embeddingListener, 'onRevisionReverted'],
         );
     }
 }

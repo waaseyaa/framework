@@ -9,6 +9,7 @@
         "waaseyaa/foundation": "^0.1.0-alpha.259",
         "waaseyaa/database-legacy": "^0.1.0-alpha.259",
         "waaseyaa/entity": "^0.1.0-alpha.259",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.259",
         "waaseyaa/access": "^0.1.0-alpha.259",
         "symfony/event-dispatcher": "^7.0"
     },
