@@ -5,12 +5,12 @@
     "license": "GPL-2.0-or-later",
     "require": {
         "php": ">=8.5",
-        "waaseyaa/foundation": "^0.1.0-alpha.259"
+        "waaseyaa/foundation": "^0.1.0-alpha.260"
     },
     "suggest": {
-        "waaseyaa/entity": "^0.1.0-alpha.259",
-        "waaseyaa/config": "^0.1.0-alpha.259",
-        "waaseyaa/entity-storage": "^0.1.0-alpha.259"
+        "waaseyaa/entity": "^0.1.0-alpha.260",
+        "waaseyaa/config": "^0.1.0-alpha.260",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.260"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
