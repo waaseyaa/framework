@@ -339,17 +339,6 @@ final class AgentExecutor
                     continue;
                 }
 
-                if (!$initiatorAccount->hasPermission($tool->capability)) {
-                    $message = \sprintf('Tool "%s" is not authorized.', $toolName);
-                    $this->appendError($runId, $iteration, 'tool_unauthorized', $message, $toolName, $toolArgs);
-                    $toolResults[] = new ToolResultBlock(
-                        toolUseId: $toolUseBlock->id,
-                        content: json_encode(['error' => $message], JSON_THROW_ON_ERROR),
-                        isError: true,
-                    )->toArray();
-                    continue;
-                }
-
                 // HITL gate for destructive tools (FR-020).
                 if ($tool->destructive) {
                     $gate = $this->applyHitlGate($run, $hitl, $tool, $toolUseBlock->id, $iteration);
@@ -521,10 +510,6 @@ final class AgentExecutor
             }
 
             return AgentToolResult::error($e->getMessage());
-        }
-
-        if (!$account->hasPermission($tool->capability)) {
-            return AgentToolResult::error(\sprintf('Tool "%s" is not authorized.', $toolName));
         }
 
         try {

@@ -151,6 +151,7 @@ final class AgentRunObservabilityTest extends TestCase
             $this->fakeAccount(42),
             $provider,
             messages: [['role' => 'user', 'content' => 'observe']],
+            allowedToolNames: ['obs_tool'],
             maxIterations: 5,
         );
 

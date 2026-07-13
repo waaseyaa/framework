@@ -61,6 +61,7 @@ final class BimaajiAgentRunCapabilityTest extends TestCase
             $account,
             $provider,
             messages: [['role' => 'user', 'content' => 'demo']],
+            allowedToolNames: ['bimaaji_introspect_section', 'bimaaji_propose_mutation', 'bimaaji_generate_patch'],
             maxIterations: 6,
         );
 

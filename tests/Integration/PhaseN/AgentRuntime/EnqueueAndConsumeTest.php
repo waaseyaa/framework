@@ -212,6 +212,7 @@ final class EnqueueAndConsumeTest extends TestCase
             runRepository: $this->runRepository,
             executor: $executor,
             definitionRegistry: $registry,
+            toolRegistry: $toolRegistry,
             broadcaster: $this->broadcaster,
             provider: new NullLlmProvider(),
             accountLoader: new StubInitiatorAccountLoader(),

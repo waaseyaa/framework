@@ -257,6 +257,7 @@ final class AsyncHttpRunTest extends TestCase
             runRepository: $this->runRepository,
             executor: $executor,
             definitionRegistry: $registry,
+            toolRegistry: $toolRegistry,
             broadcaster: $broadcaster,
             provider: new NullLlmProvider(),
             accountLoader: new StubInitiatorAccountLoader(),

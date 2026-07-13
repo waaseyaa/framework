@@ -171,6 +171,7 @@ final class CliInlineRunTest extends TestCase
             runRepository: $runRepo,
             executor: $executor,
             definitionRegistry: $registry,
+            toolRegistry: $toolRegistry,
             broadcaster: $broadcaster,
             provider: new NullLlmProvider(),
             accountLoader: new StubInitiatorAccountLoader(),

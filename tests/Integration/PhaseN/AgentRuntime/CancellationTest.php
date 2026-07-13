@@ -269,6 +269,7 @@ final class CancellationTest extends TestCase
             runRepository: $this->runRepository,
             executor: $executor,
             definitionRegistry: $registry,
+            toolRegistry: $toolRegistry,
             broadcaster: new AgentRunBroadcaster($this->broadcastStorage),
             provider: new NullLlmProvider(),
             accountLoader: new StubInitiatorAccountLoader(),
