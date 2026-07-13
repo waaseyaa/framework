@@ -15,7 +15,6 @@ use Waaseyaa\Api\Controller\NotificationController;
 use Waaseyaa\Api\Controller\OidcClientController;
 use Waaseyaa\Api\Controller\QueueController;
 use Waaseyaa\Api\Controller\SchedulerController;
-use Waaseyaa\Api\Controller\WorkflowGuardsController;
 use Waaseyaa\Api\Controller\WorkflowTransitionController;
 use Waaseyaa\Api\Http\Router\AuditApiRouter;
 use Waaseyaa\Api\Http\Router\DiscoveryRouter;
@@ -25,7 +24,6 @@ use Waaseyaa\Api\Http\Router\NotificationAdminApiRouter;
 use Waaseyaa\Api\Http\Router\OidcClientApiRouter;
 use Waaseyaa\Api\Http\Router\QueueAdminApiRouter;
 use Waaseyaa\Api\Http\Router\SchedulerAdminApiRouter;
-use Waaseyaa\Api\Http\Router\WorkflowGuardsApiRouter;
 use Waaseyaa\Api\Http\Router\WorkflowTransitionApiRouter;
 use Waaseyaa\Api\Media\ApiMediaVersionAdapter;
 use Waaseyaa\Api\Media\MediaVersionReadModelInterface;
@@ -48,7 +46,6 @@ use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\Scheduler\ScheduleInterface;
 use Waaseyaa\Scheduler\ScheduleRunner;
 use Waaseyaa\Scheduler\Storage\ScheduleStateRepository;
-use Waaseyaa\Workflows\AuthoringRoleMatrix;
 use Waaseyaa\Workflows\Transition\TransitionService;
 
 final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainRoutersInterface
@@ -141,23 +138,9 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
             );
         }
 
-        // M4A-5 Phase 1: read-only workflow guards matrix endpoint. Same
-        // indirection pattern as the queue and scheduler blocks —
-        // WorkflowServiceProvider (Layer 3) is expected to bind
-        // AuthoringRoleMatrix; if the binding is absent (slimmed-down
-        // install) we skip wiring the router rather than crashing boot.
-        // The workflow registry is currently the same closure pattern used
-        // by WorkflowDefinitionsController (M4A-1) — left as the default
-        // so a single change point covers all admin workflow endpoints.
-        // Phase 2 (edit) follow-up: M4A-5b.
-        $matrix = $this->resolveOptional(AuthoringRoleMatrix::class);
-        if ($matrix instanceof AuthoringRoleMatrix) {
-            $routers[] = new WorkflowGuardsApiRouter(new WorkflowGuardsController($matrix));
-        }
-
         // CW-v1 WP-4 (#1920): workflow transition endpoints. Same
-        // indirection pattern as the workflow-guards block above —
-        // WorkflowServiceProvider (Layer 3) binds TransitionService; if the
+        // indirection pattern as the queue/scheduler/notification blocks
+        // above — WorkflowServiceProvider (Layer 3) binds TransitionService; if the
         // binding is absent (a core-only install without waaseyaa/workflows
         // wired) we skip the router AND the routes (see routes() below)
         // rather than crashing boot or routing to a controller that could
@@ -265,15 +248,6 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
                 ->build(),
         );
 
-        $router->addRoute(
-            'api.workflow_definitions.dry_run',
-            RouteBuilder::create('/api/workflow-definitions/dry-run')
-                ->controller('Waaseyaa\\Api\\Workflow\\WorkflowDryRunController::dryRun')
-                ->requireRole('admin')
-                ->methods('POST')
-                ->build(),
-        );
-
         // M4B WP01: admin queue dashboard. Failed-jobs MVP only — queued/in-flight
         // job columns ship later once `TransportInterface::listJobs()` exists
         // (see WP01 follow-up issue tracked under #1471).
@@ -342,20 +316,6 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
                 ->controller($notificationController . '::test')
                 ->requireRole('admin')
                 ->methods('POST')
-                ->build(),
-        );
-
-        // M4A-5 Phase 1: read-only workflow-guards matrix endpoint
-        // (mission `workflow-guards-readonly-01KSDS5W`, parent #1470). The
-        // mutation surface is deferred to M4A-5b after a persistence ADR
-        // exists (C-001). Admin-only by route option; the controller does
-        // not re-check the role (NFR-001).
-        $router->addRoute(
-            'api.workflow.guards.index',
-            RouteBuilder::create('/api/workflow-definitions/{workflow_id}/guards')
-                ->controller('Waaseyaa\\Api\\Controller\\WorkflowGuardsController::index')
-                ->requireRole('admin')
-                ->methods('GET')
                 ->build(),
         );
 

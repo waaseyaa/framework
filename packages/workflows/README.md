@@ -72,18 +72,21 @@ API transition endpoints + admin SPA are WP-4.
 
 ## Legacy machinery (superseded, removal tracked as WP-5 / #1920)
 
+**WP1 (landed):** deleted the retired read-only dry-run/guards machinery — `AuthoringRoleMatrix`
+(and its `WorkflowServiceProvider` singleton binding) plus the API-side `WorkflowDryRunController`
+and `WorkflowGuardsController`. No compat shim; the endpoints are gone.
+
 The classes below predate the CW-v1 engine and are **not wired to any enforcement path** —
 `EditorialWorkflowService::transitionNode()` mutates fields in memory only; the caller must save
-separately, with no guard proving the save is legitimate. They are kept only until WP-5 deletes them
-(never before the engine landed, which it now has):
+separately, with no guard proving the save is legitimate. They are kept only until a later WP-5
+slice deletes them:
 
 - `ContentModerator` / `ContentModerationState` — the original state-machine driver, superseded by
   `TransitionService`.
-- `EditorialWorkflowPreset` — the preset-in-code editorial definition, superseded by
-  `DefaultWorkflows` (data, not code).
-- `EditorialWorkflowService` / `EditorialTransitionAccessResolver` / `AuthoringRoleMatrix` — the
-  ungated mutate-and-hope-you-saved path and its permission/role lookups, superseded by
-  `TransitionService` + `WorkflowStateGuard`.
+- `EditorialWorkflowService` / `EditorialTransitionAccessResolver` — the ungated
+  mutate-and-hope-you-saved path and its permission/role lookups, superseded by `TransitionService`
+  + `WorkflowStateGuard`. `EditorialTransitionAccessResolver` is retained only because
+  `EditorialWorkflowService` still constructs one by default; it has no other live caller.
 - `DomainValidationListener` — never subscribed to any dispatcher; dead code kept alive in the
   dead-code gate only by its own unit test.
 
@@ -112,8 +115,8 @@ composer require waaseyaa/workflows
 
 `WorkflowServiceProvider` is auto-discovered via `extra.waaseyaa.providers`; it registers the
 `workflow` config entity type, binds the engine services (`WorkflowBindingResolver`,
-`TransitionService`, `WorkflowStateGuard`), the default `AuthoringRoleMatrix`, wires the save-path
-guard, and seeds the default `editorial` workflow. Requires PHP >= 8.5.
+`TransitionService`, `WorkflowStateGuard`), wires the save-path guard, and seeds the default
+`editorial` workflow. Requires PHP >= 8.5.
 
 ## Key API
 

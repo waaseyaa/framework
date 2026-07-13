@@ -1,5 +1,11 @@
 # Admin SPA
 
+<!-- Spec reviewed 2026-07-13 - CW-v1 WP-5 WP1 (#1920): deleted the retired read-only workflow
+     dry-run/guards admin UI — `TransitionDryRunForm.vue`, `WorkflowGuardsTable.vue`,
+     `useWorkflowGuards.ts`, their usage on `/workflows/{id}`, and the orphaned `workflow_guards_*`
+     / `dry_run_*` i18n keys (en + fr). `useWorkflowDefinitions`'s `dryRun()` method and its
+     `DryRunRequest`/`DryRunResult` types are also removed. File-map table entries for the deleted
+     files are dropped. -->
 <!-- Spec reviewed 2026-07-13 - CW-v1 option-1 PR-3 (#1920, design §4): GenericAdminSurfaceHost::get()
      now serves the entity's WORKING COPY, unconditionally, to any account with entity UPDATE access
      (view-only accounts keep seeing the published/find() entity) — see "useEntity" below (new note).
@@ -933,8 +939,6 @@ Real-time SSE monitor for the Mercure broadcasting layer (gap-matrix C-L0-04, mi
 | `packages/admin/app/i18n/en.json` | English translation strings |
 | `packages/admin/app/i18n/fr.json` | French translation strings |
 | `packages/admin/playwright.config.ts` | Playwright E2E test configuration |
-| `packages/admin/app/composables/useWorkflowGuards.ts` | Fetches `/api/workflow-definitions/{id}/guards` (M4A-5 Phase 1, #1470) |
-| `packages/admin/app/components/workflow/WorkflowGuardsTable.vue` | Read-only guards matrix section embedded on `/workflows/{id}` (M4A-5 Phase 1, #1470) |
 | `packages/admin/app/composables/useMediaVersions.ts` | Fetches `/api/media/{uuid}/versions` (DIR-005, versioned-blob-media-abstraction-01KSEFTJ WP04) |
 | `packages/admin/app/components/media/MediaVersionBrowser.vue` | Read-only version table rendered at `/media/{uuid}/versions` (DIR-005 WP04) |
 | `packages/admin/app/pages/media/[uuid]/versions.vue` | Media version browser page (DIR-005 WP04) |

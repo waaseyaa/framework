@@ -1,23 +1,15 @@
 <script setup lang="ts">
 import { useWorkflowDefinitions, type WorkflowTransition } from '~/composables/useWorkflowDefinitions'
-import { useWorkflowGuards } from '~/composables/useWorkflowGuards'
 import { useLanguage } from '~/composables/useLanguage'
 
 const route = useRoute()
 const { t } = useLanguage()
 const { loading, error, fetchWorkflows, findById } = useWorkflowDefinitions()
-const {
-  guards,
-  loading: guardsLoading,
-  error: guardsError,
-  fetchGuards,
-} = useWorkflowGuards()
 
 const workflowId = computed(() => String(route.params.id))
 const workflow = computed(() => findById(workflowId.value))
 
 await fetchWorkflows()
-await fetchGuards(workflowId.value)
 
 const { appName } = useAdminConfig()
 useHead({
@@ -140,16 +132,6 @@ function metadataEntries(metadata: Record<string, unknown>): Array<[string, stri
         </table>
       </section>
 
-      <WorkflowGuardsTable
-        :rows="guards"
-        :loading="guardsLoading"
-        :error="guardsError"
-      />
-
-      <WorkflowTransitionDryRunForm
-        :workflow-id="workflowId"
-        :states="sortedStates"
-      />
     </template>
   </div>
 </template>

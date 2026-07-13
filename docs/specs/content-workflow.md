@@ -1,5 +1,14 @@
 # Content Workflow (CW-v1)
 
+<!-- Spec reviewed 2026-07-13 - CW-v1 WP-5 WP1 (#1920): "Cleanup inventory" section rewritten —
+     the retired read-only dry-run/guards machinery (`AuthoringRoleMatrix`, `WorkflowDryRunController`,
+     `WorkflowGuardsController`, `WorkflowGuardsApiRouter`, their route registrations, and the
+     admin SPA dry-run/guards UI + composable) is DELETED, no compat shim. `EditorialTransitionAccessResolver`
+     and `EditorialWorkflowPreset` are explicitly kept (the former still backs the not-yet-deleted
+     `EditorialWorkflowService`; the latter is live CW-v1 data — used by `DefaultWorkflows`,
+     `WorkflowVisibility`, `WorkflowDefinitionsController`). Remaining legacy classes
+     (`EditorialWorkflowService`, `DomainValidationListener`, `ContentModerator`,
+     `ContentModerationState`) are deferred to a later WP-5 slice. -->
 <!-- Spec reviewed 2026-07-06 - Initial design spec, approved by Russell pre-implementation
      (anchoring issue #1920, resolves audit decision D1). Status: DESIGN — no engine code
      exists yet; the code this spec describes REPLACES the dead editorial machinery in
@@ -287,11 +296,12 @@ One permission string per transition, registered through the standard permission
 
 `workflows` stays **L3 (Services)**. Imports: entity/entity-storage/access/audit/config (L1, downward), groups (L2, downward) and relationship (L2, downward) — both real composer/import edges as of WP-3 (group-constraint enforcement, see "Group constraints (WP-3)" above). Nothing upward; no new `PL006` same-layer cycles.
 
-## Cleanup inventory (WP-5 — only after the replacement lands)
+## Cleanup inventory (WP-5)
 
-Delete: `EditorialWorkflowService` (+ `transitionNode`), `EditorialTransitionAccessResolver`, `AuthoringRoleMatrix`, `DomainValidationListener` (never subscribed; kept alive in the dead-code gate only by its own unit test), `packages/api/src/Workflow/WorkflowDryRunController.php`, `packages/api/src/Controller/WorkflowGuardsController.php`, their route registrations and ~950 lines of tests. Evaluate in WP-1 and delete here if unused: `ContentModerator`, `ContentModerationState`, `EditorialWorkflowPreset`.
-Keep: `Workflow`/`WorkflowState`/`WorkflowTransition` primitives where they fit the new engine; the visibility classes (live).
-Truth-up: `packages/workflows/README.md` currently advertises `transitionNode` as live API — rewrite around the new engine.
+**WP1 (landed, this entry):** deleted the retired read-only dry-run/guards machinery in full — `AuthoringRoleMatrix` (+ its `WorkflowServiceProvider` singleton binding), `packages/api/src/Workflow/WorkflowDryRunController.php`, `packages/api/src/Controller/WorkflowGuardsController.php`, `packages/api/src/Http/Router/WorkflowGuardsApiRouter.php`, their route registrations in `ApiServiceProvider`, the `WorkflowDryRunController` dispatch branch in `WorkflowDefinitionsApiRouter`, `tests/Integration/PhaseWorkflowGuards/`, and the admin SPA's `TransitionDryRunForm.vue` / `WorkflowGuardsTable.vue` / `useWorkflowGuards.ts` plus orphaned i18n keys. No compat shim, no feature flag — the endpoints and routes are gone, not disabled. `EditorialTransitionAccessResolver` and `EditorialWorkflowPreset` are explicitly KEPT — they are live CW-v1 code (the editorial preset + its access resolver back the shipped `revise`/transition-permission machinery), not part of the retired surface.
+**Remaining, deferred to a later WP-5 slice:** `EditorialWorkflowService` (+ `transitionNode`), `DomainValidationListener` (never subscribed; kept alive in the dead-code gate only by its own unit test), `ContentModerator`, `ContentModerationState` — evaluate for deletion once confirmed unused by the shipped engine.
+Keep: `Workflow`/`WorkflowState`/`WorkflowTransition` primitives where they fit the new engine; the visibility classes (live); `EditorialTransitionAccessResolver`/`EditorialWorkflowPreset` (live).
+Truth-up: `packages/workflows/README.md` currently advertises `transitionNode` as live API — rewrite around the new engine (tracked with the remaining-cleanup slice above).
 
 ## Testing requirements
 

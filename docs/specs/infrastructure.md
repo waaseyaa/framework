@@ -1,5 +1,11 @@
 # Infrastructure
 
+<!-- Spec reviewed 2026-07-13 - CW-v1 WP-5 WP1 (#1920): deleted the retired read-only workflow
+     dry-run/guards routes from the "Routes now registered by `ApiServiceProvider::routes()`" table
+     (`POST /api/workflow-definitions/dry-run`, `GET /api/workflow-definitions/{workflow_id}/guards`)
+     and the now-deleted `WorkflowGuardsApiRouter` from the dispatch-contract example list. No other
+     infrastructure contract surface affected. -->
+
 <!-- Spec reviewed 2026-07-13 - CW-v1 option-1 PR-3 (#1920): `JsonApiRouter::handle()` now
      threads the request's query string into single-resource `show()` calls (previously only
      `index()` received it) — needed for the new `?workingCopy=1` toggle, full contract in
@@ -1394,7 +1400,7 @@ This kernel-adjacent registrar runs once at boot (called from `HttpKernel`) and 
 | Group | Paths | Access gate |
 |-------|-------|-------------|
 | Schema self-description | `GET /api/schema/{entity_type}` | `_authenticated` |
-| Workflow admin | `GET /api/workflow-definitions`; `POST /api/workflow-definitions/dry-run`; `GET /api/workflow-definitions/{workflow_id}/guards` | `_role: admin` |
+| Workflow admin | `GET /api/workflow-definitions` | `_role: admin` |
 | Queue admin | `GET /api/queue/jobs`; `POST /api/queue/jobs/{id}/{retry,discard}` | `_role: admin` |
 | Scheduler admin | `GET /api/scheduler/tasks`; `POST /api/scheduler/tasks/{name}/trigger` | `_role: admin` |
 | Notification admin | `GET /api/notification/channels`; `POST /api/notification/channels/{type}/test` | `_role: admin` |
@@ -1407,7 +1413,7 @@ This kernel-adjacent registrar runs once at boot (called from `HttpKernel`) and 
 | Classification retention policies | `GET\|POST\|PATCH\|DELETE /api/classification/policies[/{id}]` | mixed |
 | JSON:API CRUD (all entity types) | `GET\|POST\|PATCH\|DELETE /api/{entity_type}[/{id}]` | per entity access policy |
 
-Dispatch contracts for each named route live in the API package (`packages/api/src/Http/Router/*` — e.g. `McpAdminApiRouter`, `QueueAdminApiRouter`, `WorkflowGuardsApiRouter`). See `docs/specs/api-layer.md` for per-router DTOs and response shapes.
+Dispatch contracts for each named route live in the API package (`packages/api/src/Http/Router/*` — e.g. `McpAdminApiRouter`, `QueueAdminApiRouter`). See `docs/specs/api-layer.md` for per-router DTOs and response shapes.
 
 **Layer-discipline rationale.** Foundation is L0. `BuiltinRouteRegistrar` lives under `<pkg>/src/Kernel/` and falls under the implicit Kernel exemption tier of `bin/check-package-layers` for PL005 (`use`-import scanning) and PL008 (string-literal scanning). The few string FQCNs that remain after WP5 (`'Waaseyaa\\Foundation\\Http\\Router\\BroadcastRouter'` etc.) all reference L0 classes — no higher-layer FQCNs remain in the registrar. App-layer routes now flow through providers via the `routes()` hook, which is the intended architecture for provider-owned surfaces.
 

@@ -18,18 +18,7 @@ const editorial = {
   ],
 }
 
-const allowedDryRunResult = {
-  allowed: true,
-  neutral: false,
-  forbidden: false,
-  reason: 'Transition "publish" authorized.',
-  required_permission: 'publish article content',
-  transition_id: 'publish',
-  transition_label: 'Publish',
-}
-
 registerEndpoint('/admin/api/workflow-definitions', () => ({ data: [editorial] }))
-registerEndpoint('/admin/api/workflow-definitions/dry-run', { method: 'POST', handler: () => ({ data: allowedDryRunResult }) })
 
 beforeEach(() => {
   vi.resetModules()
@@ -74,40 +63,5 @@ describe('useWorkflowDefinitions', () => {
     const { useWorkflowDefinitions } = await import('~/composables/useWorkflowDefinitions')
     const { findById } = useWorkflowDefinitions()
     expect(findById('editorial')).toBeNull()
-  })
-
-  it('dryRun posts to /api/workflow-definitions/dry-run and returns DryRunResult', async () => {
-    const { useWorkflowDefinitions } = await import('~/composables/useWorkflowDefinitions')
-    const { dryRun } = useWorkflowDefinitions()
-    const result = await dryRun({
-      workflow_id: 'editorial',
-      bundle: 'article',
-      from_state: 'review',
-      to_state: 'published',
-      account_uid: 42,
-    })
-    expect(result.allowed).toBe(true)
-    expect(result.forbidden).toBe(false)
-    expect(result.transition_id).toBe('publish')
-    expect(result.required_permission).toBe('publish article content')
-  })
-
-  it('dryRun result carries all expected DryRunResult keys', async () => {
-    const { useWorkflowDefinitions } = await import('~/composables/useWorkflowDefinitions')
-    const { dryRun } = useWorkflowDefinitions()
-    const result = await dryRun({
-      workflow_id: 'editorial',
-      bundle: 'article',
-      from_state: 'review',
-      to_state: 'published',
-      account_uid: 42,
-    })
-    expect(result).toHaveProperty('allowed')
-    expect(result).toHaveProperty('forbidden')
-    expect(result).toHaveProperty('neutral')
-    expect(result).toHaveProperty('reason')
-    expect(result).toHaveProperty('required_permission')
-    expect(result).toHaveProperty('transition_id')
-    expect(result).toHaveProperty('transition_label')
   })
 })

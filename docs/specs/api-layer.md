@@ -1,5 +1,14 @@
 # API Layer
 
+<!-- Spec reviewed 2026-07-13 - CW-v1 WP-5 WP1 (#1920): deleted the retired read-only workflow
+     dry-run/guards machinery — no compat shim, no feature flag. Removed `WorkflowDryRunController`
+     (`POST /api/workflow-definitions/dry-run`), `WorkflowGuardsController` + `WorkflowGuardsApiRouter`
+     (`GET /api/workflow-definitions/{workflow_id}/guards`), their `ApiServiceProvider` route
+     registrations and router wiring, and the `WorkflowDryRunController` dispatch branch in
+     `WorkflowDefinitionsApiRouter`. The historical "Spec reviewed" entries further below describing
+     these endpoints as live are retained as a changelog record, not current state — see the
+     "Workflow Transition Endpoints (CW-v1 WP-4)" section below for the shipped surface. -->
+
 <!-- Spec reviewed 2026-07-13 - CW-v1 option-1 PR-3 (#1920, design §4 "Surface pointer-awareness"):
      JSON:API becomes working-copy-aware on the write/edit surfaces. `show()` gains `?workingCopy=1`
      (serves `loadWorkingCopy()` to an account with entity UPDATE access, 403 otherwise — not an

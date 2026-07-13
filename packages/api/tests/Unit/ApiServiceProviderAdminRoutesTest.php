@@ -46,7 +46,6 @@ final class ApiServiceProviderAdminRoutesTest extends TestCase
     {
         $routes = $this->router->getRouteCollection();
         $this->assertNotNull($routes->get('api.workflow_definitions.list'));
-        $this->assertNotNull($routes->get('api.workflow_definitions.dry_run'));
     }
 
     #[Test]
@@ -72,12 +71,6 @@ final class ApiServiceProviderAdminRoutesTest extends TestCase
         $routes = $this->router->getRouteCollection();
         $this->assertNotNull($routes->get('api.notification.channels.index'));
         $this->assertNotNull($routes->get('api.notification.channels.test'));
-    }
-
-    #[Test]
-    public function registers_workflow_guards_route(): void
-    {
-        $this->assertNotNull($this->router->getRouteCollection()->get('api.workflow.guards.index'));
     }
 
     #[Test]

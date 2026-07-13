@@ -1,5 +1,9 @@
 # JSON:API — cast-aware attributes
 
+<!-- Spec reviewed 2026-07-13 - CW-v1 WP-5 WP1 (#1920): parity matrix rows for the retired workflow
+     dry-run endpoint and the workflow-guards endpoint are removed/collapsed (both deleted, no
+     compat shim). "Workflow definitions — list + dry-run" is now "Workflow definitions — list";
+     the "Workflow guards — list" row is dropped entirely. -->
 <!-- Spec reviewed 2026-04-09 ST-9 - cast-aware ResourceSerializer pipeline, alignment with entity-system (#1181) -->
 
 This document covers **how entity field values become JSON:API `attributes`** under the casting + hydration architecture (#1181). Full CRUD routing, documents, errors, query parsing, and schema endpoints remain specified in **`docs/specs/api-layer.md`**.
@@ -10,7 +14,7 @@ JSON:API is the framework's **primary API surface** as of mission `api-surface-c
 
 **Canonical implementation:** `packages/api/` (L4). Controllers in `packages/api/src/Controller/`; routers in `packages/api/src/Http/Router/`; service-provider wiring in `packages/api/src/ApiServiceProvider::httpDomainRouters()`. Route registration via string-FQCN in `packages/foundation/src/Kernel/BuiltinRouteRegistrar.php`.
 
-**Canonical consumer:** `packages/admin/app/composables/` (L6 Nuxt SPA). Recent extension examples: queue admin (M4B), notification channels (M4C), workflow guards (M4A-5), AI observability (M5A).
+**Canonical consumer:** `packages/admin/app/composables/` (L6 Nuxt SPA). Recent extension examples: queue admin (M4B), notification channels (M4C), AI observability (M5A).
 
 **Alternative surface:** `packages/graphql/` (L6) is the alternative protocol adapter, retained as **optional / experimental**. It is not bundled by `waaseyaa/full`. Distributions that need GraphQL install it explicitly. See `packages/graphql/README.md` for the alternative-protocol framing.
 
@@ -92,11 +96,10 @@ The following matrix enumerates every entity, query, and mutation exposed by `pa
 | Media upload | `POST /api/media/upload` | not exposed | JSON:API only | — |
 | Search | `GET /api/search` | not exposed | JSON:API only | — |
 | Discovery — hub/cluster/timeline/endpoint | `GET /api/discovery/{hub\|cluster\|timeline\|endpoint}/{entity_type}/{id}` | not exposed | JSON:API only | — |
-| Workflow definitions — list + dry-run | `GET /api/workflow-definitions`, `POST /api/workflow-definitions/dry-run` | not exposed | JSON:API only | — |
+| Workflow definitions — list | `GET /api/workflow-definitions` | not exposed | JSON:API only | — |
 | Queue — jobs (list/retry/discard) | `GET\|POST /api/queue/jobs[/{id}/retry\|discard]` | not exposed | JSON:API only | — |
 | Scheduler — tasks (list/trigger) | `GET\|POST /api/scheduler/tasks[/{name}/trigger]` | not exposed | JSON:API only | — |
 | Notification — channels (list/test) | `GET\|POST /api/notification/channels[/{channel}/test]` | not exposed | JSON:API only | — |
-| Workflow guards — list | `GET /api/workflow-guards` | not exposed | JSON:API only | — |
 | Telescope agent-context / codified-context sessions | `GET /api/telescope/…` | not exposed | JSON:API only | — |
 | Mercure monitor — channels/events/subscribers | `GET /api/mercure/…` | not exposed | JSON:API only | — |
 | Audit events — list | `GET /api/audit/events` | not exposed | JSON:API only | — |
