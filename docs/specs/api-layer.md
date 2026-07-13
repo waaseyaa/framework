@@ -205,12 +205,23 @@ Route resolution order is governed by `WaaseyaaRouter::sortRoutesByPriority()`, 
 - To make an app catch-all **deterministically** outrank the SSR `render.page` fallback, give it an explicit `->priority(>=1)`. This is the same mechanism used by `api.user.me ->priority(10)` (#1532) to beat `JsonApiRouteProvider`'s `/api/user/{id}` catch-all.
 
 The framework intentionally leaves the fallback at priority 0 (changing the default would silently reorder existing apps); apps opt into precedence explicitly. See the inline comments at the `public.page` registration in `packages/foundation/src/Kernel/BuiltinRouteRegistrar.php`.
+
 | `src/OidcHttpRoutes.php` | `Waaseyaa\Routing` | OIDC path table (discovery, jwks, optional authorize/token) used by `AuthOidcRouteServiceProvider` |
 | `src/Attribute/GateAttribute.php` | `Waaseyaa\Routing\Attribute` | PHP attribute for gate-based access control on controller methods |
 | `src/ParamConverter/EntityParamConverter.php` | `Waaseyaa\Routing\ParamConverter` | Converts route parameter IDs to loaded entity objects |
 | `src/Language/LanguageNegotiatorInterface.php` | `Waaseyaa\Routing\Language` | Interface for language negotiation |
 | `src/Language/AcceptHeaderNegotiator.php` | `Waaseyaa\Routing\Language` | Language negotiation from Accept-Language header |
 | `src/Language/UrlPrefixNegotiator.php` | `Waaseyaa\Routing\Language` | Language negotiation from URL prefix |
+
+### SSR path-alias canonicalization (#1983)
+
+`PathAlias::normalizeAlias()` defines the shared persistence and lookup form:
+Unicode stays NFC, `/` remains `/`, and trailing slashes are removed from every
+other alias. `PathAliasResolver` applies that same normalizer to inbound alias
+paths after language-prefix handling. Consequently `/about` and `/about/`
+resolve the same stored alias and entity; query strings remain request metadata
+and do not participate in the alias key. This is lookup equivalence, not a new
+redirect policy.
 
 ## Core Value Objects
 

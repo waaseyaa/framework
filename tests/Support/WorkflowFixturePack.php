@@ -64,6 +64,8 @@ final class WorkflowFixturePack
         return [
             ['alias' => '/node/1', 'path' => '/node/1', 'langcode' => 'en', 'status' => 1],
             ['alias' => '/teaching/water-is-life', 'path' => '/node/1', 'langcode' => 'en', 'status' => 1],
+            ['alias' => '/about/leadership', 'path' => '/node/1', 'langcode' => 'en', 'status' => 1],
+            ['alias' => '/2025/01/water-is-life', 'path' => '/node/1', 'langcode' => 'en', 'status' => 1],
             ['alias' => '/node/2', 'path' => '/node/2', 'langcode' => 'en', 'status' => 1],
             ['alias' => '/node/3', 'path' => '/node/3', 'langcode' => 'en', 'status' => 1],
             ['alias' => '/node/4', 'path' => '/node/4', 'langcode' => 'en', 'status' => 1],

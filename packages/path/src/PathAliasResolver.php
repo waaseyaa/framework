@@ -19,6 +19,11 @@ final readonly class PathAliasResolver
             return null;
         }
 
+        // PathAlias persists one canonical key. Apply the same normalization
+        // to inbound requests so a WordPress-era trailing slash cannot diverge
+        // from the slashless canonical URL into a 404 (#1983).
+        $alias = PathAlias::normalizeAlias($alias);
+
         // System-context URL → entity-id lookup. Path aliases must resolve
         // globally; entity-level access is enforced when the resolved entity
         // is subsequently loaded by the caller.

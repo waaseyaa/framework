@@ -272,6 +272,21 @@ final class SsrPageHandlerTest extends TestCase
     }
 
     #[Test]
+    public function languagePrefixResolutionLeavesAliasCanonicalizationToPathResolver(): void
+    {
+        [$resolver] = $this->createResolverWithManager([
+            new Language('en', 'English', isDefault: true),
+            new Language('oj', 'Anishinaabemowin'),
+        ]);
+        $request = HttpRequest::create('/oj/about/');
+
+        $result = $resolver->resolveRenderLanguageAndAliasPath('/oj/about/', $request);
+
+        $this->assertSame('oj', $result['langcode']);
+        $this->assertSame('/about/', $result['alias_path']);
+    }
+
+    #[Test]
     public function render_language_resolution_defaults_to_english(): void
     {
         [$resolver] = $this->createResolverWithManager();

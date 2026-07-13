@@ -100,6 +100,14 @@ final class PathAliasTest extends TestCase
     }
 
     #[Test]
+    public function canonicalAliasRemovesOnlyNonRootTrailingSlashes(): void
+    {
+        $this->assertSame('/about', PathAlias::normalizeAlias('/about/'));
+        $this->assertSame('/about', PathAlias::normalizeAlias('/about///'));
+        $this->assertSame('/', PathAlias::normalizeAlias('/'));
+    }
+
+    #[Test]
     public function setAliasValidatesLeadingSlash(): void
     {
         $alias = new PathAlias();
