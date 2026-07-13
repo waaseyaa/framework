@@ -132,6 +132,58 @@ final class AgentRunRepository
         return $affected === 1;
     }
 
+    public function requestCancellation(string $id, RunStatus $expectedStatus, \DateTimeImmutable $now): bool
+    {
+        if ($expectedStatus === RunStatus::Queued) {
+            $fields = [
+                'status' => RunStatus::Cancelled->value,
+                'finished_at' => $this->formatDateTime($now),
+                'error_code' => 'cancelled_by_user',
+                'error_message' => 'Run cancelled before worker pickup.',
+            ];
+        } elseif ($expectedStatus === RunStatus::Running || $expectedStatus === RunStatus::AwaitingApproval) {
+            $fields = ['status' => RunStatus::Cancelling->value];
+        } else {
+            return false;
+        }
+
+        return $this->database->update(self::TABLE)
+            ->fields($fields)
+            ->condition('id', $id)
+            ->condition('status', $expectedStatus->value)
+            ->execute() === 1;
+    }
+
+    public function grantApproval(string $id, string $callId): bool
+    {
+        return $this->approvalTransition($id, $callId, [
+            'status' => RunStatus::Running->value,
+            'pending_approval_call_id' => null,
+        ]);
+    }
+
+    public function denyApproval(string $id, string $callId, \DateTimeImmutable $now): bool
+    {
+        return $this->approvalTransition($id, $callId, [
+            'status' => RunStatus::Failed->value,
+            'pending_approval_call_id' => null,
+            'finished_at' => $this->formatDateTime($now),
+            'error_code' => 'approval_denied',
+            'error_message' => 'Approval denied by user.',
+        ]);
+    }
+
+    /** @param array<string, mixed> $fields */
+    private function approvalTransition(string $id, string $callId, array $fields): bool
+    {
+        return $this->database->update(self::TABLE)
+            ->fields($fields)
+            ->condition('id', $id)
+            ->condition('status', RunStatus::AwaitingApproval->value)
+            ->condition('pending_approval_call_id', $callId)
+            ->execute() === 1;
+    }
+
     /**
      * Find runs whose `status='running'` and `started_at < $threshold`.
      *

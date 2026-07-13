@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Agent cancellation and approval now use exact-status compare-and-swap updates (#1975, R18 M5).** Controller actions no longer save a stale hydrated run row that can regress a worker's terminal status or overwrite transcript and cost fields. Cancellation requires the status observed by the request; approve/deny additionally require the pending call id, and a lost race returns 409 without audit or broadcast side effects.
+
 ### Security
 
 - **Persistent HTTP workers no longer carry Inertia shared props or the active language into the next request (#1971, R17).** `InertiaMiddleware` clears request-shared props in `finally` on every response path, preventing account-shaped props from surviving in process statics, and SSR routing resets the shared `LanguageManager` before applying the current request's prefix. Two-request/one-process regressions pin both boundaries; companion coverage verifies that the dual static Twig environments are already replaced on every production-order provider boot and require no runtime change.
