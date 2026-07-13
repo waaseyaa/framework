@@ -907,6 +907,21 @@ final class EntityRepository implements EntityRepositoryInterface
                         && $currentRevisionId !== null
                         && $originalPublishedRevisionId === $currentRevisionId;
                 }
+            } elseif ($disciplined && !$createRevision) {
+                // Disciplined in-place save the legacy-interface branch above
+                // did not take (a trait-only RevisionableEntityInterface class
+                // — such entities get no in-place revision update today,
+                // pre-existing). Same published-pointer rule, resolved via the
+                // trait's own revisionId(); FAIL CLOSED when unresolvable:
+                // under discipline the base row serves the published revision,
+                // and a revision-side no-op is strictly safer than leaking
+                // draft values into the served row.
+                $traitRevisionId = ($entity instanceof RevisionableEntityInterface && \is_int($entity->revisionId()))
+                    ? $entity->revisionId()
+                    : null;
+                $writeBase = $originalPublishedRevisionId !== null
+                    && $traitRevisionId !== null
+                    && $originalPublishedRevisionId === $traitRevisionId;
             }
 
             // Bundle-aware write: pull this content type's column-stored bundle

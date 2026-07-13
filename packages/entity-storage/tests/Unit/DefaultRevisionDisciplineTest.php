@@ -86,6 +86,33 @@ final class DefaultRevisionDisciplineTest extends TestCase
         return [];
     }
 
+    /**
+     * The base-row columns whose values differ between two raw-row snapshots
+     * (sorted) — the full-row oracle for the byte-identity regression gate:
+     * asserting this list pins that NOTHING ELSE changed.
+     *
+     * @param array<string, mixed> $before
+     * @param array<string, mixed> $after
+     * @return list<string>
+     */
+    private function changedColumns(array $before, array $after): array
+    {
+        $changed = [];
+        foreach ($after as $column => $value) {
+            if (!\array_key_exists($column, $before) || $before[$column] !== $value) {
+                $changed[] = (string) $column;
+            }
+        }
+        foreach (\array_keys($before) as $column) {
+            if (!\array_key_exists($column, $after)) {
+                $changed[] = (string) $column;
+            }
+        }
+        \sort($changed);
+
+        return $changed;
+    }
+
     /** Registers a listener that always applies default-revision semantics to pointer moves. */
     private function alwaysApplyDefaultRevisionSemantics(): void
     {
@@ -207,20 +234,37 @@ final class DefaultRevisionDisciplineTest extends TestCase
         $repo->setPublishedRevision('1', 1);
 
         // Ordinary save (no discipline flag): the base row advances exactly
-        // as it always has, even though a published pointer is set.
+        // as it always has, even though a published pointer is set. Full-row
+        // oracle: the ONLY columns that change are the one the save itself
+        // carries (title, a real column on this fixture) plus the advancing
+        // revision_id — any other delta is a discipline leak.
+        $beforeOrdinarySave = $this->rawBaseRow('1');
         $entity = $repo->find('1');
         $entity->set('title', 'v2');
         $repo->save($entity);
 
+        $afterOrdinarySave = $this->rawBaseRow('1');
         $this->assertSame('v2', $repo->find('1')?->label(), 'ordinary save still advances the base row');
-        $this->assertSame(2, $this->rawBaseRow('1')['revision_id'] ?? null, 'base revision_id pointer still tracks the tip');
+        $this->assertSame(
+            ['revision_id', 'title'],
+            $this->changedColumns($beforeOrdinarySave, $afterOrdinarySave),
+            'an undisciplined pointered save must change exactly the saved content column and the tip pointer — nothing else',
+        );
+        $this->assertSame(2, $afterOrdinarySave['revision_id'] ?? null, 'base revision_id pointer still tracks the tip');
 
         // setPublishedRevision() stays the targeted single-column update:
-        // content/revision_id on the base row are untouched by a republish.
+        // the FULL base row is untouched except the pointer column itself.
+        $beforeRepublish = $this->rawBaseRow('1');
         $repo->setPublishedRevision('1', 1);
+        $afterRepublish = $this->rawBaseRow('1');
+        $this->assertSame(
+            [],
+            $this->changedColumns($beforeRepublish, $afterRepublish),
+            'undisciplined setPublishedRevision() must not change any column but the pointer (already 1 here)',
+        );
         $this->assertSame('v2', $repo->find('1')?->label(), 'setPublishedRevision() never rewrites base content when undisciplined');
-        $this->assertSame(2, $this->rawBaseRow('1')['revision_id'] ?? null, 'base revision_id pointer is untouched by setPublishedRevision()');
-        $this->assertSame(1, $this->rawBaseRow('1')['published_revision_id'] ?? null);
+        $this->assertSame(2, $afterRepublish['revision_id'] ?? null, 'base revision_id pointer is untouched by setPublishedRevision()');
+        $this->assertSame(1, $afterRepublish['published_revision_id'] ?? null);
 
         // rollback() stays unchanged: it DOES write the base row (a new
         // revision is created AND repointed).

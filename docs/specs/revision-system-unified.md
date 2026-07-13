@@ -541,8 +541,14 @@ from every deletion candidate set, alongside the pre-existing current
 pointer stops tracking the tip (§7b), so the current-revision guard alone no
 longer protects the working copy — without this extension, a prune during a
 review window could destroy an in-progress draft. For an undisciplined
-entity the latest revision is normally also the current revision, so this
-guard is a redundant-but-harmless no-op there.
+entity the latest revision is normally also the current revision, so the
+guard is usually redundant — with one real (and deliberate) behavior change:
+after a `setCurrentRevision()` revert (reachable in production via the
+`entity.set_current_revision` MCP/AI tool), the abandoned newer tip is the
+latest-but-not-current revision, and it is now un-prunable by keep-last-N
+and un-deletable where it previously was not. Conservative by design: the
+rule is uniform rather than flag-conditional, and it retains data rather
+than risking a working copy.
 
 ### 7f. Working-copy load (`loadWorkingCopy()`)
 
