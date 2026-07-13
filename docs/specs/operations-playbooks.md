@@ -307,7 +307,7 @@ draft content on the public read path. See docs/specs/content-workflow.md,
 of the original finding and how option-1 closed it.
 
 1. **Deploy WP-2 code.** Nothing below is safe to run against the old code.
-2. **`bin/waaseyaa migrate:up`** — applies the node revision-schema migration
+2. **`bin/waaseyaa migrate`** — applies the node revision-schema migration
    (`packages/node/migrations/2026_07_06_000001_node_revision_schema.php`):
    creates the `node_revision` table and the base `revision_id` pointer
    column. Idempotent and half-applied-state safe — safe to re-run if a prior
@@ -315,14 +315,14 @@ of the original finding and how option-1 closed it.
 
    **Verification gate — run before step 3.** Confirm the migration actually
    added the pointer columns; a stale migration-discovery cache can make
-   `migrate:up` report success while the migration silently never ran (see
+   `migrate` report success while the migration silently never ran (see
    Failure mode 3 below):
    ```sql
    SELECT revision_id, published_revision_id FROM node LIMIT 1;
    ```
    This errors loudly ("no such column") when the migration did not apply.
    If it does, rebuild the migration-discovery cache
-   (`bin/waaseyaa optimize:manifest`) and re-run `migrate:up` before
+   (`bin/waaseyaa optimize:manifest`) and re-run `migrate` before
    proceeding — do NOT run step 3 against a table missing these columns
    (see Failure mode 3).
 3. **`bin/waaseyaa revisions:enable node`** — REQUIRED, not conditional. Step
@@ -445,7 +445,7 @@ of the original finding and how option-1 closed it.
 
    1. **Precondition.** The option-1 release (this release or later) is
       deployed. Steps 1–4 above are unchanged and still required, in order,
-      on the target entity type/bundle before you bind it: `migrate:up`
+      on the target entity type/bundle before you bind it: `migrate`
       (schema) → the verification gate → `revisions:enable` (revision
       history) → `workflows:backfill-state` (state stamp + pointer
       establishment).
@@ -664,7 +664,7 @@ translatable), so this does not affect the procedure above; it matters only
 if you bind a different, translatable content type to a workflow.
 
 **Failure mode 3 — running `revisions:enable` before (or without a
-successful) `migrate:up`.** Step 2's migration is what adds the base-row
+successful) `migrate`.** Step 2's migration is what adds the base-row
 `revision_id`/`published_revision_id` columns to a pre-existing `node`
 table — per the migration file's own docblock
 (`packages/node/migrations/2026_07_06_000001_node_revision_schema.php`),
@@ -672,7 +672,7 @@ table — per the migration file's own docblock
 `revisions:enable` itself calls) has no additive-column path for an
 already-existing sql-blob base table; it only emits those columns at CREATE
 TABLE time. If the migration never actually ran — e.g. a stale
-migration-discovery cache after deploy, so `migrate:up` silently found
+migration-discovery cache after deploy, so `migrate` silently found
 nothing new to apply — running `revisions:enable node` against a `node`
 table that still lacks the columns does not error. Instead
 `SqlStorageDriver::write()`'s column-routing folds `revision_id` (and, once
@@ -682,7 +682,7 @@ the pointer semantics every later revision-reading path depends on — and
 every command in the chain reports success. This is exactly what the
 **verification gate after step 2** above exists to catch before step 3 ever
 runs; run it, do not skip it, especially on a deploy pipeline where
-`migrate:up`'s success is not independently confirmed against the schema.
+`migrate`'s success is not independently confirmed against the schema.
 
 **Legacy `NodeType` rows — the `new_revision` opt-out ambiguity.** Before
 CW-v1 WP-2 task 2.3, `NodeType`'s constructor default for the `new_revision`
