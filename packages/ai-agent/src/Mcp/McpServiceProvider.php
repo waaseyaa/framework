@@ -41,28 +41,25 @@ final class McpServiceProvider extends ServiceProvider
             ),
         );
 
-        // McpClientToolSource requires a host-bound ToolRegistryInterface.
-        // If none is wired we skip the binding entirely; boot() falls back
-        // to a no-op path and McpCapabilitiesSource is constructed with a
-        // null tool source (its constructor accepts ?McpClientToolSource).
-        $registry = $this->resolveToolRegistry();
-        if ($registry !== null) {
-            $this->singleton(
-                McpClientToolSource::class,
-                fn(): McpClientToolSource => new McpClientToolSource(
-                    $this->resolve(StreamableHttpMcpClient::class),
-                    $registry,
-                    $this->resolveConfigStorage(),
-                    $this->resolveLogger(),
-                ),
-            );
-        }
+        // Resolve the cross-provider tool registry only when this singleton
+        // is first used. Composer may list ai-agent before ai-tools; eagerly
+        // checking here would permanently disable MCP before ai-tools has
+        // registered its binding.
+        $this->singleton(
+            McpClientToolSource::class,
+            fn(): McpClientToolSource => new McpClientToolSource(
+                $this->resolve(StreamableHttpMcpClient::class),
+                $this->requireToolRegistry(),
+                $this->resolveConfigStorage(),
+                $this->resolveLogger(),
+            ),
+        );
 
         $this->singleton(
             McpCapabilitiesSource::class,
             fn(): McpCapabilitiesSource => new McpCapabilitiesSource(
                 $this->resolveConfigStorage(),
-                $this->hasToolSource() ? $this->resolve(McpClientToolSource::class) : null,
+                $this->resolveToolRegistry() !== null ? $this->resolve(McpClientToolSource::class) : null,
             ),
         );
     }
@@ -77,7 +74,7 @@ final class McpServiceProvider extends ServiceProvider
 
         // Bootstrap remote tool catalogues. Failures degrade gracefully —
         // we never let a flaky MCP server abort the kernel boot.
-        if (!$this->hasToolSource()) {
+        if ($this->resolveToolRegistry() === null) {
             return;
         }
         try {
@@ -89,11 +86,6 @@ final class McpServiceProvider extends ServiceProvider
                 'message' => $e->getMessage(),
             ]);
         }
-    }
-
-    private function hasToolSource(): bool
-    {
-        return array_key_exists(McpClientToolSource::class, $this->getBindings());
     }
 
     private function resolveLogger(): LoggerInterface
@@ -123,6 +115,12 @@ final class McpServiceProvider extends ServiceProvider
         // Hosts that wire ai-tools (via AttributeToolRegistry) get a
         // populated catalogue; minimal CLI smoke harnesses skip cleanly.
         return null;
+    }
+
+    private function requireToolRegistry(): ToolRegistryInterface
+    {
+        return $this->resolveToolRegistry()
+            ?? throw new \RuntimeException('MCP tool source requires a host-bound ToolRegistryInterface.');
     }
 
     private function resolveConfigStorage(): ConfigStorageInterface
