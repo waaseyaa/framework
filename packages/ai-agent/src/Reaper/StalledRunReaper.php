@@ -17,16 +17,15 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * Recover {@see \Waaseyaa\AI\Agent\Entity\AgentRun} rows abandoned before
  * reaching a terminal state (NFR-004, FR-007).
  *
- * Running, approval, and cancellation rows are aged from `started_at`;
- * never-claimed queued rows are aged from `queued_at`. Expired rows move to
- * a status-appropriate terminal outcome, append an audit row, and broadcast
- * the terminal event.
+ * Running and cancellation rows are aged from `started_at`, never-claimed
+ * queued rows from `queued_at`, and approval rows from their persisted HITL
+ * deadline. Expired rows move to a status-appropriate terminal outcome.
  *
  * Honours C-014: transitions go through
  * {@see AgentRunRepository::markTerminal()}, which is a compare-and-swap
- * that refuses to overwrite an already-terminal row. A worker that
- * completed in the window between selection and update therefore "wins"
- * — the reaper sees `markTerminal() === false` and skips that row.
+ * that compares the status and lifecycle identity captured by candidate
+ * selection. Worker claims, terminal completion, and renewed approval cycles
+ * that win the selection-to-update race remain authoritative.
  *
  * @api
  */
@@ -77,13 +76,25 @@ final class StalledRunReaper
             ...$this->runRepository->findStuckRunning($threshold),
             ...$this->runRepository->findAbandoned($threshold, $now),
         ];
+        return $this->reapSelected($rows, $maxRuntimeSeconds, $now);
+    }
+
+    /**
+     * Terminalize an immutable candidate batch selected by the repository.
+     *
+     * @param list<StalledRunCandidate> $rows
+     * @internal Selection-to-CAS test seam; normal callers use {@see reap()}.
+     */
+    public function reapSelected(array $rows, int $maxRuntimeSeconds, \DateTimeImmutable $now): int
+    {
+        $threshold = $now->sub(new \DateInterval('PT' . $maxRuntimeSeconds . 'S'));
         $flipped = 0;
 
-        foreach ($rows as $run) {
-            $runId = (string) $run->get('id');
+        foreach ($rows as $candidate) {
+            $runId = $candidate->id;
 
             [$terminalStatus, $errorCode, $errorMessage] = $this->terminalOutcome(
-                $run->getStatus(),
+                $candidate->sourceStatus,
                 $maxRuntimeSeconds,
                 $threshold,
             );
@@ -93,13 +104,12 @@ final class StalledRunReaper
                 $now,
                 errorCode: $errorCode,
                 errorMessage: $errorMessage,
-                expectedStatus: $run->getStatus(),
+                expectedCandidate: $candidate,
             );
 
             if (!$advanced) {
-                // C-014: the row reached terminal between our select
-                // and our update. Leave it; the winner's terminal data
-                // is authoritative.
+                // Source state changed after selection. Leave the winning
+                // worker or approval transition authoritative.
                 continue;
             }
 

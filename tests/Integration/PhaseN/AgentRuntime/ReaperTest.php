@@ -145,9 +145,69 @@ final class ReaperTest extends TestCase
         self::assertSame('queue_timeout', $this->runRepository->find('run-queued')?->get('error_code'));
         self::assertSame(RunStatus::Failed, $this->runRepository->find('run-approval')?->getStatus());
         self::assertSame('approval_timeout', $this->runRepository->find('run-approval')?->get('error_code'));
+        self::assertNull($this->runRepository->find('run-approval')?->get('pending_approval_call_id'));
+        self::assertNull($this->runRepository->find('run-approval')?->get('approval_expires_at'));
         self::assertSame(RunStatus::Cancelled, $this->runRepository->find('run-cancelling')?->getStatus());
         self::assertSame('cancellation_timeout', $this->runRepository->find('run-cancelling')?->get('error_code'));
         self::assertSame(RunStatus::Queued, $this->runRepository->find('run-fresh-queued')?->getStatus());
+    }
+
+    #[Test]
+    public function selectedQueuedCandidateCannotKillAWorkerClaimedBeforeTerminalCas(): void
+    {
+        $now = new \DateTimeImmutable('now');
+        $this->seedRun('run-claimed-after-select', RunStatus::Queued, ageSeconds: 700);
+        $selected = $this->runRepository->findAbandoned($now->modify('-10 minutes'), $now);
+        self::assertCount(1, $selected);
+
+        self::assertTrue($this->runRepository->markRunning('run-claimed-after-select', $now));
+
+        $reaper = new StalledRunReaper(
+            runRepository: $this->runRepository,
+            auditRepository: $this->auditRepository,
+            broadcaster: new ReaperCapturingBroadcaster(),
+            now: static fn(): \DateTimeImmutable => $now,
+        );
+        self::assertSame(0, $reaper->reapSelected($selected, 600, $now));
+        self::assertSame(RunStatus::Running, $this->runRepository->find('run-claimed-after-select')?->getStatus());
+    }
+
+    #[Test]
+    public function selectedExpiredApprovalCannotReapARenewedApprovalCycle(): void
+    {
+        $now = new \DateTimeImmutable('now');
+        $expired = $now->modify('-1 minute');
+        $renewed = $now->modify('+5 minutes');
+        $this->seedRun(
+            'run-renewed-approval',
+            RunStatus::AwaitingApproval,
+            ageSeconds: 700,
+            approvalExpiresAt: $expired,
+            pendingCallId: 'call-old',
+        );
+        $selected = $this->runRepository->findAbandoned($now->modify('-10 minutes'), $now);
+        self::assertCount(1, $selected);
+
+        $this->database->update('agent_run')
+            ->fields([
+                'pending_approval_call_id' => 'call-new',
+                'approval_expires_at' => $renewed->format('Y-m-d H:i:s.uP'),
+            ])
+            ->condition('id', 'run-renewed-approval')
+            ->execute();
+
+        $reaper = new StalledRunReaper(
+            runRepository: $this->runRepository,
+            auditRepository: $this->auditRepository,
+            broadcaster: new ReaperCapturingBroadcaster(),
+            now: static fn(): \DateTimeImmutable => $now,
+        );
+        self::assertSame(0, $reaper->reapSelected($selected, 600, $now));
+        $run = $this->runRepository->find('run-renewed-approval');
+        self::assertSame(RunStatus::AwaitingApproval, $run?->getStatus());
+        self::assertSame('call-new', $run?->get('pending_approval_call_id'));
+        self::assertSame($renewed->format('Y-m-d H:i:s.uP'), $run?->get('approval_expires_at'));
+        self::assertSame([], $this->auditRepository->findByRunId('run-renewed-approval'));
     }
 
     #[Test]
@@ -192,6 +252,7 @@ final class ReaperTest extends TestCase
         RunStatus $status,
         int $ageSeconds,
         ?\DateTimeImmutable $approvalExpiresAt = null,
+        ?string $pendingCallId = null,
     ): void {
         $startedAt = new \DateTimeImmutable('now')->sub(new \DateInterval('PT' . $ageSeconds . 'S'));
         $run = new AgentRun([
@@ -201,7 +262,8 @@ final class ReaperTest extends TestCase
             'bundle_json' => '{}',
             'status' => $status->value,
             'destructive_approval' => HitlMode::None->value,
-            'pending_approval_call_id' => null,
+            'pending_approval_call_id' => $pendingCallId
+                ?? ($status === RunStatus::AwaitingApproval ? 'call-awaiting' : null),
             'approval_expires_at' => $approvalExpiresAt?->format('Y-m-d H:i:s.uP'),
             'prompt' => 'stalled',
             'response' => null,

@@ -373,9 +373,12 @@ The reaper terminalizes abandoned work without regressing concurrent state
 changes: `running` rows age from `started_at`, `queued` rows from `queued_at`,
 `cancelling` rows from `started_at`, and `awaiting_approval` rows from their
 persisted `approval_expires_at` deadline. Each terminal update compares the
-exact source status selected by the reaper, so a worker claim, approval, or
-other state transition that wins the race is preserved. Upgrade-era approval
-rows with no persisted deadline retain the former `started_at` age fallback.
+exact source status and lifecycle fields captured by candidate selection.
+Queued/running/cancelling candidates retain their selected timestamps;
+approval candidates additionally retain the call id and deadline, so a worker
+claim or renewed approval cycle that wins the race is preserved. Successful
+terminalization clears pending approval metadata. Upgrade-era approval rows
+with no persisted deadline retain the former `started_at` age fallback.
 
 ## Entities
 

@@ -131,6 +131,19 @@ final class AgentRunRepositoryTest extends TestCase
     }
 
     #[Test]
+    public function markTerminalRejectsATerminalExpectedSourceStatus(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        $this->repository->markTerminal(
+            'whatever',
+            RunStatus::Failed,
+            new \DateTimeImmutable(),
+            expectedStatus: RunStatus::Completed,
+        );
+    }
+
+    #[Test]
     public function markTerminalWithExpectedSourceStatusLosesToAWorkerClaimRace(): void
     {
         $this->repository->save($this->makeQueuedRun('run-reaper-race', 1, 'race'));
@@ -213,7 +226,8 @@ final class AgentRunRepositoryTest extends TestCase
         $stuck = $this->repository->findStuckRunning($threshold);
 
         self::assertCount(1, $stuck);
-        self::assertSame('stuck-old', $stuck[0]->id());
+        self::assertSame('stuck-old', $stuck[0]->id);
+        self::assertSame(RunStatus::Running, $stuck[0]->sourceStatus);
     }
 
     #[Test]
