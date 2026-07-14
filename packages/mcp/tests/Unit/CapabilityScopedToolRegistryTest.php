@@ -13,6 +13,9 @@ use Waaseyaa\AI\Tools\AgentToolInterface;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
+use Waaseyaa\AI\Tools\Catalogue\AttributeToolRegistry;
+use Waaseyaa\Foundation\Discovery\PackageManifest;
+use Psr\Container\ContainerInterface;
 use Waaseyaa\Mcp\Auth\PublicAnonymousAuth;
 use Waaseyaa\Mcp\CapabilityScopedToolRegistry;
 use Waaseyaa\Mcp\ReadOnlyToolRegistry;
@@ -68,7 +71,7 @@ final class CapabilityScopedToolRegistryTest extends TestCase
     #[Test]
     public function the_same_destructive_tool_is_hidden_on_the_public_read_only_surface(): void
     {
-        $inner = $this->populatedInner();
+        $inner = $this->attributeCatalogue();
 
         // C-001: the public read-only surface never shows the destructive write tool…
         $publicNames = $this->names(new ReadOnlyToolRegistry($inner, PublicAnonymousAuth::DEFAULT_READ_CAPABILITIES));
@@ -77,6 +80,26 @@ final class CapabilityScopedToolRegistryTest extends TestCase
         // …while the authenticated write tier does expose it.
         $writeNames = $this->names(new CapabilityScopedToolRegistry($inner, [self::WRITE_CAP]));
         self::assertContains('wf_record', $writeNames);
+    }
+
+    private function attributeCatalogue(): AttributeToolRegistry
+    {
+        $impl = new AttributeCatalogueFixture();
+        $manifest = new PackageManifest(agentTools: [[
+            'class' => AttributeCatalogueFixture::class,
+            'name' => 'wf_record',
+            'capability' => self::WRITE_CAP,
+            'destructive' => true,
+            'dry_run_supported' => false,
+            'category' => 'wayfinding',
+        ]]);
+        $container = new class ($impl) implements ContainerInterface {
+            public function __construct(private readonly AgentToolInterface $impl) {}
+            public function get(string $id): object { return $this->impl; }
+            public function has(string $id): bool { return $id === AttributeCatalogueFixture::class; }
+        };
+
+        return new AttributeToolRegistry($manifest, $container);
     }
 
     private function populatedInner(): ToolRegistryInterface
@@ -176,4 +199,21 @@ final class CapabilityScopedToolRegistryTest extends TestCase
             impl: $impl,
         );
     }
+}
+
+final class AttributeCatalogueFixture implements AgentToolInterface
+{
+    public function execute(array $arguments, AccountInterface $account): AgentToolResult
+    {
+        return AgentToolResult::success([['type' => 'text', 'text' => 'ok']]);
+    }
+
+    public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
+    {
+        return AgentToolResult::error('dry_run_not_supported');
+    }
+
+    public function argumentsForAudit(array $arguments): array { return $arguments; }
+    public function inputSchema(): array { return ['type' => 'object', 'properties' => []]; }
+    public function description(): string { return 'fixture'; }
 }

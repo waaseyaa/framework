@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Split fan-out waits through post-tag CI startup (#1999).** The exact-SHA release gate now polls through the CI run triggered by the tag push instead of failing single-check mode while that newer run is still in progress.
 - **SQLite connections now enforce declared foreign keys (#2010, R21 WP1).** `DBALDatabase::createSqlite()` issues `PRAGMA foreign_keys = ON` immediately after opening every in-memory or file-backed connection, before schema or data work can begin. A two-connection regression test proves each fresh connection rejects an orphaned child row instead of silently accepting referential corruption.
 - **R21 content and storage invariants (#2010).** Taxonomy term saves now reject self-parenting, cycles, and cross-vocabulary parent edges before persistence; messaging materializes and uniquely constrains each `(thread_id, user_id)` participant pair, deterministically merging legacy duplicates without losing owner, join, or read state; default-revision promotion refreshes column-stored bundle fields from the promoted revision in the same transaction. The attachment at-most-one-active invariant and dual schema-path parity remain enforced by the existing package schema and save guards.
+- **R21 interface responses and list queries now match their advertised contracts (#2010).** Admin-surface lists push filters, sorting, pagination, and access-bound selection into the entity-query layer instead of hydrating whole tables in PHP; GraphQL routers propagate endpoint HTTP status codes; and custom mutation overrides explicitly inherit the generated resolver's not-found/access-denied collapse obligation.
+
+### Security
+
+- **R21 interface write and catalogue boundaries fail closed (#2010).** Admin-surface `readOnlyTypes` now reject create, update, and delete at the server boundary, dynamically Forbidden list sorts are rejected, and the MCP public-vs-destructive invariant test exercises the real attribute-hydrated tool catalogue rather than a handwritten registry double.
 
 ## [0.1.0-alpha.262] - 2026-07-14
 

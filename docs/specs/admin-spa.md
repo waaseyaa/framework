@@ -1,5 +1,7 @@
 # Admin SPA
 
+<!-- Spec reviewed 2026-07-14 - R21 WP4 (#2010): GenericAdminSurfaceHost now enforces configured readOnlyTypes at the server write boundary for create/update/delete, not only as catalogue UI capabilities. list() pushes filters, sort, pagination, and access-bound candidate selection through EntityQueryInterface instead of hydrating the whole table with findBy([]); per-entity field-access filtering remains a post-SQL fail-closed floor, and a dynamic Forbidden sort is rejected with 400 rather than deriving an observable rank. -->
+
 <!-- Spec reviewed 2026-07-13 - CW-v1 WP-5 WP1 (#1920): deleted the retired read-only workflow
      dry-run/guards admin UI — `TransitionDryRunForm.vue`, `WorkflowGuardsTable.vue`,
      `useWorkflowGuards.ts`, their usage on `/workflows/{id}`, and the orphaned `workflow_guards_*`

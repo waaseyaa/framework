@@ -220,7 +220,7 @@ final class GenericAdminSurfaceHostFieldAccessOracleTest extends TestCase
     }
 
     #[Test]
-    public function per_entity_forbidden_field_does_not_leak_via_sort_order(): void
+    public function per_entity_forbidden_sort_is_rejected_value_independently(): void
     {
         // Two variants of the same scenario, differing ONLY in the classified
         // entity's real (Forbidden) `body` value: one starts with 'a' (sorts
@@ -231,18 +231,18 @@ final class GenericAdminSurfaceHostFieldAccessOracleTest extends TestCase
         // produce DIFFERENT orderings: a value-derived ordering oracle.
         // Because the value must never be read, the resulting order is
         // identical in both variants.
-        $orderWithLowValue = $this->sortedTitlesForClassifiedBody('aaa-secret-value');
-        $orderWithHighValue = $this->sortedTitlesForClassifiedBody('zzz-secret-value');
+        $statusWithLowValue = $this->sortStatusForClassifiedBody('aaa-secret-value');
+        $statusWithHighValue = $this->sortStatusForClassifiedBody('zzz-secret-value');
 
         $this->assertSame(
-            $orderWithLowValue,
-            $orderWithHighValue,
-            "Sort order must not depend on the Forbidden field's real value.",
+            $statusWithLowValue,
+            $statusWithHighValue,
+            "Sort rejection must not depend on the Forbidden field's real value.",
         );
+        $this->assertSame(400, $statusWithLowValue);
     }
 
-    /** @return list<?string> */
-    private function sortedTitlesForClassifiedBody(string $classifiedBody): array
+    private function sortStatusForClassifiedBody(string $classifiedBody): int
     {
         [$etm, $storage] = $this->docTypeWithEntities();
 
@@ -255,9 +255,9 @@ final class GenericAdminSurfaceHostFieldAccessOracleTest extends TestCase
         $this->resolveViewerSession($host, 'access docs');
 
         $result = $host->list('doc', new SurfaceQuery(sortField: 'body', sortDirection: 'ASC'));
-        $this->assertTrue($result->ok);
+        $this->assertFalse($result->ok);
 
-        return array_map(static fn(array $e) => $e['attributes']['title'] ?? null, $result->data['entities']);
+        return $result->error['status'];
     }
 
     // -----------------------------------------------------------------

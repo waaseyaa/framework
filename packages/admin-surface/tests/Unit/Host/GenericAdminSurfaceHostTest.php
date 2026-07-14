@@ -25,12 +25,97 @@ use Waaseyaa\AdminSurface\Query\SurfaceFilterOperator;
 use Waaseyaa\AdminSurface\Query\SurfaceQuery;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Entity\Storage\EntityQueryInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
 use Waaseyaa\Field\FieldDefinition;
 
 #[CoversClass(GenericAdminSurfaceHost::class)]
 final class GenericAdminSurfaceHostTest extends TestCase
 {
+    #[Test]
+    public function configured_read_only_types_reject_every_crud_action(): void
+    {
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
+        $etm->method('hasDefinition')->willReturn(true);
+        $host = new GenericAdminSurfaceHost($etm, readOnlyTypes: ['event']);
+
+        foreach (['create', 'update', 'delete'] as $action) {
+            $result = $host->action('event', $action, ['id' => '1', 'attributes' => ['title' => 'changed']]);
+
+            self::assertFalse($result->ok, "{$action} must be rejected for a read-only type.");
+            self::assertSame(403, $result->error['status']);
+        }
+    }
+
+    #[Test]
+    public function list_pushes_filters_sort_and_pagination_into_the_entity_query(): void
+    {
+        $entity = $this->createMock(EntityInterface::class);
+        $entity->method('getEntityTypeId')->willReturn('article');
+        $entity->method('id')->willReturn(9);
+        $entity->method('uuid')->willReturn('');
+        $entity->method('toArray')->willReturn(['id' => 9, 'status' => 'published', 'title' => 'Visible']);
+        $entity->method('get')->willReturnCallback(static fn(string $field): mixed => match ($field) {
+            'id' => 9,
+            'status' => 'published',
+            'title' => 'Visible',
+            default => null,
+        });
+
+        $pageQuery = $this->createMock(EntityQueryInterface::class);
+        $pageQuery->expects(self::once())->method('setAccount')->willReturnSelf();
+        $pageQuery->expects(self::once())->method('condition')->with('status', 'published', '=')->willReturnSelf();
+        $pageQuery->expects(self::once())->method('sort')->with('title', 'DESC')->willReturnSelf();
+        $pageQuery->expects(self::once())->method('range')->with(20, 10)->willReturnSelf();
+        $pageQuery->expects(self::once())->method('execute')->willReturn([9]);
+
+        $totalQuery = $this->createMock(EntityQueryInterface::class);
+        $totalQuery->expects(self::once())->method('setAccount')->willReturnSelf();
+        $totalQuery->expects(self::once())->method('condition')->with('status', 'published', '=')->willReturnSelf();
+        $totalQuery->expects(self::once())->method('count')->willReturnSelf();
+        $totalQuery->expects(self::once())->method('execute')->willReturn([9, 10, 11]);
+
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects(self::exactly(2))->method('getQuery')->willReturnOnConsecutiveCalls($pageQuery, $totalQuery);
+        $repository->expects(self::exactly(2))->method('findMany')->willReturnCallback(
+            static fn(array $ids): array => $ids === [9, 10, 11] ? [$entity, $entity, $entity] : [$entity],
+        );
+        $repository->expects(self::never())->method('findBy');
+
+        $definition = new EntityType(
+            id: 'article',
+            label: 'Article',
+            class: \stdClass::class,
+            keys: ['id' => 'id'],
+            _fieldDefinitions: [
+                'status' => ['type' => 'string'],
+                'title' => ['type' => 'string'],
+            ],
+        );
+        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm->method('hasDefinition')->willReturn(true);
+        $etm->method('getDefinition')->willReturn($definition);
+        $etm->method('resolveFieldDefinitions')->willReturn([
+            'status' => new FieldDefinition(name: 'status', type: 'string'),
+            'title' => new FieldDefinition(name: 'title', type: 'string'),
+        ]);
+        $etm->method('getRepository')->willReturn($repository);
+
+        $host = $this->permissiveHost($etm);
+        $result = $host->list('article', new SurfaceQuery(
+            filters: [['field' => 'status', 'operator' => SurfaceFilterOperator::EQUALS, 'value' => 'published']],
+            sortField: 'title',
+            sortDirection: 'DESC',
+            offset: 20,
+            limit: 10,
+        ));
+
+        self::assertTrue($result->ok);
+        self::assertSame(3, $result->data['total']);
+        self::assertSame([9], array_map(static fn(array $row): int => (int) $row['id'], $result->data['entities']));
+    }
+
     /**
      * A host wired with a permissive access handler and a resolved admin session,
      * so list/get exercise filter/sort/serialize logic with access granted. The
