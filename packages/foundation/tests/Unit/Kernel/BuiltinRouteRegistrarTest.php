@@ -35,6 +35,7 @@ final class BuiltinRouteRegistrarTest extends TestCase
         $this->assertNotNull($routes->get('api.broadcast'));
         $this->assertNotNull($routes->get('api.search'));
         $this->assertNotNull($routes->get('api.media.upload'));
+        $this->assertNotNull($routes->get('media.download'));
     }
 
     #[Test]

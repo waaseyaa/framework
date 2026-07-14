@@ -86,6 +86,16 @@ final class BuiltinRouteRegistrar
                 ->build(),
         );
 
+        // Option-less by design: MediaDownloadRouter performs the entity view
+        // check itself and collapses missing/denied/invalid-byte paths to 404.
+        $router->addRoute(
+            'media.download',
+            RouteBuilder::create('/media/{id}/download')
+                ->controller('media.download')
+                ->methods('GET')
+                ->build(),
+        );
+
         // Authorized download of a private attachment's bytes. Option-less by
         // design: the attachment package's AttachmentDownloadRouter (matched via
         // the 'attachment.download' controller string) is the enforcement point —

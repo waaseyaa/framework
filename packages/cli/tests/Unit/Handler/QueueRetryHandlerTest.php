@@ -120,6 +120,26 @@ final class QueueRetryHandlerTest extends TestCase
         self::assertSame(1, $tester->getExitCode());
         self::assertNotNull($repo->find($jobId), 'Failed job row must survive a throwing dispatch.');
         self::assertStringContainsString("Failed to retry job [{$jobId}]: dispatch exploded", $tester->getStdout());
+        self::assertTrue($repo->claimForRetry($jobId), 'A failed dispatch must release the retry claim.');
+    }
+
+    #[Test]
+    public function doesNotDispatchWhenAnotherCallerOwnsTheClaim(): void
+    {
+        $repo = new InMemoryFailedJobRepository();
+        $jobId = $repo->record('default', serialize(new SuccessfulJob()), new \RuntimeException('Error'));
+        self::assertTrue($repo->claimForRetry($jobId));
+        $queue = new class implements QueueInterface {
+            public int $dispatches = 0;
+            public function dispatch(object $message): void { $this->dispatches++; }
+        };
+        $tester = CliTester::for($this->makeDefinition(), $this->makeContainer($repo, $queue));
+
+        $tester->executeMap(['id' => $jobId]);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertSame(0, $queue->dispatches);
+        self::assertStringContainsString('already being retried', $tester->getStdout());
     }
 
     #[Test]

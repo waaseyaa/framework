@@ -47,4 +47,10 @@ interface FailedJobRepositoryInterface
      * @return array{id: string, queue: string, payload: string, exception: string, failed_at: string}|null
      */
     public function retry(string $id): ?array;
+
+    /** Atomically claim a failed row for re-dispatch; false means another caller won. */
+    public function claimForRetry(string $id): bool;
+
+    /** Release a claim after re-dispatch fails so a later retry remains possible. */
+    public function releaseRetryClaim(string $id): void;
 }

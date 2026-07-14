@@ -210,18 +210,13 @@ final class QueueController
     /**
      * `POST /api/queue/jobs/{id}/retry` — re-enqueue a failed job.
      *
-     * Semantics: `FailedJobRepositoryInterface::retry()` returns the record
-     * AND removes it from the failed table — it does NOT re-enqueue. We
-     * mirror the CLI `QueueRetryHandler` (see `Waaseyaa\CLI\Handler\QueueRetryHandler`,
-     * PR #1908): find + unserialize + dispatch first, and only forget the
-     * failed-table row once dispatch succeeds. This closes a data-loss gap
-     * (audit R10b sweep, #1915, R16) where the old order forgot the record
-     * BEFORE unserializing/dispatching, so a corrupt payload or a dispatch
-     * failure destroyed the job permanently.
+     * The payload is validated before an atomic repository claim. Only the
+     * claim winner dispatches, closing the API/CLI same-id double-dispatch
+     * window; a failed dispatch releases the claim and a successful one
+     * removes the row.
      *
-     * Returns 204 on success, 404 if the id is unknown, 422 if the payload
-     * is corrupt (cannot be unserialized, record is left in place), 502 if
-     * dispatch itself throws (record is left in place).
+     * Returns 204 on success, 404 if the id is unknown, 409 if another retry
+     * owns the claim, 422 for a corrupt payload, and 502 on dispatch failure.
      */
     public function retry(string $id): Response
     {
@@ -242,9 +237,18 @@ final class QueueController
             );
         }
 
+        if (!$this->failedJobRepository->claimForRetry($id)) {
+            return self::errorResponse(
+                409,
+                'Conflict',
+                sprintf('Failed job [%s] is already being retried.', $id),
+            );
+        }
+
         try {
             $this->queue->dispatch($message);
         } catch (\Throwable $e) {
+            $this->failedJobRepository->releaseRetryClaim($id);
             // Dispatch failed — leave the record in the failed table so the
             // job is not lost; the operator can retry again once the
             // underlying issue (e.g. a transport outage) is resolved.
@@ -256,7 +260,7 @@ final class QueueController
         }
 
         // Only forget the failed-table row after a successful dispatch.
-        $this->failedJobRepository->retry($id);
+        $this->failedJobRepository->forget($id);
 
         return new Response('', Response::HTTP_NO_CONTENT);
     }

@@ -89,6 +89,7 @@
     "packages/mcp/src/McpEndpoint.php",
     "packages/mcp/src/McpServerCard.php",
     "packages/mcp/src/McpServiceProvider.php",
+    "packages/media/src/Http/Router/MediaDownloadRouter.php",
     "packages/media/src/Http/Router/MediaRouter.php",
     "packages/media/src/Version/MediaCascadeDeleteSubscriber.php",
     "packages/media/src/Version/MediaVersionStorageDriver.php",

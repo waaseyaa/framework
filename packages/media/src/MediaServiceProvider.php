@@ -8,6 +8,7 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\Media\Http\Router\MediaDownloadRouter;
 use Waaseyaa\Media\Http\Router\MediaRouter;
 use Waaseyaa\Media\Version\MediaVersionType;
 
@@ -17,7 +18,21 @@ final class MediaServiceProvider extends ServiceProvider implements HasHttpDomai
     {
         return [
             new MediaRouter($httpKernel->getProjectRoot(), $httpKernel->getConfig()),
+            new MediaDownloadRouter(
+                $httpKernel->getEntityTypeManager(),
+                $httpKernel->getAccessHandler(),
+                $this->resolveFilesRoot($httpKernel),
+            ),
         ];
+    }
+
+    private function resolveFilesRoot(HttpKernel $httpKernel): string
+    {
+        $configured = $httpKernel->getConfig()['files_root'] ?? null;
+
+        return is_string($configured) && $configured !== ''
+            ? $configured
+            : $httpKernel->getProjectRoot() . '/storage/files';
     }
 
     public function register(): void

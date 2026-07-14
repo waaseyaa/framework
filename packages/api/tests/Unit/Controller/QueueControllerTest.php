@@ -163,6 +163,20 @@ final class QueueControllerTest extends TestCase
     }
 
     #[Test]
+    public function retryDoesNotDispatchWhenAnotherCallerOwnsTheClaim(): void
+    {
+        $repo = new \Waaseyaa\Queue\Storage\InMemoryFailedJobRepository();
+        $id = $repo->record('default', serialize(new \stdClass()), new \RuntimeException('failed'));
+        self::assertTrue($repo->claimForRetry($id));
+        $queue = $this->makeQueue();
+
+        $response = (new QueueController($repo, $queue))->retry($id);
+
+        self::assertSame(409, $response->getStatusCode());
+        self::assertCount(0, $queue->dispatched);
+    }
+
+    #[Test]
     public function discardForgetsAndReturns204(): void
     {
         $repo = $this->makeRepo([self::record('7', 'default', 'p')]);
@@ -346,6 +360,15 @@ final class QueueControllerTest extends TestCase
                 }
 
                 return $r;
+            }
+
+            public function claimForRetry(string $id): bool
+            {
+                return isset($this->records[$id]);
+            }
+
+            public function releaseRetryClaim(string $id): void
+            {
             }
         };
     }
