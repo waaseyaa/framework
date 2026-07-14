@@ -34,8 +34,7 @@
         "waaseyaa": {
             "providers": [
                 "Waaseyaa\\AI\\Tools\\AiToolsServiceProvider"
-            ],
-            "layer": 5
+            ]
         }
     },
     "config": {

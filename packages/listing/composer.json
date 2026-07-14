@@ -60,7 +60,6 @@
     "prefer-stable": true,
     "extra": {
         "waaseyaa": {
-            "layer": 3,
             "providers": [
                 "Waaseyaa\\Listing\\ServiceProvider"
             ]

@@ -10,11 +10,9 @@ $root = getenv('ROOT_DIR');
 $rootDir = is_string($root) && $root !== '' ? $root : $repoRoot;
 $rootDir = str_replace('\\', '/', rtrim($rootDir, "\\/"));
 
-$outputMode = getenv('WAASEYAA_OUTPUT') === 'json' ? 'json' : 'human';
-foreach (array_slice($argv, 1) as $arg) {
-    if ($arg === '--output=json') {
-        $outputMode = 'json';
-    }
+if (getenv('WAASEYAA_OUTPUT') === 'json' || in_array('--output=json', array_slice($argv, 1), true)) {
+    fwrite(STDERR, "check-composer-policy: --output=json is no longer supported; use the human gate output.\n");
+    exit(2);
 }
 
 $policyId = [
@@ -27,20 +25,15 @@ $policyId = [
     'path_repository_parity' => 'CP007',
 ];
 
-$failures = [];
 $errors = 0;
 $tightFloorPattern = '/-(alpha|beta|rc|dev)\./';
 
-$emit = static function (string $line = '') use ($outputMode): void {
-    if ($outputMode === 'human') {
-        echo $line . PHP_EOL;
-    }
+$emit = static function (string $line = ''): void {
+    echo $line . PHP_EOL;
 };
 
-$emitErr = static function (string $line) use ($outputMode): void {
-    if ($outputMode === 'human') {
-        fwrite(STDERR, $line . PHP_EOL);
-    }
+$emitErr = static function (string $line): void {
+    fwrite(STDERR, $line . PHP_EOL);
 };
 
 $fail = static function (
@@ -48,13 +41,8 @@ $fail = static function (
     string $relPath,
     string $current,
     string $expected,
-) use (&$failures, &$errors, $policyId, $emit): void {
+) use (&$errors, $policyId, $emit): void {
     $ruleCode = $policyId[$ruleKey];
-    $failures[] = [
-        'file' => $relPath,
-        'rule_code' => $ruleCode,
-        'explanation' => sprintf('current=%s; expected=%s', $current, $expected),
-    ];
     $errors++;
     $emit(sprintf('FAIL [%s] %s', $ruleCode, $relPath));
     $emit(sprintf('  current: %s', $current));
@@ -66,12 +54,7 @@ $failCpNew = static function (
     string $pkg,
     string $actual,
     string $expected,
-) use (&$failures, &$errors, $emit): void {
-    $failures[] = [
-        'file' => $relPath,
-        'rule_code' => 'CP-NEW',
-        'explanation' => sprintf('%s: actual=%s, expected=%s', $pkg, $actual, $expected),
-    ];
+) use (&$errors, $emit): void {
     $errors++;
     $emit(sprintf('FAIL [CP-NEW] %s', $relPath));
     $emit(sprintf('  package:  %s', $pkg));
@@ -301,23 +284,13 @@ if ($cpNewWarning !== null) {
     }
 }
 
-if ($outputMode === 'human') {
-    if ($errors === 0) {
-        echo 'OK: Composer policy checks passed' . PHP_EOL;
-        exit(0);
-    }
-
-    echo sprintf('Composer policy check failed with %d violation(s)', $errors) . PHP_EOL;
-    exit(1);
+if ($errors === 0) {
+    echo 'OK: Composer policy checks passed' . PHP_EOL;
+    exit(0);
 }
 
-require_once $repoRoot . '/vendor/autoload.php';
-echo (new Waaseyaa\AgentOutput\Formatter\ComposerPolicyFormatter())->format([
-    'files_scanned' => count($manifestPaths),
-    'failures' => $failures,
-]);
-
-exit($errors === 0 ? 0 : 1);
+echo sprintf('Composer policy check failed with %d violation(s)', $errors) . PHP_EOL;
+exit(1);
 
 function relativePath(string $rootDir, string $path): string
 {

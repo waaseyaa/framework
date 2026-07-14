@@ -16,11 +16,11 @@ declare(strict_types=1);
  *   PL003 – required dependency not in layer index
  *   PL004 – composer.json require edge violates layer order (upward)
  *   PL005 – PHP file-level `use Waaseyaa\…` import violates layer order (upward)
- *   PL006 – same-layer dependency cycle (WARN only)
+ *   PL006 – new same-layer dependency cycle (fail-on-new, baselined)
  *   PL007 – undeclared same-or-lower-layer dependency (fail-on-new, baselined)
- *   PL008 – Layer-0 src/ file references a higher-layer package's FQCN in a way
- *            PL005 cannot see (no plain `use` import). Only non-kernel-exempt
- *            Layer-0 files are scanned; kernel/boot files are already trusted to
+ *   PL008 – src/ file references a higher-layer package's FQCN in a way
+ *            PL005 cannot see (no plain `use` import). All non-kernel-exempt
+ *            files are scanned; kernel/boot files are already trusted to
  *            wire all layers. New violations fail; pre-existing legitimate ones
  *            are baselined in tools/package-layers-string-literal-baseline.txt.
  *            The scan is TOKENIZER-BASED (token_get_all; comments are dropped as
@@ -43,12 +43,16 @@ $rootEnv = getenv('WAASEYAA_LAYER_ROOT');
 $root = is_string($rootEnv) && $rootEnv !== '' ? $rootEnv : dirname(__DIR__);
 $outputMode = getenv('WAASEYAA_OUTPUT') === 'json' ? 'json' : 'human';
 $generateBaseline = false;
+$printLayerMap = false;
 foreach (array_slice($argv, 1) as $arg) {
     if ($arg === '--output=json') {
         $outputMode = 'json';
     }
     if ($arg === '--generate-baseline') {
         $generateBaseline = true;
+    }
+    if ($arg === '--layer-map=json') {
+        $printLayerMap = true;
     }
 }
 
@@ -71,8 +75,6 @@ $layerByShort = [
     'mercure' => 0,
     'analytics' => 0,
     'oauth-provider' => 0,
-    'agent-output' => 0,
-    'page-builder' => 0,
     'entity' => 1,
     'entity-storage' => 1,
     'access' => 1,
@@ -128,6 +130,12 @@ $layerByShort = [
     'workspace' => 6,
 ];
 
+if ($printLayerMap) {
+    ksort($layerByShort);
+    echo json_encode($layerByShort, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+    exit(0);
+}
+
 $metapackages = ['cms' => true, 'core' => true, 'full' => true];
 
 // Each entry carries a one-line rationale (per CLAUDE.md "Layer Architecture":
@@ -165,7 +173,6 @@ $kernelExemptFiles = array_fill_keys([
 
 $namespacePrefixToShort = [
     'Foundation' => 'foundation',
-    'AgentOutput' => 'agent-output',
     'Cache' => 'cache',
     'Plugin' => 'plugin',
     'TypedData' => 'typed-data',
@@ -183,6 +190,7 @@ $namespacePrefixToShort = [
     'Mercure' => 'mercure',
     'Analytics' => 'analytics',
     'Audit' => 'audit',
+    'Attachment' => 'attachment',
     'OAuthProvider' => 'oauth-provider',
     'Entity' => 'entity',
     'EntityStorage' => 'entity-storage',
@@ -252,6 +260,35 @@ $emitError = static function (string $line = '') use ($outputMode): void {
     }
 };
 
+// The namespace resolver is part of the enforcement boundary: an indexed
+// package without a namespace mapping would make PL005/PL008 silently skip the
+// edge. Fail before scanning if either index drifts from the other.
+$indexedShorts = array_keys($layerByShort);
+$namespaceShorts = array_values($namespacePrefixToShort);
+array_push($namespaceShorts, ...array_values($aiSubToShort));
+sort($indexedShorts);
+sort($namespaceShorts);
+if ($indexedShorts !== $namespaceShorts) {
+    $missingNamespaces = array_values(array_diff($indexedShorts, $namespaceShorts));
+    $missingLayers = array_values(array_diff($namespaceShorts, $indexedShorts));
+    $emitError(
+        'FAIL [PL009] layer index / namespace map parity drift. '
+        . 'Missing namespace mappings: ' . ($missingNamespaces === [] ? 'none' : implode(', ', $missingNamespaces))
+        . '; missing layer entries: ' . ($missingLayers === [] ? 'none' : implode(', ', $missingLayers)) . '.',
+    );
+    if ($outputMode === 'json') {
+        echo json_encode([
+            'packages_scanned' => 0,
+            'violations' => [[
+                'source' => implode(',', $missingNamespaces),
+                'target' => implode(',', $missingLayers),
+                'edge' => 'namespace-map-parity',
+            ]],
+        ], JSON_THROW_ON_ERROR) . PHP_EOL;
+    }
+    exit(1);
+}
+
 $shortFromPackageName = static function (string $name): ?string {
     return preg_match('/^waaseyaa\/([a-z0-9-]+)$/i', trim($name), $matches) === 1
         ? strtolower($matches[1])
@@ -302,6 +339,37 @@ $loadUndeclaredBaseline = static function (string $path): array {
 };
 $undeclaredBaseline = $loadUndeclaredBaseline($undeclaredBaselinePath);
 
+// PL006 same-layer cycle baseline. Each accepted historical pair is explicit;
+// any additional mutual require edge fails the gate.
+$cycleBaselineEnv = getenv('WAASEYAA_LAYER_CYCLE_BASELINE');
+$cycleBaselinePath = is_string($cycleBaselineEnv) && $cycleBaselineEnv !== ''
+    ? $cycleBaselineEnv
+    : $root . DIRECTORY_SEPARATOR . 'tools' . DIRECTORY_SEPARATOR . 'package-layers-cycle-baseline.txt';
+
+/** @return array<string, true> sorted "a<->b" pair => true */
+$loadCycleBaseline = static function (string $path): array {
+    $baseline = [];
+    if (!is_file($path)) {
+        return $baseline;
+    }
+    foreach (file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $rawLine) {
+        $line = trim($rawLine);
+        if ($line === '' || str_starts_with($line, '#')) {
+            continue;
+        }
+        $parts = preg_split('/\s+/', $line) ?: [];
+        if (count($parts) < 2) {
+            continue;
+        }
+        $pair = [$parts[0], $parts[1]];
+        sort($pair);
+        $baseline[implode('<->', $pair)] = true;
+    }
+
+    return $baseline;
+};
+$cycleBaseline = $loadCycleBaseline($cycleBaselinePath);
+
 // PL008 string-literal FQCN baseline. Mirrors the PL007 baseline pattern.
 // Format: one line per allowlisted relative file path (packages/<pkg>/src/…),
 // followed by "  # <mandatory-rationale>".
@@ -332,7 +400,7 @@ $loadStringLiteralBaseline = static function (string $baselinePath): array {
 $stringLiteralBaseline = $loadStringLiteralBaseline($stringLiteralBaselinePath);
 
 /**
- * Scan a Layer-0 package's src/ for FQCNs referencing packages at higher
+ * Scan a package's src/ for FQCNs referencing packages at higher
  * layers, hidden from PL005 (which only sees plain `use` imports).
  * Kernel-exempt files are skipped (they are trusted bootstrapping
  * orchestrators, same as for PL005), as are files allowlisted in the
@@ -391,12 +459,6 @@ $scanStringLiteralFqcns = static function (string $packageDirectory, int $selfLa
     $shortForNamespace,
     $stringLiteralBaseline,
 ): array {
-    // PL008 only checks Layer-0 packages — they must never hard-code higher-layer
-    // controller FQCNs as string literals (the exact pattern WP5 fixed).
-    if ($selfLayer !== 0) {
-        return [];
-    }
-
     $src = $packageDirectory . DIRECTORY_SEPARATOR . 'src';
     if (!is_dir($src)) {
         return [];
@@ -700,7 +762,7 @@ foreach ($packageDirectories as $packageDirectory) {
         $violations[] = ['source' => $short, 'target' => $depShort, 'edge' => 'undeclared'];
     }
 
-    // PL008: string-literal FQCN layer gate (Layer-0 only). One error per dep,
+    // PL008: hidden inline/string FQCN layer gate. One error per dep,
     // but list EVERY violating file — keeping only the first example hid the
     // rest behind alphabetically-earlier files (WP7 adversarial-review finding).
     $stringLiteralEdges = [];
@@ -765,10 +827,21 @@ foreach ($sameLayerEdges as $a => $deps) {
         }
 
         $reportedCycles[$key] = true;
+        if (isset($cycleBaseline[$key])) {
+            $emit(
+                "WARN [PL006] same-layer dependency cycle: {$pair[0]} <-> {$pair[1]} "
+                . "(layer {$layerByShort[$pair[0]]}). Accepted baseline.",
+            );
+            continue;
+        }
+
+        ++$errors;
         $emit(
-            "WARN [PL006] same-layer dependency cycle: {$pair[0]} <-> {$pair[1]} "
-            . "(layer {$layerByShort[$pair[0]]}). Accepted-but-visible.",
+            "FAIL [PL006] new same-layer dependency cycle: {$pair[0]} <-> {$pair[1]} "
+            . "(layer {$layerByShort[$pair[0]]}). Remove the cycle or add a reviewed, "
+            . "rationalized entry to tools/package-layers-cycle-baseline.txt.",
         );
+        $violations[] = ['source' => $pair[0], 'target' => $pair[1], 'edge' => 'same-layer-cycle'];
     }
 }
 

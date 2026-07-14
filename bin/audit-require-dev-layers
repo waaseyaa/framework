@@ -2,7 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-export ROOT_DIR
+LAYER_MAP_JSON="$(php "${ROOT_DIR}/bin/check-package-layers" --layer-map=json)"
+export ROOT_DIR LAYER_MAP_JSON
 
 python3 - <<'PY'
 import json
@@ -12,22 +13,7 @@ import re
 
 root = pathlib.Path(os.environ["ROOT_DIR"])
 
-layer_by_short = {
-    "foundation": 0, "cache": 0, "plugin": 0, "typed-data": 0, "database-legacy": 0,
-    "i18n": 0, "queue": 0, "scheduler": 0, "state": 0, "validation": 0, "mail": 0,
-    "http-client": 0, "ingestion": 0, "error-handler": 0, "geo": 0, "mercure": 0,
-    "analytics": 0, "oauth-provider": 0,
-    "entity": 1, "entity-storage": 1, "access": 1, "user": 1, "config": 1,
-    "field": 1, "auth": 1, "testing": 1, "oidc": 1,
-    "node": 2, "taxonomy": 2, "media": 2, "path": 2, "menu": 2, "note": 2,
-    "relationship": 2, "groups": 2, "engagement": 2, "messaging": 2,
-    "workflows": 3, "search": 3, "seo": 3, "notification": 3, "billing": 3,
-    "github": 3, "northcloud": 3,
-    "api": 4, "routing": 4, "bimaaji": 4,
-    "ai-schema": 5, "ai-agent": 5, "ai-pipeline": 5, "ai-vector": 5, "ai-observability": 5,
-    "cli": 6, "admin": 6, "admin-surface": 6, "graphql": 6, "mcp": 6, "ssr": 6,
-    "genealogy": 6, "telescope": 6, "deployer": 6, "inertia": 6, "debug": 6,
-}
+layer_by_short = json.loads(os.environ["LAYER_MAP_JSON"])
 metapackages = {"cms", "core", "full"}
 name_rx = re.compile(r"^waaseyaa/([a-z0-9-]+)$", re.I)
 

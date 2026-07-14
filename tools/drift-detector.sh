@@ -11,7 +11,7 @@
 # fixture changes, and base-branch commits never produce false positives, and a
 # spec can no longer be "freshened" by an unrelated one-character edit.
 #
-# Usage: tools/drift-detector.sh [<base-ref>|<N>] [--output=json]
+# Usage: tools/drift-detector.sh [<base-ref>|<N>]
 #   <base-ref>  Ref to diff against (default: origin/main; falls back to `main`
 #               then HEAD~1 when unresolvable, e.g. a fresh clone / no remote).
 #   <N>         Legacy: a bare positive integer is treated as base = HEAD~N.
@@ -23,44 +23,23 @@
 # commit history only, so acknowledgements remain attached to the revision they
 # reviewed instead of depending on mutable PR metadata.
 #
-# Output modes:
-#   --output=json / WAASEYAA_OUTPUT=json → wrapped via DriftDetectorFormatter
-#   default                               → human STALE/OK report
-#
 # Exit codes: 0 = all coupled (or no source changes); 1 = one or more stale.
 
 set -euo pipefail
 
-# --- agent-output mode dispatch (must happen before any heavy work) ---
-__DD_OUTPUT_MODE="human"
 __DD_FILTERED_ARGS=()
 for __arg in "$@"; do
     case "$__arg" in
-        --output=json) __DD_OUTPUT_MODE="json" ;;
+        --output=json)
+            echo "drift-detector: --output=json is no longer supported; use the human gate output." >&2
+            exit 2
+            ;;
         *) __DD_FILTERED_ARGS+=("$__arg") ;;
     esac
 done
 if [[ "${WAASEYAA_OUTPUT:-}" == "json" ]]; then
-    __DD_OUTPUT_MODE="json"
-fi
-
-if [[ "$__DD_OUTPUT_MODE" == "json" ]]; then
-    # Re-exec self with the json flag stripped + env unset, capture stdout,
-    # pipe through DriftDetectorFormatter::parseRawOutput() → format().
-    set +e
-    __DD_RAW="$(WAASEYAA_OUTPUT="" "$0" "${__DD_FILTERED_ARGS[@]}" 2>&1)"
-    __DD_EXIT=$?
-    set -e
-    export __DD_RAW
-    __DD_REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-    export __DD_REPO_ROOT
-    php -d display_errors=stderr -r '
-require getenv("__DD_REPO_ROOT") . "/vendor/autoload.php";
-$raw = (string) getenv("__DD_RAW");
-$formatter = new Waaseyaa\AgentOutput\Formatter\DriftDetectorFormatter();
-echo $formatter->format($formatter->parseRawOutput($raw));
-'
-    exit "$__DD_EXIT"
+    echo "drift-detector: --output=json is no longer supported; use the human gate output." >&2
+    exit 2
 fi
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -124,10 +103,20 @@ declare -A PATTERN_TO_SPEC=(
   ["packages/config/"]="docs/specs/entity-system.md"
   ["packages/access/"]="docs/specs/access-control.md"
   ["packages/audit/"]="docs/specs/ocap-audit-log.md"
+  ["packages/attachment/"]="docs/specs/work-surface.md"
   ["packages/api/"]="docs/specs/api-layer.md"
   ["packages/graphql/"]="docs/specs/api-layer.md"
   ["packages/routing/"]="docs/specs/api-layer.md"
   ["packages/wayfinding/"]="docs/specs/wayfinding.md"
+  ["packages/bimaaji/"]="docs/specs/bimaaji.md"
+  ["packages/cli/"]="docs/specs/cli-kernel.md"
+  ["packages/genealogy/"]="docs/specs/genealogy.md"
+  ["packages/listing/"]="docs/specs/listing-pipeline-v1.md"
+  ["packages/media/"]="docs/specs/entity-storage-two-axis.md"
+  ["packages/messaging/"]="docs/specs/messaging.md"
+  ["packages/migration/"]="docs/specs/migration-platform.md"
+  ["packages/ssr/"]="docs/specs/app-controller-invocation.md"
+  ["packages/workspace/"]="docs/specs/workspace-chat-surface.md"
   ["packages/workflows/"]="docs/specs/content-workflow.md"
   ["packages/foundation/"]="docs/specs/infrastructure.md"
   ["packages/cache/"]="docs/specs/infrastructure.md"

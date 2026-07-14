@@ -78,6 +78,109 @@ final class CheckPackageLayersGateTest extends TestCase
     }
 
     #[Test]
+    public function flags_attachment_upward_use_edge_pl005(): void
+    {
+        // attachment is L2. The namespace index must not silently skip it when
+        // an L1 package imports it without a declared dependency.
+        $this->writeFixturePackage(
+            short: 'entity',
+            require: ['php' => '>=8.5'],
+            relativeSrcFile: 'src/Demo.php',
+            useStatements: ['Waaseyaa\\Attachment\\AttachmentInterface'],
+        );
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true);
+
+        self::assertSame(1, $exit, "Gate must fail on an upward attachment use-edge.\n{$out}");
+        self::assertStringContainsString('PL005', $out);
+        self::assertStringContainsString('attachment', $out);
+    }
+
+    #[Test]
+    public function fails_before_scanning_when_namespace_map_drifts_from_layer_index(): void
+    {
+        mkdir($this->tmpRoot, 0o755, true);
+        $mutatedGate = $this->tmpRoot . '/check-package-layers-with-map-drift';
+        $source = (string) file_get_contents($this->gate);
+        $mutated = str_replace("    'Attachment' => 'attachment',\n", '', $source);
+        self::assertNotSame($source, $mutated, 'Fixture mutation must remove the attachment namespace map entry.');
+        file_put_contents($mutatedGate, $mutated);
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true, gatePath: $mutatedGate);
+
+        self::assertSame(1, $exit, "Namespace-map parity drift must fail before source scanning.\n{$out}");
+        self::assertStringContainsString('PL009', $out);
+        self::assertStringContainsString('attachment', $out);
+    }
+
+    #[Test]
+    public function flags_inline_fqcn_above_layer_zero_pl008(): void
+    {
+        // bimaaji (L4) reaches upward to cli (L6) without a use import. PL008
+        // must cover every layer, not only the historical Layer-0 incident.
+        $this->writeFixturePackage(
+            short: 'bimaaji',
+            require: ['php' => '>=8.5'],
+            relativeSrcFile: 'src/Demo.php',
+            useStatements: [],
+            rawBody: 'private const CLI_COMMAND = \\Waaseyaa\\CLI\\Command\\HandlerCommand::class;',
+        );
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true);
+
+        self::assertSame(1, $exit, "Gate must fail on an inline upward FQCN outside Layer 0.\n{$out}");
+        self::assertStringContainsString('PL008', $out);
+        self::assertStringContainsString('cli', $out);
+    }
+
+    #[Test]
+    public function flags_new_same_layer_cycle_pl006(): void
+    {
+        $this->writeFixturePackage(
+            short: 'plugin',
+            require: ['php' => '>=8.5', 'waaseyaa/queue' => '^0.1'],
+            relativeSrcFile: 'src/Demo.php',
+            useStatements: [],
+        );
+        $this->writeFixturePackage(
+            short: 'queue',
+            require: ['php' => '>=8.5', 'waaseyaa/plugin' => '^0.1'],
+            relativeSrcFile: 'src/Demo.php',
+            useStatements: [],
+        );
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true, emptyCycleBaseline: true);
+
+        self::assertSame(1, $exit, "Gate must fail on a new same-layer cycle.\n{$out}");
+        self::assertStringContainsString('PL006', $out);
+        self::assertStringContainsString('plugin <-> queue', $out);
+    }
+
+    #[Test]
+    public function accepts_an_explicitly_baselined_same_layer_cycle_pl006(): void
+    {
+        $this->writeFixturePackage(
+            short: 'plugin',
+            require: ['php' => '>=8.5', 'waaseyaa/queue' => '^0.1'],
+            relativeSrcFile: 'src/Demo.php',
+            useStatements: [],
+        );
+        $this->writeFixturePackage(
+            short: 'queue',
+            require: ['php' => '>=8.5', 'waaseyaa/plugin' => '^0.1'],
+            relativeSrcFile: 'src/Demo.php',
+            useStatements: [],
+        );
+        $cycleBaseline = $this->tmpRoot . '/cycle-baseline.txt';
+        file_put_contents($cycleBaseline, "plugin queue  # fixture accepted cycle\n");
+
+        [$exit, $out] = $this->runGate(emptyBaseline: true, cycleBaselinePath: $cycleBaseline);
+
+        self::assertSame(0, $exit, "An explicitly baselined same-layer cycle must remain accepted.\n{$out}");
+        self::assertStringContainsString('Accepted baseline', $out);
+    }
+
+    #[Test]
     public function baseline_suppresses_known_undeclared_edge(): void
     {
         $this->writeFixturePackage(
@@ -119,8 +222,8 @@ final class CheckPackageLayersGateTest extends TestCase
         // entity (L1) imports api (L4) via `use \Waaseyaa\Api\...;` — the optional
         // leading backslash is valid PHP with identical semantics, and previously
         // evaded PL005's regex in EVERY layer (WP7 adversarial-review finding).
-        // A non-Layer-0 package is deliberate: PL008 only scans L0, so PL005 is
-        // the only rule that can catch this shape here.
+        // A non-Layer-0 package is deliberate: a plain use import remains PL005's
+        // responsibility even though PL008 now scans inline FQCNs in every layer.
         $this->writeFixturePackage(
             short: 'entity',
             require: ['php' => '>=8.5'],
@@ -425,6 +528,9 @@ final class CheckPackageLayersGateTest extends TestCase
         bool $emptyBaseline = false,
         ?string $baselinePath = null,
         ?string $stringLiteralBaselinePath = null,
+        bool $emptyCycleBaseline = false,
+        ?string $cycleBaselinePath = null,
+        ?string $gatePath = null,
     ): array {
         $baseline = $baselinePath ?? ($emptyBaseline ? '/dev/null' : '');
         // Default to /dev/null so fixture runs never fall through to the REAL repo's
@@ -435,12 +541,13 @@ final class CheckPackageLayersGateTest extends TestCase
             'WAASEYAA_LAYER_ROOT' => $this->tmpRoot,
             'WAASEYAA_LAYER_UNDECLARED_BASELINE' => $baseline,
             'WAASEYAA_LAYER_STRING_LITERAL_BASELINE' => $stringLiteralBaselinePath ?? '/dev/null',
+            'WAASEYAA_LAYER_CYCLE_BASELINE' => $cycleBaselinePath ?? ($emptyCycleBaseline ? '/dev/null' : ''),
             'PATH' => getenv('PATH') ?: '/usr/bin:/bin',
         ];
 
         $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
         $process = proc_open(
-            [PHP_BINARY, $this->gate],
+            [PHP_BINARY, $gatePath ?? $this->gate],
             $descriptors,
             $pipes,
             $this->tmpRoot,

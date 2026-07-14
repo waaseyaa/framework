@@ -1,13 +1,20 @@
-# Agent-output envelope schema
+# Agent-output envelope schema (retired)
+
+> **Retired:** `waaseyaa/agent-output` is no longer shipped. The stale
+> `--output=json` adapters in `check-composer-policy`,
+> `check-getquery-bindings`, `check-phpstan`, and `drift-detector.sh` were
+> removed because they referenced absent formatter classes. Those commands now
+> reject the retired flag explicitly instead of advertising a fatal path. This
+> document preserves the historical contract only; it is not an active package
+> or tooling surface.
 
 > Compact NDJSON envelopes for verbose CLI tools, emitted only when an AI
 > agent is running the command. Human terminal sessions see the
 > unmodified tool output.
 
 **Package:** `waaseyaa/agent-output` (Layer 0).
-**Spec status:** M4 WP02 scaffold + `PhpUnitFormatter` envelope. WP03
-adds the remaining seven first-party formatters; WP04 wires the
-`--output=json` flag into each affected command.
+**Spec status:** Retired. The sections below record the former M4 contract for
+historical traceability and do not describe a supported runtime surface.
 
 ## Activation
 
