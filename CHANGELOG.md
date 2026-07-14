@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.263] - 2026-07-14
+
 ### Changed
 
 - **R21 search now treats Indigenous orthography as the tokenizer contract (#2010).** SQLite FTS5 uses Unicode token boundaries with diacritic preservation and apostrophe/glottal token characters, removes the English Porter stemmer, and recreates the virtual table during a full reindex so upgraded indexes adopt the tokenizer. Index/search round trips cover Anishinaabemowin double vowels, apostrophe forms, U+02BC, macrons and acute diacritics, and Canadian syllabics.

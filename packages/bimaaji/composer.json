@@ -7,9 +7,9 @@
         "nikic/php-parser": "^5.0",
         "php": ">=8.5",
         "symfony/routing": "^7.0",
-        "waaseyaa/entity": "^0.1.0-alpha.262",
-        "waaseyaa/foundation": "^0.1.0-alpha.262",
-        "waaseyaa/routing": "^0.1.0-alpha.262"
+        "waaseyaa/entity": "^0.1.0-alpha.263",
+        "waaseyaa/foundation": "^0.1.0-alpha.263",
+        "waaseyaa/routing": "^0.1.0-alpha.263"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"

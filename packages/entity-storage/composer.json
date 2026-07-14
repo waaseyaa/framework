@@ -39,14 +39,14 @@
     ],
     "require": {
         "php": ">=8.5",
-        "waaseyaa/access": "^0.1.0-alpha.262",
-        "waaseyaa/cache": "^0.1.0-alpha.262",
-        "waaseyaa/config": "^0.1.0-alpha.262",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.262",
-        "waaseyaa/entity": "^0.1.0-alpha.262",
-        "waaseyaa/field": "^0.1.0-alpha.262",
-        "waaseyaa/foundation": "^0.1.0-alpha.262",
-        "waaseyaa/i18n": "^0.1.0-alpha.262",
+        "waaseyaa/access": "^0.1.0-alpha.263",
+        "waaseyaa/cache": "^0.1.0-alpha.263",
+        "waaseyaa/config": "^0.1.0-alpha.263",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.263",
+        "waaseyaa/entity": "^0.1.0-alpha.263",
+        "waaseyaa/field": "^0.1.0-alpha.263",
+        "waaseyaa/foundation": "^0.1.0-alpha.263",
+        "waaseyaa/i18n": "^0.1.0-alpha.263",
         "symfony/event-dispatcher": "^7.0"
     },
     "require-dev": {
