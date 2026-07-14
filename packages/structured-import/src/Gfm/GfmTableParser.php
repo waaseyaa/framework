@@ -20,9 +20,6 @@ namespace Waaseyaa\StructuredImport\Gfm;
  */
 final class GfmTableParser
 {
-    /** Sentinel used during pipe-escape substitution. Must not appear in valid UTF-8 input. */
-    private const PIPE_SENTINEL = "\x00";
-
     /**
      * Parse a GFM document and return data rows from the first valid 2-column table.
      *
@@ -148,8 +145,7 @@ final class GfmTableParser
      */
     private function looksLikeTableRow(string $line): bool
     {
-        $masked = str_replace('\\|', self::PIPE_SENTINEL, $line);
-        return str_contains($masked, '|');
+        return preg_match('/(?<!\\\\)\|/', $line) === 1;
     }
 
     /**
@@ -161,20 +157,17 @@ final class GfmTableParser
      */
     private function splitRow(string $line): array
     {
-        // Replace escaped pipes with a sentinel before splitting.
-        $masked = str_replace('\\|', self::PIPE_SENTINEL, $line);
-
         // Strip optional leading and trailing pipes.
-        $masked = preg_replace('/^\s*\|/', '', $masked) ?? $masked;
-        $masked = preg_replace('/\|\s*$/', '', $masked) ?? $masked;
+        $line = preg_replace('/^\s*\|/', '', $line) ?? $line;
+        $line = preg_replace('/\|\s*$/', '', $line) ?? $line;
 
-        $parts = explode('|', $masked);
+        $parts = $this->splitOnUnescapedPipes($line);
         $cells = [];
 
         foreach ($parts as $part) {
             // Restore escaped pipes and trim whitespace.
-            $cell = str_replace(self::PIPE_SENTINEL, '|', $part);
-            $cells[] = trim($cell);
+            $cell = str_replace('\\|', '|', $part);
+            $cells[] = trim($cell, " \t\n\r\v");
         }
 
         return $cells;
@@ -185,11 +178,10 @@ final class GfmTableParser
      */
     private function isSeparatorRow(string $line): bool
     {
-        $masked = str_replace('\\|', self::PIPE_SENTINEL, $line);
-        $masked = preg_replace('/^\s*\|/', '', $masked) ?? $masked;
-        $masked = preg_replace('/\|\s*$/', '', $masked) ?? $masked;
+        $line = preg_replace('/^\s*\|/', '', $line) ?? $line;
+        $line = preg_replace('/\|\s*$/', '', $line) ?? $line;
 
-        $cells = explode('|', $masked);
+        $cells = $this->splitOnUnescapedPipes($line);
 
         foreach ($cells as $cell) {
             if (!preg_match('/^\s*:?-+:?\s*$/', $cell)) {
@@ -207,10 +199,17 @@ final class GfmTableParser
      */
     private function splitSeparatorRow(string $line): array
     {
-        $masked = str_replace('\\|', self::PIPE_SENTINEL, $line);
-        $masked = preg_replace('/^\s*\|/', '', $masked) ?? $masked;
-        $masked = preg_replace('/\|\s*$/', '', $masked) ?? $masked;
+        $line = preg_replace('/^\s*\|/', '', $line) ?? $line;
+        $line = preg_replace('/\|\s*$/', '', $line) ?? $line;
 
-        return explode('|', $masked);
+        return $this->splitOnUnescapedPipes($line);
+    }
+
+    /** @return list<string> */
+    private function splitOnUnescapedPipes(string $line): array
+    {
+        $parts = preg_split('/(?<!\\\\)\|/', $line);
+
+        return $parts !== false ? $parts : [$line];
     }
 }

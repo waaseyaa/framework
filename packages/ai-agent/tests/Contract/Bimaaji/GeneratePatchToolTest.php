@@ -54,7 +54,7 @@ final class GeneratePatchToolTest extends TestCase
         self::assertCount(1, $payload['patches'], 'add_field on a known entity must yield exactly one patch.');
 
         $patch = $payload['patches'][0];
-        self::assertSame('src/Entity/fields/User/nickname.php', $patch['file_path'] ?? null);
+        self::assertSame('src/Entity/fields/user/nickname.php', $patch['file_path'] ?? null);
         self::assertArrayHasKey('content_hash', $patch);
         self::assertSame(hash('sha256', $patch['content']), $patch['content_hash']);
     }
@@ -171,7 +171,7 @@ final class GeneratePatchToolTest extends TestCase
     {
         $graph = new ApplicationGraph(version: '1.0', sections: [
             new GraphSection(key: 'entities', version: '1.0', data: [
-                'User' => ['label' => 'User', 'class' => 'App\\Entity\\User'],
+                'user' => ['label' => 'User', 'class' => 'App\\Entity\\User'],
             ]),
         ]);
 
@@ -186,7 +186,7 @@ final class GeneratePatchToolTest extends TestCase
     {
         return [
             'operation' => 'add_field',
-            'entity_type' => 'User',
+            'entity_type' => 'user',
             'field' => 'nickname',
             'parameters' => ['type' => 'string'],
         ];

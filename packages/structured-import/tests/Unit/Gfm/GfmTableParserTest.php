@@ -368,4 +368,15 @@ final class GfmTableParserTest extends TestCase
 
         self::assertSame([], $result->errors);
     }
+
+    #[Test]
+    public function rawNulInsideCellRoundTripsWithoutBecomingAPipe(): void
+    {
+        $payload = "| Field | Value |\n| --- | --- |\n| title | a\x00b |";
+
+        $result = $this->parser->parse($payload);
+
+        self::assertSame([['prompt' => 'title', 'value' => "a\x00b"]], $result->rows);
+        self::assertSame([], $result->errors);
+    }
 }

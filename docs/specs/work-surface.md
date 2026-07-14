@@ -200,6 +200,8 @@ $result = $importer->import($payload, 'node', 'profile');
 
 **Matching rules**: field name is an implicit alias; declared `promptAliases` take precedence. Normalization is UTF-8 lowercase + whitespace collapse (no transliteration — C-012). `bundle` defaults to `entityTypeId` when `null`.
 
+**Escaped-pipe byte integrity**: table rows are split directly on unescaped `|` characters. The parser does not substitute an in-band sentinel, so every raw byte inside a cell — including NUL — round-trips unchanged while `\|` still becomes a literal pipe.
+
 **Performance budget (NFR-004)**: peak memory ≤ 2× payload size.
 
 ---

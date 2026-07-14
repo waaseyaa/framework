@@ -91,6 +91,19 @@ final class MutationValidatorTest extends TestCase
     }
 
     #[Test]
+    public function it_rejects_path_breaking_entity_type_and_field_identifiers(): void
+    {
+        $graph = $this->buildGraph(['../node' => ['fields' => []]]);
+        $validator = new MutationValidator($graph);
+
+        $result = $validator->validate(new MutationRequest('add_field', '../node', '../../shell'));
+
+        $this->assertFalse($result->isSuccess());
+        $this->assertContains('INVALID_ENTITY_TYPE_FORMAT', $result->errors);
+        $this->assertContains('INVALID_FIELD_FORMAT', $result->errors);
+    }
+
+    #[Test]
     public function it_accepts_entity_level_operations_without_field(): void
     {
         $graph = $this->buildGraph(['node' => ['fields' => []]]);

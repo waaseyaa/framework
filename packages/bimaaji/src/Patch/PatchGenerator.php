@@ -8,6 +8,8 @@ use Waaseyaa\Bimaaji\Mutation\MutationResult;
 
 final class PatchGenerator
 {
+    private const string IDENTIFIER_PATTERN = '/^[a-z][a-z0-9_]*$/';
+
     private readonly PhpFileBuilder $builder;
 
     public function __construct()
@@ -43,9 +45,14 @@ final class PatchGenerator
             content: $content,
             diffText: "--- /dev/null\n+++ b/{$filePath}\n@@ -0,0 +1 @@\n+{$content}",
             contentHash: hash('sha256', $content),
-            unsafe: false,
+            unsafe: !$this->isSafeIdentifier($entityType) || !$this->isSafeIdentifier($fieldName),
         );
 
         return new PatchSet([$entry]);
+    }
+
+    private function isSafeIdentifier(string $identifier): bool
+    {
+        return preg_match(self::IDENTIFIER_PATTERN, $identifier) === 1;
     }
 }

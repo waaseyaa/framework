@@ -123,4 +123,19 @@ final class PatchGeneratorTest extends TestCase
 
         self::assertStringContainsString('article', $patchSet->patches[0]->filePath);
     }
+
+    #[Test]
+    public function add_field_patch_computes_unsafe_from_identifier_allowlist(): void
+    {
+        $request = new MutationRequest(
+            operation: 'add_field',
+            entityType: '../article',
+            field: '../../shell',
+            parameters: ['type' => 'string'],
+        );
+
+        $patch = $this->generator->generate(MutationResult::success($request))->patches[0];
+
+        self::assertTrue($patch->unsafe);
+    }
 }

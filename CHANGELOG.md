@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **R21 service/data correctness hardening (#2010).** Billing webhook results now retain Stripe `event.id`, optionally suppress duplicates through an atomic event-claim seam, fail closed on a missing id when that seam is active, and thread invoice currency beside minor-unit amounts. Structured-import no longer uses an in-band NUL sentinel for escaped pipes, so raw NUL bytes round-trip without becoming `|`.
 - **Split fan-out waits through post-tag CI startup (#1999).** The exact-SHA release gate now polls through the CI run triggered by the tag push instead of failing single-check mode while that newer run is still in progress.
 - **SQLite connections now enforce declared foreign keys (#2010, R21 WP1).** `DBALDatabase::createSqlite()` issues `PRAGMA foreign_keys = ON` immediately after opening every in-memory or file-backed connection, before schema or data work can begin. A two-connection regression test proves each fresh connection rejects an orphaned child row instead of silently accepting referential corruption.
 - **R21 content and storage invariants (#2010).** Taxonomy term saves now reject self-parenting, cycles, and cross-vocabulary parent edges before persistence; messaging materializes and uniquely constrains each `(thread_id, user_id)` participant pair, deterministically merging legacy duplicates without losing owner, join, or read state; default-revision promotion refreshes column-stored bundle fields from the promoted revision in the same transaction. The attachment at-most-one-active invariant and dual schema-path parity remain enforced by the existing package schema and save guards.
@@ -51,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Bimaaji patch identifiers are fail-closed and risk-signalled (#2010).** `MutationValidator` rejects entity-type and field names outside `^[a-z][a-z0-9_]*$`; `PatchGenerator` independently computes `unsafe` from the same allowlist so a forged accepted result cannot present a path-breaking patch as safe.
 - **R20 field guards reduce credential and hidden-work regressions (#1999).** The admin-dist checkout no longer persists its write token in the runner's Git config, and the documented repository `bin/git` entrypoint mechanically rejects every `git stash` form while preserving normal Git command arguments. A tooling regression gate pins both controls; the existing dangling `da4d26758` stash remains untouched.
 
 ## [0.1.0-alpha.261] - 2026-07-14
