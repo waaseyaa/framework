@@ -53,10 +53,11 @@ final class StalledRunReaper
     }
 
     /**
-     * Scan for stalled rows and flip them to terminal `failed`.
+     * Scan abandoned rows and apply their status-specific terminal outcome.
      *
-     * @param int $maxRuntimeSeconds Threshold: rows whose `started_at`
-     *     is older than this many seconds count as stalled.
+     * @param int $maxRuntimeSeconds Age threshold for running/cancelling rows,
+     *     queued rows, and upgrade-era approvals without a deadline. Modern
+     *     approvals are selected by their persisted HITL deadline instead.
      * @return int Count of rows successfully transitioned (excludes
      *     races where another worker reached terminal first).
      */
@@ -94,7 +95,7 @@ final class StalledRunReaper
             $runId = $candidate->id;
 
             [$terminalStatus, $errorCode, $errorMessage] = $this->terminalOutcome(
-                $candidate->sourceStatus,
+                $candidate,
                 $maxRuntimeSeconds,
                 $threshold,
             );
@@ -173,11 +174,11 @@ final class StalledRunReaper
 
     /** @return array{RunStatus, string, string} */
     private function terminalOutcome(
-        RunStatus $status,
+        StalledRunCandidate $candidate,
         int $maxRuntimeSeconds,
         \DateTimeImmutable $threshold,
     ): array {
-        return match ($status) {
+        return match ($candidate->sourceStatus) {
             RunStatus::Queued => [
                 RunStatus::Failed,
                 'queue_timeout',
@@ -186,7 +187,13 @@ final class StalledRunReaper
             RunStatus::AwaitingApproval => [
                 RunStatus::Failed,
                 'approval_timeout',
-                \sprintf('Approval did not complete before the %d second worker TTL.', $maxRuntimeSeconds),
+                $candidate->approvalExpiresAt !== null
+                    ? \sprintf('Approval deadline expired at %s.', $candidate->approvalExpiresAt)
+                    : \sprintf(
+                        'Approval deadline was unavailable; legacy started_at fallback exceeded %d seconds (started_at < %s).',
+                        $maxRuntimeSeconds,
+                        $threshold->format(\DateTimeInterface::ATOM),
+                    ),
             ],
             RunStatus::Cancelling => [
                 RunStatus::Cancelled,

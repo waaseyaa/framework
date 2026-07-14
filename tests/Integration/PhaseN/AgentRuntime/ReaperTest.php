@@ -145,6 +145,10 @@ final class ReaperTest extends TestCase
         self::assertSame('queue_timeout', $this->runRepository->find('run-queued')?->get('error_code'));
         self::assertSame(RunStatus::Failed, $this->runRepository->find('run-approval')?->getStatus());
         self::assertSame('approval_timeout', $this->runRepository->find('run-approval')?->get('error_code'));
+        self::assertStringContainsString(
+            'legacy started_at fallback',
+            (string) $this->runRepository->find('run-approval')?->get('error_message'),
+        );
         self::assertNull($this->runRepository->find('run-approval')?->get('pending_approval_call_id'));
         self::assertNull($this->runRepository->find('run-approval')?->get('approval_expires_at'));
         self::assertSame(RunStatus::Cancelled, $this->runRepository->find('run-cancelling')?->getStatus());
@@ -240,6 +244,10 @@ final class ReaperTest extends TestCase
             $this->runRepository->find('run-long-before-approval')?->getStatus(),
         );
         self::assertSame(RunStatus::Failed, $this->runRepository->find('run-expired-approval')?->getStatus());
+        $message = (string) $this->runRepository->find('run-expired-approval')?->get('error_message');
+        self::assertStringContainsString('Approval deadline expired at', $message);
+        self::assertStringContainsString($now->modify('-1 second')->format('Y-m-d H:i:s.uP'), $message);
+        self::assertStringNotContainsString('worker TTL', $message);
     }
 
     private function seedRunningRun(string $id, int $startedSecondsAgo): void
