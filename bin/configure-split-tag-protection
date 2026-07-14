@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Apply or audit the forward-only release-tag ruleset on every repository in
+# split.yml. Organization-level rulesets are not available on every GitHub
+# plan/token, so this is the idempotent mirror-side fallback.
+
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SPLIT_YML="${SPLIT_YML:-${ROOT_DIR}/.github/workflows/split.yml}"
+REPO_OWNER="${REPO_OWNER:-waaseyaa}"
+RULESET_NAME="${RULESET_NAME:-split-tag-protection-forward-only}"
+MODE="${1:---check}"
+
+if [[ "${MODE}" != "--check" && "${MODE}" != "--apply" ]]; then
+  echo "Usage: $0 [--check|--apply]" >&2
+  exit 2
+fi
+if [[ ! -f "${SPLIT_YML}" ]]; then
+  echo "FAIL: split workflow not found: ${SPLIT_YML}" >&2
+  exit 1
+fi
+for command in gh jq python3; do
+  if ! command -v "${command}" >/dev/null 2>&1; then
+    echo "FAIL: required command not found: ${command}" >&2
+    exit 1
+  fi
+done
+
+mapfile -t repositories < <(python3 - "${SPLIT_YML}" <<'PY'
+import pathlib
+import re
+import sys
+
+text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+for repository in sorted(set(re.findall(r"remote:\s*'([^']+)'", text))):
+    print(repository)
+PY
+)
+
+if [[ "${#repositories[@]}" -eq 0 ]]; then
+  echo "FAIL: no split mirrors parsed from ${SPLIT_YML}" >&2
+  exit 1
+fi
+
+payload="$({
+  jq -cn \
+    --arg name "${RULESET_NAME}" \
+    '{
+      name: $name,
+      target: "tag",
+      enforcement: "active",
+      conditions: {ref_name: {include: ["refs/tags/**"], exclude: []}},
+      rules: [
+        {type: "deletion"},
+        {type: "non_fast_forward"},
+        {type: "update"}
+      ],
+      bypass_actors: []
+    }'
+})"
+
+failures=0
+for repository in "${repositories[@]}"; do
+  endpoint="repos/${REPO_OWNER}/${repository}/rulesets"
+  rulesets="$(gh api "${endpoint}")"
+  ruleset_id="$(jq -r --arg name "${RULESET_NAME}" '.[] | select(.name == $name) | .id' <<<"${rulesets}" | head -n 1)"
+
+  state="missing"
+  if [[ -n "${ruleset_id}" ]]; then
+    detail="$(gh api "${endpoint}/${ruleset_id}")"
+    if jq -e \
+      --arg name "${RULESET_NAME}" \
+      '(.name == $name)
+       and (.target == "tag")
+       and (.enforcement == "active")
+       and (.conditions.ref_name.include == ["refs/tags/**"])
+       and (([.rules[].type] | sort) == (["deletion", "non_fast_forward", "update"] | sort))' \
+      >/dev/null <<<"${detail}"; then
+      state="protected"
+    else
+      state="drifted"
+    fi
+  fi
+
+  if [[ "${MODE}" == "--check" ]]; then
+    if [[ "${state}" == "protected" ]]; then
+      echo "${repository}: protected"
+    else
+      echo "${repository}: ${state}"
+      failures=$((failures + 1))
+    fi
+    continue
+  fi
+
+  case "${state}" in
+    protected)
+      echo "${repository}: already protected"
+      ;;
+    missing)
+      gh api --method POST "${endpoint}" --input - <<<"${payload}" >/dev/null
+      echo "${repository}: created"
+      ;;
+    drifted)
+      gh api --method PUT "${endpoint}/${ruleset_id}" --input - <<<"${payload}" >/dev/null
+      echo "${repository}: updated"
+      ;;
+  esac
+done
+
+if [[ "${failures}" -ne 0 ]]; then
+  echo "FAIL: ${failures} of ${#repositories[@]} split mirrors lack the exact forward-only tag ruleset." >&2
+  exit 1
+fi
+
+echo "OK: ${#repositories[@]} split mirrors have forward-only release-tag governance (${MODE#--})."
