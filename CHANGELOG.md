@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Relationships no longer expose edge metadata when both endpoints are hidden (#2020).** The endpoint visibility policy now denies entity-level view when neither endpoint can be viewed, while retaining pair-wise field redaction when one endpoint remains visible.
 ### Changed
 
 - **New nodes now default to unpublished and node-type identifiers expose their real domain type (#2020).** Omitted publication state fails closed to draft, while `NodeType::getType()` narrows the generic config-entity id to `?string`.
