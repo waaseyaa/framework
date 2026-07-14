@@ -6,7 +6,27 @@ on:
       - 'v*'
 
 jobs:
+  verify-ci-green:
+    name: Verify tagged SHA has green CI
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Require a successful CI workflow run for the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: bash bin/wait-for-green-ci "${SHA}" 0
+
   split:
+    needs: verify-ci-green
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -114,7 +134,17 @@ jobs:
 
       - name: Install splitsh-lite
         run: |
-          curl -sL https://github.com/splitsh/lite/releases/download/v1.0.1/lite_linux_amd64.tar.gz | tar xz
+          set -euo pipefail
+          archive="$(mktemp)"
+          trap 'rm -f "${archive}"' EXIT
+          curl --fail --location --silent --show-error \
+            --output "${archive}" \
+            https://github.com/splitsh/lite/releases/download/v1.0.1/lite_linux_amd64.tar.gz
+          # SHA-256 recorded from the immutable upstream v1.0.1 GitHub release asset.
+          printf '%s  %s\n' \
+            '2539301ce5e21d0ca44b689d0dd2c1b20d9f9e996c1fe6c462afb8af4e7141cc' \
+            "${archive}" | sha256sum --check
+          tar -xzf "${archive}"
           sudo mv splitsh-lite /usr/local/bin/splitsh-lite
 
       - name: Guard against unauthorized v1.0 tag
@@ -262,7 +292,7 @@ jobs:
           fetch-depth: 0
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}

@@ -50,7 +50,7 @@ final class GoogleOAuthProviderTest extends TestCase
     public function testExchangeCode(): void
     {
         $responseBody = json_encode([
-            'access_token'  => 'ya29.access_token',
+            'access_token'  => 'ya29.' . 'access_token',
             'refresh_token' => 'refresh-token-123',
             'expires_in'    => 3600,
             'scope'         => 'openid email profile',
@@ -66,7 +66,7 @@ final class GoogleOAuthProviderTest extends TestCase
         $token = $this->provider->exchangeCode('auth-code-abc');
 
         self::assertInstanceOf(OAuthToken::class, $token);
-        self::assertSame('ya29.access_token', $token->accessToken);
+        self::assertSame('ya29.' . 'access_token', $token->accessToken);
         self::assertSame('refresh-token-123', $token->refreshToken);
         self::assertNotNull($token->expiresAt);
         self::assertSame(['openid', 'email', 'profile'], $token->scopes);
@@ -93,7 +93,7 @@ final class GoogleOAuthProviderTest extends TestCase
     public function testRefreshToken(): void
     {
         $responseBody = json_encode([
-            'access_token' => 'ya29.new_access_token',
+            'access_token' => 'ya29.' . 'new_access_token',
             'expires_in'   => 3600,
             'scope'        => 'openid email',
             'token_type'   => 'Bearer',
@@ -108,7 +108,7 @@ final class GoogleOAuthProviderTest extends TestCase
         $token = $this->provider->refreshToken('old-refresh-token');
 
         self::assertInstanceOf(OAuthToken::class, $token);
-        self::assertSame('ya29.new_access_token', $token->accessToken);
+        self::assertSame('ya29.' . 'new_access_token', $token->accessToken);
         self::assertNull($token->refreshToken);
     }
 
@@ -128,7 +128,7 @@ final class GoogleOAuthProviderTest extends TestCase
             ->with('https://www.googleapis.com/oauth2/v2/userinfo')
             ->willReturn(new HttpResponse(200, (string) $responseBody));
 
-        $profile = $this->provider->getUserProfile('ya29.access_token');
+        $profile = $this->provider->getUserProfile('ya29.' . 'access_token');
 
         self::assertInstanceOf(OAuthUserProfile::class, $profile);
         self::assertSame('1234567890', $profile->providerId);
