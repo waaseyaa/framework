@@ -54,9 +54,11 @@ final class NodeType extends ConfigEntityBase
     /**
      * Returns the machine name (type) of this node type.
      */
-    public function getType(): int|string|null
+    public function getType(): ?string
     {
-        return $this->id();
+        $id = $this->id();
+
+        return $id === null ? null : (string) $id;
     }
 
     /**

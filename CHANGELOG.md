@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **New nodes now default to unpublished and node-type identifiers expose their real domain type (#2020).** Omitted publication state fails closed to draft, while `NodeType::getType()` narrows the generic config-entity id to `?string`.
+
 ## [0.1.0-alpha.264] - 2026-07-14
 
 ### Fixed
