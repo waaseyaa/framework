@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **OIDC route wiring no longer turns controller construction failures into silent 404s (#2020).** Routing logs each skipped OIDC controller and its resolution exception while preserving the optional-route fail-open behavior.
+
 ## [0.1.0-alpha.264] - 2026-07-14
 
 ### Fixed
