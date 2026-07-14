@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\Validator\Constraints\NotBlank;
+use Symfony\Component\Validator\Constraints\Length;
 use Symfony\Component\Validator\Validation;
 use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\ResourceSerializer;
@@ -103,7 +104,7 @@ final class JsonApiControllerConflictTest extends TestCase
             keys: self::REV_KEYS,
             revisionable: true,
             revisionDefault: true,
-            constraints: ['title' => [new NotBlank()]],
+            constraints: ['title' => [new NotBlank(), new Length(min: 3)]],
         );
         $this->entityTypeManager->registerEntityType($constrainedType);
         $constrainedHandler = new SqlSchemaHandler($constrainedType, $this->db);
@@ -346,6 +347,43 @@ final class JsonApiControllerConflictTest extends TestCase
             "Validation failed for entity of type 'test_constrained'",
             $array['errors'][0]['detail'],
         );
+    }
+
+    #[Test]
+    public function createValidationFailureMapsTo422(): void
+    {
+        $doc = $this->controller->store('test_constrained', [
+            'data' => [
+                'type' => 'test_constrained',
+                'attributes' => ['title' => 'x'],
+            ],
+        ]);
+        $array = $doc->toArray();
+
+        self::assertSame(422, $doc->statusCode);
+        self::assertSame('422', $array['errors'][0]['status']);
+        self::assertStringContainsString("Validation failed for entity of type 'test_constrained'", $array['errors'][0]['detail']);
+    }
+
+    #[Test]
+    public function patchWithoutExpectationValidationFailureMapsTo422(): void
+    {
+        $repo = $this->entityTypeManager->getRepository('test_constrained');
+        $entity = new TestRevisionableEntity(values: ['title' => 'valid', 'id' => '1', 'uuid' => 'c2']);
+        $entity->enforceIsNew();
+        $repo->save($entity);
+
+        $doc = $this->controller->update('test_constrained', '1', [
+            'data' => [
+                'type' => 'test_constrained',
+                'attributes' => ['title' => ''],
+            ],
+        ]);
+        $array = $doc->toArray();
+
+        self::assertSame(422, $doc->statusCode);
+        self::assertSame('422', $array['errors'][0]['status']);
+        self::assertStringContainsString("Validation failed for entity of type 'test_constrained'", $array['errors'][0]['detail']);
     }
 
     // -----------------------------------------------------------------------

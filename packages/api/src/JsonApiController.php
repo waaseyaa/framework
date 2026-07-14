@@ -612,6 +612,8 @@ final class JsonApiController
                     sprintf("An entity of type '%s' with this ID already exists.", $entityTypeId),
                 ),
             );
+        } catch (EntityValidationException $e) {
+            return $this->validationError($entityTypeId, $e);
         } catch (TransitionDeniedException $e) {
             // WP2 rework (review finding #8): WorkflowStateGuard denies from
             // PRE_SAVE inside save() — never let it surface as an uncaught 500.
@@ -818,6 +820,8 @@ final class JsonApiController
                 // in the body. Names the REAL entity id, not the request
                 // locator (contract §15 locator honesty).
                 return $this->errorDocument($this->uniquenessConflictError($entityTypeId, (string) $target->id()));
+            } catch (EntityValidationException $e) {
+                return $this->validationError($entityTypeId, $e);
             } catch (TransitionDeniedException $e) {
                 // WP2 rework (review finding #8): same PRE_SAVE guard denial
                 // as create() and the expectation-stated PATCH path below.
@@ -881,9 +885,7 @@ final class JsonApiController
                 ],
             ));
         } catch (EntityValidationException $e) {
-            return $this->errorDocument(JsonApiError::unprocessable(
-                "Validation failed for entity of type '{$entityTypeId}': {$e->getMessage()}",
-            ));
+            return $this->validationError($entityTypeId, $e);
         } catch (TransitionDeniedException $e) {
             // WP2 rework (review finding #8): same PRE_SAVE guard denial as
             // create() and the plain PATCH path above.
@@ -896,6 +898,13 @@ final class JsonApiController
         }
 
         return null;
+    }
+
+    private function validationError(string $entityTypeId, EntityValidationException $exception): JsonApiDocument
+    {
+        return $this->errorDocument(JsonApiError::unprocessable(
+            "Validation failed for entity of type '{$entityTypeId}': {$exception->getMessage()}",
+        ));
     }
 
     /**

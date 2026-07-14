@@ -1,5 +1,6 @@
 # Entity System
 
+<!-- Spec reviewed 2026-07-14 - #2018 authoring spine: integer fields with settings.subtype=timestamp now derive AtLeastOneOf(Type(int), Type(DateTimeInterface)) so unix-backed storage values and cast-aware domain values are both valid while unrelated scalar/container types remain rejected. This corrects the documented cast-aware validation contract; no validation path is disabled. -->
 <!-- Spec reviewed 2026-07-14 - R21 #2010: taxonomy hierarchy is guarded at EntityRepository's PRE_SAVE persistence boundary. TermHierarchyGuard rejects self-parenting, cycles, missing parents, and cross-vocabulary parent edges before any tree walk can consume persisted hierarchy. -->
 
 <!-- Spec reviewed 2026-07-13 - CW-v1 option-1 PR-4 (#1920, security): new `Waaseyaa\Entity\Write\EntityWritePayloadGuard` (`packages/entity/src/Write/EntityWritePayloadGuard.php`, `@api`) — the write-side field allowlist shared by JSON:API/admin-surface/GraphQL. No entity-system storage/save-load contract changes; it is a pure, stateless read of `EntityTypeInterface::getKeys()` + `EntityTypeManagerInterface::resolveFieldDefinitions()` (both pre-existing, unchanged read paths documented elsewhere in this spec). Full contract documented in `docs/specs/api-layer.md` "Write-side field allowlist (CW-v1 option-1 PR-4)", the surface that actually calls it. -->
@@ -1373,7 +1374,7 @@ Maps `EntityType::getFieldDefinitions()` metadata to per-field Symfony `Constrai
 | `type: email` | `Email` | In addition to string typing when applicable. |
 | `allowed_values` / `allowedValues` | `Choice` | Non-empty list only. |
 | `enum_class` / `enumClass` (`BackedEnum`) | `Choice` on backing values | PHP enum class name. |
-| `type` scalar | `Type` | `bool`, `int`, `float`, `string` (incl. `email`/`text`/`slug`), `array`/`json`. Omitted for `entity_reference` and `timestamp` (storage shape varies). |
+| `type` scalar | `Type` | `bool`, `int`, `float`, `string` (incl. `email`/`text`/`slug`), `array`/`json`. Omitted for `entity_reference` and `timestamp` (storage shape varies). Integer fields with `settings.subtype: timestamp` use `AtLeastOneOf(Type(int), Type(DateTimeInterface))`, accepting both unix storage and cast-aware domain representations. |
 | `min` / `max` settings on `integer` / `int` / `float` / `double` | `Range` | Derived when `min` and/or `max` is numeric — both, either, or neither may be present (mirrors the Length shape). (#1643) |
 
 Per-field declared constraints (`FieldDefinition::getConstraints()`, object-shaped definitions; array-shaped definitions carry `constraints` through `normalizeDefinition()`) are appended after the derived list for the same field.

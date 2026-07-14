@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Entity\Validation;
 
+use DateTimeInterface;
 use Symfony\Component\Validator\Constraint;
+use Symfony\Component\Validator\Constraints\AtLeastOneOf;
 use Symfony\Component\Validator\Constraints\Choice;
 use Symfony\Component\Validator\Constraints\Email;
 use Symfony\Component\Validator\Constraints\Length;
@@ -86,7 +88,7 @@ final class FieldDefinitionConstraintBuilder
             $constraints[] = new Choice(choices: $values);
         }
 
-        $typeConstraint = self::scalarTypeConstraint($type);
+        $typeConstraint = self::scalarTypeConstraint($def, $type);
         if ($typeConstraint !== null) {
             $constraints[] = $typeConstraint;
         }
@@ -227,8 +229,15 @@ final class FieldDefinitionConstraintBuilder
         };
     }
 
-    private static function scalarTypeConstraint(string $type): ?Constraint
+    private static function scalarTypeConstraint(FieldDefinitionInterface $def, string $type): ?Constraint
     {
+        if (in_array($type, ['integer', 'int'], true) && $def->getSetting('subtype') === 'timestamp') {
+            return new AtLeastOneOf([
+                new Type('int'),
+                new Type(DateTimeInterface::class),
+            ]);
+        }
+
         return match ($type) {
             // #1655: the framework's boolean convention keeps 0/1 through
             // get()/validate() with no cast (see User.php "status stays 0/1"

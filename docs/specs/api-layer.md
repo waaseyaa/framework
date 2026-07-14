@@ -1,5 +1,6 @@
 # API Layer
 
+<!-- Spec reviewed 2026-07-14 - #2018 authoring spine: EntityValidationException is mapped to 422 on store(), plain update(), and expectation-stated update(); repository validation can no longer escape as an admin/API HTTP 500. -->
 <!-- Spec reviewed 2026-07-14 - R21 WP4 (#2010): GraphQlRouter propagates GraphQlEndpoint's statusCode instead of forcing HTTP 200, so parse/auth/method failures reach clients as 400/401/405. withMutationOverrides() remains supported, but a custom update/delete resolver replaces the generated EntityResolver path and therefore owns the enduring not-found/access-denied collapse obligation; delegating to EntityResolver is the preferred way to preserve it. -->
 <!-- Spec reviewed 2026-07-14 - R21 WP6 (#2010): POST /api/queue/jobs/{id}/retry validates the payload, atomically claims the failed row through FailedJobRepositoryInterface, and dispatches only for the claim winner. A competing retry returns JSON:API 409; corrupt payload remains 422, dispatch failure remains 502 and releases the claim, success remains 204 and forgets the row. -->
 
@@ -354,7 +355,8 @@ The `$accessHandler` and `$account` follow the **paired nullable** pattern: both
 3. Creates entity via `$storage->create($attributes)`.
 4. Checks create access via `$accessHandler->checkCreateAccess()`.
 5. Checks **field edit access** for each submitted attribute via `$accessHandler->checkFieldAccess($entity, $fieldName, 'edit', $account)`. Uses `isForbidden()` (field-level semantics).
-6. Saves entity and returns document with `statusCode: 201` and `meta.created = true`.
+6. Saves entity. `EntityValidationException` maps to 422; it never escapes as HTTP 500.
+7. Returns document with `statusCode: 201` and `meta.created = true`.
 
 **`update(string $entityTypeId, int|string $id, array $data): JsonApiDocument`**
 
@@ -367,6 +369,7 @@ The `$accessHandler` and `$account` follow the **paired nullable** pattern: both
 7. Applies updates via `$target->set($field, $value)` (requires `$target instanceof FieldableInterface`).
 8. Saves through `getRepository()->save($target)` in both cases (C-22 WP3 unified the two save paths onto the canonical repository) — **without** an expectation, the plain form; **with** an expectation, `getRepository()->save($target, context: SaveContext::default()->withExpectedRevisionId($n))` — and returns the resource serialized from `$target`. **A stated `expected_revision_id` against a DIVERGED working copy** (the tip has moved since the client's expectation was formed) hits the existing storage `\LogicException`/`RevisionConflictException` rejection matrix (`revision-system-unified.md` §3b) exactly as any other expectation mismatch does — no new machinery; the controller's `catch (\LogicException $e)` → 422 / `catch (RevisionConflictException $e)` → 409 mapping in `saveWithExpectation()` is unchanged.
 9. **Both save paths catch `Doctrine\DBAL\Exception\UniqueConstraintViolationException` → 409** (added 2026-07-02, audit-remediation WP2 review — previously only `store()` had this mapping and a PATCH tripping a uniqueness constraint, e.g. the attachment one-active-per-parent partial index under a race, surfaced a raw 500 with driver SQL). Same status/title shape as `store()`'s duplicate-ID 409, codeless (so `code: 'REVISION_CONFLICT'` stays the discriminator for the optimistic-locking 409), detail `"Updating entity of type '<type>' with ID '<id>' violated a uniqueness constraint."` — names the REAL entity id, not the request locator (locator honesty, contract §15). Pinned by `JsonApiControllerConflictTest::patchWithoutExpectationMapsUniqueConstraintViolationTo409` / `::patchWithExpectationMapsUniqueConstraintViolationTo409`.
+10. **Both save paths catch `EntityValidationException` → 422.** The plain and expectation-stated PATCH paths share the same validation-error factory, so invalid input is rejected without becoming an HTTP 500.
 
 **`destroy(string $entityTypeId, int|string $id): JsonApiDocument`**
 

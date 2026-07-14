@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Fresh-install node authoring no longer fails validation with HTTP 500 (#2018).** Unix-backed node timestamps now derive constraints that accept both their integer storage representation and cast-aware `DateTimeInterface` domain values, restoring page, news, and event create/edit through the admin surface. JSON:API create and both update save paths map genuine entity-validation failures to 422, and the blocking cutover smoke now proves valid authoring plus invalid create/update rejection against synthetic `page`, `post`, and `tribe_events` bundles.
+
 ## [0.1.0-alpha.263] - 2026-07-14
 
 ### Changed

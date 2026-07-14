@@ -31,6 +31,55 @@ final class CutoverContentModelProvider extends ServiceProvider implements Deriv
                     ),
                 ],
             ),
+            new ContentTypeModel(
+                entityTypeId: 'node',
+                bundle: 'page',
+                label: 'Page',
+                fields: $this->commonFields('page'),
+            ),
+            new ContentTypeModel(
+                entityTypeId: 'node',
+                bundle: 'post',
+                label: 'News',
+                fields: $this->commonFields('post'),
+            ),
+            new ContentTypeModel(
+                entityTypeId: 'node',
+                bundle: 'tribe_events',
+                label: 'Event',
+                fields: [
+                    ...$this->commonFields('tribe_events'),
+                    new FieldDefinition(
+                        name: 'event_start',
+                        type: 'string',
+                        settings: ['weight' => 10],
+                        targetEntityTypeId: 'node',
+                        targetBundle: 'tribe_events',
+                        label: 'Event start',
+                    ),
+                    new FieldDefinition(
+                        name: 'event_end',
+                        type: 'string',
+                        settings: ['weight' => 11],
+                        targetEntityTypeId: 'node',
+                        targetBundle: 'tribe_events',
+                        label: 'Event end',
+                    ),
+                ],
+            ),
         ]);
+    }
+
+    /** @return list<FieldDefinition> */
+    private function commonFields(string $bundle): array
+    {
+        return [
+            new FieldDefinition(
+                name: 'body',
+                type: 'text_long',
+                targetEntityTypeId: 'node',
+                targetBundle: $bundle,
+            ),
+        ];
     }
 }
