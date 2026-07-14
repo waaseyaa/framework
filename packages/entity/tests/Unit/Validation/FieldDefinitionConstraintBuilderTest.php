@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Entity\Tests\Unit\Validation;
 
+use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -23,6 +24,32 @@ use Waaseyaa\Field\Item\EnumFieldTypeException;
 #[CoversClass(FieldDefinitionConstraintBuilder::class)]
 final class FieldDefinitionConstraintBuilderTest extends TestCase
 {
+    #[Test]
+    public function integerTimestampAcceptsCastAwareDateTimeAndRejectsUnrelatedTypes(): void
+    {
+        $constraints = FieldDefinitionConstraintBuilder::build([
+            'created' => ['type' => 'integer', 'subtype' => 'timestamp'],
+        ]);
+
+        foreach ([0, new DateTimeImmutable('@0')] as $validValue) {
+            $valid = $this->stubEntity(['created' => $validValue]);
+            self::assertCount(
+                0,
+                (new EntityValidator(Validation::createValidator()))->validate($valid, $constraints),
+                'A timestamp must accept both its unix storage value and its cast-aware domain DateTime.',
+            );
+        }
+
+        foreach (['not-a-timestamp', 1.5, []] as $invalid) {
+            $entity = $this->stubEntity(['created' => $invalid]);
+            self::assertGreaterThan(
+                0,
+                (new EntityValidator(Validation::createValidator()))->validate($entity, $constraints)->count(),
+                sprintf('Timestamp subtype must reject %s.', get_debug_type($invalid)),
+            );
+        }
+    }
+
     #[Test]
     public function requiredStringRejectsBlank(): void
     {

@@ -20,12 +20,15 @@ final class CutoverFreshInstallSmokeTest extends TestCase
 {
     private string $repoRoot;
     private string $projectRoot;
+    private ?Process $server = null;
+    private int $serverPort = 0;
 
     protected function setUp(): void
     {
         $this->repoRoot = (string) realpath(__DIR__ . '/../../..');
         $this->projectRoot = sys_get_temp_dir() . '/waaseyaa_cutover_' . bin2hex(random_bytes(6));
         mkdir($this->projectRoot . '/config', 0o755, true);
+        mkdir($this->projectRoot . '/public', 0o755, true);
         mkdir($this->projectRoot . '/storage', 0o755, true);
         mkdir($this->projectRoot . '/templates', 0o755, true);
         symlink($this->repoRoot . '/packages', $this->projectRoot . '/packages');
@@ -55,6 +58,8 @@ final class CutoverFreshInstallSmokeTest extends TestCase
 
     protected function tearDown(): void
     {
+        $this->server?->stop(1);
+
         if (!is_dir($this->projectRoot)) {
             return;
         }
@@ -120,6 +125,80 @@ final class CutoverFreshInstallSmokeTest extends TestCase
         );
     }
 
+    #[Test]
+    public function fresh_install_admin_authoring_creates_and_edits_page_and_bundled_content(): void
+    {
+        $install = $this->runPhase('db-init');
+        self::assertSame(0, $install->getExitCode(), $install->getErrorOutput() . $install->getOutput());
+        $import = $this->runPhase('import');
+        self::assertSame(0, $import->getExitCode(), $import->getErrorOutput() . $import->getOutput());
+
+        $this->startServer();
+
+        $createdIds = [];
+        foreach ([
+            'page' => ['body' => '<p>Page body.</p>'],
+            'post' => ['body' => '<p>News body.</p>'],
+            'tribe_events' => [
+                'body' => '<p>Event body.</p>',
+                'event_start' => '2026-08-01T10:00:00',
+                'event_end' => '2026-08-01T12:00:00',
+            ],
+        ] as $bundle => $bundleFields) {
+            $create = $this->adminAction('create', [
+                'attributes' => [
+                    'title' => "Synthetic {$bundle}",
+                    'slug' => "synthetic-{$bundle}",
+                    'type' => $bundle,
+                    ...$bundleFields,
+                ],
+            ]);
+
+            self::assertSame(200, $create['status'], "{$bundle} create returned HTTP {$create['status']}: {$create['body']}");
+            self::assertTrue($create['json']['ok'] ?? false, "{$bundle} create failed: {$create['body']}");
+
+            $id = (string) ($create['json']['data']['id'] ?? '');
+            self::assertNotSame('', $id, "{$bundle} create returned no id: {$create['body']}");
+            $createdIds[$bundle] = $id;
+
+            $update = $this->adminAction('update', [
+                'id' => $id,
+                'attributes' => ['title' => "Edited {$bundle}"],
+            ]);
+            self::assertSame(200, $update['status'], "{$bundle} update returned HTTP {$update['status']}: {$update['body']}");
+            self::assertTrue($update['json']['ok'] ?? false, "{$bundle} update failed: {$update['body']}");
+            self::assertSame("Edited {$bundle}", $update['json']['data']['attributes']['title'] ?? null);
+        }
+
+        $invalidCreate = $this->adminAction('create', [
+            'attributes' => [
+                'title' => 12345,
+                'slug' => 'invalid-page',
+                'type' => 'page',
+                'body' => '<p>Must not persist.</p>',
+            ],
+        ]);
+        self::assertNotSame(500, $invalidCreate['status'], $invalidCreate['body']);
+        self::assertFalse($invalidCreate['json']['ok'] ?? true, $invalidCreate['body']);
+        self::assertSame(422, $invalidCreate['json']['error']['status'] ?? null, $invalidCreate['body']);
+
+        $invalidUpdate = $this->adminAction('update', [
+            'id' => $createdIds['page'],
+            'attributes' => ['title' => 12345],
+        ]);
+        self::assertNotSame(500, $invalidUpdate['status'], $invalidUpdate['body']);
+        self::assertFalse($invalidUpdate['json']['ok'] ?? true, $invalidUpdate['body']);
+        self::assertSame(422, $invalidUpdate['json']['error']['status'] ?? null, $invalidUpdate['body']);
+
+        $connection = DriverManager::getConnection([
+            'driver' => 'pdo_sqlite',
+            'path' => $this->projectRoot . '/storage/waaseyaa.sqlite',
+        ]);
+        self::assertSame(0, (int) $connection->fetchOne("SELECT COUNT(*) FROM node WHERE json_extract(_data, '$.slug') = 'invalid-page'"));
+        self::assertSame('Edited page', $connection->fetchOne("SELECT title FROM node WHERE json_extract(_data, '$.slug') = 'synthetic-page'"));
+        $connection->close();
+    }
+
     private function runPhase(string $phase, string $value = ''): Process
     {
         $command = [
@@ -151,6 +230,7 @@ final class CutoverFreshInstallSmokeTest extends TestCase
                 'database' => '{$databasePath}',
                 'environment' => 'local',
                 'app' => ['url' => 'http://localhost', 'name' => 'Fresh-install cutover smoke'],
+                'auth' => ['dev_fallback_account' => true],
                 'ssr' => ['theme' => '', 'cache_max_age' => 0],
                 'view_modes' => [
                     'node' => [
@@ -162,6 +242,72 @@ final class CutoverFreshInstallSmokeTest extends TestCase
                 ],
             ];
             PHP;
+    }
+
+    private function startServer(): void
+    {
+        $socket = stream_socket_server('tcp://127.0.0.1:0', $errorCode, $errorMessage);
+        self::assertIsResource($socket, "Unable to reserve HTTP port: {$errorCode} {$errorMessage}");
+        $address = stream_socket_get_name($socket, false);
+        fclose($socket);
+        self::assertIsString($address);
+        $this->serverPort = (int) substr(strrchr($address, ':'), 1);
+
+        $this->server = new Process([
+            PHP_BINARY,
+            '-S',
+            "127.0.0.1:{$this->serverPort}",
+            __DIR__ . '/Fixtures/authoring_http_router.php',
+        ], $this->projectRoot, [
+            'APP_ENV' => 'local',
+            'WAASEYAA_TEST_PROJECT_ROOT' => $this->projectRoot,
+        ]);
+        $this->server->setTimeout(null);
+        $this->server->start();
+
+        $deadline = microtime(true) + 10;
+        do {
+            $connection = @fsockopen('127.0.0.1', $this->serverPort, $errorCode, $errorMessage, 0.1);
+            if (is_resource($connection)) {
+                fclose($connection);
+
+                return;
+            }
+            usleep(20_000);
+        } while (microtime(true) < $deadline && $this->server->isRunning());
+
+        self::fail('Fresh-install HTTP server did not start: ' . $this->server->getErrorOutput());
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{status: int, body: string, json: array<string, mixed>}
+     */
+    private function adminAction(string $action, array $payload): array
+    {
+        $context = stream_context_create(['http' => [
+            'method' => 'POST',
+            'header' => "Content-Type: application/json\r\nAccept: application/json",
+            'content' => json_encode($payload, JSON_THROW_ON_ERROR),
+            'ignore_errors' => true,
+            'timeout' => 20,
+        ]]);
+        $body = file_get_contents(
+            "http://127.0.0.1:{$this->serverPort}/admin/_surface/node/action/{$action}",
+            false,
+            $context,
+        );
+        self::assertIsString($body);
+        $headers = function_exists('http_get_last_response_headers') ? http_get_last_response_headers() : ($http_response_header ?? []);
+        $statusLine = $headers[0] ?? '';
+        preg_match('/\s(\d{3})\s/', $statusLine, $matches);
+        $json = json_decode($body, true);
+
+        return [
+            'status' => isset($matches[1]) ? (int) $matches[1] : 0,
+            'body' => $body,
+            'json' => is_array($json) ? $json : [],
+        ];
     }
 
     private function writeAutoloadWrapper(): void
