@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Seo;
 
+use Twig\Environment;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Seo\Llms\LlmsTxtGenerator;
 use Waaseyaa\Seo\SchemaOrg\EntitySchemaOrgMapper;
@@ -22,5 +23,14 @@ final class SeoServiceProvider extends ServiceProvider
         $this->singleton(SeoTwigExtension::class, fn(): SeoTwigExtension => new SeoTwigExtension(
             metaTagBuilder: $this->resolve(MetaTagBuilder::class),
         ));
+    }
+
+    public function boot(): void
+    {
+        $twig = $this->resolveOptional(Environment::class);
+        $extension = $this->resolve(SeoTwigExtension::class);
+        if ($twig instanceof Environment && $extension instanceof SeoTwigExtension && !$twig->hasExtension(SeoTwigExtension::class)) {
+            $twig->addExtension($extension);
+        }
     }
 }

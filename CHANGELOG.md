@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Production runtime reachability now matches the advertised notification, SEO, and routing contracts (#1992, R19).** `sendAsync()` delivers directly when the default synchronous queue is active instead of executing an intentionally worker-only job; the SEO provider attaches its registered Twig extension during boot; and `HttpKernel` upcasts entity-typed route parameters before dispatch, returning 404 for a missing entity. The duplicate class-based notification migration was deleted in favor of the timestamped package migration.
 - **R19 production invariants and install boot (#1992).** Relationship saves now reach `RelationshipPreSaveListener` through the production lifecycle dispatcher, `config:import` rejects structurally invalid workflow assignments before active-store writes, and `ConfigManagerInterface` is bound for the supported `install` command outside the `db:init` path.
 
 ## [0.1.0-alpha.261] - 2026-07-14

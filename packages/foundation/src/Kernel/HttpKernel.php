@@ -6,6 +6,7 @@ namespace Waaseyaa\Foundation\Kernel;
 
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
+use Symfony\Component\Routing\Exception\ResourceNotFoundException;
 use Symfony\Component\Routing\RequestContext;
 use Waaseyaa\Access\AccessChecker;
 use Waaseyaa\Access\AccountInterface;
@@ -41,6 +42,7 @@ use Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasRenderCacheListenersInterface;
 use Waaseyaa\Routing\Exception\RouteMethodNotAllowedException;
 use Waaseyaa\Routing\Exception\RouteNotFoundException;
+use Waaseyaa\Routing\ParamConverter\EntityParamConverter;
 use Waaseyaa\Routing\RouteBuilder;
 use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\User\DevAdminAccount;
@@ -394,8 +396,15 @@ final class HttpKernel extends AbstractKernel
 
         try {
             $params = $router->match($path);
+            $routeName = $params['_route'] ?? '';
+            $matchedRoute = $router->getRouteCollection()->get($routeName);
+            if ($matchedRoute !== null) {
+                $params = new EntityParamConverter($this->entityTypeManager)->convert($params, $matchedRoute);
+            }
         } catch (RouteNotFoundException) {
             return $this->jsonApiResponse(404, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '404', 'title' => 'Not Found', 'detail' => 'No route matches the requested path.']]]);
+        } catch (ResourceNotFoundException) {
+            return $this->jsonApiResponse(404, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '404', 'title' => 'Not Found', 'detail' => 'The requested entity was not found.']]]);
         } catch (RouteMethodNotAllowedException) {
             return $this->jsonApiResponse(405, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '405', 'title' => 'Method Not Allowed', 'detail' => "Method {$method} is not allowed for this route."]]]);
         } catch (\Throwable $e) {
@@ -405,8 +414,6 @@ final class HttpKernel extends AbstractKernel
         }
 
         $httpRequest = HttpRequest::createFromGlobals();
-        $routeName = $params['_route'] ?? '';
-        $matchedRoute = $router->getRouteCollection()->get($routeName);
         foreach ($params as $key => $value) {
             $httpRequest->attributes->set(
                 $key,

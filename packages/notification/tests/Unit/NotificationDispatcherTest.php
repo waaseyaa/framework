@@ -46,6 +46,23 @@ final class NotificationDispatcherTest extends TestCase
     }
 
     #[Test]
+    public function asyncSendFallsBackToDeliveryOnTheDefaultSyncQueue(): void
+    {
+        $transport = new ArrayTransport();
+        $dispatcher = new NotificationDispatcher(
+            new SyncQueue(),
+            ['mail' => new MailChannel(new Mailer($transport, 'noreply@example.com'))],
+        );
+
+        $dispatcher->sendAsync(
+            $this->createNotifiable('user', '1', 'user@example.com'),
+            $this->createMailNotification(),
+        );
+
+        self::assertCount(1, $transport->getSent());
+    }
+
+    #[Test]
     public function sendsViaDatabaseChannel(): void
     {
         $db = DBALDatabase::createSqlite();

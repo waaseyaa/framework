@@ -29,7 +29,7 @@ There is **no HTTP response wrapper** and **no routing** dependency: application
 
 ## Service provider
 
-`SeoServiceProvider` registers singletons for the generators/builders and `SeoTwigExtension`. Apps using Twig must still call `Environment::addExtension()` (or equivalent) with the resolved extension.
+`SeoServiceProvider` registers singletons for the generators/builders and `SeoTwigExtension`. During provider boot it attaches the extension to the kernel's Twig environment when SSR has made one available.
 
 ## Sitemap collection
 

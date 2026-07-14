@@ -7,6 +7,7 @@ namespace Waaseyaa\Notification;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Queue\QueueInterface;
+use Waaseyaa\Queue\SyncQueue;
 
 /**
  * Dispatches notifications to their designated channels.
@@ -71,6 +72,12 @@ final class NotificationDispatcher
      */
     public function sendAsync(NotifiableInterface $notifiable, NotificationInterface $notification): void
     {
+        if ($this->queue instanceof SyncQueue) {
+            $this->send($notifiable, $notification);
+
+            return;
+        }
+
         $this->queue->dispatch(new Job\SendNotificationJob(
             notifiableType: $notifiable->getNotifiableType(),
             notifiableId: $notifiable->getNotifiableId(),
