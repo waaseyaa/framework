@@ -31,7 +31,7 @@ final class ProposeMutationToolTest extends TestCase
         self::assertIsArray($payload);
         self::assertSame('success', $payload['status']);
         self::assertSame(
-            ['operation' => 'add_field', 'entity_type' => 'User', 'field' => 'nickname', 'parameters' => ['type' => 'string']],
+            ['operation' => 'add_field', 'entity_type' => 'user', 'field' => 'nickname', 'parameters' => ['type' => 'string']],
             $payload['request'],
             'Tool must surface the MutationResult.request shape verbatim.',
         );
@@ -85,7 +85,7 @@ final class ProposeMutationToolTest extends TestCase
         $tool = new ProposeMutationTool($validator);
         $account = $this->accountWithPermission('bimaaji.mutate');
         $args = $this->validArguments();
-        $request = new MutationRequest('add_field', 'User', 'nickname', ['type' => 'string']);
+        $request = new MutationRequest('add_field', 'user', 'nickname', ['type' => 'string']);
 
         // Warm-up — first call pays autoloading / initial caches.
         $validator->validate($request);
@@ -164,7 +164,7 @@ final class ProposeMutationToolTest extends TestCase
     /** @param array<string, mixed>|null $entitiesData */
     private function makeTool(?array $entitiesData = null): ProposeMutationTool
     {
-        $entitiesData = $entitiesData ?? ['User' => ['label' => 'User', 'class' => 'App\\Entity\\User']];
+        $entitiesData = $entitiesData ?? ['user' => ['label' => 'User', 'class' => 'App\\Entity\\User']];
         $graph = new ApplicationGraph(version: '1.0', sections: [
             new GraphSection(key: 'entities', version: '1.0', data: $entitiesData),
         ]);
@@ -176,7 +176,7 @@ final class ProposeMutationToolTest extends TestCase
     {
         return new ApplicationGraph(version: '1.0', sections: [
             new GraphSection(key: 'entities', version: '1.0', data: [
-                'User' => ['label' => 'User', 'class' => 'App\\Entity\\User'],
+                'user' => ['label' => 'User', 'class' => 'App\\Entity\\User'],
             ]),
         ]);
     }
@@ -186,7 +186,7 @@ final class ProposeMutationToolTest extends TestCase
     {
         return [
             'operation' => 'add_field',
-            'entity_type' => 'User',
+            'entity_type' => 'user',
             'field' => 'nickname',
             'parameters' => ['type' => 'string'],
         ];

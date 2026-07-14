@@ -4,7 +4,9 @@
 
 Stripe billing for Waaseyaa: subscriptions, checkout, customer portal, plan tiers.
 
-`BillingManager` is the single entry point for plan tier resolution, checkout session creation, and customer-portal URLs. `StripeClientInterface` plus `FakeStripeClient` make the integration testable without hitting Stripe; `WebhookHandler` dispatches Stripe webhook events into framework `DomainEvent`s.
+`BillingManager` is the single entry point for plan tier resolution, checkout session creation, and customer-portal URLs. `StripeClientInterface` plus `FakeStripeClient` make the integration testable without hitting Stripe; `WebhookHandler` maps verified Stripe webhook events into structured arrays.
+
+`WebhookHandler` accepts an optional atomic event-claim closure. Production consumers must back this seam with durable storage keyed by Stripe `event.id`: return `true` only for the first delivery and `false` for duplicates. When the seam is configured, a supported event without an id fails closed. Every handled result exposes `event_id`; invoice results carry `currency` beside Stripe's integer minor-unit amount so downstream code never interprets an amount without its currency.
 
 Key classes: `BillingManager`, `BillingServiceProvider`, `CheckoutSession`, `PlanTier`, `StripeClientInterface`, `WebhookHandler`.
 
@@ -14,7 +16,7 @@ This package is **v0.1 scaffolding**. The public surface (`BillingManager`, `Str
 
 ## Out of scope for v0.1
 
-Full Stripe billing integration — including webhook signature verification, subscription lifecycle management, and payment failure handling — is **deferred to post-v0.1**. The scaffold exists to:
+Full Stripe billing integration — including a durable webhook event-claim store, signature-verifying Stripe adapter, subscription lifecycle management, and payment failure handling — is **deferred to post-v0.1**. The scaffold exists to:
 
 1. Reserve the `waaseyaa/billing` package namespace.
 2. Define the `StripeClientInterface` contract so downstream code can type-hint against it.

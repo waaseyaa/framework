@@ -10,6 +10,7 @@ use Waaseyaa\Bimaaji\Policy\SovereigntyGuardrails;
 final class MutationValidator
 {
     private const array CREATION_OPERATIONS = ['add_entity_type'];
+    private const string IDENTIFIER_PATTERN = '/^[a-z][a-z0-9_]*$/';
 
     /**
      * @param ?SovereigntyGuardrails $guardrails Gates sovereignty-sensitive
@@ -38,6 +39,14 @@ final class MutationValidator
         }
 
         $errors = [];
+
+        if (preg_match(self::IDENTIFIER_PATTERN, $request->entityType) !== 1) {
+            $errors[] = 'INVALID_ENTITY_TYPE_FORMAT';
+        }
+
+        if ($request->field !== null && preg_match(self::IDENTIFIER_PATTERN, $request->field) !== 1) {
+            $errors[] = 'INVALID_FIELD_FORMAT';
+        }
 
         if (!in_array($request->operation, self::CREATION_OPERATIONS, true)) {
             $entitiesSection = $this->graph->getSection('entities');

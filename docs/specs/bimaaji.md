@@ -97,6 +97,7 @@ Request/result types for agent-safe changes. No filesystem writes — the protoc
 - `MutationRequest` — what the agent wants to change (entity type, field, route, etc.)
 - `MutationResult` — success/failure with error codes, validated against graph
 - Sovereignty violations delegated to guardrail rules
+- `entityType` and non-null `field` identifiers are restricted to `^[a-z][a-z0-9_]*$`; invalid names fail validation before they can become suggested paths.
 
 ### Patch Generator
 
@@ -104,6 +105,7 @@ Converts accepted `MutationResult` into reviewable patches:
 - PHP files: AST-safe via `nikic/php-parser`, round-trip tested
 - Non-PHP: constrained operations with risk flags
 - Output: file path, content hashes, diff text
+- Defense in depth: `PatchGenerator` independently evaluates the same identifier allowlist and derives `PatchEntry::$unsafe` from that result. A forged successful `MutationResult` with path-breaking identifiers is therefore visibly unsafe even if it bypasses `MutationValidator`. Patch generation still never writes to disk.
 
 ### Sovereignty Guardrails
 

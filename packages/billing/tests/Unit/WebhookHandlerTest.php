@@ -27,6 +27,7 @@ final class WebhookHandlerTest extends TestCase
     public function testHandleCheckoutSessionCompleted(): void
     {
         $this->stripe->setNextWebhookEvent([
+            'id' => 'evt_checkout',
             'type' => 'checkout.session.completed',
             'data' => [
                 'object' => [
@@ -42,6 +43,7 @@ final class WebhookHandlerTest extends TestCase
         $this->assertSame('checkout.session.completed', $result['event']);
         $this->assertSame('cus_abc', $result['customer_id']);
         $this->assertSame('sub_123', $result['subscription_id']);
+        $this->assertSame('evt_checkout', $result['event_id']);
     }
 
     public function testHandleSubscriptionCreated(): void
@@ -121,12 +123,14 @@ final class WebhookHandlerTest extends TestCase
     public function testHandleInvoicePaymentSucceeded(): void
     {
         $this->stripe->setNextWebhookEvent([
+            'id' => 'evt_invoice_paid',
             'type' => 'invoice.payment_succeeded',
             'data' => [
                 'object' => [
                     'customer' => 'cus_abc',
                     'subscription' => 'sub_123',
                     'amount_paid' => 1999,
+                    'currency' => 'cad',
                 ],
             ],
         ]);
@@ -135,6 +139,8 @@ final class WebhookHandlerTest extends TestCase
 
         $this->assertSame('invoice.payment_succeeded', $result['event']);
         $this->assertSame(1999, $result['amount_paid']);
+        $this->assertSame('cad', $result['currency']);
+        $this->assertSame('evt_invoice_paid', $result['event_id']);
     }
 
     public function testHandleInvoicePaymentFailed(): void
@@ -146,6 +152,7 @@ final class WebhookHandlerTest extends TestCase
                     'customer' => 'cus_abc',
                     'subscription' => 'sub_123',
                     'amount_due' => 1999,
+                    'currency' => 'usd',
                 ],
             ],
         ]);
@@ -154,6 +161,7 @@ final class WebhookHandlerTest extends TestCase
 
         $this->assertSame('invoice.payment_failed', $result['event']);
         $this->assertSame(1999, $result['amount_due']);
+        $this->assertSame('usd', $result['currency']);
     }
 
     public function testHandleUnknownEventReturnsNull(): void
@@ -166,5 +174,44 @@ final class WebhookHandlerTest extends TestCase
         $result = $this->handler->handle('payload', 'sig');
 
         $this->assertNull($result);
+    }
+
+    public function testIdempotencyClaimSuppressesDuplicateStripeEvent(): void
+    {
+        $claimed = [];
+        $handler = new WebhookHandler(
+            $this->stripe,
+            static function (string $eventId) use (&$claimed): bool {
+                if (isset($claimed[$eventId])) {
+                    return false;
+                }
+                $claimed[$eventId] = true;
+
+                return true;
+            },
+        );
+        $this->stripe->setNextWebhookEvent([
+            'id' => 'evt_once',
+            'type' => 'invoice.payment_succeeded',
+            'data' => ['object' => ['amount_paid' => 2500, 'currency' => 'cad']],
+        ]);
+
+        $this->assertNotNull($handler->handle('payload', 'sig'));
+        $this->assertNull($handler->handle('payload', 'sig'));
+        $this->assertSame(['evt_once' => true], $claimed);
+    }
+
+    public function testIdempotencyClaimFailsClosedWhenStripeEventIdIsMissing(): void
+    {
+        $handler = new WebhookHandler($this->stripe, static fn (string $eventId): bool => true);
+        $this->stripe->setNextWebhookEvent([
+            'type' => 'invoice.payment_succeeded',
+            'data' => ['object' => ['amount_paid' => 2500, 'currency' => 'cad']],
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('event id');
+
+        $handler->handle('payload', 'sig');
     }
 }
