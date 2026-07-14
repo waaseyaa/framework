@@ -547,7 +547,6 @@ Per [ADR 012a](../adr/012a-migration-substrate-in-core.md). Delivered by mission
 
 *Provider capabilities:*
 - `Waaseyaa\Migration\Discovery\HasMigrationsInterface` — surfaces concrete `MigrationDefinition` instances.
-- `Waaseyaa\Migration\Discovery\HasMigrationPluginsInterface` — surfaces source / process / destination plugin instances.
 
 *Value objects and DTOs (`final readonly class`):*
 - `Waaseyaa\Migration\MigrationDefinition` — manifest object: id, source, process map, destination, dependencies.
@@ -614,7 +613,7 @@ Exit codes: `0` success, `1` generic failure, `2` lock held by another process.
 - `Waaseyaa\Migration\Schema\MigrationRunStateSchema` (mission-internal).
 - `Waaseyaa\Migration\Runner\MigrationRunner` and all classes under `Waaseyaa\Migration\Runner\` (`MigrationLock`, `ProcessChainExecutor`, `RollbackWalker`, `RecordError`, `RollbackError`, `RollbackReport`, `RunOptions`, `RunReport`).
 - `storage/migration-locks/<id>.lock` file format (flock-based; lock-file presence is operator-visible but the format is not a published contract).
-- `Waaseyaa\Migration\Discovery\PluginRegistry`, `MigrationRegistry`, `CycleDetector`, `DependencyGraph`, `FilesystemManifestLoader` (boot-time discovery internals).
+- `Waaseyaa\Migration\Discovery\MigrationRegistry`, `CycleDetector`, `DependencyGraph`, `FilesystemManifestLoader` (boot-time discovery internals).
 - `Waaseyaa\Migration\MigrationIdMap` mutation, deletion, transaction, count, and reverse-walk methods. Only the two read-only lookup methods named above are stable source-reader composition seams.
 - `Waaseyaa\Migration\Canonical\CanonicalForm` (helper backing `SourceId::hash()`; behaviour is stable transitively, but the class is not a public extension point).
 

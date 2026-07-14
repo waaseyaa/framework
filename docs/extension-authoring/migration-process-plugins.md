@@ -261,25 +261,20 @@ final class UppercaseFirstWordProcessor implements ProcessPluginInterface
 }
 ```
 
-Registration via a provider:
+Composition inside a migration definition:
 
 ```php
 namespace MyVendor\Waaseyaa;
 
-use Waaseyaa\Foundation\ServiceProvider;
-use Waaseyaa\Migration\Discovery\HasMigrationPluginsInterface;
 use MyVendor\Waaseyaa\Process\UppercaseFirstWordProcessor;
 
 /**
  * @api
  */
-final class AcmeMigrationProvider extends ServiceProvider implements HasMigrationPluginsInterface
-{
-    public function migrationPlugins(): array
-    {
-        return [new UppercaseFirstWordProcessor()];
-    }
-}
+$definition = new MigrationDefinition(
+    // ...
+    process: ['title' => [new UppercaseFirstWordProcessor()]],
+);
 ```
 
 ---

@@ -7,13 +7,7 @@ namespace Waaseyaa\Migration\Plugin;
 /**
  * Canonical plugin ids reserved for the framework's built-in process plugins.
  *
- * Third-party providers MUST NOT register a plugin whose id matches one of
- * these constants — the {@see \Waaseyaa\Migration\Discovery\PluginRegistry}
- * raises {@see \Waaseyaa\Migration\Exception\MigrationPluginCollisionException}
- * if they do.
- *
- * The concrete implementations of these ids land in WP03; this WP only owns
- * the reservation surface so collision checks work from day one.
+ * Concrete built-in processors use these ids for stable manifest references.
  *
  * @api
  */

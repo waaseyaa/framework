@@ -314,7 +314,6 @@ Mission `migration-platform-v1-01KRCDE9` (M-002). All entries below are intentio
 | `SourcePluginInterface` | interface | Source plugin SPI: streams `SourceRecord` instances and assigns `SourceId`s (FR-049, WP01) |
 | `ProcessPluginInterface` | interface | Per-field record transformer SPI (FR-005, WP01) |
 | `DestinationPluginInterface` | interface | Destination plugin SPI: `write`, `rollback`, `lookup` per source id (FR-006, WP01) |
-| `HasMigrationPluginsInterface` | interface | Marker for service providers exposing migration plugins via reflection discovery (WP01) |
 | `HasMigrationsInterface` | interface | Marker for service providers contributing migration manifests (FR-003, WP02) |
 | `MigrationDefinition` | final class | Immutable migration definition: id, source, processors, destination, dependencies, stability (WP02) |
 | `SourceId` | final class | Stable composite key identifying a source record across re-runs (WP01) |
@@ -395,12 +394,6 @@ Charter §5.6 — listing-pipeline-v1 (M-007). Namespace `Waaseyaa\Listing\`.
 | `ToolRegistryInterface` | interface | Provides the set of tools available to an AI agent |
 | `ProviderInterface` | interface | AI model provider: sends messages and returns a structured response |
 | `StreamingProviderInterface` | interface | Provider variant that streams partial response chunks as they arrive |
-
-### ai-pipeline
-
-| Element | Type | Purpose |
-|---------|------|---------|
-| `PipelineStepInterface` | interface | One step in an AI pipeline: receives input from the previous step and returns output |
 
 ### ai-vector
 

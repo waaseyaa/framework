@@ -14,7 +14,7 @@ namespace Waaseyaa\Search\Access;
  * drops the ones this returns `false` for, so the read path enforces the same
  * access policy as the rest of the framework instead of failing open.
  *
- * @api
+ * @internal Parked with the first-party search read surface.
  */
 interface SearchAccessChecker
 {

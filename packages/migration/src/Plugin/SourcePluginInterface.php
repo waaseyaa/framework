@@ -24,8 +24,7 @@ interface SourcePluginInterface
     /**
      * Globally unique plugin identifier (snake_case, e.g. `wordpress_post`).
      *
-     * The {@see \Waaseyaa\Migration\Discovery\PluginRegistry} uses this to index
-     * plugins and detect collisions across providers.
+     * Used by migration definitions and operator diagnostics.
      */
     public function id(): string;
 

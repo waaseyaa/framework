@@ -10,10 +10,8 @@ use Waaseyaa\Migration\MigrationDefinition;
  * Provider capability that contributes concrete {@see MigrationDefinition}
  * instances to {@see MigrationRegistry} at boot time (FR-013).
  *
- * Parallel to {@see HasMigrationPluginsInterface}: where `HasMigrationPluginsInterface`
- * ships *plugin* classes (sources, processes, destinations) for any migration
- * to compose, this interface ships *whole migrations* — fully-formed manifests
- * authored against the plugin contracts.
+ * This interface ships whole, fully-formed migrations authored against the
+ * plugin contracts.
  *
  * Migrations may also be registered via the filesystem fallback
  * (`migration.manifest_paths` in `config/waaseyaa.php`), scanned by

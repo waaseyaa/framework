@@ -11,6 +11,7 @@ use Waaseyaa\Search\SearchProviderInterface;
 use Waaseyaa\Search\SearchRequest;
 use Waaseyaa\Search\SearchResult;
 
+/** @internal Parked until attached to a first-party Twig environment. */
 final class SearchTwigExtension extends AbstractExtension
 {
     /**

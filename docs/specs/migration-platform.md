@@ -98,7 +98,6 @@ count because evaluating the predicate is the only honest way to count.
 | FQCN | Kind | Purpose |
 |---|---|---|
 | `Waaseyaa\Migration\Discovery\HasMigrationsInterface` | Provider capability | Surfaces concrete `MigrationDefinition` instances. |
-| `Waaseyaa\Migration\Discovery\HasMigrationPluginsInterface` | Provider capability | Surfaces source/process/destination plugin instances. |
 
 ### 3.3 Manifest + DTOs
 
@@ -333,10 +332,6 @@ final class MyMigrationProvider extends ServiceProvider implements HasMigrations
     }
 }
 ```
-
-Reserved-id plugins surface through `HasMigrationPluginsInterface`. The
-`FrameworkPlugin` namespace prefix is reserved — only first-party plugins may
-register ids in that namespace.
 
 ---
 
@@ -585,10 +580,6 @@ built on the registry's **first query**, not at kernel boot.
    no-op via `ensureBooted()` on any query that follows). At that point:
    - Every `HasMigrationsInterface` provider's `migrations()` is fed into
      the registry.
-   - `HasMigrationPluginsInterface`'s `migrationPlugins()` array is
-     dispatched by `instanceof` into the source / process / destination
-     sub-registries (`PluginRegistry`) — this path is unaffected by G-024,
-     it is not gated by `MigrationRegistry`.
    - `DependencyGraph` is built from `MigrationDefinition::$dependencies`
      and validated via `CycleDetector`.
 4. In practice, the first query happens when a CLI `import:*` command runs:

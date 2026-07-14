@@ -17,9 +17,7 @@ final class Channels
     /**
      * Channel for "experimental plugin used" deprecation notices.
      *
-     * Emitted at most once per plugin id per process by
-     * {@see \Waaseyaa\Migration\Discovery\PluginRegistry::recordUse()} when an
-     * experimental plugin is first accessed.
+     * Reserved for migration implementations that report experimental use.
      */
     public const string MIGRATION_DEPRECATION = 'migration.deprecation';
 

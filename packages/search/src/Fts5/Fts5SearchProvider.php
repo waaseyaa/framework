@@ -17,6 +17,7 @@ use Waaseyaa\Search\SearchProviderInterface;
 use Waaseyaa\Search\SearchRequest;
 use Waaseyaa\Search\SearchResult;
 
+/** @internal Parked until a first-party read endpoint adopts this provider. */
 final class Fts5SearchProvider implements SearchProviderInterface
 {
     private const ALLOWED_SORT_COLUMNS = ['created_at', 'quality_score', 'entity_type', 'content_type'];

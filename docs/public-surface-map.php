@@ -352,7 +352,7 @@ return [
     'Waaseyaa\NorthCloud\Sync\NcHitSupportDiagnosticsInterface' => 'public',
 
     // Layer 3: Services — public
-    'Waaseyaa\Search\SearchProviderInterface' => 'public',
+    'Waaseyaa\Search\SearchProviderInterface' => 'internal',
     'Waaseyaa\Search\SearchIndexerInterface' => 'public',
     'Waaseyaa\Search\BatchSearchIndexerInterface' => 'public',
     'Waaseyaa\Search\SearchIndexableInterface' => 'public',
@@ -366,7 +366,6 @@ return [
     'Waaseyaa\Migration\Plugin\SourcePluginInterface' => 'public',
     'Waaseyaa\Migration\Plugin\ProcessPluginInterface' => 'public',
     'Waaseyaa\Migration\Plugin\DestinationPluginInterface' => 'public',
-    'Waaseyaa\Migration\Discovery\HasMigrationPluginsInterface' => 'public',
     // Migration platform discovery / dependency graph (mission migration-platform-v1-01KRCDE9 WP02).
     'Waaseyaa\Migration\Discovery\HasMigrationsInterface' => 'public',
     // Migration content-model derivation contract. Blessed and wired (G-026,
@@ -468,7 +467,6 @@ return [
     'Waaseyaa\AI\Tools\AgentToolResult' => 'public',
     'Waaseyaa\AI\Tools\ToolRegistryInterface' => 'public',
     'Waaseyaa\AI\Tools\Attribute\AsAgentTool' => 'public',
-    'Waaseyaa\AI\Pipeline\PipelineStepInterface' => 'public',
     'Waaseyaa\AI\Vector\VectorStoreInterface' => 'public',
     'Waaseyaa\AI\Vector\EmbeddingProviderInterface' => 'public',
     'Waaseyaa\AI\Vector\EmbeddingInterface' => 'public',
