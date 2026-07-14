@@ -1,16 +1,28 @@
 {
     "name": "waaseyaa/oidc",
-    "description": "OpenID Connect issuer for Waaseyaa \u2014 ecosystem-wide single sign-on",
+    "description": "OpenID Connect issuer for Waaseyaa — ecosystem-wide single sign-on",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
         {
             "type": "path",
-            "url": "../foundation"
+            "url": "../access"
         },
         {
             "type": "path",
-            "url": "../access"
+            "url": "../database-legacy"
+        },
+        {
+            "type": "path",
+            "url": "../entity"
+        },
+        {
+            "type": "path",
+            "url": "../entity-storage"
+        },
+        {
+            "type": "path",
+            "url": "../foundation"
         },
         {
             "type": "path",

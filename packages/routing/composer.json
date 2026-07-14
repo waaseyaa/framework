@@ -10,35 +10,11 @@
         },
         {
             "type": "path",
-            "url": "../plugin"
-        },
-        {
-            "type": "path",
-            "url": "../cache"
-        },
-        {
-            "type": "path",
-            "url": "../typed-data"
-        },
-        {
-            "type": "path",
             "url": "../access"
         },
         {
             "type": "path",
-            "url": "../config"
-        },
-        {
-            "type": "path",
             "url": "../i18n"
-        },
-        {
-            "type": "path",
-            "url": "../foundation"
-        },
-        {
-            "type": "path",
-            "url": "../user"
         },
         {
             "type": "path",
@@ -47,6 +23,14 @@
         {
             "type": "path",
             "url": "../oidc"
+        },
+        {
+            "type": "path",
+            "url": "../foundation"
+        },
+        {
+            "type": "path",
+            "url": "../user"
         }
     ],
     "require": {

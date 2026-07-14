@@ -10,15 +10,11 @@
         },
         {
             "type": "path",
-            "url": "../audit"
-        },
-        {
-            "type": "path",
-            "url": "../http-client"
-        },
-        {
-            "type": "path",
             "url": "../ai-agent"
+        },
+        {
+            "type": "path",
+            "url": "../audit"
         },
         {
             "type": "path",
@@ -38,11 +34,11 @@
         },
         {
             "type": "path",
-            "url": "../field"
+            "url": "../groups"
         },
         {
             "type": "path",
-            "url": "../groups"
+            "url": "../http-client"
         },
         {
             "type": "path",
@@ -50,11 +46,11 @@
         },
         {
             "type": "path",
-            "url": "../queue"
+            "url": "../northcloud"
         },
         {
             "type": "path",
-            "url": "../routing"
+            "url": "../queue"
         },
         {
             "type": "path",
@@ -62,15 +58,43 @@
         },
         {
             "type": "path",
-            "url": "../typed-data"
-        },
-        {
-            "type": "path",
             "url": "../user"
         },
         {
             "type": "path",
-            "url": "../northcloud"
+            "url": "../ai-vector"
+        },
+        {
+            "type": "path",
+            "url": "../database-legacy"
+        },
+        {
+            "type": "path",
+            "url": "../field"
+        },
+        {
+            "type": "path",
+            "url": "../foundation"
+        },
+        {
+            "type": "path",
+            "url": "../oidc"
+        },
+        {
+            "type": "path",
+            "url": "../plugin"
+        },
+        {
+            "type": "path",
+            "url": "../routing"
+        },
+        {
+            "type": "path",
+            "url": "../search"
+        },
+        {
+            "type": "path",
+            "url": "../workflows"
         }
     ],
     "require": {

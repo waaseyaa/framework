@@ -1,0 +1,117 @@
+name: Dependabot admin dist rebuild
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+    paths:
+      - 'packages/admin/package.json'
+      - 'packages/admin/package-lock.json'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build admin dist without write credentials
+    if: >-
+      github.actor == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '25'
+          cache: npm
+          cache-dependency-path: packages/admin/package-lock.json
+
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+
+      # Dependency code runs only in this read-only job. No later step in this
+      # workspace receives a write token, so hooks/GITHUB_ENV cannot bridge the
+      # trust boundary into publication.
+      - name: Build admin SPA dist and freshness signature
+        run: bin/build-admin-dist
+
+      - name: Export only the generated public artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-dist
+          path: |
+            packages/admin-surface/dist
+            packages/admin-surface/dist.signature
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish rebuilt admin dist
+    needs: build
+    permissions:
+      contents: write
+      actions: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download isolated build output
+        uses: actions/download-artifact@v4
+        with:
+          name: admin-dist
+          path: ${{ runner.temp }}/admin-dist
+
+      - name: Validate and install generated public artifacts
+        env:
+          ARTIFACT_ROOT: ${{ runner.temp }}/admin-dist
+        run: |
+          set -euo pipefail
+          test -d "$ARTIFACT_ROOT/dist"
+          test -f "$ARTIFACT_ROOT/dist.signature"
+          test "$(find "$ARTIFACT_ROOT" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort | tr '\n' ' ')" = 'dist dist.signature '
+          if find "$ARTIFACT_ROOT" ! -type d ! -type f -print -quit | grep -q .; then
+            echo 'Artifact contains a non-regular filesystem entry.' >&2
+            exit 1
+          fi
+          grep -Eq '^[0-9a-f]{64}$' "$ARTIFACT_ROOT/dist.signature"
+          rm -rf packages/admin-surface/dist
+          cp -a "$ARTIFACT_ROOT/dist" packages/admin-surface/dist
+          cp "$ARTIFACT_ROOT/dist.signature" packages/admin-surface/dist.signature
+
+      - name: Commit rebuilt dist to the Dependabot branch
+        id: commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          git add packages/admin-surface/dist/ packages/admin-surface/dist.signature
+          if git diff --cached --quiet; then
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'chore(admin-surface): rebuild dist for dependency update'
+          git -c credential.helper='!f() { echo username=x-access-token; echo password=$GH_TOKEN; }; f' \
+            push origin "HEAD:${HEAD_REF}"
+          echo 'changed=true' >> "$GITHUB_OUTPUT"
+
+      # A GITHUB_TOKEN push does not emit another pull_request synchronize run.
+      - name: Dispatch blocking CI for rebuilt branch
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$HEAD_REF"

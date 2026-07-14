@@ -4,22 +4,54 @@
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
-        {"type": "path", "url": "../access"},
-        {"type": "path", "url": "../cache"},
-        {"type": "path", "url": "../config"},
-        {"type": "path", "url": "../database-legacy"},
-        {"type": "path", "url": "../entity"},
-        {"type": "path", "url": "../entity-storage"},
-        {"type": "path", "url": "../field"},
-        {"type": "path", "url": "../foundation"},
-        {"type": "path", "url": "../plugin"},
-        {"type": "path", "url": "../relationship"},
-        {"type": "path", "url": "../routing"},
-        {"type": "path", "url": "../ssr"},
-        {"type": "path", "url": "../typed-data"},
-        {"type": "path", "url": "../user"},
-        {"type": "path", "url": "../validation"},
-        {"type": "path", "url": "../workflows"}
+        {
+            "type": "path",
+            "url": "../access"
+        },
+        {
+            "type": "path",
+            "url": "../entity"
+        },
+        {
+            "type": "path",
+            "url": "../field"
+        },
+        {
+            "type": "path",
+            "url": "../foundation"
+        },
+        {
+            "type": "path",
+            "url": "../relationship"
+        },
+        {
+            "type": "path",
+            "url": "../routing"
+        },
+        {
+            "type": "path",
+            "url": "../ssr"
+        },
+        {
+            "type": "path",
+            "url": "../user"
+        },
+        {
+            "type": "path",
+            "url": "../workflows"
+        },
+        {
+            "type": "path",
+            "url": "../api"
+        },
+        {
+            "type": "path",
+            "url": "../database-legacy"
+        },
+        {
+            "type": "path",
+            "url": "../entity-storage"
+        }
     ],
     "autoload": {
         "psr-4": {

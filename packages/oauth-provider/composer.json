@@ -29,5 +29,11 @@
     },
     "config": {
         "sort-packages": true
-    }
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../http-client"
+        }
+    ]
 }

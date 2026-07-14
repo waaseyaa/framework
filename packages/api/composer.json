@@ -6,6 +6,22 @@
     "repositories": [
         {
             "type": "path",
+            "url": "../access"
+        },
+        {
+            "type": "path",
+            "url": "../audit"
+        },
+        {
+            "type": "path",
+            "url": "../cache"
+        },
+        {
+            "type": "path",
+            "url": "../database-legacy"
+        },
+        {
+            "type": "path",
             "url": "../entity"
         },
         {
@@ -14,27 +30,7 @@
         },
         {
             "type": "path",
-            "url": "../routing"
-        },
-        {
-            "type": "path",
-            "url": "../access"
-        },
-        {
-            "type": "path",
-            "url": "../plugin"
-        },
-        {
-            "type": "path",
-            "url": "../cache"
-        },
-        {
-            "type": "path",
-            "url": "../typed-data"
-        },
-        {
-            "type": "path",
-            "url": "../config"
+            "url": "../field"
         },
         {
             "type": "path",
@@ -42,15 +38,11 @@
         },
         {
             "type": "path",
-            "url": "../database-legacy"
+            "url": "../mail"
         },
         {
             "type": "path",
-            "url": "../queue"
-        },
-        {
-            "type": "path",
-            "url": "../scheduler"
+            "url": "../media"
         },
         {
             "type": "path",
@@ -58,7 +50,23 @@
         },
         {
             "type": "path",
-            "url": "../telescope"
+            "url": "../oidc"
+        },
+        {
+            "type": "path",
+            "url": "../queue"
+        },
+        {
+            "type": "path",
+            "url": "../relationship"
+        },
+        {
+            "type": "path",
+            "url": "../routing"
+        },
+        {
+            "type": "path",
+            "url": "../scheduler"
         },
         {
             "type": "path",
@@ -66,11 +74,7 @@
         },
         {
             "type": "path",
-            "url": "../audit"
-        },
-        {
-            "type": "path",
-            "url": "../media"
+            "url": "../telescope"
         }
     ],
     "require": {

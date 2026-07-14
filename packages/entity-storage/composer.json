@@ -10,6 +10,18 @@
         },
         {
             "type": "path",
+            "url": "../cache"
+        },
+        {
+            "type": "path",
+            "url": "../config"
+        },
+        {
+            "type": "path",
+            "url": "../database-legacy"
+        },
+        {
+            "type": "path",
             "url": "../entity"
         },
         {
@@ -19,26 +31,6 @@
         {
             "type": "path",
             "url": "../foundation"
-        },
-        {
-            "type": "path",
-            "url": "../cache"
-        },
-        {
-            "type": "path",
-            "url": "../database-legacy"
-        },
-        {
-            "type": "path",
-            "url": "../plugin"
-        },
-        {
-            "type": "path",
-            "url": "../typed-data"
-        },
-        {
-            "type": "path",
-            "url": "../config"
         },
         {
             "type": "path",

@@ -239,6 +239,51 @@ final class CheckComposerPolicyTest extends TestCase
         self::assertStringContainsString('FAIL [CP006]', $stdout);
     }
 
+    // ── CP007: package path repositories and internal requirements agree ─────
+
+    #[Test]
+    public function cp007_fails_when_internal_requirement_has_no_path_repository(): void
+    {
+        $this->requireLiveConstraint();
+        $dir = $this->makeFixture(
+            pkgRequire: ['waaseyaa/foundation' => self::$liveConstraint],
+            addPathRepositories: false,
+        );
+
+        [$exitCode, $stdout] = $this->runScript($dir);
+        self::assertNotSame(0, $exitCode);
+        self::assertStringContainsString('FAIL [CP007]', $stdout);
+        self::assertStringContainsString('waaseyaa/foundation required without a matching path repository', $stdout);
+    }
+
+    #[Test]
+    public function cp007_fails_when_path_repository_has_no_internal_requirement(): void
+    {
+        $dir = $this->makeFixture(
+            pkgExtra: [
+                'repositories' => [[
+                    'type' => 'path',
+                    'url' => '../unused',
+                    'canonical' => false,
+                ]],
+            ],
+        );
+        mkdir($dir . '/packages/unused', 0o755, true);
+        file_put_contents(
+            $dir . '/packages/unused/composer.json',
+            json_encode([
+                'name' => 'waaseyaa/unused',
+                'config' => ['sort-packages' => true],
+                'require' => ['php' => '>=8.5'],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n",
+        );
+
+        [$exitCode, $stdout] = $this->runScript($dir);
+        self::assertNotSame(0, $exitCode);
+        self::assertStringContainsString('FAIL [CP007]', $stdout);
+        self::assertStringContainsString('waaseyaa/unused path repository has no matching requirement', $stdout);
+    }
+
     // ── CP-NEW: cross-file consistency ────────────────────────────────────────
 
     #[Test]
@@ -297,6 +342,7 @@ final class CheckComposerPolicyTest extends TestCase
         array $pkgExtra = [],
         array $rootRequire = [],
         array $pkgRequire = [],
+        bool $addPathRepositories = true,
     ): string {
         $base = sys_get_temp_dir() . '/waaseyaa_policy_test_' . uniqid('', true);
         mkdir($base, 0o755, true);
@@ -329,6 +375,10 @@ final class CheckComposerPolicyTest extends TestCase
             ],
             $pkgExtra,
         );
+
+        if ($addPathRepositories && !array_key_exists('repositories', $pkgExtra)) {
+            $pkgManifest['repositories'] = $this->createInternalPackageFixtures($base, $pkgRequire);
+        }
 
         file_put_contents(
             $pkgDir . '/composer.json',
@@ -363,16 +413,49 @@ final class CheckComposerPolicyTest extends TestCase
         $coreDir = $base . '/packages/core';
         mkdir($coreDir, 0o755, true);
 
+        $repositories = $this->createInternalPackageFixtures($base, $coreRequire);
+
         file_put_contents(
             $coreDir . '/composer.json',
             json_encode([
                 'name' => 'waaseyaa/core',
+                'repositories' => $repositories,
                 'config' => ['sort-packages' => true],
                 'require' => $coreRequire,
             ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n",
         );
 
         return $base;
+    }
+
+    /**
+     * @param array<string, string> $requirements
+     * @return list<array{type: string, url: string}>
+     */
+    private function createInternalPackageFixtures(string $base, array $requirements): array
+    {
+        $repositories = [];
+        foreach (array_keys($requirements) as $packageName) {
+            if (!str_starts_with($packageName, 'waaseyaa/')) {
+                continue;
+            }
+            $shortName = substr($packageName, strlen('waaseyaa/'));
+            $targetDir = $base . '/packages/' . $shortName;
+            if (!is_dir($targetDir)) {
+                mkdir($targetDir, 0o755, true);
+                file_put_contents(
+                    $targetDir . '/composer.json',
+                    json_encode([
+                        'name' => $packageName,
+                        'config' => ['sort-packages' => true],
+                        'require' => ['php' => '>=8.5'],
+                    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n",
+                );
+            }
+            $repositories[] = ['type' => 'path', 'url' => '../' . $shortName];
+        }
+
+        return $repositories;
     }
 
     /**

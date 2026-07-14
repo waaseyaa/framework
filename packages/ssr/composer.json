@@ -6,31 +6,7 @@
     "repositories": [
         {
             "type": "path",
-            "url": "../entity"
-        },
-        {
-            "type": "path",
-            "url": "../routing"
-        },
-        {
-            "type": "path",
-            "url": "../plugin"
-        },
-        {
-            "type": "path",
-            "url": "../cache"
-        },
-        {
-            "type": "path",
-            "url": "../typed-data"
-        },
-        {
-            "type": "path",
-            "url": "../config"
-        },
-        {
-            "type": "path",
-            "url": "../field"
+            "url": "../api"
         },
         {
             "type": "path",
@@ -38,7 +14,27 @@
         },
         {
             "type": "path",
-            "url": "../api"
+            "url": "../cache"
+        },
+        {
+            "type": "path",
+            "url": "../config"
+        },
+        {
+            "type": "path",
+            "url": "../entity"
+        },
+        {
+            "type": "path",
+            "url": "../field"
+        },
+        {
+            "type": "path",
+            "url": "../foundation"
+        },
+        {
+            "type": "path",
+            "url": "../routing"
         },
         {
             "type": "path",
@@ -50,7 +46,19 @@
         },
         {
             "type": "path",
-            "url": "../foundation"
+            "url": "../database-legacy"
+        },
+        {
+            "type": "path",
+            "url": "../i18n"
+        },
+        {
+            "type": "path",
+            "url": "../path"
+        },
+        {
+            "type": "path",
+            "url": "../relationship"
         },
         {
             "type": "path",

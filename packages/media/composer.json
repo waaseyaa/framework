@@ -10,22 +10,6 @@
         },
         {
             "type": "path",
-            "url": "../plugin"
-        },
-        {
-            "type": "path",
-            "url": "../cache"
-        },
-        {
-            "type": "path",
-            "url": "../typed-data"
-        },
-        {
-            "type": "path",
-            "url": "../config"
-        },
-        {
-            "type": "path",
             "url": "../foundation"
         },
         {
@@ -34,11 +18,15 @@
         },
         {
             "type": "path",
-            "url": "../api"
+            "url": "../audit"
         },
         {
             "type": "path",
             "url": "../database-legacy"
+        },
+        {
+            "type": "path",
+            "url": "../api"
         }
     ],
     "require": {

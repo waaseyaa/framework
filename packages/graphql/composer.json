@@ -1,24 +1,12 @@
 {
     "name": "waaseyaa/graphql",
-    "description": "GraphQL endpoint + schema introspection for Waaseyaa \u2014 optional/experimental L6 surface; see README for the primary JSON:API framing.",
+    "description": "GraphQL endpoint + schema introspection for Waaseyaa — optional/experimental L6 surface; see README for the primary JSON:API framing.",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
         {
             "type": "path",
-            "url": "../routing"
-        },
-        {
-            "type": "path",
-            "url": "../access"
-        },
-        {
-            "type": "path",
             "url": "../entity"
-        },
-        {
-            "type": "path",
-            "url": "../entity-storage"
         },
         {
             "type": "path",
@@ -26,31 +14,19 @@
         },
         {
             "type": "path",
-            "url": "../api"
-        },
-        {
-            "type": "path",
-            "url": "../plugin"
-        },
-        {
-            "type": "path",
-            "url": "../cache"
-        },
-        {
-            "type": "path",
-            "url": "../typed-data"
-        },
-        {
-            "type": "path",
-            "url": "../config"
-        },
-        {
-            "type": "path",
-            "url": "../database-legacy"
+            "url": "../access"
         },
         {
             "type": "path",
             "url": "../foundation"
+        },
+        {
+            "type": "path",
+            "url": "../routing"
+        },
+        {
+            "type": "path",
+            "url": "../api"
         },
         {
             "type": "path",

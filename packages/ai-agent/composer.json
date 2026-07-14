@@ -26,11 +26,7 @@
         },
         {
             "type": "path",
-            "url": "../cache"
-        },
-        {
-            "type": "path",
-            "url": "../config"
+            "url": "../bimaaji"
         },
         {
             "type": "path",
@@ -54,23 +50,15 @@
         },
         {
             "type": "path",
-            "url": "../plugin"
+            "url": "../wayfinding"
+        },
+        {
+            "type": "path",
+            "url": "../config"
         },
         {
             "type": "path",
             "url": "../routing"
-        },
-        {
-            "type": "path",
-            "url": "../typed-data"
-        },
-        {
-            "type": "path",
-            "url": "../bimaaji"
-        },
-        {
-            "type": "path",
-            "url": "../wayfinding"
         }
     ],
     "require": {

@@ -15,10 +15,6 @@
         {
             "type": "path",
             "url": "../foundation"
-        },
-        {
-            "type": "path",
-            "url": "../mercure"
         }
     ],
     "require": {

@@ -1,9 +1,21 @@
 {
     "name": "waaseyaa/auth",
-    "description": "Headless authentication for Waaseyaa \u2014 login, registration, 2FA, password reset",
+    "description": "Headless authentication for Waaseyaa — login, registration, 2FA, password reset",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
+        {
+            "type": "path",
+            "url": "../access"
+        },
+        {
+            "type": "path",
+            "url": "../database-legacy"
+        },
+        {
+            "type": "path",
+            "url": "../entity"
+        },
         {
             "type": "path",
             "url": "../foundation"

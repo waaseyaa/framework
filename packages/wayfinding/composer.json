@@ -6,6 +6,10 @@
     "repositories": [
         {
             "type": "path",
+            "url": "../api"
+        },
+        {
+            "type": "path",
             "url": "../entity"
         },
         {
@@ -14,15 +18,15 @@
         },
         {
             "type": "path",
-            "url": "../api"
-        },
-        {
-            "type": "path",
             "url": "../foundation"
         },
         {
             "type": "path",
             "url": "../routing"
+        },
+        {
+            "type": "path",
+            "url": "../access"
         }
     ],
     "require": {

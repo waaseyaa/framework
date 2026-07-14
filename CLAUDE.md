@@ -12,6 +12,7 @@
   - `self.version` is allowed only in root `composer.json` (CP006) — sibling metapackage shape
   - wildcard internal constraints for `waaseyaa/*` are forbidden (CP003)
   - internal `waaseyaa/*` constraints in `packages/*/composer.json` must equal `^<current-tag>` (CP-NEW), enforced cross-file against `git describe --tags --abbrev=0 --match='v*.*.*'`; the literal advances automatically at each release-cut via `bin/sync-internal-versions` (invoked from `release-cut.yml` and `scripts/release.sh`)
+  - package-local path repositories and internal `require`/`require-dev` entries must correspond in both directions (CP007), preventing stale local resolutions and undeclared package-local paths
 - Authorization pipeline in `public/index.php`: SessionMiddleware → AuthorizationMiddleware. Session always sets `_account` on request; authorization reads it.
 - Route access control via route options: `_public`, `_authenticated`, `_session`, `_permission`, `_role`, `_gate` — checked by `AccessChecker`
 - Field-level access: `FieldAccessPolicyInterface` (companion to `AccessPolicyInterface`). Classes must implement both — `EntityAccessHandler` finds field policies via `instanceof` check. Open-by-default: Neutral = accessible, only Forbidden restricts.

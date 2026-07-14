@@ -1,6 +1,6 @@
 {
     "name": "waaseyaa/full",
-    "description": "Waaseyaa full platform \u2014 CMS + AI + SSR + MCP.",
+    "description": "Waaseyaa full platform — CMS + AI + SSR + MCP.",
     "type": "metapackage",
     "license": "GPL-2.0-or-later",
     "require": {
@@ -29,5 +29,51 @@
     },
     "config": {
         "sort-packages": true
-    }
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../ai-agent"
+        },
+        {
+            "type": "path",
+            "url": "../ai-pipeline"
+        },
+        {
+            "type": "path",
+            "url": "../ai-schema"
+        },
+        {
+            "type": "path",
+            "url": "../ai-tools"
+        },
+        {
+            "type": "path",
+            "url": "../ai-vector"
+        },
+        {
+            "type": "path",
+            "url": "../attachment"
+        },
+        {
+            "type": "path",
+            "url": "../cms"
+        },
+        {
+            "type": "path",
+            "url": "../mcp"
+        },
+        {
+            "type": "path",
+            "url": "../relationship"
+        },
+        {
+            "type": "path",
+            "url": "../search"
+        },
+        {
+            "type": "path",
+            "url": "../structured-import"
+        }
+    ]
 }

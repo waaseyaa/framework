@@ -1,12 +1,16 @@
 {
     "name": "waaseyaa/testing",
-    "description": "Testing utilities for Waaseyaa \u2014 base test case, entity factories, and helper traits.",
+    "description": "Testing utilities for Waaseyaa — base test case, entity factories, and helper traits.",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
         {
             "type": "path",
             "url": "../entity"
+        },
+        {
+            "type": "path",
+            "url": "../field"
         }
     ],
     "require": {

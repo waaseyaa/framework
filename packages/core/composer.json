@@ -1,6 +1,6 @@
 {
     "name": "waaseyaa/core",
-    "description": "Waaseyaa core engine \u2014 entities, fields, config, plugins, routing, access.",
+    "description": "Waaseyaa core engine — entities, fields, config, plugins, routing, access.",
     "type": "metapackage",
     "license": "GPL-2.0-or-later",
     "require": {
@@ -37,5 +37,79 @@
     },
     "config": {
         "sort-packages": true
-    }
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../access"
+        },
+        {
+            "type": "path",
+            "url": "../cache"
+        },
+        {
+            "type": "path",
+            "url": "../config"
+        },
+        {
+            "type": "path",
+            "url": "../database-legacy"
+        },
+        {
+            "type": "path",
+            "url": "../entity"
+        },
+        {
+            "type": "path",
+            "url": "../entity-storage"
+        },
+        {
+            "type": "path",
+            "url": "../error-handler"
+        },
+        {
+            "type": "path",
+            "url": "../field"
+        },
+        {
+            "type": "path",
+            "url": "../foundation"
+        },
+        {
+            "type": "path",
+            "url": "../i18n"
+        },
+        {
+            "type": "path",
+            "url": "../plugin"
+        },
+        {
+            "type": "path",
+            "url": "../queue"
+        },
+        {
+            "type": "path",
+            "url": "../routing"
+        },
+        {
+            "type": "path",
+            "url": "../scheduler"
+        },
+        {
+            "type": "path",
+            "url": "../state"
+        },
+        {
+            "type": "path",
+            "url": "../typed-data"
+        },
+        {
+            "type": "path",
+            "url": "../user"
+        },
+        {
+            "type": "path",
+            "url": "../validation"
+        }
+    ]
 }

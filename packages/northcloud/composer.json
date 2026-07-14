@@ -38,5 +38,27 @@
     "prefer-stable": true,
     "config": {
         "sort-packages": true
-    }
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../config"
+        },
+        {
+            "type": "path",
+            "url": "../entity"
+        },
+        {
+            "type": "path",
+            "url": "../foundation"
+        },
+        {
+            "type": "path",
+            "url": "../http-client"
+        },
+        {
+            "type": "path",
+            "url": "../search"
+        }
+    ]
 }
