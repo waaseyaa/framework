@@ -819,10 +819,13 @@ php bin/waaseyaa queue:flush           # discard all failures
 Run `schedule:run` via system cron every minute:
 
 ```cron
-* * * * * cd /path/to/project && php bin/waaseyaa schedule:run >> /dev/null 2>&1
+* * * * * cd /path/to/project && php bin/waaseyaa schedule:run >> storage/logs/scheduler.log 2>&1 || { status=$?; logger -t waaseyaa-scheduler "schedule:run failed (exit $status)"; exit $status; }
 ```
 
-Use `schedule:list` to verify registered tasks.
+The success path retains scheduler output in the application log. On failure, the
+original non-zero status is also emitted to syslog and returned to cron instead of
+being hidden by a `/dev/null` redirect. Monitor `waaseyaa-scheduler` syslog entries
+with the host's normal alerting. Use `schedule:list` to verify registered tasks.
 
 ### Search reindex
 

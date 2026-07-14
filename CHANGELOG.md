@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The production scheduler cron recipe preserves failure signals (#2020).** Scheduler output is retained in an application log, while failures emit their original exit status to syslog and return it to cron for host-level monitoring.
 ### Changed
 
 - **MCP now advertises its authentication model honestly (#2020).** Server cards expose only anonymous or opaque-bearer authentication, legacy `oauth2` configuration normalizes to `bearer`, and the documentation makes clear that OAuth 2.1 remains a separate product decision.
