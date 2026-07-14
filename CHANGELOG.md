@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Failed queue jobs can be removed individually with `queue:forget` (#2020).** The command returns failure for an unknown ID and deletes only the selected failed row.
+
+### Fixed
+
+- **Queue failure semantics are explicit and observable (#2020).** Sync dispatch documents that handler exceptions propagate without failed-row persistence, while persistent workers now log a throwing `Job::failed()` hook before safely continuing.
+
 ## [0.1.0-alpha.264] - 2026-07-14
 
 ### Fixed
