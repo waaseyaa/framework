@@ -92,27 +92,35 @@ function scanRoot(string $root, array $baseline): array
     }
 
     $publicSurfaceRequirements = [
-        'packages/seo/src/SitemapGenerator.php' => ['setAccount(', 'status'],
-        'packages/seo/src/Llms/LlmsTxtGenerator.php' => ['setAccount(', 'status'],
-        'packages/ssr/src/SsrPageHandler.php' => ['EntityAccessHandler', 'WorkflowVisibility'],
+        'packages/seo/src/SitemapGenerator.php' => ['#->\s*setAccount\s*\(#'],
+        'packages/seo/src/Llms/LlmsTxtGenerator.php' => ['#->\s*setAccount\s*\(#'],
+        'packages/ssr/src/SsrPageHandler.php' => [
+            '#->\s*(?:check|viewableLabel)\s*\(#',
+            '#new\s+WorkflowVisibilityFilter\s*\(#',
+        ],
     ];
     foreach ($publicSurfaceRequirements as $relative => $required) {
-        requireMarkers($root, $relative, $required, 'AH002', $violations);
+        requireCodePatterns($root, $relative, $required, 'AH002', $violations);
     }
 
     $querySurfaceRequirements = [
         'packages/api/src/JsonApiController.php' => [
-            'validateQueryFields(', 'queryFieldForbidden(', 'rejectForbiddenSort(',
+            '#\$this\s*->\s*validateQueryFields\s*\(#',
+            '#\$this\s*->\s*queryFieldForbidden\s*\(#',
+            '#\$this\s*->\s*rejectForbiddenSort\s*\(#',
         ],
         'packages/graphql/src/Resolver/EntityResolver.php' => [
-            'assertQueryableFields(', 'isFieldViewForbidden(', 'rejectForbiddenSort(',
+            '#\$this\s*->\s*assertQueryableFields\s*\(#',
+            '#\$this\s*->\s*queryFieldForbidden\s*\(#',
+            '#\$this\s*->\s*rejectForbiddenSort\s*\(#',
         ],
         'packages/admin-surface/src/Host/GenericAdminSurfaceHost.php' => [
-            'validateSurfaceQueryFields(', 'isFieldViewForbidden(',
+            '#\$this\s*->\s*validateSurfaceQueryFields\s*\(#',
+            '#\$this\s*->\s*isFieldViewForbidden\s*\(#',
         ],
     ];
     foreach ($querySurfaceRequirements as $relative => $required) {
-        requireMarkers($root, $relative, $required, 'AH003', $violations);
+        requireCodePatterns($root, $relative, $required, 'AH003', $violations);
     }
 
     foreach ($files as $file) {
@@ -181,21 +189,41 @@ function containsAny(string $source, array $needles): bool
 }
 
 /**
- * @param list<string> $markers
+ * @param list<string> $patterns
  * @param list<string> $violations
  */
-function requireMarkers(string $root, string $relative, array $markers, string $rule, array &$violations): void
+function requireCodePatterns(string $root, string $relative, array $patterns, string $rule, array &$violations): void
 {
     $file = $root . '/' . $relative;
     if (!is_file($file)) {
+        $violations[] = "{$rule} {$relative}: protected surface is missing.";
         return;
     }
-    $source = (string) file_get_contents($file);
-    foreach ($markers as $marker) {
-        if (!str_contains($source, $marker)) {
-            $violations[] = "{$rule} {$relative}: missing required access marker {$marker}.";
+    $source = executablePhp((string) file_get_contents($file));
+    foreach ($patterns as $pattern) {
+        if (preg_match($pattern, $source) !== 1) {
+            $violations[] = "{$rule} {$relative}: missing required executable access call {$pattern}.";
         }
     }
+}
+
+/** Remove comments and string contents so prose cannot satisfy an access rule. */
+function executablePhp(string $source): string
+{
+    $executable = '';
+    foreach (token_get_all($source) as $token) {
+        if (is_string($token)) {
+            $executable .= $token;
+            continue;
+        }
+        if (in_array($token[0], [T_COMMENT, T_DOC_COMMENT, T_CONSTANT_ENCAPSED_STRING, T_ENCAPSED_AND_WHITESPACE], true)) {
+            $executable .= ' ';
+            continue;
+        }
+        $executable .= $token[1];
+    }
+
+    return $executable;
 }
 
 function relativePath(string $root, string $path): string
@@ -209,6 +237,11 @@ function selfTest(): void
     mkdir($root . '/packages/ai-tools/src/Entity', 0777, true);
     mkdir($root . '/packages/routing/src', 0777, true);
     mkdir($root . '/packages/graphql/src', 0777, true);
+    mkdir($root . '/packages/graphql/src/Resolver', 0777, true);
+    mkdir($root . '/packages/seo/src/Llms', 0777, true);
+    mkdir($root . '/packages/ssr/src', 0777, true);
+    mkdir($root . '/packages/api/src', 0777, true);
+    mkdir($root . '/packages/admin-surface/src/Host', 0777, true);
 
     try {
         file_put_contents(
@@ -223,12 +256,45 @@ function selfTest(): void
             $root . '/packages/graphql/src/WorkerLeak.php',
             "<?php final class WorkerLeak { private static array \$accounts = []; }",
         );
+        file_put_contents($root . '/packages/seo/src/SitemapGenerator.php', "<?php // ->setAccount( status\n");
+        file_put_contents($root . '/packages/seo/src/Llms/LlmsTxtGenerator.php', "<?php '->setAccount(';\n");
+        file_put_contents($root . '/packages/ssr/src/SsrPageHandler.php', "<?php // EntityAccessHandler WorkflowVisibilityFilter\n");
+        file_put_contents(
+            $root . '/packages/api/src/JsonApiController.php',
+            "<?php final class JsonApiController { private function validateQueryFields() {} private function queryFieldForbidden() {} private function rejectForbiddenSort() {} }",
+        );
+        file_put_contents(
+            $root . '/packages/graphql/src/Resolver/EntityResolver.php',
+            "<?php // \$this->assertQueryableFields(); \$this->queryFieldForbidden(); \$this->rejectForbiddenSort();\n",
+        );
+        file_put_contents(
+            $root . '/packages/admin-surface/src/Host/GenericAdminSurfaceHost.php',
+            "<?php final class Host { private function validateSurfaceQueryFields() {} private function isFieldViewForbidden() {} }",
+        );
 
         $failures = scanRoot($root, []);
-        foreach (['AH001', 'AH004', 'AH005'] as $rule) {
+        foreach (['AH001', 'AH002', 'AH003', 'AH004', 'AH005'] as $rule) {
             if (!containsAny(implode("\n", $failures), [$rule])) {
                 throw new RuntimeException("self-test did not trigger {$rule}");
             }
+        }
+        foreach ([
+            'AH002 packages/seo/src/SitemapGenerator.php',
+            'AH002 packages/seo/src/Llms/LlmsTxtGenerator.php',
+            'AH002 packages/ssr/src/SsrPageHandler.php',
+            'AH003 packages/api/src/JsonApiController.php',
+            'AH003 packages/graphql/src/Resolver/EntityResolver.php',
+            'AH003 packages/admin-surface/src/Host/GenericAdminSurfaceHost.php',
+        ] as $expectedFailure) {
+            if (!str_contains(implode("\n", $failures), $expectedFailure)) {
+                throw new RuntimeException("self-test prose/definition fixture did not trigger {$expectedFailure}");
+            }
+        }
+
+        unlink($root . '/packages/seo/src/SitemapGenerator.php');
+        $missingSurfaceFailures = scanRoot($root, []);
+        if (!str_contains(implode("\n", $missingSurfaceFailures), 'AH002 packages/seo/src/SitemapGenerator.php: protected surface is missing.')) {
+            throw new RuntimeException('self-test missing protected surface did not fail closed');
         }
 
         file_put_contents(
@@ -238,6 +304,24 @@ function selfTest(): void
         file_put_contents(
             $root . '/packages/routing/src/UnsafeRoutes.php',
             "<?php RouteBuilder::create('/safe')->controller('x')->allowAll()->build();",
+        );
+        file_put_contents($root . '/packages/seo/src/SitemapGenerator.php', "<?php \$query->setAccount(\$account);");
+        file_put_contents($root . '/packages/seo/src/Llms/LlmsTxtGenerator.php', "<?php \$query->setAccount(\$account);");
+        file_put_contents(
+            $root . '/packages/ssr/src/SsrPageHandler.php',
+            "<?php \$this->accessHandler->check(\$entity, 'view', \$account); new WorkflowVisibilityFilter();",
+        );
+        file_put_contents(
+            $root . '/packages/api/src/JsonApiController.php',
+            "<?php \$this->validateQueryFields(); \$this->queryFieldForbidden(); \$this->rejectForbiddenSort();",
+        );
+        file_put_contents(
+            $root . '/packages/graphql/src/Resolver/EntityResolver.php',
+            "<?php \$this->assertQueryableFields(); \$this->queryFieldForbidden(); \$this->rejectForbiddenSort();",
+        );
+        file_put_contents(
+            $root . '/packages/admin-surface/src/Host/GenericAdminSurfaceHost.php',
+            "<?php \$this->validateSurfaceQueryFields(); \$this->isFieldViewForbidden();",
         );
         $baseline = [
             'packages/graphql/src/WorkerLeak.php::$accounts' => 'Structural schema cache; entries contain no request or account state.',
