@@ -86,12 +86,14 @@ final class BuiltinRouteRegistrar
                 ->build(),
         );
 
-        // Option-less by design: MediaDownloadRouter performs the entity view
-        // check itself and collapses missing/denied/invalid-byte paths to 404.
+        // Public at the transport layer so anonymous callers can reach media
+        // whose entity policy allows them. MediaDownloadRouter remains the
+        // enforcement point and collapses missing/denied/invalid paths to 404.
         $router->addRoute(
             'media.download',
             RouteBuilder::create('/media/{id}/download')
                 ->controller('media.download')
+                ->allowAll()
                 ->methods('GET')
                 ->build(),
         );

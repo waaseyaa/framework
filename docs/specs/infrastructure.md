@@ -1,7 +1,7 @@
 # Infrastructure
 
 <!-- Spec reviewed 2026-07-14 - R21 WP7 (#2010/#2000): request-reachable mutable process statics are blocked unless tools/access-hardening-baseline.php carries a reviewed, non-empty lifetime/isolation rationale. Safe alternatives are instance state, per-request execution context, or a structural cache keyed by every isolation dimension; unsafe fixture coverage runs in composer verify and blocking CI. -->
-<!-- Spec reviewed 2026-07-14 - R21 WP6 (#2010): BuiltinRouteRegistrar adds option-less GET /media/{id}/download. MediaDownloadRouter is the enforcement point: it loads the media entity, requires an Allowed view decision, resolves only a contained public:// source_uri beneath files_root, and collapses missing/denied/invalid paths to 404 before streaming with nosniff. Queue failed-job retry now uses FailedJobRepositoryInterface::claimForRetry() as a conditional UPDATE on the existing retried_at column; API and CLI claim before dispatch, release on dispatch failure, and forget only after success, so concurrent same-id retries have one dispatch winner without a schema migration. -->
+<!-- Spec reviewed 2026-07-14 - R21 WP6 (#2010): BuiltinRouteRegistrar adds GET /media/{id}/download with explicit allowAll transport posture so anonymous callers may reach media whose entity policy grants view. MediaDownloadRouter remains the enforcement point: it loads the media entity, requires an Allowed view decision, resolves only a contained public:// source_uri beneath files_root, and collapses missing/denied/invalid paths to 404 before streaming with nosniff. Queue failed-job retry now uses FailedJobRepositoryInterface::claimForRetry() as a conditional UPDATE on the existing retried_at column; API and CLI claim before dispatch, release on dispatch failure, and forget only after success, so concurrent same-id retries have one dispatch winner without a schema migration. -->
 
 <!-- Spec reviewed 2026-07-13 - CW-v1 WP-5 WP1 (#1920): deleted the retired read-only workflow
      dry-run/guards routes from the "Routes now registered by `ApiServiceProvider::routes()`" table
@@ -1392,7 +1392,7 @@ This kernel-adjacent registrar runs once at boot (called from `HttpKernel`) and 
 | OpenAPI schema doc | `GET /api/openapi.json` | `_authenticated` |
 | Entity-type catalog + lifecycle | `GET /api/entity-types`; `POST /api/entity-types/{entity_type}/{enable,disable}` | default / `_role: admin` |
 | Broadcast (SSE) | `GET /api/broadcast` | default |
-| Media upload/download | `POST /api/media/upload`; `GET /media/{id}/download` | `access media`; option-less (download handler enforces) |
+| Media upload/download | `POST /api/media/upload`; `GET /media/{id}/download` | `access media`; `allowAll` transport posture + download handler entity-view enforcement |
 | Attachment download | `GET /attachment/{id}/download` | option-less (handler enforces) |
 | Semantic search | `GET /api/search` | default |
 | Discovery endpoints | `GET /api/discovery/{hub,cluster,timeline,endpoint}/…` | default |

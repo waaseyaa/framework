@@ -36,6 +36,7 @@ final class BuiltinRouteRegistrarTest extends TestCase
         $this->assertNotNull($routes->get('api.search'));
         $this->assertNotNull($routes->get('api.media.upload'));
         $this->assertNotNull($routes->get('media.download'));
+        $this->assertTrue((bool) $routes->get('media.download')?->getOption('_public'));
     }
 
     #[Test]
