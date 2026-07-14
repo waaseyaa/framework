@@ -350,6 +350,8 @@ preserved in the factory message so contract tests continue to pass.
 
 ## Related: Versioned blob media abstraction (DIR-005)
 
+**PARKED / internal (#1742).** The Version namespace and its API/admin read surfaces are not supported extension points. Reactivation requires a boundary test proving that real upload bytes survive the production request boundary and are durably persisted to CAS before a `media_version` row is exposed. The #1951 early-return guard in `MediaVersionStorageDriver` remains mandatory while parked.
+
 `MediaVersion` (mission `versioned-blob-media-abstraction-01KSEFTJ`) is a
 **non-revisioned, non-translatable** entity that sits alongside the two-axis
 storage shape rather than inside it. Each `MediaVersion` row represents one
@@ -373,9 +375,7 @@ shape-guarded: the generic kernel-boot `SqlSchemaHandler` table (no
 `media_uuid`/`vid` columns — typed values live in `_data`) is skipped
 without error; on that shape `nextVid()` throws and the driver's
 best-effort boundary logs a warning instead of writing colliding vid=1
-rows. The overall CAS/versioning finish-or-park decision (subsystem
-disconnected from the upload route, in-memory CAS backing) remains
-deliberately open — see issue #1742.
+rows. The subsystem remains disconnected from the upload route and its pending hand-off is in-memory; see issue #1742.
 
 See `docs/specs/` for the versioned-blob-media spec (to be created in a
 follow-up spec pass) and `packages/media/src/Version/MediaVersionRepository.php`

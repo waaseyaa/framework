@@ -18,7 +18,7 @@ use Waaseyaa\Media\FileRepositoryInterface;
  *
  * Refs DIR-005 — extends, does not replace, the existing file-repository surface.
  *
- * @api
+ * @internal Parked until #1742's byte-persistence criterion is met.
  */
 final class ContentAddressedFileRepositoryDecorator implements FileRepositoryInterface
 {

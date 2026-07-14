@@ -7,7 +7,7 @@ namespace Waaseyaa\Media\Version;
 /**
  * Value object returned by ContentAddressedFileRepositoryDecorator::write().
  *
- * @api
+ * @internal Parked until #1742's byte-persistence criterion is met.
  */
 final readonly class FileWriteResult
 {

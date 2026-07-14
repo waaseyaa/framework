@@ -10,7 +10,7 @@ namespace Waaseyaa\Api\Media;
  * Property names follow camelCase (JSON:API attribute convention for the SPA).
  * Maps from MediaVersion entity fields — see packages/media/src/Version/MediaVersion.php.
  *
- * @api
+ * @internal Parked until #1742's byte-persistence criterion is met.
  */
 final readonly class MediaVersionResource
 {

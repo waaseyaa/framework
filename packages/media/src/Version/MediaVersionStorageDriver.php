@@ -29,7 +29,7 @@ use Waaseyaa\Media\Media;
  *
  * Refs DIR-005 — extension of the media-entity surface, not a replacement.
  *
- * @api
+ * @internal Parked until #1742's byte-persistence criterion is met.
  */
 final class MediaVersionStorageDriver implements EventSubscriberInterface
 {

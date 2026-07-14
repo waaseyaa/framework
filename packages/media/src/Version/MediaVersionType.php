@@ -9,7 +9,7 @@ use Waaseyaa\Entity\EntityType;
 /**
  * Entity type definition for media_version.
  *
- * @api
+ * @internal Parked until #1742's byte-persistence criterion is met.
  */
 final class MediaVersionType
 {

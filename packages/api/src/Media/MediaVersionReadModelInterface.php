@@ -12,7 +12,7 @@ use Waaseyaa\Access\AccountInterface;
  * Decouples the API layer from the media package's internal entity types.
  * All types here are api-local DTOs — no Waaseyaa\Media\Version\* imports.
  *
- * @api
+ * @internal Parked until #1742's byte-persistence criterion is met.
  */
 interface MediaVersionReadModelInterface
 {

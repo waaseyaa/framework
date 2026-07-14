@@ -26,7 +26,7 @@ use Waaseyaa\Api\Media\MediaVersionReadModelInterface;
  *
  * Refs DIR-005 (versioned-blob-media-abstraction-01KSEFTJ).
  *
- * @api
+ * @internal Parked until #1742's byte-persistence criterion is met.
  */
 final class MediaVersionController
 {

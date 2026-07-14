@@ -25,7 +25,7 @@ use Waaseyaa\Entity\ContentEntityBase;
  *   - created_at  Unix timestamp (seconds)
  *   - created_by  UID of the account that created the version (0 = anonymous)
  *
- * @api
+ * @internal Parked until #1742's byte-persistence criterion is met.
  */
 final class MediaVersion extends ContentEntityBase
 {

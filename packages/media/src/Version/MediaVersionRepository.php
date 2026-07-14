@@ -19,7 +19,7 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * IMPORTANT: Never uses getQuery(). All DB reads go through DatabaseInterface::select()
  * to keep bin/check-getquery-bindings baseline at zero new entries.
  *
- * @api
+ * @internal Parked until #1742's byte-persistence criterion is met.
  */
 final class MediaVersionRepository
 {
