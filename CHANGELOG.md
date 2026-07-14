@@ -10,60 +10,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Skeleton deployments now ship an Apache front-controller rewrite, copy-paste Apache/nginx/Caddy server blocks, and a `health:check` clean-URL self-probe that fails loudly when non-root requests do not reach the router (#2020).
+- **Failed queue jobs can be removed individually with `queue:forget` (#2020).** The command returns failure for an unknown ID and deletes only the selected failed row.
+
+### Changed
+
+- **MCP now advertises its authentication model honestly (#2020).** Server cards expose only anonymous or opaque-bearer authentication, legacy `oauth2` configuration normalizes to `bearer`, and the documentation makes clear that OAuth 2.1 remains a separate product decision.
+- **CLI boundary documentation now matches runtime behavior (#2020).** Ingestion consumers own HTML sanitization at their persistence/render boundary, `ai:run` documents the default synchronous bus honestly, and the operator-level `entity:list` access-check opt-out is explicit.
+- **SSR app-controller argument binding now enforces entity view access and resolves custom services correctly (#2020).** Typed entity parameters accept the kernel's upcast object but fail closed to the canonical 404 when the request gate cannot allow view; custom method services call `HttpServiceResolverInterface::resolve()` instead of treating the resolver object as a callable.
+- **New nodes now default to unpublished and node-type identifiers expose their real domain type (#2020).** Omitted publication state fails closed to draft, while `NodeType::getType()` narrows the generic config-entity id to `?string`.
+- **North Cloud mapper documentation now names its external-content trust boundary (#2020).** Consumer mappers must sanitize HTML according to each destination field's markup contract before returning values for persistence.
 
 ### Fixed
 
 - **The production scheduler cron recipe preserves failure signals (#2020).** Scheduler output is retained in an application log, while failures emit their original exit status to syslog and return it to cron for host-level monitoring.
-### Changed
-
-- **MCP now advertises its authentication model honestly (#2020).** Server cards expose only anonymous or opaque-bearer authentication, legacy `oauth2` configuration normalizes to `bearer`, and the documentation makes clear that OAuth 2.1 remains a separate product decision.
-
-### Fixed
-
 - **MCP audit attribution and write-route wiring are regression-pinned (#2020).** Opaque string account identifiers map to a stable non-zero audit actor instead of colliding with anonymous id `0`, and tests pin the public-router plus CSRF-exempt contract for `/mcp/write`.
+- **Database bindings and schema changes are portable across supported drivers (#2020).** Integer and boolean `IN` lists now bind with DBAL's integer-array type across select, update, and delete builders; float scalar binding has an explicit non-truncating policy; and adding a primary key uses Doctrine schema diffs on capable platforms while retaining SQLite's clear refusal.
+- **CLI diagnostics and reused commands close minor operational footguns (#2020).** Composer provenance refuses lockfile paths outside the project root, production migration output redacts absolute Unix and Windows files plus bare directories, and repeated `ai:run --watch` invocations clear stale SIGINT state.
+- **Queue failure semantics are explicit and observable (#2020).** Sync dispatch documents that handler exceptions propagate without failed-row persistence, while persistent workers now log a throwing `Job::failed()` hook before safely continuing.
+- **Abandoned AI runs and their audits now reach a coherent terminal lifecycle (#2020).** Audit retention preserves rows owned by any non-terminal run. The scheduled reaper now terminalizes expired never-claimed, approval-waiting, and cancellation-pending runs alongside crashed running workers, using selection-captured source state and lifecycle fields in compare-and-swap transitions. Interactive approval persists its own deadline, so a long-running job still receives its full approval window; renewed approval cycles win stale reaper races, and terminalization clears pending approval metadata.
+- **AI telemetry boot failures are observable (#2020).** Best-effort agent telemetry wiring now warns through the framework logger when dispatcher or repository resolution fails instead of silently disabling the pipeline. The retired duplicate trace-pricing table remains removed, leaving the live `ModelPriceTable` as the sole pricing catalogue.
+- **OIDC route wiring no longer turns controller construction failures into silent 404s (#2020).** Routing logs each skipped OIDC controller and its resolution exception while preserving the optional-route fail-open behavior.
 
 ### Removed
 
 - **MCP drops unused dependencies and vestigial bridge contracts (#2020).** Five runtime edges and the two unconsumed MCP-local tool interfaces are removed; the per-request bridge now documents its direct use of the canonical AI tools registry.
-### Fixed
 
-- **Database bindings and schema changes are portable across supported drivers (#2020).** Integer and boolean `IN` lists now bind with DBAL's integer-array type across select, update, and delete builders; float scalar binding has an explicit non-truncating policy; and adding a primary key uses Doctrine schema diffs on capable platforms while retaining SQLite's clear refusal.
-- **CLI diagnostics and reused commands close minor operational footguns (#2020).** Composer provenance refuses lockfile paths outside the project root, production migration output redacts absolute Unix and Windows files plus bare directories, and repeated `ai:run --watch` invocations clear stale SIGINT state.
-
-### Changed
-
-- **CLI boundary documentation now matches runtime behavior (#2020).** Ingestion consumers own HTML sanitization at their persistence/render boundary, `ai:run` documents the default synchronous bus honestly, and the operator-level `entity:list` access-check opt-out is explicit.
-- **SSR app-controller argument binding now enforces entity view access and resolves custom services correctly (#2020).** Typed entity parameters accept the kernel's upcast object but fail closed to the canonical 404 when the request gate cannot allow view; custom method services call `HttpServiceResolverInterface::resolve()` instead of treating the resolver object as a callable.
 ### Security
 
 - **Access-policy discovery no longer depends on Composer's optimized classmap (#2020).** Package discovery now unions classmap and PSR-4 candidates, validates every package's declared policy inventory, and aborts boot on missing or divergent policies instead of silently running with partial enforcement. The same scanner fix restores non-optimized discovery for agent tools and definitions, middleware, formatters, field/entity types, and schedule entries.
-
-### Added
-
-- **Failed queue jobs can be removed individually with `queue:forget` (#2020).** The command returns failure for an unknown ID and deletes only the selected failed row.
-
-### Fixed
-
-- **Queue failure semantics are explicit and observable (#2020).** Sync dispatch documents that handler exceptions propagate without failed-row persistence, while persistent workers now log a throwing `Job::failed()` hook before safely continuing.
-### Fixed
-
-- **Abandoned AI runs and their audits now reach a coherent terminal lifecycle (#2020).** Audit retention preserves rows owned by any non-terminal run. The scheduled reaper now terminalizes expired never-claimed, approval-waiting, and cancellation-pending runs alongside crashed running workers, using selection-captured source state and lifecycle fields in compare-and-swap transitions. Interactive approval persists its own deadline, so a long-running job still receives its full approval window; renewed approval cycles win stale reaper races, and terminalization clears pending approval metadata.
-### Security
-
 - **Relationships no longer expose edge metadata when both endpoints are hidden (#2020).** The endpoint visibility policy now denies entity-level view when neither endpoint can be viewed, while retaining pair-wise field redaction when one endpoint remains visible.
-### Changed
-
-- **New nodes now default to unpublished and node-type identifiers expose their real domain type (#2020).** Omitted publication state fails closed to draft, while `NodeType::getType()` narrows the generic config-entity id to `?string`.
-### Security
-
 - **The debug provider's fail-closed production gate now has regression coverage (#2020).** Malformed `APP_DEBUG` values register neither debug middleware nor preview routes, while an absent environment value may still use explicit server-side configuration.
-### Changed
-
-- **North Cloud mapper documentation now names its external-content trust boundary (#2020).** Consumer mappers must sanitize HTML according to each destination field's markup contract before returning values for persistence.
-### Fixed
-
-- **AI telemetry boot failures are observable (#2020).** Best-effort agent telemetry wiring now warns through the framework logger when dispatcher or repository resolution fails instead of silently disabling the pipeline. The retired duplicate trace-pricing table remains removed, leaving the live `ModelPriceTable` as the sole pricing catalogue.
-- **OIDC route wiring no longer turns controller construction failures into silent 404s (#2020).** Routing logs each skipped OIDC controller and its resolution exception while preserving the optional-route fail-open behavior.
 
 ## [0.1.0-alpha.264] - 2026-07-14
 
