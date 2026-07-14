@@ -43,12 +43,16 @@ $rootEnv = getenv('WAASEYAA_LAYER_ROOT');
 $root = is_string($rootEnv) && $rootEnv !== '' ? $rootEnv : dirname(__DIR__);
 $outputMode = getenv('WAASEYAA_OUTPUT') === 'json' ? 'json' : 'human';
 $generateBaseline = false;
+$printLayerMap = false;
 foreach (array_slice($argv, 1) as $arg) {
     if ($arg === '--output=json') {
         $outputMode = 'json';
     }
     if ($arg === '--generate-baseline') {
         $generateBaseline = true;
+    }
+    if ($arg === '--layer-map=json') {
+        $printLayerMap = true;
     }
 }
 
@@ -125,6 +129,12 @@ $layerByShort = [
     'debug' => 6,
     'workspace' => 6,
 ];
+
+if ($printLayerMap) {
+    ksort($layerByShort);
+    echo json_encode($layerByShort, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+    exit(0);
+}
 
 $metapackages = ['cms' => true, 'core' => true, 'full' => true];
 

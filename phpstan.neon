@@ -12,77 +12,18 @@ parameters:
     reportPossiblyNonexistentGeneralArrayOffset: true
     reportPossiblyNonexistentConstantArrayOffset: true
     paths:
-        - packages/access/src
-        # admin: Nuxt SPA — excluded per Convention C3 (mission #1335 spec.md). PHP host is admin-surface (L6).
-        - packages/admin-surface/src
-        - packages/ai-agent/src
-        - packages/ai-observability/src
-        - packages/ai-pipeline/src
-        - packages/ai-schema/src
-        - packages/ai-tools/src
-        - packages/ai-vector/src
-        - packages/api/src
-        - packages/auth/src
-        - packages/billing/src
-        - packages/bimaaji/src
-        - packages/analytics/src
-        - packages/cache/src
-        - packages/cli/src
-        - packages/config/src
-        - packages/database-legacy/src
-        - packages/debug/src
-        # deployer: recipe-only package (no PSR-4 src/) — single Deployer recipe file at recipe/waaseyaa.php depends on deployphp/deployer's globally-bound functions (run/task/desc/get/after) that PHPStan cannot resolve without project-specific stubs. Excluded per Convention C3 (mission #1335 spec.md).
-        - packages/entity-storage/src
-        - packages/entity/src
-        - packages/engagement/src
-        - packages/error-handler/src
-        - packages/field/src
-        - packages/foundation/src
-        - packages/frankenphp/src
-        - packages/geo/src
-        - packages/groups/src
-        - packages/github/src
-        - packages/genealogy/src
-        - packages/graphql/src
-
-        - packages/i18n/src
-        - packages/http-client/src
-        - packages/inertia/src
-        - packages/ingestion/src
-        - packages/listing/src
-        - packages/mail/src
-        - packages/mcp/src
-        - packages/media/src
-        - packages/mercure/src
-        - packages/menu/src
-        - packages/messaging/src
-        - packages/migration/src
-        - packages/node/src
-        - packages/northcloud/src
-        - packages/note/src
-        - packages/oauth-provider/src
-        - packages/notification/src
-        - packages/oidc/src
-        - packages/path/src
-        - packages/plugin/src
-        - packages/queue/src
-        - packages/relationship/src
-        - packages/scheduler/src
-        - packages/routing/src
-        - packages/search/src
-        - packages/seo/src
-        - packages/ssr/src
-        - packages/state/src
-        - packages/taxonomy/src
-        - packages/testing/src
-        - packages/typed-data/src
-        - packages/user/src
-        - packages/validation/src
-        - packages/wayfinding/src
-        - packages/workflows/src
-        - packages/workspace/src
-        # C-19: these three were silently outside analysis until now. The paths
-        # invariant (bin/check-phpstan-paths) keeps every packages/*/src covered.
-        - packages/attachment/src
-        - packages/audit/src
-        - packages/structured-import/src
+        # Roster-wide coverage: a new package is analysed without a hand-edited
+        # list. PHPStan only scans PHP files; tests and the Nuxt source are
+        # excluded explicitly below.
+        - packages
+    excludePaths:
+        analyseAndScan:
+            - packages/*/tests/*
+            - packages/*/testing/*
+            - packages/*/migrations/*
+            - packages/*/scripts/*
+            - packages/*/config/*
+            - packages/admin/*
+            # Recipe-only package; deployphp's global DSL functions need
+            # project-specific stubs and there is no PSR-4 src/ tree.
+            - packages/deployer/recipe/*

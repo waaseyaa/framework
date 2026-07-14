@@ -78,8 +78,7 @@
         "waaseyaa": {
             "providers": [
                 "Waaseyaa\\AI\\Vector\\AiVectorServiceProvider"
-            ],
-            "layer": 5
+            ]
         }
     },
     "config": {

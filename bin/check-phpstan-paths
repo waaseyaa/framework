@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# check-phpstan-paths — enforce the PHPStan coverage invariant: every
-# `packages/*/src` tree on disk must appear in phpstan.neon's `paths:` list.
+# check-phpstan-paths — enforce roster-wide PHPStan coverage through one
+# `packages` root, rather than a duplicated hand-maintained package list.
 #
 # This guards the class of gap found in audit C-19, where `attachment`, `audit`,
 # and `structured-import` shipped real code that PHPStan never analysed simply
@@ -26,51 +26,28 @@ import sys
 root = pathlib.Path(os.environ["ROOT_DIR"])
 neon = (root / "phpstan.neon").read_text(encoding="utf-8")
 
-# Extract `- packages/<name>/src` entries from the `paths:` block only — stop at
-# the next top-level-ish key (e.g. `excludePaths:`) so excludePaths entries are
-# never mistaken for coverage.
-listed: set[str] = set()
+# Extract entries from the `paths:` block only.
+listed: list[str] = []
 in_paths = False
 for line in neon.splitlines():
     if re.match(r"^\s*paths:\s*$", line):
         in_paths = True
         continue
     if in_paths:
-        m = re.match(r"^\s*-\s*(packages/[^/]+/src)\s*$", line)
+        m = re.match(r"^\s*-\s*(packages(?:/[^/]+/src)?)\s*$", line)
         if m:
-            listed.add(m.group(1))
+            listed.append(m.group(1))
             continue
         # A non-list, non-blank, non-comment line ends the paths block.
         if line.strip() and not line.lstrip().startswith(("-", "#")):
             break
 
-on_disk = {
-    f"packages/{p.parent.name}/src"
-    for p in root.glob("packages/*/src")
-    if p.is_dir()
-}
-
-missing = sorted(on_disk - listed)
-stale = sorted(p for p in (listed - on_disk) if not (root / p).is_dir())
-
-if missing:
-    print("PHPStan coverage gap — these packages/*/src trees are not in phpstan.neon `paths:`:")
-    print()
-    for p in missing:
-        print(f"  {p}")
-    print()
-    print("Add each to the `paths:` list in phpstan.neon and run `composer phpstan`")
-    print("to triage any new findings (fix, or baseline with a documented reason).")
-
-if stale:
-    print()
-    print("Stale `paths:` entries — listed in phpstan.neon but no longer on disk:")
-    for p in stale:
-        print(f"  {p}")
-    print("Remove these from phpstan.neon `paths:`.")
-
-if missing or stale:
+if listed != ["packages"]:
+    print("PHPStan coverage must use the single `packages` root in phpstan.neon `paths:`.")
+    print(f"Found: {listed!r}")
+    print("Per-package src entries duplicate the package roster and can drift.")
     sys.exit(1)
 
-print(f"OK — PHPStan analyses every packages/*/src ({len(on_disk)} package trees).")
+count = sum(1 for p in root.glob("packages/*/src") if p.is_dir())
+print(f"OK — PHPStan analyses the packages root ({count} current src trees, future trees automatic).")
 PY

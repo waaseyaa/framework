@@ -41,7 +41,6 @@
     },
     "extra": {
         "waaseyaa": {
-            "layer": 6,
             "providers": [
                 "Waaseyaa\\Auth\\AuthServiceProvider"
             ]
