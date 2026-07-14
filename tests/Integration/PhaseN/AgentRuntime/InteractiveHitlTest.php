@@ -130,6 +130,22 @@ final class InteractiveHitlTest extends TestCase
     }
 
     #[Test]
+    public function terminalRunNeverSerializesStalePendingApprovalMetadata(): void
+    {
+        $callId = 'call_' . Uuid::v4()->toRfc4122();
+        $runId = $this->seedAwaitingApprovalRun(callerId: 42, callId: $callId);
+        $this->database->update('agent_run')
+            ->fields(['status' => RunStatus::Failed->value])
+            ->condition('id', $runId)
+            ->execute();
+
+        $response = $this->controller->show($this->buildRequest('GET', "/api/ai/agent/run/{$runId}", ''), $runId);
+        self::assertSame(200, $response->getStatusCode());
+        $payload = \json_decode((string) $response->getContent(), true, 16, \JSON_THROW_ON_ERROR);
+        self::assertNull($payload['pending_approval']);
+    }
+
+    #[Test]
     public function mismatchedCallIdReturns409(): void
     {
         $expected = 'call_' . Uuid::v4()->toRfc4122();

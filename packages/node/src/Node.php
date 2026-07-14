@@ -60,8 +60,8 @@ final class Node extends ContentEntityBase implements HydratableFromStorageInter
     #[Field(label: 'Slug', description: 'The URL-friendly identifier for this content.', required: true, settings: ['weight' => 2])]
     public string $slug = '';
 
-    #[Field(type: 'boolean', label: 'Published', description: 'Whether the content is published.', default: 1, settings: ['weight' => 10])]
-    public bool $status = true;
+    #[Field(type: 'boolean', label: 'Published', description: 'Whether the content is published.', default: 0, settings: ['weight' => 10])]
+    public bool $status = false;
 
     #[Field(type: 'boolean', label: 'Promoted to front page', description: 'Whether the content is promoted to the front page.', default: 0, settings: ['weight' => 11])]
     public bool $promote = false;
@@ -102,7 +102,8 @@ final class Node extends ContentEntityBase implements HydratableFromStorageInter
     ) {
         // Ensure defaults for optional properties.
         if (!array_key_exists('status', $values)) {
-            $values['status'] = 1;
+            // New content is private until an explicit publication decision.
+            $values['status'] = 0;
         }
         if (!array_key_exists('promote', $values)) {
             $values['promote'] = 0;

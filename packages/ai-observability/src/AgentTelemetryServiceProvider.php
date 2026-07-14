@@ -80,9 +80,15 @@ final class AgentTelemetryServiceProvider extends ServiceProvider
             }
             $listener = $this->resolve(AgentRunTelemetryListener::class);
             $dispatcher->addSubscriber($listener);
-        } catch (\Throwable) {
+        } catch (\Throwable $exception) {
             // Best-effort wiring: a missing EventDispatcher / AgentRunRepository
             // binding (e.g. minimal kernel without ai-agent) must not break boot.
+            $logger = $this->resolveOptional(LoggerInterface::class);
+            if ($logger instanceof LoggerInterface) {
+                $logger->warning('ai_observability.telemetry_wiring_failed', [
+                    'exception' => $exception,
+                ]);
+            }
         }
     }
 }

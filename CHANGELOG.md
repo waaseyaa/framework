@@ -14,6 +14,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Queue failure semantics are explicit and observable (#2020).** Sync dispatch documents that handler exceptions propagate without failed-row persistence, while persistent workers now log a throwing `Job::failed()` hook before safely continuing.
+### Fixed
+
+- **Abandoned AI runs and their audits now reach a coherent terminal lifecycle (#2020).** Audit retention preserves rows owned by any non-terminal run. The scheduled reaper now terminalizes expired never-claimed, approval-waiting, and cancellation-pending runs alongside crashed running workers, using selection-captured source state and lifecycle fields in compare-and-swap transitions. Interactive approval persists its own deadline, so a long-running job still receives its full approval window; renewed approval cycles win stale reaper races, and terminalization clears pending approval metadata.
+### Security
+
+- **Relationships no longer expose edge metadata when both endpoints are hidden (#2020).** The endpoint visibility policy now denies entity-level view when neither endpoint can be viewed, while retaining pair-wise field redaction when one endpoint remains visible.
+### Changed
+
+- **New nodes now default to unpublished and node-type identifiers expose their real domain type (#2020).** Omitted publication state fails closed to draft, while `NodeType::getType()` narrows the generic config-entity id to `?string`.
+### Security
+
+- **The debug provider's fail-closed production gate now has regression coverage (#2020).** Malformed `APP_DEBUG` values register neither debug middleware nor preview routes, while an absent environment value may still use explicit server-side configuration.
+### Changed
+
+- **North Cloud mapper documentation now names its external-content trust boundary (#2020).** Consumer mappers must sanitize HTML according to each destination field's markup contract before returning values for persistence.
+### Fixed
+
+- **AI telemetry boot failures are observable (#2020).** Best-effort agent telemetry wiring now warns through the framework logger when dispatcher or repository resolution fails instead of silently disabling the pipeline. The retired duplicate trace-pricing table remains removed, leaving the live `ModelPriceTable` as the sole pricing catalogue.
+- **OIDC route wiring no longer turns controller construction failures into silent 404s (#2020).** Routing logs each skipped OIDC controller and its resolution exception while preserving the optional-route fail-open behavior.
 
 ## [0.1.0-alpha.264] - 2026-07-14
 
