@@ -1,17 +1,6 @@
 #!/usr/bin/env bash
-# Wrapper around `vendor/bin/phpstan analyse` that adds the agent-output
-# `--output=json` flag without disturbing `composer phpstan` (which still
-# runs phpstan directly through its composer-script alias and is the
-# canonical human-mode entry point).
-#
-# Output modes (M4 WP04C of mission `agent-output-package-01KS5VX1`):
-#
-#   --output=json    NDJSON envelope on stdout via Waaseyaa\AgentOutput\Formatter\PhpStanFormatter
-#   WAASEYAA_OUTPUT=json    same effect via env var
-#
-# Default behaviour (no flag, no env var) is unchanged: runs phpstan with
-# the framework's standard arg set + memory limit; exits with phpstan's
-# exit code.
+# Wrapper around `vendor/bin/phpstan analyse` using the framework's standard
+# memory limit. The retired agent-output JSON envelope is deliberately rejected.
 #
 # Any extra args are forwarded to phpstan (e.g. a path filter or
 # `--memory-limit=4G`).
@@ -21,75 +10,23 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 export ROOT_DIR
 cd "$ROOT_DIR"
 
-OUTPUT_MODE="human"
 PHPSTAN_ARGS=()
 for arg in "$@"; do
     case "$arg" in
-        --output=json) OUTPUT_MODE="json" ;;
+        --output=json)
+            echo "check-phpstan: --output=json is no longer supported; use PHPStan's native --error-format=json when needed." >&2
+            exit 2
+            ;;
         *) PHPSTAN_ARGS+=("$arg") ;;
     esac
 done
 if [[ "${WAASEYAA_OUTPUT:-}" == "json" ]]; then
-    OUTPUT_MODE="json"
+    echo "check-phpstan: --output=json is no longer supported; use PHPStan's native --error-format=json when needed." >&2
+    exit 2
 fi
 
 if [[ ! -x vendor/bin/phpstan ]]; then
-    if [[ "$OUTPUT_MODE" == "json" ]]; then
-        printf '{"tool":"phpstan","result":"pass","level":null,"files_scanned":0,"errors":0,"failures":[],"skipped":"vendor-missing"}\n'
-        exit 0
-    fi
     echo "WARN: vendor/bin/phpstan not found; run 'composer install' before check-phpstan." >&2
     exit 0
 fi
-
-if [[ "$OUTPUT_MODE" == "json" ]]; then
-    set +e
-    PHPSTAN_JSON="$(vendor/bin/phpstan analyse --no-progress --memory-limit=512M --error-format=json "${PHPSTAN_ARGS[@]}" 2>/dev/null)"
-    PHPSTAN_EXIT=$?
-    set -e
-    export PHPSTAN_JSON PHPSTAN_EXIT
-    php -d display_errors=stderr -r '
-require getenv("ROOT_DIR") . "/vendor/autoload.php";
-$raw = getenv("PHPSTAN_JSON");
-$failures = [];
-$errors = 0;
-$filesScanned = 0;
-if (is_string($raw) && $raw !== "") {
-    try {
-        $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-        if (is_array($decoded)) {
-            $errors = isset($decoded["totals"]["file_errors"]) && is_int($decoded["totals"]["file_errors"])
-                ? $decoded["totals"]["file_errors"]
-                : 0;
-            if (isset($decoded["files"]) && is_array($decoded["files"])) {
-                $filesScanned = count($decoded["files"]);
-                foreach ($decoded["files"] as $file => $entry) {
-                    $messages = $entry["messages"] ?? [];
-                    if (!is_array($messages)) continue;
-                    foreach ($messages as $msg) {
-                        $failures[] = [
-                            "file" => (string) $file,
-                            "line" => isset($msg["line"]) && is_int($msg["line"]) ? $msg["line"] : 0,
-                            "identifier" => isset($msg["identifier"]) ? (string) $msg["identifier"] : "",
-                            "message" => isset($msg["message"]) ? (string) $msg["message"] : "",
-                        ];
-                    }
-                }
-            }
-        }
-    } catch (\JsonException $e) {
-        // Fall through with zeroed metrics — phpstan exit code remains source of truth.
-    }
-}
-echo (new Waaseyaa\AgentOutput\Formatter\PhpStanFormatter())->format([
-    "level" => null,
-    "files_scanned" => $filesScanned,
-    "errors" => $errors,
-    "failures" => $failures,
-]);
-'
-    exit "$PHPSTAN_EXIT"
-fi
-
-# Human mode — same args as `composer phpstan`.
 exec vendor/bin/phpstan analyse --memory-limit=512M "${PHPSTAN_ARGS[@]}"

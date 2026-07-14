@@ -1,0 +1,10 @@
+# Package-layers same-layer cycle baseline (PL006) — see bin/check-package-layers.
+# Format: "<package-a> <package-b>  # <mandatory rationale>"; order is immaterial.
+# These five mutual runtime-require edges predate the fail-on-new gate. New pairs
+# fail CI; remove an entry when its cycle is broken.
+
+access entity  # Core entity access is implemented by access policies while access results remain entity-facing; architectural untangling is deferred.
+ai-agent ai-observability  # Agent execution emits observability events while observability integrates agent contracts; existing AI runtime seam.
+cache foundation  # Foundation owns cache abstractions and kernel wiring while cache implements the foundation-facing backend; existing L0 bootstrap seam.
+entity field  # Entity definitions expose fields while field implementations consume entity contracts; existing L1 data-model seam.
+foundation queue  # Foundation kernel dispatches queues while queue implements foundation-owned infrastructure contracts; existing L0 bootstrap seam.

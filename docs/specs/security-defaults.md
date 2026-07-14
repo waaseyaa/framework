@@ -16,7 +16,8 @@ Attack surfaces:
 
 | Threat | Mitigation |
 |--------|-----------|
-| Secret committed to `defaults/` | `bin/check-no-secrets` (CI gate) + `DefaultsSecretsIntegrationTest` (structural) |
+| Secret committed anywhere in repository source | Repository-wide `bin/check-no-secrets` CI gate; generated dependency/build trees are excluded |
+| Secret embedded structurally in `defaults/` | `DefaultsSecretsIntegrationTest` structural value scan |
 | Manifest referencing external endpoint | YAML manifests are governance docs, not runtime config |
 | Anonymous write to entity API | Route-level `_authenticated` option on POST/PATCH/DELETE |
 
@@ -104,9 +105,9 @@ When field-level encryption is implemented:
 
 ## Secrets Handling
 
-### Invariant: no secrets in manifests
+### Invariant: no secrets in repository source
 
-`defaults/*.yaml` and `defaults/*.schema.json` are version-controlled and must **never** contain credentials, tokens, or connection strings. All secrets enter the application exclusively via environment variables.
+Version-controlled source — including `defaults/`, packages, scripts, documentation, and workflows — must **never** contain credentials, tokens, or connection strings. All secrets enter the application exclusively via environment variables. `bin/check-no-secrets` scans the repository root and excludes only generated or dependency trees (`.git`, `.worktrees`, `vendor`, `node_modules`, `dist`, `build`, and `tmp`). Test fixtures assemble secret-shaped dummy values from fragments so the repository contains no static token-like payload.
 
 ### Environment variable contract
 
@@ -126,7 +127,7 @@ Full listing: `.env.example`.
 
 | Check | Type | Location |
 |-------|------|----------|
-| `bin/check-no-secrets` | Shell grep for token patterns | CI: `security-defaults` job |
+| `bin/check-no-secrets` | Repository-wide shell scan for token patterns | CI: `security-defaults` job |
 | `DefaultsSecretsIntegrationTest` | Structural YAML/JSON value scanning | CI: PHPUnit `--filter Phase22` |
 
 Patterns checked: `sk-*` (OpenAI), `ghp_*` (GitHub), `xox[bp]-*` (Slack), `ya29.*` (Google OAuth), `AIza*` (Google API), PEM private keys, DSN with embedded credentials.

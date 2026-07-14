@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **R20 package and repository gates now fail on the hidden forms they claim to cover (#1999).** Package-layer scanning maps `attachment`, self-checks layer/namespace parity, detects inline and quoted upward FQCNs in every layer, and fails on any same-layer cycle outside the five-pair reviewed baseline. The secret scan covers repository source rather than only `defaults/`, and four stale `agent-output` JSON adapters now reject their retired flag explicitly instead of loading absent formatter classes.
 - **Production runtime reachability now matches the advertised notification, SEO, and routing contracts (#1992, R19).** `sendAsync()` delivers directly when the default synchronous queue is active instead of executing an intentionally worker-only job; the SEO provider attaches its registered Twig extension during boot; and `HttpKernel` upcasts entity-typed route parameters before dispatch, returning 404 for a missing entity. The duplicate class-based notification migration was deleted in favor of the timestamped package migration.
 - **R19 production invariants and install boot (#1992).** Relationship saves now reach `RelationshipPreSaveListener` through the production lifecycle dispatcher, `config:import` rejects structurally invalid workflow assignments before active-store writes, and `ConfigManagerInterface` is bound for the supported `install` command outside the `db:init` path.
 
