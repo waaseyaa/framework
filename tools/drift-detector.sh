@@ -19,7 +19,9 @@
 # Override (acknowledge a flagged spec WITHOUT editing it — e.g. a comment-only
 # or otherwise non-contract source change): put a line
 #     spec-reviewed: <spec-path | spec-basename | all> [ — reason]
-# in any commit message in the range, or in the PR body via $PR_BODY.
+# in a commit message in the range. The blocking CI check intentionally reads
+# commit history only, so acknowledgements remain attached to the revision they
+# reviewed instead of depending on mutable PR metadata.
 #
 # Output modes:
 #   --output=json / WAASEYAA_OUTPUT=json → wrapped via DriftDetectorFormatter
@@ -225,12 +227,17 @@ if [ "${#AFFECTED_SPECS[@]}" -eq 0 ]; then
   exit 0
 fi
 
-# --- collect spec-reviewed acknowledgements (commit messages in range + PR body) ---
+# --- collect spec-reviewed acknowledgements from commit messages in range ---
 declare -A ACK=()
 ACK_RAW="$(git log --format=%B "${BASE_REF}..HEAD" 2>/dev/null || true)"
-ACK_RAW="${ACK_RAW}"$'\n'"${PR_BODY:-}"
+ACK_BACKTICK_PATTERN='^[[:space:]]*spec-reviewed:[[:space:]]*`([^`[:space:]]+)`([[:space:]]|$)'
+ACK_PLAIN_PATTERN='^[[:space:]]*spec-reviewed:[[:space:]]*([^`[:space:]]+)'
 while IFS= read -r line; do
-  if [[ "$line" =~ ^[[:space:]]*spec-reviewed:[[:space:]]*([^[:space:]]+) ]]; then
+  if [[ "$line" =~ $ACK_BACKTICK_PATTERN ]]; then
+    tok="${BASH_REMATCH[1]}"
+    ACK["$tok"]=1
+    ACK["$(basename "$tok")"]=1
+  elif [[ "$line" =~ $ACK_PLAIN_PATTERN ]]; then
     tok="${BASH_REMATCH[1]}"
     ACK["$tok"]=1
     ACK["$(basename "$tok")"]=1
@@ -265,7 +272,7 @@ for spec in $(printf '%s\n' "${!AFFECTED_SPECS[@]}" | sort); do
   else
     echo "  STALE: $spec"
     echo "    Fix: update this spec in the same change set, or add"
-    echo "         'spec-reviewed: $spec — <reason>' to a commit message / the PR body"
+    echo "         'spec-reviewed: $spec — <reason>' to a commit message"
     STALE_COUNT=$((STALE_COUNT + 1))
   fi
   echo "    Changed source:"
