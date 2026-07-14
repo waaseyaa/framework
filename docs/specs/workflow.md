@@ -76,6 +76,10 @@ GitHub issues are not organized into Track milestones. A standalone issue (commu
 
 ## The 4 Workflow Rules
 
+### Blocking fresh-install cutover invariant
+
+The required `ci/unit-tests` context runs `CutoverFreshInstallSmokeTest` on a clean SQLite database through the real `db:init` path. The smoke must keep `schema:check` green, persist and render an import-derived bundle field from a separate HTTP process, and traverse a freshly-created relationship through SSR. Upgraded fixtures do not substitute for this fresh-install boundary.
+
 ### 1. Substantive work begins with a design and an anchor issue
 Do not drive multi-step implementation from a blank prompt. Multi-PR efforts open a **GitHub anchor issue** recording intent, work-package breakdown, and decisions (descopes, deferrals land as issue comments), and follow the design-first flow: spec in `docs/specs/` first, then a written plan, then TDD implementation. **M11 governed-change** and similar templates keep the GitHub filing issue as the audit front door — link it from the anchor issue or PR body so traceability stays intact.
 

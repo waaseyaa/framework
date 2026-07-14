@@ -209,8 +209,13 @@ jobs:
       - name: Run unit tests
         run: ./vendor/bin/phpunit --testsuite Unit --no-coverage --log-junit build/logs/junit-unit.xml
 
+      # Production cutover invariant (#1985): this runs inside the required
+      # ci/unit-tests context, not as an optional standalone job.
+      - name: Run blocking fresh-install cutover smoke
+        run: ./vendor/bin/phpunit tests/Integration/FreshInstall/CutoverFreshInstallSmokeTest.php --no-coverage
+
       - name: Run integration tests
-        run: ./vendor/bin/phpunit --testsuite Integration --no-coverage --log-junit build/logs/junit-integration.xml
+        run: ./vendor/bin/phpunit --testsuite Integration --exclude-group fresh-install-cutover --no-coverage --log-junit build/logs/junit-integration.xml
 
       - name: Upload test artifacts
         uses: actions/upload-artifact@v7
