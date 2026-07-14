@@ -75,7 +75,7 @@ final class StalledRunReaper
 
         $rows = [
             ...$this->runRepository->findStuckRunning($threshold),
-            ...$this->runRepository->findAbandoned($threshold),
+            ...$this->runRepository->findAbandoned($threshold, $now),
         ];
         $flipped = 0;
 
@@ -93,6 +93,7 @@ final class StalledRunReaper
                 $now,
                 errorCode: $errorCode,
                 errorMessage: $errorMessage,
+                expectedStatus: $run->getStatus(),
             );
 
             if (!$advanced) {

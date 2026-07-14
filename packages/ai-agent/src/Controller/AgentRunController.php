@@ -349,7 +349,7 @@ final class AgentRunController
                 'call_id' => $pendingCallId,
                 'tool_name' => '',
                 'arguments' => new \stdClass(),
-                'expires_at' => '',
+                'expires_at' => (string) ($run->get('approval_expires_at') ?? ''),
             ];
         }
 

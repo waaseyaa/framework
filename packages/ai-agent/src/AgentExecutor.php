@@ -599,8 +599,10 @@ final class AgentExecutor
     ): string {
         $runId = (string) $run->get('id');
 
+        $deadline = ($this->now)()->add(new \DateInterval('PT' . $this->hitlTimeoutSeconds . 'S'));
         $run->set('status', RunStatus::AwaitingApproval->value);
         $run->set('pending_approval_call_id', $callId);
+        $run->set('approval_expires_at', $deadline->format('Y-m-d H:i:s.uP'));
         $this->runRepository->save($run);
 
         $this->appendAudit(
@@ -611,8 +613,6 @@ final class AgentExecutor
             toolName: $tool->name,
             toolResultSummary: sprintf('awaiting approval (call_id=%s)', $callId),
         );
-
-        $deadline = ($this->now)()->add(new \DateInterval('PT' . $this->hitlTimeoutSeconds . 'S'));
 
         while (true) {
             ($this->sleepMs)($this->hitlPollIntervalMs);

@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Abandoned AI runs and their audits now reach a coherent terminal lifecycle (#2020).** Audit retention preserves rows owned by any non-terminal run. The scheduled reaper now terminalizes expired never-claimed, approval-waiting, and cancellation-pending runs alongside crashed running workers, using compare-and-swap transitions and status-specific error codes.
+- **Abandoned AI runs and their audits now reach a coherent terminal lifecycle (#2020).** Audit retention preserves rows owned by any non-terminal run. The scheduled reaper now terminalizes expired never-claimed, approval-waiting, and cancellation-pending runs alongside crashed running workers, using exact-source-status compare-and-swap transitions and status-specific error codes. Interactive approval persists its own deadline, so a long-running job still receives its full approval window.
 
 ## [0.1.0-alpha.264] - 2026-07-14
 

@@ -97,6 +97,7 @@ final class AgentRunRepository
         \DateTimeImmutable $finishedAt,
         ?string $errorCode = null,
         ?string $errorMessage = null,
+        ?RunStatus $expectedStatus = null,
     ): bool {
         if (!$status->isTerminal()) {
             throw new \InvalidArgumentException(\sprintf(
@@ -120,11 +121,15 @@ final class AgentRunRepository
             ->fields($fields)
             ->condition('id', $id);
 
-        // C-014: refuse to advance over any terminal status. We use one
-        // operator per condition because the query builder rejects array
-        // values on plain '=' equality.
-        foreach (RunStatus::terminals() as $terminal) {
-            $update = $update->condition('status', $terminal->value, '!=');
+        if ($expectedStatus !== null) {
+            $update->condition('status', $expectedStatus->value);
+        } else {
+            // C-014: refuse to advance over any terminal status. We use one
+            // operator per condition because the query builder rejects array
+            // values on plain '=' equality.
+            foreach (RunStatus::terminals() as $terminal) {
+                $update->condition('status', $terminal->value, '!=');
+            }
         }
 
         $affected = $update->execute();
@@ -159,6 +164,7 @@ final class AgentRunRepository
         return $this->approvalTransition($id, $callId, [
             'status' => RunStatus::Running->value,
             'pending_approval_call_id' => null,
+            'approval_expires_at' => null,
         ]);
     }
 
@@ -167,6 +173,7 @@ final class AgentRunRepository
         return $this->approvalTransition($id, $callId, [
             'status' => RunStatus::Failed->value,
             'pending_approval_call_id' => null,
+            'approval_expires_at' => null,
             'finished_at' => $this->formatDateTime($now),
             'error_code' => 'approval_denied',
             'error_message' => 'Approval denied by user.',
@@ -222,12 +229,12 @@ final class AgentRunRepository
     /**
      * Find non-running rows that have exceeded the worker TTL.
      *
-     * Queued rows are aged from `queued_at`; approval and cancellation rows
-     * already had a worker and are aged from `started_at`.
+     * Queued rows are aged from `queued_at`; cancellation rows from
+     * `started_at`; approval rows from their persisted HITL deadline.
      *
      * @return list<AgentRun>
      */
-    public function findAbandoned(\DateTimeImmutable $threshold): array
+    public function findAbandoned(\DateTimeImmutable $threshold, \DateTimeImmutable $now): array
     {
         $thresholdString = $this->formatDateTime($threshold);
         $ids = [];
@@ -245,13 +252,42 @@ final class AgentRunRepository
             }
         }
 
-        $workerRows = $this->database
+        $cancellingRows = $this->database
             ->select(self::TABLE)
             ->fields(self::TABLE, ['id'])
-            ->condition('status', [RunStatus::AwaitingApproval->value, RunStatus::Cancelling->value], 'IN')
+            ->condition('status', RunStatus::Cancelling->value)
             ->condition('started_at', $thresholdString, '<')
             ->execute();
-        foreach ($workerRows as $row) {
+        foreach ($cancellingRows as $row) {
+            $id = (string) (((array) $row)['id'] ?? '');
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        $expiredApprovals = $this->database
+            ->select(self::TABLE)
+            ->fields(self::TABLE, ['id'])
+            ->condition('status', RunStatus::AwaitingApproval->value)
+            ->condition('approval_expires_at', $this->formatDateTime($now), '<')
+            ->execute();
+        foreach ($expiredApprovals as $row) {
+            $id = (string) (((array) $row)['id'] ?? '');
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        // Upgrade compatibility: rows that entered approval before the deadline
+        // column existed retain the old started_at-based TTL until classified.
+        $legacyApprovals = $this->database
+            ->select(self::TABLE)
+            ->fields(self::TABLE, ['id'])
+            ->condition('status', RunStatus::AwaitingApproval->value)
+            ->condition('approval_expires_at', null, 'IS NULL')
+            ->condition('started_at', $thresholdString, '<')
+            ->execute();
+        foreach ($legacyApprovals as $row) {
             $id = (string) (((array) $row)['id'] ?? '');
             if ($id !== '') {
                 $ids[] = $id;

@@ -150,13 +150,49 @@ final class ReaperTest extends TestCase
         self::assertSame(RunStatus::Queued, $this->runRepository->find('run-fresh-queued')?->getStatus());
     }
 
+    #[Test]
+    public function approvalExpiryUsesItsOwnDeadlineInsteadOfRunStart(): void
+    {
+        $now = new \DateTimeImmutable('2026-07-14T20:00:00+00:00');
+        $this->seedRun(
+            'run-long-before-approval',
+            RunStatus::AwaitingApproval,
+            ageSeconds: 7200,
+            approvalExpiresAt: $now->modify('+5 minutes'),
+        );
+        $this->seedRun(
+            'run-expired-approval',
+            RunStatus::AwaitingApproval,
+            ageSeconds: 60,
+            approvalExpiresAt: $now->modify('-1 second'),
+        );
+
+        $reaper = new StalledRunReaper(
+            runRepository: $this->runRepository,
+            auditRepository: $this->auditRepository,
+            broadcaster: new ReaperCapturingBroadcaster(),
+            now: static fn(): \DateTimeImmutable => $now,
+        );
+
+        self::assertSame(1, $reaper->reap(maxRuntimeSeconds: 600));
+        self::assertSame(
+            RunStatus::AwaitingApproval,
+            $this->runRepository->find('run-long-before-approval')?->getStatus(),
+        );
+        self::assertSame(RunStatus::Failed, $this->runRepository->find('run-expired-approval')?->getStatus());
+    }
+
     private function seedRunningRun(string $id, int $startedSecondsAgo): void
     {
         $this->seedRun($id, RunStatus::Running, $startedSecondsAgo);
     }
 
-    private function seedRun(string $id, RunStatus $status, int $ageSeconds): void
-    {
+    private function seedRun(
+        string $id,
+        RunStatus $status,
+        int $ageSeconds,
+        ?\DateTimeImmutable $approvalExpiresAt = null,
+    ): void {
         $startedAt = new \DateTimeImmutable('now')->sub(new \DateInterval('PT' . $ageSeconds . 'S'));
         $run = new AgentRun([
             'id' => $id,
@@ -166,6 +202,7 @@ final class ReaperTest extends TestCase
             'status' => $status->value,
             'destructive_approval' => HitlMode::None->value,
             'pending_approval_call_id' => null,
+            'approval_expires_at' => $approvalExpiresAt?->format('Y-m-d H:i:s.uP'),
             'prompt' => 'stalled',
             'response' => null,
             'transcript_json' => '[]',
