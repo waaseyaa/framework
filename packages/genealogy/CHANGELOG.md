@@ -10,7 +10,7 @@
 - **Living axis:** `genealogy_person` includes **`is_living`** (boolean, conservative default **true** when unknown). Non-owners cannot `view` living persons without future grant semantics (C1).
 - **Soft delete:** **`deleted_at`** string tombstone on person/family/event; non-empty values deny `view`.
 - **SSR product gate:** Controllers require authenticated `User` accounts with **`genealogy_product_enabled`** (host-provided field, e.g. via `FieldDefinitionRegistry::mergeCoreFields` on `user`). Demo seed sets this for `uid` 1 in Minoo.
-- **Field registry:** Legacy inline metadata for genealogy core types is replaced with **`FieldDefinition`** objects (`GenealogyFieldDefinitions`). Runtime **`waaseyaa/field`** and **`waaseyaa/workflows`** are now direct `require`s.
+- **Field registry:** Genealogy entity field metadata is registered from the canonical entity classes. Runtime **`waaseyaa/field`** and **`waaseyaa/workflows`** are direct `require`s.
 
 ### Added
 

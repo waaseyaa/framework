@@ -99,7 +99,7 @@ Alphabetical by directory. **Genealogy dep:** `Y` = `require` in `waaseyaa/genea
 
 These are **suggestions**, not tasks.
 
-1. **`waaseyaa/field` + bundle registry** — Genealogy now declares **`waaseyaa/field`** and registers core fields as **`FieldDefinition`** objects (`GenealogyFieldDefinitions`). Host apps may call **`FieldDefinitionRegistry::mergeCoreFields()`** for product overlays (see Minoo `AppServiceProvider::boot()`).
+1. **`waaseyaa/field` + bundle registry** — Genealogy field metadata comes from the entity classes registered by `GenealogyServiceProvider`; host apps may use the field registry for product overlays.
 
 2. **`waaseyaa/workflows`** — Genealogy **`GenealogyContentAccessPolicy`** now depends on **`WorkflowVisibility`** for published checks alongside tenancy + living rules. Keep relationship discovery aligned per [`relationship-modeling.md`](file:///home/fsd42/dev/waaseyaa/docs/specs/relationship-modeling.md).
 

@@ -37,7 +37,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/admin/*` | `waaseyaa:admin-spa` | `docs/specs/admin-spa.md` |
 | `packages/ai-*/*` | `waaseyaa:ai-integration` | `docs/specs/ai-integration.md`, `docs/specs/authoring-assist-contract.md`, `docs/specs/semantic-refresh-trigger-contract.md` |
 | `packages/ai-schema/*` | — | `docs/specs/ai-schema.md` (JSON Schema generation + capability-registry contract sketch) |
-| `packages/foundation/src/Ingestion/*`, `defaults/ingestion.*` | `waaseyaa:ingestion` | `docs/specs/ingestion-defaults.md`, `docs/specs/ingestion-validator-contract.md`, `docs/specs/ingestion-validation-gates-contract.md`, `docs/specs/ingestion-fixture-pack-contract.md`, `docs/specs/ingestion-editorial-dashboard-contract.md`, `docs/specs/source-adapter-contract.md`, `docs/specs/source-connectors-contract.md`, `docs/specs/source-priority-merge-contract.md`, `docs/specs/cross-source-identity-contract.md` |
+| `packages/foundation/src/Ingestion/*`, `defaults/ingestion.*` | `waaseyaa:ingestion` | `docs/specs/ingestion-defaults.md`, `docs/specs/ingestion-validator-contract.md`, `docs/specs/ingestion-validation-gates-contract.md`, `docs/specs/ingestion-fixture-pack-contract.md`, `docs/specs/ingestion-editorial-dashboard-contract.md`, `docs/specs/source-priority-merge-contract.md`, `docs/specs/cross-source-identity-contract.md` |
 | `packages/ingestion/*` | `waaseyaa:ingestion` | `docs/specs/ingestion-defaults.md` |
 | `defaults/*`, `bin/check-no-secrets`, `bin/check-ingestion-defaults` | `waaseyaa:security-defaults` | `docs/specs/security-defaults.md` |
 | `packages/foundation/src/Diagnostic/*`, `packages/cli/src/Command/Health*`, `packages/cli/src/Command/SchemaCheck*` | `waaseyaa:operator-diagnostics` | `docs/specs/operator-diagnostics.md`, `docs/specs/operations-playbooks.md` |
@@ -77,7 +77,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/listing/*` | — | `docs/specs/listing-pipeline-v1.md`, `docs/conventions/cache-tags-and-contexts.md`, `docs/cookbook/listing-first-cut.md` |
 | `packages/cms/*`, `packages/core/*`, `packages/full/*` | — (consumer metapackages) | `docs/roadmap/packagist-publishing-plan.md`, `docs/adr/004-framework-package-collapse.md`, `tests/PackagedForm/README.md` |
 
-| Workflow, GitHub (PRs/issues), roadmap | — | `docs/specs/workflow.md`, `docs/specs/per-site-convergence-audit.md`, `docs/specs/v1.5-verification-gate-contract.md`, `docs/specs/v1.6-verification-gate-contract.md` |
+| Workflow, GitHub (PRs/issues), roadmap | — | `docs/specs/workflow.md`, `docs/specs/per-site-convergence-audit.md`, `docs/specs/v1.5-verification-gate-contract.md` |
 | `skills/waaseyaa/app-development/*` | — | — |
 | `skills/waaseyaa/framework-extraction/*` | — | `docs/specs/extraction-log.md` |
 | `docs/audits/*` | — | — |
