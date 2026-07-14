@@ -18,11 +18,14 @@ account's permissions.
 - **Endpoint:** `POST /mcp` (JSON-RPC; methods: `initialize`, `ping`,
   `tools/list`, `tools/call`).
 - **Server card:** `GET /.well-known/mcp.json` (MCP discovery).
-- **Authentication:** `Authorization: Bearer <token>` validated by
-  `McpAuthInterface::authenticate()`. Default binding:
-  `BearerTokenAuth(tokens: [])` (empty-token map). Production
-  applications override by re-binding `McpAuthInterface` on the
-  kernel-services bus or in an application provider.
+- **Authentication:** the public read-only `/mcp` surface defaults to
+  `PublicAnonymousAuth`. The `/mcp/write` surface validates
+  `Authorization: Bearer <token>` through a fail-closed
+  `BearerTokenAuth(tokens: [])` default that applications replace via
+  `WriteTierAuthInterface`.
+- **Bearer model:** tokens are opaque application-managed credentials. This
+  package does not implement OAuth 2.1 scopes, audience checks, expiry, or
+  revocation; server cards therefore advertise only `none` or `bearer`.
 - **Tool surface:** every class carrying `#[AsAgentTool]` and
   implementing `AgentToolInterface` becomes a callable MCP tool with
   no per-tool MCP code.
@@ -69,13 +72,12 @@ with the bearer token your `McpAuthInterface` implementation expects):
 - `McpServerCard` — server-card route controller (`/.well-known/mcp.json`).
 - `McpRouteProvider` — registers both routes through the package's
   `McpServiceProvider`.
-- `McpServiceProvider` — binds the `McpAuthInterface` default
-  (`BearerTokenAuth(tokens: [])`); production overrides via
-  re-binding.
+- `McpServiceProvider` — binds public reads to `PublicAnonymousAuth` and the
+  write tier to a fail-closed empty opaque-bearer map unless an application
+  supplies `WriteTierAuthInterface`.
 - `Bridge\AgentToolRegistryBridge` — adapts
-  `Waaseyaa\AI\Tools\ToolRegistryInterface` to the MCP
-  `ToolRegistryInterface` + `ToolExecutorInterface` contracts;
-  constructed per-request by `McpEndpoint::dispatch()`.
+  `Waaseyaa\AI\Tools\ToolRegistryInterface` directly to MCP descriptors and
+  calls; constructed per-request by `McpEndpoint::dispatch()`.
 
 ## Canonical spec
 

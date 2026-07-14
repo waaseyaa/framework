@@ -1,5 +1,7 @@
 # MCP Endpoint
 
+<!-- Spec reviewed 2026-07-14 - R22/R24 (#2020): server-card authentication is now honest about the shipped opaque-bearer model (`none` or `bearer`; legacy `oauth2` config normalizes to `bearer`, while real OAuth 2.1 remains a separate product decision). Opaque string account ids map deterministically to a non-zero 60-bit audit actor id instead of PHP-casting to the anonymous sentinel. Five unused runtime dependencies and the two unconsumed MCP-local bridge interfaces were removed; AgentToolRegistryBridge remains the direct per-request adapter over Waaseyaa\AI\Tools\ToolRegistryInterface. The `/mcp/write` public-router + CSRF-exempt wiring is now regression-pinned. -->
+
 <!-- Spec reviewed 2026-07-14 - R21 WP4 (#2010): the public-vs-destructive catalogue invariant is now pinned through a real AttributeToolRegistry hydrated from PackageManifest, then wrapped by the production ReadOnlyToolRegistry and CapabilityScopedToolRegistry boundaries; the regression no longer proves the invariant only against a handwritten registry double. No runtime contract change. -->
 
 <!-- Spec reviewed 2026-06-22 - framework-cleanup-alpha245-01KVQSN8 WP17/WP18: the legacy McpController stack (McpController + Tools/ + Rpc/ + Cache/) was removed (#1738, closing #1642) — it was never HTTP-routed (live /mcp = McpEndpoint over the Bridge\ + ai-tools #[AsAgentTool] registry, unchanged). This spec's dead-stack documentation is retracted: the McpController Class / Tool Classes / RPC Support / Read-Path Cache sections, the first-party "Discovery Blend Tool Contract" (ai_discover/editorial_*/traverse_* — those tools went away with the stack), the Source-Files + File-Reference dead entries, and the "Legacy … remain" note. SEPARATELY (audit claim-mismatch, WP18): the "Serializer redaction shape" section (FR-006/FR-007/C-003) advertised an MCP field-redaction marker (McpEntityFieldFilter + {accessRestricted,…} + EntityTools::setFieldFilter() wiring + McpJsonApiFieldParityTest guard) that exists NOWHERE in code (the filter file was already absent pre-WP17). Probed against live code: the only missing piece is the marker SHAPE — field access IS enforced (EntityReadTool drops FieldAccessPolicyInterface-forbidden field values via EntityAccessHandler::filterFields, fail-closed via AttributeToolRegistry::markAccessEnforced, proven by EntityReadToolFieldFilterTest), so /mcp omits forbidden fields exactly like JSON:API. No data leak; the marker is post-beta polish, not a security fix. -->
@@ -33,13 +35,15 @@ Kernel-level failures before MCP dispatch are governed by the JSON-first HTTP er
 
 - **Location:** `packages/mcp/`
 - **Namespace:** `Waaseyaa\Mcp\`
-- **Dependencies:** `waaseyaa/ai-schema`, `waaseyaa/ai-agent`, `waaseyaa/routing`, `waaseyaa/access`
+- **Dependencies:** `waaseyaa/access`, `waaseyaa/ai-tools`, `waaseyaa/api`,
+  `waaseyaa/entity`, `waaseyaa/foundation`, `waaseyaa/routing`, and
+  `waaseyaa/user`.
 
 ### Source Files
 
 | File | Purpose |
 |------|---------|
-| `src/McpEndpoint.php` | Thin HTTP handler: auth, JSON-RPC dispatch for `initialize`/`ping`/`tools/list`/`tools/call` via Bridge interfaces |
+| `src/McpEndpoint.php` | Thin HTTP handler: auth and JSON-RPC dispatch for `initialize`/`ping`/`tools/list`/`tools/call` via a per-request bridge |
 | `src/AuthenticatedMcpEndpoint.php` | Write-tier controller composing an inner `McpEndpoint` (see "Authenticated write tier") |
 | `src/McpResponse.php` | Value object wrapping response body, status code, content type |
 | `src/McpServiceProvider.php` | Package-owned service provider that registers MCP routes via `McpRouteProvider` |
@@ -47,9 +51,7 @@ Kernel-level failures before MCP dispatch are governed by the JSON-first HTTP er
 | `src/McpServerCard.php` | Generates the `/.well-known/mcp.json` server card |
 | `src/Auth/McpAuthInterface.php` | Pluggable authentication contract |
 | `src/Auth/BearerTokenAuth.php` | MVP auth: opaque bearer token to account mapping — constant-time full-scan comparison + blocked-account fail-closed check (#1652) |
-| `src/Bridge/ToolRegistryInterface.php` | Interface for accessing MCP tool definitions |
-| `src/Bridge/ToolExecutorInterface.php` | Interface for executing MCP tool calls |
-| `src/Bridge/AgentToolRegistryBridge.php` | Adapts the framework-wide `Waaseyaa\AI\Tools` registry to the MCP tool interfaces |
+| `src/Bridge/AgentToolRegistryBridge.php` | Adapts the framework-wide `Waaseyaa\AI\Tools` registry directly to MCP descriptors and calls |
 | `src/ReadOnlyToolRegistry.php` / `src/CapabilityScopedToolRegistry.php` | Tool-visibility wrappers for the public read-only `/mcp` and the `/mcp/write` tier |
 
 > The legacy `McpController` + `Tools/` + `Rpc/` + `Cache/` files were removed in WP17 — see "Legacy `McpController` stack — REMOVED" below.
@@ -186,72 +188,22 @@ Behavior (`authenticate()` decision order):
 - **Zero added queries (NFR-003):** the status read is an in-memory method call on the already-resolved account object. Kernels — and therefore token maps and their account objects — are constructed per request in every runtime, so the read reflects persisted state as of the current request's boot. No re-load, no cache, no new I/O.
 - Each token maps to a specific user account, so MCP tool calls respect entity access control.
 - `getTokens()` (the admin-fingerprinting accessor, `ServerConfigReadModel` contract) keeps returning the raw token→account map, unchanged.
-- No token expiry in MVP. OAuth 2.1 adapter replaces this later.
+- No token expiry in the opaque-bearer model. OAuth 2.1 is not advertised or
+  implemented by this package; adopting it remains a separate product call.
 
-### Authentication Roadmap
+## Per-request bridge execution
 
-| Phase | Implementation | Notes |
-|-------|---------------|-------|
-| MVP (v0.1.0) | `BearerTokenAuth` | Opaque tokens, no expiry |
-| v0.2.0 | OAuth 2.1 adapter | PKCE, resource indicators, RFC 9728 |
-| v0.3.0+ | Scoped permissions | Per-tool authorization, rate limiting |
+`AgentToolRegistryBridge` is a concrete, request-scoped adapter over the
+framework-wide `Waaseyaa\AI\Tools\ToolRegistryInterface`. It is intentionally
+not a container extension seam: the AI tools registry is the canonical tool
+contract, while the bridge binds the authenticated account for one request.
 
-## Tool Registry
-
-### ToolRegistryInterface
-
-```php
-interface ToolRegistryInterface
-{
-    /** @return McpToolDefinition[] */
-    public function getTools(): array;
-
-    public function getTool(string $name): ?McpToolDefinition;
-}
-```
-
-Abstracts the `SchemaRegistry` so the MCP endpoint can be tested independently. Each `McpToolDefinition` (from `waaseyaa/ai-schema`) provides a name, description, and JSON Schema input definition. Tool definitions are auto-discovered from all registered entity types -- each entity type gets 5 CRUD tools (create, read, update, delete, list).
-
-### Tool Discovery Flow
-
-```
-EntityType registration
-    -> SchemaRegistry builds McpToolDefinition[]
-    -> ToolRegistryInterface exposes them
-    -> McpEndpoint::handleToolsList() serializes via toArray()
-```
-
-## Bridge Adapters
-
-The `Bridge/` namespace contains interfaces that decouple the MCP endpoint from concrete AI-layer classes.
-
-### ToolRegistryInterface
-
-Bridges `SchemaRegistry::getTools()` to the endpoint. See Tool Registry section above.
-
-### ToolExecutorInterface
-
-```php
-interface ToolExecutorInterface
-{
-    /**
-     * @param string $toolName e.g. "create_node", "read_user"
-     * @param array<string, mixed> $arguments Tool input arguments.
-     * @return array{content: array<int, array{type: string, text: string}>, isError?: bool}
-     */
-    public function execute(string $toolName, array $arguments): array;
-}
-```
-
-Delegates to `McpToolExecutor` which routes through `AgentExecutor::executeTool()` into entity storage. The return format follows the MCP tool result specification: an array of content blocks, each with a `type` (typically `"text"`) and `text` value.
-
-### Execution Flow
+### Execution flow
 
 ```
 McpEndpoint::handleToolsCall()
-    -> ToolExecutorInterface::execute($toolName, $arguments)
-    -> McpToolExecutor -> AgentExecutor::executeTool()
-    -> Entity Storage (CRUD)
+    -> AgentToolRegistryBridge::execute($toolName, $arguments)
+    -> AgentToolInterface::execute($arguments, $authenticatedAccount)
     -> Result as {content: [{type: "text", text: "..."}]}
 ```
 
@@ -397,8 +349,6 @@ packages/mcp/
       PublicAnonymousAuth.php
       WriteTierAuthInterface.php
     Bridge/
-      ToolRegistryInterface.php
-      ToolExecutorInterface.php
       AgentToolRegistryBridge.php
     Event/
       McpDispatchEvent.php
@@ -428,7 +378,9 @@ packages/mcp/
 
 `packages/bimaaji/` ships PHP-only. Bimaaji's graph-introspection surface is intentionally NOT exposed via an MCP server in the current alpha range.
 
-If a consumer requests bimaaji-via-MCP, the path forward is **Option 2** from the M-G research mission: extend `packages/mcp/` with bimaaji tools using `Waaseyaa\Mcp\Bridge\ToolRegistryInterface` (already `@api`). No Node sidecar.
+If a consumer extends Bimaaji-via-MCP, it registers an `#[AsAgentTool]`
+implementation through the canonical `Waaseyaa\AI\Tools` registry. No Node
+sidecar and no MCP-local registry contract are involved.
 
 The prior Node-based MCP server attempt (April 2026, removed in commit `46f4c41af`) failed at Packagist's non-PHP-artifact distribution boundary; do not restore that approach.
 
@@ -541,8 +493,6 @@ packages/mcp/
       BearerTokenAuth.php     — default (empty-token) impl
     Bridge/
       AgentToolRegistryBridge.php   — per-request bridge
-      ToolRegistryInterface.php     — @api (bridge contract)
-      ToolExecutorInterface.php     — @api (bridge contract)
 
 packages/ai-agent/src/Tool/Bimaaji/
   IntrospectGraphTool.php
