@@ -1,6 +1,6 @@
 # Bimaaji — Application Graph & Agent Mutation Layer
 
-<!-- Spec reviewed 2026-06-22 - WP15 (alpha245 security, audit): the "Sovereignty Guardrails ... integrated as mutation validators" claim (§Sovereignty Guardrails) and the README's "the validator gates every request through SovereigntyGuardrails" are now BACKED BY CODE. MutationValidator::validate() previously only checked entity-type existence and never ran SovereigntyGuardrails, so delete_entity_type / delete_field / modify_sovereignty were NOT blocked on the NorthOps managed-hosting profile via the live agent-tool path (TaskPipeline -> MutationValidator). MutationValidator now runs the guardrails FIRST and returns the guardrail failure (SOVEREIGNTY_VIOLATION) before structural validation; BimaajiServiceProvider wires SovereigntyGuardrails into the MutationValidator binding (nullable ctor arg, ungated ONLY when constructed standalone — the live binding always supplies one). Acceptance: MutationValidatorTest::it_gates_sovereignty_sensitive_operations_through_the_guardrails. -->
+<!-- Spec reviewed 2026-06-22 - WP15 (alpha245 security, audit): MutationValidator runs sovereignty guardrails before structural validation; BimaajiServiceProvider wires SovereigntyGuardrails into the live validator binding. Acceptance: MutationValidatorTest::it_gates_sovereignty_sensitive_operations_through_the_guardrails. -->
 <!-- Spec reviewed 2026-05-23 - M3 WP04 (bimaaji-mcp-bridge-01KS5VS8): added "MCP exposure" subsection enumerating the five bimaaji #[AsAgentTool] adapters surfaced over MCP through AgentToolRegistryBridge. Updated Implementation Status to flip M2 + M3 from "Deferred" to "Shipped". Bound SpecIndexProvider as a container singleton in BimaajiServiceProvider (WP02). -->
 <!-- Spec reviewed 2026-05-21 - M1 (bimaaji-wakeup-01KS5VEY) flipped Implementation Status from "scaffolding only" to "shipped". -->
 
@@ -61,7 +61,6 @@ Bimaaji sits at **Layer 5 (AI)** alongside `ai-schema`, `ai-agent`, `ai-pipeline
 │         GraphSectionProviderInterface        │
 ├─────────────────────────────────────────────┤
 │  MutationRequest → Validator → MutationResult│
-│  TaskDSL → MutationRequest → PatchSet        │
 └─────────────────────────────────────────────┘
 ```
 
@@ -106,10 +105,6 @@ Converts accepted `MutationResult` into reviewable patches:
 - Non-PHP: constrained operations with risk flags
 - Output: file path, content hashes, diff text
 
-### Task DSL
-
-Versioned YAML/JSON DSL mapping high-level tasks (`add_field`, `add_entity_type`) to `MutationRequest` → `PatchSet` pipelines. JSON Schema validated.
-
 ### Sovereignty Guardrails
 
 Declarative rules that disallow mutations violating the deployment posture per `SovereigntyProfile`. Integrated as mutation validators.
@@ -135,7 +130,6 @@ packages/bimaaji/
 │   │   ├── MutationRequest.php
 │   │   └── MutationResult.php
 │   ├── Patch/
-│   ├── Dsl/
 │   ├── Policy/
 │   └── Spec/
 ├── tests/

@@ -11,10 +11,7 @@ use Waaseyaa\EntityStorage\Event\BeforeSaveEvent;
 /**
  * Enforces (alias, langcode) uniqueness for path_alias entities.
  *
- * packages/path has no uniqueness constraint at any layer: the vestigial
- * PathAliasManagerInterface/InMemoryPathAliasManager/PathProcessor trio is
- * not on the live JSON:API write path, so duplicate aliases were freely
- * creatable. This listener hooks {@see BeforeSaveEvent} — the provably-live,
+ * This listener hooks {@see BeforeSaveEvent} — the provably-live,
  * entity-agnostic pre-write hook dispatched by
  * {@see \Waaseyaa\EntityStorage\EntityRepository::doSave()} — and throws
  * {@see AbortOperationException} to halt the save when a conflicting row

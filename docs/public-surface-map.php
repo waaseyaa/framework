@@ -346,7 +346,6 @@ return [
 
     // Layer 2: Content Types — public
     'Waaseyaa\Media\FileRepositoryInterface' => 'public',
-    'Waaseyaa\Path\PathAliasManagerInterface' => 'public',
     'Waaseyaa\Relationship\VisibilityFilterInterface' => 'public',
     'Waaseyaa\NorthCloud\Sync\NcHitToEntityMapperInterface' => 'public',
     'Waaseyaa\NorthCloud\Sync\NcHitSupportDiagnosticsInterface' => 'public',
@@ -480,7 +479,6 @@ return [
     'Waaseyaa\Bimaaji\Install\Client\AbstractSingleFileClientTransformer' => 'public',
 
     // Layer 6: Interfaces — public
-    'Waaseyaa\CLI\Ingestion\SourceConnectorInterface' => 'public',
     'Waaseyaa\AdminSurface\Action\SurfaceActionHandlerInterface' => 'public',
     'Waaseyaa\AdminSurface\Query\SurfaceFilterOperator' => 'public',
     'Waaseyaa\AdminSurface\Host\AbstractAdminSurfaceHost' => 'public',

@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Deleted the producerless Telescope and codified-context stack (#1992, R19).** The auto-discovered middleware wrote to an in-process or raw-PDO store with no production reader; the CLI resolved no store and called methods outside its contract; and no provider ever attached the codified-context store to `HttpKernel`. The recorders, raw-PDO stores, phantom CLI commands, API/router ports, admin pages, and associated schemas/tests are removed with no compatibility shim. The deletion also exposed and removes the test-only `EntityAuditLogger::prune()` and `NorthCloudCache::clear()` methods instead of silently baselining them. The `waaseyaa/telescope` package name remains reserved as an empty split-package shell.
 
+- **Deleted five test-only or vestigial content/CLI subsystems (#1992, R19).** Genealogy's shadow field catalogue and stale vendored API copy, Bimaaji's unvalidated Task DSL, menu's callerless tree builder, path's superseded manager/processor trio, and the orphaned parallel ingest connector/normalization pipeline are removed without shims. Canonical genealogy registration, menu entities, path resolution/uniqueness, and `IngestionEnvelopeNormalizer` remain production paths.
+
 ## [0.1.0-alpha.261] - 2026-07-14
 
 ### Added

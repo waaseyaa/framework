@@ -222,18 +222,6 @@ parameters:
 			count: 1
 			path: packages/cache/src/Backend/DatabaseBackend.php
 
-
-
-
-
-
-
-
-
-
-
-
-
 		-
 			message: '#^Call to function is_string\(\) with string will always evaluate to true\.$#'
 			identifier: function.alreadyNarrowedType
@@ -379,12 +367,6 @@ parameters:
 			path: packages/cli/src/Handler/SemanticRefreshHandler.php
 
 		-
-			message: '#^Call to function is_array\(\) with array\<string, mixed\> will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: packages/cli/src/Ingestion/ApiSourceConnector.php
-
-		-
 			message: '#^Casting to float something that''s already float\.$#'
 			identifier: cast.useless
 			count: 2
@@ -457,42 +439,6 @@ parameters:
 			path: packages/cli/src/Ingestion/AuthoringAssistBuilder.php
 
 		-
-			message: '#^Call to function is_array\(\) with array\<string, mixed\> will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: packages/cli/src/Ingestion/CrossSourceIdentityResolver.php
-
-		-
-			message: '#^Casting to string something that''s already string\.$#'
-			identifier: cast.useless
-			count: 4
-			path: packages/cli/src/Ingestion/CrossSourceIdentityResolver.php
-
-		-
-			message: '#^Offset ''canonical_id'' on non\-empty\-array\<string, mixed\> on left side of \?\? always exists and is not nullable\.$#'
-			identifier: nullCoalesce.offset
-			count: 2
-			path: packages/cli/src/Ingestion/CrossSourceIdentityResolver.php
-
-		-
-			message: '#^Short ternary operator is not allowed\. Use null coalesce operator if applicable or consider using long ternary\.$#'
-			identifier: ternary.shortNotAllowed
-			count: 1
-			path: packages/cli/src/Ingestion/CrossSourceIdentityResolver.php
-
-		-
-			message: '#^Call to function is_array\(\) with array\<string, mixed\> will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: packages/cli/src/Ingestion/DatasetSourceConnector.php
-
-		-
-			message: '#^Call to function is_array\(\) with array\<string, mixed\> will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: packages/cli/src/Ingestion/FileSourceConnector.php
-
-		-
 			message: '#^Casting to string something that''s already string\.$#'
 			identifier: cast.useless
 			count: 2
@@ -547,66 +493,6 @@ parameters:
 			path: packages/cli/src/Ingestion/SchemaValidator.php
 
 		-
-			message: '#^Casting to bool something that''s already bool\.$#'
-			identifier: cast.useless
-			count: 1
-			path: packages/cli/src/Ingestion/SourceAdapterNormalizer.php
-
-		-
-			message: '#^Casting to int something that''s already int\<0, 65535\>\.$#'
-			identifier: cast.useless
-			count: 1
-			path: packages/cli/src/Ingestion/SourceAdapterNormalizer.php
-
-		-
-			message: '#^Casting to string something that''s already string\.$#'
-			identifier: cast.useless
-			count: 9
-			path: packages/cli/src/Ingestion/SourceAdapterNormalizer.php
-
-		-
-			message: '#^Offset ''adapter_type'' on array\{raw_source_uri\: string, adapter_type\: string, ownership\: string, synthetic_flag\: bool, batch_id\: string, ingested_at\: string, parser_version\: string\|null, metadata\?\: array\<string, mixed\>\} on left side of \?\? always exists and is not nullable\.$#'
-			identifier: nullCoalesce.offset
-			count: 1
-			path: packages/cli/src/Ingestion/SourceAdapterNormalizer.php
-
-		-
-			message: '#^Offset ''batch_id'' on array\{raw_source_uri\: string, adapter_type\: string, ownership\: string, synthetic_flag\: bool, batch_id\: string, ingested_at\: string, parser_version\: string\|null, metadata\?\: array\<string, mixed\>\} on left side of \?\? always exists and is not nullable\.$#'
-			identifier: nullCoalesce.offset
-			count: 1
-			path: packages/cli/src/Ingestion/SourceAdapterNormalizer.php
-
-		-
-			message: '#^Offset ''ingested_at'' on array\{raw_source_uri\: string, adapter_type\: string, ownership\: string, synthetic_flag\: bool, batch_id\: string, ingested_at\: string, parser_version\: string\|null, metadata\?\: array\<string, mixed\>\} on left side of \?\? always exists and is not nullable\.$#'
-			identifier: nullCoalesce.offset
-			count: 1
-			path: packages/cli/src/Ingestion/SourceAdapterNormalizer.php
-
-		-
-			message: '#^Offset ''ownership'' on array\{raw_source_uri\: string, adapter_type\: string, ownership\: string, synthetic_flag\: bool, batch_id\: string, ingested_at\: string, parser_version\: string\|null, metadata\?\: array\<string, mixed\>\} on left side of \?\? always exists and is not nullable\.$#'
-			identifier: nullCoalesce.offset
-			count: 1
-			path: packages/cli/src/Ingestion/SourceAdapterNormalizer.php
-
-		-
-			message: '#^Offset ''raw_source_uri'' on array\{raw_source_uri\: string, adapter_type\: string, ownership\: string, synthetic_flag\: bool, batch_id\: string, ingested_at\: string, parser_version\: string\|null, metadata\?\: array\<string, mixed\>\} on left side of \?\? always exists and is not nullable\.$#'
-			identifier: nullCoalesce.offset
-			count: 1
-			path: packages/cli/src/Ingestion/SourceAdapterNormalizer.php
-
-		-
-			message: '#^Offset ''synthetic_flag'' on array\{raw_source_uri\: string, adapter_type\: string, ownership\: string, synthetic_flag\: bool, batch_id\: string, ingested_at\: string, parser_version\: string\|null, metadata\?\: array\<string, mixed\>\} on left side of \?\? always exists and is not nullable\.$#'
-			identifier: nullCoalesce.offset
-			count: 1
-			path: packages/cli/src/Ingestion/SourceAdapterNormalizer.php
-
-		-
-			message: '#^Call to function is_array\(\) with array\<string, mixed\> will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: packages/cli/src/Ingestion/SourcePriorityMergeResolver.php
-
-		-
 			message: '#^Casting to string something that''s already string\.$#'
 			identifier: cast.useless
 			count: 7
@@ -642,17 +528,11 @@ parameters:
 			count: 1
 			path: packages/cli/src/Ingestion/ValidationGateValidator.php
 
-
-
-
 		-
 			message: '#^Short ternary operator is not allowed\. Use null coalesce operator if applicable or consider using long ternary\.$#'
 			identifier: ternary.shortNotAllowed
 			count: 1
 			path: packages/cli/src/Provenance/ComposerProvenanceReporter.php
-
-
-
 
 		-
 			message: '#^Construct empty\(\) is not allowed\. Use more strict comparison\.$#'

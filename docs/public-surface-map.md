@@ -276,7 +276,6 @@ Configuration Management v1 — active/sync store split, six `config:*` CLI comm
 
 | Element | Type | Purpose |
 |---------|------|---------|
-| `PathAliasManagerInterface` | interface | Resolves and manages URL aliases for entity paths |
 
 ### relationship
 
@@ -411,7 +410,6 @@ Charter §5.6 — listing-pipeline-v1 (M-007). Namespace `Waaseyaa\Listing\`.
 
 | Element | Type | Purpose |
 |---------|------|---------|
-| `SourceConnectorInterface` | interface | Connects an ingestion source: transforms raw records and returns rows with diagnostics |
 
 ### admin-surface
 
