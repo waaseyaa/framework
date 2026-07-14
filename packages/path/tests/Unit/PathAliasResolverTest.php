@@ -60,4 +60,28 @@ final class PathAliasResolverTest extends TestCase
         $resolver = new PathAliasResolver($repository);
         $this->assertNull($resolver->resolve('/missing'));
     }
+
+    #[Test]
+    public function normalizesTrailingSlashWhilePreservingLanguageScope(): void
+    {
+        $conditions = [];
+        $query = $this->createMock(EntityQueryInterface::class);
+        $query->method('accessCheck')->willReturnSelf();
+        $query->method('condition')->willReturnCallback(
+            function (string $field, mixed $value) use (&$conditions, $query): EntityQueryInterface {
+                $conditions[$field] = $value;
+                return $query;
+            },
+        );
+        $query->method('range')->willReturnSelf();
+        $query->method('execute')->willReturn([]);
+
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('getQuery')->willReturn($query);
+
+        new PathAliasResolver($repository)->resolve('/about/', 'oj');
+
+        $this->assertSame('/about', $conditions['alias']);
+        $this->assertSame('oj', $conditions['langcode']);
+    }
 }

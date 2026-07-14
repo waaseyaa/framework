@@ -34,6 +34,7 @@ final class SsrHttpKernelIntegrationTest extends TestCase
 
         ComposerProjectFixture::installMetadata($this->repoRoot, $this->projectRoot);
 
+        file_put_contents($this->projectRoot . '/composer.json', "{\n  \"name\": \"waaseyaa/fresh-install-alias-fixture\"\n}\n");
         file_put_contents($this->projectRoot . '/config/entity-types.php', "<?php\n\nreturn [];\n");
         file_put_contents($this->projectRoot . '/config/waaseyaa.php', $this->buildConfigFile());
 
@@ -122,6 +123,25 @@ final class SsrHttpKernelIntegrationTest extends TestCase
         $this->assertSame(200, $response['status']);
         $this->assertStringContainsString('Water Is Life', $response['body']);
         $this->assertStringContainsString('<div class="relationships">1</div>', $response['body']);
+    }
+
+    #[Test]
+    public function freshInstallResolvesCanonicalAndWordPressTrailingSlashAliases(): void
+    {
+        foreach ([
+            '/teaching/water-is-life',
+            '/teaching/water-is-life/',
+            '/about/leadership',
+            '/about/leadership/',
+            '/2025/01/water-is-life',
+            '/2025/01/water-is-life/',
+            '/teaching/water-is-life/?view_mode=full',
+        ] as $uri) {
+            $response = $this->request($uri);
+
+            $this->assertSame(200, $response['status'], sprintf('%s must resolve on a freshly installed database.', $uri));
+            $this->assertStringContainsString('Water Is Life', $response['body']);
+        }
     }
 
     #[Test]

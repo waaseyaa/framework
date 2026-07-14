@@ -60,14 +60,16 @@ final class PathAlias extends ContentEntityBase
     }
 
     /**
-     * NFC-normalize an alias string.
+     * Normalize an alias to its canonical storage and lookup form.
      *
      * Waaseyaa is an Indigenous-language CMS: aliases legitimately carry
      * Unicode letters (long-vowel diacritics, the glottal ʼ U+02BC, Canadian
      * syllabics) and MUST NOT be transliterated, lowercased, or slugified —
      * only canonically composed. Without this, NFC and NFD forms of the same
      * visible alias are distinct byte strings that can both be stored,
-     * resolving first-match-wins. Modeled on the guard in
+     * resolving first-match-wins. A non-root trailing slash is also removed so
+     * WordPress-style inbound paths and stored aliases share one canonical
+     * lookup key. Modeled on the guard in
      * {@see \Waaseyaa\Foundation\SlugGenerator::generate()}.
      *
      * Exposed as `public` so {@see \Waaseyaa\Path\PathAliasUniquenessListener}
@@ -78,7 +80,9 @@ final class PathAlias extends ContentEntityBase
     {
         $normalized = \Normalizer::normalize($alias, \Normalizer::FORM_C);
 
-        return is_string($normalized) ? $normalized : $alias;
+        $canonical = is_string($normalized) ? $normalized : $alias;
+
+        return $canonical === '/' ? $canonical : rtrim($canonical, '/');
     }
 
     /**

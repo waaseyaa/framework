@@ -15,7 +15,7 @@ use Waaseyaa\Workflows\EditorialWorkflowPreset;
 #[CoversNothing]
 final class WorkflowFixturePackIntegrationTest extends TestCase
 {
-    private const string EXPECTED_CORPUS_HASH = '4824bc8efe74312b45e27dc94f2005a008ca71a5';
+    private const string EXPECTED_CORPUS_HASH = '2c7610f5a4ba9b1236acd91dd23275f7a819d20f';
 
     #[Test]
     public function fixtureCorpusIsDeterministicAcrossCalls(): void
