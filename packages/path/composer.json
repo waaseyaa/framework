@@ -23,10 +23,10 @@
     ],
     "require": {
         "php": ">=8.5",
-        "waaseyaa/access": "^0.1.0-alpha.264",
-        "waaseyaa/entity": "^0.1.0-alpha.264",
-        "waaseyaa/entity-storage": "^0.1.0-alpha.264",
-        "waaseyaa/foundation": "^0.1.0-alpha.264"
+        "waaseyaa/access": "^0.1.0-alpha.265",
+        "waaseyaa/entity": "^0.1.0-alpha.265",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.265",
+        "waaseyaa/foundation": "^0.1.0-alpha.265"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
