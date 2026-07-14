@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **North Cloud mapper documentation now names its external-content trust boundary (#2020).** Consumer mappers must sanitize HTML according to each destination field's markup contract before returning values for persistence.
+
 ## [0.1.0-alpha.264] - 2026-07-14
 
 ### Fixed
