@@ -156,10 +156,9 @@ function validateVersionInput(string $input): string
 }
 
 /**
- * Rewrite all waaseyaa/* constraints in a single composer.json file to the
- * given caret constraint, preserving JSON formatting (indentation, key order,
- * trailing newline). Returns true when the file was modified, false when it
- * was already up to date (no-op / idempotent).
+ * Rewrite waaseyaa/* constraints in the require and require-dev sections of a
+ * single composer.json file, preserving JSON formatting. Composer's suggest
+ * values are descriptions, not constraints, and are deliberately excluded.
  *
  * Uses a regex-based in-place substitution so that indentation, trailing
  * commas (where the JSON was originally hand-authored with them), and key
@@ -203,13 +202,24 @@ function syncManifestFile(string $manifestPath, string $constraint): bool
         throw new \RuntimeException(sprintf('Cannot read %s', $manifestPath));
     }
 
-    // Replace every "waaseyaa/<anything>": "<old-constraint>" occurrence.
-    // The value is always a JSON string — quoted, possibly with a trailing comma.
-    // We preserve everything before and after the version string value.
+    // Restrict replacement to dependency constraint objects. A waaseyaa/* key
+    // may also appear under suggest, where its value is human-readable prose.
     $updated = preg_replace_callback(
-        '/"(waaseyaa\/[^"]+)"\s*:\s*"([^"]*)"/',
-        static function (array $matches) use ($constraint): string {
-            return '"' . $matches[1] . '": "' . $constraint . '"';
+        '/"(?:require|require-dev)"\s*:\s*\{.*?\}/s',
+        static function (array $sectionMatches) use ($constraint): string {
+            $section = preg_replace_callback(
+                '/"(waaseyaa\/[^"]+)"\s*:\s*"([^"]*)"/',
+                static function (array $dependencyMatches) use ($constraint): string {
+                    return '"' . $dependencyMatches[1] . '": "' . $constraint . '"';
+                },
+                $sectionMatches[0],
+            );
+
+            if ($section === null) {
+                throw new \RuntimeException('Constraint substitution failed inside dependency section.');
+            }
+
+            return $section;
         },
         $original,
     );
