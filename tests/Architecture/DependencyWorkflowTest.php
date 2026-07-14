@@ -22,13 +22,24 @@ final class DependencyWorkflowTest extends TestCase
     }
 
     #[Test]
-    public function dependabot_admin_rebuild_is_actor_scoped_and_never_persists_checkout_credentials(): void
+    public function dependabot_admin_rebuild_is_actor_scoped_and_separates_untrusted_build_from_write_token(): void
     {
         $workflow = file_get_contents(__DIR__ . '/../../.github/workflows/dependabot-admin-dist.yml');
         self::assertIsString($workflow);
         self::assertStringContainsString("github.actor == 'dependabot[bot]'", $workflow);
         self::assertStringContainsString('persist-credentials: false', $workflow);
         self::assertStringContainsString('bin/build-admin-dist', $workflow);
+        self::assertStringContainsString('upload-artifact', $workflow);
+        self::assertStringContainsString('download-artifact', $workflow);
+        self::assertMatchesRegularExpression('/^  publish:.*?^    needs: build$/ms', $workflow);
+
+        $buildJob = strstr($workflow, '  build:');
+        self::assertIsString($buildJob);
+        $buildJob = strstr($buildJob, '  publish:', true);
+        self::assertIsString($buildJob);
+        self::assertStringContainsString('contents: read', $buildJob);
+        self::assertStringNotContainsString('GH_TOKEN:', $buildJob);
+        self::assertStringNotContainsString('contents: write', $buildJob);
     }
 
     #[Test]

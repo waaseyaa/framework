@@ -8,15 +8,16 @@ on:
       - 'packages/admin/package-lock.json'
 
 permissions:
-  contents: write
-  actions: write
+  contents: read
 
 jobs:
-  rebuild:
-    name: Rebuild admin dist on Dependabot npm PR
+  build:
+    name: Build admin dist without write credentials
     if: >-
       github.actor == 'dependabot[bot]' &&
       github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -35,10 +36,58 @@ jobs:
         with:
           php-version: '8.5'
 
-      # The checkout token is not persisted while dependency lifecycle scripts
-      # run. Only the actor-scoped push step below receives a write token.
+      # Dependency code runs only in this read-only job. No later step in this
+      # workspace receives a write token, so hooks/GITHUB_ENV cannot bridge the
+      # trust boundary into publication.
       - name: Build admin SPA dist and freshness signature
         run: bin/build-admin-dist
+
+      - name: Export only the generated public artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-dist
+          path: |
+            packages/admin-surface/dist
+            packages/admin-surface/dist.signature
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish rebuilt admin dist
+    needs: build
+    permissions:
+      contents: write
+      actions: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download isolated build output
+        uses: actions/download-artifact@v4
+        with:
+          name: admin-dist
+          path: ${{ runner.temp }}/admin-dist
+
+      - name: Validate and install generated public artifacts
+        env:
+          ARTIFACT_ROOT: ${{ runner.temp }}/admin-dist
+        run: |
+          set -euo pipefail
+          test -d "$ARTIFACT_ROOT/dist"
+          test -f "$ARTIFACT_ROOT/dist.signature"
+          test "$(find "$ARTIFACT_ROOT" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort | tr '\n' ' ')" = 'dist dist.signature '
+          if find "$ARTIFACT_ROOT" ! -type d ! -type f -print -quit | grep -q .; then
+            echo 'Artifact contains a non-regular filesystem entry.' >&2
+            exit 1
+          fi
+          grep -Eq '^[0-9a-f]{64}$' "$ARTIFACT_ROOT/dist.signature"
+          rm -rf packages/admin-surface/dist
+          cp -a "$ARTIFACT_ROOT/dist" packages/admin-surface/dist
+          cp "$ARTIFACT_ROOT/dist.signature" packages/admin-surface/dist.signature
 
       - name: Commit rebuilt dist to the Dependabot branch
         id: commit
