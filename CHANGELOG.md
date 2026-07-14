@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Split fan-out waits through post-tag CI startup (#1999).** The exact-SHA release gate now polls through the CI run triggered by the tag push instead of failing single-check mode while that newer run is still in progress.
+
 ## [0.1.0-alpha.262] - 2026-07-14
 
 ### Changed

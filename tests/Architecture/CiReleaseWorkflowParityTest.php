@@ -74,7 +74,7 @@ final class CiReleaseWorkflowParityTest extends TestCase
 
         $gate = substr($split, $gateStart, $splitStart - $gateStart);
         self::assertStringContainsString('ref: ${{ github.sha }}', $gate);
-        self::assertStringContainsString('bash bin/wait-for-green-ci "${SHA}" 0', $gate);
+        self::assertStringContainsString('bash bin/wait-for-green-ci "${SHA}" 2700', $gate);
 
         $greenCiGate = $this->read('bin/wait-for-green-ci');
         self::assertStringContainsString('actions/workflows/ci.yml/runs?head_sha=${SHA}', $greenCiGate);
