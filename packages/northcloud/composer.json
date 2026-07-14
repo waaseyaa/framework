@@ -26,7 +26,6 @@
     },
     "extra": {
         "waaseyaa": {
-            "layer": 3,
             "providers": [
                 "Waaseyaa\\NorthCloud\\Provider\\NorthCloudServiceProvider"
             ]

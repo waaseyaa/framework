@@ -29,7 +29,6 @@
     },
     "extra": {
         "waaseyaa": {
-            "layer": 6,
             "providers": [
                 "Waaseyaa\\Inertia\\InertiaServiceProvider"
             ]

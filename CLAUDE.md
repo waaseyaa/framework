@@ -89,7 +89,7 @@ When the mapping is not obvious, search under `docs/specs/` (e.g. `rg -n "TopicO
 
 | Layer | Name | Packages |
 |---|---|---|
-| 0 | Foundation | agent-output, analytics, cache, database-legacy, error-handler, foundation, geo, http-client, i18n, ingestion, mail, mercure, oauth-provider, page-builder, plugin, queue, scheduler, state, typed-data, validation |
+| 0 | Foundation | analytics, cache, database-legacy, error-handler, foundation, geo, http-client, i18n, ingestion, mail, mercure, oauth-provider, plugin, queue, scheduler, state, typed-data, validation |
 | 1 | Core Data | entity, entity-storage, access, audit, user, config, field, auth, oidc, testing |
 | 2 | Content Types | node, taxonomy, media, path, menu, note, relationship, groups, engagement |
 | 3 | Services | workflows, search, seo, notification, billing, github, migration, northcloud, listing, messaging |

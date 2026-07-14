@@ -44,7 +44,6 @@
     },
     "extra": {
         "waaseyaa": {
-            "layer": 6,
             "migrations": "migrations",
             "providers": [
                 "Waaseyaa\\Oidc\\OidcServiceProvider"

@@ -43,12 +43,16 @@ $rootEnv = getenv('WAASEYAA_LAYER_ROOT');
 $root = is_string($rootEnv) && $rootEnv !== '' ? $rootEnv : dirname(__DIR__);
 $outputMode = getenv('WAASEYAA_OUTPUT') === 'json' ? 'json' : 'human';
 $generateBaseline = false;
+$printLayerMap = false;
 foreach (array_slice($argv, 1) as $arg) {
     if ($arg === '--output=json') {
         $outputMode = 'json';
     }
     if ($arg === '--generate-baseline') {
         $generateBaseline = true;
+    }
+    if ($arg === '--layer-map=json') {
+        $printLayerMap = true;
     }
 }
 
@@ -71,8 +75,6 @@ $layerByShort = [
     'mercure' => 0,
     'analytics' => 0,
     'oauth-provider' => 0,
-    'agent-output' => 0,
-    'page-builder' => 0,
     'entity' => 1,
     'entity-storage' => 1,
     'access' => 1,
@@ -128,6 +130,12 @@ $layerByShort = [
     'workspace' => 6,
 ];
 
+if ($printLayerMap) {
+    ksort($layerByShort);
+    echo json_encode($layerByShort, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+    exit(0);
+}
+
 $metapackages = ['cms' => true, 'core' => true, 'full' => true];
 
 // Each entry carries a one-line rationale (per CLAUDE.md "Layer Architecture":
@@ -165,7 +173,6 @@ $kernelExemptFiles = array_fill_keys([
 
 $namespacePrefixToShort = [
     'Foundation' => 'foundation',
-    'AgentOutput' => 'agent-output',
     'Cache' => 'cache',
     'Plugin' => 'plugin',
     'TypedData' => 'typed-data',
