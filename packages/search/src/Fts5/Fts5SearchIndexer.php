@@ -11,7 +11,7 @@ use Waaseyaa\Search\SearchIndexerInterface;
 
 final class Fts5SearchIndexer implements SearchIndexerInterface, BatchSearchIndexerInterface
 {
-    private const SCHEMA_VERSION = '1';
+    private const SCHEMA_VERSION = '2';
 
     private bool $schemaEnsured = false;
 
@@ -39,7 +39,7 @@ final class Fts5SearchIndexer implements SearchIndexerInterface, BatchSearchInde
                     document_id UNINDEXED,
                     title,
                     body,
-                    tokenize='porter unicode61'
+                    tokenize="unicode61 remove_diacritics 0 tokenchars '''’ʼ'"
                 )
             SQL);
 
@@ -176,10 +176,17 @@ final class Fts5SearchIndexer implements SearchIndexerInterface, BatchSearchInde
         $tx = $this->database->transaction();
 
         try {
-            $this->database->query('DELETE FROM search_index');
+            // FTS5 tokenizers cannot be altered in place. A full reindex is
+            // therefore also the upgrade boundary from the retired Porter
+            // schema: replace the derived virtual table, then let the caller
+            // repopulate it through reindexBatch().
+            $this->database->query('DROP TABLE search_index');
             $this->database->delete('search_metadata')->execute();
+            $this->schemaEnsured = false;
+            $this->ensureSchema();
             $tx->commit();
         } catch (\Throwable $e) {
+            $this->schemaEnsured = false;
             $tx->rollBack();
             throw $e;
         }
