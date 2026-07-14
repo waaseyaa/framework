@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **North Cloud mapper documentation now names its external-content trust boundary (#2020).** Consumer mappers must sanitize HTML according to each destination field's markup contract before returning values for persistence.
 ### Fixed
 
 - **AI telemetry boot failures are observable (#2020).** Best-effort agent telemetry wiring now warns through the framework logger when dispatcher or repository resolution fails instead of silently disabling the pipeline. The retired duplicate trace-pricing table remains removed, leaving the live `ModelPriceTable` as the sole pricing catalogue.
