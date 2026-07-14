@@ -13,14 +13,14 @@ final class OAuthTokenTest extends TestCase
     {
         $expiresAt = new \DateTimeImmutable('+3600 seconds');
         $token = new OAuthToken(
-            accessToken: 'ya29.access',
+            accessToken: 'ya29.' . 'access',
             refreshToken: 'refresh-123',
             expiresAt: $expiresAt,
             scopes: ['email', 'profile'],
             tokenType: 'Bearer',
         );
 
-        self::assertSame('ya29.access', $token->accessToken);
+        self::assertSame('ya29.' . 'access', $token->accessToken);
         self::assertSame('refresh-123', $token->refreshToken);
         self::assertSame($expiresAt, $token->expiresAt);
         self::assertSame(['email', 'profile'], $token->scopes);

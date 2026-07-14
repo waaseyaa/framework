@@ -15,6 +15,8 @@ declare(strict_types=1);
  *       at runtime — invisible to PL005 and, before the WP7 tokenizer rewrite,
  *       to PL008 as well), asserts the gate fires while only file (a) is
  *       allowlisted, then asserts green after allowlisting both.
+ *   (c) non-Layer-0 coverage — plants an L4 bimaaji file referencing L6 cli
+ *       inline, proving the scanner is no longer restricted to L0.
  *
  * Wired into composer verify via @check-package-layers-pl008-self-test.
  */
@@ -27,18 +29,23 @@ $php = PHP_BINARY;
 $work = sys_get_temp_dir() . '/waaseyaa-pl008-selftest-' . getmypid();
 @mkdir($work . '/packages/foundation/src/Kernel', 0755, true);
 @mkdir($work . '/packages/foundation/src/Discovery', 0755, true);
+@mkdir($work . '/packages/bimaaji/src', 0755, true);
 @mkdir($work . '/tools', 0755, true);
 
 $cleanup = static function () use ($work): void {
     array_map('unlink', glob($work . '/packages/foundation/src/Discovery/*.php') ?: []);
     array_map('unlink', glob($work . '/packages/foundation/src/Kernel/*.php') ?: []);
+    array_map('unlink', glob($work . '/packages/bimaaji/src/*.php') ?: []);
     @unlink($work . '/packages/foundation/composer.json');
+    @unlink($work . '/packages/bimaaji/composer.json');
     @unlink($work . '/tools/package-layers-string-literal-baseline.txt');
     foreach ([
         $work . '/packages/foundation/src/Discovery',
         $work . '/packages/foundation/src/Kernel',
         $work . '/packages/foundation/src',
         $work . '/packages/foundation',
+        $work . '/packages/bimaaji/src',
+        $work . '/packages/bimaaji',
         $work . '/packages',
         $work . '/tools',
         $work,
@@ -134,7 +141,41 @@ if ($gateFires()) {
     $fail('gate still fired after allowlisting both violators.');
 }
 
+// Synthetic violator (c): bimaaji is L4 and cli is L6. This pins that PL008
+// scans upward hidden FQCNs in every layer, not only the original L0 incident.
+file_put_contents($work . '/packages/bimaaji/composer.json', json_encode([
+    'name' => 'waaseyaa/bimaaji',
+    'type' => 'library',
+    'config' => ['sort-packages' => true],
+    'require' => ['php' => '>=8.4'],
+], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT));
+file_put_contents($work . '/packages/bimaaji/src/SyntheticLayerFourViolator.php', <<<'PHP'
+<?php
+declare(strict_types=1);
+namespace Waaseyaa\Bimaaji;
+final class SyntheticLayerFourViolator
+{
+    private const COMMAND = \Waaseyaa\CLI\Command\HandlerCommand::class;
+}
+PHP);
+
+// --- Test 5: sub-pattern (c) — gate must FIRE outside Layer 0. ---
+if (!$gateFires()) {
+    $fail('gate did NOT fire on an inline upward FQCN outside Layer 0 (sub-pattern c).');
+}
+
+// --- Test 6: all three fixture files are explicitly allowlisted. ---
+file_put_contents(
+    $work . '/tools/package-layers-string-literal-baseline.txt',
+    "foundation/src/Discovery/SyntheticViolator.php  # self-test allowlist entry\n"
+    . "foundation/src/Discovery/SyntheticInlineViolator.php  # self-test allowlist entry\n"
+    . "bimaaji/src/SyntheticLayerFourViolator.php  # self-test allowlist entry\n",
+);
+if ($gateFires()) {
+    $fail('gate still fired after allowlisting the non-Layer-0 violator.');
+}
+
 $cleanup();
 
-echo "OK - PL008 string-literal layer gate self-test passed (both sub-patterns fire on violators, green after allowlist).\n";
+echo "OK - PL008 hidden-FQCN layer gate self-test passed (both token shapes and non-Layer-0 coverage fire, green after allowlist).\n";
 exit(0);

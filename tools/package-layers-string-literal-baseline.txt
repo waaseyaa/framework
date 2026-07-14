@@ -13,8 +13,8 @@
 #   "When cross-layer attribute scanning is needed, use string constants instead of
 #    ::class references. ReflectionClass::getAttributes() accepts string class names."
 #
-# Add new entries here (with rationale) when a legitimate cross-layer string constant
-# is introduced in a Layer-0 file. Do NOT add entries to hide accidental coupling —
+# Add new entries here (with rationale) when a legitimate cross-layer FQCN is
+# introduced in any layer. Do NOT add entries to hide accidental coupling —
 # fix the coupling instead (e.g. move the route registration to the owning provider).
 #
 # IMPORTANT: baselining is per-FILE, not per-finding — an entry suppresses EVERY
@@ -34,3 +34,7 @@ foundation/src/Discovery/PackageManifestCompiler.php  # Discovery bootstrapper: 
 foundation/src/Http/ControllerDispatcher.php  # Optional-dependency probe: class_exists() check on Waaseyaa\SSR\SsrPageHandler (L6) to return a helpful 501 when waaseyaa/ssr is not installed; string constant per CLAUDE.md layer-discipline rule, no upward import
 foundation/src/ServiceProvider/ServiceProvider.php  # Provider base class: the routes() hook and entityType()/getEntityTypes() use inline fully-qualified type hints (Waaseyaa\Routing\WaaseyaaRouter L4, Waaseyaa\Entity\EntityTypeManager/EntityTypeInterface L1) — the deliberate cross-layer provider extension seam (BuiltinRouteRegistrar invokes routes() at boot). Type hints resolve lazily (declaring them does not autoload) and cannot be converted to string constants; removing them would break every provider override (parameter contravariance). Pre-existing coupling surfaced by the WP7 tokenizer rewrite; follow-up: consider lifting the routes() signature to a routing-owned interface.
 foundation/src/ServiceProvider/ServiceProviderInterface.php  # Same routes() extension seam as ServiceProvider.php above: the interface declares routes(\Waaseyaa\Routing\WaaseyaaRouter, \Waaseyaa\Entity\EntityTypeManager) with inline fully-qualified type hints (L4/L1). Same lazy-resolution/type-hint constraints; same follow-up.
+audit/src/Listener/AgentToolAuditListener.php  # Event-decoupled listener subscribes to the L5 AgentRunToolCallObserved event by class-name string so the L1 audit package does not import or require ai-observability; deliberate Symfony dispatcher seam.
+bimaaji/src/BimaajiServiceProvider.php  # L4 provider exports command metadata only when the L6 CLI runtime invokes consoleCommands(); inherited optional-interface debt, explicitly visible until command registration moves to CLI.
+bimaaji/src/Command/BimaajiInstallCommand.php  # L4 command handler uses the L6 SymfonyCommandIO type only when invoked by the optional CLI runtime; inherited optional-interface debt, explicitly visible pending a lower-layer IO contract.
+bimaaji/src/Command/GraphDumpHandler.php  # L4 command handler uses the L6 SymfonyCommandIO type only when invoked by the optional CLI runtime; inherited optional-interface debt, explicitly visible pending a lower-layer IO contract.
