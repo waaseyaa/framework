@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Fixed-bundle migrations now compose split source and id-map partitions without site adapter classes (#1981, G-032).** The migration package adds the format-neutral `FilteredSource` decorator, `PartitionedLookupProcessor` for mixed reference lists, and ordered `MigrationIdMap::lookupDestinationAcross()` for non-process consumers such as media URL resolvers. A fresh-install boundary test applies the real package migrations and runs category/tag plus image/document definitions through `MigrationRunner`, `EntityDestination`, the real access gate, and least-privilege per-bundle system accounts.
+
 ### Fixed
 
 - **Fresh HTTP processes now hydrate import-derived bundle fields (#1982, G-034).** The migration provider replays derived field declarations only for bundle config entities already persisted by a completed import, restoring the process-local field registry before repository reads without moving full content-model registration back into first-install boot. Clean installs still register at import time, and repeated boots leave existing schema and rows unchanged.

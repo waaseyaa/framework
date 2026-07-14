@@ -222,6 +222,27 @@ final class MigrationIdMapTest extends TestCase
     }
 
     #[Test]
+    public function lookup_destination_across_returns_first_matching_partition(): void
+    {
+        $sourceId = new SourceId('media', ['id' => '10']);
+        $this->idMap->upsert('media_document', $sourceId, 'media', 'document-uuid', 'hash', 'run');
+        $this->idMap->upsert('media_image', $sourceId, 'media', 'image-uuid', 'hash', 'run');
+
+        $result = $this->idMap->lookupDestinationAcross(['media_image', 'media_document'], $sourceId);
+
+        self::assertNotNull($result);
+        self::assertSame('image-uuid', $result->destinationUuid);
+        self::assertNull($this->idMap->lookupDestinationAcross(['missing'], $sourceId));
+    }
+
+    #[Test]
+    public function lookup_destination_across_rejects_empty_partition_id(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->idMap->lookupDestinationAcross([''], new SourceId('media', ['id' => '10']));
+    }
+
+    #[Test]
     public function transactional_commits_on_success(): void
     {
         $sourceId = new SourceId('wp', ['id' => 1]);

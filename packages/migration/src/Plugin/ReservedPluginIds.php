@@ -25,6 +25,7 @@ final class ReservedPluginIds
     public const string CONCAT = 'concat';
     public const string TYPE_COERCE = 'type_coerce';
     public const string DEFAULT_VALUE = 'default_value';
+    public const string PARTITIONED_LOOKUP = 'partitioned_lookup';
 
     /**
      * Every reserved id, in source order.
@@ -38,6 +39,7 @@ final class ReservedPluginIds
         self::CONCAT,
         self::TYPE_COERCE,
         self::DEFAULT_VALUE,
+        self::PARTITIONED_LOOKUP,
     ];
 
     /**

@@ -12,7 +12,7 @@ use Waaseyaa\Migration\Plugin\ReservedPluginIds;
  * Substitute a fallback when the chained value is null (and optionally when
  * it is the empty string).
  *
- * The cheapest of the six framework-reserved process plugins. Usually the
+ * A small framework-reserved process plugin. Usually the
  * last link in a chain, so a downstream destination can rely on a
  * non-null value.
  *

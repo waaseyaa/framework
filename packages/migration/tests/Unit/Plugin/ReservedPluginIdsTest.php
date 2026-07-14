@@ -13,7 +13,7 @@ use Waaseyaa\Migration\Plugin\ReservedPluginIds;
 final class ReservedPluginIdsTest extends TestCase
 {
     #[Test]
-    public function exposes_six_reserved_ids_in_canonical_order(): void
+    public function exposes_reserved_ids_in_canonical_order(): void
     {
         self::assertSame([
             'pass_through',
@@ -22,6 +22,7 @@ final class ReservedPluginIdsTest extends TestCase
             'concat',
             'type_coerce',
             'default_value',
+            'partitioned_lookup',
         ], ReservedPluginIds::ALL);
     }
 
@@ -34,6 +35,7 @@ final class ReservedPluginIdsTest extends TestCase
         self::assertSame('concat', ReservedPluginIds::CONCAT);
         self::assertSame('type_coerce', ReservedPluginIds::TYPE_COERCE);
         self::assertSame('default_value', ReservedPluginIds::DEFAULT_VALUE);
+        self::assertSame('partitioned_lookup', ReservedPluginIds::PARTITIONED_LOOKUP);
     }
 
     #[Test]

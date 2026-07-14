@@ -1,6 +1,7 @@
 <!-- Spec reviewed 2026-05-13 - migration-platform-v1 mission landed -->
 <!-- Spec reviewed 2026-07-02 - R3 WP1 HtmlSanitizeProcessor nested-case + CDATA-content-model B-4 fix (§3.5, §16) -->
 <!-- Spec reviewed 2026-07-13 - #1982 restores import-derived field definitions on later process boots; full registration remains import-time only (§9.5). -->
+<!-- Spec reviewed 2026-07-13 - #1981 fixed-bundle source and split id-map composition (§3.1, §3.5, §6.1, §16) -->
 
 # Migration Platform
 
@@ -28,7 +29,8 @@ APIs) into the framework's entity storage layer. It ships:
    (ADR 011) and revisions (ADR 016).
 4. **A small library of essential process plugins** (`PassThroughProcessor`,
    `HtmlSanitizeProcessor`, `LookupProcessor`, `ConcatProcessor`,
-   `TypeCoerceProcessor`, `DefaultValueProcessor`).
+   `TypeCoerceProcessor`, `DefaultValueProcessor`,
+   `PartitionedLookupProcessor`).
 5. **A CLI runner** with six commands: `import:run`, `import:run-all`,
    `import:status`, `import:resume`, `import:rollback`, `import:reset`.
 6. **An idempotency primitive** — the `migration_id_map` table, keyed by a
@@ -85,6 +87,12 @@ charter's deprecation cycle. FQCN root: `Waaseyaa\Migration\`.
 | `Waaseyaa\Migration\Plugin\ProcessPluginInterface` | Interface | Transforms a single source value into a destination value. |
 | `Waaseyaa\Migration\Plugin\DestinationPluginInterface` | Interface | Writes a `DestinationRecord` to its target system and supports rollback + lookup. |
 
+`Waaseyaa\Migration\Plugin\Source\FilteredSource` is the stable source
+decorator for fixed-bundle definitions backed by a mixed external stream. It
+filters lazily, delegates `SourceId` construction and stability to the wrapped
+source, exposes an application-selected plugin id, and reports an unknown
+count because evaluating the predicate is the only honest way to count.
+
 ### 3.2 Provider capabilities
 
 | FQCN | Kind | Purpose |
@@ -112,7 +120,7 @@ charter's deprecation cycle. FQCN root: `Waaseyaa\Migration\`.
 
 ### 3.5 Process plugin concretes
 
-The framework reserves six process-plugin ids. App-defined process plugins MUST
+The framework reserves seven process-plugin ids. App-defined process plugins MUST
 use a non-reserved id; convention is `<vendor>_<purpose>` (e.g.
 `wordpress_shortcode_strip`).
 
@@ -124,6 +132,7 @@ use a non-reserved id; convention is `<vendor>_<purpose>` (e.g.
 | `Waaseyaa\Migration\Plugin\Process\ConcatProcessor` | `concat` |
 | `Waaseyaa\Migration\Plugin\Process\TypeCoerceProcessor` | `type_coerce` |
 | `Waaseyaa\Migration\Plugin\Process\DefaultValueProcessor` | `default_value` |
+| `Waaseyaa\Migration\Plugin\Process\PartitionedLookupProcessor` | `partitioned_lookup` |
 
 Reserved ids are owned by the framework. The complete list lives in
 `Waaseyaa\Migration\Plugin\ReservedPluginIds`.
@@ -165,6 +174,12 @@ of the same B-4 class:
 The `migration_id_map` table layout is **frozen stable surface**. Future
 column changes require a charter amendment and a data migration of every
 existing row.
+
+`MigrationIdMap::lookupDestinationAcross(list<string> $migrationIds,
+SourceId $sourceId)` is the stable ordered lookup for consumers outside a
+process chain. It returns the first matching `WriteResult`, or `null`. This is
+the composition seam for one logical source split into bundle-specific id-map
+partitions, such as image/document media migrations.
 
 ### 3.7 Exception types
 
@@ -809,6 +824,13 @@ lives at `docs/cookbook/migration-first-cut.md`.
 
 ## 16. History
 
+- 2026-07-13 — #1981 closes the fixed-bundle composition gap exposed by the
+  Sheguiandah pass-2 rehearsal. `FilteredSource` replaces app-defined source
+  wrappers, `PartitionedLookupProcessor` resolves mixed reference lists across
+  bundle-specific migrations, and `MigrationIdMap::lookupDestinationAcross()`
+  gives non-process consumers an ordered view of split id maps. Fresh-install
+  coverage pins real migrations, runner writes, fixed bundles, and
+  least-privilege create grants.
 - 2026-07-02 — Audit-remediation batch, R3 WP1 (M1). Closed two sibling
   stored-XSS bypasses in `HtmlSanitizeProcessor`'s DOMDocument fallback path,
   both reopening B-4: (1) a **nested-wrapper** bypass —
