@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **SSR app-controller argument binding now enforces entity view access and resolves custom services correctly (#2020).** Typed entity parameters accept the kernel's upcast object but fail closed to the canonical 404 when the request gate cannot allow view; custom method services call `HttpServiceResolverInterface::resolve()` instead of treating the resolver object as a callable.
+
 ## [0.1.0-alpha.264] - 2026-07-14
 
 ### Fixed

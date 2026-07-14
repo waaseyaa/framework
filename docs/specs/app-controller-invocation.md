@@ -29,7 +29,7 @@ Additionally, the existing HTTP **service resolver** closure may satisfy a param
 - `#[FromRoute('name')]` binds from the matched route attribute `name`.
 - Without `#[FromRoute]`, the route attribute key defaults to the **parameter name** (e.g. `$todo` → `todo`), with camelCase → snake_case as an additional candidate.
 - Scalars: invalid cast → **400** (`InvalidAppControllerArgumentException`).
-- Entities: load via `EntityTypeManagerInterface::getStorage($entityTypeId)->load($rawId)` only. Missing entity → **404** (`Symfony\Component\Routing\Exception\ResourceNotFoundException`).
+- Entities: accept the entity already upcast by `HttpKernel`'s `EntityParamConverter`, or load a raw id through `EntityTypeManagerInterface::getRepository($entityTypeId)->find($rawId)` for direct invoker callers. Binding then requires the invocation context's `GateInterface` to allow `view` for the request account. A missing entity, denied view, or missing gate all collapse to the same **404** (`Symfony\Component\Routing\Exception\ResourceNotFoundException`), so typed parameter injection cannot become an existence oracle or bypass entity access.
 - Route option `parameters.{name}.type = entity:{entityTypeId}` declares an entity segment. Optional `_waaseyaa_app_bindings.{name}` stores an expected PHP `class-string` for validation after load.
 
 ## Error → HTTP
@@ -37,6 +37,7 @@ Additionally, the existing HTTP **service resolver** closure may satisfy a param
 | Condition | Exception | HTTP |
 |-----------|-----------|------|
 | Entity not found for id | `ResourceNotFoundException` | 404 |
+| Entity view denied / gate unavailable | `ResourceNotFoundException` | 404 |
 | Invalid scalar / enum | `InvalidAppControllerArgumentException` | 400 |
 | Type / binding programmer error | `InvalidAppControllerBindingException` / `AppControllerTypeMismatchException` | 500 |
 
