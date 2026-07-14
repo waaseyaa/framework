@@ -34,14 +34,17 @@ final readonly class OutputSanitizer
             return $message;
         }
 
-        // Redact the URI form before ordinary paths so its scheme cannot be
-        // left behind. The file-path pattern permits spaces inside segments
-        // while using the extension as an unambiguous endpoint; the final
-        // conservative pattern catches extensionless/bare directory tokens.
+        // File-shaped paths are replaced first, using their extension as the
+        // boundary so following prose survives. The remaining patterns cover
+        // bare directories up to a diagnostic delimiter or end-of-message.
+        // Spaces are accepted because production paths commonly contain them.
         $patterns = [
-            '#file:///[^\s;,)\]]+#i',
+            '#file:///(?:[A-Za-z0-9._%\-]+(?: [A-Za-z0-9._%\-]+)*/)*[A-Za-z0-9._%\-]+(?: [A-Za-z0-9._%\-]+)*\.[A-Za-z0-9]{1,12}#i',
             '#(?<![A-Za-z0-9._:/\-])(?:/|[A-Za-z]:\\\\|\\\\\\\\)(?:[A-Za-z0-9._\-]+(?: [A-Za-z0-9._\-]+)*[\\\\/])*[A-Za-z0-9._\-]+(?: [A-Za-z0-9._\-]+)*\.[A-Za-z0-9]{1,12}#',
-            '#(?<![A-Za-z0-9._:/\-])/[A-Za-z0-9._/\-]+|(?<![A-Za-z0-9])[A-Za-z]:\\\\[A-Za-z0-9._\\\\/\-]+#',
+            '#file:///[^;\r\n,)\]"]+?(?=$|[;,)\]"])#i',
+            '#(?<![A-Za-z0-9])\\\\\\\\[^;\r\n,)\]"]+?(?=$|[;,)\]"])#',
+            '#(?<![A-Za-z0-9])[A-Za-z]:\\\\[^;\r\n,)\]"]+?(?=$|[;,)\]"])#',
+            '#(?<![A-Za-z0-9._:/\-])/(?!/)[^;\r\n,)\]"]+?(?=$|[;,)\]"])#',
         ];
         $sanitized = preg_replace($patterns, '<path>', $message);
 

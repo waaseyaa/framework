@@ -113,4 +113,15 @@ final class OutputSanitizerTest extends TestCase
             $s->sanitize('Local: file:///srv/secret/file.php; share: \\\\server\\share\\secret.txt'),
         );
     }
+
+    #[Test]
+    public function productionStripsSpacedBareDirectoriesAndExtensionlessShares(): void
+    {
+        $s = new OutputSanitizer(isProduction: true);
+
+        self::assertSame('<path>', $s->sanitize('/srv/My App/cache'));
+        self::assertSame('<path>', $s->sanitize('C:\\Program Files\\Waaseyaa\\cache'));
+        self::assertSame('<path>', $s->sanitize('file:///srv/My App/file.php'));
+        self::assertSame('<path>', $s->sanitize('\\\\server\\share\\My Folder\\cache'));
+    }
 }
