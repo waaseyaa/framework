@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CLI diagnostics and reused commands close minor operational footguns (#2020).** Composer provenance refuses lockfile paths outside the project root, production migration output redacts absolute Unix and Windows files plus bare directories, and repeated `ai:run --watch` invocations clear stale SIGINT state.
+
+### Changed
+
+- **CLI boundary documentation now matches runtime behavior (#2020).** Ingestion consumers own HTML sanitization at their persistence/render boundary, `ai:run` documents the default synchronous bus honestly, and the operator-level `entity:list` access-check opt-out is explicit.
 - **SSR app-controller argument binding now enforces entity view access and resolves custom services correctly (#2020).** Typed entity parameters accept the kernel's upcast object but fail closed to the canonical 404 when the request gate cannot allow view; custom method services call `HttpServiceResolverInterface::resolve()` instead of treating the resolver object as a callable.
 ### Security
 
