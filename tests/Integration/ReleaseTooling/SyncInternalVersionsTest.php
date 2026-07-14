@@ -291,6 +291,29 @@ final class SyncInternalVersionsTest extends TestCase
         self::assertSame('^10.5', $manifest['require-dev']['phpunit/phpunit']);
     }
 
+    #[Test]
+    public function sync_preserves_internal_suggest_descriptions(): void
+    {
+        $description = 'Enables the optional CLI command integrations.';
+        $dir = $this->makeTempPackageDir([
+            'packages/with-suggest/composer.json' => json_encode([
+                'name' => 'waaseyaa/with-suggest',
+                'require' => [
+                    'waaseyaa/foundation' => '^0.1.0-alpha.150',
+                ],
+                'suggest' => [
+                    'waaseyaa/cli' => $description,
+                ],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n",
+        ]);
+
+        $this->runSyncScript($dir, '0.1.0-alpha.999');
+
+        $manifest = $this->readManifest($dir . '/packages/with-suggest/composer.json');
+        self::assertSame('^0.1.0-alpha.999', $manifest['require']['waaseyaa/foundation']);
+        self::assertSame($description, $manifest['suggest']['waaseyaa/cli']);
+    }
+
     // ── resolveCurrentVersion (live) ──────────────────────────────────────────
 
     #[Test]
