@@ -50,6 +50,9 @@
     },
     "extra": {
         "waaseyaa": {
+            "policies": [
+                "Waaseyaa\\Attachment\\Policy\\ParentDelegatedAccessPolicy"
+            ],
             "providers": [
                 "Waaseyaa\\Attachment\\AttachmentServiceProvider"
             ]

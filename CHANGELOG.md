@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Access-policy discovery no longer depends on Composer's optimized classmap (#2020).** Package discovery now unions classmap and PSR-4 candidates, validates every package's declared policy inventory, and aborts boot on missing or divergent policies instead of silently running with partial enforcement. The same scanner fix restores non-optimized discovery for agent tools and definitions, middleware, formatters, field/entity types, and schedule entries.
+
 ### Added
 
 - **Failed queue jobs can be removed individually with `queue:forget` (#2020).** The command returns failure for an unknown ID and deletes only the selected failed row.

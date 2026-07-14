@@ -55,6 +55,9 @@
     },
     "extra": {
         "waaseyaa": {
+            "policies": [
+                "Waaseyaa\\Media\\MediaAccessPolicy"
+            ],
             "providers": [
                 "Waaseyaa\\Media\\MediaServiceProvider"
             ],

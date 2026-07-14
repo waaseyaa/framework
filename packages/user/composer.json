@@ -45,6 +45,10 @@
     },
     "extra": {
         "waaseyaa": {
+            "policies": [
+                "Waaseyaa\\User\\UserAccessPolicy",
+                "Waaseyaa\\User\\UserBlockAccessPolicy"
+            ],
             "providers": [
                 "Waaseyaa\\User\\UserServiceProvider"
             ]

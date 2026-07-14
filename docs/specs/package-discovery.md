@@ -1,5 +1,6 @@
 # Package Discovery
 
+<!-- Spec reviewed 2026-07-14 - #2020 security: attribute discovery unions Composer's classmap with every eligible PSR-4 namespace, so optimization cannot change enforcement or catalogues. Installed packages declare their access-policy inventory in extra.waaseyaa.policies; a missing declared class or manifest entry is a hard boot failure. -->
 <!-- Spec reviewed 2026-05-01 - extra.waaseyaa is the authoritative registration path for providers, commands, and routes. waaseyaa/cli, waaseyaa/api, waaseyaa/graphql, waaseyaa/mcp, waaseyaa/telescope all declare their service providers via extra.waaseyaa.providers; root composer.json reserves extra.waaseyaa.providers as an extension point for app-level providers. ConsoleKernel must not introduce new string-literal command lists; commands belong in the owning package's HasCommandsInterface implementation (mission #824 WP08 surface A, closes #854) -->
 
 Specification for how Waaseyaa packages are discovered, registered, booted, and compiled into optimized artifacts.
@@ -9,9 +10,11 @@ Specification for how Waaseyaa packages are discovered, registered, booted, and 
 Waaseyaa uses a two-phase discovery system:
 
 1. **Coarse-grained**: Composer `extra.waaseyaa` in each package's `composer.json` declares providers, commands, routes, migrations, and permissions.
-2. **Fine-grained**: PHP 8 attributes on classes (`#[AsFieldType]`, `#[Listener]`, `#[AsMiddleware]`, `PolicyAttribute`) are scanned at compile time from Composer's autoload classmap, with PSR-4 directory scanning as fallback.
+2. **Fine-grained**: PHP 8 attributes on classes (`#[AsFieldType]`, `#[Listener]`, `#[AsMiddleware]`, `PolicyAttribute`) are scanned at compile time from the union of Composer's autoload classmap and all eligible PSR-4 directories. PSR-4 is never conditional on the classmap being empty: an ordinary non-optimized install has a valid partial classmap.
 
 Both are unified by `PackageManifestCompiler` into a single cached artifact at `storage/framework/packages.php`.
+
+The cache fingerprint includes `composer.json`, `installed.json`, `autoload_classmap.php`, and `autoload_psr4.php`. Changing autoload optimization therefore invalidates and recompiles the artifact; a cached policy set is also checked against the independent `extra.waaseyaa.policies` inventory before it can boot.
 
 ## ServiceProvider Lifecycle
 
@@ -102,6 +105,7 @@ Each package declares its registration metadata in `extra.waaseyaa`:
     "extra": {
         "waaseyaa": {
             "providers": ["Waaseyaa\\Node\\NodeServiceProvider"],
+            "policies": ["Waaseyaa\\Node\\NodeAccessPolicy"],
             "commands": ["Waaseyaa\\Node\\Command\\NodeCreateCommand"],
             "routes": ["Waaseyaa\\Node\\NodeRouteProvider"],
             "migrations": "migrations/",
@@ -121,6 +125,7 @@ Supported keys:
 | Key | Type | Purpose |
 |-----|------|---------|
 | `providers` | `string[]` | ServiceProvider FQCNs |
+| `policies` | `string[]` | Complete package-owned `#[PolicyAttribute]` class inventory; missing entries/classes fail boot |
 | `commands` | `string[]` | CLI command FQCNs |
 | `routes` | `string[]` | Route provider FQCNs |
 | `migrations` | `string` | Path to migrations directory (relative to package) |
