@@ -45,7 +45,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
           php-version: '8.5'
           coverage: none
@@ -88,7 +88,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
           php-version: '8.5'
           coverage: none
@@ -144,7 +144,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
           php-version: '8.5'
           coverage: none
@@ -190,7 +190,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -209,6 +209,9 @@ jobs:
       - name: Run unit tests
         run: ./vendor/bin/phpunit --testsuite Unit --no-coverage --log-junit build/logs/junit-unit.xml
 
+      - name: Run architecture tests
+        run: ./vendor/bin/phpunit --testsuite Architecture --no-coverage --log-junit build/logs/junit-architecture.xml
+
       # Production cutover invariant (#1985): this runs inside the required
       # ci/unit-tests context, not as an optional standalone job.
       - name: Run blocking fresh-install cutover smoke
@@ -224,6 +227,7 @@ jobs:
           name: test-results
           path: |
             build/logs/junit-unit.xml
+            build/logs/junit-architecture.xml
             build/logs/junit-integration.xml
             build/logs/clover.xml
           retention-days: 30
@@ -237,7 +241,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -264,7 +268,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -298,7 +302,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -347,7 +351,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -383,6 +387,7 @@ jobs:
             echo "::endgroup::"
           }
           run_gate check-phpstan-paths
+          run_gate check-package-layers-pl008-self-test
           run_gate check-distribution-extensions
           run_gate check-symfony-imports
           run_gate check-getquery-bindings
@@ -403,7 +408,7 @@ jobs:
           ref: ${{ inputs.sha }}
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml
@@ -594,7 +599,7 @@ jobs:
         run: bash bin/check-no-secrets
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
           php-version: '8.5'
           extensions: pdo_sqlite, sqlite3, mbstring, xml

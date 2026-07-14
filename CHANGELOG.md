@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **R20 makes CI/release parity fail closed (#1999).** The blocking `ci/unit-tests` context now runs the Architecture suite, `ci/verify-gates` runs the PL008 meta-test, and tag-triggered split fan-out requires a completed successful `ci.yml` run for the exact tagged SHA. All setup-php and GitHub-release action uses are pinned to verified full commit SHAs, and splitsh-lite v1.0.1 is SHA-256 checked before extraction.
 - **R19 dead public surfaces (#1992).** The first-party MCP admin routes are attached to their existing read models; the consumerless search read surface is explicitly parked as `@internal` until an access-checked first-party endpoint adopts it; and the unused migration plugin registry, `SearchIndexJob`, duplicate embedding pipeline, zero-implementation pipeline step contract, and undrained AI pipeline dispatcher are deleted without shims.
 - **Media CAS/versioning is explicitly parked as internal (#1992, #1742; R19).** Version-namespace classes and their API/admin readers are no longer advertised as `@api`. Reactivation requires a boundary test proving real upload bytes survive the production request boundary and are durably persisted to CAS before version rows are exposed. The #1951 early-return guard remains unchanged; this does not finish or activate CAS.
 
