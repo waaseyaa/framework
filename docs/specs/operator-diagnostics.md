@@ -62,6 +62,7 @@ This was revisited (not re-decided) during the WP6 foundation layer-gate scope w
 | `INGESTION_RECENT_FAILURES` | warning | >25% of ingestion attempts rejected |
 | `COLUMN_DATA_STORAGE_DRIFT` | warning | A field registered with `FieldStorage::Data` still has a backing column on the base table or a registered bundle subtable. New writes go to `_data`; the column holds stale values. Author a migration to drop the column or revert the storage hint. |
 | `SCHEMA_DRIFT_CHECK_SKIPPED` | warning | Every registered entity table is lazily uninitialized (none exist yet), so schema drift could not actually be verified for any of them. Distinct from the `DATABASE_SCHEMA_DRIFT` pass state — see "Schema Drift Detection" below. |
+| `CLEAN_URL_ROUTING_UNREACHABLE` | error | With `diagnostics.clean_url_probe_url` configured, the known `/.well-known/waaseyaa/clean-url` route does not return the framework sentinel through the public web server. This catches DirectoryIndex-only deployments where `/` works but clean URLs never reach `public/index.php`. |
 
 ### Code Structure
 
@@ -87,6 +88,7 @@ Each `DiagnosticCode` case provides:
 - **Foreign key enforcement** — SQLite only: checks `PRAGMA foreign_keys`; emits `FK_ENFORCEMENT_DISABLED` when off. Skipped for dialects with default-on enforcement.
 - **Storage directory** — `storage/framework/` existence check
 - **Cache directory** — `storage/framework/` writability check
+- **Clean URL routing** — when `diagnostics.clean_url_probe_url` is non-empty, requests the skeleton's known non-root sentinel route through the public web server. Any connection failure, non-200 response, or missing sentinel is a hard failure with the Apache/nginx/Caddy front-controller remediation.
 
 ### 3. Ingestion Checks
 

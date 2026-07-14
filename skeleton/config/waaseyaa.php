@@ -15,6 +15,12 @@ return [
     // Override with APP_ENV env var. Values: local, dev, development, staging, production.
     'environment' => getenv('APP_ENV') ?: 'production',
 
+    // Operator health probe: verifies a known non-root URL reaches the router.
+    // Leave APP_URL unset only when no public HTTP server is expected to be live.
+    'diagnostics' => [
+        'clean_url_probe_url' => getenv('APP_URL') ?: '',
+    ],
+
     // SQLite database path. Null means "resolve in kernel":
     // WAASEYAA_DB env var -> {projectRoot}/storage/waaseyaa.sqlite fallback.
     // Set an explicit path here to override both.

@@ -12,6 +12,7 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Foundation\Diagnostic\BootDiagnosticReport;
+use Waaseyaa\Foundation\Diagnostic\CleanUrlProbe;
 use Waaseyaa\Foundation\Diagnostic\DiagnosticCode;
 use Waaseyaa\Foundation\Diagnostic\HealthChecker;
 use Waaseyaa\Foundation\Diagnostic\HealthCheckResult;
@@ -93,6 +94,30 @@ final class HealthCheckerTest extends TestCase
         $storageResult = $this->findResult($results, 'Storage directory');
         $this->assertNotNull($storageResult);
         $this->assertSame('warn', $storageResult->status);
+    }
+
+    #[Test]
+    public function runtimeChecksIncludeTheConfiguredCleanUrlProbe(): void
+    {
+        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager->method('getDefinitions')->willReturn([]);
+        $probe = new CleanUrlProbe(
+            'https://example.test',
+            static fn(string $url): array => ['status' => 404, 'body' => 'Not Found'],
+        );
+        $checker = new HealthChecker(
+            bootReport: new BootDiagnosticReport([], [], []),
+            database: $this->database,
+            entityTypeManager: $manager,
+            projectRoot: $this->projectRoot,
+            cleanUrlProbe: $probe,
+        );
+
+        $result = $this->findResult($checker->checkRuntime(), 'Clean URL routing');
+
+        self::assertNotNull($result);
+        self::assertSame('fail', $result->status);
+        self::assertSame(DiagnosticCode::CLEAN_URL_ROUTING_UNREACHABLE, $result->code);
     }
 
     // --- Schema drift checks ---

@@ -804,6 +804,11 @@ abstract class AbstractKernel
     {
         $providers   = $this->providers;
         $projectRoot = $this->projectRoot;
+        $diagnosticsConfig = $this->config['diagnostics'] ?? [];
+        $cleanUrlProbeUrl = is_array($diagnosticsConfig)
+            ? ($diagnosticsConfig['clean_url_probe_url'] ?? '')
+            : '';
+        $cleanUrlProbeUrl = is_string($cleanUrlProbeUrl) ? trim($cleanUrlProbeUrl) : '';
 
         // Explicit kernel-owned bindings: maps abstract id → factory closure.
         // These cover types that are not bound by any service provider but are
@@ -833,6 +838,9 @@ abstract class AbstractKernel
                     entityTypeManager: $c->get(\Waaseyaa\Entity\EntityTypeManagerInterface::class),
                     projectRoot: $projectRoot,
                     logger: $c->get(\Waaseyaa\Foundation\Log\LoggerInterface::class),
+                    cleanUrlProbe: $cleanUrlProbeUrl === ''
+                        ? null
+                        : new \Waaseyaa\Foundation\Diagnostic\CleanUrlProbe($cleanUrlProbeUrl),
                 ),
         ];
 

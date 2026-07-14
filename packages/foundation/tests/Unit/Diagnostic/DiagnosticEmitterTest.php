@@ -38,6 +38,7 @@ final class DiagnosticEmitterTest extends TestCase
             'INGESTION_LOG_OVERSIZED'     => ['INGESTION_LOG_OVERSIZED'],
             'INGESTION_RECENT_FAILURES'   => ['INGESTION_RECENT_FAILURES'],
             'SCHEMA_DRIFT_CHECK_SKIPPED'  => ['SCHEMA_DRIFT_CHECK_SKIPPED'],
+            'CLEAN_URL_ROUTING_UNREACHABLE' => ['CLEAN_URL_ROUTING_UNREACHABLE'],
         ];
     }
 
