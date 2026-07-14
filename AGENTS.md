@@ -6,7 +6,7 @@
 - Every PR adds an appropriate `CHANGELOG.md` `[Unreleased]` entry.
 - Acknowledge reviewed spec drift up front with `spec-reviewed:` commit trailers; the blocking CI spec-drift check reads commit trailers.
 - Respect package layers. Symfony imports use the existing checker allowlist convention; any exception belongs in the explicit allowlist with a one-line rationale.
-- `git stash` is forbidden for all agents and subagents. If a rebase needs a clean tree, commit on a temporary branch. Do not touch the dangling `da4d26758` stash.
+- Run repository Git commands through `bin/git`; it mechanically refuses `git stash` for all agents and subagents. If a rebase needs a clean tree, commit on a temporary branch. Do not touch the dangling `da4d26758` stash.
 - Run the split Unit suite with `php -d memory_limit=1G ./vendor/bin/phpunit --testsuite Unit`; do not run the whole suite as one process.
 - Run local gates under `set -o pipefail`. Local results are advisory; GitHub CI is authoritative.
 - Never merge to `main` while a release split/fan-out is running.
