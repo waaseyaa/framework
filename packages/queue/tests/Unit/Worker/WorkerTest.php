@@ -7,10 +7,12 @@ namespace Waaseyaa\Queue\Tests\Unit\Worker;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Queue\Handler\JobHandler;
 use Waaseyaa\Queue\Storage\InMemoryFailedJobRepository;
 use Waaseyaa\Queue\Tests\Unit\Fixtures\FailingJob;
 use Waaseyaa\Queue\Tests\Unit\Fixtures\SuccessfulJob;
+use Waaseyaa\Queue\Tests\Unit\Fixtures\ThrowingFailureHookJob;
 use Waaseyaa\Queue\Transport\InMemoryTransport;
 use Waaseyaa\Queue\Worker\Worker;
 use Waaseyaa\Queue\Worker\WorkerOptions;
@@ -130,5 +132,28 @@ final class WorkerTest extends TestCase
 
         self::assertSame(0, $processed);
         self::assertSame(3, $this->transport->size('default'));
+    }
+
+    #[Test]
+    public function logsWhenAJobFailureHookThrows(): void
+    {
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects($this->once())
+            ->method('error')
+            ->with(
+                'queue.failure_hook_failed',
+                $this->callback(static fn(array $context): bool => $context['exception'] instanceof \LogicException),
+            );
+        $worker = new Worker(
+            $this->transport,
+            $this->failedRepo,
+            [new JobHandler()],
+            $logger,
+        );
+        $this->transport->push('default', serialize(new ThrowingFailureHookJob()));
+
+        $worker->runNextJob('default', new WorkerOptions());
+
+        self::assertCount(1, $this->failedRepo->all());
     }
 }

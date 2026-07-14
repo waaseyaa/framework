@@ -28,9 +28,9 @@ use Waaseyaa\AI\Agent\Service\AgentRunService;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
+use Waaseyaa\CLI\Command\Ai\AiRunCommand;
 use Waaseyaa\CLI\Command\HandlerArgument;
 use Waaseyaa\CLI\Command\HandlerArgumentMode;
-use Waaseyaa\CLI\Command\Ai\AiRunCommand;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
@@ -178,6 +178,25 @@ final class AiRunCommandWatchTest extends TestCase
         self::assertStringNotContainsString('Watching', $tester->getStdout());
     }
 
+    #[Test]
+    public function repeatedInvocationClearsPriorInterruptState(): void
+    {
+        $tester = $this->makeTester(
+            fakeSseLines: [
+                'event: agent.run.terminated',
+                'data: {"outcome":"success"}',
+                '',
+            ],
+            interrupted: true,
+        );
+
+        $tester->execute(['second invocation', '--watch']);
+
+        self::assertSame(0, $tester->getExitCode(), $tester->getStderr());
+        self::assertStringContainsString('[agent.run.terminated]', $tester->getStdout());
+        self::assertStringNotContainsString('Interrupted', $tester->getStdout());
+    }
+
     // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
@@ -188,10 +207,11 @@ final class AiRunCommandWatchTest extends TestCase
     private function makeTester(
         ?SseLineStreamInterface $sseClient = null,
         ?array $fakeSseLines = null,
+        bool $interrupted = false,
     ): CliTester {
         if ($sseClient === null) {
             $lines = $fakeSseLines ?? [];
-            $sseClient = new class($lines) implements SseLineStreamInterface {
+            $sseClient = new class ($lines) implements SseLineStreamInterface {
                 /** @param list<string> $lines */
                 public function __construct(private readonly array $lines) {}
 
@@ -216,10 +236,14 @@ final class AiRunCommandWatchTest extends TestCase
             sseClient: $sseClient,
             baseUrl: 'http://localhost:8000',
         );
+        if ($interrupted) {
+            $property = new \ReflectionProperty($command, 'interrupted');
+            $property->setValue($command, true);
+        }
 
         return CliTester::for(
             $this->commandDefinition(),
-            new class($command) implements ContainerInterface {
+            new class ($command) implements ContainerInterface {
                 public function __construct(private readonly AiRunCommand $cmd) {}
 
                 public function get(string $id): mixed
@@ -243,17 +267,32 @@ final class AiRunCommandWatchTest extends TestCase
         AgentAuditLogRepository $auditRepo,
     ): AgentRunService {
         $toolRegistry = new class implements ToolRegistryInterface {
-            public function register(AgentTool $tool): void { unset($tool); }
-            public function get(string $name): AgentTool { throw new ToolNotFoundException("no tools: {$name}"); }
-            public function has(string $name): bool { unset($name); return false; }
-            public function all(): iterable { return []; }
+            public function register(AgentTool $tool): void
+            {
+                unset($tool);
+            }
+            public function get(string $name): AgentTool
+            {
+                throw new ToolNotFoundException("no tools: {$name}");
+            }
+            public function has(string $name): bool
+            {
+                unset($name);
+                return false;
+            }
+            public function all(): iterable
+            {
+                return [];
+            }
         };
 
         $executor = new AgentExecutor(
             toolRegistry: $toolRegistry,
             runRepository: $runRepo,
             auditRepository: $auditRepo,
-            sleepMs: static function (int $ms): void { unset($ms); },
+            sleepMs: static function (int $ms): void {
+                unset($ms);
+            },
         );
 
         $registry = new AgentDefinitionRegistry(new PackageManifest());

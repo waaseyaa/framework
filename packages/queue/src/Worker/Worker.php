@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Queue\Worker;
 
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Queue\FailedJobRepositoryInterface;
 use Waaseyaa\Queue\Handler\HandlerInterface;
 use Waaseyaa\Queue\Job;
@@ -20,6 +22,8 @@ final class Worker
 
     private bool $shouldQuit = false;
 
+    private readonly LoggerInterface $logger;
+
     /**
      * @param list<HandlerInterface> $handlers
      */
@@ -27,8 +31,10 @@ final class Worker
         private readonly TransportInterface $transport,
         private readonly FailedJobRepositoryInterface $failedJobRepository,
         array $handlers,
+        ?LoggerInterface $logger = null,
     ) {
         $this->handlers = $handlers;
+        $this->logger = $logger ?? new NullLogger();
     }
 
     /**
@@ -144,13 +150,9 @@ final class Worker
             $this->transport->reject($raw['id']);
 
             if ($message instanceof Job) {
-                try {
-                    $message->failed(new \RuntimeException(
-                        'Job exceeded max attempts after lease expiry/abandonment.',
-                    ));
-                } catch (\Throwable) {
-                    // Best-effort: don't let the failure handler crash the worker.
-                }
+                $this->invokeFailureHook($message, new \RuntimeException(
+                    'Job exceeded max attempts after lease expiry/abandonment.',
+                ));
             }
 
             return;
@@ -196,12 +198,21 @@ final class Worker
             $this->transport->reject($raw['id']);
 
             if ($message instanceof Job) {
-                try {
-                    $message->failed($e);
-                } catch (\Throwable) {
-                    // Best-effort: don't let failure handler crash the worker
-                }
+                $this->invokeFailureHook($message, $e);
             }
+        }
+    }
+
+    private function invokeFailureHook(Job $job, \Throwable $original): void
+    {
+        try {
+            $job->failed($original);
+        } catch (\Throwable $exception) {
+            $this->logger->error('queue.failure_hook_failed', [
+                'job' => $job::class,
+                'original_exception' => $original,
+                'exception' => $exception,
+            ]);
         }
     }
 

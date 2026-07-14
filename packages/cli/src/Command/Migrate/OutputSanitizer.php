@@ -13,10 +13,9 @@ namespace Waaseyaa\CLI\Command\Migrate;
  * dashboards and the paths leak deployment topology. Development output
  * keeps the paths so debugging stays ergonomic.
  *
- * The sanitizer only filters absolute-looking unix paths
- * (`/anything/with/slashes.php` or `/anything/with/slashes/`) ending at
- * a word boundary. It is intentionally conservative: it never rewrites
- * substrings that look like migration ids
+ * The sanitizer filters absolute Unix and Windows paths, including bare
+ * directories. It is intentionally conservative: it never rewrites substrings
+ * that look like migration ids
  * (`waaseyaa/foundation:v2:foo` — colons are not in the path regex) or
  * package names (`waaseyaa/cli` — no slash-then-extension).
  */
@@ -35,11 +34,19 @@ final readonly class OutputSanitizer
             return $message;
         }
 
-        // Match unix absolute paths that look like file references — at
-        // least one slash, ending with a file-like extension or trailing
-        // slash. Avoids touching package names like "waaseyaa/cli".
-        $pattern = '#/[A-Za-z0-9._/\-]+\.(?:php|json|yaml|yml|sql|md)#';
-        $sanitized = preg_replace($pattern, '<path>', $message);
+        // File-shaped paths are replaced first, using their extension as the
+        // boundary so following prose survives. The remaining patterns cover
+        // bare directories up to a diagnostic delimiter or end-of-message.
+        // Spaces are accepted because production paths commonly contain them.
+        $patterns = [
+            '#file:///(?:[A-Za-z0-9._%\-]+(?: [A-Za-z0-9._%\-]+)*/)*[A-Za-z0-9._%\-]+(?: [A-Za-z0-9._%\-]+)*\.[A-Za-z0-9]{1,12}#i',
+            '#(?<![A-Za-z0-9._:/\-])(?:/|[A-Za-z]:\\\\|\\\\\\\\)(?:[A-Za-z0-9._\-]+(?: [A-Za-z0-9._\-]+)*[\\\\/])*[A-Za-z0-9._\-]+(?: [A-Za-z0-9._\-]+)*\.[A-Za-z0-9]{1,12}#',
+            '#file:///[^;\r\n,)\]"]+?(?=$|[;,)\]"])#i',
+            '#(?<![A-Za-z0-9])\\\\\\\\[^;\r\n,)\]"]+?(?=$|[;,)\]"])#',
+            '#(?<![A-Za-z0-9])[A-Za-z]:\\\\[^;\r\n,)\]"]+?(?=$|[;,)\]"])#',
+            '#(?<![A-Za-z0-9._:/\-])/(?!/)[^;\r\n,)\]"]+?(?=$|[;,)\]"])#',
+        ];
+        $sanitized = preg_replace($patterns, '<path>', $message);
 
         return $sanitized ?? $message;
     }

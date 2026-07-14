@@ -83,19 +83,29 @@ final class RelationshipEndpointVisibilityPolicyTest extends TestCase
     }
 
     #[Test]
-    public function never_opines_at_the_entity_level(): void
+    public function entity_view_is_forbidden_when_both_endpoints_are_hidden(): void
     {
-        [$policy] = $this->policy();
+        [$policy, $handler] = $this->policy(endpointLoader: fn(string $id) => $this->createMock(\Waaseyaa\Entity\EntityInterface::class));
+        $handler->method('check')->willReturn(AccessResult::forbidden('hidden'));
         $account = new ArrayAccount(0, ['access content']);
         $edge = $this->edge();
 
-        foreach (['view', 'update', 'delete'] as $operation) {
-            self::assertTrue(
-                $policy->access($edge, $operation, $account)->isNeutral(),
-                "access() must stay neutral for '$operation' — entity-level view/update/delete stays owned by RelationshipAccessPolicy.",
-            );
-        }
+        self::assertTrue($policy->access($edge, 'view', $account)->isForbidden());
+        self::assertTrue($policy->access($edge, 'update', $account)->isNeutral());
+        self::assertTrue($policy->access($edge, 'delete', $account)->isNeutral());
         self::assertTrue($policy->createAccess('relationship', 'default', $account)->isNeutral());
+    }
+
+    #[Test]
+    public function entity_view_stays_neutral_when_an_endpoint_is_viewable(): void
+    {
+        [$policy, $handler] = $this->policy(endpointLoader: fn(string $id) => $this->createMock(\Waaseyaa\Entity\EntityInterface::class));
+        $handler->method('check')->willReturnOnConsecutiveCalls(
+            AccessResult::allowed('visible'),
+            AccessResult::forbidden('hidden'),
+        );
+
+        self::assertTrue($policy->access($this->edge(), 'view', new ArrayAccount(0, ['access content']))->isNeutral());
     }
 
     #[Test]
