@@ -19,7 +19,7 @@ Four capabilities shipping in priority order, distributed across the layer archi
 | Rich Error Pages | `packages/error-handler/` | 0 | **New** |
 | Debug Toolbar & Dump | `packages/debug/` | 6 | **New** |
 
-Dependencies flow downward only. `error-handler` depends on Foundation. `debug` depends on Foundation and reads from Telescope collectors.
+Dependencies flow downward only. `error-handler` and `debug` depend on Foundation. The former Telescope collector integration was deleted in R19 (#1992) because it had no production reader.
 
 ## 1. Environment & Config
 
@@ -162,7 +162,7 @@ Configurable via `EDITOR` env var (default: `phpstorm`).
 
 ## 4. Debug Toolbar & Dump (`packages/debug/`)
 
-New package at Layer 6 (Interfaces). Depends on Foundation, reads from Telescope collectors.
+Package at Layer 6 (Interfaces). Depends on Foundation and exposes request-local debug data.
 
 ### Toolbar (`DebugToolbarMiddleware`)
 
@@ -175,7 +175,7 @@ New package at Layer 6 (Interfaces). Depends on Foundation, reads from Telescope
 | Panel | Content |
 |---|---|
 | Response | Status code + timing (ms) |
-| Queries | Count + total query time (from Telescope query recorder) |
+| Queries | Not collected by the shipped debug package |
 | Route | Matched route name + pattern |
 | Memory | Peak memory usage |
 | Logs | Message count, errors highlighted |
@@ -191,7 +191,7 @@ Active when `APP_DEBUG=true`. Applies to **all** responses (HTML and JSON:API).
 | `X-Debug-Time` | `42ms` | Request duration |
 | `X-Debug-Queries` | `7` | Query count |
 | `X-Debug-Memory` | `4.2MB` | Peak memory |
-| `X-Debug-Request-Id` | `abc123` | Links to Telescope entry |
+| `X-Debug-Request-Id` | `abc123` | Correlates request-local debug output |
 
 SPA devtools and `curl` users get useful signals without a toolbar.
 
@@ -205,7 +205,7 @@ Global helper functions integrating `symfony/var-dumper` (Composer dependency of
 |---|---|
 | CLI | Styled terminal output (VarDumper CLI formatter) |
 | HTML response with toolbar | Captured in "Dumps" toolbar panel |
-| API/JSON response | `error_log()` + Telescope entry (no response pollution) |
+| API/JSON response | `error_log()` (no response pollution) |
 
 `dd()` dumps then exits. `dump()` continues execution.
 
@@ -249,7 +249,7 @@ No other new external dependencies. Error pages, toolbar, and logging are all bu
 
 - **Executable solutions** — Solutions are informational only. No auto-running code from error pages.
 - **Monolog** — Waaseyaa's existing `LoggerInterface` is extended, not replaced. Monolog is unnecessary overhead for the channel/handler model.
-- **Vue debug panel** — SPA debugging uses `X-Debug-*` headers + Telescope. A dedicated Vue component is future scope.
+- **Vue debug panel** — SPA debugging uses `X-Debug-*` headers. A dedicated Vue component is future scope.
 - **Dump server** — Trap/Buggregator integration is architecturally supported but not in v1.
 - **Xdebug/Blackfire integration** — Those work independently via PHP extensions. No framework coupling needed.
 

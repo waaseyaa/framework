@@ -100,7 +100,6 @@ The following matrix enumerates every entity, query, and mutation exposed by `pa
 | Queue — jobs (list/retry/discard) | `GET\|POST /api/queue/jobs[/{id}/retry\|discard]` | not exposed | JSON:API only | — |
 | Scheduler — tasks (list/trigger) | `GET\|POST /api/scheduler/tasks[/{name}/trigger]` | not exposed | JSON:API only | — |
 | Notification — channels (list/test) | `GET\|POST /api/notification/channels[/{channel}/test]` | not exposed | JSON:API only | — |
-| Telescope agent-context / codified-context sessions | `GET /api/telescope/…` | not exposed | JSON:API only | — |
 | Mercure monitor — channels/events/subscribers | `GET /api/mercure/…` | not exposed | JSON:API only | — |
 | Audit events — list | `GET /api/audit/events` | not exposed | JSON:API only | — |
 | OIDC clients — CRUD + secret regeneration | `GET\|POST\|PATCH\|DELETE /api/oidc-clients[/{id}]` | not exposed | JSON:API only | — |

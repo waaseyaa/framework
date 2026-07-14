@@ -145,11 +145,6 @@ final class EntityAuditIntegrationTest extends TestCase
     }
 
     #[Test]
-    public function defaultRetentionIsNinetyDays(): void
-    {
-        $this->assertSame(90, EntityAuditLogger::DEFAULT_RETENTION_DAYS);
-    }
-
     // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------

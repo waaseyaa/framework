@@ -4571,7 +4571,6 @@
                         "Waaseyaa\\CLI\\Provider\\QueueServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\SchedulePerfServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\IngestSearchSemanticServiceProvider",
-                        "Waaseyaa\\CLI\\Provider\\TelescopeServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\UserPermissionServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\ConfigCacheDbAuditServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\MiscAServiceProvider",
@@ -6685,11 +6684,7 @@
                 "reference": "2793430291845a2f127c1a6e115fc53e76a7d7c8"
             },
             "require": {
-                "php": ">=8.5",
-                "waaseyaa/api": "^0.1.0-alpha.236"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "php": ">=8.5"
             },
             "type": "library",
             "extra": {
@@ -6697,21 +6692,7 @@
                     "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
                 },
-                "waaseyaa": {
-                    "providers": [
-                        "Waaseyaa\\Telescope\\TelescopeServiceProvider"
-                    ]
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Waaseyaa\\Telescope\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Waaseyaa\\Telescope\\Tests\\": "tests/"
-                }
+                "waaseyaa": []
             },
             "license": [
                 "GPL-2.0-or-later"

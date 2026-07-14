@@ -38,7 +38,6 @@ final class RequireParityTest extends TestCase
         'foundation/src/Diagnostic/HealthChecker.php',
         'foundation/src/Diagnostic/BootDiagnosticReport.php',
         'foundation/src/Http/Router/BroadcastRouter.php',
-        'foundation/src/Http/Router/CodifiedContextApiRouter.php',
         'foundation/src/Http/Router/EntityTypeLifecycleRouter.php',
         'foundation/src/Http/Router/JsonApiRouter.php',
         'foundation/src/Http/Router/SchemaRouter.php',

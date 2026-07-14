@@ -2,8 +2,6 @@
 
 **Layer 6 — Interfaces**
 
-Request inspection and observability dashboard for Waaseyaa applications.
+Reserved package name; no runtime implementation is shipped.
 
-Telescope captures HTTP requests, responses, database queries, cache operations, and queue jobs for local development debugging. Rendered as an SSR Twig page at `/_telescope`. See `docs/specs/` for the context observability integration spec.
-
-Key classes: `TelescopeRecorder`, `TelescopeServiceProvider`.
+The previous Telescope implementation was deleted in R19 (#1992). It recorded request/query/cache data into an in-process or raw-PDO store with no production reader, while its CLI and agent-context UI were never connected to that store. The package name remains reserved so the monorepo split does not silently transfer it to another implementation.

@@ -25,7 +25,6 @@
 <!-- Spec reviewed 2026-05-24 - M4B WP02 (#1471) admin scheduler dashboard at /scheduler: new SchedulerController + SchedulerAdminApiRouter, both gated by `_role: admin` via BuiltinRouteRegistrar. `GET /api/scheduler/tasks` returns `{data: [{name, description, expression, timezone, last_run_at, last_status, next_run_at}, ...]}` — `last_run_at`/`last_status` are nullable (no row in `waaseyaa_schedule_state` yet), `next_run_at` always set. `POST /api/scheduler/tasks/{name}/trigger` calls `ScheduleRunner::runOne()` (new public method that bypasses the cron check, honours the overlap lock, and records run state); 200 with `{status, message, exception_class?}` on success/failure, 404 on unknown task. `ScheduleRunResult` extended with optional `status`/`message`/`exceptionClass` fields so the controller never serialises a `\Throwable` (FR-010). `SchedulerServiceProvider` now binds `ScheduleStateRepository` as a container singleton (database driver only) so the L4 API provider can `resolveOptional()` it. M4B WP01 admin queue routes (landed 2026-05-23) likewise admin-only: `GET /api/queue/jobs` (paginated failed jobs), `POST /api/queue/jobs/{id}/retry`, `POST /api/queue/jobs/{id}/discard`. SPA route inventory under the always-present "Operations" sidebar section: `/queue` (failed jobs) and `/scheduler` (scheduled tasks) — both Nuxt pages at top-level paths, no `/admin/` prefix (matches the existing /workflows, /telescope convention). New i18n keys: scheduler_title, scheduler_empty, scheduler_column_*, scheduler_action_trigger, scheduler_confirm_trigger_*, scheduler_status_*. New composable useScheduledTasks, new component SchedulerTaskRow, new page pages/scheduler/index.vue. NavBuilder test asserts the /scheduler link renders alongside /queue under the Operations heading even with an empty catalog. -->
 <!-- Spec reviewed 2026-05-20 - SSE history-replay defense: BroadcastMessage interface in composables/useRealtime.ts now matches what the server actually emits (id: number, created_at: number) — the never-emitted `timestamp` field was removed. SchemaList watch(messages, …) now skips any event whose created_at predates the component's setup-time mountedAtSec; a defensive second line if the server-side cursor ever regresses to history replay. SchemaList's realtimeEnabled check hardened to String(config.public.enableRealtime) === '1' since Nuxt's runtime-config serializer coerces digit-string env vars to numbers, which silently disabled SSE in some builds. Public admin surface contract unchanged. -->
 <!-- Spec reviewed 2026-05-20 - local-dev hardening: bump Nuxt 4.4.4 → 4.4.6 (latest 4.4.x patch); add vite.optimizeDeps.include for @vue/devtools-core and @vue/devtools-kit so Vite pre-bundles them at startup rather than discovering them mid-request and restarting the dev server (which kills the vite-node IPC socket and surfaces as "Vite Node IPC socket path not configured" 500 on the first /admin/ request). No runtime behaviour, public contract, or admin surface API change. -->
-<!-- Spec reviewed 2026-05-11 - M4A-4 dry-run UI: new TransitionDryRunForm component on /admin/workflows/[id] (third section below transitions matrix); dryRun() method added to useWorkflowDefinitions composable (POST /api/workflow-definitions/dry-run); 18 new i18n keys in en/fr; result rendered inline with allowed/forbidden/neutral states using brand CSS tokens. -->
 <!-- Spec reviewed 2026-05-11 - M4A-3 (#1432 / umbrella #1414) per-entity transition-history widget on entity detail pages: new <WorkflowTransitionHistoryTimeline /> component reads `workflow_audit` from the entity's attributes (already surfaced by ResourceSerializer via _data JSON blob round-trip — no backend change), renders reverse-chronological timeline with transition chip / from→to states / uid / timestamp. Wired into pages/[entityType]/[id].vue below SchemaView/SchemaForm. Renders nothing when audit empty. 4 new i18n strings; M4A-4/5 deferred -->
 <!-- Spec reviewed 2026-05-11 - M4A-2 (#1430 / umbrella #1414) workflow detail page at /admin/workflows/[id]: states grid (id/label/weight/metadata) + transitions matrix (from×to grid with cell-level transition listing); new findById helper on useWorkflowDefinitions; WorkflowState TS interface gains `metadata: Record<string, unknown>`; backend serializer extended to include `metadata` per state (3-line additive change in WorkflowDefinitionsController); 10 new i18n strings; closes C-L3-01 detail-view portion; M4A-3/4/5 still deferred -->
 <!-- Spec reviewed 2026-05-11 - M4A-1 (#1428 / umbrella #1414) workflows list page: new GET /api/workflow-definitions endpoint (admin-role-gated, returns `{data: WorkflowDefinition[]}` shape) wired via WorkflowDefinitionsController (packages/api/src/Workflow/) + WorkflowDefinitionsApiRouter (kernel-adjacent, exempted in bin/check-package-layers); new useWorkflowDefinitions composable + /admin/workflows page list editorial workflow with state/transition counts; api/composer.json now requires waaseyaa/workflows; 7 new i18n strings; closes C-L3-01 list-view portion; detail page / history / dry-run / guard editing deferred to M4A-2..M4A-5 -->
@@ -40,7 +39,6 @@
 <!-- Spec reviewed 2026-05-10 - Nuxt 4.4.5 dev-server regression (#1419): pinned `"nuxt": "4.4.4"` exact in packages/admin/package.json; Tech Stack table version unchanged; rationale and unpin condition in CHANGELOG -->
 <!-- Spec reviewed 2026-05-10 - M1B (#1411) @nuxt/eslint adoption: nuxt.config.ts gains modules and eslint config; new packages/admin/eslint.config.mjs imports `.nuxt/eslint.config.mjs`; lint/lint:fix scripts wired; @typescript-eslint/no-explicit-any et al. set to warn (61 deferred baseline warnings); admin contracts unchanged -->
 <!-- Spec reviewed 2026-05-10 - M1A (#1411) dep bumps: Tech Stack table refreshed to nuxt ^4.4.4, vue ^3.5.34, vue-router ^5.0.6, typescript ^6.0.3, @types/node ^25.6.2; admin contracts unchanged -->
-<!-- Spec reviewed 2026-04-24 - useCodifiedContext + E2E: `/api/telescope/agent-context/…` (legacy HTTP alias on server); Nuxt routes still `/telescope/codified-context/*`; cross-link telescope-agent-context-telemetry.md -->
 <!-- Spec reviewed 2026-04-21 - IngestSummaryWidget: NC sync status from `/api/staff/nc-sync-status`; dashboard link `/staff/ingestion` (staff surface, not admin SPA catch-all) -->
 <!-- Spec reviewed 2026-04-08 - normalizeAppBaseURL (ufo cleanDoubleSlashes + joinURL): shared by admin plugin and auth.global so adminPathBase matches normalized base; surface $fetch uses joinURL paths; packages/admin/app/runtime/normalizeAppBaseURL.ts -->
 <!-- Spec reviewed 2026-04-08 - Admin fetch baseURL: useRuntimeConfig().app.baseURL (trailing slash) for $fetch/apiFetch and auth.global navigateTo; plugins/admin tests stub app.baseURL (#814); ufo joinURL for path joins -->
@@ -538,7 +536,6 @@ Key categories:
 - Entity type labels: `entity_type_user`, `entity_type_node`, `entity_type_node_type`, `entity_type_taxonomy_term`, etc.
 - Field labels: `field_title`, `field_machine_name`, `field_published`, `field_description`, `field_weight`, `field_email`, etc.
 - Parameterized: `create_entity`, `edit_entity` (with `{type}` token)
-- Telescope: `telescope_codified_context`, `telescope_cc_sessions`, `telescope_cc_drift_score`, etc. Session telemetry API calls use **`/api/telescope/agent-context/…`** (`useCodifiedContext.ts`); see **`docs/specs/telescope-agent-context-telemetry.md`**.
 
 Token replacement pattern: `t('key', { token: 'value' })` replaces `{token}` in the string.
 
@@ -573,11 +570,6 @@ packages/admin/app/
       HiddenField.vue              # Renders nothing (excluded from editable forms)
       MachineNameInput.vue         # Machine-readable name generator from label
       FileUpload.vue               # File upload input
-    telescope/
-      ContextHeatmap.vue           # Heatmap visualization of codified context events
-      DriftScoreChart.vue          # Drift score indicator (0–100 with color intensity)
-      EventStreamViewer.vue        # Expandable event log with collapsible rows
-      ValidationReportCard.vue     # Validation report display with severity styling
     auth/
       LoginForm.vue                # Username/password form with error/loading props
       RegisterForm.vue             # Name/email/password/confirm form
@@ -596,7 +588,6 @@ packages/admin/app/
   composables/
     useAdmin.ts                    # Admin panel context & utilities
     useAuth.ts                     # Authentication state & login/logout
-    useCodifiedContext.ts          # Codified context session/event tracking
     useEntity.ts                   # JSON:API CRUD + search
     useSchema.ts                   # Schema fetch/cache/sort
     useLanguage.ts                 # i18n
@@ -893,7 +884,6 @@ Real-time SSE monitor for the Mercure broadcasting layer (gap-matrix C-L0-04, mi
 | `packages/admin/app/layouts/default.vue` | Default layout (AdminShell wrapper) |
 | `packages/admin/app/composables/useAdmin.ts` | Admin panel context & utilities |
 | `packages/admin/app/composables/useAuth.ts` | Authentication state & login/logout |
-| `packages/admin/app/composables/useCodifiedContext.ts` | Codified context session/event tracking |
 | `packages/admin/app/composables/useEntity.ts` | JSON:API CRUD composable |
 | `packages/admin/app/composables/useSchema.ts` | Schema fetching and caching |
 | `packages/admin/app/composables/useLanguage.ts` | i18n composable |

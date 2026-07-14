@@ -573,7 +573,6 @@ to satisfy this budget on SQLite and MySQL/PostgreSQL.
 ## Cross-References
 
 - `docs/specs/api-layer.md` — JSON:API endpoint patterns, router shape.
-- `docs/specs/codified-context-integration.md` §"OCAP Audit Log Read-Contract Pattern" — L0↔L4 adapter pattern.
 - `docs/specs/access-control.md` — `_role: admin` route option, `AccessChecker`.
 - `packages/audit/src/AuditServiceProvider.php` — container bindings.
 - `packages/api/src/ApiServiceProvider.php` — L4 binding + `resolveOptional` wiring.

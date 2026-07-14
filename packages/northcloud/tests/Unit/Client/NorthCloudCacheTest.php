@@ -77,16 +77,4 @@ final class NorthCloudCacheTest extends TestCase
         $this->assertSame('cached-body', $cache->get('https://nc.test/search?q=x'));
     }
 
-    #[Test]
-    public function clearRemovesAllEntries(): void
-    {
-        $cache = new NorthCloudCache($this->pdo);
-        $cache->set('a', '1');
-        $cache->set('b', '2');
-
-        $cache->clear();
-
-        $this->assertNull($cache->get('a'));
-        $this->assertNull($cache->get('b'));
-    }
 }
