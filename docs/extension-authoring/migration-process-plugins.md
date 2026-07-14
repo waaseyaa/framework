@@ -19,9 +19,10 @@ value into one destination value during a migration run. Each entry in a
 `MigrationDefinition::$process` map names a destination field; the value names
 the plugin (or chain of plugins) that produces the destination value.
 
-The framework ships six built-in process plugins
+The framework ships seven built-in process plugins
 (`PassThroughProcessor`, `HtmlSanitizeProcessor`, `LookupProcessor`,
-`ConcatProcessor`, `TypeCoerceProcessor`, `DefaultValueProcessor`). Custom
+`ConcatProcessor`, `TypeCoerceProcessor`, `DefaultValueProcessor`,
+`PartitionedLookupProcessor`). Custom
 process plugins extend this set — examples: `WordPressShortcodeStrip`,
 `MarkdownToHtml`, `SlugifyTitle`, `ResolveAuthorByEmail`.
 
@@ -45,7 +46,7 @@ interface ProcessPluginInterface
 `id()` returns a stable identifier for the plugin. Format:
 `/^[a-z][a-z0-9_]*$/`.
 
-The framework **reserves** six ids — see
+The framework **reserves** seven ids — see
 `Waaseyaa\Migration\Plugin\ReservedPluginIds`:
 
 | Reserved id | Concrete class |
@@ -56,6 +57,7 @@ The framework **reserves** six ids — see
 | `concat` | `ConcatProcessor` |
 | `type_coerce` | `TypeCoerceProcessor` |
 | `default_value` | `DefaultValueProcessor` |
+| `partitioned_lookup` | `PartitionedLookupProcessor` |
 
 App-defined process plugins MUST use a non-reserved id. Recommended naming
 convention: `<vendor>_<purpose>` (e.g. `wordpress_shortcode_strip`,

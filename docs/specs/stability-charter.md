@@ -561,6 +561,9 @@ Per [ADR 012a](../adr/012a-migration-substrate-in-core.md). Delivered by mission
 - `Waaseyaa\Migration\Plugin\Destination\EntityDestination` — default destination; writes through the entity-storage coordinator (ADR 010).
 - `Waaseyaa\Migration\Plugin\Destination\EntityDestinationFactory` — factory binding entity type + bundle.
 
+*Source composition:*
+- `Waaseyaa\Migration\Plugin\Source\FilteredSource` — lazy fixed-bundle source decorator that preserves wrapped-source identity semantics.
+
 *Reserved process plugins (framework-owned ids):*
 - `Waaseyaa\Migration\Plugin\Process\PassThroughProcessor` (`pass_through`).
 - `Waaseyaa\Migration\Plugin\Process\HtmlSanitizeProcessor` (`html_sanitize`).
@@ -568,11 +571,13 @@ Per [ADR 012a](../adr/012a-migration-substrate-in-core.md). Delivered by mission
 - `Waaseyaa\Migration\Plugin\Process\ConcatProcessor` (`concat`).
 - `Waaseyaa\Migration\Plugin\Process\TypeCoerceProcessor` (`type_coerce`).
 - `Waaseyaa\Migration\Plugin\Process\DefaultValueProcessor` (`default_value`).
+- `Waaseyaa\Migration\Plugin\Process\PartitionedLookupProcessor` (`partitioned_lookup`).
 
 Reserved-id list canonicalised in `Waaseyaa\Migration\Plugin\ReservedPluginIds`. App-defined process plugins MUST use a non-reserved id; convention `<vendor>_<purpose>`.
 
 *Schema:*
 - `migration_id_map` table layout — frozen stable surface. Future column changes require a charter amendment and a data migration of every existing row. Source-of-truth descriptor: `Waaseyaa\Migration\Schema\MigrationIdMapSchema`.
+- `Waaseyaa\Migration\MigrationIdMap::lookupDestination()` and `lookupDestinationAcross()` — read-only id-map access for source-reader composition; all mutation and traversal methods remain mission-internal.
 
 *Exception types:*
 - `Waaseyaa\Migration\Exception\MigrationCycleException`
@@ -610,7 +615,7 @@ Exit codes: `0` success, `1` generic failure, `2` lock held by another process.
 - `Waaseyaa\Migration\Runner\MigrationRunner` and all classes under `Waaseyaa\Migration\Runner\` (`MigrationLock`, `ProcessChainExecutor`, `RollbackWalker`, `RecordError`, `RollbackError`, `RollbackReport`, `RunOptions`, `RunReport`).
 - `storage/migration-locks/<id>.lock` file format (flock-based; lock-file presence is operator-visible but the format is not a published contract).
 - `Waaseyaa\Migration\Discovery\PluginRegistry`, `MigrationRegistry`, `CycleDetector`, `DependencyGraph`, `FilesystemManifestLoader` (boot-time discovery internals).
-- `Waaseyaa\Migration\MigrationIdMap` PHP gateway class (the **table** is stable; the PHP accessor is mission-internal — apps consult the table through `DestinationPluginInterface::lookup()`).
+- `Waaseyaa\Migration\MigrationIdMap` mutation, deletion, transaction, count, and reverse-walk methods. Only the two read-only lookup methods named above are stable source-reader composition seams.
 - `Waaseyaa\Migration\Canonical\CanonicalForm` (helper backing `SourceId::hash()`; behaviour is stable transitively, but the class is not a public extension point).
 
 **Operator-visible but not contractual:**

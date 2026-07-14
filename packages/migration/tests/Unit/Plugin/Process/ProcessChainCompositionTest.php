@@ -20,7 +20,7 @@ use Waaseyaa\Migration\Plugin\WriteResult;
 use Waaseyaa\Migration\SourceId;
 
 /**
- * Verifies chain semantics for the six framework-reserved process plugins.
+ * Verifies chain semantics for the original scalar framework process plugins.
  *
  * The migration runner (landing in WP06) threads the output of plugin N into
  * the `$value` argument of plugin N+1, reusing the same {@see ProcessContext}.

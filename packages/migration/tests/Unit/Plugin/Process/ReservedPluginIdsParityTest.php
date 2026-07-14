@@ -12,11 +12,12 @@ use Waaseyaa\Migration\Plugin\Process\DefaultValueProcessor;
 use Waaseyaa\Migration\Plugin\Process\HtmlSanitizeProcessor;
 use Waaseyaa\Migration\Plugin\Process\LookupProcessor;
 use Waaseyaa\Migration\Plugin\Process\PassThroughProcessor;
+use Waaseyaa\Migration\Plugin\Process\PartitionedLookupProcessor;
 use Waaseyaa\Migration\Plugin\Process\TypeCoerceProcessor;
 use Waaseyaa\Migration\Plugin\ReservedPluginIds;
 
 /**
- * Drift guard: asserts that the set of ids returned by the six shipped
+ * Drift guard: asserts that the set of ids returned by the shipped
  * framework-reserved processors equals {@see ReservedPluginIds::ALL}.
  *
  * If a future WP adds a seventh processor, or renames one, this test breaks
@@ -38,6 +39,7 @@ final class ReservedPluginIdsParityTest extends TestCase
             (new ConcatProcessor([]))->id(),
             (new TypeCoerceProcessor('string'))->id(),
             (new DefaultValueProcessor(null))->id(),
+            $this->partitionedLookup()->id(),
         ];
 
         $shippedSorted = $shipped;
@@ -63,6 +65,7 @@ final class ReservedPluginIdsParityTest extends TestCase
             (new ConcatProcessor([]))->id(),
             (new TypeCoerceProcessor('string'))->id(),
             (new DefaultValueProcessor(null))->id(),
+            $this->partitionedLookup()->id(),
         ];
 
         foreach ($ids as $id) {
@@ -82,5 +85,15 @@ final class ReservedPluginIdsParityTest extends TestCase
         self::assertSame('stable', (new ConcatProcessor([]))->stability());
         self::assertSame('stable', (new TypeCoerceProcessor('string'))->stability());
         self::assertSame('stable', (new DefaultValueProcessor(null))->stability());
+        self::assertSame('stable', $this->partitionedLookup()->stability());
+    }
+
+    private function partitionedLookup(): PartitionedLookupProcessor
+    {
+        return new PartitionedLookupProcessor(
+            'items',
+            static fn (): string => 'partition',
+            static fn (): \Waaseyaa\Migration\SourceId => new \Waaseyaa\Migration\SourceId('source', ['id' => '1']),
+        );
     }
 }

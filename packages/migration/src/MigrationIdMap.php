@@ -123,6 +123,34 @@ final class MigrationIdMap
     }
 
     /**
+     * Look up one source identity across ordered migration partitions.
+     *
+     * Fixed-bundle imports write one id-map partition per bundle. Consumers
+     * that do not run inside a process chain (for example media URL resolvers)
+     * can use this method to address the split as one logical source. The
+     * first matching partition wins; a miss across all partitions is null.
+     *
+     * @param list<string> $migrationIds Ordered migration ids to consult.
+     *
+     * @api
+     */
+    public function lookupDestinationAcross(array $migrationIds, SourceId $sourceId): ?WriteResult
+    {
+        foreach ($migrationIds as $migrationId) {
+            if ($migrationId === '') {
+                throw new \InvalidArgumentException('MigrationIdMap::lookupDestinationAcross(): every migration id must be a non-empty string.');
+            }
+
+            $result = $this->lookupDestination($migrationId, $sourceId);
+            if ($result !== null) {
+                return $result;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Insert-or-update the id-map row keyed by `(migration_id, source_id_hash)`.
      *
      * Returns the {@see WriteResult} reflecting the new row state. Whether
