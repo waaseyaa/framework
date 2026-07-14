@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.261] - 2026-07-14
+
 ### Added
 
 - **Fixed-bundle migrations now compose split source and id-map partitions without site adapter classes (#1981, G-032).** The migration package adds the format-neutral `FilteredSource` decorator, `PartitionedLookupProcessor` for mixed reference lists, and ordered `MigrationIdMap::lookupDestinationAcross()` for non-process consumers such as media URL resolvers. A fresh-install boundary test applies the real package migrations and runs category/tag plus image/document definitions through `MigrationRunner`, `EntityDestination`, the real access gate, and least-privilege per-bundle system accounts.
