@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - **The debug provider's fail-closed production gate now has regression coverage (#2020).** Malformed `APP_DEBUG` values register neither debug middleware nor preview routes, while an absent environment value may still use explicit server-side configuration.
+### Changed
+
+- **North Cloud mapper documentation now names its external-content trust boundary (#2020).** Consumer mappers must sanitize HTML according to each destination field's markup contract before returning values for persistence.
+### Fixed
+
+- **AI telemetry boot failures are observable (#2020).** Best-effort agent telemetry wiring now warns through the framework logger when dispatcher or repository resolution fails instead of silently disabling the pipeline. The retired duplicate trace-pricing table remains removed, leaving the live `ModelPriceTable` as the sole pricing catalogue.
+- **OIDC route wiring no longer turns controller construction failures into silent 404s (#2020).** Routing logs each skipped OIDC controller and its resolution exception while preserving the optional-route fail-open behavior.
 
 ## [0.1.0-alpha.264] - 2026-07-14
 
