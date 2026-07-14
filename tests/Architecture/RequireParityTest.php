@@ -196,7 +196,7 @@ final class RequireParityTest extends TestCase
             'foundation' => 0, 'cache' => 0, 'plugin' => 0, 'typed-data' => 0, 'database-legacy' => 0,
             'i18n' => 0, 'queue' => 0, 'scheduler' => 0, 'state' => 0, 'validation' => 0, 'mail' => 0,
             'http-client' => 0, 'ingestion' => 0, 'error-handler' => 0, 'geo' => 0, 'mercure' => 0,
-            'analytics' => 0, 'oauth-provider' => 0, 'agent-output' => 0, 'page-builder' => 0,
+            'analytics' => 0, 'oauth-provider' => 0,
             'entity' => 1, 'entity-storage' => 1, 'access' => 1, 'audit' => 1, 'user' => 1, 'config' => 1,
             'field' => 1, 'auth' => 1, 'testing' => 1, 'oidc' => 1,
             'attachment' => 2, 'node' => 2, 'taxonomy' => 2, 'media' => 2, 'path' => 2, 'menu' => 2,

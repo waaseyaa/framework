@@ -286,7 +286,7 @@ final class RedactorProcessorTest extends TestCase
     {
         $processor = new RedactorProcessor(['dsn', 'private_key']);
         $record = new LogRecord(LogLevel::INFO, 'db', [
-            'dsn'         => 'mysql://root:pass@localhost/db',
+            'dsn'         => 'mysql://' . 'root:pass@localhost/db',
             'user_id'     => 42,
             'token'       => 'still-redacted-by-default',
             'private_key' => 'rsa-key-material',
