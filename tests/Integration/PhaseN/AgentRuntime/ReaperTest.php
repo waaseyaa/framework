@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Waaseyaa\AI\Agent\Broadcast\AgentRunBroadcasterInterface;
 use Waaseyaa\AI\Agent\Entity\AgentAuditLog;
 use Waaseyaa\AI\Agent\Entity\AgentRun;
 use Waaseyaa\AI\Agent\Enum\EventType;
@@ -67,7 +68,7 @@ final class ReaperTest extends TestCase
         $this->seedRunningRun('run-stuck', startedSecondsAgo: 700);
         $this->seedRunningRun('run-fresh', startedSecondsAgo: 60);
 
-        $broadcaster = new CapturingBroadcaster();
+        $broadcaster = new ReaperCapturingBroadcaster();
         $reaper = new StalledRunReaper(
             runRepository: $this->runRepository,
             auditRepository: $this->auditRepository,
@@ -107,7 +108,7 @@ final class ReaperTest extends TestCase
         $finished = new \DateTimeImmutable('2026-05-18T12:00:00+00:00');
         self::assertTrue($this->runRepository->markTerminal('run-raced', RunStatus::Completed, $finished));
 
-        $broadcaster = new CapturingBroadcaster();
+        $broadcaster = new ReaperCapturingBroadcaster();
         $reaper = new StalledRunReaper(
             runRepository: $this->runRepository,
             auditRepository: $this->auditRepository,
@@ -125,15 +126,44 @@ final class ReaperTest extends TestCase
         self::assertNull($reloaded->get('error_code'));
     }
 
+    #[Test]
+    public function reapTerminalizesAbandonedQueuedApprovalAndCancellationRows(): void
+    {
+        $this->seedRun('run-queued', RunStatus::Queued, ageSeconds: 700);
+        $this->seedRun('run-approval', RunStatus::AwaitingApproval, ageSeconds: 700);
+        $this->seedRun('run-cancelling', RunStatus::Cancelling, ageSeconds: 700);
+        $this->seedRun('run-fresh-queued', RunStatus::Queued, ageSeconds: 60);
+
+        $reaper = new StalledRunReaper(
+            runRepository: $this->runRepository,
+            auditRepository: $this->auditRepository,
+            broadcaster: new ReaperCapturingBroadcaster(),
+        );
+
+        self::assertSame(3, $reaper->reap(maxRuntimeSeconds: 600));
+        self::assertSame(RunStatus::Failed, $this->runRepository->find('run-queued')?->getStatus());
+        self::assertSame('queue_timeout', $this->runRepository->find('run-queued')?->get('error_code'));
+        self::assertSame(RunStatus::Failed, $this->runRepository->find('run-approval')?->getStatus());
+        self::assertSame('approval_timeout', $this->runRepository->find('run-approval')?->get('error_code'));
+        self::assertSame(RunStatus::Cancelled, $this->runRepository->find('run-cancelling')?->getStatus());
+        self::assertSame('cancellation_timeout', $this->runRepository->find('run-cancelling')?->get('error_code'));
+        self::assertSame(RunStatus::Queued, $this->runRepository->find('run-fresh-queued')?->getStatus());
+    }
+
     private function seedRunningRun(string $id, int $startedSecondsAgo): void
     {
-        $startedAt = new \DateTimeImmutable('now')->sub(new \DateInterval('PT' . $startedSecondsAgo . 'S'));
+        $this->seedRun($id, RunStatus::Running, $startedSecondsAgo);
+    }
+
+    private function seedRun(string $id, RunStatus $status, int $ageSeconds): void
+    {
+        $startedAt = new \DateTimeImmutable('now')->sub(new \DateInterval('PT' . $ageSeconds . 'S'));
         $run = new AgentRun([
             'id' => $id,
             'account_id' => 1,
             'agent_definition_id' => null,
             'bundle_json' => '{}',
-            'status' => RunStatus::Running->value,
+            'status' => $status->value,
             'destructive_approval' => HitlMode::None->value,
             'pending_approval_call_id' => null,
             'prompt' => 'stalled',
@@ -144,7 +174,7 @@ final class ReaperTest extends TestCase
             'cost_cents' => null,
             'tool_call_count' => 0,
             'queued_at' => $startedAt->format('Y-m-d H:i:s.uP'),
-            'started_at' => $startedAt->format('Y-m-d H:i:s.uP'),
+            'started_at' => $status === RunStatus::Queued ? null : $startedAt->format('Y-m-d H:i:s.uP'),
             'finished_at' => null,
             'error_code' => null,
             'error_message' => null,
@@ -181,5 +211,22 @@ final class ReaperTest extends TestCase
         $entityRepo = new EntityRepository($entityType, $driver, new EventDispatcher(), null, $this->database);
 
         return new AgentAuditLogRepository($entityRepo, $this->database);
+    }
+}
+
+final class ReaperCapturingBroadcaster implements AgentRunBroadcasterInterface
+{
+    /** @var array<string, list<string>> */
+    private array $events = [];
+
+    public function push(string $runId, string $event, array $data): void
+    {
+        $this->events[$runId][] = $event;
+    }
+
+    /** @return list<string> */
+    public function eventsFor(string $runId): array
+    {
+        return $this->events[$runId] ?? [];
     }
 }

@@ -220,6 +220,56 @@ final class AgentRunRepository
     }
 
     /**
+     * Find non-running rows that have exceeded the worker TTL.
+     *
+     * Queued rows are aged from `queued_at`; approval and cancellation rows
+     * already had a worker and are aged from `started_at`.
+     *
+     * @return list<AgentRun>
+     */
+    public function findAbandoned(\DateTimeImmutable $threshold): array
+    {
+        $thresholdString = $this->formatDateTime($threshold);
+        $ids = [];
+
+        $queuedRows = $this->database
+            ->select(self::TABLE)
+            ->fields(self::TABLE, ['id'])
+            ->condition('status', RunStatus::Queued->value)
+            ->condition('queued_at', $thresholdString, '<')
+            ->execute();
+        foreach ($queuedRows as $row) {
+            $id = (string) (((array) $row)['id'] ?? '');
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        $workerRows = $this->database
+            ->select(self::TABLE)
+            ->fields(self::TABLE, ['id'])
+            ->condition('status', [RunStatus::AwaitingApproval->value, RunStatus::Cancelling->value], 'IN')
+            ->condition('started_at', $thresholdString, '<')
+            ->execute();
+        foreach ($workerRows as $row) {
+            $id = (string) (((array) $row)['id'] ?? '');
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        $results = [];
+        foreach ($ids as $id) {
+            $entity = $this->find($id);
+            if ($entity !== null) {
+                $results[] = $entity;
+            }
+        }
+
+        return $results;
+    }
+
+    /**
      * Find TERMINAL runs (`completed`, `failed`, `cancelled`) queued before
      * `$threshold`.
      *

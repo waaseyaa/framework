@@ -634,12 +634,16 @@ run (initiator match) unless the account holds the bypass capability
 |---|---|---|
 | `ai:run "<prompt>"` | `--inline`, `--agent=<id>`, `--dry-run`, `--watch`, `--destructive-approval=<mode>` | Enqueue (default) or run inline. `--watch` tails the SSE channel. |
 | `ai:purge-runs` | `--dry-run`, `--retention-days=<int>` (override config) | Delete `AgentRun` + `AgentAuditLog` rows past TTL. |
-| `ai:reap-stalled-runs` | `--max-runtime-seconds=<int>` (override config) | Flip stuck `running` rows to `failed` with `worker_crashed`. |
+| `ai:reap-stalled-runs` | `--max-runtime-seconds=<int>` (override config) | Terminalize abandoned `queued`, `running`, `awaiting_approval`, and `cancelling` rows. Queued age uses `queued_at`; the other states use `started_at`. |
 
 ## Scheduler entries
 
 - `ai:purge-runs` — daily at 03:00 UTC.
 - `ai:reap-stalled-runs` — every 5 minutes.
+
+Retention never deletes audit rows belonging to a non-terminal run. The reaper
+must first classify an abandoned run as terminal; a later retention pass may
+then remove the run and its audit trail together.
 
 ## Capabilities (seed)
 

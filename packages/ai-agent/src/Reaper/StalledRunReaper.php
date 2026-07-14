@@ -14,16 +14,13 @@ use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 
 /**
- * Recover {@see \Waaseyaa\AI\Agent\Entity\AgentRun} rows whose worker
- * crashed mid-execution (NFR-004, FR-007).
+ * Recover {@see \Waaseyaa\AI\Agent\Entity\AgentRun} rows abandoned before
+ * reaching a terminal state (NFR-004, FR-007).
  *
- * Definition of "stalled": `status='running'` AND
- * `started_at < (now() - maxRuntimeSeconds)`. The worker would have
- * driven the row to a terminal state by now under normal operation, so
- * the only way the threshold is crossed is a worker crash, an OOM kill,
- * or a host reboot. The reaper flips the row to
- * `Failed/worker_crashed`, appends a matching audit row, and pushes a
- * `run_failed` SSE event.
+ * Running, approval, and cancellation rows are aged from `started_at`;
+ * never-claimed queued rows are aged from `queued_at`. Expired rows move to
+ * a status-appropriate terminal outcome, append an audit row, and broadcast
+ * the terminal event.
  *
  * Honours C-014: transitions go through
  * {@see AgentRunRepository::markTerminal()}, which is a compare-and-swap
@@ -76,22 +73,26 @@ final class StalledRunReaper
         $now = ($this->now)();
         $threshold = $now->sub(new \DateInterval('PT' . $maxRuntimeSeconds . 'S'));
 
-        $rows = $this->runRepository->findStuckRunning($threshold);
+        $rows = [
+            ...$this->runRepository->findStuckRunning($threshold),
+            ...$this->runRepository->findAbandoned($threshold),
+        ];
         $flipped = 0;
 
         foreach ($rows as $run) {
             $runId = (string) $run->get('id');
 
+            [$terminalStatus, $errorCode, $errorMessage] = $this->terminalOutcome(
+                $run->getStatus(),
+                $maxRuntimeSeconds,
+                $threshold,
+            );
             $advanced = $this->runRepository->markTerminal(
                 $runId,
-                RunStatus::Failed,
+                $terminalStatus,
                 $now,
-                errorCode: 'worker_crashed',
-                errorMessage: \sprintf(
-                    'Worker crashed: started_at older than %d seconds (last started_at < %s).',
-                    $maxRuntimeSeconds,
-                    $threshold->format(\DateTimeInterface::ATOM),
-                ),
+                errorCode: $errorCode,
+                errorMessage: $errorMessage,
             );
 
             if (!$advanced) {
@@ -101,14 +102,14 @@ final class StalledRunReaper
                 continue;
             }
 
-            $this->appendErrorAudit($runId);
-            $this->broadcastFailed($runId);
+            $this->appendErrorAudit($runId, $errorCode);
+            $this->broadcastTerminal($runId, $terminalStatus, $errorCode, $errorMessage);
             $flipped++;
         }
 
         if ($flipped > 0) {
             $this->logger->info(\sprintf(
-                'StalledRunReaper: flipped %d stalled run(s) to failed/worker_crashed.',
+                'StalledRunReaper: terminalized %d abandoned run(s).',
                 $flipped,
             ));
         }
@@ -116,7 +117,7 @@ final class StalledRunReaper
         return $flipped;
     }
 
-    private function appendErrorAudit(string $runId): void
+    private function appendErrorAudit(string $runId, string $errorCode): void
     {
         try {
             $entry = AgentAuditLog::for(
@@ -127,7 +128,7 @@ final class StalledRunReaper
                 occurredAt: ($this->now)(),
                 success: false,
                 toolName: null,
-                toolResultSummary: 'worker_crashed',
+                toolResultSummary: $errorCode,
             );
             $this->auditRepository->append($entry);
         } catch (\Throwable $e) {
@@ -139,12 +140,16 @@ final class StalledRunReaper
         }
     }
 
-    private function broadcastFailed(string $runId): void
-    {
+    private function broadcastTerminal(
+        string $runId,
+        RunStatus $status,
+        string $errorCode,
+        string $errorMessage,
+    ): void {
         try {
-            $this->broadcaster->push($runId, 'run_failed', [
-                'error_code' => 'worker_crashed',
-                'error_message' => 'Worker crashed; reaped by StalledRunReaper.',
+            $this->broadcaster->push($runId, $status === RunStatus::Cancelled ? 'run_cancelled' : 'run_failed', [
+                'error_code' => $errorCode,
+                'error_message' => $errorMessage,
             ]);
         } catch (\Throwable $e) {
             $this->logger->error(\sprintf(
@@ -153,6 +158,40 @@ final class StalledRunReaper
                 $e->getMessage(),
             ));
         }
+    }
+
+    /** @return array{RunStatus, string, string} */
+    private function terminalOutcome(
+        RunStatus $status,
+        int $maxRuntimeSeconds,
+        \DateTimeImmutable $threshold,
+    ): array {
+        return match ($status) {
+            RunStatus::Queued => [
+                RunStatus::Failed,
+                'queue_timeout',
+                \sprintf('No worker claimed the run within %d seconds.', $maxRuntimeSeconds),
+            ],
+            RunStatus::AwaitingApproval => [
+                RunStatus::Failed,
+                'approval_timeout',
+                \sprintf('Approval did not complete before the %d second worker TTL.', $maxRuntimeSeconds),
+            ],
+            RunStatus::Cancelling => [
+                RunStatus::Cancelled,
+                'cancellation_timeout',
+                \sprintf('Cancellation was terminalized after the %d second worker TTL.', $maxRuntimeSeconds),
+            ],
+            default => [
+                RunStatus::Failed,
+                'worker_crashed',
+                \sprintf(
+                    'Worker crashed: started_at older than %d seconds (last started_at < %s).',
+                    $maxRuntimeSeconds,
+                    $threshold->format(\DateTimeInterface::ATOM),
+                ),
+            ],
+        };
     }
 
     private static function uuidV4(): string

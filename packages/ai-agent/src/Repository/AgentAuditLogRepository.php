@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\AI\Agent\Repository;
 
 use Waaseyaa\AI\Agent\Entity\AgentAuditLog;
+use Waaseyaa\AI\Agent\Enum\RunStatus;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 
@@ -61,18 +62,38 @@ final class AgentAuditLogRepository
     }
 
     /**
-     * Delete every audit row with `occurred_at < $threshold`.
+     * Delete audit rows with `occurred_at < $threshold`, except rows whose
+     * owning run is still non-terminal.
      *
      * Bounded by the retention policy in `config.ai.audit_retention_days`.
-     * Returns the number of rows purged.
+     * A live run's forensic trail is retained even when its timestamps exceed
+     * that age; the reaper must first classify the run as terminal.
      */
     public function purgeOlderThan(\DateTimeImmutable $threshold): int
     {
         $thresholdString = $threshold->format('Y-m-d H:i:s.uP');
 
-        return $this->database
-            ->delete(self::TABLE)
-            ->condition('occurred_at', $thresholdString, '<')
+        $terminalStatuses = array_map(
+            static fn(RunStatus $status): string => $status->value,
+            RunStatus::terminals(),
+        );
+        $liveRuns = $this->database
+            ->select('agent_run')
+            ->fields('agent_run', ['id'])
+            ->condition('status', $terminalStatuses, 'NOT IN')
             ->execute();
+
+        $delete = $this->database
+            ->delete(self::TABLE)
+            ->condition('occurred_at', $thresholdString, '<');
+        foreach ($liveRuns as $run) {
+            $runId = (string) (((array) $run)['id'] ?? '');
+            if ($runId === '') {
+                continue;
+            }
+            $delete->condition('run_id', $runId, '!=');
+        }
+
+        return $delete->execute();
     }
 }
