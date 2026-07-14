@@ -1,5 +1,7 @@
 # API Layer
 
+<!-- Spec reviewed 2026-07-14 - R21 WP4 (#2010): GraphQlRouter propagates GraphQlEndpoint's statusCode instead of forcing HTTP 200, so parse/auth/method failures reach clients as 400/401/405. withMutationOverrides() remains supported, but a custom update/delete resolver replaces the generated EntityResolver path and therefore owns the enduring not-found/access-denied collapse obligation; delegating to EntityResolver is the preferred way to preserve it. -->
+
 <!-- Spec reviewed 2026-07-13 - CW-v1 WP-5 WP1 (#1920): deleted the retired read-only workflow
      dry-run/guards machinery — no compat shim, no feature flag. Removed `WorkflowDryRunController`
      (`POST /api/workflow-definitions/dry-run`), `WorkflowGuardsController` + `WorkflowGuardsApiRouter`

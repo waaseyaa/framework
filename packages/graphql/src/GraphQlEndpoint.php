@@ -46,6 +46,11 @@ final class GraphQlEndpoint
     /**
      * Register mutation overrides (extra args, custom resolvers).
      *
+     * A custom update/delete resolver replaces the generated resolver and
+     * therefore MUST preserve its existence-oracle contract: access-denied and
+     * absent targets have the same caller-visible error. Prefer delegating to
+     * EntityResolver so entity- and field-level denials stay collapsed.
+     *
      * @param array<string, array{args?: array<string, mixed>, resolve?: callable}> $overrides
      */
     public function withMutationOverrides(array $overrides): self

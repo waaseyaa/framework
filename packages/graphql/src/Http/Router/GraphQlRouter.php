@@ -59,6 +59,6 @@ final class GraphQlRouter implements DomainRouterInterface
             $request->query->all(),
         );
 
-        return $this->jsonApiResponse(200, $result);
+        return $this->jsonApiResponse($result['statusCode'], $result);
     }
 }
