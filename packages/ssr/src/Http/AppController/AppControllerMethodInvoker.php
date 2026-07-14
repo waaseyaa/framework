@@ -6,6 +6,8 @@ namespace Waaseyaa\SSR\Http\AppController;
 
 use Symfony\Component\Routing\Exception\ResourceNotFoundException;
 use Symfony\Component\Routing\Route;
+use Waaseyaa\Access\Gate\GateInterface;
+use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Foundation\Http\HttpServiceResolverInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
@@ -117,7 +119,7 @@ final class AppControllerMethodInvoker
             return $ctx->gate;
         }
         if ($ctx->serviceResolver !== null) {
-            $resolved = ($ctx->serviceResolver)($serviceClass);
+            $resolved = $ctx->serviceResolver->resolve($serviceClass);
             if ($resolved !== null) {
                 return $resolved;
             }
@@ -213,12 +215,19 @@ final class AppControllerMethodInvoker
             return null;
         }
 
-        if (!is_int($raw) && (!is_string($raw) || $raw === '')) {
-            throw new InvalidAppControllerArgumentException(sprintf('Missing or invalid id for entity route key %s.', $key));
-        }
+        if ($raw instanceof EntityInterface) {
+            // HttpKernel's EntityParamConverter normally upcasts before app
+            // controller dispatch. Accept that canonical boundary object
+            // instead of loading the same row a second time.
+            $entity = $raw;
+        } else {
+            if (!is_int($raw) && (!is_string($raw) || $raw === '')) {
+                throw new InvalidAppControllerArgumentException(sprintf('Missing or invalid id for entity route key %s.', $key));
+            }
 
-        // C-22 WP3: read path now goes through the canonical repository.
-        $entity = $ctx->entityTypeManager->getRepository($entityTypeId)->find((string) $raw);
+            // Direct invoker callers still resolve through the canonical repository.
+            $entity = $ctx->entityTypeManager->getRepository($entityTypeId)->find((string) $raw);
+        }
         if ($entity === null) {
             throw new ResourceNotFoundException(sprintf('No %s entity for id %s.', $entityTypeId, (string) $raw));
         }
@@ -236,6 +245,13 @@ final class AppControllerMethodInvoker
                 $key,
                 $spec->boundClass,
             ));
+        }
+
+        // Entity injection is a read boundary, not merely type conversion.
+        // Fail closed when no gate is wired, and collapse a denied row to the
+        // same 404 as a missing row so binding cannot become an existence oracle.
+        if ($ctx->gate === null || !$ctx->gate->allows(GateInterface::VIEW, $entity, $ctx->account)) {
+            throw new ResourceNotFoundException(sprintf('No %s entity for route key %s.', $entityTypeId, $key));
         }
 
         return $entity;

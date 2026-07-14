@@ -23,6 +23,7 @@ use Waaseyaa\Entity\ContentEntityBase;
  * - `status`                   — {@see RunStatus} string value
  * - `destructive_approval`     — {@see HitlMode} string value
  * - `pending_approval_call_id` — string|null
+ * - `approval_expires_at`      — DateTimeImmutable|null
  * - `prompt`                   — resolved user prompt
  * - `response`                 — final response (terminal:completed)
  * - `transcript_json`          — conversation snapshot (string)

@@ -101,6 +101,9 @@
             "dev-develop/v1.1": "0.1.x-dev"
         },
         "waaseyaa": {
+            "policies": [
+                "Waaseyaa\\AI\\Agent\\Access\\AgentRunAccessPolicy"
+            ],
             "providers": [
                 "Waaseyaa\\AI\\Agent\\AiAgentEntityServiceProvider",
                 "Waaseyaa\\AI\\Agent\\AiAgentServiceProvider",

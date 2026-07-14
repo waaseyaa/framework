@@ -771,6 +771,7 @@ the framework prunes it automatically. What ships today:
 | `queue:work` | Process jobs from the queue | `queue` (arg), `--sleep`, `--tries`, `--timeout`, `--max-jobs`, `--max-time`, `--memory` |
 | `queue:failed` | List all failed queue jobs | — |
 | `queue:retry` | Retry a failed job | `id` (arg: job ID or `all`) |
+| `queue:forget` | Remove one failed job | `id` (arg: job ID) |
 | `queue:flush` | Remove all failed queue jobs | — |
 
 ### Scheduling
@@ -809,6 +810,7 @@ For production, run the worker as a systemd service or Supervisor process. Resta
 php bin/waaseyaa queue:failed          # list all failures
 php bin/waaseyaa queue:retry <id>      # retry specific job
 php bin/waaseyaa queue:retry all       # retry all failures
+php bin/waaseyaa queue:forget <id>     # discard one failure
 php bin/waaseyaa queue:flush           # discard all failures
 ```
 
@@ -817,10 +819,13 @@ php bin/waaseyaa queue:flush           # discard all failures
 Run `schedule:run` via system cron every minute:
 
 ```cron
-* * * * * cd /path/to/project && php bin/waaseyaa schedule:run >> /dev/null 2>&1
+* * * * * cd /path/to/project && php bin/waaseyaa schedule:run >> storage/logs/scheduler.log 2>&1 || { status=$?; logger -t waaseyaa-scheduler "schedule:run failed (exit $status)"; exit $status; }
 ```
 
-Use `schedule:list` to verify registered tasks.
+The success path retains scheduler output in the application log. On failure, the
+original non-zero status is also emitted to syslog and returned to cron instead of
+being hidden by a `/dev/null` redirect. Monitor `waaseyaa-scheduler` syslog entries
+with the host's normal alerting. Use `schedule:list` to verify registered tasks.
 
 ### Search reindex
 

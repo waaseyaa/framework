@@ -140,7 +140,7 @@ final readonly class McpEndpoint
                     new McpDispatchEvent(
                         method: (string) $request['method'],
                         params: \is_array($params) ? $params : [],
-                        accountUid: (int) $authenticated->id(),
+                        accountUid: self::stableAccountUid($authenticated->id()),
                     ),
                     McpDispatchEvent::NAME,
                 );
@@ -229,5 +229,22 @@ final readonly class McpEndpoint
                 'id' => $id,
             ], \JSON_THROW_ON_ERROR),
         );
+    }
+
+    /**
+     * Preserve numeric account ids and map opaque ids to a stable, non-zero
+     * integer that fits the audit store's actor_uid column. The first 60 bits
+     * of SHA-256 are deterministic across processes and cannot collide with
+     * AnonymousUser's reserved zero sentinel through PHP's string-to-int cast.
+     */
+    private static function stableAccountUid(int|string $accountId): int
+    {
+        if (is_int($accountId)) {
+            return $accountId;
+        }
+
+        $stableUid = (int) hexdec(substr(hash('sha256', $accountId), 0, 15));
+
+        return $stableUid === 0 ? 1 : $stableUid;
     }
 }

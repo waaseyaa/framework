@@ -30,8 +30,9 @@ use Waaseyaa\Routing\WaaseyaaRouter;
  * `AgentToolRegistryBridge` with the auth-resolved `AccountInterface` from
  * `McpAuthInterface::authenticate()`. This closes the WP02 caveat where
  * `register()` baked in a placeholder account; per-tool capability gating
- * now runs against the correct identity. `Mcp\Bridge\ToolRegistryInterface`
- * and `Mcp\Bridge\ToolExecutorInterface` remain `@api` as bridge contracts
+ * now runs against the correct identity. The per-request bridge talks directly
+ * to the AI tools registry; the superseded MCP-local bridge interfaces were
+ * removed because no production consumer resolved them
  * but are no longer container-bound at boot — the bridge is request-scoped.
  *
  * @api

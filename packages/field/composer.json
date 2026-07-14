@@ -69,6 +69,9 @@
             "dev-develop/v1.1": "0.1.x-dev"
         },
         "waaseyaa": {
+            "policies": [
+                "Waaseyaa\\Field\\Classification\\Policy\\ClassificationFieldAccessPolicy"
+            ],
             "providers": [
                 "Waaseyaa\\Field\\FieldServiceProvider"
             ]

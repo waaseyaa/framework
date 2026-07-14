@@ -64,6 +64,26 @@ final class McpEndpointDispatchEventTest extends TestCase
     }
 
     #[Test]
+    public function dispatchEventPreservesOpaqueStringAccountId(): void
+    {
+        $account = $this->createMock(AccountInterface::class);
+        $account->method('id')->willReturn('acct-anishinaabe-7');
+        $account->method('hasPermission')->willReturn(true);
+        $this->auth->method('authenticate')->willReturn($account);
+        $spy = new RecordingSymfonyDispatcher();
+
+        $endpoint = $this->makeEndpoint(dispatcher: $spy);
+        $this->dispatch($endpoint, '{"jsonrpc":"2.0","id":1,"method":"tools/list"}', 'Bearer valid');
+
+        self::assertCount(1, $spy->dispatched);
+        [$event] = $spy->dispatched[0];
+        self::assertInstanceOf(McpDispatchEvent::class, $event);
+        $expectedStableUid = (int) hexdec(substr(hash('sha256', 'acct-anishinaabe-7'), 0, 15));
+        self::assertSame($expectedStableUid, $event->accountUid);
+        self::assertNotSame(0, $event->accountUid, 'Opaque ids must never collide with the anonymous sentinel.');
+    }
+
+    #[Test]
     public function toolsCallEventCarriesRawParams(): void
     {
         $this->auth->method('authenticate')->willReturn($this->account);

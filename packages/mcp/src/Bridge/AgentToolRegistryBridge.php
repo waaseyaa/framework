@@ -11,9 +11,8 @@ use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 
 /**
- * Adapter binding the framework-wide {@see AgentToolRegistryInterface} to the
- * MCP endpoint's {@see ToolRegistryInterface} + {@see ToolExecutorInterface}
- * surface.
+ * Per-request adapter binding the framework-wide
+ * {@see AgentToolRegistryInterface} to MCP descriptors and calls.
  *
  * Construction is cheap; tool resolution is lazy through the underlying
  * `AttributeToolRegistry`. The supplied {@see AccountInterface} is forwarded
@@ -22,7 +21,7 @@ use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
  *
  * @api
  */
-final class AgentToolRegistryBridge implements ToolRegistryInterface, ToolExecutorInterface
+final class AgentToolRegistryBridge
 {
     public function __construct(
         private readonly AgentToolRegistryInterface $registry,

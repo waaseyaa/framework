@@ -110,7 +110,7 @@ final class DBALUpdate implements UpdateInterface
                 }
                 $placeholder = $qb->createNamedParameter(
                     $value,
-                    \Doctrine\DBAL\ArrayParameterType::STRING,
+                    ParameterTypeInferrer::array($value),
                 );
                 $qb->andWhere($field . ' ' . $operator . ' (' . $placeholder . ')');
             } else {
