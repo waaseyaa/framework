@@ -53,6 +53,9 @@
     },
     "extra": {
         "waaseyaa": {
+            "policies": [
+                "Waaseyaa\\Node\\NodeAccessPolicy"
+            ],
             "providers": [
                 "Waaseyaa\\Node\\NodeServiceProvider"
             ],
