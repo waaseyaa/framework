@@ -178,6 +178,7 @@ Nuxt admin package outside this skeleton if `admin:dev` cannot find one.
 - `config/waaseyaa.php` — Framework configuration
 - `config/entity-types.php` — Custom entity types
 - `config/services.php` — Service overrides
+- [Production web-server examples](https://github.com/waaseyaa/framework/blob/main/docs/deployment-web-servers.md) — Apache, nginx, and Caddy front-controller configuration
 
 ## License
 

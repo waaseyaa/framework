@@ -40,6 +40,7 @@ final class HealthChecker implements HealthCheckerInterface
         ?LoggerInterface $logger = null,
         private readonly ?FieldDefinitionRegistryInterface $fieldRegistry = null,
         ?IngestionLogger $ingestionLogger = null,
+        private readonly ?CleanUrlProbe $cleanUrlProbe = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
         // PHP 8.4 can't call `new IngestionLogger($projectRoot)` as a parameter
@@ -116,6 +117,10 @@ final class HealthChecker implements HealthCheckerInterface
         $fk = $this->checkForeignKeysEnabled();
         if ($fk !== null) {
             $results[] = $fk;
+        }
+
+        if ($this->cleanUrlProbe !== null) {
+            $results[] = $this->cleanUrlProbe->check();
         }
 
         return $results;

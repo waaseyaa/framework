@@ -15,6 +15,17 @@ No session `ini_set`, no custom routing, no outer `try/catch` around `handle()`.
 
 The Waaseyaa **monorepo** root uses the same file at `public/index.php` after `composer install` in the repository root (standard `vendor/autoload.php` layout).
 
+## Web-server handoff contract
+
+Production web servers must use `public/` as the document root and forward every
+request that is not a real file to `public/index.php`. The application skeleton
+ships an Apache `public/.htaccess` rewrite for hosts that permit `AllowOverride`;
+explicit Apache `FallbackResource`, nginx `try_files`, and Caddy examples live in
+[`docs/deployment-web-servers.md`](../deployment-web-servers.md). The skeleton's
+known clean-URL sentinel route is probed by `health:check` when
+`diagnostics.clean_url_probe_url` is configured, so a DirectoryIndex-only setup
+cannot report healthy.
+
 ## Source of truth
 
 The authoritative bytes live in the Waaseyaa skeleton:

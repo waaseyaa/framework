@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Skeleton deployments now ship an Apache front-controller rewrite, copy-paste Apache/nginx/Caddy server blocks, and a `health:check` clean-URL self-probe that fails loudly when non-root requests do not reach the router (#2020).
+
 ### Fixed
 
 - **The production scheduler cron recipe preserves failure signals (#2020).** Scheduler output is retained in an application log, while failures emit their original exit status to syslog and return it to cron for host-level monitoring.

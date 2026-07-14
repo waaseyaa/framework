@@ -34,6 +34,7 @@ enum DiagnosticCode: string
     case INGESTION_RECENT_FAILURES   = 'INGESTION_RECENT_FAILURES';
     case COLUMN_DATA_STORAGE_DRIFT   = 'COLUMN_DATA_STORAGE_DRIFT';
     case SCHEMA_DRIFT_CHECK_SKIPPED  = 'SCHEMA_DRIFT_CHECK_SKIPPED';
+    case CLEAN_URL_ROUTING_UNREACHABLE = 'CLEAN_URL_ROUTING_UNREACHABLE';
 
     // --- Schema-evolution v2 codes (mission #529) ---
     case CHECKSUM_MISMATCH           = 'CHECKSUM_MISMATCH';
@@ -79,6 +80,8 @@ enum DiagnosticCode: string
                 'A field is registered with FieldStorage::Data but a column for the field still exists in storage. New writes go to the _data JSON blob; the column holds stale values that reads will silently skip once query routing is symmetric.',
             self::SCHEMA_DRIFT_CHECK_SKIPPED =>
                 'Schema drift could not be verified because every registered entity table is not yet materialized (lazy creation) — nothing was actually compared.',
+            self::CLEAN_URL_ROUTING_UNREACHABLE =>
+                'A known non-root URL did not reach the Waaseyaa router through the configured public application URL.',
             self::CHECKSUM_MISMATCH =>
                 'A v2 migration was re-applied with a different source checksum than the one recorded in the ledger. Production refuses silent re-apply; the same migration_id cannot mean two different structural intents.',
             self::LEDGER_ORPHAN =>
@@ -129,6 +132,8 @@ enum DiagnosticCode: string
                 'Author a migration to drop the lingering column once any data has been backfilled into _data, or revert the FieldStorage::Data hint if the column should remain canonical. Auto-drop is never performed.',
             self::SCHEMA_DRIFT_CHECK_SKIPPED =>
                 'Run `waaseyaa install` (or your app bootstrap) to materialize the registered entity tables, then re-run `waaseyaa schema:check` to verify drift.',
+            self::CLEAN_URL_ROUTING_UNREACHABLE =>
+                'Configure the web root as public/ and forward missing paths to public/index.php. For Apache use `FallbackResource /index.php`; see docs/deployment-web-servers.md for Apache, nginx, and Caddy examples.',
             self::CHECKSUM_MISMATCH =>
                 'Either revert the source change so the canonical SchemaDiff matches the stored checksum, or author a new migration_id (Q1 — migration_id is the canonical key).',
             self::LEDGER_ORPHAN =>
@@ -154,6 +159,7 @@ enum DiagnosticCode: string
             self::DATABASE_SCHEMA_DRIFT,
             self::MISSING_BUNDLE_SUBTABLE,
             self::FK_ENFORCEMENT_DISABLED => 'error',
+            self::CLEAN_URL_ROUTING_UNREACHABLE => 'error',
 
             self::UNAUTHORIZED_V1_TAG,
             self::TAG_QUARANTINE_DETECTED,

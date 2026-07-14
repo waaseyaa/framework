@@ -6,6 +6,9 @@ namespace Waaseyaa\Testing\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Routing\RequestContext;
+use Waaseyaa\Foundation\Diagnostic\CleanUrlProbe;
+use Waaseyaa\Routing\WaaseyaaRouter;
 
 final class SkeletonLayoutTest extends TestCase
 {
@@ -71,6 +74,7 @@ final class SkeletonLayoutTest extends TestCase
             '/skeleton/.env.example',
             '/skeleton/bin/post-create-setup.php',
             '/skeleton/public/index.php',
+            '/skeleton/public/.htaccess',
             '/skeleton/config/waaseyaa.php',
             '/skeleton/composer.json',
         ];
@@ -81,6 +85,45 @@ final class SkeletonLayoutTest extends TestCase
                 sprintf('Missing first-boot skeleton artifact: %s', $relativePath),
             );
         }
+    }
+
+    #[Test]
+    public function skeletonShipsTheFrontControllerDeploymentContract(): void
+    {
+        $repoRoot = dirname(__DIR__, 4);
+        $htaccess = (string) file_get_contents($repoRoot . '/skeleton/public/.htaccess');
+        $provider = (string) file_get_contents($repoRoot . '/skeleton/src/Provider/AppServiceProvider.php');
+        $probe = (string) file_get_contents($repoRoot . '/packages/foundation/src/Diagnostic/CleanUrlProbe.php');
+        $readme = (string) file_get_contents($repoRoot . '/skeleton/README.md');
+        $deployment = (string) file_get_contents($repoRoot . '/docs/deployment-web-servers.md');
+
+        self::assertStringContainsString('RewriteRule ^ index.php [L]', $htaccess);
+        self::assertStringContainsString('CleanUrlProbe::PATH', $provider);
+        self::assertStringContainsString('/.well-known/waaseyaa/clean-url', $probe);
+        self::assertStringContainsString('docs/deployment-web-servers.md', $readme);
+        self::assertStringContainsString('FallbackResource /index.php', $deployment);
+        self::assertStringContainsString('try_files $uri $uri/ /index.php?$query_string;', $deployment);
+        self::assertStringContainsString('try_files {path} /index.php?{query}', $deployment);
+    }
+
+    #[Test]
+    public function skeletonCleanUrlDiagnosticRouteReturnsTheExpectedSentinel(): void
+    {
+        $repoRoot = dirname(__DIR__, 4);
+        require_once $repoRoot . '/skeleton/src/Controller/HomeController.php';
+        require_once $repoRoot . '/skeleton/src/Provider/AppServiceProvider.php';
+
+        $router = new WaaseyaaRouter(new RequestContext('', 'GET'));
+        $provider = new \App\Provider\AppServiceProvider();
+        $provider->routes($router);
+
+        $parameters = $router->match(CleanUrlProbe::PATH);
+        $controller = $parameters['_controller'];
+
+        self::assertIsCallable($controller);
+        $response = $controller();
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame(CleanUrlProbe::SENTINEL, $response->getContent());
     }
 
     /**
