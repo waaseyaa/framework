@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Abandoned AI runs and their audits now reach a coherent terminal lifecycle (#2020).** Audit retention preserves rows owned by any non-terminal run. The scheduled reaper now terminalizes expired never-claimed, approval-waiting, and cancellation-pending runs alongside crashed running workers, using selection-captured source state and lifecycle fields in compare-and-swap transitions. Interactive approval persists its own deadline, so a long-running job still receives its full approval window; renewed approval cycles win stale reaper races, and terminalization clears pending approval metadata.
 ### Security
 
 - **Relationships no longer expose edge metadata when both endpoints are hidden (#2020).** The endpoint visibility policy now denies entity-level view when neither endpoint can be viewed, while retaining pair-wise field redaction when one endpoint remains visible.

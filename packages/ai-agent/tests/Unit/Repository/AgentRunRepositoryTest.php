@@ -131,6 +131,39 @@ final class AgentRunRepositoryTest extends TestCase
     }
 
     #[Test]
+    public function markTerminalRejectsATerminalExpectedSourceStatus(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        $this->repository->markTerminal(
+            'whatever',
+            RunStatus::Failed,
+            new \DateTimeImmutable(),
+            expectedStatus: RunStatus::Completed,
+        );
+    }
+
+    #[Test]
+    public function markTerminalWithExpectedSourceStatusLosesToAWorkerClaimRace(): void
+    {
+        $this->repository->save($this->makeQueuedRun('run-reaper-race', 1, 'race'));
+        self::assertTrue($this->repository->markRunning(
+            'run-reaper-race',
+            new \DateTimeImmutable('2026-05-18T12:00:00+00:00'),
+        ));
+
+        self::assertFalse($this->repository->markTerminal(
+            'run-reaper-race',
+            RunStatus::Failed,
+            new \DateTimeImmutable('2026-05-18T12:01:00+00:00'),
+            errorCode: 'queue_timeout',
+            errorMessage: 'stale reaper selection',
+            expectedStatus: RunStatus::Queued,
+        ));
+        self::assertSame(RunStatus::Running, $this->repository->find('run-reaper-race')?->getStatus());
+    }
+
+    #[Test]
     public function markTerminalPersistsErrorMetadata(): void
     {
         $run = $this->makeQueuedRun('run-4', 1, 'doomed');
@@ -193,7 +226,8 @@ final class AgentRunRepositoryTest extends TestCase
         $stuck = $this->repository->findStuckRunning($threshold);
 
         self::assertCount(1, $stuck);
-        self::assertSame('stuck-old', $stuck[0]->id());
+        self::assertSame('stuck-old', $stuck[0]->id);
+        self::assertSame(RunStatus::Running, $stuck[0]->sourceStatus);
     }
 
     #[Test]
