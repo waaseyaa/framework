@@ -32,6 +32,10 @@ use Waaseyaa\I18n\LanguageManager;
 use Waaseyaa\I18n\LanguageManagerInterface;
 use Waaseyaa\User\AnonymousUser;
 use Waaseyaa\User\DevAdminAccount;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
+use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\Routing\RouteBuilder;
+use Waaseyaa\Routing\WaaseyaaRouter;
 
 #[CoversClass(HttpKernel::class)]
 final class HttpKernelTest extends TestCase
@@ -262,6 +266,39 @@ final class HttpKernelTest extends TestCase
         $this->assertNotNull($routes->get('public.home'));
         $this->assertNotNull($routes->get('public.page'));
         $this->assertTrue((bool) $routes->get('public.home')?->getOption('_render'));
+    }
+
+    #[Test]
+    public function matchedEntityParametersAreUpcastBeforeControllerDispatch(): void
+    {
+        $entity = $this->createStub(EntityInterface::class);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects(self::once())->method('find')->with('42')->willReturn($entity);
+        $entityTypeManager = $this->createMock(EntityTypeManager::class);
+        $entityTypeManager->method('getRepository')->with('test')->willReturn($repository);
+
+        $provider = new class extends ServiceProvider {
+            public function register(): void {}
+
+            public function routes(WaaseyaaRouter $router, EntityTypeManager $entityTypeManager): void
+            {
+                $router->addRoute('test.entity', RouteBuilder::create('/test/{id}')
+                    ->controller(static fn(): array => [])
+                    ->entityParameter('id', 'test')
+                    ->methods('GET')
+                    ->allowAll()
+                    ->build());
+            }
+        };
+
+        $kernel = new HttpKernel($this->projectRoot);
+        (new \ReflectionProperty(AbstractKernel::class, 'entityTypeManager'))->setValue($kernel, $entityTypeManager);
+        (new \ReflectionProperty(AbstractKernel::class, 'providers'))->setValue($kernel, [$provider]);
+
+        $request = (new \ReflectionMethod(HttpKernel::class, 'matchRoute'))->invoke($kernel, '/test/42', 'GET');
+
+        self::assertInstanceOf(Request::class, $request);
+        self::assertSame($entity, $request->attributes->get('id'));
     }
 
     #[Test]

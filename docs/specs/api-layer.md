@@ -1204,7 +1204,7 @@ final class EntityParamConverter
 }
 ```
 
-Reads the route `parameters` option for entries with `type => 'entity:{entityTypeId}'`. Loads the entity from storage and replaces the raw ID in the parameter array. Throws `ResourceNotFoundException` if entity not found.
+Reads the route `parameters` option for entries with `type => 'entity:{entityTypeId}'`. `HttpKernel` invokes the converter immediately after route matching, before request attributes and controller dispatch. It loads the entity from storage and replaces the raw ID in the parameter array; a missing entity becomes the normal HTTP 404 response.
 
 ### JsonApiRouteProvider
 
