@@ -14,6 +14,7 @@ use Waaseyaa\AI\Observability\Listener\AgentRunTelemetryListener;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
+use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 
 /**
@@ -58,6 +59,42 @@ final class AgentTelemetryServiceProviderTest extends TestCase
 
         $provider->boot();
         $this->addToAssertionCount(1);
+    }
+
+    #[Test]
+    public function boot_logs_wiring_failures(): void
+    {
+        $failure = new \RuntimeException('dispatcher unavailable');
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects($this->once())
+            ->method('warning')
+            ->with(
+                'ai_observability.telemetry_wiring_failed',
+                $this->callback(static fn(array $context): bool => $context['exception'] === $failure),
+            );
+
+        $provider = new AgentTelemetryServiceProvider();
+        $provider->setKernelServices(new class ($logger, $failure) implements KernelServicesInterface {
+            public function __construct(
+                private readonly LoggerInterface $logger,
+                private readonly \Throwable $failure,
+            ) {}
+
+            public function get(string $abstract): ?object
+            {
+                if ($abstract === LoggerInterface::class) {
+                    return $this->logger;
+                }
+                if ($abstract === \Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class) {
+                    throw $this->failure;
+                }
+
+                return null;
+            }
+        });
+        $provider->register();
+
+        $provider->boot();
     }
 
     /**
