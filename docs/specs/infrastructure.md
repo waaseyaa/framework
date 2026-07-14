@@ -562,6 +562,12 @@ $query->condition('title', '%' . $escaped . '%', 'LIKE');
 
 All conditions are ANDed together. No OR support at this level.
 
+`IN`/`NOT IN` lists infer DBAL's array type from their first element:
+integer and boolean lists use `ArrayParameterType::INTEGER`; other and empty
+lists use `ArrayParameterType::STRING`. Scalar floats bind explicitly as
+strings because DBAL exposes no float `ParameterType`, preserving the decimal
+value for platform conversion rather than relying on an implicit default.
+
 ### Identifier quoting (SQL-injection hardening — database-legacy M1+M2, fully closed WP6 #1816)
 
 The query builder binds all **values** as parameters (never interpolated), so `$value` is never an injection vector. **Identifiers** (column / alias / table / join names) and **raw expressions** are handled as follows:
@@ -817,7 +823,10 @@ interface SchemaInterface
 
 `DBALSchema` uses Doctrine DBAL's schema introspection and DDL generation. Type mapping: `serial` -> INTEGER AUTOINCREMENT, `varchar` -> TEXT, `int`/`integer` -> INTEGER, `text` -> TEXT, `float`/`numeric`/`decimal` -> REAL, `blob` -> BLOB.
 
-Note: SQLite cannot add a primary key to an existing table. `addPrimaryKey()` throws `\RuntimeException`.
+`addPrimaryKey()` uses Doctrine's portable schema comparator and generated
+ALTER statements on capable platforms. SQLite cannot add a primary key to an
+existing table, so that platform retains a clear `\RuntimeException` requiring
+the key to be declared at table creation.
 
 **Distinction from SchemaPresenter**: `SchemaInterface` is a database DDL abstraction in `packages/database-legacy/` for creating/altering tables. It is unrelated to `SchemaPresenter` (`packages/api/src/Schema/SchemaPresenter.php`), which generates JSON Schema output from entity field definitions for the API layer. `SchemaPresenter` works with `EntityType::getFieldDefinitions()` and does not use `SchemaInterface`.
 

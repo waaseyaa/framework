@@ -102,8 +102,9 @@ final class DBALDatabase implements DatabaseInterface
     /**
      * Returns the underlying DBAL Connection.
      *
-     * This replaces PdoDatabase::getPdo(). Consumers that previously
-     * used raw PDO should migrate to DBAL's Connection API.
+     * Deliberate migration escape hatch replacing PdoDatabase::getPdo(). It
+     * bypasses this package's identifier/value safety guarantees; ordinary
+     * reads and writes must use the fluent DatabaseInterface builders.
      */
     public function getConnection(): Connection
     {

@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Database\Query;
 
-use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
-use Doctrine\DBAL\ParameterType;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Waaseyaa\Database\SelectInterface;
 
@@ -101,17 +99,20 @@ final class DBALSelect implements SelectInterface
         } elseif ($operator === 'IS NOT NULL') {
             $this->qb->andWhere($field . ' IS NOT NULL');
         } elseif ($operator === 'IN' || $operator === 'NOT IN') {
+            if (!is_array($value)) {
+                throw new \InvalidArgumentException('IN operator requires an array value.');
+            }
             $placeholder = $this->qb->createNamedParameter(
                 $value,
-                ArrayParameterType::STRING,
+                ParameterTypeInferrer::array($value),
             );
             $this->qb->andWhere($field . ' ' . $operator . ' (' . $placeholder . ')');
         } elseif ($operator === 'BETWEEN') {
             if (!is_array($value) || count($value) !== 2) {
                 throw new \InvalidArgumentException('BETWEEN operator requires an array of exactly 2 values.');
             }
-            $p1 = $this->qb->createNamedParameter($value[0], self::inferType($value[0]));
-            $p2 = $this->qb->createNamedParameter($value[1], self::inferType($value[1]));
+            $p1 = $this->qb->createNamedParameter($value[0], ParameterTypeInferrer::scalar($value[0]));
+            $p2 = $this->qb->createNamedParameter($value[1], ParameterTypeInferrer::scalar($value[1]));
             $this->qb->andWhere($field . ' BETWEEN ' . $p1 . ' AND ' . $p2);
         } elseif ($operator === 'LIKE' || $operator === 'NOT LIKE') {
             // $value is treated as a complete LIKE pattern (caller owns wildcards).
@@ -124,21 +125,11 @@ final class DBALSelect implements SelectInterface
             $placeholder = $this->qb->createNamedParameter($value);
             $this->qb->andWhere($field . ' ' . $operator . ' ' . $placeholder . " ESCAPE '\\'");
         } else {
-            $placeholder = $this->qb->createNamedParameter($value, self::inferType($value));
+            $placeholder = $this->qb->createNamedParameter($value, ParameterTypeInferrer::scalar($value));
             $this->qb->andWhere($field . ' ' . $operator . ' ' . $placeholder);
         }
 
         return $this;
-    }
-
-    private static function inferType(mixed $value): ParameterType
-    {
-        return match (true) {
-            is_int($value) => ParameterType::INTEGER,
-            is_bool($value) => ParameterType::INTEGER,
-            $value === null => ParameterType::NULL,
-            default => ParameterType::STRING,
-        };
     }
 
     #[\NoDiscard('fluent builder — chain or assign the return value')]
@@ -199,8 +190,8 @@ final class DBALSelect implements SelectInterface
                 $value = $parameters[$index];
                 ++$index;
                 $type = is_array($value)
-                    ? ArrayParameterType::STRING
-                    : self::inferType($value);
+                    ? ParameterTypeInferrer::array($value)
+                    : ParameterTypeInferrer::scalar($value);
 
                 return $this->qb->createNamedParameter($value, $type);
             },

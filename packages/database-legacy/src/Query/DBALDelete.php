@@ -91,7 +91,7 @@ final class DBALDelete implements DeleteInterface
                 }
                 $placeholder = $qb->createNamedParameter(
                     $value,
-                    \Doctrine\DBAL\ArrayParameterType::STRING,
+                    ParameterTypeInferrer::array($value),
                 );
                 $qb->andWhere($field . ' ' . $operator . ' (' . $placeholder . ')');
             } else {

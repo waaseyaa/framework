@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Database bindings and schema changes are portable across supported drivers (#2020).** Integer and boolean `IN` lists now bind with DBAL's integer-array type across select, update, and delete builders; float scalar binding has an explicit non-truncating policy; and adding a primary key uses Doctrine schema diffs on capable platforms while retaining SQLite's clear refusal.
 - **CLI diagnostics and reused commands close minor operational footguns (#2020).** Composer provenance refuses lockfile paths outside the project root, production migration output redacts absolute Unix and Windows files plus bare directories, and repeated `ai:run --watch` invocations clear stale SIGINT state.
 
 ### Changed
