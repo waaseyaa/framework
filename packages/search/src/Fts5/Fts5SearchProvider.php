@@ -127,9 +127,10 @@ final class Fts5SearchProvider implements SearchProviderInterface
         // sequence: an accessible document sharing a page window with a
         // forbidden one was silently dropped from every page, while totalPages
         // (measured against the filtered count) promised a page that could never
-        // fully materialize. accessFilteredSearch() below runs ONE bounded,
-        // ordered, access-filtered scan and slices the requested page out of it,
-        // so paging always agrees with the total it is measured against.
+        // fully materialize. accessFilteredSearch() below uses ONE bounded,
+        // ordered, access-filtered basis to select page IDs, then fetches full
+        // rows/snippets only for those IDs, so paging always agrees with the
+        // total it is measured against.
         if ($this->accessChecker !== null) {
             [$totalHits, $pageRows, $facets] = $this->accessFilteredSearch(
                 $whereSQL,
@@ -302,10 +303,10 @@ final class Fts5SearchProvider implements SearchProviderInterface
     }
 
     /**
-     * Runs ONE bounded, ordered, access-filtered scan and derives totalHits,
-     * the requested page's rows, and (optionally) facets all from the SAME
-     * filtered basis (#1915, R16 — audit L3-search.md "count vs fetch
-     * pagination split"). Previously totalHits/facets came from an
+     * Runs a bounded, ordered, access-filtered ID/rank scan and derives
+     * totalHits, requested page IDs, and (optionally) facets from the SAME
+     * filtered basis, then fetches full rows/snippets only for those approved
+     * page IDs (#1915 R16; #2010 R21). Previously totalHits/facets came from an
      * access-filtered scan while the page was fetched by an independent,
      * unfiltered `ORDER BY ... LIMIT/OFFSET` query over ALL candidate rows
      * (forbidden included), so a fixed-size OFFSET walked the wrong sequence:
@@ -335,13 +336,13 @@ final class Fts5SearchProvider implements SearchProviderInterface
         // Remove pagination params — this is the bounded, ordered full-candidate scan.
         unset($params['limit'], $params['offset']);
 
-        $sql = "SELECT m.*, si.title, snippet(search_index, 2, '<b>', '</b>', '…', 32) as highlight, $rankExpr as rank FROM search_index si JOIN search_metadata m ON m.document_id = si.document_id WHERE $whereSQL ORDER BY $orderBy LIMIT :scanCap";
+        $sql = "SELECT m.document_id, m.entity_type, m.content_type, m.source_name, m.quality_score, m.topics, m.created_at, $rankExpr as rank FROM search_index si JOIN search_metadata m ON m.document_id = si.document_id WHERE $whereSQL ORDER BY $orderBy LIMIT :scanCap";
         $params['scanCap'] = self::MAX_ACCESS_SCAN;
 
         $offset = ($page - 1) * $pageSize;
 
         $totalHits = 0;
-        $pageRows = [];
+        $pageIds = [];
         $contentTypeCounts = [];
         $sourceNameCounts = [];
         $topicCounts = [];
@@ -358,7 +359,7 @@ final class Fts5SearchProvider implements SearchProviderInterface
             // in the filtered, ordered sequence: it lands on the requested
             // page iff that position falls inside [offset, offset + pageSize).
             if ($totalHits >= $offset && $totalHits < $offset + $pageSize) {
-                $pageRows[] = $row;
+                $pageIds[] = $documentId;
             }
 
             ++$totalHits;
@@ -417,7 +418,47 @@ final class Fts5SearchProvider implements SearchProviderInterface
             }
         }
 
+        $pageRows = $this->fetchAccessFilteredPage($whereSQL, $params, $orderBy, $rankExpr, $pageIds);
+
         return [$totalHits, $pageRows, $facets];
+    }
+
+    /**
+     * Fetch full metadata, title, and snippet only for the access-approved page.
+     *
+     * @param array<string,mixed> $params
+     * @param list<string> $pageIds
+     * @return list<array<string,mixed>>
+     */
+    private function fetchAccessFilteredPage(
+        string $whereSQL,
+        array $params,
+        string $orderBy,
+        string $rankExpr,
+        array $pageIds,
+    ): array {
+        if ($pageIds === []) {
+            return [];
+        }
+
+        unset($params['scanCap'], $params['limit'], $params['offset']);
+        $placeholders = [];
+        foreach ($pageIds as $index => $documentId) {
+            $key = 'page_' . $index;
+            $placeholders[] = ':' . $key;
+            $params[$key] = $documentId;
+        }
+
+        $sql = "SELECT m.*, si.title, snippet(search_index, 2, '<b>', '</b>', '…', 32) as highlight, $rankExpr as rank FROM search_index si JOIN search_metadata m ON m.document_id = si.document_id WHERE $whereSQL AND m.document_id IN (" . implode(', ', $placeholders) . ") ORDER BY $orderBy";
+        $rows = iterator_to_array($this->database->query($sql, $params));
+
+        // The SQL ORDER BY is the canonical order. Re-apply the already chosen
+        // page order defensively so a database planner's IN handling cannot
+        // perturb pagination semantics.
+        $positions = array_flip($pageIds);
+        usort($rows, static fn(array $a, array $b): int => $positions[(string) $a['document_id']] <=> $positions[(string) $b['document_id']]);
+
+        return $rows;
     }
 
     /**

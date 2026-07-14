@@ -7,19 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **R21 search now treats Indigenous orthography as the tokenizer contract (#2010).** SQLite FTS5 uses Unicode token boundaries with diacritic preservation and apostrophe/glottal token characters, removes the English Porter stemmer, and recreates the virtual table during a full reindex so upgraded indexes adopt the tokenizer. Index/search round trips cover Anishinaabemowin double vowels, apostrophe forms, U+02BC, macrons and acute diacritics, and Canadian syllabics.
+
 ### Fixed
 
 - **Split fan-out waits through post-tag CI startup (#1999).** The exact-SHA release gate now polls through the CI run triggered by the tag push instead of failing single-check mode while that newer run is still in progress.
 - **SQLite connections now enforce declared foreign keys (#2010, R21 WP1).** `DBALDatabase::createSqlite()` issues `PRAGMA foreign_keys = ON` immediately after opening every in-memory or file-backed connection, before schema or data work can begin. A two-connection regression test proves each fresh connection rejects an orphaned child row instead of silently accepting referential corruption.
 - **R21 content and storage invariants (#2010).** Taxonomy term saves now reject self-parenting, cycles, and cross-vocabulary parent edges before persistence; messaging materializes and uniquely constrains each `(thread_id, user_id)` participant pair, deterministically merging legacy duplicates without losing owner, join, or read state; default-revision promotion refreshes column-stored bundle fields from the promoted revision in the same transaction. The attachment at-most-one-active invariant and dual schema-path parity remain enforced by the existing package schema and save guards.
 - **R21 interface responses and list queries now match their advertised contracts (#2010).** Admin-surface lists push filters, sorting, pagination, and access-bound selection into the entity-query layer instead of unconditionally hydrating whole tables in PHP; field access scopes filter/sort queries before caller-controlled SQL shaping, and access-checked count results are consumed as scalar cardinalities rather than entity IDs. GraphQL routers propagate endpoint HTTP status codes, and custom mutation overrides explicitly inherit the generated resolver's not-found/access-denied collapse obligation.
+- **R21 access-filtered search computes snippets only for the selected page (#2010).** The bounded ordered access scan now reads IDs/rank plus required facet metadata, then a targeted `IN` fetch materializes titles and snippets only for approved page IDs while preserving totals, facets, ordering, pagination, and access filtering.
 
 ### Security
 
 - **R21 interface write and catalogue boundaries fail closed (#2010).** Admin-surface `readOnlyTypes` now reject create, update, and delete at the server boundary; dynamically Forbidden filter values cannot consume a visible page, and dynamically Forbidden sorts are rejected value-independently. The MCP public-vs-destructive invariant test exercises the real attribute-hydrated tool catalogue rather than a handwritten registry double.
-
-### Security
-
 - **Five audit-born access and worker-lifetime invariants now block regressions (#2010, #2000; R21 WP7).** The access-hardening gate checks real `#[AsAgentTool]` implementations for capability/entity guards, pins public read surfaces to account-aware access rather than publication status alone, requires structural and per-field protection on filter/sort surfaces, rejects route-builder chains without an explicit access posture, and rejects new mutable request-path statics unless a reviewed baseline explains their lifetime and isolation. Unsafe fixtures self-test the gate; the four previously implicit public route postures are now explicit `allowAll()` declarations without changing controller-level access enforcement.
 
 ## [0.1.0-alpha.262] - 2026-07-14

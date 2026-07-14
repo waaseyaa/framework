@@ -17,6 +17,29 @@ use Waaseyaa\Search\SearchIndexableInterface;
 #[CoversClass(Fts5SearchIndexer::class)]
 final class Fts5SearchIndexerTest extends TestCase
 {
+    #[Test]
+    public function remove_all_recreates_a_legacy_porter_table_with_the_current_tokenizer(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $database->query(<<<'SQL'
+            CREATE VIRTUAL TABLE search_index USING fts5(
+                document_id UNINDEXED,
+                title,
+                body,
+                tokenize='porter unicode61'
+            )
+            SQL);
+        $indexer = new Fts5SearchIndexer($database);
+
+        $indexer->removeAll();
+
+        $rows = iterator_to_array($database->query(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'search_index'",
+        ));
+        self::assertStringContainsString('remove_diacritics 0', (string) $rows[0]['sql']);
+        self::assertStringNotContainsString('porter', (string) $rows[0]['sql']);
+    }
+
     private DBALDatabase $database;
     private Fts5SearchIndexer $indexer;
 

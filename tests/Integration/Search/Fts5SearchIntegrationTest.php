@@ -154,7 +154,7 @@ final class Fts5SearchIntegrationTest extends TestCase
     }
 
     #[Test]
-    public function porter_stemming_finds_word_variants(): void
+    public function english_word_variants_are_not_porter_stemmed(): void
     {
         $this->indexItem('node:1', ['title' => 'Running Tests', 'body' => 'Testing the application'], [
             'entity_type' => 'node', 'content_type' => '', 'source_name' => '',
@@ -162,9 +162,8 @@ final class Fts5SearchIntegrationTest extends TestCase
             'created_at' => '2026-03-20T00:00:00Z',
         ]);
 
-        // "test" should match "tests" and "testing" via porter stemmer
-        $result = $this->provider->search(new SearchRequest('test'));
-        $this->assertSame(1, $result->totalHits);
+        $this->assertSame(0, $this->provider->search(new SearchRequest('test'))->totalHits);
+        $this->assertSame(1, $this->provider->search(new SearchRequest('tests'))->totalHits);
     }
 
     #[Test]
