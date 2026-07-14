@@ -1,5 +1,7 @@
 # Revision system (unified, with an optional translation axis)
 
+<!-- Spec reviewed 2026-07-14 - R21 #2010 / #1968: under default-revision discipline, setPublishedRevision() now partitions the target revision snapshot through BundleSubtableGateway and upserts column-stored bundle values in the same transaction as the base-row/pointer promotion. Draft saves remain revision-only and do not leak into the served subtable. -->
+
 **Status:** Design (2026-06-09). Supersedes the parallel two-axis storage stack
 described in [`entity-storage-two-axis.md`](entity-storage-two-axis.md): that
 mission (M-004) built a *separate* `vid`-based storage stack
@@ -586,4 +588,3 @@ the same change so the interface addition does not break any consumer.
 
 <!-- Spec reviewed 2026-06-12 - mission optimistic-locking-01KTXCHY WP03 (#1647): added §3b optimistic locking — SaveContext::withExpectedRevisionId() expectation seam, two-stage check (fail-fast pre-check before any write/event + guarded pointer-claim UPDATE inside the save transaction, affected-rows unambiguous because the pointer always moves), RevisionConflictException payload with null-current = "no readable head (row vanished or pre-backfill pointer-less row)", the six-row LogicException rejection matrix (new / non-revisionable / two-axis / non-revision-creating / no-DB / no-revision-driver), context-less paths unstatable by construction, two-axis langcode-scoped-guard lift path beside §3a. No-expectation saves byte-identical (zero added queries, pinned). -->
 <!-- Spec reviewed 2026-06-12 - mission revision-audit-provenance-01KTWY5V WP05: added §2a (revision_author column + additive sync on both live revision tables), §4a (authorship recording/resolution order/null-vs-0/revert authorship, RevisionMetadata hydration on loads, RevisionPointerMovedEvent), §6a (explicit FR-009 retirement of the dormant RevisionTableBuilder `<entity>__revision` vid dialect incl. its revision_created_at metadata block; live revision_author is the single authoritative author definition). Refs #1644, #1645. -->
-

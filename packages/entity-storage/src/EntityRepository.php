@@ -1498,12 +1498,24 @@ final class EntityRepository implements EntityRepositoryInterface
                 // serve, and BOTH pointers move to the target in the same
                 // transaction. Bookkeeping keys stripped exactly like
                 // rollback()/setCurrentRevision() strip them; the target
-                // revision row itself is never mutated. Deliberately writes
-                // the row directly via the driver (bypassing the bundle-
-                // subtable partition doSave() applies) — the same precedent
-                // rollback()/setCurrentRevision() already established for
-                // pointer-move content restores.
+                // revision row itself is never mutated. Column-stored bundle
+                // fields are partitioned and upserted from this same target
+                // snapshot in the transaction; otherwise the subtable's old
+                // value would override the promoted `_data` value on read.
                 $outgoingRow = $targetRow;
+                $bundleValues = [];
+                $bundleName = null;
+                $gateway = $this->bundleGateway();
+                if ($gateway !== null) {
+                    $targetEntity = $this->instantiateEntity($this->entityType->getClass(), $targetRow);
+                    [$outgoingRow, $bundleValues, $bundleName] = $gateway->partition($targetEntity, $targetRow);
+                    if ($bundleValues !== [] && $bundleName !== null && !$gateway->subtableExists($bundleName)) {
+                        $gateway->logMissingSubtableOnSave($bundleName, \count($bundleValues));
+                        $outgoingRow = $targetRow;
+                        $bundleValues = [];
+                        $bundleName = null;
+                    }
+                }
                 unset(
                     $outgoingRow['revision_id'],
                     $outgoingRow['revision_created'],
@@ -1515,6 +1527,9 @@ final class EntityRepository implements EntityRepositoryInterface
                 $outgoingRow['revision_id'] = $revisionId;
                 $outgoingRow['published_revision_id'] = $revisionId;
                 $this->driver->write($this->entityType->id(), $entityId, $outgoingRow);
+                if ($gateway !== null && $bundleValues !== [] && $bundleName !== null) {
+                    $gateway->upsert($bundleName, $entityId, $bundleValues);
+                }
             } elseif ($this->database !== null) {
                 // Targeted single-column update: touch only the published pointer.
                 $this->database->update($this->entityType->id())

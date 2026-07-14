@@ -10,6 +10,10 @@
         },
         {
             "type": "path",
+            "url": "../database-legacy"
+        },
+        {
+            "type": "path",
             "url": "../entity"
         },
         {
@@ -20,6 +24,7 @@
     "require": {
         "php": ">=8.5",
         "waaseyaa/access": "^0.1.0-alpha.262",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.262",
         "waaseyaa/entity": "^0.1.0-alpha.262",
         "waaseyaa/foundation": "^0.1.0-alpha.262"
     },

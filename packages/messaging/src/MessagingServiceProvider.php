@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace Waaseyaa\Messaging;
 
 use Waaseyaa\Access\Context\AccountContextInterface;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Messaging\EventSubscriber\ThreadParticipantBootstrapSubscriber;
+use Waaseyaa\Messaging\Schema\ThreadParticipantSchema;
 
 final class MessagingServiceProvider extends ServiceProvider
 {
@@ -25,6 +28,15 @@ final class MessagingServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        $entityTypeManager = $this->resolveOptional(EntityTypeManager::class);
+        $database = $this->resolveOptional(\Waaseyaa\Database\DatabaseInterface::class);
+        if ($database instanceof DBALDatabase && $entityTypeManager instanceof EntityTypeManagerInterface) {
+            // Repository resolution materializes the generic base table first;
+            // the package schema then heals the two identity columns and key.
+            $entityTypeManager->getRepository('thread_participant');
+            new ThreadParticipantSchema($database)->ensureTable();
+        }
+
         // Seed the creating account as the first thread_participant so an
         // ordinary non-admin can populate a thread they just created (#1915,
         // R16 — see ThreadParticipantBootstrapSubscriber for the full story).
@@ -33,7 +45,6 @@ final class MessagingServiceProvider extends ServiceProvider
             return;
         }
 
-        $entityTypeManager = $this->resolveOptional(EntityTypeManagerInterface::class);
         if (!$entityTypeManager instanceof EntityTypeManagerInterface) {
             return;
         }
