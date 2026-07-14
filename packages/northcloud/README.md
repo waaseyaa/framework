@@ -58,13 +58,23 @@ final class NcHitToKnowledgeItemMapper implements NcHitToEntityMapperInterface
     {
         return [
             'title' => (string) ($hit['title'] ?? ''),
-            'body' => (string) ($hit['snippet'] ?? $hit['body'] ?? ''),
+            // External HTML must be sanitized here against the destination
+            // field's allowlist before it is persisted.
+            'body' => $this->htmlSanitizer->sanitize(
+                (string) ($hit['snippet'] ?? $hit['body'] ?? ''),
+            ),
             'source_url' => (string) ($hit['url'] ?? ''),
             // ...app-specific fields
         ];
     }
 }
 ```
+
+`NcHitToEntityMapperInterface::map()` is the trust boundary for North Cloud
+content. The sync service cannot safely apply one generic sanitizer because each
+destination field owns a different markup contract. Mapper implementations must
+sanitize external HTML before returning rendered or rich-text field values; plain
+text and identifiers should be validated/coerced for their destination types.
 
 Register the mapper in your `AppServiceProvider`:
 
