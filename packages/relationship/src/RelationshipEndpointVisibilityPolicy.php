@@ -26,11 +26,11 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
  * public install — through every read path that applies field access
  * (JSON:API collection + single, `entity.read`, GraphQL).
  *
- * This policy is intentionally FIELD-level, not entity-level: it never denies
- * the whole edge (that stays {@see RelationshipAccessPolicy}'s job), it only
- * redacts the (type, id) PAIR for whichever endpoint(s) the account cannot
- * view. The two endpoint fields are redacted together so neither the type nor
- * the id of a hidden endpoint leaks on its own.
+ * At field level it redacts the (type, id) PAIR for whichever endpoint the
+ * account cannot view. At entity level it forbids an edge when neither endpoint
+ * is viewable, so the edge id and relationship type cannot become existence
+ * metadata about two otherwise-hidden entities. An edge with one visible
+ * endpoint remains viewable with the other endpoint pair redacted.
  *
  * Discovered via `#[PolicyAttribute]` on the SHARED boot path
  * ({@see \Waaseyaa\Foundation\Kernel\Bootstrap\AccessPolicyRegistry::discover()},
@@ -78,12 +78,25 @@ final class RelationshipEndpointVisibilityPolicy implements AccessPolicyInterfac
         return $entityTypeId === 'relationship';
     }
 
-    /**
-     * This policy is field-only. It never opines at the entity level —
-     * {@see RelationshipAccessPolicy} keeps owning entity-level view/update/delete.
-     */
     public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
     {
+        if ($operation === 'view' && $entity instanceof Relationship) {
+            $fromViewable = $this->isEndpointViewable(
+                (string) ($entity->get('from_entity_type') ?? ''),
+                (string) ($entity->get('from_entity_id') ?? ''),
+                $account,
+            );
+            $toViewable = $this->isEndpointViewable(
+                (string) ($entity->get('to_entity_type') ?? ''),
+                (string) ($entity->get('to_entity_id') ?? ''),
+                $account,
+            );
+
+            if (!$fromViewable && !$toViewable) {
+                return AccessResult::forbidden('Relationship is hidden because neither endpoint is viewable.');
+            }
+        }
+
         return AccessResult::neutral();
     }
 
