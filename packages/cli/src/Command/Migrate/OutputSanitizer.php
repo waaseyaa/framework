@@ -34,11 +34,16 @@ final readonly class OutputSanitizer
             return $message;
         }
 
-        // Absolute Unix paths start at a token boundary (so package names such
-        // as "waaseyaa/cli" and URL paths are left intact); Windows paths start
-        // with a drive prefix. Both forms include files and bare directories.
-        $pattern = '#(?<![A-Za-z0-9._:/\-])/[A-Za-z0-9._/\-]+|(?<![A-Za-z0-9])[A-Za-z]:\\\\[A-Za-z0-9._\\\\/\-]+#';
-        $sanitized = preg_replace($pattern, '<path>', $message);
+        // Redact the URI form before ordinary paths so its scheme cannot be
+        // left behind. The file-path pattern permits spaces inside segments
+        // while using the extension as an unambiguous endpoint; the final
+        // conservative pattern catches extensionless/bare directory tokens.
+        $patterns = [
+            '#file:///[^\s;,)\]]+#i',
+            '#(?<![A-Za-z0-9._:/\-])(?:/|[A-Za-z]:\\\\|\\\\\\\\)(?:[A-Za-z0-9._\-]+(?: [A-Za-z0-9._\-]+)*[\\\\/])*[A-Za-z0-9._\-]+(?: [A-Za-z0-9._\-]+)*\.[A-Za-z0-9]{1,12}#',
+            '#(?<![A-Za-z0-9._:/\-])/[A-Za-z0-9._/\-]+|(?<![A-Za-z0-9])[A-Za-z]:\\\\[A-Za-z0-9._\\\\/\-]+#',
+        ];
+        $sanitized = preg_replace($patterns, '<path>', $message);
 
         return $sanitized ?? $message;
     }

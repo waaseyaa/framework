@@ -91,4 +91,26 @@ final class OutputSanitizerTest extends TestCase
 
         self::assertSame('Lockfile: <path>', $s->sanitize('Lockfile: C:\\sites\\waaseyaa\\composer.lock'));
     }
+
+    #[Test]
+    public function productionStripsAbsolutePathsContainingSpaces(): void
+    {
+        $s = new OutputSanitizer(isProduction: true);
+
+        self::assertSame(
+            'Windows: <path>; Unix: <path>',
+            $s->sanitize('Windows: C:\\Program Files\\Waaseyaa\\file.php; Unix: /srv/My App/cache/file.php'),
+        );
+    }
+
+    #[Test]
+    public function productionStripsFileUrisAndUncPaths(): void
+    {
+        $s = new OutputSanitizer(isProduction: true);
+
+        self::assertSame(
+            'Local: <path>; share: <path>',
+            $s->sanitize('Local: file:///srv/secret/file.php; share: \\\\server\\share\\secret.txt'),
+        );
+    }
 }
