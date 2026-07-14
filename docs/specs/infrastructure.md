@@ -1,5 +1,7 @@
 # Infrastructure
 
+<!-- Spec reviewed 2026-07-14 - R21 WP7 (#2010/#2000): request-reachable mutable process statics are blocked unless tools/access-hardening-baseline.php carries a reviewed, non-empty lifetime/isolation rationale. Safe alternatives are instance state, per-request execution context, or a structural cache keyed by every isolation dimension; unsafe fixture coverage runs in composer verify and blocking CI. -->
+
 <!-- Spec reviewed 2026-07-13 - CW-v1 WP-5 WP1 (#1920): deleted the retired read-only workflow
      dry-run/guards routes from the "Routes now registered by `ApiServiceProvider::routes()`" table
      (`POST /api/workflow-definitions/dry-run`, `GET /api/workflow-definitions/{workflow_id}/guards`)

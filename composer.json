@@ -502,6 +502,7 @@
         "check-dispatcher-keys": "php bin/check-dispatcher-keys",
         "check-admin-dist-fresh": "php bin/check-admin-dist-fresh",
         "check-field-guards": "bash tests/Tooling/FieldGuardsTest.sh",
+        "check-access-hardening": "bash tests/Tooling/AccessHardeningGateTest.sh",
         "test": "php -d memory_limit=512M vendor/bin/phpunit --no-coverage",
         "verify": [
             "@cs-check",
@@ -523,6 +524,7 @@
             "@check-admin-coercion-self-test",
             "@check-admin-dist-fresh",
             "@check-field-guards",
+            "@check-access-hardening",
             "@check-openapi",
             "@test"
         ],
@@ -537,6 +539,7 @@
         "check-dispatcher-keys": "Fail-on-new gate for provider register()/boot() methods that resolve an event dispatcher under an FQCN the production kernel-services bus does not serve (only Symfony\\Contracts\\EventDispatcher\\EventDispatcherInterface is served — see ProviderRegistryKernelServices::get()) and then addListener()/addSubscriber() with it, silently registering nothing. Baseline at tools/dispatcher-key-baseline.txt. Introduced in WP4 (framework-wide dead-subscriber sweep, audit-remediation batch 2026-07-01/02) after #1852 fixed the first live instance (relationship delete guard).",
         "check-admin-dist-fresh": "Admin dist freshness gate (D6). Fails when packages/admin/app source changes without rebuilding the committed packages/admin-surface/dist bundle, by comparing a line-ending-normalised content signature (packages/admin-surface/dist.signature) against a freshly computed one. Rebuild + refresh with bin/build-admin-dist. Prevents shipping a stale prebuilt admin SPA (e.g. the alpha.226 Edit-feedback feature that never reached the served bundle).",
         "check-field-guards": "Regression gate for R20 field lessons: admin-dist checkout must not persist its write token, and the repository bin/git entrypoint must reject every git stash form while delegating allowed commands unchanged.",
+        "check-access-hardening": "R21 recurring prevention gate: agent-tool guards, public access-vs-status, filter/sort field access, explicit route posture, and reviewed worker-lifetime mutable statics. Includes unsafe-fixture self-tests.",
         "check-openapi": "Spectral-lint the hand-maintained agent-run sub-spec packages/api/openapi.yaml (3 SSE endpoints + pending_approval shape) for YAML/OpenAPI structural validity. Syntax/shape lint of that one file only — does NOT check route parity against live routes. Requires Node.js + npx; exits 0 with SKIP notice when npx is unavailable (CI-safe). Wired as a hard gate in verify per NFR-004 (WP02, mission agent-executor-v1-1-audit-followups-01KS3S5M).",
         "check-phpunit-paths": "Fail when a packages/*/tests/**/*Test.php file is outside every phpunit.xml.dist suite directory (or explicit file), or when a configured package test path is stale. Test-runner analogue of check-phpstan-paths.",
         "check-symfony-imports": "Enforce the Path R-narrow Symfony-import boundary (mission #1107 C-005 (b)). Fails when `use Symfony\\…` appears outside the framework allowlist. Allowlist lives in .symfony-import-allowlist.json — see docs/specs/api-layer.md §Symfony Import Boundary.",

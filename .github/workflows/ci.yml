@@ -397,6 +397,7 @@ jobs:
           run_gate check-admin-coercion-self-test
           run_gate check-admin-dist-fresh
           run_gate check-field-guards
+          run_gate check-access-hardening
           run_gate check-openapi
           exit "$fail"
 

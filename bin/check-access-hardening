@@ -1,0 +1,347 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Cross-cutting access/correctness prevention gate (#2010, R21 WP7).
+ *
+ * Rule ids:
+ *  AH001  #[AsAgentTool] implementations must invoke their declared capability
+ *         guard, and repository-backed tools must invoke an entity access guard.
+ *  AH002  public read surfaces may not use publication status as their only gate.
+ *  AH003  filter/sort surfaces must carry structural and per-field access guards.
+ *  AH004  every RouteBuilder chain must declare an explicit access posture.
+ *  AH005  mutable process-level statics require a reviewed lifetime rationale.
+ */
+
+$root = $argv[1] ?? dirname(__DIR__);
+if ($root === '--self-test') {
+    selfTest();
+    exit(0);
+}
+
+$root = realpath($root) ?: $root;
+$baselineFile = $root . '/tools/access-hardening-baseline.php';
+$baseline = is_file($baselineFile) ? require $baselineFile : [];
+if (!is_array($baseline)) {
+    fwrite(STDERR, "access-hardening: invalid baseline file.\n");
+    exit(2);
+}
+
+$violations = scanRoot($root, $baseline);
+if ($violations !== []) {
+    fwrite(STDERR, "access-hardening: FAIL\n" . implode("\n", $violations) . "\n");
+    exit(1);
+}
+
+fwrite(STDOUT, "access-hardening: OK — 5 access and worker-lifetime invariants verified.\n");
+
+/**
+ * @param array<string, string> $baseline
+ * @return list<string>
+ */
+function scanRoot(string $root, array $baseline): array
+{
+    $violations = [];
+    $files = phpFiles($root . '/packages');
+
+    foreach ($files as $file) {
+        $relative = relativePath($root, $file);
+        $source = (string) file_get_contents($file);
+
+        if (preg_match('/#\[\s*AsAgentTool\s*\(/', $source) === 1) {
+            if (!str_contains($source, 'requireCapability(')) {
+                $violations[] = "AH001 {$relative}: #[AsAgentTool] does not invoke requireCapability().";
+            }
+            if (
+                str_contains($source, 'getRepository(')
+                && !containsAny($source, [
+                    'canViewEntity(',
+                    'requireEntityAccess(',
+                    'requireCreateAccess(',
+                    'canViewSource(',
+                    'requireTrailUpdateAccess(',
+                ])
+            ) {
+                $violations[] = "AH001 {$relative}: repository-backed agent tool has no entity access guard.";
+            }
+            if (
+                containsAny($source, ['setCurrentRevision(', 'rollback('])
+                && !str_contains($source, 'requireFieldEditAccess(')
+            ) {
+                $violations[] = "AH001 {$relative}: full-row revision mutation has no field-edit guard.";
+            }
+        }
+
+        if (str_contains($source, 'RouteBuilder::create(')) {
+            preg_match_all('/RouteBuilder::create\(.*?->build\(\)/s', $source, $chains, PREG_OFFSET_CAPTURE);
+            foreach ($chains[0] ?? [] as [$chain, $offset]) {
+                if (!containsAny($chain, [
+                    '->allowAll(',
+                    '->requireAuthentication(',
+                    '->requirePermission(',
+                    '->requireRole(',
+                    '->requireSession(',
+                    '->gate(',
+                ])) {
+                    $line = 1 + substr_count(substr($source, 0, (int) $offset), "\n");
+                    $violations[] = "AH004 {$relative}:{$line}: route has no explicit access posture.";
+                }
+            }
+        }
+    }
+
+    $publicSurfaceRequirements = [
+        'packages/seo/src/SitemapGenerator.php' => ['#->\s*setAccount\s*\(#'],
+        'packages/seo/src/Llms/LlmsTxtGenerator.php' => ['#->\s*setAccount\s*\(#'],
+        'packages/ssr/src/SsrPageHandler.php' => [
+            '#->\s*(?:check|viewableLabel)\s*\(#',
+            '#new\s+WorkflowVisibilityFilter\s*\(#',
+        ],
+    ];
+    foreach ($publicSurfaceRequirements as $relative => $required) {
+        requireCodePatterns($root, $relative, $required, 'AH002', $violations);
+    }
+
+    $querySurfaceRequirements = [
+        'packages/api/src/JsonApiController.php' => [
+            '#\$this\s*->\s*validateQueryFields\s*\(#',
+            '#\$this\s*->\s*queryFieldForbidden\s*\(#',
+            '#\$this\s*->\s*rejectForbiddenSort\s*\(#',
+        ],
+        'packages/graphql/src/Resolver/EntityResolver.php' => [
+            '#\$this\s*->\s*assertQueryableFields\s*\(#',
+            '#\$this\s*->\s*queryFieldForbidden\s*\(#',
+            '#\$this\s*->\s*rejectForbiddenSort\s*\(#',
+        ],
+        'packages/admin-surface/src/Host/GenericAdminSurfaceHost.php' => [
+            '#\$this\s*->\s*validateSurfaceQueryFields\s*\(#',
+            '#\$this\s*->\s*isFieldViewForbidden\s*\(#',
+        ],
+    ];
+    foreach ($querySurfaceRequirements as $relative => $required) {
+        requireCodePatterns($root, $relative, $required, 'AH003', $violations);
+    }
+
+    foreach ($files as $file) {
+        $relative = relativePath($root, $file);
+        if (!isRequestPath($relative)) {
+            continue;
+        }
+        $source = (string) file_get_contents($file);
+        preg_match_all(
+            '/\bstatic\s+(?!function\b|fn\b)(?:readonly\s+)?(?:[?\\\\A-Za-z_][\\\\A-Za-z0-9_|&?]*\s+)?\$([A-Za-z_][A-Za-z0-9_]*)/',
+            $source,
+            $matches,
+            PREG_OFFSET_CAPTURE,
+        );
+        foreach ($matches[1] ?? [] as [$symbol, $offset]) {
+            $key = $relative . '::$' . $symbol;
+            $reason = $baseline[$key] ?? null;
+            if (!is_string($reason) || trim($reason) === '') {
+                $line = 1 + substr_count(substr($source, 0, (int) $offset), "\n");
+                $violations[] = "AH005 {$relative}:{$line}: mutable static \${$symbol} lacks a baseline lifetime rationale.";
+            }
+        }
+    }
+
+    sort($violations);
+    return array_values(array_unique($violations));
+}
+
+/** @return list<string> */
+function phpFiles(string $directory): array
+{
+    if (!is_dir($directory)) {
+        return [];
+    }
+    $files = [];
+    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(
+        $directory,
+        FilesystemIterator::SKIP_DOTS,
+    ));
+    foreach ($iterator as $file) {
+        if ($file->isFile() && $file->getExtension() === 'php' && str_contains($file->getPathname(), '/src/')) {
+            $files[] = $file->getPathname();
+        }
+    }
+    sort($files);
+    return $files;
+}
+
+function isRequestPath(string $relative): bool
+{
+    return preg_match(
+        '#^packages/(access|admin-surface|ai-agent|api|auth|debug|foundation|graphql|inertia|mcp|routing|seo|ssr|user|workspace)/src/#',
+        $relative,
+    ) === 1;
+}
+
+/** @param list<string> $needles */
+function containsAny(string $source, array $needles): bool
+{
+    foreach ($needles as $needle) {
+        if (str_contains($source, $needle)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * @param list<string> $patterns
+ * @param list<string> $violations
+ */
+function requireCodePatterns(string $root, string $relative, array $patterns, string $rule, array &$violations): void
+{
+    $file = $root . '/' . $relative;
+    if (!is_file($file)) {
+        $violations[] = "{$rule} {$relative}: protected surface is missing.";
+        return;
+    }
+    $source = executablePhp((string) file_get_contents($file));
+    foreach ($patterns as $pattern) {
+        if (preg_match($pattern, $source) !== 1) {
+            $violations[] = "{$rule} {$relative}: missing required executable access call {$pattern}.";
+        }
+    }
+}
+
+/** Remove comments and string contents so prose cannot satisfy an access rule. */
+function executablePhp(string $source): string
+{
+    $executable = '';
+    foreach (token_get_all($source) as $token) {
+        if (is_string($token)) {
+            $executable .= $token;
+            continue;
+        }
+        if (in_array($token[0], [T_COMMENT, T_DOC_COMMENT, T_CONSTANT_ENCAPSED_STRING, T_ENCAPSED_AND_WHITESPACE], true)) {
+            $executable .= ' ';
+            continue;
+        }
+        $executable .= $token[1];
+    }
+
+    return $executable;
+}
+
+function relativePath(string $root, string $path): string
+{
+    return ltrim(str_replace('\\', '/', substr($path, strlen(rtrim($root, '/\\')))), '/');
+}
+
+function selfTest(): void
+{
+    $root = sys_get_temp_dir() . '/waaseyaa-access-hardening-' . bin2hex(random_bytes(6));
+    mkdir($root . '/packages/ai-tools/src/Entity', 0777, true);
+    mkdir($root . '/packages/routing/src', 0777, true);
+    mkdir($root . '/packages/graphql/src', 0777, true);
+    mkdir($root . '/packages/graphql/src/Resolver', 0777, true);
+    mkdir($root . '/packages/seo/src/Llms', 0777, true);
+    mkdir($root . '/packages/ssr/src', 0777, true);
+    mkdir($root . '/packages/api/src', 0777, true);
+    mkdir($root . '/packages/admin-surface/src/Host', 0777, true);
+
+    try {
+        file_put_contents(
+            $root . '/packages/ai-tools/src/Entity/UnsafeTool.php',
+            "<?php #[AsAgentTool(name: 'unsafe')] final class UnsafeTool { public function execute() { getRepository(); } }",
+        );
+        file_put_contents(
+            $root . '/packages/routing/src/UnsafeRoutes.php',
+            "<?php RouteBuilder::create('/unsafe')->controller('x')->build();",
+        );
+        file_put_contents(
+            $root . '/packages/graphql/src/WorkerLeak.php',
+            "<?php final class WorkerLeak { private static array \$accounts = []; }",
+        );
+        file_put_contents($root . '/packages/seo/src/SitemapGenerator.php', "<?php // ->setAccount( status\n");
+        file_put_contents($root . '/packages/seo/src/Llms/LlmsTxtGenerator.php', "<?php '->setAccount(';\n");
+        file_put_contents($root . '/packages/ssr/src/SsrPageHandler.php', "<?php // EntityAccessHandler WorkflowVisibilityFilter\n");
+        file_put_contents(
+            $root . '/packages/api/src/JsonApiController.php',
+            "<?php final class JsonApiController { private function validateQueryFields() {} private function queryFieldForbidden() {} private function rejectForbiddenSort() {} }",
+        );
+        file_put_contents(
+            $root . '/packages/graphql/src/Resolver/EntityResolver.php',
+            "<?php // \$this->assertQueryableFields(); \$this->queryFieldForbidden(); \$this->rejectForbiddenSort();\n",
+        );
+        file_put_contents(
+            $root . '/packages/admin-surface/src/Host/GenericAdminSurfaceHost.php',
+            "<?php final class Host { private function validateSurfaceQueryFields() {} private function isFieldViewForbidden() {} }",
+        );
+
+        $failures = scanRoot($root, []);
+        foreach (['AH001', 'AH002', 'AH003', 'AH004', 'AH005'] as $rule) {
+            if (!containsAny(implode("\n", $failures), [$rule])) {
+                throw new RuntimeException("self-test did not trigger {$rule}");
+            }
+        }
+        foreach ([
+            'AH002 packages/seo/src/SitemapGenerator.php',
+            'AH002 packages/seo/src/Llms/LlmsTxtGenerator.php',
+            'AH002 packages/ssr/src/SsrPageHandler.php',
+            'AH003 packages/api/src/JsonApiController.php',
+            'AH003 packages/graphql/src/Resolver/EntityResolver.php',
+            'AH003 packages/admin-surface/src/Host/GenericAdminSurfaceHost.php',
+        ] as $expectedFailure) {
+            if (!str_contains(implode("\n", $failures), $expectedFailure)) {
+                throw new RuntimeException("self-test prose/definition fixture did not trigger {$expectedFailure}");
+            }
+        }
+
+        unlink($root . '/packages/seo/src/SitemapGenerator.php');
+        $missingSurfaceFailures = scanRoot($root, []);
+        if (!str_contains(implode("\n", $missingSurfaceFailures), 'AH002 packages/seo/src/SitemapGenerator.php: protected surface is missing.')) {
+            throw new RuntimeException('self-test missing protected surface did not fail closed');
+        }
+
+        file_put_contents(
+            $root . '/packages/ai-tools/src/Entity/UnsafeTool.php',
+            "<?php #[AsAgentTool(name: 'safe')] final class UnsafeTool { public function execute() { requireCapability(); getRepository(); canViewEntity(); } }",
+        );
+        file_put_contents(
+            $root . '/packages/routing/src/UnsafeRoutes.php',
+            "<?php RouteBuilder::create('/safe')->controller('x')->allowAll()->build();",
+        );
+        file_put_contents($root . '/packages/seo/src/SitemapGenerator.php', "<?php \$query->setAccount(\$account);");
+        file_put_contents($root . '/packages/seo/src/Llms/LlmsTxtGenerator.php', "<?php \$query->setAccount(\$account);");
+        file_put_contents(
+            $root . '/packages/ssr/src/SsrPageHandler.php',
+            "<?php \$this->accessHandler->check(\$entity, 'view', \$account); new WorkflowVisibilityFilter();",
+        );
+        file_put_contents(
+            $root . '/packages/api/src/JsonApiController.php',
+            "<?php \$this->validateQueryFields(); \$this->queryFieldForbidden(); \$this->rejectForbiddenSort();",
+        );
+        file_put_contents(
+            $root . '/packages/graphql/src/Resolver/EntityResolver.php',
+            "<?php \$this->assertQueryableFields(); \$this->queryFieldForbidden(); \$this->rejectForbiddenSort();",
+        );
+        file_put_contents(
+            $root . '/packages/admin-surface/src/Host/GenericAdminSurfaceHost.php',
+            "<?php \$this->validateSurfaceQueryFields(); \$this->isFieldViewForbidden();",
+        );
+        $baseline = [
+            'packages/graphql/src/WorkerLeak.php::$accounts' => 'Structural schema cache; entries contain no request or account state.',
+        ];
+        $remaining = scanRoot($root, $baseline);
+        if ($remaining !== []) {
+            throw new RuntimeException("self-test safe fixtures failed:\n" . implode("\n", $remaining));
+        }
+    } finally {
+        if (is_dir($root)) {
+            $iterator = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::CHILD_FIRST,
+            );
+            foreach ($iterator as $path) {
+                $path->isDir() ? rmdir($path->getPathname()) : unlink($path->getPathname());
+            }
+            rmdir($root);
+        }
+    }
+
+    fwrite(STDOUT, "access-hardening: self-test passed (unsafe fixtures fail; reviewed fixtures pass).\n");
+}

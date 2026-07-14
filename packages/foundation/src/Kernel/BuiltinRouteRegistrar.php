@@ -46,6 +46,7 @@ final class BuiltinRouteRegistrar
             RouteBuilder::create('/api/entity-types')
                 ->controller('entity_types')
                 ->methods('GET')
+                ->allowAll()
                 ->build(),
         );
 
@@ -97,6 +98,7 @@ final class BuiltinRouteRegistrar
             RouteBuilder::create('/attachment/{id}/download')
                 ->controller('attachment.download')
                 ->methods('GET')
+                ->allowAll()
                 ->build(),
         );
 
