@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The production scheduler cron recipe preserves failure signals (#2020).** Scheduler output is retained in an application log, while failures emit their original exit status to syslog and return it to cron for host-level monitoring.
+
 ## [0.1.0-alpha.264] - 2026-07-14
 
 ### Fixed
