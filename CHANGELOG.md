@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Skeleton deployments now ship an Apache front-controller rewrite, copy-paste Apache/nginx/Caddy server blocks, and a `health:check` clean-URL self-probe that fails loudly when non-root requests do not reach the router (#2020).
 
+### Security
+
+- **Relationships no longer expose edge metadata when both endpoints are hidden (#2020).** The endpoint visibility policy now denies entity-level view when neither endpoint can be viewed, while retaining pair-wise field redaction when one endpoint remains visible.
+### Changed
+
+- **New nodes now default to unpublished and node-type identifiers expose their real domain type (#2020).** Omitted publication state fails closed to draft, while `NodeType::getType()` narrows the generic config-entity id to `?string`.
+### Security
+
+- **The debug provider's fail-closed production gate now has regression coverage (#2020).** Malformed `APP_DEBUG` values register neither debug middleware nor preview routes, while an absent environment value may still use explicit server-side configuration.
 ### Changed
 
 - **North Cloud mapper documentation now names its external-content trust boundary (#2020).** Consumer mappers must sanitize HTML according to each destination field's markup contract before returning values for persistence.
