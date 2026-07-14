@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Failed queue jobs can be removed individually with `queue:forget` (#2020).** The command returns failure for an unknown ID and deletes only the selected failed row.
+
+### Fixed
+
+- **Queue failure semantics are explicit and observable (#2020).** Sync dispatch documents that handler exceptions propagate without failed-row persistence, while persistent workers now log a throwing `Job::failed()` hook before safely continuing.
 ### Fixed
 
 - **Abandoned AI runs and their audits now reach a coherent terminal lifecycle (#2020).** Audit retention preserves rows owned by any non-terminal run. The scheduled reaper now terminalizes expired never-claimed, approval-waiting, and cancellation-pending runs alongside crashed running workers, using selection-captured source state and lifecycle fields in compare-and-swap transitions. Interactive approval persists its own deadline, so a long-running job still receives its full approval window; renewed approval cycles win stale reaper races, and terminalization clears pending approval metadata.
