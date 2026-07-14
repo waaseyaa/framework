@@ -160,10 +160,10 @@ final class NodeTest extends TestCase
     // Published status
     // -----------------------------------------------------------------
 
-    public function testIsPublishedDefaultTrue(): void
+    public function testNewNodeDefaultsToUnpublished(): void
     {
         $node = new Node();
-        $this->assertTrue($node->isPublished());
+        $this->assertFalse($node->isPublished());
     }
 
     public function testIsPublishedViaConstructor(): void

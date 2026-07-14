@@ -10,19 +10,7 @@
         },
         {
             "type": "path",
-            "url": "../ai-agent"
-        },
-        {
-            "type": "path",
-            "url": "../ai-schema"
-        },
-        {
-            "type": "path",
             "url": "../ai-tools"
-        },
-        {
-            "type": "path",
-            "url": "../ai-vector"
         },
         {
             "type": "path",
@@ -30,11 +18,15 @@
         },
         {
             "type": "path",
-            "url": "../cache"
+            "url": "../audit"
         },
         {
             "type": "path",
             "url": "../entity"
+        },
+        {
+            "type": "path",
+            "url": "../foundation"
         },
         {
             "type": "path",
@@ -43,34 +35,17 @@
         {
             "type": "path",
             "url": "../user"
-        },
-        {
-            "type": "path",
-            "url": "../workflows"
-        },
-        {
-            "type": "path",
-            "url": "../foundation"
-        },
-        {
-            "type": "path",
-            "url": "../audit"
         }
     ],
     "require": {
         "php": ">=8.5",
         "waaseyaa/access": "^0.1.0-alpha.264",
-        "waaseyaa/ai-agent": "^0.1.0-alpha.264",
-        "waaseyaa/ai-schema": "^0.1.0-alpha.264",
         "waaseyaa/ai-tools": "^0.1.0-alpha.264",
-        "waaseyaa/ai-vector": "^0.1.0-alpha.264",
         "waaseyaa/api": "^0.1.0-alpha.264",
-        "waaseyaa/cache": "^0.1.0-alpha.264",
         "waaseyaa/entity": "^0.1.0-alpha.264",
+        "waaseyaa/foundation": "^0.1.0-alpha.264",
         "waaseyaa/routing": "^0.1.0-alpha.264",
-        "waaseyaa/user": "^0.1.0-alpha.264",
-        "waaseyaa/workflows": "^0.1.0-alpha.264",
-        "waaseyaa/foundation": "^0.1.0-alpha.264"
+        "waaseyaa/user": "^0.1.0-alpha.264"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5",

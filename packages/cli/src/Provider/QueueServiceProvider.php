@@ -11,6 +11,7 @@ use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\QueueFailedHandler;
 use Waaseyaa\CLI\Handler\QueueFlushHandler;
+use Waaseyaa\CLI\Handler\QueueForgetHandler;
 use Waaseyaa\CLI\Handler\QueueRetryHandler;
 use Waaseyaa\CLI\Handler\QueueWorkHandler;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
@@ -105,6 +106,19 @@ final class QueueServiceProvider extends ServiceProvider implements ProvidesCons
                 ),
             ],
             handler: [QueueFlushHandler::class, 'execute'],
+        );
+
+        yield new HandlerCommand(
+            name: 'queue:forget',
+            description: 'Remove one failed queue job',
+            arguments: [
+                new HandlerArgument(
+                    name: 'id',
+                    mode: HandlerArgumentMode::Required,
+                    description: 'The failed job ID to remove',
+                ),
+            ],
+            handler: [QueueForgetHandler::class, 'execute'],
         );
     }
 }

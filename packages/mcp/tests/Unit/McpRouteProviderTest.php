@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Mcp\Tests\Unit;
 
-use Waaseyaa\Mcp\McpRouteProvider;
-use Waaseyaa\Routing\WaaseyaaRouter;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Mcp\McpRouteProvider;
+use Waaseyaa\Routing\WaaseyaaRouter;
 
 #[CoversClass(McpRouteProvider::class)]
 final class McpRouteProviderTest extends TestCase
@@ -58,6 +58,21 @@ final class McpRouteProviderTest extends TestCase
 
         $this->assertNotNull($mcpRoute, 'mcp.endpoint route should be registered');
         $this->assertFalse($mcpRoute->getOption('_csrf'), 'MCP endpoint should be CSRF exempt');
+    }
+
+    #[Test]
+    public function writeEndpointPinsPublicRouterAndCsrfExemptContract(): void
+    {
+        $router = new WaaseyaaRouter();
+        new McpRouteProvider()->registerRoutes($router);
+
+        $route = $router->getRouteCollection()->get('mcp.endpoint.write');
+
+        self::assertNotNull($route);
+        self::assertSame('/mcp/write', $route->getPath());
+        self::assertSame(['POST', 'GET'], $route->getMethods());
+        self::assertTrue($route->getOption('_public'));
+        self::assertFalse($route->getOption('_csrf'));
     }
 
     #[Test]

@@ -239,34 +239,18 @@ final class RelationshipEndpointVisibilityRestTest extends TestCase
     }
 
     // -----------------------------------------------------------------------
-    // Documented residual: both-endpoints-hidden edge-existence metadata
+    // Both-endpoints-hidden edge-existence metadata
     // -----------------------------------------------------------------------
 
     #[Test]
-    public function both_endpoints_hidden_still_returns_the_edge_with_all_four_endpoint_fields_redacted(): void
+    public function both_endpoints_hidden_conceals_the_entire_edge(): void
     {
-        // Residual (documented in CHANGELOG + docs/specs/relationship-modeling.md):
-        // when the account can view NEITHER endpoint, this FIELD-only policy
-        // redacts all four endpoint identity fields but does NOT drop the edge
-        // — the edge's id/relationship_type/status still surface, leaking
-        // "an edge of type X exists between two entities you cannot see"
-        // (edge-EXISTENCE metadata, no identity crossing). Closing it is an
-        // ENTITY-level decision that belongs to RelationshipAccessPolicy (which
-        // this batch must not modify), so it is disclosed, not fixed here. This
-        // test PINS the current behavior so a future change is deliberate.
         $doc = $this->controllerWithBothEndpointsHidden($this->baselineAccount())->show('relationship', 5);
         $array = $doc->toArray();
 
-        self::assertSame(200, $doc->statusCode, 'The edge itself is still returned (entity-level view is allowed).');
-        $attributes = $array['data']['attributes'];
-        // No endpoint identity leaks — all four pair fields are redacted.
-        self::assertArrayNotHasKey('from_entity_type', $attributes);
-        self::assertArrayNotHasKey('from_entity_id', $attributes);
-        self::assertArrayNotHasKey('to_entity_type', $attributes);
-        self::assertArrayNotHasKey('to_entity_id', $attributes);
-        // But edge-existence metadata (the relationship_type) IS still present —
-        // this is the disclosed residual.
-        self::assertSame('references', $attributes['relationship_type']);
+        self::assertSame(404, $doc->statusCode);
+        self::assertArrayNotHasKey('data', $array);
+        self::assertSame('404', $array['errors'][0]['status']);
     }
 
     private function controllerWithBothEndpointsHidden(AccountInterface $account): JsonApiController

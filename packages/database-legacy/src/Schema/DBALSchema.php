@@ -6,6 +6,7 @@ namespace Waaseyaa\Database\Schema;
 
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Platforms\AbstractPlatform;
+use Doctrine\DBAL\Platforms\SQLitePlatform;
 use Doctrine\DBAL\Schema\AbstractSchemaManager;
 use Doctrine\DBAL\Schema\Schema;
 use Waaseyaa\Database\SchemaInterface;
@@ -221,11 +222,25 @@ final class DBALSchema implements SchemaInterface
 
     public function addPrimaryKey(string $table, array $fields): void
     {
-        // SQLite does not support adding a primary key to an existing table.
-        throw new \RuntimeException(
-            'SQLite does not support adding a primary key to an existing table. '
-            . 'Define the primary key when creating the table.',
-        );
+        if ($fields === []) {
+            throw new \InvalidArgumentException('Primary key fields must not be empty.');
+        }
+        if ($this->platform instanceof SQLitePlatform) {
+            throw new \RuntimeException(
+                'SQLite does not support adding a primary key to an existing table. '
+                . 'Define the primary key when creating the table.',
+            );
+        }
+
+        $currentSchema = $this->sm->introspectSchema();
+        $newSchema = clone $currentSchema;
+        $newSchema->getTable($table)->setPrimaryKey($fields);
+
+        $diff = $this->sm->createComparator()
+            ->compareSchemas($currentSchema, $newSchema);
+        foreach ($this->platform->getAlterSchemaSQL($diff) as $sql) {
+            $this->connection->executeStatement($sql);
+        }
     }
 
     private function mapFieldType(string $waaseyaaType): string

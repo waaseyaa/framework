@@ -21,6 +21,7 @@ use Waaseyaa\Auth\RateLimiterInterface;
 use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
 use Waaseyaa\Auth\TwoFactorService;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Oidc\Authorize\AuthorizeController;
 use Waaseyaa\Oidc\Consent\ConsentScreenController;
@@ -197,31 +198,36 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
         $authorizeController = null;
         try {
             $authorizeController = $this->resolve(AuthorizeController::class);
-        } catch (\Throwable) {
+        } catch (\Throwable $exception) {
+            $this->logOidcResolutionFailure(AuthorizeController::class, $exception);
         }
 
         $tokenController = null;
         try {
             $tokenController = $this->resolve(TokenController::class);
-        } catch (\Throwable) {
+        } catch (\Throwable $exception) {
+            $this->logOidcResolutionFailure(TokenController::class, $exception);
         }
 
         $revocationController = null;
         try {
             $revocationController = $this->resolve(RevocationController::class);
-        } catch (\Throwable) {
+        } catch (\Throwable $exception) {
+            $this->logOidcResolutionFailure(RevocationController::class, $exception);
         }
 
         $userinfoController = null;
         try {
             $userinfoController = $this->resolve(UserinfoController::class);
-        } catch (\Throwable) {
+        } catch (\Throwable $exception) {
+            $this->logOidcResolutionFailure(UserinfoController::class, $exception);
         }
 
         $consentScreenController = null;
         try {
             $consentScreenController = $this->resolve(ConsentScreenController::class);
-        } catch (\Throwable) {
+        } catch (\Throwable $exception) {
+            $this->logOidcResolutionFailure(ConsentScreenController::class, $exception);
         }
 
         new OidcHttpRoutes(
@@ -231,5 +237,19 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
             userinfoController: $userinfoController,
             consentScreenController: $consentScreenController,
         )->registerRoutes($router);
+    }
+
+    /** @param class-string $controller */
+    private function logOidcResolutionFailure(string $controller, \Throwable $exception): void
+    {
+        $logger = $this->resolveOptional(LoggerInterface::class);
+        if (!$logger instanceof LoggerInterface) {
+            return;
+        }
+
+        $logger->warning('OIDC route controller could not be resolved; route registration skipped.', [
+            'controller' => $controller,
+            'exception' => $exception,
+        ]);
     }
 }

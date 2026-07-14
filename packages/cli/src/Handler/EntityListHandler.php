@@ -24,6 +24,8 @@ final class EntityListHandler
 
         // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
         $repository = $this->entityTypeManager->getRepository($entityType);
+        // CLI has no authenticated account context; this operator-invoked
+        // inventory command deliberately enumerates entities without policy filtering.
         $ids = $repository->getQuery()
             ->accessCheck(false)
             ->range(0, $limit)

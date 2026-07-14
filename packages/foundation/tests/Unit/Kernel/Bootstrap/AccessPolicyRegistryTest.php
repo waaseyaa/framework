@@ -108,7 +108,7 @@ final class AccessPolicyRegistryTest extends TestCase
     }
 
     #[Test]
-    public function missing_policy_class_is_skipped_with_warning(): void
+    public function missing_policy_class_fails_boot_loudly(): void
     {
         $resolver = new class implements PolicyDependencyResolverInterface {
             public function resolveParameter(string $policyClass, \ReflectionParameter $param, array $entityTypes): mixed
@@ -118,17 +118,17 @@ final class AccessPolicyRegistryTest extends TestCase
         };
 
         // Use a class-string for a non-existent class (never loaded) to verify
-        // the registry skips it with a warning rather than throwing.
+        // the registry cannot silently weaken the access-policy set.
         $nonExistentClass = self::nonExistentPolicyClass();
         $manifest = new PackageManifest(
             policies: [$nonExistentClass => ['test_entity']],
         );
 
         $registry = new AccessPolicyRegistry(new NullLogger(), $resolver);
-        // Missing class must not throw — just warn and skip.
-        $handler = $registry->discover($manifest);
+        $this->expectException(PolicyInstantiationException::class);
+        $this->expectExceptionMessage('Access policy class not found');
 
-        self::assertInstanceOf(EntityAccessHandler::class, $handler);
+        $registry->discover($manifest);
     }
 
     /**
@@ -232,7 +232,7 @@ final class AccessPolicyRegistryTest extends TestCase
 
     /**
      * Returns a class-string FQCN for a class that does not exist in the autoloader.
-     * Used to verify the registry skips missing classes with a warning.
+     * Used to verify the registry rejects missing classes.
      *
      * @return class-string
      */

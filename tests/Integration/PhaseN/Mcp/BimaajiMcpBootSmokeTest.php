@@ -15,8 +15,6 @@ use Waaseyaa\AI\Agent\Tool\Bimaaji\ProposeMutationTool;
 use Waaseyaa\AI\Tools\AgentToolInterface;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
 use Waaseyaa\Mcp\Bridge\AgentToolRegistryBridge;
-use Waaseyaa\Mcp\Bridge\ToolExecutorInterface;
-use Waaseyaa\Mcp\Bridge\ToolRegistryInterface;
 
 /**
  * WP01 boot smoke test for the bimaaji-mcp bridge.
@@ -25,10 +23,8 @@ use Waaseyaa\Mcp\Bridge\ToolRegistryInterface;
  * is in place: the four SC-004 bimaaji tools shipped by M2
  * (`ai-agent-bimaaji-tools-01KS5VKR`) are discoverable via `#[AsAgentTool]`,
  * implement the agent-tool interface, carry the canonical names + capabilities,
- * have unique names, and can be exposed through the existing
- * {@see \Waaseyaa\Mcp\Bridge\AgentToolRegistryBridge} adapter to satisfy
- * MCP's {@see \Waaseyaa\Mcp\Bridge\ToolRegistryInterface} +
- * {@see \Waaseyaa\Mcp\Bridge\ToolExecutorInterface} surface.
+ * have unique names, and can be exposed through the concrete
+ * {@see \Waaseyaa\Mcp\Bridge\AgentToolRegistryBridge} adapter.
  *
  * **SC-004 anchor:** `kitty-specs/ai-agent-bimaaji-tools-01KS5VKR/verification.md`
  *
@@ -150,16 +146,12 @@ final class BimaajiMcpBootSmokeTest extends TestCase
     }
 
     #[Test]
-    public function agentToolRegistryBridgeImplementsBothMcpBridgeInterfaces(): void
+    public function agentToolRegistryBridgeExposesTheDirectMcpAdapterSurface(): void
     {
         $reflection = new ReflectionClass(AgentToolRegistryBridge::class);
-        self::assertTrue(
-            $reflection->implementsInterface(ToolRegistryInterface::class),
-            'AgentToolRegistryBridge must implement Mcp\\Bridge\\ToolRegistryInterface so a single instance binds both sides.',
-        );
-        self::assertTrue(
-            $reflection->implementsInterface(ToolExecutorInterface::class),
-            'AgentToolRegistryBridge must implement Mcp\\Bridge\\ToolExecutorInterface so a single instance binds both sides.',
-        );
+        self::assertTrue($reflection->isFinal());
+        self::assertTrue($reflection->hasMethod('getTools'));
+        self::assertTrue($reflection->hasMethod('getTool'));
+        self::assertTrue($reflection->hasMethod('execute'));
     }
 }

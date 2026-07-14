@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Database\Tests\Unit\Schema;
 
-use Waaseyaa\Database\DBALDatabase;
-use Waaseyaa\Database\Schema\DBALSchema;
+use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
+use Doctrine\DBAL\Schema\AbstractSchemaManager;
+use Doctrine\DBAL\Schema\Comparator;
+use Doctrine\DBAL\Schema\Schema;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Database\Schema\DBALSchema;
 
 #[CoversClass(DBALSchema::class)]
 final class DBALSchemaTest extends TestCase
@@ -214,6 +219,26 @@ final class DBALSchemaTest extends TestCase
         $this->expectExceptionMessage('SQLite does not support');
 
         $this->db->schema()->addPrimaryKey('test', ['id']);
+    }
+
+    public function testAddPrimaryKeyUsesPortableSchemaDiffOutsideSqlite(): void
+    {
+        $platform = new PostgreSQLPlatform();
+        $schema = new Schema();
+        $schema->createTable('test')->addColumn('id', 'integer');
+
+        $manager = $this->createMock(AbstractSchemaManager::class);
+        $manager->method('introspectSchema')->willReturn($schema);
+        $manager->method('createComparator')->willReturn(new Comparator($platform));
+
+        $connection = $this->createMock(Connection::class);
+        $connection->method('createSchemaManager')->willReturn($manager);
+        $connection->method('getDatabasePlatform')->willReturn($platform);
+        $connection->expects(self::once())
+            ->method('executeStatement')
+            ->with(self::stringContains('ADD PRIMARY KEY'));
+
+        new DBALSchema($connection)->addPrimaryKey('test', ['id']);
     }
 
     public function testCreateTableWithAllFieldTypes(): void

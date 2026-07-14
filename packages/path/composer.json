@@ -43,6 +43,9 @@
     },
     "extra": {
         "waaseyaa": {
+            "policies": [
+                "Waaseyaa\\Path\\PathAliasAccessPolicy"
+            ],
             "providers": [
                 "Waaseyaa\\Path\\PathServiceProvider"
             ]

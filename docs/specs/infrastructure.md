@@ -562,6 +562,12 @@ $query->condition('title', '%' . $escaped . '%', 'LIKE');
 
 All conditions are ANDed together. No OR support at this level.
 
+`IN`/`NOT IN` lists infer DBAL's array type from their first element:
+integer and boolean lists use `ArrayParameterType::INTEGER`; other and empty
+lists use `ArrayParameterType::STRING`. Scalar floats bind explicitly as
+strings because DBAL exposes no float `ParameterType`, preserving the decimal
+value for platform conversion rather than relying on an implicit default.
+
 ### Identifier quoting (SQL-injection hardening — database-legacy M1+M2, fully closed WP6 #1816)
 
 The query builder binds all **values** as parameters (never interpolated), so `$value` is never an injection vector. **Identifiers** (column / alias / table / join names) and **raw expressions** are handled as follows:
@@ -817,7 +823,10 @@ interface SchemaInterface
 
 `DBALSchema` uses Doctrine DBAL's schema introspection and DDL generation. Type mapping: `serial` -> INTEGER AUTOINCREMENT, `varchar` -> TEXT, `int`/`integer` -> INTEGER, `text` -> TEXT, `float`/`numeric`/`decimal` -> REAL, `blob` -> BLOB.
 
-Note: SQLite cannot add a primary key to an existing table. `addPrimaryKey()` throws `\RuntimeException`.
+`addPrimaryKey()` uses Doctrine's portable schema comparator and generated
+ALTER statements on capable platforms. SQLite cannot add a primary key to an
+existing table, so that platform retains a clear `\RuntimeException` requiring
+the key to be declared at table creation.
 
 **Distinction from SchemaPresenter**: `SchemaInterface` is a database DDL abstraction in `packages/database-legacy/` for creating/altering tables. It is unrelated to `SchemaPresenter` (`packages/api/src/Schema/SchemaPresenter.php`), which generates JSON Schema output from entity field definitions for the API layer. `SchemaPresenter` works with `EntityType::getFieldDefinitions()` and does not use `SchemaInterface`.
 
@@ -1616,7 +1625,7 @@ Queue implementations: `DbalQueue` (DBAL-backed persistent), `InMemoryQueue` (te
 File: `packages/queue/src/Worker/Worker.php`
 Class: `final class Worker`
 
-Constructor: `(TransportInterface $transport, FailedJobRepositoryInterface $failedJobRepository, array $handlers)`
+Constructor: `(TransportInterface $transport, FailedJobRepositoryInterface $failedJobRepository, array $handlers, ?LoggerInterface $logger = null)`
 
 Long-running daemon that processes jobs from a queue transport.
 
@@ -1640,7 +1649,11 @@ Long-running daemon that processes jobs from a queue transport.
 3. **Crash-recovery safety net (queue M1):** if `$raw['attempts'] >= maxTries` (`Job::$tries` or `WorkerOptions::$maxTries`; `0` = unlimited), the job has exhausted its budget — e.g. it was repeatedly claimed then abandoned by crashed workers, each transport reclaim bumping `attempts` — so it is recorded failed (+ `Job::failed()` best-effort) and rejected **instead of being run again**. This is what stops an always-crashing job from being reclaimed forever.
 4. First matching `HandlerInterface::supports($message)` handles the job
 5. If `Job::isReleased()`, release back to queue with delay; otherwise `transport->ack()`
-6. On exception: retry with exponential backoff (`min(baseDelay * 2^(attempts-1), 3600)`) if under `maxTries`, otherwise record failure and call `Job::failed($e)` (best-effort)
+6. On exception: retry with exponential backoff (`min(baseDelay * 2^(attempts-1), 3600)`) if under `maxTries`, otherwise record failure and call `Job::failed($e)` (best-effort). If that failure hook throws, log `queue.failure_hook_failed` with both exceptions and keep the worker alive.
+
+`SyncQueue` has no worker boundary: handler exceptions propagate to its caller
+and it does not create failed-job rows. The caller owns rollback, logging, and
+retry policy for inline dispatch.
 
 **WorkerOptions** (`packages/queue/src/Worker/WorkerOptions.php`): Controls `maxJobs`, `maxTime`, `memoryLimit` (MiB of heap growth allowed during each `run()` call), `sleep` (seconds between polls), `maxTries`.
 

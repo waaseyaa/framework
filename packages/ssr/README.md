@@ -15,3 +15,9 @@ The `?raw` / `Accept: text/markdown` representation renders via `SsrPageHandler:
 Twig functions: `asset()`, `env()`, `config()` (when wired), `csrf_token()` (when User middleware present).
 
 Key classes: `SsrPageHandler`, `RenderController`, `ThemeServiceProvider`, `EntityRenderer`, `WaaseyaaExtension`.
+
+Typed app-controller entity parameters are an access boundary: the invoker
+accepts `HttpKernel`'s upcast entity (or repository-loads a raw id for direct
+callers), then requires the request gate to allow `view`. Missing, denied, and
+unresolvable entities all produce the same 404. Custom method-service parameters
+resolve through `HttpServiceResolverInterface::resolve()`.

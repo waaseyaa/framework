@@ -60,6 +60,14 @@ final class McpServerCardTest extends TestCase
     }
 
     #[Test]
+    public function oauth2_advertisement_falls_back_to_opaque_bearer(): void
+    {
+        $card = new McpServerCard(McpServerCardConfig::fromArray(['auth_type' => 'oauth2']))->toArray();
+
+        self::assertSame('bearer', $card['authentication']['type']);
+    }
+
+    #[Test]
     public function registry_fields_are_emitted_when_configured(): void
     {
         $config = McpServerCardConfig::fromArray([
