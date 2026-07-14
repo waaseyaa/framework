@@ -86,6 +86,18 @@ final class BuiltinRouteRegistrar
                 ->build(),
         );
 
+        // Public at the transport layer so anonymous callers can reach media
+        // whose entity policy allows them. MediaDownloadRouter remains the
+        // enforcement point and collapses missing/denied/invalid paths to 404.
+        $router->addRoute(
+            'media.download',
+            RouteBuilder::create('/media/{id}/download')
+                ->controller('media.download')
+                ->allowAll()
+                ->methods('GET')
+                ->build(),
+        );
+
         // Authorized download of a private attachment's bytes. Option-less by
         // design: the attachment package's AttachmentDownloadRouter (matched via
         // the 'attachment.download' controller string) is the enforcement point —

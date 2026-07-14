@@ -16,10 +16,10 @@ use Waaseyaa\Entity\ConfigEntityBase;
  * only. The media source-plugin system they describe — a `MediaSourceInterface`,
  * a plugin registry, and a resolver that maps a media entity to its file
  * location — is NOT implemented in this package today: nothing consults `$source`
- * to handle media, resolve a file URI, or generate thumbnails/derivatives. These
- * fields exist for forward compatibility; building the substrate (and an
- * authorized media download, reusing the attachment `PrivateFileStore` from
- * #1761) is tracked as a future feature in #1762. Do not rely on source-plugin
+ * to handle media, resolve a file URI, or generate thumbnails/derivatives.
+ * Authorized download reads an explicit `source_uri` from the media entity
+ * directly; these fields remain forward-compatibility metadata. Building the
+ * source-plugin substrate is tracked in #1762. Do not rely on source-plugin
  * resolution until then.
  */
 final class MediaType extends ConfigEntityBase

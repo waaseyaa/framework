@@ -18,6 +18,9 @@ final class InMemoryFailedJobRepository implements FailedJobRepositoryInterface
 
     private int $sequence = 0;
 
+    /** @var array<string, true> */
+    private array $retryClaims = [];
+
     public function record(string $queue, string $payload, \Throwable $e): string
     {
         $id = (string) ++$this->sequence;
@@ -45,21 +48,40 @@ final class InMemoryFailedJobRepository implements FailedJobRepositoryInterface
     public function forget(string $id): void
     {
         unset($this->records[$id]);
+        unset($this->retryClaims[$id]);
     }
 
     public function flush(): void
     {
         $this->records = [];
         $this->sequence = 0;
+        $this->retryClaims = [];
     }
 
     public function retry(string $id): ?array
     {
         $record = $this->records[$id] ?? null;
-        if ($record !== null) {
-            unset($this->records[$id]);
+        if ($record !== null && $this->claimForRetry($id)) {
+            $this->forget($id);
+
+            return $record;
         }
 
-        return $record;
+        return null;
+    }
+
+    public function claimForRetry(string $id): bool
+    {
+        if (!isset($this->records[$id]) || isset($this->retryClaims[$id])) {
+            return false;
+        }
+        $this->retryClaims[$id] = true;
+
+        return true;
+    }
+
+    public function releaseRetryClaim(string $id): void
+    {
+        unset($this->retryClaims[$id]);
     }
 }

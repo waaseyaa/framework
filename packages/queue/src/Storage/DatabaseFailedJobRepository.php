@@ -91,14 +91,30 @@ final class DatabaseFailedJobRepository implements FailedJobRepositoryInterface
     public function retry(string $id): ?array
     {
         $record = $this->find($id);
-        if ($record !== null) {
-            $this->database->update(self::TABLE)
-                ->fields(['retried_at' => date('Y-m-d\TH:i:sP')])
-                ->condition('id', $id)
-                ->execute();
+        if ($record !== null && $this->claimForRetry($id)) {
             $this->forget($id);
+
+            return $record;
         }
 
-        return $record;
+        return null;
+    }
+
+    public function claimForRetry(string $id): bool
+    {
+        return 1 === $this->database->update(self::TABLE)
+            ->fields(['retried_at' => date('Y-m-d\TH:i:s.uP')])
+            ->condition('id', $id)
+            ->condition('retried_at', null, 'IS NULL')
+            ->execute();
+    }
+
+    public function releaseRetryClaim(string $id): void
+    {
+        $this->database->update(self::TABLE)
+            ->fields(['retried_at' => null])
+            ->condition('id', $id)
+            ->condition('retried_at', null, 'IS NOT NULL')
+            ->execute();
     }
 }

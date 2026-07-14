@@ -52,4 +52,14 @@ final class FailedJobRepository implements FailedJobRepositoryInterface
     {
         return $this->inner->retry($id);
     }
+
+    public function claimForRetry(string $id): bool
+    {
+        return $this->inner->claimForRetry($id);
+    }
+
+    public function releaseRetryClaim(string $id): void
+    {
+        $this->inner->releaseRetryClaim($id);
+    }
 }

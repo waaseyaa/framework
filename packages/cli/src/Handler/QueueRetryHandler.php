@@ -41,15 +41,22 @@ final class QueueRetryHandler
             return 1;
         }
 
+        if (!$this->failedJobRepository->claimForRetry($id)) {
+            $io->writeln("Failed job [{$id}] is already being retried.");
+
+            return 1;
+        }
+
         try {
             $this->queue->dispatch($message);
         } catch (\Throwable $e) {
+            $this->failedJobRepository->releaseRetryClaim($id);
             $io->writeln("Failed to retry job [{$id}]: {$e->getMessage()}");
 
             return 1;
         }
 
-        $this->failedJobRepository->retry($id);
+        $this->failedJobRepository->forget($id);
         $io->writeln("Retrying failed job [{$id}].");
 
         return 0;
@@ -74,15 +81,22 @@ final class QueueRetryHandler
                 continue;
             }
 
+            if (!$this->failedJobRepository->claimForRetry($record['id'])) {
+                $io->writeln("Skipping job [{$record['id']}]: already being retried.");
+                $failed++;
+                continue;
+            }
+
             try {
                 $this->queue->dispatch($message);
             } catch (\Throwable $e) {
+                $this->failedJobRepository->releaseRetryClaim($record['id']);
                 $io->writeln("Failed to retry job [{$record['id']}]: {$e->getMessage()}");
                 $failed++;
                 continue;
             }
 
-            $this->failedJobRepository->retry($record['id']);
+            $this->failedJobRepository->forget($record['id']);
             $retried++;
         }
 

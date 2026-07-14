@@ -92,4 +92,16 @@ final class InMemoryFailedJobRepositoryTest extends TestCase
     {
         self::assertNull($this->repository->retry('999'));
     }
+
+    #[Test]
+    public function only_one_retry_claim_can_win_until_it_is_released(): void
+    {
+        $id = $this->repository->record('default', 'payload', new \RuntimeException('Error'));
+
+        self::assertTrue($this->repository->claimForRetry($id));
+        self::assertFalse($this->repository->claimForRetry($id));
+
+        $this->repository->releaseRetryClaim($id);
+        self::assertTrue($this->repository->claimForRetry($id));
+    }
 }
