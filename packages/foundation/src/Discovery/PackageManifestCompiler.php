@@ -131,6 +131,7 @@ final class PackageManifestCompiler
         // declared in the project's extra.waaseyaa.providers must be read separately.
         $this->mergeRootWaaseyaaIntoLists($providers, $permissions, onlyAppendMissingFromRoot: false);
 
+
         // Detect provider capability: ProvidesConsoleCommandsInterface
         // Uses string constant to avoid importing from Layer 6 (CLI package).
         foreach ($providers as $providerClass) {
@@ -223,6 +224,10 @@ final class PackageManifestCompiler
         }
 
         $attributeEntityTypes = array_values(array_unique($attributeEntityTypes));
+        $this->assertDeclaredPoliciesDiscovered(
+            $packages,
+            array_keys($policies),
+        );
 
         return new PackageManifest(
             providers: $providers,
@@ -354,11 +359,18 @@ final class PackageManifestCompiler
 
                     $manifest = PackageManifest::fromArray($data);
                     $manifest = $this->mergeRootWaaseyaaIntoManifest($manifest);
+                    $this->assertDeclaredPoliciesDiscovered(
+                        $this->installedPackages(),
+                        array_keys($manifest->policies),
+                    );
 
                     return $this->validateCachedProviders($manifest, $cachePath, $knownMissing);
                 }
             } catch (StaleManifestException) {
                 // New missing providers — fall through to compileAndCache()
+            } catch (PolicyManifestMismatchException $e) {
+                $this->logger->error($e->getMessage());
+                throw $e;
             } catch (\Throwable $e) {
                 // Corrupt cache (e.g. a cache file that throws on require()) — log
                 // before falling through to recompile, so an operator can see WHY
@@ -520,26 +532,151 @@ final class PackageManifestCompiler
             ));
         }
 
-        // App-namespace classes (e.g. Minoo\) typically aren't in the classmap
-        // without --optimize. Always scan PSR-4 directories for non-framework prefixes
-        // so app-level policies and middleware are discovered.
-        $appPrefixes = array_values(array_filter($prefixes, static fn(string $p) => $p !== 'Waaseyaa\\'));
-        if ($appPrefixes !== []) {
-            $appClasses = $this->scanPsr4Classes($appPrefixes);
-            $candidates = array_values(array_unique(array_merge($candidates, $appClasses)));
-        }
+        // A non-optimized Composer classmap is legitimately partial. Always union
+        // every discovery PSR-4 namespace with it; using PSR-4 only as an all-or-
+        // nothing fallback made four app policies suppress nineteen framework
+        // policies on a routine deployment.
+        $psr4Classes = $this->scanPsr4Classes($prefixes);
+        $candidates = array_values(array_unique(array_merge($candidates, $psr4Classes)));
 
         if ($candidates === []) {
-            // No classmap entries and no app classes — full PSR-4 fallback.
             $this->logger->warning(
                 'PackageManifestCompiler: no discoverable classes found. '
-                . 'Falling back to full PSR-4 directory scanning. '
-                . 'Run "composer dump-autoload --optimize" for faster, reliable discovery.',
+                . 'Composer classmap and PSR-4 scanning both returned no candidates.',
             );
-            $candidates = $this->scanPsr4Classes($prefixes);
         }
 
         return $this->scannedClasses = $this->filterDiscoveryClasses($candidates);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $packages
+     * @param list<string> $discoveredPolicies
+     */
+    private function assertDeclaredPoliciesDiscovered(array $packages, array $discoveredPolicies): void
+    {
+        $expected = $this->collectDeclaredPolicies($packages);
+        $sourceDirectories = $this->collectInstalledSourceDirectories($packages);
+        $actual = [];
+        foreach ($discoveredPolicies as $policyClass) {
+            if (!class_exists($policyClass)) {
+                continue;
+            }
+            $file = new \ReflectionClass($policyClass)->getFileName();
+            $realFile = is_string($file) ? realpath($file) : false;
+            if ($realFile === false) {
+                continue;
+            }
+            foreach ($sourceDirectories as $sourceDirectory) {
+                if (str_starts_with($realFile, $sourceDirectory . DIRECTORY_SEPARATOR)) {
+                    $actual[] = $policyClass;
+                    break;
+                }
+            }
+        }
+
+        // Root application policies remain source-discovered for backwards
+        // compatibility. If an app opts into declarations, validate them too.
+        foreach ($expected as $policyClass) {
+            if (in_array($policyClass, $discoveredPolicies, true) && class_exists($policyClass)) {
+                $actual[] = $policyClass;
+            }
+        }
+
+        $actual = array_values(array_unique($actual));
+        sort($expected);
+        sort($actual);
+
+        if ($actual !== $expected) {
+            throw new PolicyManifestMismatchException($expected, $actual);
+        }
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $packages
+     * @return list<string>
+     */
+    private function collectDeclaredPolicies(array $packages): array
+    {
+        $declared = [];
+        foreach ($packages as $package) {
+            $policies = $package['extra']['waaseyaa']['policies'] ?? [];
+            if (!is_array($policies)) {
+                continue;
+            }
+            foreach ($policies as $policyClass) {
+                if (is_string($policyClass) && $policyClass !== '') {
+                    $declared[] = $policyClass;
+                }
+            }
+        }
+
+        $rootExtra = $this->readRootWaaseyaaExtra();
+        if (is_array($rootExtra['policies'] ?? null)) {
+            foreach ($rootExtra['policies'] as $policyClass) {
+                if (is_string($policyClass) && $policyClass !== '') {
+                    $declared[] = $policyClass;
+                }
+            }
+        }
+
+        return array_values(array_unique($declared));
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $packages
+     * @return list<string>
+     */
+    private function collectInstalledSourceDirectories(array $packages): array
+    {
+        $directories = [];
+        $installedMetadataDir = $this->basePath . '/vendor/composer';
+        foreach ($packages as $package) {
+            $installPath = $package['install-path'] ?? null;
+            if (!is_string($installPath) || $installPath === '') {
+                continue;
+            }
+            $composerPath = $this->resolveInstalledPackageComposerPath($installPath, $installedMetadataDir);
+            if ($composerPath === null) {
+                continue;
+            }
+            $packageRoot = dirname($composerPath);
+            $psr4 = $package['autoload']['psr-4'] ?? [];
+            if (!is_array($psr4)) {
+                continue;
+            }
+            foreach ($psr4 as $relativeDirectories) {
+                foreach (is_array($relativeDirectories) ? $relativeDirectories : [$relativeDirectories] as $relativeDirectory) {
+                    if (!is_string($relativeDirectory)) {
+                        continue;
+                    }
+                    $directory = realpath($packageRoot . '/' . $relativeDirectory);
+                    if ($directory !== false) {
+                        $directories[] = rtrim($directory, DIRECTORY_SEPARATOR);
+                    }
+                }
+            }
+        }
+
+        return array_values(array_unique($directories));
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function installedPackages(): array
+    {
+        $installedPath = $this->basePath . '/vendor/composer/installed.json';
+        if (!is_file($installedPath)) {
+            return [];
+        }
+        $installed = json_decode(file_get_contents($installedPath), true, 512, JSON_THROW_ON_ERROR);
+
+        return array_map(
+            fn(array $package): array => $this->hydrateInstalledPackageMetadata(
+                package: $package,
+                installedMetadataDir: dirname($installedPath),
+            ),
+            $installed['packages'] ?? $installed,
+        );
     }
 
     private function assertProvidersExist(PackageManifest $manifest, string $cachePath): void
@@ -562,8 +699,10 @@ final class PackageManifestCompiler
     {
         $composerRaw = $this->readFileRaw($this->basePath . '/composer.json');
         $installedRaw = $this->readFileRaw($this->basePath . '/vendor/composer/installed.json');
+        $classmapRaw = $this->readFileRaw($this->basePath . '/vendor/composer/autoload_classmap.php');
+        $psr4Raw = $this->readFileRaw($this->basePath . '/vendor/composer/autoload_psr4.php');
 
-        return hash('xxh128', $composerRaw . "\0" . $installedRaw);
+        return hash('xxh128', implode("\0", [$composerRaw, $installedRaw, $classmapRaw, $psr4Raw]));
     }
 
     private function readFileRaw(string $path): string

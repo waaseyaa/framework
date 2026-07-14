@@ -259,6 +259,22 @@ jobs:
             --no-interaction
           (cd "$work/skel-proj" && ./bin/maintenance/waaseyaa-audit-site)
 
+      - name: Fresh skeleton preserves the complete discovery set without classmap optimization
+        run: |
+          set -euo pipefail
+          git -C "$GITHUB_WORKSPACE" checkout -B main
+          work=$(mktemp -d)
+          cleanup() { rm -rf "$work"; }
+          trap cleanup EXIT
+          cp -R skeleton/. "$work/"
+          composer config --working-dir="$work" optimize-autoloader false
+          composer config --working-dir="$work" repositories.framework path "$GITHUB_WORKSPACE"
+          composer config --working-dir="$work" repositories.packages path "$GITHUB_WORKSPACE/packages/*"
+          composer require --working-dir="$work" waaseyaa/framework:dev-main --no-update --no-interaction
+          composer install --working-dir="$work" --no-interaction --no-scripts --no-plugins
+          test "$(php -r '$m=require $argv[1]; echo count(array_filter(array_keys($m), static fn(string $c): bool => str_starts_with($c, "Waaseyaa\\")));' "$work/vendor/composer/autoload_classmap.php")" = 0
+          php "$GITHUB_WORKSPACE/tools/policy-discovery-smoke.php" "$work"
+
   packaged-form:
     name: packaged-form
     runs-on: ubuntu-latest
