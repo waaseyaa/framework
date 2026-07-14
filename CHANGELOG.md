@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **R19 production invariants and install boot (#1992).** Relationship saves now reach `RelationshipPreSaveListener` through the production lifecycle dispatcher, `config:import` rejects structurally invalid workflow assignments before active-store writes, and `ConfigManagerInterface` is bound for the supported `install` command outside the `db:init` path.
+
 ## [0.1.0-alpha.261] - 2026-07-14
 
 ### Added

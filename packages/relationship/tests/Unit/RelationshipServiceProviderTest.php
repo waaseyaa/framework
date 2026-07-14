@@ -12,6 +12,7 @@ use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Relationship\RelationshipDeleteGuardListener;
+use Waaseyaa\Relationship\RelationshipPreSaveListener;
 use Waaseyaa\Relationship\RelationshipServiceProvider;
 use Waaseyaa\Relationship\Tests\Fixtures\StubEntityTypeManager;
 
@@ -53,6 +54,24 @@ final class RelationshipServiceProviderTest extends TestCase
         $listeners = $dispatcher->getListeners(EntityEvents::PRE_DELETE->value);
         $this->assertNotEmpty($listeners, 'Delete guard must subscribe to pre-delete');
         $this->assertInstanceOf(RelationshipDeleteGuardListener::class, $listeners[0]);
+    }
+
+    #[Test]
+    public function boot_wires_relationship_validation_to_the_production_pre_save_event(): void
+    {
+        $dispatcher = new SymfonyEventDispatcherAdapter();
+        $entityTypeManager = new StubEntityTypeManager();
+        $provider = new RelationshipServiceProvider();
+        $provider->setKernelServices($this->kernelServices([
+            \Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class => $dispatcher,
+            EntityTypeManager::class => $entityTypeManager,
+        ]));
+        $provider->register();
+        $provider->boot();
+
+        $listeners = $dispatcher->getListeners(EntityEvents::PRE_SAVE->value);
+        $this->assertNotEmpty($listeners, 'Relationship saves must be validated on the production lifecycle event');
+        $this->assertInstanceOf(RelationshipPreSaveListener::class, $listeners[0]);
     }
 
     #[Test]

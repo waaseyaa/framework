@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Config\ConfigFactoryInterface;
+use Waaseyaa\Config\ConfigManagerInterface;
 use Waaseyaa\Config\ConfigServiceProvider;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
@@ -94,6 +95,15 @@ final class ConfigFactoryProductionBindingTest extends TestCase
         self::assertSame('example_value', $reread->get('example_key'));
     }
 
+    #[Test]
+    public function configManagerInterfaceResolvesFromARealKernelBoot(): void
+    {
+        $kernel = $this->buildKernel();
+        $kernel->publicBoot();
+
+        self::assertInstanceOf(ConfigManagerInterface::class, ConfigFactoryProbeProvider::$resolvedManager);
+    }
+
     private function buildKernel(): object
     {
         $projectRoot = $this->projectRoot;
@@ -170,6 +180,7 @@ final class ConfigFactoryProbeProvider extends ServiceProvider
 {
     public static bool $probed = false;
     public static ?ConfigFactoryInterface $resolvedFactory = null;
+    public static ?ConfigManagerInterface $resolvedManager = null;
 
     public function register(): void {}
 
@@ -177,11 +188,13 @@ final class ConfigFactoryProbeProvider extends ServiceProvider
     {
         self::$probed = true;
         self::$resolvedFactory = $this->resolveOptional(ConfigFactoryInterface::class);
+        self::$resolvedManager = $this->resolveOptional(ConfigManagerInterface::class);
     }
 
     public static function reset(): void
     {
         self::$probed = false;
         self::$resolvedFactory = null;
+        self::$resolvedManager = null;
     }
 }

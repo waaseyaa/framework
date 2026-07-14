@@ -36,6 +36,13 @@ final class ConfigServiceProvider extends ServiceProvider
 
             return new ConfigFactory($storage, $this->resolveEventDispatcher());
         });
+        $this->singleton(ConfigManagerInterface::class, function () use ($root): ConfigManager {
+            return new ConfigManager(
+                activeStorage: new FileStorage($root . '/config/active'),
+                syncStorage: new FileStorage($root . '/config/sync'),
+                eventDispatcher: $this->resolveEventDispatcher(),
+            );
+        });
     }
 
     /**
