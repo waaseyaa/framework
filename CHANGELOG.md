@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **MCP now advertises its authentication model honestly (#2020).** Server cards expose only anonymous or opaque-bearer authentication, legacy `oauth2` configuration normalizes to `bearer`, and the documentation makes clear that OAuth 2.1 remains a separate product decision.
+
+### Fixed
+
+- **MCP audit attribution and write-route wiring are regression-pinned (#2020).** Opaque string account identifiers map to a stable non-zero audit actor instead of colliding with anonymous id `0`, and tests pin the public-router plus CSRF-exempt contract for `/mcp/write`.
+
+### Removed
+
+- **MCP drops unused dependencies and vestigial bridge contracts (#2020).** Five runtime edges and the two unconsumed MCP-local tool interfaces are removed; the per-request bridge now documents its direct use of the canonical AI tools registry.
+
 ## [0.1.0-alpha.264] - 2026-07-14
 
 ### Fixed
