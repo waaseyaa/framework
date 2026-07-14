@@ -438,11 +438,11 @@ abstract class AbstractKernel
      * Foundation carries no compile-time edge to the Layer-3 migration
      * package, same collect-at-boot timing. The critical difference from the
      * pass-1 failure this fixes: this method only COLLECTS provider object
-     * references here; nothing here calls `deriveContentModel()`. Invocation
-     * happens later, in `Waaseyaa\Migration\Runner\MigrationRunner`, at the
-     * first `import:*` command that actually runs a migration — by which
-     * point the destination tables this collected provider's derived model
-     * describes are guaranteed to exist.
+     * references here; nothing here calls `deriveContentModel()`. Full
+     * registration happens later in `Waaseyaa\Migration\Runner\MigrationRunner`.
+     * The receiving provider may also replay field declarations during its
+     * boot, but only for bundle config entities already persisted by an import
+     * (#1982), so the first-install sequencing guarantee remains intact.
      */
     protected function injectContentModelProviders(): void
     {

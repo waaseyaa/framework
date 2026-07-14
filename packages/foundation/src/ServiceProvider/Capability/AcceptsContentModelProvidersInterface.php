@@ -19,14 +19,12 @@ namespace Waaseyaa\Foundation\ServiceProvider\Capability;
  * abstract `Waaseyaa\Foundation\ServiceProvider\ServiceProvider` carries no
  * unused no-op default.
  *
- * Collection happens at boot (cheap — object references only); invocation of
- * `deriveContentModel()` and registration through the registrar happens at
- * import time (see `Waaseyaa\Migration\Runner\MigrationRunner`), not here.
- * This split is what fixes the pass-1 first-boot failure (G-026, #1940): a
- * provider constructed and invoked during `AbstractKernel::boot()`'s
- * schema-sync phase can find its destination tables not yet materialized;
- * a provider merely *collected* at boot and *invoked* at the first import
- * command never hits that window.
+ * Collection happens before provider boot. Full registration still happens at
+ * import time (see `Waaseyaa\Migration\Runner\MigrationRunner`). On later
+ * boots the migration provider may derive the same model to restore
+ * process-local field definitions, guarded by the bundle config entity that
+ * the completed import persisted (#1982). The guard preserves G-026's rule:
+ * first-install boot never creates an import-derived content type.
  *
  * The interface lives in Foundation (Layer 0) so the kernel can guard the
  * call site without a compile-time edge to the Layer-3 migration package,

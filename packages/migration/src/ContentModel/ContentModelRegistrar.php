@@ -35,9 +35,11 @@ use Waaseyaa\Migration\Exception\ContentModelRegistrationException;
  * {@see \Waaseyaa\Migration\ServiceProvider} and invoked from
  * {@see \Waaseyaa\Migration\Runner\MigrationRunner} once per CLI invocation,
  * before the first migration runs — see that class's
- * `ensureContentModelsRegistered()`. This is deliberately NOT a boot-time
- * invocation: constructing and calling this class during
- * `AbstractKernel::boot()`'s schema-sync phase is the exact sequencing bug
+ * `ensureContentModelsRegistered()`. Later processes call
+ * {@see rehydrate()} during provider boot, but that path only restores fields
+ * for a bundle config entity already persisted by an import. It never creates
+ * a bundle config on first boot. Constructing and calling {@see register()}
+ * during `AbstractKernel::boot()`'s schema-sync phase is the sequencing bug
  * that left the pass-1 Sheguiandah build's `SfnWordPressMigrationProvider`
  * silently registering nothing on the first boot after `db:init` — the
  * destination tables did not exist yet. Invoking it at import time (after
@@ -68,8 +70,8 @@ use Waaseyaa\Migration\Exception\ContentModelRegistrationException;
  * is read. This replaced the earlier notice/error-log-and-continue
  * behaviour, which existed only because this class was (on paper) invocable
  * during kernel boot, where a hard failure would have crashed boot for
- * reasons unrelated to the content model. Now that the only invocation point
- * is import-time (post-boot), a loud failure is strictly better than
+ * reasons unrelated to the content model. Full registration now runs only at
+ * import time (post-boot), so a loud failure there is strictly better than
  * degrading to "some content silently landed in the `_data` blob instead of
  * a typed column."
  *
@@ -112,6 +114,49 @@ final readonly class ContentModelRegistrar
         foreach ($model->types as $type) {
             $this->ensureBundleConfigEntity($type);
             $this->declareFields($type);
+        }
+    }
+
+    /**
+     * Restore runtime field definitions for content types already persisted by
+     * a prior import.
+     *
+     * The field registry is process-local, while bundle config entities and
+     * their subtables survive process boundaries. The persisted bundle config
+     * is the guard: a first-install boot before import remains a no-op.
+     */
+    public function rehydrate(ContentModel $model): void
+    {
+        if ($model->isEmpty()) {
+            return;
+        }
+
+        foreach ($model->types as $type) {
+            if (!$this->bundleConfigExists($type)) {
+                continue;
+            }
+
+            $this->declareFields($type);
+        }
+    }
+
+    private function bundleConfigExists(ContentTypeModel $type): bool
+    {
+        try {
+            $entityType = $this->entityTypeManager->getDefinition($type->entityTypeId);
+            $bundleTypeId = $entityType->getBundleEntityType();
+            if ($bundleTypeId === null || $bundleTypeId === '') {
+                return false;
+            }
+
+            return $this->entityTypeManager->getRepository($bundleTypeId)->find($type->bundle) !== null;
+        } catch (\Throwable $e) {
+            throw new ContentModelRegistrationException(\sprintf(
+                '[content-model] could not rehydrate content type "%s" on %s: %s',
+                $type->bundle,
+                $type->entityTypeId,
+                $e->getMessage(),
+            ), previous: $e);
         }
     }
 
