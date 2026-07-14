@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **New nodes now default to unpublished and node-type identifiers expose their real domain type (#2020).** Omitted publication state fails closed to draft, while `NodeType::getType()` narrows the generic config-entity id to `?string`.
 ### Security
 
 - **The debug provider's fail-closed production gate now has regression coverage (#2020).** Malformed `APP_DEBUG` values register neither debug middleware nor preview routes, while an absent environment value may still use explicit server-side configuration.
