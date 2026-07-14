@@ -483,8 +483,6 @@ return [
     'Waaseyaa\AdminSurface\Query\SurfaceFilterOperator' => 'public',
     'Waaseyaa\AdminSurface\Host\AbstractAdminSurfaceHost' => 'public',
     // ('Waaseyaa\Bimaaji\Graph\GraphSectionProviderInterface' is listed once in the Layer-5 public block above.)
-    'Waaseyaa\Mcp\Bridge\ToolExecutorInterface' => 'public',
-    'Waaseyaa\Mcp\Bridge\ToolRegistryInterface' => 'public',
     'Waaseyaa\Mcp\Auth\McpAuthInterface' => 'public',
     'Waaseyaa\Mcp\Admin\RecentInvocationsQueryInterface' => 'public',
     // Wayfinding Phase 5 (wayfinding-01KVGH5X): authenticated MCP write tier.
