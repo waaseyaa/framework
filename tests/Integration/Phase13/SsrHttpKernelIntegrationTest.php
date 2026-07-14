@@ -7,6 +7,12 @@ namespace Waaseyaa\Tests\Integration\Phase13;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Psr\Container\ContainerInterface;
+use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
+use Waaseyaa\CLI\Handler\DbInitHandler;
+use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Tests\Support\ComposerProjectFixture;
 
 #[CoversNothing]
@@ -38,6 +44,7 @@ final class SsrHttpKernelIntegrationTest extends TestCase
                   <h1>{{ fields.title.formatted|raw }}</h1>
                   <time>{{ fields.created.formatted|raw }}</time>
                   <div class="author">{{ fields.uid.formatted|raw }}</div>
+                  <div class="relationships">{{ relationship_navigation.entity.counts.total|default(0) }}</div>
                 </article>
                 TWIG,
         );
@@ -65,7 +72,9 @@ final class SsrHttpKernelIntegrationTest extends TestCase
             '<!doctype html><html><body><h1>Not Found</h1><p>{{ path }}</p></body></html>',
         );
 
+        $this->initializeFreshDatabase();
         $this->seedEntities();
+        $this->materializeEndpointStatusForIsolation();
     }
 
     protected function tearDown(): void
@@ -98,6 +107,21 @@ final class SsrHttpKernelIntegrationTest extends TestCase
 
         $this->assertSame(200, $response['status']);
         $this->assertStringContainsString('Water Is Life', $response['body']);
+    }
+
+    #[Test]
+    public function freshInstallRendersRelationshipTraversalContext(): void
+    {
+        $pdo = new \PDO('sqlite:' . $this->projectRoot . '/storage/waaseyaa.sqlite');
+        $columns = $pdo->query("PRAGMA table_info('relationship')")->fetchAll(\PDO::FETCH_COLUMN, 1);
+        $this->assertContains('_data', $columns);
+        $this->assertNotContains('from_entity_type', $columns, 'Fresh db:init must exercise the sql-blob shape.');
+
+        $response = $this->request('/node/1');
+
+        $this->assertSame(200, $response['status']);
+        $this->assertStringContainsString('Water Is Life', $response['body']);
+        $this->assertStringContainsString('<div class="relationships">1</div>', $response['body']);
     }
 
     #[Test]
@@ -182,6 +206,47 @@ final class SsrHttpKernelIntegrationTest extends TestCase
     private function seedEntities(): void
     {
         $this->runEntityFixtureAction('seed');
+    }
+
+    private function initializeFreshDatabase(): void
+    {
+        $handler = new DbInitHandler($this->projectRoot);
+        $command = new HandlerCommand(
+            name: 'db:init',
+            description: 'Initialize a fresh database.',
+            options: [
+                new HandlerOption(name: 'dry-run', mode: HandlerOptionMode::None, description: 'Dry run.'),
+                new HandlerOption(name: 'no-sync-schema', mode: HandlerOptionMode::None, description: 'Skip schema sync.'),
+            ],
+            handler: \Closure::fromCallable([$handler, 'execute']),
+        );
+        $container = new class implements ContainerInterface {
+            public function get(string $id): mixed
+            {
+                throw new \RuntimeException("Not found: {$id}");
+            }
+            public function has(string $id): bool
+            {
+                return false;
+            }
+        };
+        $tester = CliTester::for($command, $container);
+        $tester->execute([]);
+
+        $this->assertSame(0, $tester->getExitCode(), "Fresh db:init failed.\n" . $tester->getStderr());
+        $this->assertStringContainsString('Created database', $tester->getStdout());
+    }
+
+    /**
+     * Keep this #1984 regression independent of #1982's fresh-boot field
+     * hydration failure: endpoint publication is not the behavior under test.
+     */
+    private function materializeEndpointStatusForIsolation(): void
+    {
+        $pdo = new \PDO('sqlite:' . $this->projectRoot . '/storage/waaseyaa.sqlite');
+        $pdo->exec('ALTER TABLE node ADD COLUMN status INTEGER NOT NULL DEFAULT 0');
+        $pdo->exec("ALTER TABLE node ADD COLUMN workflow_state TEXT NOT NULL DEFAULT 'draft'");
+        $pdo->exec("UPDATE node SET status = 1, workflow_state = 'published' WHERE nid IN (1, 5)");
     }
 
     /**

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Fresh HTTP processes now hydrate import-derived bundle fields (#1982, G-034).** The migration provider replays derived field declarations only for bundle config entities already persisted by a completed import, restoring the process-local field registry before repository reads without moving full content-model registration back into first-install boot. Clean installs still register at import time, and repeated boots leave existing schema and rows unchanged.
+- **Fresh installs now support relationship traversal during SSR rendering (#1984).** Relationship queries resolve endpoint, status, type, and timeline fields from the canonical `_data` payload on fresh sql-blob tables while continuing to use historical dedicated columns when present, so upgraded installs are unaffected and SQL-level timeline filtering is preserved.
 
 - **Agent cancellation and approval now use exact-status compare-and-swap updates (#1975, R18 M5).** Controller actions no longer save a stale hydrated run row that can regress a worker's terminal status or overwrite transcript and cost fields. Cancellation requires the status observed by the request; approve/deny additionally require the pending call id, and a lost race returns 409 without audit or broadcast side effects.
 
