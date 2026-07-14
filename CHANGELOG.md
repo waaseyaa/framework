@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Deleted five test-only or vestigial content/CLI subsystems (#1992, R19).** Genealogy's shadow field catalogue and stale vendored API copy, Bimaaji's unvalidated Task DSL, menu's callerless tree builder, path's superseded manager/processor trio, and the orphaned parallel ingest connector/normalization pipeline are removed without shims. Canonical genealogy registration, menu entities, path resolution/uniqueness, and `IngestionEnvelopeNormalizer` remain production paths.
 
+### Security
+
+- **R20 field guards reduce credential and hidden-work regressions (#1999).** The admin-dist checkout no longer persists its write token in the runner's Git config, and the documented repository `bin/git` entrypoint mechanically rejects every `git stash` form while preserving normal Git command arguments. A tooling regression gate pins both controls; the existing dangling `da4d26758` stash remains untouched.
+
 ## [0.1.0-alpha.261] - 2026-07-14
 
 ### Added
