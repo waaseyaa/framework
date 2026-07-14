@@ -45,12 +45,31 @@ function seedSsrFixtures(HttpKernel $kernel): void
         $node = $nodeRepository->create($fixture);
         $nodeRepository->save($node, validate: false);
     }
+    $relatedNode = $nodeRepository->create([
+        'title' => 'Related Teaching',
+        'type' => 'article',
+        'status' => 1,
+        'workflow_state' => 'published',
+    ]);
+    $nodeRepository->save($relatedNode, validate: false);
 
     $pathAliasRepository = $kernel->getEntityTypeManager()->getRepository('path_alias');
     foreach (WorkflowFixturePack::pathAliasesForSsr() as $aliasFixture) {
         $alias = $pathAliasRepository->create($aliasFixture);
         $pathAliasRepository->save($alias, validate: false);
     }
+
+    $relationshipRepository = $kernel->getEntityTypeManager()->getRepository('relationship');
+    $relationship = $relationshipRepository->create([
+        'relationship_type' => 'references',
+        'from_entity_type' => 'node',
+        'from_entity_id' => '1',
+        'to_entity_type' => 'node',
+        'to_entity_id' => '5',
+        'directionality' => 'directed',
+        'status' => 1,
+    ]);
+    $relationshipRepository->save($relationship, validate: false);
 }
 
 function updateNodeTitle(HttpKernel $kernel, string $title): void

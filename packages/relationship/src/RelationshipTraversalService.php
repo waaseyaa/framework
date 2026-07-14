@@ -403,31 +403,38 @@ final class RelationshipTraversalService
         ?int $temporalFrom,
         ?int $temporalTo,
     ): array {
+        $fromType = $this->relationshipFieldExpression('from_entity_type');
+        $fromId = $this->relationshipFieldExpression('from_entity_id');
+        $toType = $this->relationshipFieldExpression('to_entity_type');
+        $toId = $this->relationshipFieldExpression('to_entity_id');
+        $directionality = $this->relationshipFieldExpression('directionality');
+        $statusField = $this->relationshipFieldExpression('status');
+        $relationshipType = $this->relationshipFieldExpression('relationship_type');
         $conditions = [];
         $args = [];
 
         if ($direction === 'outbound') {
-            $conditions[] = '((from_entity_type = ? AND from_entity_id = ?) OR (directionality = ? AND to_entity_type = ? AND to_entity_id = ?))';
+            $conditions[] = "(({$fromType} = ? AND {$fromId} = ?) OR ({$directionality} = ? AND {$toType} = ? AND {$toId} = ?))";
             array_push($args, $entityType, $entityId, 'bidirectional', $entityType, $entityId);
         } elseif ($direction === 'inbound') {
-            $conditions[] = '((to_entity_type = ? AND to_entity_id = ?) OR (directionality = ? AND from_entity_type = ? AND from_entity_id = ?))';
+            $conditions[] = "(({$toType} = ? AND {$toId} = ?) OR ({$directionality} = ? AND {$fromType} = ? AND {$fromId} = ?))";
             array_push($args, $entityType, $entityId, 'bidirectional', $entityType, $entityId);
         } else {
-            $conditions[] = '((from_entity_type = ? AND from_entity_id = ?) OR (to_entity_type = ? AND to_entity_id = ?))';
+            $conditions[] = "(({$fromType} = ? AND {$fromId} = ?) OR ({$toType} = ? AND {$toId} = ?))";
             array_push($args, $entityType, $entityId, $entityType, $entityId);
         }
 
         if ($status === 'published') {
-            $conditions[] = 'status = ?';
+            $conditions[] = "{$statusField} = CAST(? AS INTEGER)";
             $args[] = 1;
         } elseif ($status === 'unpublished') {
-            $conditions[] = 'status = ?';
+            $conditions[] = "{$statusField} = CAST(? AS INTEGER)";
             $args[] = 0;
         }
 
         if ($relationshipTypes !== []) {
             $placeholders = implode(', ', array_fill(0, count($relationshipTypes), '?'));
-            $conditions[] = "relationship_type IN ({$placeholders})";
+            $conditions[] = "{$relationshipType} IN ({$placeholders})";
             array_push($args, ...$relationshipTypes);
         }
 
@@ -463,27 +470,49 @@ final class RelationshipTraversalService
         return $result;
     }
 
+    /**
+     * Resolve a relationship field through the table's actual storage shape.
+     * Fresh sql-blob installs keep non-key values in `_data`; older installs
+     * may have the package's historical dedicated columns. Both routes feed
+     * the same read query without mutating upgraded schemas.
+     */
+    private function relationshipFieldExpression(string $field): string
+    {
+        if ($this->database->schema()->fieldExists('relationship', $field)) {
+            return $this->database->quoteIdentifier($field);
+        }
+
+        $expression = "json_extract(_data, '$.{$field}')";
+
+        return in_array($field, ['status', 'start_date', 'end_date'], true)
+            ? "CAST({$expression} AS INTEGER)"
+            : $expression;
+    }
+
     private function appendTimelineOverlapSql(?int $from, ?int $to, array &$conditions, array &$args): void
     {
         if ($from === null && $to === null) {
             return;
         }
 
+        $start = $this->relationshipFieldExpression('start_date');
+        $end = $this->relationshipFieldExpression('end_date');
+
         if ($from !== null && $to !== null) {
-            $conditions[] = '(start_date IS NULL OR start_date <= ?) AND (end_date IS NULL OR end_date >= ?)';
+            $conditions[] = "({$start} IS NULL OR {$start} <= CAST(? AS INTEGER)) AND ({$end} IS NULL OR {$end} >= CAST(? AS INTEGER))";
             array_push($args, $to, $from);
 
             return;
         }
 
         if ($from !== null) {
-            $conditions[] = '(end_date IS NULL OR end_date >= ?)';
+            $conditions[] = "({$end} IS NULL OR {$end} >= CAST(? AS INTEGER))";
             $args[] = $from;
 
             return;
         }
 
-        $conditions[] = '(start_date IS NULL OR start_date <= ?)';
+        $conditions[] = "({$start} IS NULL OR {$start} <= CAST(? AS INTEGER))";
         $args[] = $to;
     }
 
