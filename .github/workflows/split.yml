@@ -23,7 +23,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           SHA: ${{ github.sha }}
-        run: bash bin/wait-for-green-ci "${SHA}" 0
+        # A tag push starts a fresh CI run at the same SHA. Poll through that
+        # run instead of racing it in single-check mode.
+        run: bash bin/wait-for-green-ci "${SHA}" 2700
 
   split:
     needs: verify-ci-green
