@@ -63,21 +63,39 @@ final class GenericAdminSurfaceHostTest extends TestCase
             default => null,
         });
 
+        $scopeQuery = $this->createMock(EntityQueryInterface::class);
+        $scopeQuery->expects(self::once())->method('setAccount')->willReturnSelf();
+        $scopeQuery->expects(self::once())->method('execute')->willReturn([9, 10, 11]);
+
+        $pageConditions = [];
         $pageQuery = $this->createMock(EntityQueryInterface::class);
         $pageQuery->expects(self::once())->method('setAccount')->willReturnSelf();
-        $pageQuery->expects(self::once())->method('condition')->with('status', 'published', '=')->willReturnSelf();
+        $pageQuery->expects(self::once())->method('condition')->willReturnCallback(
+            function (string $field, mixed $value, string $operator) use (&$pageConditions, $pageQuery): EntityQueryInterface {
+                $pageConditions[] = [$field, $value, $operator];
+
+                return $pageQuery;
+            },
+        );
         $pageQuery->expects(self::once())->method('sort')->with('title', 'DESC')->willReturnSelf();
         $pageQuery->expects(self::once())->method('range')->with(20, 10)->willReturnSelf();
         $pageQuery->expects(self::once())->method('execute')->willReturn([9]);
 
+        $totalConditions = [];
         $totalQuery = $this->createMock(EntityQueryInterface::class);
         $totalQuery->expects(self::once())->method('setAccount')->willReturnSelf();
-        $totalQuery->expects(self::once())->method('condition')->with('status', 'published', '=')->willReturnSelf();
+        $totalQuery->expects(self::once())->method('condition')->willReturnCallback(
+            function (string $field, mixed $value, string $operator) use (&$totalConditions, $totalQuery): EntityQueryInterface {
+                $totalConditions[] = [$field, $value, $operator];
+
+                return $totalQuery;
+            },
+        );
         $totalQuery->expects(self::once())->method('count')->willReturnSelf();
-        $totalQuery->expects(self::once())->method('execute')->willReturn([9, 10, 11]);
+        $totalQuery->expects(self::once())->method('execute')->willReturn([3]);
 
         $repository = $this->createMock(EntityRepositoryInterface::class);
-        $repository->expects(self::exactly(2))->method('getQuery')->willReturnOnConsecutiveCalls($pageQuery, $totalQuery);
+        $repository->expects(self::exactly(3))->method('getQuery')->willReturnOnConsecutiveCalls($scopeQuery, $pageQuery, $totalQuery);
         $repository->expects(self::exactly(2))->method('findMany')->willReturnCallback(
             static fn(array $ids): array => $ids === [9, 10, 11] ? [$entity, $entity, $entity] : [$entity],
         );
@@ -114,6 +132,12 @@ final class GenericAdminSurfaceHostTest extends TestCase
         self::assertTrue($result->ok);
         self::assertSame(3, $result->data['total']);
         self::assertSame([9], array_map(static fn(array $row): int => (int) $row['id'], $result->data['entities']));
+        self::assertSame([
+            ['status', 'published', '='],
+        ], $pageConditions);
+        self::assertSame([
+            ['status', 'published', '='],
+        ], $totalConditions);
     }
 
     /**

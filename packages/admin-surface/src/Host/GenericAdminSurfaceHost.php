@@ -178,36 +178,76 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
 
         $repository = $this->entityTypeManager->getRepository($type);
 
-        // Push filter, sort, and page work into the existing entity-query SQL
-        // machinery. The previous findBy([]) path hydrated the whole table and
-        // then repeated all query work in PHP.
-        $pageQuery = $this->applySurfaceQuery($repository->getQuery()->setAccount($this->currentAccount), $query, true);
-        $pageIds = $pageQuery->execute();
-
-        // Access-checked count queries return the surviving IDs because entity
-        // access is evaluated after SQL candidate selection; count those IDs.
-        $totalQuery = $this->applySurfaceQuery($repository->getQuery()->setAccount($this->currentAccount), $query, false);
-        $totalIds = $totalQuery->count()->execute();
-        $total = count($totalIds);
-
-        // Preserve R13's per-entity field-access floor. SQL narrows the
-        // candidate set, then only matching entities are hydrated to ensure a
-        // dynamically Forbidden filter field cannot contribute to totals.
-        $totalEntities = null;
-        if ($query->filters !== []) {
-            $totalEntities = $repository->findMany($totalIds);
-            $totalEntities = array_values(array_filter(
-                $totalEntities,
+        // Field access can vary per entity, so resolve the set of IDs whose
+        // queried fields are viewable before caller-controlled conditions,
+        // ordering, or pagination shape SQL. A Forbidden filter field excludes
+        // that entity from the query scope; a Forbidden sort rejects the whole
+        // sort value-independently, matching the established surface contract.
+        $queryScopeIds = null;
+        if ($query->filters !== [] || $query->sortField !== null) {
+            $scopeIds = $repository->getQuery()->setAccount($this->currentAccount)->execute();
+            $scopeEntities = array_values(array_filter(
+                $repository->findMany($scopeIds),
                 fn($entity): bool => $this->accessHandler->check($entity, 'view', $this->currentAccount)->isAllowed(),
             ));
-            foreach ($query->filters as $filter) {
-                $totalEntities = array_values(array_filter(
-                    $totalEntities,
-                    fn($entity): bool => $this->applyFilter($entity, $filter['field'], $filter['operator'], $filter['value']),
-                ));
+
+            if ($query->sortField !== null) {
+                foreach ($scopeEntities as $entity) {
+                    if ($this->isFieldViewForbidden($entity, $query->sortField)) {
+                        return AdminSurfaceResultData::error(400, 'Invalid sort field', "Cannot sort by field '{$query->sortField}'.");
+                    }
+                }
             }
-            $total = count($totalEntities);
+
+            $filterScopeEntities = array_values(array_filter(
+                $scopeEntities,
+                function ($entity) use ($query): bool {
+                    foreach ($query->filters as $filter) {
+                        if ($this->isFieldViewForbidden($entity, $filter['field'])) {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                },
+            ));
+
+            if ($filterScopeEntities === [] && $query->filters !== []) {
+                return AdminSurfaceResultData::success([
+                    'entities' => [],
+                    'total' => 0,
+                    'offset' => $query->offset,
+                    'limit' => $query->limit,
+                ]);
+            }
+
+            // Keep the unscoped SQL fast path when every queried filter field
+            // is viewable. Only add an ID scope when field access actually
+            // excludes entities; this avoids oversized IN lists on ordinary
+            // large-table filters while retaining full SQL pushdown.
+            if (count($filterScopeEntities) !== count($scopeEntities)) {
+                $queryScopeIds = array_map(
+                    static fn($entity): int|string => $entity->id(),
+                    $filterScopeEntities,
+                );
+            }
         }
+
+        // Push filter, sort, and page work into the existing entity-query SQL
+        // machinery. The previous findBy([]) path hydrated the whole table and
+        // then repeated all query work in PHP. The access-resolved ID scope is
+        // applied first, so Forbidden values cannot consume a page or affect
+        // ordering while permitted fields retain SQL pushdown.
+        $idKey = $this->entityTypeManager->getDefinition($type)->getKeys()['id'] ?? 'id';
+        $pageQuery = $this->applySurfaceQuery($repository->getQuery()->setAccount($this->currentAccount), $query, true, $queryScopeIds, $idKey);
+        $pageIds = $pageQuery->execute();
+
+        // Access-checked count queries return `[survivorCount]`, not survivor
+        // IDs. Treating that scalar as an entity ID made totals depend on which
+        // row happened to own that numeric ID.
+        $totalQuery = $this->applySurfaceQuery($repository->getQuery()->setAccount($this->currentAccount), $query, false, $queryScopeIds, $idKey);
+        $totalResult = $totalQuery->count()->execute();
+        $total = (int) ($totalResult[0] ?? 0);
 
         $pageEntities = $repository->findMany($pageIds);
         $pageEntities = array_values(array_filter(
@@ -221,21 +261,10 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             ));
         }
 
-        // A dynamic field policy cannot be represented in SQL. Inspect every
-        // matching, viewable row before accepting the SQL sort; checking only
-        // the returned page would leave Forbidden rows able to occupy and leak
-        // pagination ranks.
+        // The access scope above establishes that this field is viewable on
+        // every eligible entity before SQL sort/range. Re-sort the hydrated
+        // page because repository adapters need not preserve input-ID order.
         if ($query->sortField !== null) {
-            $sortEntities = $totalEntities ?? $repository->findMany($totalIds);
-            $sortEntities = array_filter(
-                $sortEntities,
-                fn($entity): bool => $this->accessHandler->check($entity, 'view', $this->currentAccount)->isAllowed(),
-            );
-            foreach ($sortEntities as $entity) {
-                if ($this->isFieldViewForbidden($entity, $query->sortField)) {
-                    return AdminSurfaceResultData::error(400, 'Invalid sort field', "Cannot sort by field '{$query->sortField}'.");
-                }
-            }
             $field = $query->sortField;
             $desc = $query->sortDirection === 'DESC';
             usort($pageEntities, static function ($a, $b) use ($field, $desc): int {
@@ -247,7 +276,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
 
         // Keep the response internally coherent for repository adapters that
         // can hydrate a page while reporting an empty count result.
-        if ($totalIds === [] && $pageEntities !== []) {
+        if ($totalResult === [] && $pageEntities !== []) {
             $total = count($pageEntities);
         }
 
@@ -268,8 +297,15 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         ]);
     }
 
-    private function applySurfaceQuery(\Waaseyaa\Entity\Storage\EntityQueryInterface $entityQuery, SurfaceQuery $query, bool $paginate): \Waaseyaa\Entity\Storage\EntityQueryInterface
+    /**
+     * @param list<int|string>|null $queryScopeIds
+     */
+    private function applySurfaceQuery(\Waaseyaa\Entity\Storage\EntityQueryInterface $entityQuery, SurfaceQuery $query, bool $paginate, ?array $queryScopeIds = null, string $idKey = 'id'): \Waaseyaa\Entity\Storage\EntityQueryInterface
     {
+        if ($queryScopeIds !== null) {
+            $entityQuery->condition($idKey, $queryScopeIds, 'IN');
+        }
+
         foreach ($query->filters as $filter) {
             $value = $filter['value'];
             if ($filter['operator'] === SurfaceFilterOperator::IN && is_string($value)) {
