@@ -32,6 +32,27 @@ final class DBALDatabaseTest extends TestCase
         $this->assertInstanceOf(DBALDatabase::class, $db);
     }
 
+    public function testCreateSqliteEnforcesForeignKeysOnEveryNewConnection(): void
+    {
+        $first = DBALDatabase::createSqlite();
+        $second = DBALDatabase::createSqlite();
+
+        foreach ([$first, $second] as $database) {
+            $connection = $database->getConnection();
+            $connection->executeStatement('CREATE TABLE parent (id INTEGER PRIMARY KEY)');
+            $connection->executeStatement(
+                'CREATE TABLE child (parent_id INTEGER NOT NULL REFERENCES parent(id))',
+            );
+
+            try {
+                $connection->executeStatement('INSERT INTO child (parent_id) VALUES (404)');
+                $this->fail('A new SQLite connection accepted an orphaned foreign key.');
+            } catch (\Doctrine\DBAL\Exception\ForeignKeyConstraintViolationException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+    }
+
     public function testSelectReturnsSelectInterface(): void
     {
         $select = $this->db->select('users', 'u');

@@ -26,6 +26,10 @@ final class DBALDatabase implements DatabaseInterface
             'memory' => $path === ':memory:',
         ]);
 
+        // SQLite scopes foreign-key enforcement to each connection and leaves
+        // it disabled by default. Set it before any schema or data work.
+        $connection->executeStatement('PRAGMA foreign_keys = ON');
+
         // Enable WAL mode for better concurrent read performance.
         if ($path !== ':memory:') {
             $connection->executeStatement('PRAGMA journal_mode = WAL');
