@@ -7,6 +7,8 @@ namespace Waaseyaa\CLI\Handler;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Config\ConfigManagerInterface;
 use Waaseyaa\Config\Exception\ConfigImportFailedException;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Workflows\Validation\WorkflowAssignmentsValidator;
 
 /**
  * @api
@@ -15,10 +17,26 @@ final class ConfigImportHandler
 {
     public function __construct(
         private readonly ConfigManagerInterface $configManager,
+        private readonly ?WorkflowAssignmentsValidator $workflowAssignmentsValidator = null,
+        private readonly ?EntityTypeManagerInterface $entityTypeManager = null,
     ) {}
 
     public function execute(SymfonyCommandIO $io): int
     {
+        if ($this->workflowAssignmentsValidator !== null && $this->entityTypeManager !== null) {
+            $assignments = $this->configManager->getSyncStorage()->read('workflows.assignments');
+            if (is_array($assignments)) {
+                $violations = $this->workflowAssignmentsValidator->validate($assignments, $this->entityTypeManager);
+                if ($violations !== []) {
+                    foreach ($violations as $violation) {
+                        $io->error($violation);
+                    }
+
+                    return 1;
+                }
+            }
+        }
+
         try {
             $result = $this->configManager->import();
         } catch (ConfigImportFailedException $e) {

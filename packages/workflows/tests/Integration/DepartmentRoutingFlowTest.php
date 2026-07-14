@@ -34,6 +34,7 @@ use Waaseyaa\Node\Node;
 use Waaseyaa\Node\NodeServiceProvider;
 use Waaseyaa\Node\NodeType;
 use Waaseyaa\Relationship\RelationshipServiceProvider;
+use Waaseyaa\User\UserServiceProvider;
 use Waaseyaa\Workflows\DefaultWorkflows;
 use Waaseyaa\Workflows\Transition\TransitionDeniedException;
 use Waaseyaa\Workflows\Transition\TransitionService;
@@ -98,9 +99,10 @@ final class DepartmentRoutingFlowTest extends TestCase
         // --- Fixtures: two departments, content in dept_a, author + ---
         // decisionmaker_a members of dept_a, decisionmaker_b member of
         // dept_b ONLY.
-        $this->addUserToGroup($entityTypeManager, '21', 'dept_a');
-        $this->addUserToGroup($entityTypeManager, '22', 'dept_a');
-        $this->addUserToGroup($entityTypeManager, '23', 'dept_b');
+        $this->createEndpointFixtures($entityTypeManager, ['21', '22', '23'], ['1', '2']);
+        $this->addUserToGroup($entityTypeManager, '21', '1');
+        $this->addUserToGroup($entityTypeManager, '22', '1');
+        $this->addUserToGroup($entityTypeManager, '23', '2');
 
         // --- 1. Create: the save-path guard forces initial_state + ---
         // unpublished, regardless of Node's own constructor default
@@ -111,7 +113,7 @@ final class DepartmentRoutingFlowTest extends TestCase
         $nodeRepository->save($node);
         $entityId = (string) $node->id();
 
-        $this->addContentToGroup($entityTypeManager, $entityId, 'dept_a');
+        $this->addContentToGroup($entityTypeManager, $entityId, '1');
 
         $created = $nodeRepository->find($entityId);
         $this->assertNotNull($created);
@@ -286,6 +288,24 @@ final class DepartmentRoutingFlowTest extends TestCase
         ]);
     }
 
+    /** @param list<string> $userIds @param list<string> $groupIds */
+    private function createEndpointFixtures(EntityTypeManager $manager, array $userIds, array $groupIds): void
+    {
+        $userRepository = $manager->getRepository('user');
+        foreach ($userIds as $uid) {
+            $user = $userRepository->create(['uid' => $uid, 'name' => 'user-' . $uid, 'status' => 1]);
+            $user->enforceIsNew();
+            $userRepository->save($user, validate: false);
+        }
+
+        $groupRepository = $manager->getRepository('group');
+        foreach ($groupIds as $gid) {
+            $group = $groupRepository->create(['gid' => (int) $gid, 'type' => 'department', 'name' => 'dept_' . $gid]);
+            $group->enforceIsNew();
+            $groupRepository->save($group, validate: false);
+        }
+    }
+
     /**
      * @param array{relationship_type: string, from_entity_type: string, from_entity_id: string, to_entity_type: string, to_entity_id: string} $values
      */
@@ -349,9 +369,10 @@ final class DepartmentRoutingFlowTest extends TestCase
         $nodeProvider = new NodeServiceProvider();
         $relationshipProvider = new RelationshipServiceProvider();
         $groupsProvider = new GroupsServiceProvider();
+        $userProvider = new UserServiceProvider();
         $workflowProvider = new WorkflowServiceProvider();
         /** @var list<ServiceProvider> $providers */
-        $providers = [$nodeProvider, $relationshipProvider, $groupsProvider, $workflowProvider];
+        $providers = [$nodeProvider, $relationshipProvider, $groupsProvider, $userProvider, $workflowProvider];
 
         $kernelServices = new class ($dispatcher, $entityTypeManager, $configFactory, $accountContext, $auditWriter, static fn(): array => $providers) implements KernelServicesInterface {
             /**

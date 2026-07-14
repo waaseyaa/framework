@@ -56,5 +56,9 @@ final class RelationshipServiceProvider extends ServiceProvider
             EntityEvents::PRE_DELETE->value,
             new RelationshipDeleteGuardListener($entityTypeManager),
         );
+        $dispatcher->addListener(
+            EntityEvents::PRE_SAVE->value,
+            new RelationshipPreSaveListener(new RelationshipValidator($entityTypeManager)),
+        );
     }
 }

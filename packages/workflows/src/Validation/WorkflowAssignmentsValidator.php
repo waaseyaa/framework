@@ -23,19 +23,10 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
  * docblock, "the config-import surface (later work)") reject a malformed
  * workflow definition before persisting it.
  *
- * **Known gap, documented rather than hidden:** no production config-import
- * pipeline currently invokes this validator — `ConfigImporter` has no wired
- * domain-validation hook for `workflows.assignments` (this config item is
- * plain settings-shaped config, not one of the `entity_type.entity_id`
- * config-entity files `ConfigImporter`'s DAG-apply pipeline drives through
- * `ConfigImportApplyHookInterface`). This class exists so the check IS
- * available at the assignments-validation call site the moment such a
- * pipeline is wired (tracked as a workflows follow-up); until then, the
- * resolver's runtime throw (first resolve, lazily) is the only enforcement
- * that actually runs in a booted install — see the spec note this class's
- * introduction adds to docs/specs/content-workflow.md.
+ * The production `config:import` handler invokes this validator against the
+ * sync-store value before `ConfigManager::import()` performs any writes.
  *
- * @api
+ * @internal
  */
 final class WorkflowAssignmentsValidator
 {
