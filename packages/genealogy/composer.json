@@ -84,6 +84,9 @@
     "extra": {
         "waaseyaa": {
             "distributionExtension": true,
+            "policies": [
+                "Waaseyaa\\Genealogy\\Access\\GenealogyContentAccessPolicy"
+            ],
             "providers": [
                 "Waaseyaa\\Genealogy\\GenealogyServiceProvider"
             ]

@@ -4,6 +4,7 @@ namespace Waaseyaa\Foundation\Tests\Unit\Discovery;
 
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
+use Waaseyaa\Foundation\Discovery\PolicyManifestMismatchException;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\LoggerTrait;
 use Waaseyaa\Foundation\Log\LogLevel;
@@ -472,7 +473,7 @@ final class PackageManifestCompilerTest extends TestCase
     {
         // No vendor/composer/autoload_classmap.php and no app-level PSR-4 prefixes
         // (no root composer.json psr-4 entries) — scanClasses() takes the
-        // "no discoverable classes" fallback path and logs exactly one warning
+        // "no discoverable classes" path and logs exactly one warning
         // EACH TIME IT RUNS. compile() invokes scanClasses() directly (the
         // attribute-scan loop) and indirectly via scanScheduleEntryClasses() (the
         // schedule-entries pass) — before memoization this logged the fallback
@@ -499,7 +500,7 @@ final class PackageManifestCompilerTest extends TestCase
 
         $fallbackWarnings = array_values(array_filter(
             $logger->messages,
-            static fn(string $m): bool => str_contains($m, 'Falling back to full PSR-4 directory scanning'),
+            static fn(string $m): bool => str_contains($m, 'classmap and PSR-4 scanning both returned no candidates'),
         ));
 
         $this->assertCount(
@@ -588,6 +589,28 @@ final class PackageManifestCompilerTest extends TestCase
     }
 
     #[Test]
+    public function load_recompiles_when_composer_rewrites_the_autoload_classmap(): void
+    {
+        file_put_contents($this->tempDir . '/composer.json', '{"name":"test/root"}');
+        file_put_contents($this->tempDir . '/vendor/composer/installed.json', '{"packages":[]}');
+        file_put_contents($this->tempDir . '/vendor/composer/autoload_classmap.php', '<?php return [];');
+        file_put_contents($this->tempDir . '/vendor/composer/autoload_psr4.php', '<?php return [];');
+
+        $storagePath = $this->tempDir . '/storage';
+        (new PackageManifestCompiler($this->tempDir, $storagePath))->compileAndCache();
+        $before = require $storagePath . '/framework/packages.php';
+
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/autoload_classmap.php',
+            '<?php return ["Composer\\\\InstalledVersions" => "/tmp/InstalledVersions.php"];',
+        );
+        (new PackageManifestCompiler($this->tempDir, $storagePath))->load();
+        $after = require $storagePath . '/framework/packages.php';
+
+        $this->assertNotSame($before['_manifest_inputs_fp'], $after['_manifest_inputs_fp']);
+    }
+
+    #[Test]
     public function load_merges_root_providers_when_cache_incomplete_but_fingerprint_matches(): void
     {
         $composer = [
@@ -608,9 +631,12 @@ final class PackageManifestCompilerTest extends TestCase
 
         $fingerprint = hash(
             'xxh128',
-            (string) file_get_contents($this->tempDir . '/composer.json')
-            . "\0"
-            . (string) file_get_contents($this->tempDir . '/vendor/composer/installed.json'),
+            implode("\0", [
+                (string) file_get_contents($this->tempDir . '/composer.json'),
+                (string) file_get_contents($this->tempDir . '/vendor/composer/installed.json'),
+                '',
+                '',
+            ]),
         );
 
         $storagePath = $this->tempDir . '/storage';
@@ -659,9 +685,12 @@ final class PackageManifestCompilerTest extends TestCase
 
         $fingerprint = hash(
             'xxh128',
-            (string) file_get_contents($this->tempDir . '/composer.json')
-            . "\0"
-            . (string) file_get_contents($this->tempDir . '/vendor/composer/installed.json'),
+            implode("\0", [
+                (string) file_get_contents($this->tempDir . '/composer.json'),
+                (string) file_get_contents($this->tempDir . '/vendor/composer/installed.json'),
+                '',
+                '',
+            ]),
         );
 
         $storagePath = $this->tempDir . '/storage';
@@ -775,6 +804,178 @@ final class PackageManifestCompilerTest extends TestCase
             ['taxonomy_term'],
             $manifest->policies['Waaseyaa\\TestFixturesPsr4\\Gate\\Psr4Policy'] ?? null,
         );
+    }
+
+    #[Test]
+    public function partial_classmap_does_not_hide_framework_policies_behind_app_policies(): void
+    {
+        $appDir = $this->tempDir . '/app';
+        mkdir($appDir, 0o755, true);
+
+        for ($i = 1; $i <= 4; ++$i) {
+            $class = sprintf('AppPolicy%d', $i);
+            $path = $appDir . '/' . $class . '.php';
+            file_put_contents($path, sprintf(<<<'PHP'
+                <?php
+                declare(strict_types=1);
+                namespace App;
+                use Waaseyaa\Access\Gate\PolicyAttribute;
+                #[PolicyAttribute(entityType: 'app_fixture_%1$d')]
+                final class %2$s {}
+                PHP, $i, $class));
+            require_once $path;
+        }
+
+        file_put_contents(
+            $this->tempDir . '/composer.json',
+            json_encode([
+                'name' => 'app/field-reproduction',
+                'autoload' => ['psr-4' => ['App\\' => 'app/']],
+            ], JSON_THROW_ON_ERROR),
+        );
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode(['packages' => []], JSON_THROW_ON_ERROR),
+        );
+
+        $repoRoot = dirname(__DIR__, 5);
+        $psr4 = require $repoRoot . '/vendor/composer/autoload_psr4.php';
+        $psr4['App\\'] = [$appDir];
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/autoload_psr4.php',
+            '<?php return ' . var_export($psr4, true) . ';',
+        );
+
+        // A routine non-optimized install can contain a partial classmap. The four
+        // app policies are found by the app-prefix scan, but that non-empty result
+        // must not suppress the framework PSR-4 namespaces.
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/autoload_classmap.php',
+            '<?php return [\Composer\InstalledVersions::class => ' . var_export($repoRoot . '/vendor/composer/InstalledVersions.php', true) . '];',
+        );
+
+        $manifest = (new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage'))->compile();
+
+        $this->assertCount(23, $manifest->policies);
+        $this->assertArrayHasKey('Waaseyaa\\Node\\NodeAccessPolicy', $manifest->policies);
+        for ($i = 1; $i <= 4; ++$i) {
+            $this->assertArrayHasKey(sprintf('App\\AppPolicy%d', $i), $manifest->policies);
+        }
+        $this->assertContains(
+            'Waaseyaa\\AI\\Tools\\Entity\\EntityReadTool',
+            array_column($manifest->agentTools, 'class'),
+            'The MCP/agent tool catalogue must survive a non-optimized classmap.',
+        );
+        $this->assertSame(
+            'Waaseyaa\\SSR\\Formatter\\PlainTextFormatter',
+            $manifest->formatters['string'] ?? null,
+        );
+        $this->assertContains(
+            'Waaseyaa\\Access\\Middleware\\AuthorizationMiddleware',
+            array_column($manifest->middleware['http'] ?? [], 'class'),
+        );
+    }
+
+    #[Test]
+    public function compile_refuses_to_boot_when_declared_policy_manifest_is_incomplete(): void
+    {
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode(['packages' => [[
+                'name' => 'waaseyaa/security-fixture',
+                'extra' => ['waaseyaa' => ['policies' => [
+                    'Waaseyaa\\SecurityFixture\\MissingPolicy',
+                ]]],
+            ]]], JSON_THROW_ON_ERROR),
+        );
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/autoload_classmap.php',
+            '<?php return [];',
+        );
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/autoload_psr4.php',
+            '<?php return [];',
+        );
+
+        $this->expectException(PolicyManifestMismatchException::class);
+        $this->expectExceptionMessage(
+            'POLICY_MANIFEST_MISMATCH: discovered 0 package access policies, manifest declares 1; refusing to boot. Missing: Waaseyaa\\SecurityFixture\\MissingPolicy; unexpected: (none)',
+        );
+
+        (new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage'))->load();
+    }
+
+    #[Test]
+    public function load_rejects_a_cached_manifest_missing_a_declared_policy(): void
+    {
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode(['packages' => [[
+                'name' => 'waaseyaa/node',
+                'extra' => ['waaseyaa' => ['policies' => [
+                    'Waaseyaa\\Node\\NodeAccessPolicy',
+                ]]],
+            ]]], JSON_THROW_ON_ERROR),
+        );
+        $cacheDir = $this->tempDir . '/storage/framework';
+        mkdir($cacheDir, 0o755, true);
+        file_put_contents(
+            $cacheDir . '/packages.php',
+            '<?php return ' . var_export((new PackageManifest())->toArray(), true) . ';',
+        );
+
+        $this->expectException(PolicyManifestMismatchException::class);
+        $this->expectExceptionMessage('discovered 0 package access policies, manifest declares 1');
+
+        (new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage'))->load();
+    }
+
+    #[Test]
+    public function compile_refuses_an_installed_package_policy_omitted_from_the_inventory(): void
+    {
+        $packageRoot = $this->tempDir . '/vendor/waaseyaa/security-fixture';
+        $sourceDir = $packageRoot . '/src';
+        mkdir($sourceDir, 0o755, true);
+        $policyPath = $sourceDir . '/UndeclaredPolicy.php';
+        file_put_contents($policyPath, <<<'PHP'
+            <?php
+            declare(strict_types=1);
+            namespace Waaseyaa\SecurityFixture;
+            use Waaseyaa\Access\Gate\PolicyAttribute;
+            #[PolicyAttribute(entityType: 'security_fixture')]
+            final class UndeclaredPolicy {}
+            PHP);
+        require_once $policyPath;
+        $packageComposer = [
+            'name' => 'waaseyaa/security-fixture',
+            'autoload' => ['psr-4' => ['Waaseyaa\\SecurityFixture\\' => 'src/']],
+        ];
+        file_put_contents(
+            $packageRoot . '/composer.json',
+            json_encode($packageComposer, JSON_THROW_ON_ERROR),
+        );
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode(['packages' => [[
+                ...$packageComposer,
+                'install-path' => '../waaseyaa/security-fixture',
+            ]]], JSON_THROW_ON_ERROR),
+        );
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/autoload_classmap.php',
+            '<?php return [];',
+        );
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/autoload_psr4.php',
+            '<?php return ["Waaseyaa\\\\SecurityFixture\\\\" => [' . var_export($sourceDir, true) . ']];',
+        );
+
+        $this->expectException(PolicyManifestMismatchException::class);
+        $this->expectExceptionMessage(
+            'Missing: (none); unexpected: Waaseyaa\\SecurityFixture\\UndeclaredPolicy',
+        );
+
+        (new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage'))->compile();
     }
 
     #[Test]

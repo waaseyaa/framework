@@ -14,9 +14,11 @@ final class AccessPolicyRegistry
     private readonly PolicyDependencyResolverInterface $resolver;
 
     public function __construct(
-        private readonly LoggerInterface $logger,
+        LoggerInterface $logger,
         ?PolicyDependencyResolverInterface $resolver = null,
     ) {
+        // Retained for constructor compatibility; missing policies now throw.
+        unset($logger);
         $this->resolver = $resolver ?? new NullPolicyDependencyResolver();
     }
 
@@ -45,13 +47,12 @@ final class AccessPolicyRegistry
         // Phase 1: instantiate policies that do not require EntityAccessHandler.
         foreach ($manifest->policies as $class => $entityTypes) {
             if (!class_exists($class)) {
-                $this->logger->warning(sprintf(
+                throw new PolicyInstantiationException(sprintf(
                     'Access policy class not found: %s (covering entity types: %s). '
-                    . 'Run "composer dump-autoload --optimize" to update the classmap.',
+                    . 'Refusing to boot with incomplete access enforcement.',
                     $class,
                     implode(', ', $entityTypes),
                 ));
-                continue;
             }
 
             $ref = new \ReflectionClass($class);

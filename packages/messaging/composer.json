@@ -43,6 +43,9 @@
     },
     "extra": {
         "waaseyaa": {
+            "policies": [
+                "Waaseyaa\\Messaging\\MessagingAccessPolicy"
+            ],
             "providers": [
                 "Waaseyaa\\Messaging\\MessagingServiceProvider"
             ]

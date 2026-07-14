@@ -43,6 +43,9 @@
     },
     "extra": {
         "waaseyaa": {
+            "policies": [
+                "Waaseyaa\\Taxonomy\\TermAccessPolicy"
+            ],
             "providers": [
                 "Waaseyaa\\Taxonomy\\TaxonomyServiceProvider"
             ]

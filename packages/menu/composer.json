@@ -38,6 +38,9 @@
     },
     "extra": {
         "waaseyaa": {
+            "policies": [
+                "Waaseyaa\\Menu\\MenuAccessPolicy"
+            ],
             "providers": [
                 "Waaseyaa\\Menu\\MenuServiceProvider"
             ]

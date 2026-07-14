@@ -344,12 +344,13 @@ final class AgentRunController
     {
         $pending = null;
         $pendingCallId = $run->get('pending_approval_call_id');
-        if (\is_string($pendingCallId) && $pendingCallId !== '') {
+        if ($run->getStatus() === RunStatus::AwaitingApproval
+            && \is_string($pendingCallId) && $pendingCallId !== '') {
             $pending = [
                 'call_id' => $pendingCallId,
                 'tool_name' => '',
                 'arguments' => new \stdClass(),
-                'expires_at' => '',
+                'expires_at' => (string) ($run->get('approval_expires_at') ?? ''),
             ];
         }
 

@@ -771,6 +771,7 @@ the framework prunes it automatically. What ships today:
 | `queue:work` | Process jobs from the queue | `queue` (arg), `--sleep`, `--tries`, `--timeout`, `--max-jobs`, `--max-time`, `--memory` |
 | `queue:failed` | List all failed queue jobs | — |
 | `queue:retry` | Retry a failed job | `id` (arg: job ID or `all`) |
+| `queue:forget` | Remove one failed job | `id` (arg: job ID) |
 | `queue:flush` | Remove all failed queue jobs | — |
 
 ### Scheduling
@@ -809,6 +810,7 @@ For production, run the worker as a systemd service or Supervisor process. Resta
 php bin/waaseyaa queue:failed          # list all failures
 php bin/waaseyaa queue:retry <id>      # retry specific job
 php bin/waaseyaa queue:retry all       # retry all failures
+php bin/waaseyaa queue:forget <id>     # discard one failure
 php bin/waaseyaa queue:flush           # discard all failures
 ```
 
