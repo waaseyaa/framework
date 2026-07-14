@@ -25,7 +25,7 @@ ADR 012a's strategic claim: "Migrate your WordPress site to Waaseyaa in one comm
 Package shape (per ADR 012a):
 - Composer type: standard PHP package (not `waaseyaa-theme` or `waaseyaa-migrate-substrate`).
 - Naming: `waaseyaa-migrate-source-wordpress`.
-- Registers via `HasMigrationPluginsInterface` and `HasMigrationsInterface` provider capabilities.
+- Registers complete migration definitions via `HasMigrationsInterface`; plugin instances are composed directly into each definition.
 - Depends on `waaseyaa/migration` (M-002 substrate) at a minimum tested version.
 
 ---

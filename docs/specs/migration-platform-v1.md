@@ -66,7 +66,7 @@ This mission **does not** ship the WordPress reader. That is the next mission, i
 
 ### 2.1 In scope
 
-- `SourcePluginInterface`, `ProcessPluginInterface`, `DestinationPluginInterface` and their registration mechanism (`HasMigrationPluginsInterface` provider capability).
+- `SourcePluginInterface`, `ProcessPluginInterface`, and `DestinationPluginInterface`, composed directly into migration definitions.
 - Reserved plugin-id namespace for first-party process plugins.
 - `MigrationDefinition` value object; manifest discovery via `HasMigrationsInterface` provider capability.
 - Dependency-graph computation with cycle detection.
@@ -100,8 +100,8 @@ Normative requirements use **MUST / SHOULD / MAY** per RFC 2119. Numbered for Sp
 - **FR-004** `ProcessPluginInterface` MUST require: `transform(mixed $value, ProcessContext): mixed`. ProcessContext carries the full source record, the migration definition, and a lookup callable for ID-map queries.
 - **FR-005** The framework MUST expose `Waaseyaa\Migration\Plugin\DestinationPluginInterface` as stable surface.
 - **FR-006** `DestinationPluginInterface` MUST require: `write(DestinationRecord): WriteResult`, `rollback(WriteResult): void`, `lookup(SourceId): ?WriteResult`.
-- **FR-007** Plugins MUST be registered via the `HasMigrationPluginsInterface` provider capability (parallel to `HasNativeCommandsInterface`).
-- **FR-008** Plugin-id collisions MUST fail at boot with a typed `MigrationPluginCollisionException` carrying both registering FQCNs.
+- **FR-007** Plugins MUST be composed directly into a `MigrationDefinition`; there is no global plugin registry.
+- **FR-008** Migration-definition id collisions MUST fail with a typed `MigrationPluginCollisionException` carrying both contributors.
 - **FR-009** Each plugin class MUST declare an id via `id(): string` and a stability via `stability(): 'stable'|'experimental'`. Experimental plugins emit a `framework.deprecation` notice on first use per process.
 - **FR-010** Process plugin chains MUST be supported — multiple processors run on one destination field in array order declared by the manifest.
 
@@ -198,7 +198,7 @@ Maps the mission's stable-surface output to charter §5 (with proposed §5.8 add
 | `SourcePluginInterface` | Interface | §5.8 (new) — Migration platform |
 | `ProcessPluginInterface` | Interface | Same |
 | `DestinationPluginInterface` | Interface | Same |
-| `HasMigrationPluginsInterface`, `HasMigrationsInterface` | Provider capabilities | Same |
+| `HasMigrationsInterface` | Provider capability | Same |
 | `MigrationDefinition` | Value object | Same |
 | `EntityDestination` | Concrete (stable) | Same |
 | `PassThrough`, `HtmlSanitizeProcessor`, `LookupProcessor`, `ConcatProcessor`, `TypeCoerceProcessor`, `DefaultValueProcessor` | Process plugin classes | Same |

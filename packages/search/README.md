@@ -8,6 +8,16 @@ Provides a search index abstraction and query builder for finding entities acros
 
 Key classes: `SearchRequest`, `SearchResult`, `SearchProviderInterface`.
 
+## Parked read surface (R19)
+
+The FTS5 read provider, request/result DTOs, access checker, and Twig helper are
+`@internal`: the framework has no first-party HTTP, CLI, SSR, or admin caller.
+The write-side indexer remains live for existing consumers. Reactivate the read
+surface only when a first-party endpoint adopts it with an acting-account
+access boundary and boundary tests covering access-filtered pagination. The
+unused `SearchIndexJob` was deleted; asynchronous indexing must wait for a
+production queue consumer rather than publishing an undrained message.
+
 ## Implementation gotchas
 
 - **FTS5 `SELECT m.*` misses FTS5 columns**: When joining `search_index` (FTS5) with `search_metadata`, `m.*` only selects metadata columns. To get FTS5 content columns (title, body), select them explicitly: `si.title`, `si.body`. The `snippet()` function also requires column index references into the FTS5 table.

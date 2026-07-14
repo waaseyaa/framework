@@ -5,10 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Migration\Exception;
 
 /**
- * Thrown by {@see \Waaseyaa\Migration\Discovery\PluginRegistry} when two
- * providers register a plugin with the same id, or when a third-party
- * provider tries to register an id reserved by
- * {@see \Waaseyaa\Migration\Plugin\ReservedPluginIds}.
+ * Thrown when two migration definitions claim the same id.
  *
  * The exception always carries the FQCN of both colliding plugin classes so
  * operators can resolve the collision without grepping the source tree.

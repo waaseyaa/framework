@@ -24,9 +24,7 @@ interface ProcessPluginInterface
     /**
      * Globally unique plugin identifier (snake_case, e.g. `html_sanitize`).
      *
-     * Third-party plugins MUST NOT register an id reserved by
-     * {@see ReservedPluginIds}. The {@see \Waaseyaa\Migration\Discovery\PluginRegistry}
-     * enforces this with a {@see \Waaseyaa\Migration\Exception\MigrationPluginCollisionException}.
+     * Built-in plugins use ids from {@see ReservedPluginIds}.
      */
     public function id(): string;
 

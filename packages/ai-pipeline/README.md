@@ -2,8 +2,10 @@
 
 **Layer 5 — AI**
 
-AI inference pipeline for Waaseyaa applications.
+Configuration entity for describing ordered AI processing steps.
 
-Orchestrates model invocation, prompt assembly, response parsing, and retry logic. Acts as the execution layer between agent logic and LLM providers.
+R19 removed the unused execution and queue-dispatch stack. This package does
+not execute pipelines; consumers must use the live `ai-agent` and `ai-vector`
+services for model invocation and embeddings.
 
-Key classes: `Pipeline`, `PipelineExecutor`, `PipelineStepInterface`.
+Key classes: `Pipeline`, `PipelineStepConfig`.

@@ -9,6 +9,7 @@ use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Api\Audit\ApiAuditQueryAdapter;
 use Waaseyaa\Api\Audit\AuditQueryReadModelInterface;
 use Waaseyaa\Api\Controller\AuditQueryController;
+use Waaseyaa\Api\Controller\McpAdminController;
 use Waaseyaa\Api\Controller\MediaVersionController;
 use Waaseyaa\Api\Controller\MercureMonitorController;
 use Waaseyaa\Api\Controller\NotificationController;
@@ -18,6 +19,7 @@ use Waaseyaa\Api\Controller\SchedulerController;
 use Waaseyaa\Api\Controller\WorkflowTransitionController;
 use Waaseyaa\Api\Http\Router\AuditApiRouter;
 use Waaseyaa\Api\Http\Router\DiscoveryRouter;
+use Waaseyaa\Api\Http\Router\McpAdminApiRouter;
 use Waaseyaa\Api\Http\Router\MediaVersionApiRouter;
 use Waaseyaa\Api\Http\Router\MercureMonitorApiRouter;
 use Waaseyaa\Api\Http\Router\NotificationAdminApiRouter;
@@ -25,6 +27,8 @@ use Waaseyaa\Api\Http\Router\OidcClientApiRouter;
 use Waaseyaa\Api\Http\Router\QueueAdminApiRouter;
 use Waaseyaa\Api\Http\Router\SchedulerAdminApiRouter;
 use Waaseyaa\Api\Http\Router\WorkflowTransitionApiRouter;
+use Waaseyaa\Api\McpAdmin\ServerConfigReadModelInterface;
+use Waaseyaa\Api\McpAdmin\ToolRegistryReadModelInterface;
 use Waaseyaa\Api\Media\ApiMediaVersionAdapter;
 use Waaseyaa\Api\Media\MediaVersionReadModelInterface;
 use Waaseyaa\Api\MercureMonitor\ChannelInspectorInterface;
@@ -191,6 +195,13 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
                 $auditReadModel instanceof AuditQueryReadModelInterface ? $auditReadModel : null,
             ),
         );
+
+        $mcpRegistry = $this->resolveOptional(ToolRegistryReadModelInterface::class);
+        $mcpConfig = $this->resolveOptional(ServerConfigReadModelInterface::class);
+        $routers[] = new McpAdminApiRouter(new McpAdminController(
+            registry: $mcpRegistry instanceof ToolRegistryReadModelInterface ? $mcpRegistry : null,
+            config: $mcpConfig instanceof ServerConfigReadModelInterface ? $mcpConfig : null,
+        ));
 
         // DIR-005 (versioned-blob-media-abstraction-01KSEFTJ): media version
         // read API. The read-model is bound in register() above; if the media

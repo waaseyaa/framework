@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Search;
 
 /**
- * @api
+ * @internal Parked with the first-party search read surface.
  */
 final readonly class SearchFilters
 {

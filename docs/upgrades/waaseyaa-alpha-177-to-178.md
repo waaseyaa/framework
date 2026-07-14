@@ -62,7 +62,6 @@ Full list in charter §5.8. Highlights:
 | `Waaseyaa\Migration\Plugin\ProcessPluginInterface` | Transforms a single source value into a destination value. |
 | `Waaseyaa\Migration\Plugin\DestinationPluginInterface` | Writes a `DestinationRecord` and supports rollback + lookup. |
 | `Waaseyaa\Migration\Discovery\HasMigrationsInterface` | Provider capability surfacing `MigrationDefinition`s. |
-| `Waaseyaa\Migration\Discovery\HasMigrationPluginsInterface` | Provider capability surfacing source/process/destination plugins. |
 
 ### Value objects + DTOs
 
@@ -167,7 +166,7 @@ If your app intends to **use** the migration platform:
    ```
    This creates `migration_id_map` and `migration_run_state`.
 4. Optional: `bin/waaseyaa optimize:manifest` to surface any
-   `HasMigrationsInterface` / `HasMigrationPluginsInterface` providers shipped
+   `HasMigrationsInterface` providers shipped
    by you or by source-reader packages you've installed.
 
 If your app does **not** intend to use the migration platform: no action

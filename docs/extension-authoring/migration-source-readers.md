@@ -34,7 +34,7 @@ waaseyaa-migrate-source-xml/
 ├── composer.json
 ├── src/
 │   ├── XmlLineSource.php          # SourcePluginInterface implementation
-│   └── XmlMigrationProvider.php   # ServiceProvider implements HasMigrationPluginsInterface
+│   └── XmlMigrationProvider.php   # ServiceProvider implements HasMigrationsInterface
 └── tests/
     └── XmlLineSourceConformanceTest.php
 ```
@@ -189,31 +189,24 @@ returns `null`.
 
 ## 4. Registration
 
-Source plugins are typically instantiated directly inside a
-`MigrationDefinition`, not registered through a global registry. The provider
-exists for discovery (`HasMigrationPluginsInterface`) and DI wiring:
+Source plugins are instantiated directly inside a `MigrationDefinition`.
+There is no global plugin registry; a provider contributes the complete
+definition through `HasMigrationsInterface`.
 
 ```php
 namespace MyVendor\WaaseyaaMigrateSourceXml;
 
 use Waaseyaa\Foundation\ServiceProvider;
-use Waaseyaa\Migration\Discovery\HasMigrationPluginsInterface;
+use Waaseyaa\Migration\Discovery\HasMigrationsInterface;
 
-final class XmlMigrationProvider extends ServiceProvider implements HasMigrationPluginsInterface
+final class XmlMigrationProvider extends ServiceProvider implements HasMigrationsInterface
 {
-    public function migrationPlugins(): array
+    public function migrations(): array
     {
-        // Source plugins are constructor-injected into MigrationDefinitions
-        // by consuming apps. The provider returns process plugins (if any)
-        // and the destination class registrations.
-        return [];
+        return [XmlToContentMigration::create()];
     }
 }
 ```
-
-If your package also ships custom **process plugins**, return their instances
-from `migrationPlugins()` — the registry will route them by `instanceof` into
-the process-plugin sub-registry.
 
 ---
 

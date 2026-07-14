@@ -1,43 +1,21 @@
 {
     "name": "waaseyaa/ai-pipeline",
-    "description": "AI processing pipelines with queue-based execution for Waaseyaa",
+    "description": "AI processing pipeline configuration entities for Waaseyaa",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
-        {
-            "type": "path",
-            "url": "../cache"
-        },
-        {
-            "type": "path",
-            "url": "../plugin"
-        },
-        {
-            "type": "path",
-            "url": "../typed-data"
-        },
-        {
-            "type": "path",
-            "url": "../config"
-        },
         {
             "type": "path",
             "url": "../entity"
         },
         {
             "type": "path",
-            "url": "../queue"
-        },
-        {
-            "type": "path",
-            "url": "../ai-vector"
+            "url": "../foundation"
         }
     ],
     "require": {
         "php": ">=8.5",
         "waaseyaa/entity": "^0.1.0-alpha.261",
-        "waaseyaa/queue": "^0.1.0-alpha.261",
-        "waaseyaa/ai-vector": "^0.1.0-alpha.261",
         "waaseyaa/foundation": "^0.1.0-alpha.261"
     },
     "require-dev": {

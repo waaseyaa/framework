@@ -102,20 +102,6 @@ Cross-reference: `packages/ai-tools/README.md` for the tool catalogue surface.
 
 ## Key Interfaces
 
-### PipelineStepInterface (`packages/ai-pipeline/src/PipelineStepInterface.php`)
-
-```php
-namespace Waaseyaa\AI\Pipeline;
-
-interface PipelineStepInterface
-{
-    public function process(array $input, PipelineContext $context): StepResult;
-    public function describe(): string;
-}
-```
-
-Steps receive input data and a shared context. Return `StepResult::success()`, `StepResult::failure()`, or `StepResult::halt()`.
-
 ### EmbeddingInterface (`packages/ai-vector/src/EmbeddingInterface.php`)
 
 ```php
@@ -192,15 +178,6 @@ The framework's MCP surface is `Waaseyaa\Mcp\McpServerCard` in `packages/mcp/`, 
 
 `McpController` (`packages/mcp/`) consumes the same `ToolRegistryInterface` from `packages/ai-tools` for `tools/list` and `tools/call`. Entity ACLs apply to every MCP tool call — the previous `McpToolExecutor::accessCheck(false)` bypass was removed in WP-03 (ADR-019).
 
-### Pipeline Execution Flow
-
-1. `PipelineExecutor::execute()` gets steps from the `Pipeline` config entity, sorted by weight (lower first)
-2. Creates a `PipelineContext` with pipeline ID and start timestamp
-3. For each step: looks up plugin by `pluginId`, sets `_step_configuration` in context, calls `process()`
-4. Output of each step becomes input for the next
-5. Stops on: `StepResult::failure()`, `StepResult::halt()`, or missing plugin
-6. Returns `PipelineResult` with nanosecond-precision timing via `hrtime(true)`
-
 ### Vector Search Flow
 
 1. `EntityEmbedder::embedEntity()` builds text as `label + ' ' + json_encode(toArray())`
@@ -211,10 +188,6 @@ The framework's MCP surface is `Waaseyaa\Mcp\McpServerCard` in `packages/mcp/`, 
 
 ## Common Mistakes
 
-### Dual-state bug in Pipeline
-
-The Pipeline class stores steps in both `$this->steps` (typed array) and `$this->values['steps']` (entity values array). Every mutation must call `syncStepsToValues()`. If you add a method that modifies `$this->steps`, call `$this->syncStepsToValues()` at the end. Never read from `$this->values['steps']` directly; use `$this->getSteps()`.
-
 ### JSON symmetry
 
 `EntityEmbedder` uses `json_encode(..., JSON_THROW_ON_ERROR)`. Always pair with `json_decode(..., JSON_THROW_ON_ERROR)`. Asymmetric usage causes silent null on corrupt data.
@@ -222,24 +195,10 @@ The Pipeline class stores steps in both `$this->steps` (typed array) and `$this-
 ### Final classes cannot be mocked
 
 All concrete classes in the AI packages are `final class`. PHPUnit's `createMock()` will fail on them. In tests:
-- Mock interfaces (`AgentToolInterface`, `ToolRegistryInterface`, `PipelineStepInterface`, `EmbeddingInterface`, `VectorStoreInterface`, `EntityTypeManagerInterface`, `AccountInterface`)
-- Use real instances for value objects (`AgentResult`, `AgentTool`, `AgentToolResult`, `StepResult`, `EntityEmbedding`)
+- Mock interfaces (`AgentToolInterface`, `ToolRegistryInterface`, `EmbeddingInterface`, `VectorStoreInterface`, `EntityTypeManagerInterface`, `AccountInterface`)
+- Use real instances for value objects (`AgentResult`, `AgentTool`, `AgentToolResult`, `EntityEmbedding`)
 - Use `FakeEmbeddingProvider` for deterministic test embeddings
 - Use `InMemoryVectorStore` for vector storage in tests
-
-### Pipeline step plugins must be anonymous classes in tests
-
-The `PipelineStepInterface` is not `final`, so it can be mocked. But for integration-style unit tests, use anonymous classes:
-
-```php
-$step = new class implements PipelineStepInterface {
-    public function process(array $input, PipelineContext $context): StepResult
-    {
-        return StepResult::success(['text' => strtoupper($input['text'])]);
-    }
-    public function describe(): string { return 'Uppercase'; }
-};
-```
 
 ### Tool access checks are enforced
 
@@ -265,7 +224,6 @@ Keys are `"{entityTypeId}:{entityId}:{langcode}"`. The `delete()` method removes
 - `packages/ai-tools/tests/Unit/` -- AgentTool, AgentToolResult, AttributeToolRegistry, stock tools
 - `packages/ai-agent/tests/Unit/` -- AgentExecutor, AgentResult, AgentAction, AgentContext, AgentDefinition, RunAgentHandler, AgentRunService, StalledRunReaper, repositories
 - `packages/ai-observability/tests/Unit/` -- AgentRunTelemetryListener, ModelPriceTable
-- `packages/ai-pipeline/tests/Unit/` -- Pipeline, PipelineExecutor, PipelineContext, PipelineStepConfig, PipelineDispatcher, StepResult, PipelineResult, PipelineQueueMessage
 - `packages/ai-vector/tests/Unit/` -- InMemoryVectorStore, EntityEmbedder, EntityEmbedding, SimilarityResult, FakeEmbeddingProvider, DistanceMetric, LanguageAwareVectorTest
 - `tests/Integration/PhaseN/AgentRuntime/` -- CliInlineRunTest, EnqueueAndConsumeTest, AsyncHttpRunTest, CancellationTest, InteractiveHitlTest, ReaperTest, PurgeJobTest, TelemetryTest, McpClientToolSourceTest, EntityPersistenceTest
 
@@ -280,7 +238,6 @@ Keys are `"{entityTypeId}:{entityId}:{langcode}"`. The `delete()` method removes
 ./vendor/bin/phpunit packages/ai-tools/tests/
 ./vendor/bin/phpunit packages/ai-agent/tests/
 ./vendor/bin/phpunit packages/ai-observability/tests/
-./vendor/bin/phpunit packages/ai-pipeline/tests/
 ./vendor/bin/phpunit packages/ai-vector/tests/
 
 # Agent-runtime integration suite
@@ -294,27 +251,6 @@ Do NOT use `-v` flag -- PHPUnit 10.5 rejects it.
 - `FakeEmbeddingProvider` (`packages/ai-vector/src/Testing/FakeEmbeddingProvider.php`) -- Deterministic, hash-based vectors. Default 128 dimensions. Use for all tests needing embeddings.
 - `InMemoryVectorStore` (`packages/ai-vector/src/InMemoryVectorStore.php`) -- Cosine similarity, no external dependencies. Use for all vector storage tests.
 - `TestAgent` (`packages/ai-agent/tests/Unit/TestAgent.php`) -- Configurable test agent with settable results and exceptions.
-
-### Pattern: Testing PipelineExecutor
-
-```php
-$step = new class implements PipelineStepInterface {
-    public function process(array $input, PipelineContext $context): StepResult {
-        return StepResult::success(['result' => $input['text'] . '_processed']);
-    }
-    public function describe(): string { return 'Test step'; }
-};
-
-$executor = new PipelineExecutor(['my_step' => $step]);
-$pipeline = new Pipeline([
-    'id' => 'test_pipeline',
-    'label' => 'Test',
-    'steps' => [
-        ['id' => 'step_1', 'plugin_id' => 'my_step', 'weight' => 0],
-    ],
-]);
-$result = $executor->execute($pipeline, ['text' => 'hello']);
-```
 
 ### Pattern: Testing vector search
 

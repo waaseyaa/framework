@@ -12,7 +12,6 @@
 <!-- Spec reviewed 2026-06-19 - Wayfinding Phase 5 (wayfinding-01KVGH5X): ai-agent gains four `#[AsAgentTool]` Wayfinding write tools in `packages/ai-agent/src/Tool/Wayfinding/` (new ai-agent → wayfinding L5→L4 dep): `wayfinding_record_trail`, `wayfinding_rerecord_trail`, `wayfinding_get_trail` (extend `AbstractTrailTool`, which resolves the `wayfinding_trail` two-axis EntityRepository → `TrailStore`), and `wayfinding_emit_beacon` (validates the anchor via `AnchorRegistry` and pushes a `wayfinding.beacon` to a session channel via `BroadcastStorage`). All carry `capability: 'present guided content'` and `requireCapability` fail-closed (FR-003/NFR-002); the write/record/emit ones are `destructive: true` (so the public read-only `/mcp` hides them — C-001). They surface only on the authenticated MCP write tier (`/mcp/write`, see mcp-endpoint.md). Acceptance: `WayfindingTrailToolsTest` + `EmitBeaconToolTest`. -->
 <!-- Spec reviewed 2026-06-12 - mission optimistic-locking-01KTXCHY WP03 (#1647): new "Optimistic Locking on the Stock Entity Tools" section — entity.update gains the optional top-level expected_revision_id argument (integer, minimum 1; an argument, never a writable value — values.revision_id stays key-guard-refused); stale expectation → structured two-block revision_conflict error (expected + current, machine-correctable: re-read/re-diff/retry); unsupported paths (storage LogicException matrix, non-concrete repository) → distinct revision_expectation_unsupported (do not retry); dry-run with an expectation reports the byte-identical conflict payload (shared builder); success payloads carry the post-save revision_id; entity.read/entity.list expose a top-level revision_id member on revisionable entities (omitted = no expectation formable); SC-002 approve-time staleness recipe pointer to the mission quickstart as the canonical consumer pattern. No-expectation calls byte-identical. -->
 <!-- Spec reviewed 2026-06-12 - mission live-entity-validation-key-protection-01KTWQT3 (#1646, alpha.204): new "Identity-Key Write Protection" section — the stock entity agent tools (entity.create / entity.update in packages/ai-tools) refuse identity-key writes whole-write via EntityKeyGuard, and surface save-time EntityValidationException as the structured validation_failed error. label/bundle never refused; revision_log stays writable via its dedicated argument; #1638 scoped writes noted as the separate broader mechanism. -->
-<!-- Spec reviewed 2026-04-09k - `EmbeddingPipeline`, `McpToolExecutor`, and `SearchController` read entity fields through `EntityValues::toCastAwareMap()` / `WorkflowVisibility::isNodePublicForEntity()` (#1181 ST-8) -->
 <!-- Spec reviewed 2026-04-09 ST-9 - embedding text extraction vs EntityEmbedder; MCP cast-aware payloads (#1181) -->
 <!-- Spec reviewed 2026-04-09 ST-10 - EntityEmbedder / EntityEmbeddingListener / SemanticIndexWarmer use EntityValues + WorkflowVisibility::isNodePublicForEntity (#1181) -->
 
@@ -24,7 +23,7 @@ Waaseyaa's AI layer (architecture layer 5) provides four packages that enable AI
 |---------|-----------|------|---------|
 | ai-schema | `Waaseyaa\AI\Schema\` | `packages/ai-schema/src/` | JSON Schema generation, MCP tool definitions, tool execution |
 | ai-agent | `Waaseyaa\AI\Agent\` | `packages/ai-agent/src/` | Agent executor, audit logging, MCP server adapter |
-| ai-pipeline | `Waaseyaa\AI\Pipeline\` | `packages/ai-pipeline/src/` | Processing pipelines, step orchestration, async dispatch |
+| ai-pipeline | `Waaseyaa\AI\Pipeline\` | `packages/ai-pipeline/src/` | Pipeline configuration entity; no execution or queue surface |
 | ai-vector | `Waaseyaa\AI\Vector\` | `packages/ai-vector/src/` | Vector embeddings, similarity search, distance metrics |
 
 ### Package Dependencies
@@ -475,79 +474,6 @@ final readonly class PipelineStepConfig
 }
 ```
 
-### PipelineStepInterface
-
-**File:** `packages/ai-pipeline/src/PipelineStepInterface.php`
-
-```php
-interface PipelineStepInterface
-{
-    public function process(array $input, PipelineContext $context): StepResult;
-    public function describe(): string;
-}
-```
-
-Steps receive input from the previous step (or the pipeline trigger) and return a `StepResult`. The `PipelineContext` carries shared state across all steps.
-
-### StepResult
-
-**File:** `packages/ai-pipeline/src/StepResult.php`
-
-Three factory methods control pipeline flow:
-
-- `StepResult::success(array $output, string $message)` -- Continue to next step.
-- `StepResult::failure(string $message, array $output)` -- Stop pipeline, mark as failed.
-- `StepResult::halt(string $message, array $output)` -- Stop pipeline, mark as succeeded.
-
-The `$stopPipeline` flag (set by `halt()`) triggers early exit without failure.
-
-### PipelineExecutor
-
-**File:** `packages/ai-pipeline/src/PipelineExecutor.php`
-**Class:** `Waaseyaa\AI\Pipeline\PipelineExecutor`
-
-Synchronous executor. Takes a map of `PipelineStepInterface` implementations keyed by plugin ID.
-
-```php
-public function __construct(private readonly array $stepPlugins = [])
-public function execute(Pipeline $pipeline, array $input = []): PipelineResult
-```
-
-Execution flow:
-1. Gets steps from the pipeline (sorted by weight).
-2. Creates a `PipelineContext` with the pipeline ID and start timestamp.
-3. Iterates steps in weight order. Each step's `$output` becomes the next step's `$input`.
-4. Before each step, sets `_step_configuration` in the context.
-5. Stops on: step failure, step halt, or missing plugin ID.
-6. Returns `PipelineResult` with timing info (`hrtime(true)` for nanosecond precision).
-
-### PipelineDispatcher (Async)
-
-**File:** `packages/ai-pipeline/src/PipelineDispatcher.php`
-
-Fire-and-forget async dispatch via `QueueInterface`:
-
-```php
-public function dispatch(Pipeline $pipeline, array $input = []): PipelineQueueMessage
-```
-
-Creates a `PipelineQueueMessage` with the pipeline ID, input data, and creation timestamp, then pushes it to the queue.
-
-### PipelineResult
-
-**File:** `packages/ai-pipeline/src/PipelineResult.php`
-
-```php
-final readonly class PipelineResult
-{
-    public bool $success;
-    public array $stepResults;    // StepResult[]
-    public array $finalOutput;    // output from last successful step
-    public string $message;
-    public float $durationMs;     // total execution time
-}
-```
-
 ## Vector Storage and Embeddings
 
 ### EmbeddingInterface
@@ -653,9 +579,7 @@ public function removeEntity(string $entityTypeId, int|string $entityId): void;
 
 `embedEntity()` uses `buildEntityText()`: **`$entity->label() . ' ' . json_encode(EntityValues::toJsonReadyMap($entity), JSON_THROW_ON_ERROR)`** — cast-aware keys with JSON-safe scalars (backed enums → backing value, `DateTimeInterface` → ISO-8601 ATOM, nested arrays normalized). Same layering rule as JSON:API attributes (`ResourceSerializer` delegates recursive normalization to **`EntityValues::normalizeValueForJson()`**).
 
-**`EmbeddingPipeline` (field-focused extraction):** `packages/ai-pipeline/src/EmbeddingPipeline.php` builds text from **`EntityValues::toCastAwareMap($entity)`** and configurable field lists (`ai.embedding_fields`), concatenating string/int/float parts only. Use this pipeline when only specific fields should contribute to the embedding string.
-
-**`EntityEmbeddingListener`:** node publish checks use **`WorkflowVisibility::isNodePublicForEntity()`**; embedding text uses **`EntityValues::toCastAwareMap()`** with the same scalar fragment rules as `EmbeddingPipeline` for `title` / `name` / `body` / `description`.
+**`EntityEmbeddingListener`:** node publish checks use **`WorkflowVisibility::isNodePublicForEntity()`**; embedding text uses **`EntityValues::toCastAwareMap()`** for `title` / `name` / `body` / `description`.
 
 **`SemanticIndexWarmer`:** node gating uses **`isNodePublicForEntity()`** (not raw `toArray()`).
 
@@ -664,10 +588,6 @@ flowchart LR
   subgraph embedder["EntityEmbedder"]
     L[label] --> T1["toJsonReadyMap JSON"]
     T1 --> E1[embed]
-  end
-  subgraph pipeline["EmbeddingPipeline"]
-    M[EntityValues::toCastAwareMap] --> F[configured fields]
-    F --> E2[embed]
   end
 ```
 
@@ -999,14 +919,7 @@ Pipeline uses `syncStepsToValues()` to maintain a single source of truth. Called
 | `packages/ai-agent/src/Provider/RateLimitException.php` | `RateLimitException` | HTTP 429 with retryAfterSeconds |
 | `packages/ai-agent/src/Provider/MaxIterationsException.php` | `MaxIterationsException` | Tool loop safety limit exceeded |
 | `packages/ai-pipeline/src/Pipeline.php` | `Pipeline` | Config entity for processing pipelines |
-| `packages/ai-pipeline/src/PipelineStepInterface.php` | `PipelineStepInterface` | Step plugin contract |
 | `packages/ai-pipeline/src/PipelineStepConfig.php` | `PipelineStepConfig` | Step configuration value object |
-| `packages/ai-pipeline/src/PipelineContext.php` | `PipelineContext` | Shared execution state |
-| `packages/ai-pipeline/src/StepResult.php` | `StepResult` | Step result (success/failure/halt) |
-| `packages/ai-pipeline/src/PipelineResult.php` | `PipelineResult` | Full pipeline execution result |
-| `packages/ai-pipeline/src/PipelineExecutor.php` | `PipelineExecutor` | Synchronous pipeline runner |
-| `packages/ai-pipeline/src/PipelineDispatcher.php` | `PipelineDispatcher` | Async queue dispatch |
-| `packages/ai-pipeline/src/PipelineQueueMessage.php` | `PipelineQueueMessage` | Queue message value object |
 | `packages/ai-vector/src/EmbeddingInterface.php` | `EmbeddingInterface` | Embedding provider contract |
 | `packages/ai-vector/src/OpenAiEmbeddingProvider.php` | `OpenAiEmbeddingProvider` | OpenAI embeddings (text-embedding-3-small) |
 | `packages/ai-vector/src/OllamaEmbeddingProvider.php` | `OllamaEmbeddingProvider` | Ollama local embeddings (nomic-embed-text) |
