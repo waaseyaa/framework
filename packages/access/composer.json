@@ -14,18 +14,6 @@
         },
         {
             "type": "path",
-            "url": "../cache"
-        },
-        {
-            "type": "path",
-            "url": "../typed-data"
-        },
-        {
-            "type": "path",
-            "url": "../config"
-        },
-        {
-            "type": "path",
             "url": "../foundation"
         }
     ],

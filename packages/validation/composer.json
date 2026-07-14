@@ -7,18 +7,6 @@
         {
             "type": "path",
             "url": "../typed-data"
-        },
-        {
-            "type": "path",
-            "url": "../plugin"
-        },
-        {
-            "type": "path",
-            "url": "../cache"
-        },
-        {
-            "type": "path",
-            "url": "../config"
         }
     ],
     "require": {

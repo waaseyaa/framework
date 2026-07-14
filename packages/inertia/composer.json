@@ -7,6 +7,10 @@
         {
             "type": "path",
             "url": "../foundation"
+        },
+        {
+            "type": "path",
+            "url": "../entity"
         }
     ],
     "require": {

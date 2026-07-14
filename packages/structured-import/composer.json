@@ -6,6 +6,10 @@
     "repositories": [
         {
             "type": "path",
+            "url": "../entity"
+        },
+        {
+            "type": "path",
             "url": "../field"
         },
         {

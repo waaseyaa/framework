@@ -1,6 +1,6 @@
 {
     "name": "waaseyaa/field",
-    "description": "Field type system \u2014 pluggable field types, definitions, formatters for Waaseyaa",
+    "description": "Field type system — pluggable field types, definitions, formatters for Waaseyaa",
     "type": "library",
     "license": "GPL-2.0-or-later",
     "repositories": [
@@ -18,10 +18,6 @@
         },
         {
             "type": "path",
-            "url": "../config"
-        },
-        {
-            "type": "path",
             "url": "../entity"
         },
         {
@@ -31,6 +27,10 @@
         {
             "type": "path",
             "url": "../plugin"
+        },
+        {
+            "type": "path",
+            "url": "../scheduler"
         },
         {
             "type": "path",

@@ -11,6 +11,10 @@
         {
             "type": "path",
             "url": "../access"
+        },
+        {
+            "type": "path",
+            "url": "../foundation"
         }
     ],
     "require": {

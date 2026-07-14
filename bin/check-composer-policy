@@ -24,6 +24,7 @@ $policyId = [
     'core_runtime_surface' => 'CP004',
     'tight_internal_floor' => 'CP005',
     'self_version_scope' => 'CP006',
+    'path_repository_parity' => 'CP007',
 ];
 
 $failures = [];
@@ -202,6 +203,72 @@ foreach ($manifestPaths as $path) {
                     sprintf('move %s to suggest (core runtime must remain install-safe)', $forbiddenPkg),
                 );
             }
+        }
+    }
+
+    if (str_starts_with($rel, 'packages/')) {
+        $internalRequirements = [];
+        foreach (['require', 'require-dev'] as $sectionName) {
+            $section = is_array($data[$sectionName] ?? null) ? $data[$sectionName] : [];
+            foreach (array_keys($section) as $packageName) {
+                if (is_string($packageName) && str_starts_with($packageName, 'waaseyaa/')) {
+                    $internalRequirements[$packageName] = true;
+                }
+            }
+        }
+
+        $pathRepositories = [];
+        $repositories = is_array($data['repositories'] ?? null) ? $data['repositories'] : [];
+        foreach ($repositories as $repository) {
+            if (!is_array($repository) || ($repository['type'] ?? null) !== 'path') {
+                continue;
+            }
+
+            $url = $repository['url'] ?? null;
+            if (!is_string($url) || $url === '') {
+                continue;
+            }
+
+            $targetManifest = dirname($path) . '/' . $url . '/composer.json';
+            if (!is_file($targetManifest)) {
+                $fail(
+                    'path_repository_parity',
+                    $rel,
+                    sprintf('path repository %s has no readable composer.json', $url),
+                    'every package path repository must resolve to a first-party package manifest',
+                );
+                continue;
+            }
+
+            $targetData = readComposerJson($targetManifest);
+            $targetName = $targetData['name'] ?? null;
+            if (!is_string($targetName) || !str_starts_with($targetName, 'waaseyaa/')) {
+                $fail(
+                    'path_repository_parity',
+                    $rel,
+                    sprintf('path repository %s does not identify a waaseyaa/* package', $url),
+                    'path repository target composer.json must name the corresponding waaseyaa/* package',
+                );
+                continue;
+            }
+            $pathRepositories[$targetName] = true;
+        }
+
+        foreach (array_keys(array_diff_key($internalRequirements, $pathRepositories)) as $packageName) {
+            $fail(
+                'path_repository_parity',
+                $rel,
+                sprintf('%s required without a matching path repository', $packageName),
+                sprintf('add a path repository for %s', $packageName),
+            );
+        }
+        foreach (array_keys(array_diff_key($pathRepositories, $internalRequirements)) as $packageName) {
+            $fail(
+                'path_repository_parity',
+                $rel,
+                sprintf('%s path repository has no matching requirement', $packageName),
+                sprintf('remove the stale path repository or require %s', $packageName),
+            );
         }
     }
 }

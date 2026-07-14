@@ -1,6 +1,6 @@
 {
     "name": "waaseyaa/cms",
-    "description": "Waaseyaa \u2014 complete headless CMS with admin and CLI.",
+    "description": "Waaseyaa — complete headless CMS with admin and CLI.",
     "type": "metapackage",
     "license": "GPL-2.0-or-later",
     "require": {
@@ -25,5 +25,51 @@
     },
     "config": {
         "sort-packages": true
-    }
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../core"
+        },
+        {
+            "type": "path",
+            "url": "../node"
+        },
+        {
+            "type": "path",
+            "url": "../taxonomy"
+        },
+        {
+            "type": "path",
+            "url": "../media"
+        },
+        {
+            "type": "path",
+            "url": "../path"
+        },
+        {
+            "type": "path",
+            "url": "../menu"
+        },
+        {
+            "type": "path",
+            "url": "../workflows"
+        },
+        {
+            "type": "path",
+            "url": "../api"
+        },
+        {
+            "type": "path",
+            "url": "../seo"
+        },
+        {
+            "type": "path",
+            "url": "../ssr"
+        },
+        {
+            "type": "path",
+            "url": "../cli"
+        }
+    ]
 }

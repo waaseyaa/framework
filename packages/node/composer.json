@@ -6,35 +6,7 @@
     "repositories": [
         {
             "type": "path",
-            "url": "../entity"
-        },
-        {
-            "type": "path",
-            "url": "../plugin"
-        },
-        {
-            "type": "path",
-            "url": "../cache"
-        },
-        {
-            "type": "path",
-            "url": "../typed-data"
-        },
-        {
-            "type": "path",
             "url": "../access"
-        },
-        {
-            "type": "path",
-            "url": "../user"
-        },
-        {
-            "type": "path",
-            "url": "../config"
-        },
-        {
-            "type": "path",
-            "url": "../field"
         },
         {
             "type": "path",
@@ -42,7 +14,19 @@
         },
         {
             "type": "path",
+            "url": "../entity"
+        },
+        {
+            "type": "path",
             "url": "../entity-storage"
+        },
+        {
+            "type": "path",
+            "url": "../field"
+        },
+        {
+            "type": "path",
+            "url": "../foundation"
         }
     ],
     "require": {

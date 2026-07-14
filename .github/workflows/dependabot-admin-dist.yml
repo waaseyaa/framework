@@ -1,0 +1,68 @@
+name: Dependabot admin dist rebuild
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+    paths:
+      - 'packages/admin/package.json'
+      - 'packages/admin/package-lock.json'
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  rebuild:
+    name: Rebuild admin dist on Dependabot npm PR
+    if: >-
+      github.actor == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '25'
+          cache: npm
+          cache-dependency-path: packages/admin/package-lock.json
+
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+
+      # The checkout token is not persisted while dependency lifecycle scripts
+      # run. Only the actor-scoped push step below receives a write token.
+      - name: Build admin SPA dist and freshness signature
+        run: bin/build-admin-dist
+
+      - name: Commit rebuilt dist to the Dependabot branch
+        id: commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          git add packages/admin-surface/dist/ packages/admin-surface/dist.signature
+          if git diff --cached --quiet; then
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'chore(admin-surface): rebuild dist for dependency update'
+          git -c credential.helper='!f() { echo username=x-access-token; echo password=$GH_TOKEN; }; f' \
+            push origin "HEAD:${HEAD_REF}"
+          echo 'changed=true' >> "$GITHUB_OUTPUT"
+
+      # A GITHUB_TOKEN push does not emit another pull_request synchronize run.
+      - name: Dispatch blocking CI for rebuilt branch
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$HEAD_REF"

@@ -22,7 +22,7 @@
         },
         {
             "type": "path",
-            "url": "../database-legacy"
+            "url": "../relationship"
         },
         {
             "type": "path",
@@ -30,27 +30,7 @@
         },
         {
             "type": "path",
-            "url": "../cache"
-        },
-        {
-            "type": "path",
-            "url": "../plugin"
-        },
-        {
-            "type": "path",
-            "url": "../typed-data"
-        },
-        {
-            "type": "path",
-            "url": "../config"
-        },
-        {
-            "type": "path",
             "url": "../user"
-        },
-        {
-            "type": "path",
-            "url": "../relationship"
         }
     ],
     "require": {

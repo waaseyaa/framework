@@ -87,11 +87,36 @@ final class CpNewCheckTest extends TestCase
         if ($packageRequireDev !== []) {
             $pkgManifest['require-dev'] = $packageRequireDev;
         }
+        $internalDependencies = array_unique(array_merge(
+            array_keys(array_filter($packageRequire, static fn(string $constraint, string $name): bool => str_starts_with($name, 'waaseyaa/'), ARRAY_FILTER_USE_BOTH)),
+            array_keys(array_filter($packageRequireDev, static fn(string $constraint, string $name): bool => str_starts_with($name, 'waaseyaa/'), ARRAY_FILTER_USE_BOTH)),
+        ));
+        if ($internalDependencies !== []) {
+            $pkgManifest['repositories'] = array_map(
+                static fn(string $name): array => [
+                    'type' => 'path',
+                    'url' => '../' . substr($name, strlen('waaseyaa/')),
+                ],
+                $internalDependencies,
+            );
+        }
 
         file_put_contents(
             $pkgDir . '/composer.json',
             json_encode($pkgManifest, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
         );
+
+        foreach ($internalDependencies as $dependency) {
+            $dependencyDir = $this->tempDir . '/packages/' . substr($dependency, strlen('waaseyaa/'));
+            mkdir($dependencyDir, 0o755, true);
+            file_put_contents(
+                $dependencyDir . '/composer.json',
+                json_encode([
+                    'name' => $dependency,
+                    'config' => ['sort-packages' => true],
+                ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
+            );
+        }
 
         // Init git repo and optionally add a tag so CP-NEW can resolve.
         // Set local user.email/user.name so `git commit` works in CI containers

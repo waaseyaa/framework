@@ -6,7 +6,7 @@
     "repositories": [
         {
             "type": "path",
-            "url": "../ai-schema"
+            "url": "../access"
         },
         {
             "type": "path",
@@ -14,55 +14,11 @@
         },
         {
             "type": "path",
+            "url": "../ai-schema"
+        },
+        {
+            "type": "path",
             "url": "../ai-tools"
-        },
-        {
-            "type": "path",
-            "url": "../routing"
-        },
-        {
-            "type": "path",
-            "url": "../access"
-        },
-        {
-            "type": "path",
-            "url": "../user"
-        },
-        {
-            "type": "path",
-            "url": "../entity"
-        },
-        {
-            "type": "path",
-            "url": "../plugin"
-        },
-        {
-            "type": "path",
-            "url": "../cache"
-        },
-        {
-            "type": "path",
-            "url": "../typed-data"
-        },
-        {
-            "type": "path",
-            "url": "../config"
-        },
-        {
-            "type": "path",
-            "url": "../field"
-        },
-        {
-            "type": "path",
-            "url": "../entity-storage"
-        },
-        {
-            "type": "path",
-            "url": "../database-legacy"
-        },
-        {
-            "type": "path",
-            "url": "../api"
         },
         {
             "type": "path",
@@ -70,7 +26,31 @@
         },
         {
             "type": "path",
+            "url": "../api"
+        },
+        {
+            "type": "path",
+            "url": "../cache"
+        },
+        {
+            "type": "path",
+            "url": "../entity"
+        },
+        {
+            "type": "path",
+            "url": "../routing"
+        },
+        {
+            "type": "path",
+            "url": "../user"
+        },
+        {
+            "type": "path",
             "url": "../workflows"
+        },
+        {
+            "type": "path",
+            "url": "../foundation"
         },
         {
             "type": "path",

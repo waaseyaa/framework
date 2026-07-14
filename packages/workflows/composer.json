@@ -6,31 +6,7 @@
     "repositories": [
         {
             "type": "path",
-            "url": "../entity"
-        },
-        {
-            "type": "path",
-            "url": "../plugin"
-        },
-        {
-            "type": "path",
-            "url": "../cache"
-        },
-        {
-            "type": "path",
-            "url": "../typed-data"
-        },
-        {
-            "type": "path",
-            "url": "../config"
-        },
-        {
-            "type": "path",
-            "url": "../relationship"
-        },
-        {
-            "type": "path",
-            "url": "../groups"
+            "url": "../access"
         },
         {
             "type": "path",
@@ -38,15 +14,31 @@
         },
         {
             "type": "path",
+            "url": "../config"
+        },
+        {
+            "type": "path",
+            "url": "../entity"
+        },
+        {
+            "type": "path",
             "url": "../entity-storage"
         },
         {
             "type": "path",
-            "url": "../database-legacy"
+            "url": "../foundation"
         },
         {
             "type": "path",
-            "url": "../field"
+            "url": "../groups"
+        },
+        {
+            "type": "path",
+            "url": "../relationship"
+        },
+        {
+            "type": "path",
+            "url": "../database-legacy"
         },
         {
             "type": "path",

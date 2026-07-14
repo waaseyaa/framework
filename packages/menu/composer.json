@@ -10,19 +10,11 @@
         },
         {
             "type": "path",
-            "url": "../plugin"
+            "url": "../access"
         },
         {
             "type": "path",
-            "url": "../cache"
-        },
-        {
-            "type": "path",
-            "url": "../typed-data"
-        },
-        {
-            "type": "path",
-            "url": "../config"
+            "url": "../foundation"
         }
     ],
     "require": {

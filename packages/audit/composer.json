@@ -23,6 +23,10 @@
         {
             "type": "path",
             "url": "../foundation"
+        },
+        {
+            "type": "path",
+            "url": "../scheduler"
         }
     ],
     "require": {

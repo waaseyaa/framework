@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+#
+# check-phpunit-paths — prove that every package test is selected by at least
+# one phpunit.xml.dist suite directory glob (or an explicit <file> entry), and
+# that every configured package test path still resolves on disk.
+#
+# This is the test-runner analogue of check-phpstan-paths: adding a new
+# packages/*/tests/<kind> tree must not silently create an unexecuted suite.
+
+set -euo pipefail
+
+ROOT_DIR="${ROOT_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
+export ROOT_DIR
+
+python3 - <<'PY'
+import fnmatch
+import glob
+import os
+import pathlib
+import sys
+import xml.etree.ElementTree as ET
+
+root = pathlib.Path(os.environ["ROOT_DIR"])
+config = root / "phpunit.xml.dist"
+if not config.is_file():
+    print(f"PHPUnit path gate: missing {config}")
+    sys.exit(1)
+
+tree = ET.parse(config)
+directory_patterns: list[str] = []
+explicit_files: set[str] = set()
+for suite in tree.findall("./testsuites/testsuite"):
+    for directory in suite.findall("directory"):
+        if directory.text and directory.text.strip().startswith("packages/"):
+            directory_patterns.append(directory.text.strip().rstrip("/"))
+    for file_node in suite.findall("file"):
+        if file_node.text and file_node.text.strip().startswith("packages/"):
+            explicit_files.add(file_node.text.strip())
+
+stale: list[str] = []
+for pattern in directory_patterns:
+    if not any(pathlib.Path(match).is_dir() for match in glob.glob(str(root / pattern))):
+        stale.append(pattern)
+for rel in sorted(explicit_files):
+    if not (root / rel).is_file():
+        stale.append(rel)
+
+package_tests = sorted(
+    path.relative_to(root).as_posix()
+    for path in root.glob("packages/*/tests/**/*Test.php")
+    if path.is_file()
+)
+
+def covered(rel: str) -> bool:
+    if rel in explicit_files:
+        return True
+    for pattern in directory_patterns:
+        # A PHPUnit <directory> recursively selects PHP files below each
+        # directory matched by its package wildcard.
+        if fnmatch.fnmatch(rel, pattern + "/**"):
+            return True
+    return False
+
+missing = [rel for rel in package_tests if not covered(rel)]
+
+if missing:
+    print("PHPUnit coverage gap — package tests outside every configured suite path:")
+    for rel in missing:
+        print(f"  {rel}")
+    print("Add a packages/*/tests/<kind> directory glob to phpunit.xml.dist.")
+
+if stale:
+    print("Stale PHPUnit package paths — configured entries resolve to nothing:")
+    for rel in sorted(stale):
+        print(f"  {rel}")
+
+if missing or stale:
+    sys.exit(1)
+
+print(f"OK — PHPUnit suites cover every package test ({len(package_tests)} PHP files).")
+PY

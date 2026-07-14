@@ -6,7 +6,23 @@
     "repositories": [
         {
             "type": "path",
+            "url": "../cache"
+        },
+        {
+            "type": "path",
+            "url": "../database-legacy"
+        },
+        {
+            "type": "path",
+            "url": "../queue"
+        },
+        {
+            "type": "path",
             "url": "../entity"
+        },
+        {
+            "type": "path",
+            "url": "../error-handler"
         },
         {
             "type": "path",

@@ -383,6 +383,7 @@ jobs:
             echo "::endgroup::"
           }
           run_gate check-phpstan-paths
+          run_gate check-phpunit-paths
           run_gate check-distribution-extensions
           run_gate check-symfony-imports
           run_gate check-getquery-bindings
@@ -439,7 +440,7 @@ jobs:
           key: playwright-${{ hashFiles('packages/admin/package-lock.json') }}
 
       - name: Install dependencies and Playwright
-        run: cd packages/admin && npm install --no-audit --no-fund && npx playwright install --with-deps chromium firefox
+        run: cd packages/admin && npm ci --no-audit --no-fund && npx playwright install --with-deps chromium firefox
 
       - name: Start PHP backend
         run: |
@@ -497,7 +498,7 @@ jobs:
           key: node-${{ hashFiles('packages/admin/package-lock.json') }}
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Build Admin SPA
         run: npm run build

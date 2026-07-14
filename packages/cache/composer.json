@@ -34,5 +34,11 @@
     },
     "config": {
         "sort-packages": true
-    }
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../foundation"
+        }
+    ]
 }
