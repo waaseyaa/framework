@@ -221,7 +221,7 @@ final class JsonApiAccessIntegrationTest extends TestCase
     }
 
     #[Test]
-    public function createWithoutStatusStaysPublishedForPublishers(): void
+    public function createWithoutStatusDefaultsToDraftEvenForPublishers(): void
     {
         $publisher = new User([
             'uid' => 6,
@@ -235,7 +235,7 @@ final class JsonApiAccessIntegrationTest extends TestCase
             'data' => [
                 'type' => 'node',
                 'attributes' => [
-                    'title' => 'Published by editor',
+                    'title' => 'Draft by editor',
                     'type' => 'article',
                     'uid' => 6,
                     // No 'status' attribute supplied.
@@ -246,7 +246,7 @@ final class JsonApiAccessIntegrationTest extends TestCase
         $this->assertSame(201, $doc->statusCode);
         $uuid = $doc->toArray()['data']['id'];
         $stored = $this->storage->load($this->findNodeIdByUuid($uuid));
-        $this->assertSame(1, (int) $stored->get('status'));
+        $this->assertSame(0, (int) $stored->get('status'));
     }
 
     #[Test]

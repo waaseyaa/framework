@@ -22,6 +22,10 @@
     },
     "extra": {
         "waaseyaa": {
+            "policies": [
+                "Waaseyaa\\Relationship\\RelationshipAccessPolicy",
+                "Waaseyaa\\Relationship\\RelationshipEndpointVisibilityPolicy"
+            ],
             "providers": [
                 "Waaseyaa\\Relationship\\RelationshipServiceProvider"
             ]

@@ -53,6 +53,9 @@
     },
     "extra": {
         "waaseyaa": {
+            "policies": [
+                "Waaseyaa\\Wayfinding\\Access\\TrailAccessPolicy"
+            ],
             "providers": [
                 "Waaseyaa\\Wayfinding\\WayfindingServiceProvider"
             ]

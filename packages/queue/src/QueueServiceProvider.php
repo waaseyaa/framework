@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Queue;
 
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Queue\Handler\HandlerInterface;
 use Waaseyaa\Queue\Handler\JobHandler;
@@ -44,11 +45,16 @@ final class QueueServiceProvider extends ServiceProvider
             default => fn(): InMemoryFailedJobRepository => new InMemoryFailedJobRepository(),
         });
 
-        $this->singleton(Worker::class, fn(): Worker => new Worker(
-            $this->resolve(TransportInterface::class),
-            $this->resolve(FailedJobRepositoryInterface::class),
-            $this->resolveHandlers(),
-        ));
+        $this->singleton(Worker::class, function (): Worker {
+            $logger = $this->resolveOptional(LoggerInterface::class);
+
+            return new Worker(
+                $this->resolve(TransportInterface::class),
+                $this->resolve(FailedJobRepositoryInterface::class),
+                $this->resolveHandlers(),
+                $logger instanceof LoggerInterface ? $logger : null,
+            );
+        });
     }
 
     /**

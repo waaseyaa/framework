@@ -250,8 +250,14 @@ final class ComposerProvenanceReporter
             $candidate = $base . '/' . $relativeOrAbsolute;
         }
         $real = realpath($candidate);
+        $realBase = realpath($base);
+        if ($real === false || $realBase === false) {
+            return null;
+        }
 
-        return $real !== false ? $real : null;
+        $contained = $real === $realBase || str_starts_with($real, rtrim($realBase, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR);
+
+        return $contained ? $real : null;
     }
 
     private function gitRevParseHead(string $inPath): ?string

@@ -18,10 +18,11 @@ use Waaseyaa\HttpClient\SseLineStreamInterface;
  * the agent runtime (FR-005).
  *
  * Two execution modes:
- *  - **async (default):** persists a queued {@see AgentRun} via
+ *  - **dispatch (default):** persists a queued {@see AgentRun} via
  *    {@see AgentRunService::enqueue()}, dispatches a {@see \Waaseyaa\AI\Agent\Message\RunAgent}
- *    onto the Messenger bus, and prints the new `run_id` so a worker
- *    (or `bin/waaseyaa queue:work`) can pick it up.
+ *    onto the Messenger bus, and prints the new `run_id`. The framework's
+ *    default bus handles synchronously in the foreground; applications with
+ *    an asynchronous transport return after dispatch for a worker to consume.
  *  - **inline (`--inline`):** persists a queued {@see AgentRun} and runs
  *    the worker handler in-process via {@see AgentRunService::runInline()}.
  *    Used for smoke tests and dev iteration; the wall-clock target is
@@ -54,6 +55,10 @@ final class AiRunCommand
 
     public function execute(SymfonyCommandIO $io): int
     {
+        // Command services can be reused in long-lived processes and tests.
+        // A SIGINT from a prior --watch invocation must not cancel the next one.
+        $this->interrupted = false;
+
         $prompt = $io->argument('prompt');
         if (!\is_string($prompt) || trim($prompt) === '') {
             $io->error('ai:run: <prompt> argument is required.');

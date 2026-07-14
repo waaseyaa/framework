@@ -38,6 +38,9 @@
     },
     "extra": {
         "waaseyaa": {
+            "policies": [
+                "Waaseyaa\\Note\\NoteAccessPolicy"
+            ],
             "providers": [
                 "Waaseyaa\\Note\\NoteServiceProvider"
             ]

@@ -38,6 +38,9 @@
     },
     "extra": {
         "waaseyaa": {
+            "policies": [
+                "Waaseyaa\\Engagement\\EngagementAccessPolicy"
+            ],
             "providers": [
                 "Waaseyaa\\Engagement\\EngagementServiceProvider"
             ]

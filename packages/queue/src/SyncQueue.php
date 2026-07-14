@@ -7,6 +7,13 @@ namespace Waaseyaa\Queue;
 use Waaseyaa\Queue\Handler\HandlerInterface;
 use Waaseyaa\Queue\Handler\JobHandler;
 
+/**
+ * Inline queue for request-local execution.
+ *
+ * Handler exceptions deliberately propagate to the dispatching caller. Sync
+ * mode has no worker boundary and therefore does not create failed-job rows;
+ * callers own transaction rollback, logging, and retry policy.
+ */
 final class SyncQueue implements QueueInterface
 {
     /** @var HandlerInterface[] */

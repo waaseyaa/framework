@@ -1,5 +1,6 @@
 # Access Control
 
+<!-- Spec reviewed 2026-07-14 - #2020 policy discovery security: packages declare their full access-policy inventory in extra.waaseyaa.policies. PackageManifestCompiler rejects missing/divergent discovery before boot, and AccessPolicyRegistry throws rather than warning-and-skipping if a manifested class disappears. -->
 <!-- Spec reviewed 2026-07-14 - R21 WP7 (#2010): bin/check-access-hardening is the recurring prevention gate for the audit's agent-tool guard, public access-vs-status, filter/sort field-access, and explicit route-posture failure classes. It runs fixture self-tests and the real repository scan through composer verify and the blocking verify-gates CI job. -->
 
 <!-- Spec reviewed 2026-07-02 - audit-remediation batch WP3: new Waaseyaa\Path\PathAliasUniquenessListener (BeforeSaveEvent hook enforcing path_alias (alias, langcode) uniqueness) queries via accessCheck(false), justified identically to PathAliasResolver above — a system-context uniqueness check, not a user-facing view. No change to the access pipeline, gate logic, or access-decision semantics; see CHANGELOG [Unreleased] Fixed for the full path-alias NFC-normalization + uniqueness fix. -->
@@ -229,6 +230,8 @@ For `checkFieldAccess()` and `filterFields()`, see `docs/specs/field-access.md`.
 ### Policy Registration
 
 Policies are passed to the constructor or added via `addPolicy()`. In the current post-M10 boot flow, `AccessPolicyRegistry` builds the handler from `PackageManifest::$policies`, while the kernel still exposes the resulting gate to `AccessChecker` during boot:
+
+Every installed package that owns a `#[PolicyAttribute]` class declares that class in `extra.waaseyaa.policies`. Discovery must contain every declared class independent of Composer autoload optimization; a count/content mismatch or a class that cannot be loaded aborts boot with `POLICY_MANIFEST_MISMATCH`. There is no warning-and-continue path for incomplete enforcement.
 
 ```php
 $accessHandler = new EntityAccessHandler([
