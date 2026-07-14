@@ -64,6 +64,7 @@ final class JsonApiRouteProvider
             RouteBuilder::create($collectionPath)
                 ->controller('Waaseyaa\\Api\\JsonApiController::index')
                 ->methods('GET')
+                ->allowAll()
                 ->default('_entity_type', $entityTypeId)
                 ->build(),
         );
@@ -74,6 +75,7 @@ final class JsonApiRouteProvider
             RouteBuilder::create($resourcePath)
                 ->controller('Waaseyaa\\Api\\JsonApiController::show')
                 ->methods('GET')
+                ->allowAll()
                 ->default('_entity_type', $entityTypeId)
                 ->build(),
         );

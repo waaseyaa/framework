@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **R21 interface write and catalogue boundaries fail closed (#2010).** Admin-surface `readOnlyTypes` now reject create, update, and delete at the server boundary; dynamically Forbidden filter values cannot consume a visible page, and dynamically Forbidden sorts are rejected value-independently. The MCP public-vs-destructive invariant test exercises the real attribute-hydrated tool catalogue rather than a handwritten registry double.
 
+### Security
+
+- **Five audit-born access and worker-lifetime invariants now block regressions (#2010, #2000; R21 WP7).** The access-hardening gate checks real `#[AsAgentTool]` implementations for capability/entity guards, pins public read surfaces to account-aware access rather than publication status alone, requires structural and per-field protection on filter/sort surfaces, rejects route-builder chains without an explicit access posture, and rejects new mutable request-path statics unless a reviewed baseline explains their lifetime and isolation. Unsafe fixtures self-test the gate; the four previously implicit public route postures are now explicit `allowAll()` declarations without changing controller-level access enforcement.
+
 ## [0.1.0-alpha.262] - 2026-07-14
 
 ### Changed
