@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **The debug provider's fail-closed production gate now has regression coverage (#2020).** Malformed `APP_DEBUG` values register neither debug middleware nor preview routes, while an absent environment value may still use explicit server-side configuration.
+
 ## [0.1.0-alpha.264] - 2026-07-14
 
 ### Fixed
