@@ -35,6 +35,7 @@ return new class extends Migration {
                     status VARCHAR(32) NOT NULL DEFAULT 'queued',
                     destructive_approval VARCHAR(16) NOT NULL DEFAULT 'none',
                     pending_approval_call_id VARCHAR(64) DEFAULT NULL,
+                    approval_expires_at VARCHAR(35) DEFAULT NULL,
                     prompt TEXT NOT NULL,
                     response TEXT DEFAULT NULL,
                     transcript_json TEXT NOT NULL DEFAULT '[]',

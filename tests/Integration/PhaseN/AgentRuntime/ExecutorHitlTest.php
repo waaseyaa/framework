@@ -193,9 +193,16 @@ final class ExecutorHitlTest extends TestCase
         $database = $this->database;
         $runId = (string) $run->get('id');
         $sleepCalls = 0;
-        $sleeper = static function (int $ms) use (&$sleepCalls, $database, $runId): void {
+        $observedApprovalExpiry = null;
+        $sleeper = static function (int $ms) use (&$sleepCalls, &$observedApprovalExpiry, $database, $runId): void {
             $sleepCalls++;
             if ($sleepCalls === 1) {
+                $row = $database->select('agent_run')
+                    ->fields('agent_run', ['approval_expires_at'])
+                    ->condition('id', $runId)
+                    ->execute()
+                    ->current();
+                $observedApprovalExpiry = is_array($row) ? $row['approval_expires_at'] : null;
                 $database->update('agent_run')
                     ->fields(['status' => RunStatus::Running->value])
                     ->condition('id', $runId)
@@ -218,6 +225,8 @@ final class ExecutorHitlTest extends TestCase
         // LLM — no refetch from the row or elsewhere.
         self::assertCount(1, $recorder->invocations);
         self::assertSame($expectedArgs, $recorder->invocations[0]);
+        self::assertIsString($observedApprovalExpiry);
+        self::assertNotSame('', $observedApprovalExpiry);
 
         // Exactly one ApprovalRequired and one ApprovalGranted row for
         // this call_id, plus no stray ApprovalDenied / approval_timeout.

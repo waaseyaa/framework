@@ -6,7 +6,9 @@ namespace Waaseyaa\AI\Agent\Repository;
 
 use Waaseyaa\AI\Agent\Entity\AgentRun;
 use Waaseyaa\AI\Agent\Enum\RunStatus;
+use Waaseyaa\AI\Agent\Reaper\StalledRunCandidate;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\UpdateInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 
 /**
@@ -83,11 +85,9 @@ final class AgentRunRepository
      * Compare-and-swap: transition into a terminal status (`completed`,
      * `failed`, or `cancelled`).
      *
-     * Refuses to overwrite an existing terminal row — the affected-rows
-     * guard implements the C-014 invariant directly in SQL: the WHERE
-     * clause excludes the three terminal statuses, so a second worker
-     * issuing the same transition gets `affected === 0` and a `false`
-     * return.
+     * Always refuses to overwrite an existing terminal row. Reaper callers
+     * additionally provide the immutable candidate captured by selection, so
+     * its source status and lifecycle identity participate in the same CAS.
      *
      * @throws \InvalidArgumentException When `$status` is not terminal.
      */
@@ -97,6 +97,8 @@ final class AgentRunRepository
         \DateTimeImmutable $finishedAt,
         ?string $errorCode = null,
         ?string $errorMessage = null,
+        ?RunStatus $expectedStatus = null,
+        ?StalledRunCandidate $expectedCandidate = null,
     ): bool {
         if (!$status->isTerminal()) {
             throw new \InvalidArgumentException(\sprintf(
@@ -104,10 +106,19 @@ final class AgentRunRepository
                 $status->value,
             ));
         }
+        if ($expectedStatus?->isTerminal() === true) {
+            throw new \InvalidArgumentException('markTerminal() expected source status must be non-terminal.');
+        }
+        if ($expectedCandidate !== null && $expectedStatus !== null
+            && $expectedCandidate->sourceStatus !== $expectedStatus) {
+            throw new \InvalidArgumentException('markTerminal() source expectations disagree.');
+        }
 
         $fields = [
             'status' => $status->value,
             'finished_at' => $this->formatDateTime($finishedAt),
+            'pending_approval_call_id' => null,
+            'approval_expires_at' => null,
         ];
         if ($errorCode !== null) {
             $fields['error_code'] = $errorCode;
@@ -120,11 +131,20 @@ final class AgentRunRepository
             ->fields($fields)
             ->condition('id', $id);
 
-        // C-014: refuse to advance over any terminal status. We use one
-        // operator per condition because the query builder rejects array
-        // values on plain '=' equality.
+        // C-014 applies even when a caller supplies a source expectation.
         foreach (RunStatus::terminals() as $terminal) {
-            $update = $update->condition('status', $terminal->value, '!=');
+            $update->condition('status', $terminal->value, '!=');
+        }
+
+        $sourceStatus = $expectedStatus;
+        if ($expectedCandidate !== null) {
+            $sourceStatus = $expectedCandidate->sourceStatus;
+        }
+        if ($sourceStatus !== null) {
+            $update->condition('status', $sourceStatus->value);
+        }
+        if ($expectedCandidate !== null) {
+            $this->applyCandidateConditions($update, $expectedCandidate);
         }
 
         $affected = $update->execute();
@@ -159,6 +179,7 @@ final class AgentRunRepository
         return $this->approvalTransition($id, $callId, [
             'status' => RunStatus::Running->value,
             'pending_approval_call_id' => null,
+            'approval_expires_at' => null,
         ]);
     }
 
@@ -167,6 +188,7 @@ final class AgentRunRepository
         return $this->approvalTransition($id, $callId, [
             'status' => RunStatus::Failed->value,
             'pending_approval_call_id' => null,
+            'approval_expires_at' => null,
             'finished_at' => $this->formatDateTime($now),
             'error_code' => 'approval_denied',
             'error_message' => 'Approval denied by user.',
@@ -190,7 +212,7 @@ final class AgentRunRepository
      * Used by the reaper to detect worker-crash victims. Backed by
      * `idx_agent_run_status_started_at`.
      *
-     * @return list<AgentRun>
+     * @return list<StalledRunCandidate>
      */
     public function findStuckRunning(\DateTimeImmutable $threshold): array
     {
@@ -198,25 +220,119 @@ final class AgentRunRepository
 
         $rows = $this->database
             ->select(self::TABLE)
-            ->fields(self::TABLE, ['id'])
+            ->fields(self::TABLE, $this->candidateFields())
             ->condition('status', RunStatus::Running->value)
             ->condition('started_at', $thresholdString, '<')
             ->execute();
 
+        return $this->candidatesFromRows($rows, RunStatus::Running);
+    }
+
+    /**
+     * Find non-running rows that have exceeded the worker TTL.
+     *
+     * Queued rows are aged from `queued_at`; cancellation rows from
+     * `started_at`; approval rows from their persisted HITL deadline.
+     *
+     * @return list<StalledRunCandidate>
+     */
+    public function findAbandoned(\DateTimeImmutable $threshold, \DateTimeImmutable $now): array
+    {
+        $thresholdString = $this->formatDateTime($threshold);
         $results = [];
+
+        $queuedRows = $this->database
+            ->select(self::TABLE)
+            ->fields(self::TABLE, $this->candidateFields())
+            ->condition('status', RunStatus::Queued->value)
+            ->condition('queued_at', $thresholdString, '<')
+            ->execute();
+        $results = [...$results, ...$this->candidatesFromRows($queuedRows, RunStatus::Queued)];
+
+        $cancellingRows = $this->database
+            ->select(self::TABLE)
+            ->fields(self::TABLE, $this->candidateFields())
+            ->condition('status', RunStatus::Cancelling->value)
+            ->condition('started_at', $thresholdString, '<')
+            ->execute();
+        $results = [...$results, ...$this->candidatesFromRows($cancellingRows, RunStatus::Cancelling)];
+
+        $expiredApprovals = $this->database
+            ->select(self::TABLE)
+            ->fields(self::TABLE, $this->candidateFields())
+            ->condition('status', RunStatus::AwaitingApproval->value)
+            ->condition('approval_expires_at', $this->formatDateTime($now), '<')
+            ->execute();
+        $results = [...$results, ...$this->candidatesFromRows($expiredApprovals, RunStatus::AwaitingApproval)];
+
+        // Upgrade compatibility: rows that entered approval before the deadline
+        // column existed retain the old started_at-based TTL until classified.
+        $legacyApprovals = $this->database
+            ->select(self::TABLE)
+            ->fields(self::TABLE, $this->candidateFields())
+            ->condition('status', RunStatus::AwaitingApproval->value)
+            ->condition('approval_expires_at', null, 'IS NULL')
+            ->condition('started_at', $thresholdString, '<')
+            ->execute();
+        $results = [...$results, ...$this->candidatesFromRows($legacyApprovals, RunStatus::AwaitingApproval)];
+
+        return $results;
+    }
+
+    /** @return list<string> */
+    private function candidateFields(): array
+    {
+        return ['id', 'queued_at', 'started_at', 'pending_approval_call_id', 'approval_expires_at'];
+    }
+
+    /**
+     * @param iterable<object|array<string, mixed>> $rows
+     * @return list<StalledRunCandidate>
+     */
+    private function candidatesFromRows(iterable $rows, RunStatus $sourceStatus): array
+    {
+        $candidates = [];
         foreach ($rows as $row) {
-            $row = (array) $row;
-            $id = (string) ($row['id'] ?? '');
+            $values = (array) $row;
+            $id = (string) ($values['id'] ?? '');
             if ($id === '') {
                 continue;
             }
-            $entity = $this->find($id);
-            if ($entity !== null) {
-                $results[] = $entity;
-            }
+            $candidates[] = new StalledRunCandidate(
+                id: $id,
+                sourceStatus: $sourceStatus,
+                queuedAt: isset($values['queued_at']) ? (string) $values['queued_at'] : null,
+                startedAt: isset($values['started_at']) ? (string) $values['started_at'] : null,
+                pendingApprovalCallId: isset($values['pending_approval_call_id'])
+                    ? (string) $values['pending_approval_call_id']
+                    : null,
+                approvalExpiresAt: isset($values['approval_expires_at'])
+                    ? (string) $values['approval_expires_at']
+                    : null,
+            );
         }
 
-        return $results;
+        return $candidates;
+    }
+
+    private function applyCandidateConditions(UpdateInterface $update, StalledRunCandidate $candidate): void
+    {
+        $this->conditionExact($update, 'queued_at', $candidate->queuedAt);
+        $this->conditionExact($update, 'started_at', $candidate->startedAt);
+        if ($candidate->sourceStatus === RunStatus::AwaitingApproval) {
+            $this->conditionExact($update, 'pending_approval_call_id', $candidate->pendingApprovalCallId);
+            $this->conditionExact($update, 'approval_expires_at', $candidate->approvalExpiresAt);
+        }
+    }
+
+    private function conditionExact(UpdateInterface $update, string $field, ?string $value): void
+    {
+        if ($value === null) {
+            $update->condition($field, null, 'IS NULL');
+
+            return;
+        }
+        $update->condition($field, $value);
     }
 
     /**

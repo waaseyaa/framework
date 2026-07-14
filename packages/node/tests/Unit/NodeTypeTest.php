@@ -76,6 +76,15 @@ final class NodeTypeTest extends TestCase
         $this->assertNull($type->getType());
     }
 
+    public function testGetTypeNarrowsTheConfigEntityIdToNullableString(): void
+    {
+        $returnType = new \ReflectionMethod(NodeType::class, 'getType')->getReturnType();
+
+        self::assertInstanceOf(\ReflectionNamedType::class, $returnType);
+        self::assertSame('string', $returnType->getName());
+        self::assertTrue($returnType->allowsNull());
+    }
+
     // -----------------------------------------------------------------
     // Name (human-readable label)
     // -----------------------------------------------------------------

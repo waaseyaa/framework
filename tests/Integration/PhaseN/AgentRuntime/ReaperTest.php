@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Waaseyaa\AI\Agent\Broadcast\AgentRunBroadcasterInterface;
 use Waaseyaa\AI\Agent\Entity\AgentAuditLog;
 use Waaseyaa\AI\Agent\Entity\AgentRun;
 use Waaseyaa\AI\Agent\Enum\EventType;
@@ -67,7 +68,7 @@ final class ReaperTest extends TestCase
         $this->seedRunningRun('run-stuck', startedSecondsAgo: 700);
         $this->seedRunningRun('run-fresh', startedSecondsAgo: 60);
 
-        $broadcaster = new CapturingBroadcaster();
+        $broadcaster = new ReaperCapturingBroadcaster();
         $reaper = new StalledRunReaper(
             runRepository: $this->runRepository,
             auditRepository: $this->auditRepository,
@@ -107,7 +108,7 @@ final class ReaperTest extends TestCase
         $finished = new \DateTimeImmutable('2026-05-18T12:00:00+00:00');
         self::assertTrue($this->runRepository->markTerminal('run-raced', RunStatus::Completed, $finished));
 
-        $broadcaster = new CapturingBroadcaster();
+        $broadcaster = new ReaperCapturingBroadcaster();
         $reaper = new StalledRunReaper(
             runRepository: $this->runRepository,
             auditRepository: $this->auditRepository,
@@ -125,17 +126,153 @@ final class ReaperTest extends TestCase
         self::assertNull($reloaded->get('error_code'));
     }
 
+    #[Test]
+    public function reapTerminalizesAbandonedQueuedApprovalAndCancellationRows(): void
+    {
+        $this->seedRun('run-queued', RunStatus::Queued, ageSeconds: 700);
+        $this->seedRun('run-approval', RunStatus::AwaitingApproval, ageSeconds: 700);
+        $this->seedRun('run-cancelling', RunStatus::Cancelling, ageSeconds: 700);
+        $this->seedRun('run-fresh-queued', RunStatus::Queued, ageSeconds: 60);
+
+        $reaper = new StalledRunReaper(
+            runRepository: $this->runRepository,
+            auditRepository: $this->auditRepository,
+            broadcaster: new ReaperCapturingBroadcaster(),
+        );
+
+        self::assertSame(3, $reaper->reap(maxRuntimeSeconds: 600));
+        self::assertSame(RunStatus::Failed, $this->runRepository->find('run-queued')?->getStatus());
+        self::assertSame('queue_timeout', $this->runRepository->find('run-queued')?->get('error_code'));
+        self::assertSame(RunStatus::Failed, $this->runRepository->find('run-approval')?->getStatus());
+        self::assertSame('approval_timeout', $this->runRepository->find('run-approval')?->get('error_code'));
+        self::assertStringContainsString(
+            'legacy started_at fallback',
+            (string) $this->runRepository->find('run-approval')?->get('error_message'),
+        );
+        self::assertNull($this->runRepository->find('run-approval')?->get('pending_approval_call_id'));
+        self::assertNull($this->runRepository->find('run-approval')?->get('approval_expires_at'));
+        self::assertSame(RunStatus::Cancelled, $this->runRepository->find('run-cancelling')?->getStatus());
+        self::assertSame('cancellation_timeout', $this->runRepository->find('run-cancelling')?->get('error_code'));
+        self::assertSame(RunStatus::Queued, $this->runRepository->find('run-fresh-queued')?->getStatus());
+    }
+
+    #[Test]
+    public function selectedQueuedCandidateCannotKillAWorkerClaimedBeforeTerminalCas(): void
+    {
+        $now = new \DateTimeImmutable('now');
+        $this->seedRun('run-claimed-after-select', RunStatus::Queued, ageSeconds: 700);
+        $selected = $this->runRepository->findAbandoned($now->modify('-10 minutes'), $now);
+        self::assertCount(1, $selected);
+
+        self::assertTrue($this->runRepository->markRunning('run-claimed-after-select', $now));
+
+        $reaper = new StalledRunReaper(
+            runRepository: $this->runRepository,
+            auditRepository: $this->auditRepository,
+            broadcaster: new ReaperCapturingBroadcaster(),
+            now: static fn(): \DateTimeImmutable => $now,
+        );
+        self::assertSame(0, $reaper->reapSelected($selected, 600, $now));
+        self::assertSame(RunStatus::Running, $this->runRepository->find('run-claimed-after-select')?->getStatus());
+    }
+
+    #[Test]
+    public function selectedExpiredApprovalCannotReapARenewedApprovalCycle(): void
+    {
+        $now = new \DateTimeImmutable('now');
+        $expired = $now->modify('-1 minute');
+        $renewed = $now->modify('+5 minutes');
+        $this->seedRun(
+            'run-renewed-approval',
+            RunStatus::AwaitingApproval,
+            ageSeconds: 700,
+            approvalExpiresAt: $expired,
+            pendingCallId: 'call-old',
+        );
+        $selected = $this->runRepository->findAbandoned($now->modify('-10 minutes'), $now);
+        self::assertCount(1, $selected);
+
+        $this->database->update('agent_run')
+            ->fields([
+                'pending_approval_call_id' => 'call-new',
+                'approval_expires_at' => $renewed->format('Y-m-d H:i:s.uP'),
+            ])
+            ->condition('id', 'run-renewed-approval')
+            ->execute();
+
+        $reaper = new StalledRunReaper(
+            runRepository: $this->runRepository,
+            auditRepository: $this->auditRepository,
+            broadcaster: new ReaperCapturingBroadcaster(),
+            now: static fn(): \DateTimeImmutable => $now,
+        );
+        self::assertSame(0, $reaper->reapSelected($selected, 600, $now));
+        $run = $this->runRepository->find('run-renewed-approval');
+        self::assertSame(RunStatus::AwaitingApproval, $run?->getStatus());
+        self::assertSame('call-new', $run?->get('pending_approval_call_id'));
+        self::assertSame($renewed->format('Y-m-d H:i:s.uP'), $run?->get('approval_expires_at'));
+        self::assertSame([], $this->auditRepository->findByRunId('run-renewed-approval'));
+    }
+
+    #[Test]
+    public function approvalExpiryUsesItsOwnDeadlineInsteadOfRunStart(): void
+    {
+        $now = new \DateTimeImmutable('2026-07-14T20:00:00+00:00');
+        $this->seedRun(
+            'run-long-before-approval',
+            RunStatus::AwaitingApproval,
+            ageSeconds: 7200,
+            approvalExpiresAt: $now->modify('+5 minutes'),
+        );
+        $this->seedRun(
+            'run-expired-approval',
+            RunStatus::AwaitingApproval,
+            ageSeconds: 60,
+            approvalExpiresAt: $now->modify('-1 second'),
+        );
+
+        $reaper = new StalledRunReaper(
+            runRepository: $this->runRepository,
+            auditRepository: $this->auditRepository,
+            broadcaster: new ReaperCapturingBroadcaster(),
+            now: static fn(): \DateTimeImmutable => $now,
+        );
+
+        self::assertSame(1, $reaper->reap(maxRuntimeSeconds: 600));
+        self::assertSame(
+            RunStatus::AwaitingApproval,
+            $this->runRepository->find('run-long-before-approval')?->getStatus(),
+        );
+        self::assertSame(RunStatus::Failed, $this->runRepository->find('run-expired-approval')?->getStatus());
+        $message = (string) $this->runRepository->find('run-expired-approval')?->get('error_message');
+        self::assertStringContainsString('Approval deadline expired at', $message);
+        self::assertStringContainsString($now->modify('-1 second')->format('Y-m-d H:i:s.uP'), $message);
+        self::assertStringNotContainsString('worker TTL', $message);
+    }
+
     private function seedRunningRun(string $id, int $startedSecondsAgo): void
     {
-        $startedAt = new \DateTimeImmutable('now')->sub(new \DateInterval('PT' . $startedSecondsAgo . 'S'));
+        $this->seedRun($id, RunStatus::Running, $startedSecondsAgo);
+    }
+
+    private function seedRun(
+        string $id,
+        RunStatus $status,
+        int $ageSeconds,
+        ?\DateTimeImmutable $approvalExpiresAt = null,
+        ?string $pendingCallId = null,
+    ): void {
+        $startedAt = new \DateTimeImmutable('now')->sub(new \DateInterval('PT' . $ageSeconds . 'S'));
         $run = new AgentRun([
             'id' => $id,
             'account_id' => 1,
             'agent_definition_id' => null,
             'bundle_json' => '{}',
-            'status' => RunStatus::Running->value,
+            'status' => $status->value,
             'destructive_approval' => HitlMode::None->value,
-            'pending_approval_call_id' => null,
+            'pending_approval_call_id' => $pendingCallId
+                ?? ($status === RunStatus::AwaitingApproval ? 'call-awaiting' : null),
+            'approval_expires_at' => $approvalExpiresAt?->format('Y-m-d H:i:s.uP'),
             'prompt' => 'stalled',
             'response' => null,
             'transcript_json' => '[]',
@@ -144,7 +281,7 @@ final class ReaperTest extends TestCase
             'cost_cents' => null,
             'tool_call_count' => 0,
             'queued_at' => $startedAt->format('Y-m-d H:i:s.uP'),
-            'started_at' => $startedAt->format('Y-m-d H:i:s.uP'),
+            'started_at' => $status === RunStatus::Queued ? null : $startedAt->format('Y-m-d H:i:s.uP'),
             'finished_at' => null,
             'error_code' => null,
             'error_message' => null,
@@ -181,5 +318,22 @@ final class ReaperTest extends TestCase
         $entityRepo = new EntityRepository($entityType, $driver, new EventDispatcher(), null, $this->database);
 
         return new AgentAuditLogRepository($entityRepo, $this->database);
+    }
+}
+
+final class ReaperCapturingBroadcaster implements AgentRunBroadcasterInterface
+{
+    /** @var array<string, list<string>> */
+    private array $events = [];
+
+    public function push(string $runId, string $event, array $data): void
+    {
+        $this->events[$runId][] = $event;
+    }
+
+    /** @return list<string> */
+    public function eventsFor(string $runId): array
+    {
+        return $this->events[$runId] ?? [];
     }
 }

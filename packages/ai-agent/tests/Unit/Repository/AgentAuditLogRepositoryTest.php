@@ -131,4 +131,45 @@ final class AgentAuditLogRepositoryTest extends TestCase
         self::assertCount(1, $rows);
         self::assertSame('evt-fresh', $rows[0]->id());
     }
+
+    #[Test]
+    public function purgeOlderThanProtectsAuditRowsForLiveRuns(): void
+    {
+        $this->database->getConnection()->insert('agent_run', [
+            'id' => 'run-live',
+            'account_id' => 1,
+            'bundle_json' => '{}',
+            'status' => 'awaiting_approval',
+            'destructive_approval' => 'interactive',
+            'prompt' => 'waiting',
+            'transcript_json' => '[]',
+            'queued_at' => '2026-01-01 00:00:00.000000+00:00',
+        ]);
+        $this->database->getConnection()->insert('agent_run', [
+            'id' => 'run-terminal',
+            'account_id' => 1,
+            'bundle_json' => '{}',
+            'status' => 'completed',
+            'destructive_approval' => 'none',
+            'prompt' => 'done',
+            'transcript_json' => '[]',
+            'queued_at' => '2026-01-01 00:00:00.000000+00:00',
+        ]);
+
+        foreach (['run-live' => 'evt-live', 'run-terminal' => 'evt-terminal'] as $runId => $eventId) {
+            $this->repository->append(AgentAuditLog::for(
+                id: $eventId,
+                runId: $runId,
+                iteration: 0,
+                eventType: EventType::IterationStart,
+                occurredAt: new \DateTimeImmutable('2026-01-01T00:00:00+00:00'),
+            ));
+        }
+
+        self::assertSame(1, $this->repository->purgeOlderThan(
+            new \DateTimeImmutable('2026-03-01T00:00:00+00:00'),
+        ));
+        self::assertCount(1, $this->repository->findByRunId('run-live'));
+        self::assertSame([], $this->repository->findByRunId('run-terminal'));
+    }
 }
