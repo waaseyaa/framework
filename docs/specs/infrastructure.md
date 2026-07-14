@@ -499,7 +499,7 @@ final class DBALDatabase implements DatabaseInterface
 }
 ```
 
-`DBALDatabase` wraps a Doctrine DBAL `Connection`. The `createSqlite()` factory enables WAL mode for non-memory databases. Query results use `fetchAssociative()` (equivalent to FETCH_ASSOC — no duplicate numeric-indexed columns).
+`DBALDatabase` wraps a Doctrine DBAL `Connection`. The `createSqlite()` factory enables foreign-key enforcement on every new connection before any schema or data work, and enables WAL mode for non-memory databases. Query results use `fetchAssociative()` (equivalent to FETCH_ASSOC — no duplicate numeric-indexed columns).
 
 ### TransactionInterface
 

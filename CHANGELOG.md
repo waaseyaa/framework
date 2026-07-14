@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Split fan-out waits through post-tag CI startup (#1999).** The exact-SHA release gate now polls through the CI run triggered by the tag push instead of failing single-check mode while that newer run is still in progress.
+- **SQLite connections now enforce declared foreign keys (#2010, R21 WP1).** `DBALDatabase::createSqlite()` issues `PRAGMA foreign_keys = ON` immediately after opening every in-memory or file-backed connection, before schema or data work can begin. A two-connection regression test proves each fresh connection rejects an orphaned child row instead of silently accepting referential corruption.
 
 ## [0.1.0-alpha.262] - 2026-07-14
 
