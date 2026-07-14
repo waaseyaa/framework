@@ -97,6 +97,18 @@ parameters:
 			path: packages/foundation/src/Tenant/TenantMiddleware.php
 
 		-
+			message: '#^Unused Waaseyaa\\Media\\Version\\MediaVersionRepository\:\:tip$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: packages/media/src/Version/MediaVersionRepository.php
+
+		-
+			message: '#^Unused Waaseyaa\\Media\\Version\\MediaVersionStorageDriver\:\:setPendingUpload$#'
+			identifier: shipmonk.deadMethod
+			count: 1
+			path: packages/media/src/Version/MediaVersionStorageDriver.php
+
+		-
 			message: '#^Property Waaseyaa\\Search\\FacetBucket\:\:\$count is never read$#'
 			identifier: shipmonk.deadProperty.neverRead
 			count: 1

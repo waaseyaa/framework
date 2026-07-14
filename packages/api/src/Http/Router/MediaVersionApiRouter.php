@@ -13,6 +13,8 @@ use Waaseyaa\Foundation\Http\Router\DomainRouterInterface;
 /**
  * Dispatches media version read endpoints (versioned-blob-media-abstraction-01KSEFTJ).
  *
+ * @internal Parked until #1742's byte-persistence criterion is met.
+ *
  * Routes registered in BuiltinRouteRegistrar:
  *   - GET /api/media/{uuid}/versions       → MediaVersionController::index
  *   - GET /api/media/{uuid}/versions/{vid} → MediaVersionController::show

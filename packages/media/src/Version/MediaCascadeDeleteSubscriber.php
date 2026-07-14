@@ -17,7 +17,7 @@ use Waaseyaa\Media\Media;
  * Best-effort: exceptions are caught and logged; the parent delete is
  * never disrupted (per CLAUDE.md §Logging best-effort pattern).
  *
- * @api
+ * @internal Parked until #1742's byte-persistence criterion is met.
  */
 final class MediaCascadeDeleteSubscriber implements EventSubscriberInterface
 {

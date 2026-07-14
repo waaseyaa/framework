@@ -7,6 +7,7 @@
 // deferred; write surface is out of scope for this WP).
 //
 // Mirrors useScheduledTasks (M4B WP02) for shape and naming conventions.
+// @internal Parked until #1742 proves upload bytes persist across the live request boundary.
 
 /**
  * A single media version resource as returned by the API.

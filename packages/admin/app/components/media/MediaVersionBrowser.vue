@@ -3,6 +3,7 @@
 //
 // DIR-005 (versioned-blob-media-abstraction-01KSEFTJ) WP04.
 // Mirrors QueueJobRow / SchedulerTaskRow patterns (M4B WP01/WP02).
+// @internal Parked until #1742 proves upload bytes persist across the live request boundary.
 
 import { useMediaVersions } from '~/composables/useMediaVersions'
 import { useLanguage } from '~/composables/useLanguage'

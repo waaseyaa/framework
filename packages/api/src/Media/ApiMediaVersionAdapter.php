@@ -12,6 +12,8 @@ use Waaseyaa\Media\Version\MediaVersionRepository;
 /**
  * Bridges MediaVersionRepository (L2 media) to the API read-model (L4).
  *
+ * @internal Parked until #1742's byte-persistence criterion is met.
+ *
  * Applies per-version access filtering via the GateInterface so that
  * inaccessible versions are silently omitted from list responses and
  * return null on single-version lookups (controller maps null → 403/404).

@@ -11,7 +11,7 @@ namespace Waaseyaa\Media\Version;
  * Set via MediaVersionStorageDriver::setPendingUpload() before saving the
  * parent Media entity. Cleared by the driver after processing.
  *
- * @api
+ * @internal Parked until #1742's byte-persistence criterion is met.
  */
 final readonly class PendingUpload
 {

@@ -94,7 +94,7 @@ Technical specification for the Waaseyaa JSON:API layer and routing system. This
 
 ### Package-owned route registration
 
-`Waaseyaa\Api\ApiServiceProvider` is declared in `packages/api/composer.json` under `extra.waaseyaa.providers`. Its `routes()` method is now the authoritative entry point for all API-package routes, including CRUD (via `JsonApiRouteProvider`), schema self-description, workflow/queue/scheduler/notification admin, telescope endpoints, Mercure monitor, OCAP audit, MCP-admin, OIDC client CRUD, media versions, and classification policies (WP5 route-table inversion, foundation wave-2).
+`Waaseyaa\Api\ApiServiceProvider` is declared in `packages/api/composer.json` under `extra.waaseyaa.providers`. Its `routes()` method is the authoritative entry point for API-package routes. The media-version routes remain an internal parked surface tracked by #1742; they are not a supported API contract until real upload bytes are proven durable across the production request boundary.
 
 Foundation registers only the framework-substrate routes it owns (regardless of which higher-layer packages are installed): `/api/openapi.json`, entity-type catalog/lifecycle, broadcast SSE, media upload, attachment download, semantic search, four discovery endpoints, and the SSR catch-alls. **Discovery** read models are implemented in the API package: `Waaseyaa\Api\Http\Router\DiscoveryRouter` implements `DomainRouterInterface` and is registered from `ApiServiceProvider::httpDomainRouters()` so discovery stays co-located with `DiscoveryApiHandler` and JSON:API tooling.
 

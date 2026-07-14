@@ -3,6 +3,7 @@
 //
 // Route: /media/{uuid}/versions
 // DIR-005 (versioned-blob-media-abstraction-01KSEFTJ) WP04.
+// @internal Parked until #1742 proves upload bytes persist across the live request boundary.
 
 import { useLanguage } from '~/composables/useLanguage'
 
