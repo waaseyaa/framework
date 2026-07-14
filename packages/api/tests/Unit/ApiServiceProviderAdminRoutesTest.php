@@ -74,25 +74,11 @@ final class ApiServiceProviderAdminRoutesTest extends TestCase
     }
 
     #[Test]
-    public function registers_telescope_agent_context_routes(): void
+    public function doesNotRegisterProducerlessTelescopeRoutes(): void
     {
         $routes = $this->router->getRouteCollection();
-        $this->assertNotNull($routes->get('api.telescope.agent_context.sessions'));
-        $this->assertNotNull($routes->get('api.telescope.agent_context.session'));
-        $this->assertNotNull($routes->get('api.telescope.agent_context.session_events'));
-        $this->assertNotNull($routes->get('api.telescope.agent_context.session_validation'));
-    }
-
-    #[Test]
-    public function registers_telescope_codified_context_legacy_alias_routes(): void
-    {
-        // The codified_context routes are intentional legacy aliases mirroring
-        // the agent_context endpoints for backward-compat (admin SPA hardlinks).
-        $routes = $this->router->getRouteCollection();
-        $this->assertNotNull($routes->get('api.telescope.codified_context.sessions'));
-        $this->assertNotNull($routes->get('api.telescope.codified_context.session'));
-        $this->assertNotNull($routes->get('api.telescope.codified_context.session_events'));
-        $this->assertNotNull($routes->get('api.telescope.codified_context.session_validation'));
+        $this->assertNull($routes->get('api.telescope.agent_context.sessions'));
+        $this->assertNull($routes->get('api.telescope.codified_context.sessions'));
     }
 
     #[Test]

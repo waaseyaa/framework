@@ -9,12 +9,9 @@ namespace Waaseyaa\Entity\Audit;
  *
  * Entries are stored at storage/framework/entity-audit.jsonl.
  * Atomic append via FILE_APPEND | LOCK_EX prevents interleaving.
- * Default retention is 90 days — call prune() periodically to enforce it.
  */
 final class EntityAuditLogger
 {
-    public const int DEFAULT_RETENTION_DAYS = 90;
-
     private const AUDIT_FILE = '/storage/framework/entity-audit.jsonl';
 
     public function __construct(private readonly string $projectRoot) {}
@@ -66,44 +63,6 @@ final class EntityAuditLogger
         }
 
         return $entries;
-    }
-
-    /**
-     * Remove entries older than $retentionDays. Rewrites the log atomically.
-     */
-    public function prune(int $retentionDays = self::DEFAULT_RETENTION_DAYS): void
-    {
-        $file = $this->auditFile();
-
-        if (!file_exists($file)) {
-            return;
-        }
-
-        $cutoff  = new \DateTimeImmutable("-{$retentionDays} days");
-        $entries = $this->read();
-        $kept    = [];
-
-        foreach ($entries as $entry) {
-            try {
-                $ts = new \DateTimeImmutable((string) ($entry[EntityAuditKey::Timestamp->value] ?? ''));
-
-                if ($ts >= $cutoff) {
-                    $kept[] = $entry;
-                }
-            } catch (\Throwable) {
-                $kept[] = $entry; // Keep unparseable entries rather than silently drop.
-            }
-        }
-
-        $tmp = $file . '.tmp.' . getmypid();
-        file_put_contents(
-            $tmp,
-            implode("\n", array_map(
-                static fn(array $e): string => json_encode($e, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
-                $kept,
-            )) . ($kept !== [] ? "\n" : ''),
-        );
-        rename($tmp, $file);
     }
 
     private function auditFile(): string

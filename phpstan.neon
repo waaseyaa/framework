@@ -74,7 +74,6 @@ parameters:
         - packages/ssr/src
         - packages/state/src
         - packages/taxonomy/src
-        - packages/telescope/src
         - packages/testing/src
         - packages/typed-data/src
         - packages/user/src

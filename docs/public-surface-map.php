@@ -441,7 +441,6 @@ return [
     'Waaseyaa\Listing\EntityRepositoryRegistry' => 'internal',
 
     // Layer 4: API — public
-    'Waaseyaa\Api\CodifiedContext\CodifiedContextSessionStoreInterface' => 'public',
     'Waaseyaa\Api\MutableTranslatableInterface' => 'public',
     // Admin read-model contracts: audit, MCP admin, media versions, Mercure monitor.
     'Waaseyaa\Api\Audit\AuditQueryReadModelInterface' => 'public',
@@ -522,9 +521,6 @@ return [
     'Waaseyaa\CLI\Io\StdinSource' => 'public',
 
     // Layer 6: Interfaces — internal
-    'Waaseyaa\Telescope\Storage\TelescopeStoreInterface' => 'internal',
-    'Waaseyaa\Telescope\CodifiedContext\Validator\EmbeddingProviderInterface' => 'internal',
-    'Waaseyaa\Telescope\CodifiedContext\Storage\CodifiedContextStoreInterface' => 'internal',
     'Waaseyaa\CLI\Command\Make\AbstractMakeHandler' => 'internal',
     'Waaseyaa\CLI\Command\HandlerArgumentMode' => 'public',
     'Waaseyaa\CLI\Command\HandlerOptionMode' => 'public',

@@ -1,2 +1,1 @@
-[2026-05-08T03:12:51+00:00] [warning] [default] Class Waaseyaa\Telescope\TelescopeServiceProvider is not a ServiceProvider
 [2026-05-08T03:12:51+00:00] [error] [default] Failed to instantiate access policy Waaseyaa\Attachment\Policy\ParentDelegatedAccessPolicy: Waaseyaa\Attachment\Policy\ParentDelegatedAccessPolicy::__construct(): Argument #1 ($entityTypeManager) must be of type Waaseyaa\Entity\EntityTypeManagerInterface, array given, called in /home/jones/dev/waaseyaa/packages/foundation/src/Kernel/Bootstrap/AccessPolicyRegistry.php on line 42

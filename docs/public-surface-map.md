@@ -375,7 +375,6 @@ Charter §5.6 — listing-pipeline-v1 (M-007). Namespace `Waaseyaa\Listing\`.
 | Element | Type | Purpose |
 |---------|------|---------|
 | `MutableTranslatableInterface` | interface | Extends `TranslatableInterface` with `addTranslation()` for explicit translation creation |
-| `CodifiedContextSessionStoreInterface` | interface | Read-only port for codified-context session rows consumed by `CodifiedContextController`; Telescope implements via adapter |
 
 ### routing
 

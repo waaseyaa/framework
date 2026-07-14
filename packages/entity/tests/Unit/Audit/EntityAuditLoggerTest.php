@@ -189,33 +189,4 @@ final class EntityAuditLoggerTest extends TestCase
         $this->assertSame('api:test', $entries[0]['ingest_source']);
     }
 
-    // -----------------------------------------------------------------------
-    // Retention
-    // -----------------------------------------------------------------------
-
-    #[Test]
-    public function pruneRemovesEntriesOlderThanRetentionDays(): void
-    {
-        $old = new EntityAuditEntry(
-            actor: 'system', action: 'create', entityId: '1', entityType: 'note', tenantId: 'acme',
-            timestamp: (new \DateTimeImmutable('-100 days'))->format(\DateTimeInterface::ATOM),
-        );
-        $recent = new EntityAuditEntry(
-            actor: 'system', action: 'update', entityId: '1', entityType: 'note', tenantId: 'acme',
-        );
-
-        $this->logger->append($old);
-        $this->logger->append($recent);
-        $this->logger->prune(retentionDays: 90);
-
-        $entries = $this->logger->read();
-        $this->assertCount(1, $entries);
-        $this->assertSame('update', $entries[0]['action']);
-    }
-
-    #[Test]
-    public function defaultRetentionIs90Days(): void
-    {
-        $this->assertSame(90, EntityAuditLogger::DEFAULT_RETENTION_DAYS);
-    }
 }

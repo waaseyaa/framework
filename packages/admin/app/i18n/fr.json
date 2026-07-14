@@ -163,18 +163,6 @@
   "field_not_set": "Non défini",
   "close": "Fermer",
 
-  "telescope_codified_context": "Contexte codifié",
-  "telescope_cc_sessions": "Sessions",
-  "telescope_cc_drift_score": "Score de dérive",
-  "telescope_cc_severity": "Sévérité",
-  "telescope_cc_validation": "Rapport de validation",
-  "telescope_cc_events": "Flux d'événements",
-  "telescope_cc_heatmap": "Carte thermique du contexte",
-  "telescope_cc_no_sessions": "Aucune session de contexte codifié enregistrée.",
-  "telescope_cc_semantic": "Alignement sémantique",
-  "telescope_cc_structural": "Vérifications structurelles",
-  "telescope_cc_contradictions": "Vérifications des contradictions",
-
   "bundle_filter_label": "Faisceau :",
   "bundle_filter_all": "Tous les faisceaux"
 }

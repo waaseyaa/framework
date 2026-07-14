@@ -57,7 +57,6 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/ssr/*` | — | `packages/ssr/README.md` |
 | `packages/error-handler/*` | — | `docs/specs/debugging-dx.md` |
 | `packages/debug/*` | — | `docs/specs/debugging-dx.md` |
-| `packages/telescope/*` (agent-context / codified-context telemetry, Prometheus) | — | `docs/specs/telescope-agent-context-telemetry.md`, `docs/specs/api-layer.md` |
 | `packages/workflows/*` | — | `docs/specs/content-workflow.md` (CW-v1 engine — read first), `packages/workflows/README.md` |
 | `packages/billing/*` | — | `packages/billing/README.md` |
 | `packages/github/*` | — | `packages/github/README.md` |

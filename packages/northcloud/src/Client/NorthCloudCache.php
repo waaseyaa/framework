@@ -53,12 +53,6 @@ final class NorthCloudCache
         ]);
     }
 
-    public function clear(): void
-    {
-        $this->ensureTable();
-        $this->pdo->exec('DELETE FROM nc_api_cache');
-    }
-
     /**
      * Canonicalize a URL so semantically-equivalent URLs hash to the same cache key.
      *
