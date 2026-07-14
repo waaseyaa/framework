@@ -25,6 +25,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
           # Default token: the push it makes won't trigger CI on the branch
           # (GITHUB_TOKEN trigger suppression), so CI is chain-dispatched
           # explicitly after the PR is created/updated below. RELEASE_PAT is
@@ -61,6 +62,8 @@ jobs:
 
       - name: Commit and push
         if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -70,6 +73,20 @@ jobs:
           Built from $(git rev-parse --short HEAD) by admin-dist workflow.
 
           Co-Authored-By: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+          # Checkout credentials stay out of .git/config while npm runs. Supply
+          # the token only to this push through an ephemeral askpass helper;
+          # the helper contains no credential and is removed on step exit.
+          GIT_ASKPASS="$RUNNER_TEMP/admin-dist-git-askpass"
+          export GIT_ASKPASS GIT_TERMINAL_PROMPT=0
+          trap 'rm -f "$GIT_ASKPASS"' EXIT
+          cat > "$GIT_ASKPASS" <<'ASKPASS'
+          #!/usr/bin/env bash
+          case "$1" in
+            *Username*) printf '%s\n' 'x-access-token' ;;
+            *Password*) printf '%s\n' "$GH_TOKEN" ;;
+          esac
+          ASKPASS
+          chmod 700 "$GIT_ASKPASS"
           git push --force-with-lease origin admin-dist/update
 
       - name: Create or update PR

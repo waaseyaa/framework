@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Repository Git entrypoint. Stashing is forbidden because it hides concurrent
+# agent work and previously left recoverable state outside normal branch review.
+set -euo pipefail
+
+args=("$@")
+command_name=""
+index=0
+
+while [ "${index}" -lt "${#args[@]}" ]; do
+    argument="${args[${index}]}"
+    case "${argument}" in
+        -C|-c|--git-dir|--work-tree|--namespace|--super-prefix|--config-env)
+            index=$((index + 2))
+            ;;
+        --git-dir=*|--work-tree=*|--namespace=*|--super-prefix=*|--config-env=*)
+            index=$((index + 1))
+            ;;
+        --)
+            index=$((index + 1))
+            if [ "${index}" -lt "${#args[@]}" ]; then
+                command_name="${args[${index}]}"
+            fi
+            break
+            ;;
+        -* )
+            index=$((index + 1))
+            ;;
+        *)
+            command_name="${argument}"
+            break
+            ;;
+    esac
+done
+
+if [ "${command_name}" = "stash" ]; then
+    echo "ERROR: git stash is forbidden in this repository." >&2
+    echo "Commit work on a temporary branch instead; leave dangling stash da4d26758 untouched." >&2
+    exit 64
+fi
+
+system_git="${WAASEYAA_SYSTEM_GIT:-}"
+if [ -z "${system_git}" ]; then
+    self_path="$(cd "$(dirname "$0")" && pwd -P)/$(basename "$0")"
+    while IFS= read -r candidate; do
+        candidate_path="$(cd "$(dirname "${candidate}")" && pwd -P)/$(basename "${candidate}")"
+        if [ "${candidate_path}" != "${self_path}" ]; then
+            system_git="${candidate}"
+            break
+        fi
+    done < <(type -aP git)
+fi
+
+if [ -z "${system_git}" ] || [ ! -x "${system_git}" ]; then
+    echo "ERROR: bin/git could not locate the system git executable." >&2
+    exit 127
+fi
+
+exec "${system_git}" "$@"
