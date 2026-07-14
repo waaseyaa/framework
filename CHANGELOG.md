@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **CLI diagnostics and reused commands close minor operational footguns (#2020).** Composer provenance refuses lockfile paths outside the project root, production migration output redacts absolute Unix and Windows files plus bare directories, and repeated `ai:run --watch` invocations clear stale SIGINT state.
+
+### Changed
+
+- **CLI boundary documentation now matches runtime behavior (#2020).** Ingestion consumers own HTML sanitization at their persistence/render boundary, `ai:run` documents the default synchronous bus honestly, and the operator-level `entity:list` access-check opt-out is explicit.
+
 ## [0.1.0-alpha.264] - 2026-07-14
 
 ### Fixed
