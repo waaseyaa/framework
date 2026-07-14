@@ -14,6 +14,12 @@ namespace Waaseyaa\NorthCloud\Sync;
  * Multiple mappers may fire on the same hit — every mapper whose supports() returns
  * true will produce an entity. This lets a single NC article populate, say, both a
  * `teaching` and an `event`.
+ *
+ * Trust boundary: North Cloud hit values are external input. Implementations MUST
+ * sanitize any HTML-bearing value inside map() before returning it for persistence,
+ * according to the destination field's allowed markup. NcSyncService deliberately
+ * treats the returned field array as application-owned data and does not apply a
+ * generic sanitizer that could either miss a field or destroy permitted markup.
  */
 interface NcHitToEntityMapperInterface
 {
@@ -31,6 +37,10 @@ interface NcHitToEntityMapperInterface
 
     /**
      * Map an NC hit to a field array ready for EntityStorage::create().
+     *
+     * This method is the mapper-owned sanitization boundary. Never copy external
+     * HTML directly into a rendered or rich-text field; sanitize it against that
+     * field's allowlist before returning it.
      *
      * @param array<string, mixed> $hit
      * @return array<string, mixed>
