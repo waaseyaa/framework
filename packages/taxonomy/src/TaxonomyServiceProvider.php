@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace Waaseyaa\Taxonomy;
 
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Field\FieldDefinition;
+use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 final class TaxonomyServiceProvider extends ServiceProvider
@@ -47,5 +51,19 @@ final class TaxonomyServiceProvider extends ServiceProvider
                 ),
             ],
         ));
+    }
+
+    public function boot(): void
+    {
+        $dispatcher = $this->resolveOptional(\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class);
+        $entityTypeManager = $this->resolveOptional(EntityTypeManager::class);
+        if (!$dispatcher instanceof EventDispatcherInterface || !$entityTypeManager instanceof EntityTypeManagerInterface) {
+            return;
+        }
+
+        $dispatcher->addListener(
+            EntityEvents::PRE_SAVE->value,
+            new TermHierarchyGuard($entityTypeManager),
+        );
     }
 }

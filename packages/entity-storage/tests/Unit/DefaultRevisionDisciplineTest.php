@@ -20,6 +20,8 @@ use Waaseyaa\EntityStorage\Revision\RevisionPruningPolicy;
 use Waaseyaa\EntityStorage\SaveContext;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestRevisionableEntity;
+use Waaseyaa\Field\FieldDefinition;
+use Waaseyaa\Field\FieldDefinitionRegistry;
 
 /**
  * CW-v1 option-1 forward-draft rebuild — storage mechanics (#1920 PR-1).
@@ -297,6 +299,69 @@ final class DefaultRevisionDisciplineTest extends TestCase
         $this->assertSame(1, $row['published_revision_id'] ?? null, 'published pointer now equals the target');
         $this->assertSame('v1', $repo->find('1')?->label(), 'base row content was copied from the target revision');
         $this->assertSame('v1', $repo->loadPublishedRevision('1')?->label());
+    }
+
+    #[Test]
+    public function flagged_promotion_refreshes_column_stored_bundle_fields_from_target_revision(): void
+    {
+        $registry = new FieldDefinitionRegistry();
+        $registry->registerBundleFields('test_revisionable', 'article', [
+            new FieldDefinition(
+                name: 'tagline',
+                type: 'string',
+                targetEntityTypeId: 'test_revisionable',
+                targetBundle: 'article',
+            ),
+        ]);
+        $entityType = new EntityType(
+            id: 'test_revisionable',
+            label: 'Test',
+            class: TestRevisionableEntity::class,
+            keys: [
+                'id' => 'id',
+                'uuid' => 'uuid',
+                'label' => 'title',
+                'bundle' => 'bundle',
+                'revision' => 'revision_id',
+            ],
+            revisionable: true,
+            revisionDefault: true,
+            bundleEntityType: 'test_bundle',
+        );
+        $handler = new SqlSchemaHandler($entityType, $this->db, $registry, static fn(): iterable => ['article']);
+        $handler->ensureTable();
+        $handler->ensureRevisionTable();
+        $resolver = new SingleConnectionResolver($this->db);
+        $repo = new EntityRepository(
+            $entityType,
+            new SqlStorageDriver($resolver, fieldRegistry: $registry),
+            $this->dispatcher,
+            new RevisionableStorageDriver($resolver, $entityType),
+            $this->db,
+            fieldRegistry: $registry,
+        );
+
+        $entity = new TestRevisionableEntity(
+            values: ['id' => '1', 'uuid' => 'a', 'bundle' => 'article', 'title' => 'v1', 'tagline' => 'old'],
+            entityTypeId: 'test_revisionable',
+            entityKeys: $entityType->getKeys(),
+        );
+        $entity->enforceIsNew();
+        $repo->save($entity, validate: false);
+        $repo->setPublishedRevision('1', 1);
+
+        $draft = $repo->find('1');
+        self::assertNotNull($draft);
+        $draft->setDefaultRevisionDiscipline(true);
+        $draft->set('tagline', 'new');
+        $repo->save($draft, validate: false);
+        self::assertSame('old', $repo->find('1')?->get('tagline'), 'draft save must not leak into the served subtable row');
+
+        $this->alwaysApplyDefaultRevisionSemantics();
+        $repo->setPublishedRevision('1', 2);
+
+        self::assertSame('new', $repo->find('1')?->get('tagline'));
+        self::assertSame('new', $repo->loadPublishedRevision('1')?->get('tagline'));
     }
 
     #[Test]
