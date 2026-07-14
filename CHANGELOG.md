@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.262] - 2026-07-14
+
 ### Changed
 
 - **R20 dependency hygiene closes reproducibility and audit blind spots (#1999).** Package path repositories now match internal runtime/dev requirements in both directions under CP007, blocking stale local resolution metadata; PHPUnit suite paths are self-audited against every package `*Test.php`, including 14 tests that were previously outside all suites; blocking admin jobs use `npm ci`; scheduled Composer/npm vulnerability audits run weekly; Dependabot admin updates rebuild dist in a read-only job and publish only validated artifacts from a separate write-capable job, so freshness can recover on the dependency PR without bridging untrusted lifecycle code into the token boundary; and Bimaaji truthfully declares its live `graph:dump` and `bimaaji:install` CLI integration as an optional Composer suggestion without adding a forbidden runtime layer edge.
