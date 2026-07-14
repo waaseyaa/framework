@@ -10,11 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **R20 layer-map and analysis coverage collapse (#1999).** `check-package-layers` is the sole package-layer map and exports it to the require-dev audit; stale per-manifest layer metadata and per-package PHPStan paths are removed. Static analysis now covers the package root automatically, spec drift maps every package with an enduring spec (including SSR), and lefthook is the only documented hook path.
+- **R20 server-side release governance (#1999).** The main-branch ruleset now requires every unconditional blocking CI context, and an idempotent repository operator applies or audits forward-only release-tag protection across every split mirror when organization-level rulesets are unavailable.
 - **R19 dead public surfaces (#1992).** The first-party MCP admin routes are attached to their existing read models; the consumerless search read surface is explicitly parked as `@internal` until an access-checked first-party endpoint adopts it; and the unused migration plugin registry, `SearchIndexJob`, duplicate embedding pipeline, zero-implementation pipeline step contract, and undrained AI pipeline dispatcher are deleted without shims.
 - **Media CAS/versioning is explicitly parked as internal (#1992, #1742; R19).** Version-namespace classes and their API/admin readers are no longer advertised as `@api`. Reactivation requires a boundary test proving real upload bytes survive the production request boundary and are durably persisted to CAS before version rows are exposed. The #1951 early-return guard remains unchanged; this does not finish or activate CAS.
 
 ### Fixed
 
+- **Spec-drift acknowledgements now match the blocking CI contract (#1999, R20 WP5).** The detector reads revision-attached commit messages only, matching the repository's commit-trailer rule instead of advertising an unwired `PR_BODY` escape hatch, and accepts `spec-reviewed:` paths wrapped in Markdown backticks. Fixture-driven Architecture coverage pins both behaviours.
 - **Production runtime reachability now matches the advertised notification, SEO, and routing contracts (#1992, R19).** `sendAsync()` delivers directly when the default synchronous queue is active instead of executing an intentionally worker-only job; the SEO provider attaches its registered Twig extension during boot; and `HttpKernel` upcasts entity-typed route parameters before dispatch, returning 404 for a missing entity. The duplicate class-based notification migration was deleted in favor of the timestamped package migration.
 - **R19 production invariants and install boot (#1992).** Relationship saves now reach `RelationshipPreSaveListener` through the production lifecycle dispatcher, `config:import` rejects structurally invalid workflow assignments before active-store writes, and `ConfigManagerInterface` is bound for the supported `install` command outside the `db:init` path.
 
@@ -23,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Deleted the producerless Telescope and codified-context stack (#1992, R19).** The auto-discovered middleware wrote to an in-process or raw-PDO store with no production reader; the CLI resolved no store and called methods outside its contract; and no provider ever attached the codified-context store to `HttpKernel`. The recorders, raw-PDO stores, phantom CLI commands, API/router ports, admin pages, and associated schemas/tests are removed with no compatibility shim. The deletion also exposed and removes the test-only `EntityAuditLogger::prune()` and `NorthCloudCache::clear()` methods instead of silently baselining them. The `waaseyaa/telescope` package name remains reserved as an empty split-package shell.
 
 - **Deleted five test-only or vestigial content/CLI subsystems (#1992, R19).** Genealogy's shadow field catalogue and stale vendored API copy, Bimaaji's unvalidated Task DSL, menu's callerless tree builder, path's superseded manager/processor trio, and the orphaned parallel ingest connector/normalization pipeline are removed without shims. Canonical genealogy registration, menu entities, path resolution/uniqueness, and `IngestionEnvelopeNormalizer` remain production paths.
+
+### Security
+
+- **R20 field guards reduce credential and hidden-work regressions (#1999).** The admin-dist checkout no longer persists its write token in the runner's Git config, and the documented repository `bin/git` entrypoint mechanically rejects every `git stash` form while preserving normal Git command arguments. A tooling regression gate pins both controls; the existing dangling `da4d26758` stash remains untouched.
 
 ## [0.1.0-alpha.261] - 2026-07-14
 
