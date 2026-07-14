@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Database bindings and schema changes are portable across supported drivers (#2020).** Integer and boolean `IN` lists now bind with DBAL's integer-array type across select, update, and delete builders; float scalar binding has an explicit non-truncating policy; and adding a primary key uses Doctrine schema diffs on capable platforms while retaining SQLite's clear refusal.
+
 ## [0.1.0-alpha.264] - 2026-07-14
 
 ### Fixed
