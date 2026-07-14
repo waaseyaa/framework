@@ -67,4 +67,51 @@ final class ThreadParticipantSchemaTest extends TestCase
         $this->expectException(UniqueConstraintViolationException::class);
         $repository->save($duplicate, validate: false);
     }
+
+    #[Test]
+    public function legacy_duplicate_pairs_are_merged_before_the_unique_key_is_added(): void
+    {
+        EntityType::clearFromClassCache();
+        $database = DBALDatabase::createSqlite();
+        $type = EntityType::fromClass(ThreadParticipant::class, group: 'messaging');
+        (new SqlSchemaHandler($type, $database))->ensureTable();
+
+        $repository = new EntityRepository(
+            $type,
+            new SqlStorageDriver(new SingleConnectionResolver($database), 'tpid'),
+            new EventDispatcher(),
+            database: $database,
+        );
+        $older = $repository->create([
+            'thread_id' => 42,
+            'user_id' => 7,
+            'thread_creator_id' => 7,
+            'role' => 'member',
+            'joined_at' => 100,
+            'last_read_at' => 10,
+        ]);
+        $repository->save($older, validate: false);
+        $newer = $repository->create([
+            'thread_id' => 42,
+            'user_id' => 7,
+            'thread_creator_id' => 7,
+            'role' => 'owner',
+            'joined_at' => 200,
+            'last_read_at' => 20,
+        ]);
+        $repository->save($newer, validate: false);
+
+        (new ThreadParticipantSchema($database))->ensureTable();
+
+        $rows = iterator_to_array($database->query(
+            'SELECT tpid, role, _data FROM thread_participant WHERE thread_id = ? AND user_id = ?',
+            [42, 7],
+        ));
+        self::assertCount(1, $rows);
+        self::assertSame((string) $older->id(), (string) $rows[0]['tpid']);
+        $data = json_decode((string) $rows[0]['_data'], true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame('owner', $rows[0]['role']);
+        self::assertSame(100, $data['joined_at']);
+        self::assertSame(20, $data['last_read_at']);
+    }
 }
