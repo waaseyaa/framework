@@ -31,6 +31,15 @@ repository boundary:
 | `oidc_client` | `is_confidential` |
 
 `user.email_verified` and `oidc_client.is_confidential` rely on typed-property
-inference; the other entries declare `boolean` explicitly. `group.status` is
-declared as an integer field and already uses the framework's integer `0`/`1`
-contract, so it remains outside boolean-field normalization.
+inference; the other entries declare `boolean` explicitly.
+
+The broader boolean-like inventory was also reviewed. These representations
+remain unchanged because they are not declared content-entity boolean fields:
+
+| Surface | Existing contract |
+|---|---|
+| `group.status` | Declared integer field using integer `0`/`1` |
+| `relationship.status` | Relationship data value normalized to integer `0`/`1` |
+| Audit-checkpoint `is_genesis` / `pruned` | Raw audit-table integer columns |
+| `ConfigEntityBase.status` | Configuration/YAML state |
+| Media file `status` | String lifecycle state |
