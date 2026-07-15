@@ -61,7 +61,8 @@ final class RepositoryUserRoundTripTest extends TestCase
         $user = User::make([
             'name' => 'alice',
             'mail' => 'alice@example.com',
-            'status' => 1,
+            'email_verified' => true,
+            'status' => true,
         ]);
 
         $uid = $repository->save($user);
@@ -73,6 +74,7 @@ final class RepositoryUserRoundTripTest extends TestCase
         self::assertInstanceOf(User::class, $reloaded);
         self::assertSame('alice', $reloaded->getName());
         self::assertSame('alice@example.com', $reloaded->getEmail());
+        self::assertSame(1, $reloaded->toArray()['email_verified']);
         self::assertSame(1, $reloaded->get('status'));
     }
 }

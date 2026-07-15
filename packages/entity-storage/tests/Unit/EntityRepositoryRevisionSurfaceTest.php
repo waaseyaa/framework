@@ -17,6 +17,7 @@ use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Revision\RevisionPruningPolicy;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestRevisionableEntity;
+use Waaseyaa\Field\FieldStorage;
 
 /**
  * WP-revisions: repository-level surface added for the revision UX —
@@ -39,6 +40,9 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id'],
             revisionable: true,
             revisionDefault: true,
+            _fieldDefinitions: [
+                'flag' => ['type' => 'boolean', 'stored' => FieldStorage::Data],
+            ],
         );
 
         $handler = new SqlSchemaHandler($this->entityType, $this->db);
@@ -165,6 +169,32 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
         $this->assertSame('v1', $this->repo->find('1')->label());
         // ...and NO new revision was created (still exactly 3).
         $this->assertCount(3, $this->repo->listRevisions('1'));
+    }
+
+    #[Test]
+    public function revision_restore_paths_normalize_historical_boolean_values(): void
+    {
+        $entity = new TestRevisionableEntity(values: [
+            'title' => 'v1',
+            'id' => '1',
+            'uuid' => 'a',
+            'flag' => false,
+        ]);
+        $entity->enforceIsNew();
+        $this->repo->save($entity);
+
+        $this->db->getConnection()->update(
+            'test_revisionable_revision',
+            ['_data' => json_encode(['flag' => true], JSON_THROW_ON_ERROR)],
+            ['entity_id' => '1', 'revision_id' => 1],
+        );
+
+        $this->repo->setCurrentRevision('1', 1);
+        self::assertSame(1, $this->repo->find('1')?->toArray()['flag']);
+
+        $rolledBack = $this->repo->rollback('1', 1);
+        self::assertSame(1, $rolledBack->toArray()['flag']);
+        self::assertSame(1, $this->repo->find('1')?->toArray()['flag']);
     }
 
     #[Test]
@@ -415,5 +445,20 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
 
         // Idempotent: a second backfill does nothing.
         $this->assertSame(0, $this->repo->backfillInitialRevisions());
+    }
+
+    #[Test]
+    public function backfill_normalizes_historical_boolean_values(): void
+    {
+        $this->db->getConnection()->insert('test_revisionable', [
+            'id' => 8,
+            'uuid' => 'u8',
+            'title' => 'legacy boolean',
+            '_data' => json_encode(['flag' => true], JSON_THROW_ON_ERROR),
+        ]);
+
+        self::assertSame(1, $this->repo->backfillInitialRevisions());
+        self::assertSame(1, $this->repo->find('8')?->toArray()['flag']);
+        self::assertSame(1, $this->repo->loadRevision('8', 1)?->toArray()['flag']);
     }
 }

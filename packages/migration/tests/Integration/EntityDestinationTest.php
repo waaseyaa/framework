@@ -156,6 +156,8 @@ final class EntityDestinationTest extends TestCase
         $authored = $this->repository->create([
             'title' => 'Authored',
             'status' => true,
+            'archived' => false,
+            'optional_flag' => null,
         ]);
         $this->repository->save($authored);
 
@@ -163,7 +165,12 @@ final class EntityDestinationTest extends TestCase
         $imported = $destination->write(new DestinationRecord(
             migrationId: self::MIGRATION_ID,
             sourceId: new SourceId(sourceType: 'fake_source', keys: ['key' => 'boolean-parity']),
-            values: ['title' => 'Imported', 'status' => 1],
+            values: [
+                'title' => 'Imported',
+                'status' => 1,
+                'archived' => 0,
+                'optional_flag' => null,
+            ],
         ));
 
         $authoredRow = $this->repository->find((string) $authored->id());
@@ -176,6 +183,10 @@ final class EntityDestinationTest extends TestCase
             $authoredRow->toArray()['status'],
             $importedRows[0]->toArray()['status'],
         );
+        self::assertSame(0, $authoredRow->toArray()['archived']);
+        self::assertSame(0, $importedRows[0]->toArray()['archived']);
+        self::assertNull($authoredRow->toArray()['optional_flag']);
+        self::assertNull($importedRows[0]->toArray()['optional_flag']);
     }
 
     #[Test]

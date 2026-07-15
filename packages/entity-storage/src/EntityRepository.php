@@ -1301,6 +1301,7 @@ final class EntityRepository implements EntityRepositoryInterface
                 unset($targetRow[$pointerKey]);
             }
         }
+        $targetRow = $this->normalizeBooleanStorageValues($targetRow, entityId: $entityId);
 
         // Wrap in transaction (invariant #4: atomic pointer update).
         $transaction = $this->database?->transaction();
@@ -1435,6 +1436,7 @@ final class EntityRepository implements EntityRepositoryInterface
                 unset($row[$pointerKey]);
             }
         }
+        $row = $this->normalizeBooleanStorageValues($row, entityId: $entityId);
 
         $keys = $this->entityType->getKeys();
         $idKey = $keys['id'] ?? 'id';
@@ -1580,6 +1582,7 @@ final class EntityRepository implements EntityRepositoryInterface
                 // fields are partitioned and upserted from this same target
                 // snapshot in the transaction; otherwise the subtable's old
                 // value would override the promoted `_data` value on read.
+                $targetRow = $this->normalizeBooleanStorageValues($targetRow, entityId: $entityId);
                 $outgoingRow = $targetRow;
                 $bundleValues = [];
                 $bundleName = null;
@@ -1622,6 +1625,7 @@ final class EntityRepository implements EntityRepositoryInterface
                 }
                 $baseRow = $priorBaseRow;
                 $baseRow['published_revision_id'] = $revisionId;
+                $baseRow = $this->normalizeBooleanStorageValues($baseRow, entityId: $entityId);
                 $this->driver->write($this->entityType->id(), $entityId, $baseRow);
             }
             $transaction?->commit();
@@ -2211,7 +2215,7 @@ final class EntityRepository implements EntityRepositoryInterface
                 continue; // already has revision history
             }
 
-            $values = $entity->toArray();
+            $values = $this->normalizeBooleanStorageValues($entity->toArray(), $entity);
             $transaction = $this->database?->transaction();
             try {
                 $revisionId = $this->revisionDriver->writeRevision($id, $values, $log, author: $actor);

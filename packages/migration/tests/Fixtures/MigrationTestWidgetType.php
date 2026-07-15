@@ -34,6 +34,8 @@ final class MigrationTestWidgetType
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'widget_type'],
             _fieldDefinitions: [
                 'status' => ['type' => 'boolean', 'label' => 'Published', 'default' => 0],
+                'archived' => ['type' => 'boolean', 'label' => 'Archived', 'default' => 0],
+                'optional_flag' => ['type' => 'boolean', 'label' => 'Optional flag'],
             ],
         );
     }
