@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.266] - 2026-07-15
+
 ### Changed
 
 - **Boolean entity fields now have one persistence shape (#2043).** Every repository save normalizes declared and inferred boolean fields to integer `0`/`1` before base, bundle, and revision writes, so authoring and migration destinations store identical values. Existing rows adopt the canonical shape on their next save; domain consumers should continue to use helpers such as `Node::isPublished()`.
