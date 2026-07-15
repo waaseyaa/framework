@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Queue\Handler\JobHandler;
+use Waaseyaa\Queue\Security\SignedQueuePayload;
 use Waaseyaa\Queue\Storage\InMemoryFailedJobRepository;
 use Waaseyaa\Queue\Tests\Unit\Fixtures\CrashingJob;
 use Waaseyaa\Queue\Transport\DbalTransport;
@@ -34,6 +35,7 @@ final class CrashRecoveryTest extends TestCase
     private DbalTransport $transport;
     private InMemoryFailedJobRepository $failedRepo;
     private Worker $worker;
+    private SignedQueuePayload $signer;
 
     protected function setUp(): void
     {
@@ -41,14 +43,15 @@ final class CrashRecoveryTest extends TestCase
         $this->createTable();
         $this->transport = new DbalTransport($this->database, self::VISIBILITY_TIMEOUT);
         $this->failedRepo = new InMemoryFailedJobRepository();
-        $this->worker = new Worker($this->transport, $this->failedRepo, [new JobHandler()]);
+        $this->signer = new SignedQueuePayload(str_repeat('q', 32));
+        $this->worker = new Worker($this->transport, $this->failedRepo, [new JobHandler()], $this->signer);
         CrashingJob::reset();
     }
 
     #[Test]
     public function reclaimedJobWithRemainingBudgetIsProcessedNotLost(): void
     {
-        $this->transport->push('default', serialize(new CrashingJob())); // tries = 3
+        $this->transport->push('default', $this->signer->seal(serialize(new CrashingJob()))); // tries = 3
 
         // A worker claims it and dies before processing.
         $claimed = $this->transport->pop('default');
@@ -67,7 +70,7 @@ final class CrashRecoveryTest extends TestCase
     #[Test]
     public function repeatedlyAbandonedJobIsRecordedFailedNotReclaimedForever(): void
     {
-        $this->transport->push('default', serialize(new CrashingJob())); // tries = 3
+        $this->transport->push('default', $this->signer->seal(serialize(new CrashingJob()))); // tries = 3
 
         // Simulate the worker dying after every claim, three times. Each reclaim
         // bumps attempts: fresh(0) → reclaim(1) → reclaim(2). Never processed.

@@ -7,6 +7,7 @@ namespace Waaseyaa\CLI\Handler;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Queue\FailedJobRepositoryInterface;
 use Waaseyaa\Queue\QueueInterface;
+use Waaseyaa\Queue\Security\SignedQueuePayload;
 
 /**
  * @api
@@ -16,6 +17,7 @@ final class QueueRetryHandler
     public function __construct(
         private readonly FailedJobRepositoryInterface $failedJobRepository,
         private readonly QueueInterface $queue,
+        private readonly SignedQueuePayload $payloadSigner,
     ) {}
 
     public function execute(SymfonyCommandIO $io): int
@@ -34,7 +36,11 @@ final class QueueRetryHandler
             return 1;
         }
 
-        $message = @unserialize($record['payload']);
+        try {
+            $message = @unserialize($this->payloadSigner->open($record['payload']));
+        } catch (\RuntimeException) {
+            $message = false;
+        }
         if ($message === false || !is_object($message)) {
             $io->writeln("Failed job [{$id}] has corrupt payload and cannot be retried.");
 
@@ -74,7 +80,11 @@ final class QueueRetryHandler
         $retried = 0;
         $failed = 0;
         foreach ($all as $record) {
-            $message = @unserialize($record['payload']);
+            try {
+                $message = @unserialize($this->payloadSigner->open($record['payload']));
+            } catch (\RuntimeException) {
+                $message = false;
+            }
             if ($message === false || !is_object($message)) {
                 $io->writeln("Skipping job [{$record['id']}]: corrupt payload.");
                 $failed++;

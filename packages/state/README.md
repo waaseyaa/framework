@@ -1,9 +1,14 @@
 # waaseyaa/state
 
-**Layer 0 — Foundation**
+SQL-backed and in-memory application state.
 
-Application state management for Waaseyaa.
+`SqlState` requires the 32-byte key derived with
+`waaseyaa.state.payload-hmac.v1`. It stores serialized values only inside a
+strict versioned HMAC-SHA-256 envelope and verifies that envelope before every
+deserialization. `MemoryState` is unchanged.
 
-Provides a key-value state store for cross-request application state that doesn't belong in the config system (e.g. runtime flags, feature toggles, install status). Backed by the database or a simple file store.
+Existing SQL state values are invalidated at cutover: stop application workers,
+clear the `state` table, deploy the keyed reader/writer, and allow application
+state to rebuild. `SqlState` does not accept unsigned rows.
 
-Key classes: `StateInterface`, `MemoryState`, `SqlState`.
+Changing `WAASEYAA_APP_SECRET` invalidates all persisted SQL state values.

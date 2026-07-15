@@ -6,9 +6,11 @@ namespace Waaseyaa\Queue;
 
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Queue\Handler\HandlerInterface;
 use Waaseyaa\Queue\Handler\JobHandler;
+use Waaseyaa\Queue\Security\SignedQueuePayload;
 use Waaseyaa\Queue\Storage\DatabaseFailedJobRepository;
 use Waaseyaa\Queue\Storage\InMemoryFailedJobRepository;
 use Waaseyaa\Queue\Transport\DbalTransport;
@@ -22,6 +24,15 @@ final class QueueServiceProvider extends ServiceProvider
     {
         $driver = $this->config['queue']['driver'] ?? 'sync';
 
+        $this->singleton(SignedQueuePayload::class, function (): SignedQueuePayload {
+            $applicationSecret = $this->resolve(ApplicationSecret::class);
+            assert($applicationSecret instanceof ApplicationSecret);
+
+            return new SignedQueuePayload(
+                $applicationSecret->derive(ApplicationSecret::PURPOSE_QUEUE_PAYLOAD_HMAC),
+            );
+        });
+
         $this->singleton(TransportInterface::class, match ($driver) {
             'database' => fn(): DbalTransport => new DbalTransport(
                 $this->resolve(DatabaseInterface::class),
@@ -33,6 +44,7 @@ final class QueueServiceProvider extends ServiceProvider
         $this->singleton(QueueInterface::class, match ($driver) {
             'database' => fn(): DbalQueue => new DbalQueue(
                 $this->resolve(TransportInterface::class),
+                $this->resolve(SignedQueuePayload::class),
                 $this->config['queue']['default'] ?? 'default',
             ),
             default => fn(): SyncQueue => new SyncQueue(),
@@ -52,6 +64,7 @@ final class QueueServiceProvider extends ServiceProvider
                 $this->resolve(TransportInterface::class),
                 $this->resolve(FailedJobRepositoryInterface::class),
                 $this->resolveHandlers(),
+                $this->resolve(SignedQueuePayload::class),
                 $logger instanceof LoggerInterface ? $logger : null,
             );
         });

@@ -11,6 +11,7 @@ use Waaseyaa\CLI\Handler\QueueWorkHandler;
 use Waaseyaa\CLI\Provider\QueueServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Queue\Handler\JobHandler;
+use Waaseyaa\Queue\Security\SignedQueuePayload;
 use Waaseyaa\Queue\Storage\InMemoryFailedJobRepository;
 use Waaseyaa\Queue\Tests\Unit\Fixtures\SuccessfulJob;
 use Waaseyaa\Queue\Transport\InMemoryTransport;
@@ -56,9 +57,10 @@ final class QueueWorkHandlerTest extends TestCase
     public function processesJobsFromQueue(): void
     {
         $transport = new InMemoryTransport();
-        $transport->push('default', serialize(new SuccessfulJob()));
+        $signer = new SignedQueuePayload(str_repeat('q', 32));
+        $transport->push('default', $signer->seal(serialize(new SuccessfulJob())));
 
-        $worker = new Worker($transport, new InMemoryFailedJobRepository(), [new JobHandler()]);
+        $worker = new Worker($transport, new InMemoryFailedJobRepository(), [new JobHandler()], $signer);
 
         $definition = $this->makeDefinition();
         $tester = CliTester::for($definition, $this->makeContainer($worker));
@@ -75,7 +77,7 @@ final class QueueWorkHandlerTest extends TestCase
     public function exitsGracefullyWhenNoJobs(): void
     {
         $transport = new InMemoryTransport();
-        $worker = new Worker($transport, new InMemoryFailedJobRepository(), [new JobHandler()]);
+        $worker = new Worker($transport, new InMemoryFailedJobRepository(), [new JobHandler()], new SignedQueuePayload(str_repeat('q', 32)));
 
         $definition = $this->makeDefinition();
         $tester = CliTester::for($definition, $this->makeContainer($worker));

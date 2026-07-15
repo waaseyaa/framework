@@ -14,6 +14,7 @@ use Waaseyaa\Queue\Attribute\RateLimited;
 use Waaseyaa\Queue\Attribute\UniqueJob;
 use Waaseyaa\Queue\DbalQueue;
 use Waaseyaa\Queue\Job;
+use Waaseyaa\Queue\Security\SignedQueuePayload;
 use Waaseyaa\Queue\Tests\Unit\Fixtures\HighPriorityJob;
 use Waaseyaa\Queue\Tests\Unit\Fixtures\SuccessfulJob;
 use Waaseyaa\Queue\Transport\InMemoryTransport;
@@ -27,7 +28,7 @@ final class DbalQueueTest extends TestCase
     protected function setUp(): void
     {
         $this->transport = new InMemoryTransport();
-        $this->queue = new DbalQueue($this->transport);
+        $this->queue = new DbalQueue($this->transport, new SignedQueuePayload(str_repeat('q', 32)));
     }
 
     #[Test]
@@ -66,7 +67,7 @@ final class DbalQueueTest extends TestCase
         $warnings = [];
         $logger = $this->makeSpyLogger($warnings);
 
-        $queue = new DbalQueue($this->transport, 'default', $logger);
+        $queue = new DbalQueue($this->transport, new SignedQueuePayload(str_repeat('q', 32)), 'default', $logger);
         $queue->dispatch(new DbalQueueUniqueJobFixture());
 
         // Exactly one warning must be emitted naming the attribute and the class.
@@ -84,7 +85,7 @@ final class DbalQueueTest extends TestCase
         $warnings = [];
         $logger = $this->makeSpyLogger($warnings);
 
-        $queue = new DbalQueue($this->transport, 'default', $logger);
+        $queue = new DbalQueue($this->transport, new SignedQueuePayload(str_repeat('q', 32)), 'default', $logger);
         $queue->dispatch(new DbalQueueUniqueJobFixture());
         $queue->dispatch(new DbalQueueUniqueJobFixture());
 
@@ -101,7 +102,7 @@ final class DbalQueueTest extends TestCase
         $warnings = [];
         $logger = $this->makeSpyLogger($warnings);
 
-        $queue = new DbalQueue($this->transport, 'default', $logger);
+        $queue = new DbalQueue($this->transport, new SignedQueuePayload(str_repeat('q', 32)), 'default', $logger);
         $queue->dispatch(new DbalQueueRateLimitedFixture());
 
         self::assertCount(1, $warnings);
@@ -116,7 +117,7 @@ final class DbalQueueTest extends TestCase
         $warnings = [];
         $logger = $this->makeSpyLogger($warnings);
 
-        $queue = new DbalQueue($this->transport, 'default', $logger);
+        $queue = new DbalQueue($this->transport, new SignedQueuePayload(str_repeat('q', 32)), 'default', $logger);
         $queue->dispatch(new SuccessfulJob());
 
         self::assertCount(0, $warnings, 'Plain job with no queue attributes must not log any warning');

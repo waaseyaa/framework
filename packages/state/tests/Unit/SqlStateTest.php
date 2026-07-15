@@ -24,7 +24,7 @@ final class SqlStateTest extends TestCase
     protected function setUp(): void
     {
         $this->database = DBALDatabase::createSqlite(':memory:');
-        $this->state = new SqlState($this->database);
+        $this->state = new SqlState($this->database, str_repeat('s', 32));
     }
 
     public function testImplementsStateInterface(): void
@@ -140,7 +140,7 @@ final class SqlStateTest extends TestCase
         $array = ['nested' => ['data' => [1, 2, 3]], 'key' => 'value'];
         $this->state->set('array_key', $array);
 
-        $freshState = new SqlState($this->database);
+        $freshState = new SqlState($this->database, str_repeat('s', 32));
         $result = $freshState->get('array_key');
 
         $this->assertSame($array, $result);
@@ -154,7 +154,7 @@ final class SqlStateTest extends TestCase
 
         $this->state->set('object_key', $obj);
 
-        $freshState = new SqlState($this->database);
+        $freshState = new SqlState($this->database, str_repeat('s', 32));
         $retrieved = $freshState->get('object_key');
 
         $this->assertInstanceOf(\stdClass::class, $retrieved);
@@ -167,7 +167,7 @@ final class SqlStateTest extends TestCase
         $this->state->set('flag_true', true);
         $this->state->set('flag_false', false);
 
-        $freshState = new SqlState($this->database);
+        $freshState = new SqlState($this->database, str_repeat('s', 32));
 
         $this->assertTrue($freshState->get('flag_true'));
         $this->assertFalse($freshState->get('flag_false'));
@@ -177,7 +177,7 @@ final class SqlStateTest extends TestCase
     {
         $this->state->set('nullable', null);
 
-        $freshState = new SqlState($this->database);
+        $freshState = new SqlState($this->database, str_repeat('s', 32));
 
         // Should return null (the stored value), NOT the default.
         $this->assertNull($freshState->get('nullable', 'default'));
@@ -188,7 +188,7 @@ final class SqlStateTest extends TestCase
         $this->state->set('worker_key', 'first request');
         $this->assertSame('first request', $this->state->get('worker_key'));
 
-        $concurrentRequest = new SqlState($this->database);
+        $concurrentRequest = new SqlState($this->database, str_repeat('s', 32));
         $concurrentRequest->set('worker_key', 'second request');
 
         $this->assertSame('second request', $this->state->get('worker_key'));
@@ -210,7 +210,7 @@ final class SqlStateTest extends TestCase
         $this->state->set('y', 20);
         $this->assertSame(['x' => 10, 'y' => 20], $this->state->getMultiple(['x', 'y']));
 
-        $concurrentRequest = new SqlState($this->database);
+        $concurrentRequest = new SqlState($this->database, str_repeat('s', 32));
         $concurrentRequest->setMultiple(['x' => 11, 'y' => 21]);
 
         $this->assertSame(['x' => 11, 'y' => 21], $this->state->getMultiple(['x', 'y']));
@@ -231,7 +231,7 @@ final class SqlStateTest extends TestCase
     {
         $this->state->set('counter', 42);
 
-        $freshState = new SqlState($this->database);
+        $freshState = new SqlState($this->database, str_repeat('s', 32));
         $this->assertSame(42, $freshState->get('counter'));
     }
 
@@ -239,7 +239,7 @@ final class SqlStateTest extends TestCase
     {
         $this->state->set('pi', 3.14159);
 
-        $freshState = new SqlState($this->database);
+        $freshState = new SqlState($this->database, str_repeat('s', 32));
         $this->assertSame(3.14159, $freshState->get('pi'));
     }
 
@@ -247,8 +247,26 @@ final class SqlStateTest extends TestCase
     {
         $this->state->set('greeting', 'Hello, World!');
 
-        $freshState = new SqlState($this->database);
+        $freshState = new SqlState($this->database, str_repeat('s', 32));
         $this->assertSame('Hello, World!', $freshState->get('greeting'));
+    }
+
+    public function testPersistentValuesAreSignedAndVerifiedBeforeDeserialization(): void
+    {
+        $this->state->set('signed', ['value' => 'verified']);
+        $stored = (string) $this->database->getConnection()->fetchOne("SELECT value FROM state WHERE name = 'signed'");
+
+        $this->assertStringStartsWith('hmac-sha256.hkdf-v1:', $stored);
+        $this->assertSame(['value' => 'verified'], $this->state->get('signed'));
+    }
+
+    public function testChangedPersistentValuesAreRejectedBeforeDeserialization(): void
+    {
+        $this->state->set('signed', ['value' => 'verified']);
+        $this->database->getConnection()->executeStatement("UPDATE state SET value = value || 'changed' WHERE name = 'signed'");
+
+        $this->expectException(\RuntimeException::class);
+        $this->state->get('signed');
     }
 
     /**
@@ -272,7 +290,7 @@ final class SqlStateTest extends TestCase
         $realDb = DBALDatabase::createSqlite(':memory:');
         $racingDb = $this->buildRaceSimulatingDatabase($realDb, $key);
 
-        $state = new SqlState($racingDb);
+        $state = new SqlState($racingDb, str_repeat('s', 32));
         $state->ensureTable();
 
         // Pre-fix: throws Doctrine\DBAL\Exception\UniqueConstraintViolationException.
@@ -280,7 +298,7 @@ final class SqlStateTest extends TestCase
         $state->set($key, 'my_value');
 
         // Last-writer-wins: our re-UPDATE overwrote the competitor's serialized value.
-        $freshState = new SqlState($realDb);
+        $freshState = new SqlState($realDb, str_repeat('s', 32));
         $this->assertSame('my_value', $freshState->get($key));
     }
 

@@ -6,6 +6,7 @@ namespace Waaseyaa\Queue;
 
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Queue\Security\SignedQueuePayload;
 use Waaseyaa\Queue\Transport\TransportInterface;
 
 /**
@@ -38,15 +39,14 @@ final class DbalQueue implements QueueInterface
     private array $warnedJobClasses = [];
 
     /**
-     * @param TransportInterface  $transport     Persistent transport backend.
-     * @param string              $defaultQueue  Queue name used when no #[OnQueue] attribute is present.
-     * @param LoggerInterface|null $logger        Optional logger for unenforced-attribute warnings.
-     *                                            Defaults to NullLogger (silent). Existing callers
-     *                                            `new DbalQueue($transport)` and
-     *                                            `new DbalQueue($transport, 'queue')` remain valid.
+     * @param TransportInterface   $transport    Persistent transport backend.
+     * @param SignedQueuePayload   $payloadSigner Application-derived payload authenticator.
+     * @param string               $defaultQueue Queue name used when no #[OnQueue] attribute is present.
+     * @param LoggerInterface|null $logger       Optional logger for unenforced-attribute warnings.
      */
     public function __construct(
         private readonly TransportInterface $transport,
+        private readonly SignedQueuePayload $payloadSigner,
         private readonly string $defaultQueue = 'default',
         ?LoggerInterface $logger = null,
     ) {
@@ -59,7 +59,7 @@ final class DbalQueue implements QueueInterface
 
         $queue = $this->resolveQueue($message);
         $delay = $this->resolveDelay($message);
-        $payload = serialize($message);
+        $payload = $this->payloadSigner->seal(serialize($message));
 
         $this->transport->push($queue, $payload, $delay);
     }
