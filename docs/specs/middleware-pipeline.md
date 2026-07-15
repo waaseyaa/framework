@@ -144,10 +144,10 @@ A middleware can short-circuit by returning a response without calling `$next->h
 
 ## HTTP Pipeline Chain
 
-The production HTTP pipeline in `HttpKernel::serveHttpRequest()` wires middleware in priority order:
+The production HTTP pipeline in `HttpKernel::serveHttpRequest()` wires middleware in priority order around the real dispatch handler:
 
 ```
-SessionMiddleware -> AuthorizationMiddleware -> final handler
+SecurityHeadersMiddleware -> SessionMiddleware -> CsrfMiddleware -> AuthorizationMiddleware -> provider middleware -> controller/domain-router dispatch
 ```
 
 ### Wiring code (from HttpKernel::serveHttpRequest())
@@ -158,15 +158,18 @@ foreach ($middlewares as $middleware) {
     $pipeline = $pipeline->withMiddleware($middleware);
 }
 
-$authResponse = $pipeline->handle(
+$response = $pipeline->handle(
     $httpRequest,
-    new class implements HttpHandlerInterface {
-        public function handle(HttpRequest $request): HttpResponse {
-            return new HttpResponse('', 200);
-        }
-    },
+    $dispatchHandler,
 );
 ```
+
+The terminal handler performs the real controller/domain-router dispatch. The
+same onion pass therefore supports both request-side checks and response-side
+work: middleware enters before dispatch, may short-circuit by returning its own
+response, and otherwise unwinds over the final response. Provider middleware
+contributed through `HasMiddlewareInterface::middleware()` has this same
+contract; no separate app response hook is required.
 
 `public/index.php` is a thin entry point that boots the kernel and sends the returned response. Production apps typically load `.env` **before** constructing `HttpKernel` via Symfony `Dotenv::loadEnv($projectRoot . '/.env', 'APP_ENV', 'production')` when the file exists — the third argument defaults missing `APP_ENV` to **`production`**, not Symfony's implicit **`dev`**. The monorepo entry wraps malformed `.env` in try/catch; skeleton / `make:public` stub match Minoo's optional-load + outer `Throwable` catch returning JSON:API 500. The file also contains a `cli-server` guard (see [cli-server static file guard](#cli-server-static-file-guard)) so static assets are served directly by the built-in server without passing through `HttpKernel`:
 
@@ -322,7 +325,7 @@ All HTTP middleware implement `HttpMiddlewareInterface` and use `#[AsMiddleware(
 
 | Priority | Class | Package | Purpose |
 |----------|-------|---------|---------|
-| 100 | `SecurityHeadersMiddleware` | foundation | CSP, X-Frame-Options, HSTS. Constructor: `(string $csp, bool $hstsEnabled, int $hstsMaxAge)`. **NOT wired into the runtime pipeline** — see note below; its `process()` decorates only the auth pipeline's stub `200`. The framing/sniffing defaults (`X-Frame-Options: SAMEORIGIN` + `nosniff`) are instead applied post-dispatch by `HttpKernel` via `SecurityHeadersMiddleware::applyResponseDefaults()` (#1651). |
+| 100 | `SecurityHeadersMiddleware` | foundation | Runtime-safe defaults (`X-Frame-Options: SAMEORIGIN` + `nosniff`) around the final response; CSP and HSTS remain opt-in. Constructor: `(?string $csp, bool $hstsEnabled, int $hstsMaxAge, string $frameOptions)`. Explicit construction retains the historical CSP/HSTS-on defaults; `HttpKernel` passes `null`/`false` for those deployment-sensitive headers. |
 | 90 | `CompressionMiddleware` | foundation | gzip compression for responses above minimum size. Constructor: `(int $minimumSize = 1024)` |
 | 80 | `RateLimitMiddleware` | foundation | IP-based rate limiting via `RateLimiterInterface`. Constructor: `(RateLimiterInterface, int $maxAttempts = 60, int $windowSeconds = 60)` |
 | 70 | `BodySizeLimitMiddleware` | foundation | Rejects payloads over max bytes (413). Constructor: `(int $maxBytes = 1_048_576)` |

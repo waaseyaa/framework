@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Provider and framework HTTP middleware now unwind over the real dispatched response (#2039).** Response-side app effects, security headers, debug headers, and the HTML CSRF cookie reach final controller/domain-router responses instead of being applied to an empty pre-dispatch `200` sentinel.
+
 ## [0.1.0-alpha.265] - 2026-07-14
 
 ### Added

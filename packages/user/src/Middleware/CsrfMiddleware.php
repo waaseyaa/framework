@@ -28,20 +28,19 @@ final class CsrfMiddleware implements HttpMiddlewareInterface
     {
         $this->ensureToken();
 
-        if (!$this->requiresValidation($request)) {
-            return $next->handle($request);
-        }
-
-        if (!$this->hasValidToken($request)) {
+        if ($this->requiresValidation($request) && !$this->hasValidToken($request)) {
             $route = $request->attributes->get('_route_object');
             $isRenderRoute = $route instanceof Route && $route->getOption('_render') === true;
 
             if ($isRenderRoute) {
-                return new Response(
+                $response = new Response(
                     $this->renderHtmlError(),
                     403,
                     ['Content-Type' => 'text/html; charset=UTF-8'],
                 );
+                self::attachCookieIfHtml($request, $response);
+
+                return $response;
             }
 
             return new JsonResponse([
@@ -54,18 +53,18 @@ final class CsrfMiddleware implements HttpMiddlewareInterface
             ], 403, ['Content-Type' => 'application/vnd.api+json']);
         }
 
-        return $next->handle($request);
+        $response = $next->handle($request);
+        self::attachCookieIfHtml($request, $response);
+
+        return $response;
     }
 
     /**
      * Attach the XSRF-TOKEN cookie to a response if it is a text/html response.
      *
-     * Exposed as a public static helper so the HttpKernel can call it on the
-     * final controller response (which has the real Content-Type) after the
-     * auth pipeline has already run. The middleware itself attaches the cookie
-     * within its pipeline pass, but that runs against the auth-pipeline's empty
-     * 200 pass-through, not the controller response. The kernel calls this
-     * method on the controller response to satisfy contract §1.
+     * The kernel's middleware pipeline terminates in real controller dispatch,
+     * so {@see process()} calls this helper while unwinding over the final
+     * response. It stays public for backwards compatibility and focused tests.
      */
     public static function attachCookieIfHtml(Request $request, Response $response): void
     {

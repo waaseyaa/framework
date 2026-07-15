@@ -53,8 +53,9 @@ use Waaseyaa\User\Middleware\SessionMiddleware;
  * HTTP front controller kernel.
  *
  * Boots the application, handles CORS, matches routes, runs the
- * authorization pipeline (Session -> Authorization), and dispatches
- * to controllers. Returns a Symfony Response for the caller to send.
+ * HTTP middleware pipeline (Session -> Authorization -> dispatch), and returns
+ * a Symfony Response for the caller to send. Response-side middleware unwinds
+ * over the real controller/domain-router response.
  *
  * Error surface: JSON:API (`application/vnd.api+json`) for boot failures and
  * for unhandled exceptions after boot. See docs/specs/infrastructure.md
@@ -292,32 +293,58 @@ final class HttpKernel extends AbstractKernel
         $httpRequest = $matchResult;
 
         $pipeline = $this->buildMiddlewareStack();
+        $terminalFailure = new class {
+            public ?\Throwable $exception = null;
+        };
+        $terminalDispatch = function (HttpRequest $request) use ($broadcastStorage, $terminalFailure): HttpResponse {
+            try {
+                return $this->dispatchMatchedRequest($request, $broadcastStorage);
+            } catch (\Throwable $e) {
+                // Keep terminal dispatch on HttpKernel::handle()'s established
+                // unhandled-exception surface. The local catch below remains
+                // responsible only for middleware failures, as it was before
+                // dispatch became the pipeline's real terminal handler.
+                $terminalFailure->exception = $e;
+
+                throw $e;
+            }
+        };
 
         try {
-            $authResponse = $pipeline->handle(
+            return $pipeline->handle(
                 $httpRequest,
-                new class implements HttpHandlerInterface {
+                new class ($terminalDispatch) implements HttpHandlerInterface {
+                    /** @param \Closure(HttpRequest): HttpResponse $dispatch */
+                    public function __construct(private readonly \Closure $dispatch) {}
+
                     public function handle(HttpRequest $request): HttpResponse
                     {
-                        return new HttpResponse('', 200);
+                        return ($this->dispatch)($request);
                     }
                 },
             );
         } catch (\Throwable $e) {
+            if ($e === $terminalFailure->exception) {
+                throw $e;
+            }
+
             $this->logger->critical(sprintf("Authorization pipeline error: %s in %s:%d\n%s", $e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString()));
 
             return $this->jsonApiResponse(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'An authorization error occurred.']]]);
         }
+    }
 
-        // The pipeline's inner handler returns 200 with an empty body on success.
-        // Short-circuit responses (302 login redirect, 401/403 JSON, etc.) must be returned as-is.
-        if ($authResponse->getStatusCode() !== 200) {
-            return $authResponse;
-        }
-
+    /**
+     * Dispatch the matched request as the middleware pipeline's terminal handler.
+     *
+     * Middleware can therefore short-circuit before dispatch and, on success,
+     * unwind over the real controller response for response-side work.
+     */
+    private function dispatchMatchedRequest(HttpRequest $httpRequest, BroadcastStorage $broadcastStorage): HttpResponse
+    {
         $account = $httpRequest->attributes->get('_account');
         if (!$account instanceof AccountInterface) {
-            $this->logger->error('_account attribute missing or invalid after authorization pipeline.');
+            $this->logger->error('_account attribute missing or invalid after HTTP middleware authentication.');
 
             return $this->jsonApiResponse(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'Account resolution failed.']]]);
         }
@@ -341,32 +368,7 @@ final class HttpKernel extends AbstractKernel
 
         $dispatcher = $this->buildRouterChain();
 
-        $finalResponse = $dispatcher->dispatch($httpRequest);
-
-        // Attach the XSRF-TOKEN cookie to HTML responses after controller
-        // dispatch. CsrfMiddleware runs in the auth pipeline (before the
-        // controller), so it only sees the empty 200 pass-through response,
-        // not the real controller response. We call the middleware's static
-        // helper here to satisfy contract §1 (cookie on every text/html
-        // response) once the actual Content-Type is known.
-        CsrfMiddleware::attachCookieIfHtml($httpRequest, $finalResponse);
-
-        // Apply framing / MIME-sniffing security headers to the dispatched
-        // response (#1651). SecurityHeadersMiddleware never reaches the real
-        // response through the authorization pipeline (its inner handler is a
-        // stub 200), so — like the CSRF cookie above — the headers are applied
-        // here, post-dispatch. X-Frame-Options defaults to SAMEORIGIN (blocks
-        // cross-origin clickjacking, preserves same-origin previews) and is
-        // configurable via security_headers.frame_options; routes that must be
-        // embeddable cross-origin set the _frame_exempt request attribute to opt
-        // out. CSP/HSTS remain opt-in via the middleware constructor.
-        $frameOptions = is_array($this->config['security_headers'] ?? null)
-            && is_string($this->config['security_headers']['frame_options'] ?? null)
-            ? $this->config['security_headers']['frame_options']
-            : 'SAMEORIGIN';
-        SecurityHeadersMiddleware::applyResponseDefaults($httpRequest, $finalResponse, $frameOptions);
-
-        return $finalResponse;
+        return $dispatcher->dispatch($httpRequest);
     }
 
     /**
@@ -416,7 +418,7 @@ final class HttpKernel extends AbstractKernel
     }
 
     /**
-     * Build the ordered middleware pipeline for the authorization phase.
+     * Build the ordered middleware pipeline around real request dispatch.
      *
      * Collects built-in middleware (BearerAuth, Session, CSRF, Authorization),
      * optional debug header middleware, and any provider-contributed middleware,
@@ -432,6 +434,14 @@ final class HttpKernel extends AbstractKernel
         $errorPageRenderer = $this->resolveErrorPageRenderer();
 
         $middlewares = [
+            new SecurityHeadersMiddleware(
+                csp: null,
+                hstsEnabled: false,
+                frameOptions: is_array($this->config['security_headers'] ?? null)
+                    && is_string($this->config['security_headers']['frame_options'] ?? null)
+                    ? $this->config['security_headers']['frame_options']
+                    : 'SAMEORIGIN',
+            ),
             new BearerAuthMiddleware(
                 $userRepository,
                 (string) ($this->config['jwt_secret'] ?? ''),

@@ -133,6 +133,46 @@ final class InertiaMultipartCsrfIntegrationTest extends TestCase
         $this->assertCookieAttributeAbsent($cookieHeader, 'Expires=', 'Cookie must be session-lifetime (no Expires)');
     }
 
+    #[Test]
+    public function providerMiddlewareAndFrameworkSecurityDecorateTheRealRenderedResponse(): void
+    {
+        $result = $this->dispatch([
+            'method' => 'GET',
+            'uri'    => '/test/protected',
+        ]);
+
+        $this->assertSame(200, $result['status']);
+        $this->assertStringContainsString('<p>CSRF test page</p>', $result['body']);
+        $this->assertSame('200', $this->findHeader('X-App-Observed-Status', $result['headers']));
+        $this->assertSame(
+            hash('sha256', $result['body']),
+            $this->findHeader('X-App-Observed-Body-Sha256', $result['headers']),
+            'Provider middleware must unwind over the final rendered response body.',
+        );
+        $this->assertSame('nosniff', $this->findHeader('X-Content-Type-Options', $result['headers']));
+        $this->assertSame('SAMEORIGIN', $this->findHeader('X-Frame-Options', $result['headers']));
+        $this->assertSame("default-src 'none'", $this->findHeader('Content-Security-Policy', $result['headers']));
+        $this->assertSame('max-age=3600; includeSubDomains', $this->findHeader('Strict-Transport-Security', $result['headers']));
+        $this->assertNotNull($this->findSetCookieHeader('XSRF-TOKEN', $result['headers']));
+    }
+
+    #[Test]
+    public function throwingTerminalDispatchSetupRetainsTheKernelUnhandledExceptionSurface(): void
+    {
+        $result = $this->dispatch([
+            'method' => 'GET',
+            'uri'    => '/test/throws',
+        ]);
+
+        $this->assertSame(500, $result['status']);
+        $payload = json_decode($result['body'], true, flags: JSON_THROW_ON_ERROR);
+        $this->assertSame(
+            'An unexpected error occurred.',
+            $payload['errors'][0]['detail'] ?? null,
+            'Terminal dispatch exceptions must bubble to HttpKernel::handle(), not be reclassified as middleware failures.',
+        );
+    }
+
     // -----------------------------------------------------------------------
     // T010 — Multipart POST with X-XSRF-TOKEN succeeds (contract §2, §3 happy path)
     // -----------------------------------------------------------------------
@@ -301,6 +341,19 @@ final class InertiaMultipartCsrfIntegrationTest extends TestCase
             'body'       => (string) ($payload['body'] ?? ''),
             'session_id' => (string) ($payload['session_id'] ?? ''),
         ];
+    }
+
+    /** @param list<string> $headers */
+    private function findHeader(string $name, array $headers): ?string
+    {
+        $prefix = strtolower($name) . ':';
+        foreach ($headers as $header) {
+            if (str_starts_with(strtolower($header), $prefix)) {
+                return trim(substr($header, strlen($prefix)));
+            }
+        }
+
+        return null;
     }
 
     /**
