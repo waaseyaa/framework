@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Oidc\Keys\OpenSslKeyFactory;
 use Waaseyaa\Oidc\Keys\SigningKey;
+use Waaseyaa\Oidc\Security\SecretBoxEnvelope;
 
 /**
  * DB-backed signing key repository.
@@ -16,12 +17,8 @@ use Waaseyaa\Oidc\Keys\SigningKey;
  * Older keys are pruned atomically on each rotate() call.
  * Auto-bootstraps a first key on empty table so cold-start auth requests succeed.
  *
- * Secrets at rest: the RSA private key PEM is stored unencrypted in
- * `private_key_pem` and must remain plaintext at signing time (IdTokenMinter),
- * so confidentiality relies on the database trust boundary. KMS/app-key
- * encryption is tracked hardening (audit D-13) deferred because it requires
- * encryption-key bootstrap and rotation; see packages/oidc/README.md
- * "Secrets at rest".
+ * Private-key PEM values are persisted only in versioned sodium secretbox
+ * envelopes under the application-derived OIDC signing-key purpose.
  *
  * @api
  */
@@ -31,10 +28,15 @@ final class SigningKeyRepository
     private const ALGORITHM = 'RS256';
 
     private bool $tableEnsured = false;
+    private readonly SecretBoxEnvelope $envelope;
 
     public function __construct(
         private readonly DatabaseInterface $database,
-    ) {}
+        #[\SensitiveParameter]
+        string $encryptionKey,
+    ) {
+        $this->envelope = new SecretBoxEnvelope($encryptionKey);
+    }
 
     /**
      * The current signing key (rotated_out_at IS NULL).
@@ -126,7 +128,7 @@ final class SigningKeyRepository
             ->values([
                 'kid' => $kid,
                 'algorithm' => self::ALGORITHM,
-                'private_key_pem' => $privateKeyPem,
+                'private_key_pem' => $this->envelope->seal($privateKeyPem),
                 'public_key_pem' => $publicKeyPem,
                 'created_at' => $nowTs,
                 'rotated_out_at' => null,
@@ -184,7 +186,7 @@ final class SigningKeyRepository
             kid: (string) $row['kid'],
             algorithm: (string) $row['algorithm'],
             publicKeyPem: (string) $row['public_key_pem'],
-            privateKeyPem: (string) $row['private_key_pem'],
+            privateKeyPem: $this->envelope->open((string) $row['private_key_pem']),
         );
     }
 

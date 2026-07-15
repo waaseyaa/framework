@@ -9,6 +9,7 @@ use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Oidc\Authorize\AuthorizationRequestValidator;
 use Waaseyaa\Oidc\Authorize\AuthorizeController;
@@ -29,6 +30,7 @@ use Waaseyaa\Oidc\Keys\PemFileKeyLoader;
 use Waaseyaa\Oidc\Repository\AuthorizationCodeRepositoryInterface;
 use Waaseyaa\Oidc\Repository\DatabaseAuthorizationCodeRepository;
 use Waaseyaa\Oidc\Revoke\RevocationController;
+use Waaseyaa\Oidc\Security\LegacyOidcSecretMigrator;
 use Waaseyaa\Oidc\Token\AccessTokenIssuer;
 use Waaseyaa\Oidc\Token\IdTokenMinter;
 use Waaseyaa\Oidc\Token\InMemoryKeyMaterialProvider;
@@ -57,8 +59,8 @@ final class OidcServiceProvider extends ServiceProvider
             fn(): OidcIssuerConfig => new OidcIssuerConfig(issuerUrl: $this->resolveIssuer()),
         );
 
-        // Key material — WP04 uses DB-backed RealKeyMaterialProvider when
-        // SigningKeyRepository is available; falls back to file-based for existing installs.
+        // File-backed loaders remain available for explicit callers. Issuer signing uses
+        // the encrypted DB repository and propagates configuration/decryption failures.
         $this->singleton(
             OidcKeyLoaderInterface::class,
             fn(): OidcKeyLoaderInterface => $this->resolveKeyLoader(),
@@ -69,23 +71,28 @@ final class OidcServiceProvider extends ServiceProvider
             function (): SigningKeyRepository {
                 $database = $this->resolveDatabase();
 
-                return new SigningKeyRepository(database: $database);
+                $applicationSecret = $this->resolve(ApplicationSecret::class);
+                assert($applicationSecret instanceof ApplicationSecret);
+
+                return new SigningKeyRepository(
+                    database: $database,
+                    encryptionKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION),
+                );
             },
         );
 
         $this->singleton(
             KeyMaterialProviderInterface::class,
             function (): KeyMaterialProviderInterface {
-                // Use DB-backed provider if database is available; fall back to file-backed.
-                try {
-                    return new RealKeyMaterialProvider(
-                        repository: $this->resolve(SigningKeyRepository::class),
-                    );
-                } catch (\Throwable) {
+                if ($this->hasConfiguredFileKeys()) {
                     return new InMemoryKeyMaterialProvider(
                         keyLoader: $this->resolve(OidcKeyLoaderInterface::class),
                     );
                 }
+
+                return new RealKeyMaterialProvider(
+                    repository: $this->resolve(SigningKeyRepository::class),
+                );
             },
         );
 
@@ -127,16 +134,47 @@ final class OidcServiceProvider extends ServiceProvider
         // Token issuers
         $this->singleton(
             AccessTokenIssuer::class,
-            fn(): AccessTokenIssuer => new AccessTokenIssuer(
-                database: $this->resolveDatabase(),
-            ),
+            function (): AccessTokenIssuer {
+                $applicationSecret = $this->resolve(ApplicationSecret::class);
+                assert($applicationSecret instanceof ApplicationSecret);
+
+                return new AccessTokenIssuer(
+                    database: $this->resolveDatabase(),
+                    encryptionKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_ENCRYPTION),
+                    lookupKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP),
+                );
+            },
         );
 
         $this->singleton(
             RefreshTokenIssuer::class,
-            fn(): RefreshTokenIssuer => new RefreshTokenIssuer(
-                database: $this->resolveDatabase(),
-            ),
+            function (): RefreshTokenIssuer {
+                $applicationSecret = $this->resolve(ApplicationSecret::class);
+                assert($applicationSecret instanceof ApplicationSecret);
+
+                return new RefreshTokenIssuer(
+                    database: $this->resolveDatabase(),
+                    encryptionKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_ENCRYPTION),
+                    lookupKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_LOOKUP),
+                );
+            },
+        );
+
+        $this->singleton(
+            LegacyOidcSecretMigrator::class,
+            function (): LegacyOidcSecretMigrator {
+                $applicationSecret = $this->resolve(ApplicationSecret::class);
+                assert($applicationSecret instanceof ApplicationSecret);
+
+                return new LegacyOidcSecretMigrator(
+                    database: $this->resolveDatabase(),
+                    signingKeyEncryptionKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION),
+                    accessTokenEncryptionKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_ENCRYPTION),
+                    accessTokenLookupKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP),
+                    refreshTokenEncryptionKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_ENCRYPTION),
+                    refreshTokenLookupKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_LOOKUP),
+                );
+            },
         );
 
         $this->singleton(
@@ -325,5 +363,17 @@ final class OidcServiceProvider extends ServiceProvider
         }
 
         return PemFileKeyLoader::fromConfig([]);
+    }
+
+    private function hasConfiguredFileKeys(): bool
+    {
+        $configKeys = $this->config['oidc']['signing_keys'] ?? null;
+        if (is_array($configKeys) && $configKeys !== []) {
+            return true;
+        }
+
+        $envDir = getenv('OIDC_SIGNING_KEY_DIR');
+
+        return is_string($envDir) && $envDir !== '';
     }
 }

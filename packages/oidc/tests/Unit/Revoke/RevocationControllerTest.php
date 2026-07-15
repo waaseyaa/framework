@@ -59,8 +59,8 @@ final class RevocationControllerTest extends TestCase
         );
 
         $this->tokenDb = DBALDatabase::createSqlite();
-        $this->accessTokenIssuer = new AccessTokenIssuer($this->tokenDb);
-        $this->refreshTokenIssuer = new RefreshTokenIssuer($this->tokenDb);
+        $this->accessTokenIssuer = new AccessTokenIssuer($this->tokenDb, str_repeat('a', 32), str_repeat('b', 32));
+        $this->refreshTokenIssuer = new RefreshTokenIssuer($this->tokenDb, str_repeat('c', 32), str_repeat('d', 32));
     }
 
     // -------------------------------------------------------------------------

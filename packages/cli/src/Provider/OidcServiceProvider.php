@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Provider;
 
 use Waaseyaa\CLI\Command\HandlerCommand;
+use Waaseyaa\CLI\Command\HandlerOption;
+use Waaseyaa\CLI\Command\HandlerOptionMode;
+use Waaseyaa\CLI\Command\Oidc\MigrateSecretsCommand;
 use Waaseyaa\CLI\Command\Oidc\RotateSigningKeyCommand;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -32,6 +35,18 @@ final class OidcServiceProvider extends ServiceProvider implements ProvidesConso
             name: 'oidc:rotate-signing-key',
             description: 'Generate a new RS256 signing keypair and rotate out the current key (WP04).',
             handler: [RotateSigningKeyCommand::class, 'execute'],
+        );
+        yield new HandlerCommand(
+            name: 'oidc:migrate-secrets',
+            description: 'Encrypt existing OIDC signing keys and opaque tokens with application-derived keys.',
+            handler: [MigrateSecretsCommand::class, 'execute'],
+            options: [
+                new HandlerOption(
+                    name: 'confirm',
+                    mode: HandlerOptionMode::None,
+                    description: 'Confirm the bounded in-place custody migration.',
+                ),
+            ],
         );
     }
 }

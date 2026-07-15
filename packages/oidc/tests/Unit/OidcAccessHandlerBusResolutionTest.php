@@ -14,6 +14,7 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistryKernelServices;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Oidc\OidcServiceProvider;
 use Waaseyaa\Oidc\Userinfo\UserinfoController;
 
@@ -119,6 +120,7 @@ final class OidcAccessHandlerBusResolutionTest extends TestCase
             providersAccessor: static fn(): array => [],
             accountContext: null,
             accessHandlerAccessor: $accessHandlerAccessor,
+            applicationSecret: ApplicationSecret::fromEnvironmentValue(null, 'testing'),
         );
     }
 
