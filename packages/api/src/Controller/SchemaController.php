@@ -65,6 +65,20 @@ final class SchemaController
         $entityType = $this->entityTypeManager->getDefinition($entityTypeId);
         $bundle = ($bundle === null || $bundle === '') ? null : $bundle;
 
+        if ($bundle !== null) {
+            $availableBundles = $this->schemaPresenter->availableBundles($entityTypeId);
+            if ($availableBundles !== null && !in_array($bundle, $availableBundles, true)) {
+                return JsonApiDocument::fromErrors(
+                    [JsonApiError::unprocessable(sprintf(
+                        "Unknown bundle '%s' for entity type '%s'.",
+                        $bundle,
+                        $entityTypeId,
+                    ))],
+                    statusCode: 422,
+                );
+            }
+        }
+
         $entity = null;
         if ($this->accessHandler !== null && $this->account !== null) {
             $class = $entityType->getClass();

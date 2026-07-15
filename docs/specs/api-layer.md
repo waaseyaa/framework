@@ -1,5 +1,6 @@
 # API Layer
 
+<!-- Spec reviewed 2026-07-15 - #2047: SchemaPresenter exposes its sorted registry-backed bundle roster to mounted generic admin callers; null means no registry, [] means registry present/no registered bundles. SchemaController rejects a non-empty explicit bundle outside that authoritative roster with 422 instead of silently returning the base schema. -->
 <!-- Spec reviewed 2026-07-14 - #2018 authoring spine: EntityValidationException is mapped to 422 on store(), plain update(), and expectation-stated update(); repository validation can no longer escape as an admin/API HTTP 500. -->
 <!-- Spec reviewed 2026-07-14 - R21 WP4 (#2010): GraphQlRouter propagates GraphQlEndpoint's statusCode instead of forcing HTTP 200, so parse/auth/method failures reach clients as 400/401/405. withMutationOverrides() remains supported, but a custom update/delete resolver replaces the generated EntityResolver path and therefore owns the enduring not-found/access-denied collapse obligation; delegating to EntityResolver is the preferred way to preserve it. -->
 <!-- Spec reviewed 2026-07-14 - R21 WP6 (#2010): POST /api/queue/jobs/{id}/retry validates the payload, atomically claims the failed row through FailedJobRepositoryInterface, and dispatches only for the claim winner. A competing retry returns JSON:API 409; corrupt payload remains 422, dispatch failure remains 502 and releases the claim, success remains 204 and forgets the row. -->
@@ -750,6 +751,9 @@ Only two of the four possible states (both-null, both-non-null) are meaningful. 
 // packages/api/src/Schema/SchemaPresenter.php
 final class SchemaPresenter
 {
+    /** @return list<string>|null */
+    public function availableBundles(string $entityTypeId): ?array;
+
     public function present(
         EntityTypeInterface $entityType,
         array $fieldDefinitions = [],
@@ -833,9 +837,19 @@ final class SchemaController
         private readonly ?AccountInterface $account = null,
     ) {}
 
-    public function show(string $entityTypeId): JsonApiDocument;
+    public function show(string $entityTypeId, ?string $bundle = null): JsonApiDocument;
 }
 ```
+
+When a presenter has a `FieldDefinitionRegistryInterface`,
+`availableBundles()` returns its sorted `bundleNamesFor()` roster. A null return
+means no registry was supplied and membership cannot be validated; an empty list
+means the registry is authoritative and no bundle has registered fields. When a
+non-empty bundle is supplied to `show()`, a registry-backed presenter rejects a
+value outside that roster with 422 and emits no schema. The base (`bundle=null`)
+request remains the bundle-discovery schema. The mounted generic admin provider
+resolves the kernel registry and supplies it to the presenter; bare callers that
+intentionally omit the registry keep their compatibility behavior.
 
 Creates a prototype entity for field access checking when `accessHandler`/`account` are both supplied. To keep the endpoint available for entity types whose constructors require certain fields to be present (`isset()`-gated invariants — e.g. `UserBlock`'s `blocker_id`, engagement `Comment`'s `user_id`/`body`), `show()` **seeds** `$protoValues` with a non-null, type-appropriate placeholder (`0` for integer, `false` for boolean, `''` otherwise — presence, not value validity, is what constructor gates test) for every declared field (`resolveFieldDefinitions($entityTypeId, $bundle)`) and every entity key (`getKeys()`), plus the requested bundle key. **Fails closed** as a last-resort backstop (audit-remediation batch 2026-07-02 R2, WP3): if construction STILL throws after seeding, `show()` logs the failure via `LoggerInterface` at ERROR (entity type, class, exception message — server-side only) and returns a `JsonApiError::internalError()` 500 document with a generic detail; it does NOT fall through to `SchemaPresenter::present()` with a null entity. This matters because `present()`'s field-access-filtering block is itself gated on `$entity !== null` (see "Field Access Filtering" below) — passing a null entity there silently skips ALL per-account field filtering, which would emit an unfiltered schema instead of an error. In the non-access-context path (`accessHandler`/`account` both null, no account to filter for) the base schema is presented as before — that path is unaffected. Returns the schema in `meta.schema` of a `JsonApiDocument` on success.
 

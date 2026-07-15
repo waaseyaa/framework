@@ -1,7 +1,7 @@
 // packages/admin/tests/unit/composables/useSchema.test.ts
 // useSchema delegates to $admin.transport.schema() which calls
 // POST /admin/_surface/{type}/action/schema and expects { ok: true, data: EntitySchema }.
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { registerEndpoint } from '@nuxt/test-utils/runtime'
 import { userSchema } from '../../fixtures/schemas'
 import { ADMIN_RUNTIME_UNAVAILABLE_MESSAGE } from '~/composables/useAdminRuntime'
@@ -27,6 +27,10 @@ registerEndpoint('/admin/_surface/user_invalidate/action/schema', {
 // Reset modules before each test so the module-level schemaCache starts fresh.
 beforeEach(() => {
   vi.resetModules()
+})
+
+afterEach(() => {
+  vi.doUnmock('~/composables/useAdminRuntime')
 })
 
 describe('sortedProperties', () => {
@@ -62,6 +66,34 @@ describe('sortedProperties', () => {
 })
 
 describe('useSchema fetch and caching', () => {
+  it('forwards bundle scopes and caches each bundle-specific schema separately', async () => {
+    const mockSchemaFn = vi.fn().mockImplementation((_type: string, scope?: { bundle?: string }) =>
+      Promise.resolve({
+        ...userSchema,
+        title: scope?.bundle === 'page' ? 'Page' : 'Post',
+      }),
+    )
+    vi.doMock('~/composables/useAdminRuntime', () => ({
+      ADMIN_RUNTIME_UNAVAILABLE_MESSAGE,
+      requireAdminRuntime: () => ({ transport: { schema: mockSchemaFn } }),
+    }))
+
+    const { useSchema } = await import('~/composables/useSchema')
+    const composable = useSchema('node_bundle_scopes')
+
+    await composable.fetch({ bundle: 'page' })
+    expect(composable.schema.value?.title).toBe('Page')
+
+    await composable.fetch({ bundle: 'post' })
+    expect(composable.schema.value?.title).toBe('Post')
+    expect(mockSchemaFn).toHaveBeenNthCalledWith(1, 'node_bundle_scopes', { bundle: 'page' })
+    expect(mockSchemaFn).toHaveBeenNthCalledWith(2, 'node_bundle_scopes', { bundle: 'post' })
+
+    await composable.fetch({ bundle: 'page' })
+    expect(composable.schema.value?.title).toBe('Page')
+    expect(mockSchemaFn).toHaveBeenCalledTimes(2)
+  })
+
   it('sets schema.value on successful fetch', async () => {
     const { useSchema } = await import('~/composables/useSchema')
     const { schema, fetch } = useSchema('user_fresh')

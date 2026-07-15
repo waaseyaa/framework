@@ -10,6 +10,7 @@ use Waaseyaa\AdminSurface\Host\AbstractAdminSurfaceHost;
 use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
 use Waaseyaa\Api\Schema\SchemaPresenter;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Routing\RouteBuilder;
 use Waaseyaa\Routing\WaaseyaaRouter;
@@ -96,10 +97,15 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
      */
     public function routes(WaaseyaaRouter $router, EntityTypeManagerInterface $entityTypeManager): void
     {
+        $fieldDefinitionRegistry = $this->resolveOptional(FieldDefinitionRegistryInterface::class);
         $host = new GenericAdminSurfaceHost(
             entityTypeManager: $entityTypeManager,
             accessHandler: $this->discoverAccessHandler(),
-            schemaPresenter: new SchemaPresenter(),
+            schemaPresenter: new SchemaPresenter(
+                $fieldDefinitionRegistry instanceof FieldDefinitionRegistryInterface
+                    ? $fieldDefinitionRegistry
+                    : null,
+            ),
         );
 
         self::registerRoutes($router, $host);

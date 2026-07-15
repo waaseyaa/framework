@@ -21,6 +21,7 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Tests\Helper\TestEntityType;
 use Waaseyaa\Field\FieldDefinition;
+use Waaseyaa\Field\FieldDefinitionRegistry;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -120,6 +121,39 @@ final class SchemaControllerTest extends TestCase
         $this->assertArrayHasKey('errors', $array);
         $this->assertSame('404', $array['errors'][0]['status']);
         $this->assertStringContainsString('nonexistent', $array['errors'][0]['detail']);
+    }
+
+    #[Test]
+    public function showRejectsAnUnknownBundleInsteadOfFallingBackToTheBaseSchema(): void
+    {
+        $registry = new FieldDefinitionRegistry();
+        $manager = new EntityTypeManager(
+            new EventDispatcher(),
+            fn() => new InMemoryEntityStorage('article'),
+            fieldRegistry: $registry,
+        );
+        $manager->registerEntityType(new EntityType(
+            id: 'article',
+            label: 'Article',
+            class: TestEntity::class,
+            keys: TestEntity::definitionKeys(),
+        ));
+        $registry->registerBundleFields('article', 'page', [
+            new FieldDefinition(
+                name: 'page_body',
+                type: 'text',
+                targetEntityTypeId: 'article',
+                targetBundle: 'page',
+            ),
+        ]);
+
+        $controller = new SchemaController($manager, new SchemaPresenter($registry));
+        $doc = $controller->show('article', 'unknown');
+
+        self::assertSame(422, $doc->statusCode);
+        self::assertSame('422', $doc->toArray()['errors'][0]['status']);
+        self::assertStringContainsString('unknown', $doc->toArray()['errors'][0]['detail']);
+        self::assertArrayNotHasKey('meta', $doc->toArray());
     }
 
     #[Test]

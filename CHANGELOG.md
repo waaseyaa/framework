@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Generic admin creation now supports bundled entity types end to end (#2047).** The mounted surface discovers registered bundles, requires a selection before requesting bundle-specific fields, validates invalid bundle scopes, and includes the schema-declared bundle key in create payloads while preserving the existing one-stage flow for unbundled entities.
+
 ## [0.1.0-alpha.266] - 2026-07-15
 
 ### Changed
