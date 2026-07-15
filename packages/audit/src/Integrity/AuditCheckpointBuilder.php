@@ -127,7 +127,7 @@ final class AuditCheckpointBuilder
         // Step 6: optional HMAC signature.
         // ----------------------------------------------------------------
         $signature = ($this->hmacKey !== null && $this->hmacKey !== '')
-            ? hash_hmac('sha256', $checkpointHash, $this->hmacKey)
+            ? 'hmac-sha256.hkdf-v1:' . hash_hmac('sha256', $checkpointHash, $this->hmacKey)
             : '';
 
         // ----------------------------------------------------------------

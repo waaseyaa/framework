@@ -88,6 +88,18 @@ final class SkeletonLayoutTest extends TestCase
     }
 
     #[Test]
+    public function skeleton_declares_and_generates_the_canonical_application_secret(): void
+    {
+        $repoRoot = dirname(__DIR__, 4);
+        $example = (string) file_get_contents($repoRoot . '/skeleton/.env.example');
+        $setup = (string) file_get_contents($repoRoot . '/skeleton/bin/post-create-setup.php');
+
+        self::assertStringContainsString("WAASEYAA_APP_SECRET=\n", $example);
+        self::assertStringContainsString("'base64:' . base64_encode(random_bytes(32))", $setup);
+        self::assertStringContainsString("str_replace('WAASEYAA_APP_SECRET='", $setup);
+    }
+
+    #[Test]
     public function skeletonShipsTheFrontControllerDeploymentContract(): void
     {
         $repoRoot = dirname(__DIR__, 4);

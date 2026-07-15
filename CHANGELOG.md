@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Application key custody now has one fail-closed HKDF root (#2037).** Production-equivalent kernels require a canonical 32-byte `WAASEYAA_APP_SECRET`, derive distinct audit-checkpoint and cache-payload HMAC keys with HKDF-SHA-256, verify versioned audit signatures without permitting post-cutover downgrade, and treat legacy cache rows as cold misses. The skeleton generates the secret and an upgrade note covers existing installations.
+
 ## [0.1.0-alpha.265] - 2026-07-14
 
 ### Added

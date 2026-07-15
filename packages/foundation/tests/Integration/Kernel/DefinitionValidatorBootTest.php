@@ -168,7 +168,7 @@ final class DefinitionValidatorBootTest extends TestCase
 
         file_put_contents(
             $projectRoot . '/config/waaseyaa.php',
-            "<?php return ['database' => ':memory:'];",
+            "<?php return ['database' => ':memory:', 'environment' => 'testing'];",
         );
 
         // entity-types.php is written per test via buildKernel().

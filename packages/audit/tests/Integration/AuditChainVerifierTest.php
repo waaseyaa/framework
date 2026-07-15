@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Audit\Tests\Integration;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Audit\Entity\AuditCheckpoint;
@@ -58,14 +59,14 @@ final class AuditChainVerifierTest extends TestCase
         ])->execute();
     }
 
-    private function seal(): void
+    private function seal(?string $hmacKey = null): void
     {
-        new AuditCheckpointBuilder($this->db, $this->nullSink)->build();
+        new AuditCheckpointBuilder($this->db, $this->nullSink, hmacKey: $hmacKey)->build();
     }
 
-    private function verifier(): AuditChainVerifier
+    private function verifier(?string $hmacKey = null): AuditChainVerifier
     {
-        return new AuditChainVerifier($this->db);
+        return new AuditChainVerifier($this->db, hmacKey: $hmacKey);
     }
 
     // ------------------------------------------------------------------
@@ -120,6 +121,78 @@ final class AuditChainVerifierTest extends TestCase
 
         self::assertTrue($result->ok);
         self::assertSame(1, $result->pendingUnsealedRows);
+    }
+
+    #[Test]
+    public function hkdf_checkpoint_signatures_are_versioned_and_verified(): void
+    {
+        $key = random_bytes(32);
+        $this->insertEvent('signed-1');
+        $this->seal($key);
+
+        $signature = (string) $this->db->getConnection()->fetchOne(
+            'SELECT signature FROM audit_checkpoint WHERE is_genesis = 0',
+        );
+        self::assertMatchesRegularExpression('/^hmac-sha256\\.hkdf-v1:[0-9a-f]{64}$/', $signature);
+        self::assertStringNotContainsString($key, $signature);
+        self::assertStringNotContainsString(base64_encode($key), $signature);
+        self::assertTrue($this->verifier($key)->verify()->ok);
+
+        $this->db->getConnection()->executeStatement(
+            "UPDATE audit_checkpoint SET signature = 'hmac-sha256.hkdf-v1:" . str_repeat('0', 64) . "' WHERE is_genesis = 0",
+        );
+
+        $result = $this->verifier($key)->verify();
+        self::assertFalse($result->ok);
+        self::assertSame('checkpoint_signature', $result->failureKind);
+    }
+
+    #[Test]
+    public function legacy_signatures_are_accepted_only_before_authenticated_suffix(): void
+    {
+        $key = random_bytes(32);
+        $this->insertEvent('legacy');
+        $this->seal();
+        $this->db->getConnection()->executeStatement(
+            'UPDATE audit_checkpoint SET signature = ? WHERE segment_end_id = 1',
+            [str_repeat('b', 64)],
+        );
+        $this->insertEvent('authenticated');
+        $this->seal($key);
+        $this->insertEvent('downgrade');
+        $this->seal();
+
+        $result = $this->verifier($key)->verify();
+
+        self::assertFalse($result->ok);
+        self::assertSame('checkpoint_signature', $result->failureKind);
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function downgradedSignatures(): iterable
+    {
+        yield 'legacy bare hex' => [str_repeat('a', 64)];
+        yield 'malformed' => ['not-a-signature'];
+    }
+
+    #[Test]
+    #[DataProvider('downgradedSignatures')]
+    public function bare_or_malformed_signature_after_authenticated_suffix_fails(string $downgrade): void
+    {
+        $key = random_bytes(32);
+        $this->insertEvent('authenticated');
+        $this->seal($key);
+        $this->insertEvent('downgraded');
+        $this->seal($key);
+        $this->db->getConnection()->executeStatement(
+            'UPDATE audit_checkpoint SET signature = ? WHERE segment_end_id = 2',
+            [$downgrade],
+        );
+
+        $result = $this->verifier($key)->verify();
+
+        self::assertFalse($result->ok);
+        self::assertSame('checkpoint_signature', $result->failureKind);
     }
 
     // ------------------------------------------------------------------

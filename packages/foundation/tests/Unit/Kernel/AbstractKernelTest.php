@@ -20,6 +20,7 @@ final class AbstractKernelTest extends TestCase
 
     protected function setUp(): void
     {
+        putenv('WAASEYAA_APP_SECRET');
         $this->projectRoot = $this->createMinimalProjectRoot();
     }
 
@@ -31,7 +32,7 @@ final class AbstractKernelTest extends TestCase
 
         file_put_contents(
             $projectRoot . '/config/waaseyaa.php',
-            "<?php return ['database' => ':memory:'];",
+            "<?php return ['database' => ':memory:', 'environment' => 'testing'];",
         );
         file_put_contents(
             $projectRoot . '/config/entity-types.php',
@@ -43,6 +44,7 @@ final class AbstractKernelTest extends TestCase
 
     protected function tearDown(): void
     {
+        putenv('WAASEYAA_APP_SECRET');
         $items = new \RecursiveIteratorIterator(
             new \RecursiveDirectoryIterator($this->projectRoot, \RecursiveDirectoryIterator::SKIP_DOTS),
             \RecursiveIteratorIterator::CHILD_FIRST,
@@ -102,6 +104,11 @@ final class AbstractKernelTest extends TestCase
     #[Test]
     public function boot_writes_manifest_cache_inside_fake_project_root(): void
     {
+        file_put_contents(
+            $this->projectRoot . '/config/waaseyaa.php',
+            "<?php return ['database' => ':memory:', 'environment' => 'production'];",
+        );
+        putenv('WAASEYAA_APP_SECRET=base64:' . base64_encode(str_repeat('m', 32)));
         $kernel = new class($this->projectRoot) extends AbstractKernel {
             public function publicBoot(): void
             {

@@ -23,6 +23,7 @@ final class DebugModeTest extends TestCase
         putenv('APP_DEBUG');
         putenv('APP_ENV');
         putenv('LOG_LEVEL');
+        putenv('WAASEYAA_APP_SECRET');
     }
 
     protected function tearDown(): void
@@ -30,6 +31,7 @@ final class DebugModeTest extends TestCase
         putenv('APP_DEBUG');
         putenv('APP_ENV');
         putenv('LOG_LEVEL');
+        putenv('WAASEYAA_APP_SECRET');
 
         $items = new \RecursiveIteratorIterator(
             new \RecursiveDirectoryIterator($this->projectRoot, \RecursiveDirectoryIterator::SKIP_DOTS),
@@ -39,6 +41,22 @@ final class DebugModeTest extends TestCase
             $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
         }
         rmdir($this->projectRoot);
+    }
+
+    #[Test]
+    public function production_boot_rejects_missing_application_secret_before_database_io(): void
+    {
+        putenv('APP_ENV=production');
+        putenv('WAASEYAA_APP_SECRET');
+        $this->writeConfig(['database' => '/definitely/missing/parent/waaseyaa.sqlite']);
+        $kernel = new class($this->projectRoot) extends AbstractKernel {
+            public function publicBoot(): void { $this->boot(); }
+        };
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('WAASEYAA_APP_SECRET');
+
+        $kernel->publicBoot();
     }
 
     private function writeConfig(array $overrides = []): void
@@ -146,6 +164,7 @@ final class DebugModeTest extends TestCase
     public function boot_succeeds_in_production_without_debug(): void
     {
         putenv('APP_ENV=production');
+        putenv('WAASEYAA_APP_SECRET=base64:' . base64_encode(str_repeat('p', 32)));
         $this->writeConfig();
         $kernel = new class($this->projectRoot) extends AbstractKernel {
             public function publicBoot(): void { $this->boot(); }
@@ -173,6 +192,7 @@ final class DebugModeTest extends TestCase
     public function boot_refuses_missing_sqlite_database_in_production(): void
     {
         putenv('APP_ENV=production');
+        putenv('WAASEYAA_APP_SECRET=base64:' . base64_encode(str_repeat('p', 32)));
         $missingPath = $this->projectRoot . '/storage/missing.sqlite';
         $this->writeConfig(['database' => $missingPath]);
 

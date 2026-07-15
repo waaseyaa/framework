@@ -21,6 +21,7 @@ final class DbInitHandlerTest extends TestCase
 
     protected function setUp(): void
     {
+        putenv('WAASEYAA_APP_SECRET=base64:' . base64_encode(str_repeat('d', 32)));
         $this->projectRoot = sys_get_temp_dir() . '/waaseyaa-db-init-' . bin2hex(random_bytes(6));
         mkdir($this->projectRoot, 0o755, true);
         mkdir($this->projectRoot . '/config', 0o755, true);
@@ -33,6 +34,7 @@ final class DbInitHandlerTest extends TestCase
 
     protected function tearDown(): void
     {
+        putenv('WAASEYAA_APP_SECRET');
         $this->removeDirectory($this->projectRoot);
     }
 

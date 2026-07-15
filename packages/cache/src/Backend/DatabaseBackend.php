@@ -302,8 +302,9 @@ final class DatabaseBackend implements TagAwareCacheInterface
         //     verified by decodePayload() before unserialize() is called; a bad or
         //     missing signature (including legacy unsigned rows) is treated as a miss
         //     and self-heals on the next set().
-        // Mandatory HMAC remains deferred per D-12; key custody is part of the same
-        // pending secrets-at-rest decision as OIDC signing keys and audit checkpoints.
+        // Kernel-wired bins always receive the cache-specific key derived from
+        // WAASEYAA_APP_SECRET; direct package construction may omit it for
+        // intentionally volatile/in-memory use.
         // See docs/specs/infrastructure.md "Stored-payload unserialize() trust boundary (D-12)".
         $serialized = $this->decodePayload((string) $row['data']);
         if ($serialized === false) {

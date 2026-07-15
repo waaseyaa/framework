@@ -15,6 +15,7 @@ use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
@@ -65,8 +66,16 @@ final class AuditServiceProvider extends ServiceProvider implements ProvidesCons
                 $db = $this->resolve(DatabaseInterface::class);
                 /** @var AuditWriterInterface $writer */
                 $writer = $this->resolve(AuditWriterInterface::class);
+                $applicationSecret = $this->resolve(ApplicationSecret::class);
+                assert($applicationSecret instanceof ApplicationSecret);
 
-                return new VerifyCommand(new AuditChainVerifier($db), $writer);
+                return new VerifyCommand(
+                    new AuditChainVerifier(
+                        $db,
+                        hmacKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_AUDIT_CHECKPOINT_HMAC),
+                    ),
+                    $writer,
+                );
             },
         );
     }

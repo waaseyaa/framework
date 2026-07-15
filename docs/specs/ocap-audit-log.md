@@ -184,8 +184,12 @@ checkpoint is exported through a pluggable **`CheckpointSink`** — the
 (+ optional stdout), but this is only as trustworthy as the host: **real
 tamper-evidence requires configuring an off-box / WORM / external append-only
 sink** (a host able to edit `audit_event` can also edit a local file). Optional
-HMAC over `checkpoint_hash` is supported (`audit.checkpoint_hmac_key`); asymmetric/
-KMS signing is deferred.
+HMAC over `checkpoint_hash` is mandatory in kernel-wired operation. Its raw
+32-byte key is HKDF-SHA-256-derived from `WAASEYAA_APP_SECRET` with purpose
+`waaseyaa.audit.checkpoint-hmac.v1`; the stored form is
+`hmac-sha256.hkdf-v1:<64 lowercase hex>`. The verifier accepts legacy empty or
+bare-hex signatures only before the first HKDF-v1 checkpoint, then requires and
+constant-time verifies every signature. Asymmetric/KMS signing is deferred.
 
 **Verification — `audit:verify` (WP3):** `AuditChainVerifier::verify()` walks every
 sealed segment and returns an `AuditVerificationResult` (`ok`, `firstBrokenId`,
@@ -195,7 +199,7 @@ each row's `prev_hash` links to the previous row's `row_hash` (first row → pri
 `segment_hash`), each row's content recomputes to its stored `row_hash`
 (`AuditEventCanonicalizer`), the last `row_hash` equals the checkpoint's
 `segment_hash`, and the checkpoint's `checkpoint_hash` recomputes. It STOPS at the
-first break with a machine-readable `failureKind` ∈ {`genesis`, `checkpoint_chain`,
+first break with a machine-readable `failureKind` ∈ {`genesis`, `checkpoint_signature`, `checkpoint_chain`,
 `row_count`, `chain_link`, `row_content`, `segment_hash`, `checkpoint_hash`}. Rows
 `id ≤ genesis.segment_end_id` (predates chaining) and rows past the last checkpoint
 (unsealed/pending) are not failures. `bin/waaseyaa audit:verify [--json]` exits 0

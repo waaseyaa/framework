@@ -29,6 +29,7 @@ final class AuditChainVerifier
     public function __construct(
         private readonly DatabaseInterface $database,
         ?LoggerInterface $logger = null,
+        private readonly ?string $hmacKey = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -51,6 +52,7 @@ final class AuditChainVerifier
                     'checkpoint_hash',
                     'is_genesis',
                     'pruned',
+                    'signature',
                 ])
                 ->orderBy('segment_end_id', 'ASC')
                 ->execute(),
@@ -60,6 +62,11 @@ final class AuditChainVerifier
         if ($checkpoints === []) {
             // No checkpoints at all — treat as intact with nothing verified.
             return AuditVerificationResult::intact(0, 0, $this->countUnsealedRows(0));
+        }
+
+        $signatureFailure = $this->verifyCheckpointSignatures($checkpoints);
+        if ($signatureFailure !== null) {
+            return $signatureFailure;
         }
 
         // ----------------------------------------------------------------
@@ -345,5 +352,62 @@ final class AuditChainVerifier
         );
 
         return count($rows);
+    }
+
+    /**
+     * Accept legacy empty/bare-hex signatures only before the first HKDF-v1
+     * signature. From that point forward every checkpoint is authenticated,
+     * preventing a later row from silently downgrading to the legacy format.
+     *
+     * @param list<array<string, mixed>> $checkpoints
+     */
+    private function verifyCheckpointSignatures(array $checkpoints): ?AuditVerificationResult
+    {
+        $authenticatedSuffix = false;
+
+        foreach ($checkpoints as $checkpoint) {
+            $signature = (string) ($checkpoint['signature'] ?? '');
+            $segmentEndId = (int) $checkpoint['segment_end_id'];
+            $isVersioned = str_starts_with($signature, 'hmac-sha256.hkdf-v1:');
+
+            if ($isVersioned) {
+                $authenticatedSuffix = true;
+                $mac = substr($signature, strlen('hmac-sha256.hkdf-v1:'));
+                $validShape = preg_match('/^[0-9a-f]{64}$/D', $mac) === 1;
+                $expected = $this->hmacKey === null
+                    ? null
+                    : hash_hmac('sha256', (string) $checkpoint['checkpoint_hash'], $this->hmacKey);
+
+                if (!$validShape || $expected === null || !hash_equals($expected, $mac)) {
+                    return $this->signatureFailure($segmentEndId, 'invalid authenticated signature');
+                }
+
+                continue;
+            }
+
+            $isLegacy = $signature === '' || preg_match('/^[0-9a-f]{64}$/D', $signature) === 1;
+            if ($authenticatedSuffix || !$isLegacy) {
+                return $this->signatureFailure($segmentEndId, 'missing or malformed authenticated signature');
+            }
+        }
+
+        return null;
+    }
+
+    private function signatureFailure(int $segmentEndId, string $reason): AuditVerificationResult
+    {
+        $this->logger->warning('audit.verify.checkpoint_signature_mismatch', [
+            'segment_end_id' => $segmentEndId,
+            'reason' => $reason,
+        ]);
+
+        return AuditVerificationResult::broken(
+            $segmentEndId,
+            'checkpoint_signature',
+            sprintf('Checkpoint signature verification failed at segment_end_id %d.', $segmentEndId),
+            0,
+            0,
+            $this->countUnsealedRows($segmentEndId),
+        );
     }
 }
