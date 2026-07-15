@@ -11,6 +11,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Audit\Entity\AuditCheckpoint;
 use Waaseyaa\Audit\Integrity\AuditChainVerifier;
 use Waaseyaa\Audit\Integrity\AuditCheckpointBuilder;
+use Waaseyaa\Audit\Integrity\AuditCheckpointHasher;
 use Waaseyaa\Audit\Integrity\CheckpointSink;
 use Waaseyaa\Audit\Integrity\LegacyCheckpointSignatureMigrator;
 use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
@@ -237,6 +238,40 @@ final class AuditChainVerifierTest extends TestCase
 
         $this->db->getConnection()->executeStatement(
             "UPDATE audit_checkpoint SET signature = REPLACE(signature, 'hmac-sha256.hkdf-v1:', '') WHERE is_genesis = 0",
+        );
+
+        $result = $this->verifier($key)->verify();
+
+        self::assertFalse($result->ok);
+        self::assertSame('checkpoint_signature', $result->failureKind);
+    }
+
+    #[Test]
+    public function configured_key_requires_authenticated_verification_when_checkpoint_fields_change(): void
+    {
+        $key = random_bytes(32);
+        new AuditEventSchemaHandler($this->db, $key)->ensureSchema();
+        $this->insertEvent('authenticated-checkpoint');
+        $this->seal($key);
+
+        $genesisHash = (string) $this->db->getConnection()->fetchOne(
+            'SELECT checkpoint_hash FROM audit_checkpoint WHERE is_genesis = 1',
+        );
+        $replacementSegmentHash = hash('sha256', 'replacement-segment');
+        $replacementCheckpointHash = AuditCheckpointHasher::checkpointHash(
+            1,
+            1,
+            1,
+            $replacementSegmentHash,
+            $genesisHash,
+        );
+
+        $this->db->getConnection()->executeStatement(
+            "UPDATE audit_checkpoint SET signature = REPLACE(signature, 'hmac-sha256.hkdf-v1:', '') WHERE is_genesis = 1",
+        );
+        $this->db->getConnection()->executeStatement(
+            'UPDATE audit_checkpoint SET pruned = 1, segment_hash = ?, checkpoint_hash = ?, signature = ? WHERE is_genesis = 0',
+            [$replacementSegmentHash, $replacementCheckpointHash, hash_hmac('sha256', $replacementCheckpointHash, $key)],
         );
 
         $result = $this->verifier($key)->verify();
