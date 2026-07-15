@@ -1461,6 +1461,8 @@ After routing matches, `HttpKernel` builds an `HttpPipeline` of HTTP middleware 
 
 If any middleware short-circuits — for example `AuthorizationMiddleware` returning **302** to `/login` for unauthenticated `_authenticated` render routes, or **401** JSON:API for API routes — it does not call the terminal handler and its response is returned through the outer response-side middleware. Otherwise every middleware unwinds over the real dispatched response, including non-200 controller responses.
 
+Exceptions thrown by terminal dispatch setup (including provider router construction) bubble through the pipeline to the outer `HttpKernel::handle()` catch, preserving the established unhandled-exception JSON detail and log classification. The narrower local pipeline catch remains responsible only for exceptions originating in middleware.
+
 ### Response-side middleware contract
 
 `CsrfMiddleware` attaches `XSRF-TOKEN` while unwinding over a final `text/html` response. `SecurityHeadersMiddleware` applies framing and MIME-sniffing defaults in the same response phase. Provider middleware contributed through `HasMiddlewareInterface` gets the identical supported hook: code after `$next->handle($request)` receives the final response and may return a replacement or decorated response.

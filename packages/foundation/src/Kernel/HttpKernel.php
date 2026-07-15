@@ -293,27 +293,44 @@ final class HttpKernel extends AbstractKernel
         $httpRequest = $matchResult;
 
         $pipeline = $this->buildMiddlewareStack();
+        $terminalFailure = new class {
+            public ?\Throwable $exception = null;
+        };
+        $terminalDispatch = function (HttpRequest $request) use ($broadcastStorage, $terminalFailure): HttpResponse {
+            try {
+                return $this->dispatchMatchedRequest($request, $broadcastStorage);
+            } catch (\Throwable $e) {
+                // Keep terminal dispatch on HttpKernel::handle()'s established
+                // unhandled-exception surface. The local catch below remains
+                // responsible only for middleware failures, as it was before
+                // dispatch became the pipeline's real terminal handler.
+                $terminalFailure->exception = $e;
+
+                throw $e;
+            }
+        };
 
         try {
             return $pipeline->handle(
                 $httpRequest,
-                new class ($this->dispatchMatchedRequest(...), $broadcastStorage) implements HttpHandlerInterface {
-                    /** @param \Closure(HttpRequest, BroadcastStorage): HttpResponse $dispatch */
-                    public function __construct(
-                        private readonly \Closure $dispatch,
-                        private readonly BroadcastStorage $broadcastStorage,
-                    ) {}
+                new class ($terminalDispatch) implements HttpHandlerInterface {
+                    /** @param \Closure(HttpRequest): HttpResponse $dispatch */
+                    public function __construct(private readonly \Closure $dispatch) {}
 
                     public function handle(HttpRequest $request): HttpResponse
                     {
-                        return ($this->dispatch)($request, $this->broadcastStorage);
+                        return ($this->dispatch)($request);
                     }
                 },
             );
         } catch (\Throwable $e) {
-            $this->logger->critical(sprintf("HTTP middleware/dispatch pipeline error: %s in %s:%d\n%s", $e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString()));
+            if ($e === $terminalFailure->exception) {
+                throw $e;
+            }
 
-            return $this->jsonApiResponse(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'An HTTP request processing error occurred.']]]);
+            $this->logger->critical(sprintf("Authorization pipeline error: %s in %s:%d\n%s", $e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString()));
+
+            return $this->jsonApiResponse(500, ['jsonapi' => ['version' => '1.1'], 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'An authorization error occurred.']]]);
         }
     }
 
