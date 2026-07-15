@@ -3,7 +3,7 @@
 // (the sanctioned UI read side — group- and permission-filtered, per WP-2/WP-3)
 // and posts /api/{entityType}/{id}/workflow/transition. Modeled on
 // useWorkflowDefinitions.ts: always goes through useApi().apiFetch, never raw
-// $fetch, so the admin subpath baseURL is respected.
+// $fetch, so the canonical root /api base is independent of the admin mount.
 
 export interface WorkflowTransitionItem {
   id: string
@@ -26,6 +26,13 @@ interface WorkflowTransitionApplyResponse {
   data: WorkflowTransitionApplyResult
 }
 
+export type WorkflowTransitionErrorKind =
+  | 'forbidden'
+  | 'not_found'
+  | 'malformed_response'
+  | 'network'
+  | 'server'
+
 export function useWorkflowTransitions() {
   const { apiFetch } = useApi()
 
@@ -33,6 +40,7 @@ export function useWorkflowTransitions() {
   const state = ref<string | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const errorKind = ref<WorkflowTransitionErrorKind | null>(null)
 
   async function fetchTransitions(
     entityType: string,
@@ -40,22 +48,37 @@ export function useWorkflowTransitions() {
   ): Promise<{ transitions: WorkflowTransitionItem[]; state: string | null }> {
     loading.value = true
     error.value = null
+    errorKind.value = null
     try {
       const response = await apiFetch<WorkflowTransitionsResponse>(
         `/api/${entityType}/${encodeURIComponent(id)}/workflow/transitions`,
       )
-      transitions.value = response.data ?? []
+
+      if (!isWorkflowTransitionsResponse(response)) {
+        throw new WorkflowTransitionResponseError()
+      }
+
+      transitions.value = response.data
       state.value = response.meta?.workflow_state ?? null
     } catch (e: unknown) {
-      const err = e as { data?: { errors?: Array<{ detail?: string }> }; message?: string; response?: { status?: number }; statusCode?: number }
+      transitions.value = []
+      state.value = null
+
+      if (e instanceof WorkflowTransitionResponseError) {
+        errorKind.value = 'malformed_response'
+        error.value = 'Workflow discovery returned an invalid response.'
+        return { transitions: transitions.value, state: state.value }
+      }
+
+      const err = e as { data?: unknown; message?: string; response?: { status?: number }; statusCode?: number; cause?: unknown }
       const statusCode = err?.response?.status ?? err?.statusCode ?? 0
       if (statusCode === 404) {
         // Entity missing or not viewable — the canonical "no transitions" shape.
         // Render nothing, not an error (R8 oracle standard — see WP-4 plan).
-        transitions.value = []
-        state.value = null
+        errorKind.value = 'not_found'
       } else {
-        error.value = err?.data?.errors?.[0]?.detail ?? err?.message ?? 'Failed to load workflow transitions.'
+        errorKind.value = classifyWorkflowTransitionError(err, statusCode)
+        error.value = jsonApiErrorDetail(err?.data) ?? err?.message ?? 'Failed to load workflow transitions.'
       }
     } finally {
       loading.value = false
@@ -75,5 +98,54 @@ export function useWorkflowTransitions() {
     return response.data
   }
 
-  return { transitions, state, loading, error, fetchTransitions, applyTransition }
+  return { transitions, state, loading, error, errorKind, fetchTransitions, applyTransition }
+}
+
+class WorkflowTransitionResponseError extends Error {}
+
+function isWorkflowTransitionsResponse(value: unknown): value is WorkflowTransitionsResponse {
+  if (typeof value !== 'object' || value === null || !Array.isArray((value as WorkflowTransitionsResponse).data)) {
+    return false
+  }
+
+  return (value as WorkflowTransitionsResponse).data.every((transition) =>
+    typeof transition === 'object'
+    && transition !== null
+    && typeof transition.id === 'string'
+    && typeof transition.label === 'string'
+    && typeof transition.to === 'string',
+  )
+}
+
+function jsonApiErrorDetail(value: unknown): string | null {
+  if (typeof value !== 'object' || value === null) return null
+
+  const directErrors = (value as { errors?: unknown }).errors
+  if (Array.isArray(directErrors) && typeof directErrors[0]?.detail === 'string') {
+    return directErrors[0].detail
+  }
+
+  return jsonApiErrorDetail((value as { data?: unknown }).data)
+}
+
+function hasTypeErrorCause(value: unknown): boolean {
+  let current = value
+  const seen = new Set<unknown>()
+
+  while (typeof current === 'object' && current !== null && !seen.has(current)) {
+    if (current instanceof TypeError) return true
+    seen.add(current)
+    current = (current as { cause?: unknown }).cause
+  }
+
+  return false
+}
+
+export function classifyWorkflowTransitionError(
+  error: unknown,
+  statusCode: number,
+): Exclude<WorkflowTransitionErrorKind, 'not_found' | 'malformed_response'> {
+  if (statusCode === 403) return 'forbidden'
+  if (statusCode === 0 || hasTypeErrorCause(error)) return 'network'
+  return 'server'
 }

@@ -37,6 +37,8 @@
   "workflow_history_at": "at",
   "workflow_transitioned": "Transition applied.",
   "workflow_transition_error_generic": "Failed to apply the workflow transition.",
+  "workflow_transitions_loading": "Loading workflow transitions.",
+  "workflow_transitions_empty": "No workflow transitions are currently available.",
   "workflow_state_column_label": "Workflow state",
   "confirm_delete": "Are you sure you want to delete this item?",
   "entity_created": "Created successfully.",

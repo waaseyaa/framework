@@ -1,5 +1,7 @@
 # Admin SPA
 
+<!-- Spec reviewed 2026-07-15 - #2048: mounted admin workflow/API transport now keeps the Nuxt app base (`/admin/`) separate from the canonical JSON API base (`/`). The admin SPA catch-all excludes both `_surface` and `api` path segments, so missing `/admin/api/*` requests remain non-success API-looking misses rather than `200 text/html`. Workflow discovery validates the response shape and models loading, bound/no-transition, 403, 404, malformed, network, and server failures explicitly; transition submission is single-flight and errors are announced. GenericAdminSurfaceHost resolves bundle-specific workflow binding metadata as `x-workflow` and removes raw `workflow_state` and `status` properties only from bound schemas; unbound schemas preserve their prior fields. -->
+
 <!-- Spec reviewed 2026-07-15 - #2047: generic bundled create is a two-stage schema flow. The mounted provider supplies SchemaPresenter's field registry; base schemas advertise the schema-declared bundle key plus registered enum, create-mode SchemaForm requests an explicit bundle scope, drops stale prior-bundle values, and submits the selected key/value. Schema transport/cache scopes are typed as {id?, bundle?}; unbundled creation remains one-stage. -->
 
 <!-- Spec reviewed 2026-07-14 - R21 WP4 (#2010): GenericAdminSurfaceHost now enforces configured readOnlyTypes at the server write boundary for create/update/delete, not only as catalogue UI capabilities. list() pushes filters, sort, pagination, and access-bound candidate selection through EntityQueryInterface instead of unconditionally hydrating the whole table with findBy([]). For a requested filter/sort, it resolves per-entity field access first and, when a filter field is Forbidden on some entities, constrains both page and count queries to the resulting ID scope before caller conditions/range run; fully viewable filters retain the unscoped SQL fast path. A dynamically Forbidden filter field therefore excludes that entity without consuming the visible page, and a dynamic Forbidden sort is rejected with 400 value-independently. Access-checked count() returns [survivorCount], which the host consumes as a scalar rather than misreading it as entity IDs. -->
@@ -173,6 +175,14 @@ Presentation map (server): `EntityValues::toCastAwareMap` → `ResourceSerialize
 
 The admin SPA is served under the `/admin/` subpath, configured via `app.baseURL: '/admin/'` in nuxt.config.ts. Playwright E2E tests also use `http://localhost:3000/admin` as the base URL.
 
+The app mount is not an API prefix. Framework JSON API routes remain rooted at
+`/api/*`, so `useApi()` always supplies `baseURL: '/'`. The PHP admin SPA
+catch-all accepts ordinary client-side routes below `/admin/*` but excludes the
+first path segments `_surface` and `api`. Consequently an unknown
+`/admin/api/*` path cannot be converted into a successful HTML shell response;
+the router's normal non-success missing-route response remains visible, including
+its actual content type.
+
 ### Runtime Config
 
 Exposed via `useRuntimeConfig().public`:
@@ -269,6 +279,7 @@ interface SchemaProperty {
 interface EntitySchema {
   $schema: string; title: string; description: string; type: string
   'x-entity-type': string; 'x-translatable': boolean; 'x-revisionable': boolean
+  'x-workflow'?: { bound: boolean; id: string | null }
   properties: Record<string, SchemaProperty>; required?: string[]
 }
 ```
@@ -291,6 +302,14 @@ interface EntitySchema {
   without create permission receives 403. Discovery remains structural schema
   metadata for the authenticated admin session; it does not add a second,
   selector-specific authorization policy.
+- **Workflow-owned fields:** when the workflows binding resolver is available,
+  a scoped schema includes `x-workflow: { bound, id }`. A bound schema omits
+  `workflow_state` and `status` from `properties`: state and publication are
+  changed only through server-returned transitions, never a free-text field or
+  unrelated checkbox. An unbound schema reports `bound: false` and preserves
+  those ordinary fields exactly. Exact bundle bindings use the explicit/edit
+  bundle scope; the base schema can identify wildcard bindings without guessing
+  an exact bundle.
 - Module-level `Map<string, EntitySchema>` cache keys include entity type, id, and
   bundle independently, so base, edit, and per-bundle schemas cannot collide.
   `invalidate(scope?)` clears the matching scoped key.
@@ -801,6 +820,11 @@ That means `useAuth()` does not establish an independent session source of truth
 - Autocomplete: full `combobox` pattern with `listbox`/`option` roles
 - Delete buttons include entity label in `aria-label`
 - Live region: `<div role="status" aria-live="polite">` announces pagination changes
+- Workflow discovery announces loading and a bound no-transition state through
+  polite status regions. Fetch/apply failures use assertive alert regions;
+  native transition buttons retain keyboard activation and explicit accessible
+  names, and all controls are disabled behind a same-tick single-flight guard
+  during submission.
 - Screen-reader-only class: `.sr-only` for visually hidden announcements
 - Responsive: sidebar collapses to off-canvas drawer below 768px with overlay
 

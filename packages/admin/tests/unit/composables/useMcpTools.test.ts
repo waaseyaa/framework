@@ -14,7 +14,7 @@ const seed = {
 let storedRows: typeof seed[] = []
 let nextStatus = 200
 
-registerEndpoint('/admin/api/mcp/tools', () => {
+registerEndpoint('/api/mcp/tools', () => {
   if (nextStatus !== 200) {
     throw createError({ status: nextStatus, message: 'server error' })
   }

@@ -21,11 +21,11 @@ let nextTriggerResponse: { status: number, body?: unknown } = {
   body: { status: 'success', message: 'Task "nightly-sync" completed.' },
 }
 
-registerEndpoint('/admin/api/scheduler/tasks', () => ({
+registerEndpoint('/api/scheduler/tasks', () => ({
   data: storedTasks,
 }))
 
-registerEndpoint('/admin/api/scheduler/tasks/nightly-sync/trigger', {
+registerEndpoint('/api/scheduler/tasks/nightly-sync/trigger', {
   method: 'POST',
   handler: (event: unknown) => {
     triggerCalls.push('nightly-sync')

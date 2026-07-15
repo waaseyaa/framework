@@ -18,6 +18,7 @@ const archiveTransition = { id: 'archive', label: 'Archive', to: 'archived' }
 const transitionsRef = ref<Array<{ id: string; label: string; to: string }>>([])
 const stateRef = ref<string | null>(null)
 const fetchErrorRef = ref<string | null>(null)
+const loadingRef = ref(false)
 
 const { fetchTransitionsMock, applyTransitionMock } = vi.hoisted(() => ({
   fetchTransitionsMock: vi.fn(),
@@ -32,7 +33,7 @@ vi.mock('~/composables/useWorkflowTransitions', () => ({
   useWorkflowTransitions: () => ({
     transitions: transitionsRef,
     state: stateRef,
-    loading: ref(false),
+    loading: loadingRef,
     error: fetchErrorRef,
     fetchTransitions: fetchTransitionsMock,
     applyTransition: applyTransitionMock,
@@ -46,6 +47,7 @@ beforeEach(() => {
   transitionsRef.value = []
   stateRef.value = null
   fetchErrorRef.value = null
+  loadingRef.value = false
 })
 
 async function mountControls() {
@@ -74,6 +76,34 @@ describe('TransitionControls populated path', () => {
     expect(buttons[0]!.text()).toContain('published')
     expect(buttons[1]!.text()).toContain('Archive')
     expect(buttons[1]!.text()).toContain('archived')
+    expect(buttons[0]!.element.tagName).toBe('BUTTON')
+    expect(buttons[0]!.attributes('type')).toBe('button')
+    expect(buttons[0]!.attributes('disabled')).toBeUndefined()
+    expect(buttons[0]!.attributes('aria-label')).toContain('Publish')
+  })
+
+  it('announces loading and exposes no transition button before discovery completes', async () => {
+    let resolveFetch: (() => void) | undefined
+    loadingRef.value = true
+    fetchTransitionsMock.mockImplementation(() => new Promise((resolve) => {
+      resolveFetch = () => {
+        loadingRef.value = false
+        transitionsRef.value = [publishTransition]
+        resolve({ transitions: transitionsRef.value, state: 'review' })
+      }
+    }))
+
+    const { default: TransitionControls } = await import('~/components/workflow/TransitionControls.vue')
+    const wrapper = await mountSuspended(TransitionControls, {
+      props: { entityType: 'node', entityId: '5' },
+    })
+
+    expect(wrapper.findAll('button')).toHaveLength(0)
+    expect(wrapper.get('[role="status"]').attributes('aria-live')).toBe('polite')
+
+    resolveFetch?.()
+    await flushPromises()
+    expect(wrapper.findAll('button')).toHaveLength(1)
   })
 })
 
@@ -89,6 +119,19 @@ describe('TransitionControls empty path', () => {
 
     expect(wrapper.findAll('button')).toHaveLength(0)
     expect(wrapper.find('.transition-controls').exists()).toBe(false)
+  })
+
+  it('announces a bound state with no currently available transitions', async () => {
+    fetchTransitionsMock.mockImplementation(async () => {
+      transitionsRef.value = []
+      stateRef.value = 'review'
+      return { transitions: [], state: 'review' }
+    })
+
+    const wrapper = await mountControls()
+
+    expect(wrapper.findAll('button')).toHaveLength(0)
+    expect(wrapper.get('[data-testid="transition-empty"]').attributes('role')).toBe('status')
   })
 
   it('renders nothing when the transitions fetch 404s (composable resolves empty)', async () => {
@@ -180,6 +223,24 @@ describe('TransitionControls apply transition', () => {
     await flushPromises()
   })
 
+  it('guards against duplicate submission before the disabled state renders', async () => {
+    let resolveApply: (value: unknown) => void = () => {}
+    fetchTransitionsMock.mockImplementation(async () => {
+      transitionsRef.value = [publishTransition]
+      return { transitions: transitionsRef.value, state: 'review' }
+    })
+    applyTransitionMock.mockImplementation(() => new Promise((resolve) => { resolveApply = resolve }))
+
+    const wrapper = await mountControls()
+    const vm = wrapper.vm as unknown as { apply: (id: string) => Promise<void> }
+    const first = vm.apply('publish')
+    const second = vm.apply('publish')
+
+    expect(applyTransitionMock).toHaveBeenCalledTimes(1)
+    resolveApply({ transition: 'publish', from: 'review', to: 'published' })
+    await Promise.all([first, second])
+  })
+
   it('shows an inline .error div with the JSON:API denial detail on a 403', async () => {
     fetchTransitionsMock.mockImplementation(async () => {
       transitionsRef.value = [publishTransition]
@@ -198,6 +259,8 @@ describe('TransitionControls apply transition', () => {
 
     const errorEl = wrapper.get('.error')
     expect(errorEl.text()).toBe('You do not have permission to publish this content.')
+    expect(errorEl.attributes('role')).toBe('alert')
+    expect(errorEl.attributes('aria-live')).toBe('assertive')
     // A failed apply does not re-fetch — only the mount-time fetch happened.
     expect(fetchTransitionsMock).toHaveBeenCalledTimes(1)
   })

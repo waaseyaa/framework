@@ -1,11 +1,10 @@
 export function useApi() {
-  const config = useRuntimeConfig()
-  const appBase = (config.app.baseURL as string) || '/'
-  const baseURL = appBase.endsWith('/') ? appBase : `${appBase}/`
-
   async function apiFetch<T>(path: string, options: Record<string, unknown> = {}): Promise<T> {
     return $fetch<T>(path, {
-      baseURL,
+      // JSON API routes are rooted at /api, independently of the Nuxt app's
+      // mount path. Using app.baseURL here rewrites /api to /admin/api when
+      // the SPA is mounted at /admin and lets the HTML catch-all swallow it.
+      baseURL: '/',
       credentials: 'include',
       ...options,
     } as any)

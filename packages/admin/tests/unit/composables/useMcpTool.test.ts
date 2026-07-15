@@ -34,7 +34,7 @@ const detailSeed = {
 let nextSuccessResponse: { status: number } = { status: 200 }
 let nextFailResponse: { status: number } = { status: 404 }
 
-registerEndpoint('/admin/api/mcp/tools/bimaaji.search_specs', (event: unknown) => {
+registerEndpoint('/api/mcp/tools/bimaaji.search_specs', (event: unknown) => {
   if (nextSuccessResponse.status !== 200) {
     const e = event as { node?: { res?: { statusCode: number } } }
     if (e.node?.res) e.node.res.statusCode = nextSuccessResponse.status
@@ -43,7 +43,7 @@ registerEndpoint('/admin/api/mcp/tools/bimaaji.search_specs', (event: unknown) =
   return { data: { tool: detailSeed } }
 })
 
-registerEndpoint('/admin/api/mcp/tools/unknown-tool', (event: unknown) => {
+registerEndpoint('/api/mcp/tools/unknown-tool', (event: unknown) => {
   const e = event as { node?: { res?: { statusCode: number } } }
   if (e.node?.res) e.node.res.statusCode = nextFailResponse.status
   throw createError({ status: nextFailResponse.status, message: 'not found' })

@@ -15,11 +15,11 @@ let nextTestResponse: {
   body: { type: 'mail', status: 'success', message: 'Test sent.' },
 }
 
-registerEndpoint('/admin/api/notification/channels', () => ({
+registerEndpoint('/api/notification/channels', () => ({
   data: storedChannels,
 }))
 
-registerEndpoint('/admin/api/notification/channels/mail/test', {
+registerEndpoint('/api/notification/channels/mail/test', {
   method: 'POST',
   handler: (event: unknown) => {
     testCalls.push('mail')
@@ -32,7 +32,7 @@ registerEndpoint('/admin/api/notification/channels/mail/test', {
   },
 })
 
-registerEndpoint('/admin/api/notification/channels/database/test', {
+registerEndpoint('/api/notification/channels/database/test', {
   method: 'POST',
   handler: (event: unknown) => {
     testCalls.push('database')

@@ -19,6 +19,7 @@ use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Api\Schema\SchemaPresenter;
 use Waaseyaa\Entity\ConfigEntityBase;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 
 /**
  * Generic admin surface host that works with any Waaseyaa application.
@@ -59,6 +60,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         private readonly string $tenantName = 'Waaseyaa',
         private readonly string $adminPermission = 'administer content',
         private readonly array $readOnlyTypes = [],
+        private readonly ?WorkflowBindingResolver $workflowBindingResolver = null,
     ) {}
 
     public function resolveSession(Request $request): ?AdminSurfaceSessionData
@@ -537,6 +539,28 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         $schema = $doc->meta['schema'] ?? null;
         if (!is_array($schema)) {
             return AdminSurfaceResultData::error(500, 'Internal error', 'Schema payload missing.');
+        }
+
+        if ($this->workflowBindingResolver !== null) {
+            $bundle = $this->resolveSchemaBundle($type, $payload);
+            $definition = $this->entityTypeManager->getDefinition($type);
+            $bindingBundle = $bundle
+                ?? (isset($definition->getKeys()['bundle']) ? '*' : $type);
+            $workflow = $this->workflowBindingResolver->resolve($type, $bindingBundle);
+            $schema['x-workflow'] = [
+                'bound' => $workflow !== null,
+                'id' => $workflow?->id(),
+            ];
+
+            if ($workflow !== null) {
+                unset($schema['properties']['workflow_state'], $schema['properties']['status']);
+                if (isset($schema['required']) && is_array($schema['required'])) {
+                    $schema['required'] = array_values(array_filter(
+                        $schema['required'],
+                        static fn(mixed $field): bool => !in_array($field, ['workflow_state', 'status'], true),
+                    ));
+                }
+            }
         }
 
         return AdminSurfaceResultData::success($schema);

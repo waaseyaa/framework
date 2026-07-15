@@ -240,7 +240,7 @@ final class AdminSurfaceServiceProviderTest extends TestCase
             ->methods('GET')
             ->allowAll()
             ->controller(static fn() => new \Symfony\Component\HttpFoundation\Response('spa'))
-            ->requirement('path', '(?!_surface(/|$)).*')
+            ->requirement('path', '(?!(?:_surface|api)(?:/|$)).*')
             ->default('path', '')
             ->build());
 
