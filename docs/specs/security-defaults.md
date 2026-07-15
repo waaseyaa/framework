@@ -63,16 +63,16 @@ Access enforcement happens at the resolver level via `GraphQlAccessGuard`. Mutat
 
 ### HTTP response security headers
 
-`HttpKernel` applies framing / MIME-sniffing headers to **every dispatched response** via `SecurityHeadersMiddleware::applyResponseDefaults()`, called post-dispatch (#1651):
+`HttpKernel` wires `SecurityHeadersMiddleware` around real controller/domain-router dispatch, so framing / MIME-sniffing headers reach **every dispatched response** during the pipeline's response phase:
 
 | Header | Default | Notes |
 |--------|---------|-------|
 | `X-Frame-Options` | `SAMEORIGIN` | Blocks cross-origin framing (clickjacking) while preserving same-origin inline previews. Configurable via `security_headers.frame_options`. **Omitted** when the matched route set the `_frame_exempt` request attribute (`SecurityHeadersMiddleware::FRAME_EXEMPT_ATTRIBUTE`) — the per-route opt-out for content meant to be framed cross-origin. |
 | `X-Content-Type-Options` | `nosniff` | Always applied. |
 
-> **Why post-dispatch, not a pipeline middleware:** `SecurityHeadersMiddleware`'s `process()` carries `#[AsMiddleware(pipeline: http, priority: 100)]` but is **not** wired into the runtime authorization pipeline — that pipeline's inner handler returns a stub empty `200`, so a pipeline middleware would decorate the stub, never the controller's real response (the same reason `CsrfMiddleware::attachCookieIfHtml` runs post-dispatch). Before #1651 the middleware was compiled into the manifest but never instantiated, so every response was frameable. See [middleware-pipeline.md](middleware-pipeline.md).
+Provider-contributed HTTP middleware uses the same onion response phase: code after `$next->handle()` receives the final response. This is the supported app hook for response headers, cookies, compression, and equivalent response decoration. See [middleware-pipeline.md](middleware-pipeline.md).
 
-`Content-Security-Policy` and `Strict-Transport-Security` are **opt-in**, NOT applied by default: `default-src 'self'` would break consumer SPAs and same-origin inline previews, and HSTS needs HTTPS certainty. A deployment that wants them constructs `SecurityHeadersMiddleware($csp, $hstsEnabled, $hstsMaxAge)` and applies it deliberately (the constructor defaults remain `default-src 'self'` / `X-Frame-Options: DENY` / HSTS-on for that explicit path).
+`Content-Security-Policy` and `Strict-Transport-Security` are **opt-in**, NOT applied by the kernel defaults: `default-src 'self'` would break consumer SPAs and same-origin inline previews, and HSTS needs HTTPS certainty. A deployment that wants them contributes an explicitly configured `SecurityHeadersMiddleware($csp, $hstsEnabled, $hstsMaxAge)` from its provider (the constructor defaults remain `default-src 'self'` / `X-Frame-Options: DENY` / HSTS-on for that explicit path).
 
 ### Rate limiting
 

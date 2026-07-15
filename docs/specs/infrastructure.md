@@ -1453,27 +1453,27 @@ CORS origin resolution in `HttpKernel::handleCors()`:
 2. Checks `WAASEYAA_CORS_ORIGIN` env var — if set, overrides the config array with a single-origin list.
 3. Passes `allowDevLocalhostPorts: true` when the kernel is in development mode (env is `dev`, `development`, `local`, or `testing`), allowing any localhost port.
 
-### HTTP authorization pipeline (`HttpKernel::serveHttpRequest`)
+### HTTP middleware and dispatch pipeline (`HttpKernel::serveHttpRequest`)
 
-`serveHttpRequest()` orchestrates three focused private steps: `matchRoute()` (builds the `WaaseyaaRouter`, matches the path, populates `HttpRequest` attributes — returns `HttpResponse` on 404/405/500), `buildMiddlewareStack()` (assembles and sorts the auth pipeline, returns `HttpPipeline`), and `buildRouterChain()` (assembles domain routers + `BroadcastRouter`, returns `ControllerDispatcher`). Each is a pure code-movement extraction with no behavior change.
+`serveHttpRequest()` orchestrates three focused private steps: `matchRoute()` (builds the `WaaseyaaRouter`, matches the path, populates `HttpRequest` attributes — returns `HttpResponse` on 404/405/500), `buildMiddlewareStack()` (assembles and sorts the HTTP pipeline, returns `HttpPipeline`), and `buildRouterChain()` (assembles domain routers + `BroadcastRouter`, returns `ControllerDispatcher`).
 
-After routing matches, `HttpKernel` builds an `HttpPipeline` of HTTP middleware (Bearer auth, session, CSRF, `AuthorizationMiddleware`, provider middleware). The inner handler is a stub that returns **200** with an empty body when the entire chain allows the request through.
+After routing matches, `HttpKernel` builds an `HttpPipeline` of HTTP middleware (security headers, Bearer auth, session, CSRF, `AuthorizationMiddleware`, provider middleware). Its terminal handler performs request-body preparation and real controller/domain-router dispatch.
 
-If any middleware short-circuits — for example `AuthorizationMiddleware` returning **302** to `/login` for unauthenticated `_authenticated` render routes, or **401** JSON:API for API routes — that response **must** be returned to the client immediately. The kernel treats any pipeline response whose status is **not 200** as final and does not continue to `ControllerDispatcher`. Only **200** from the pipeline means proceed to dispatch.
+If any middleware short-circuits — for example `AuthorizationMiddleware` returning **302** to `/login` for unauthenticated `_authenticated` render routes, or **401** JSON:API for API routes — it does not call the terminal handler and its response is returned through the outer response-side middleware. Otherwise every middleware unwinds over the real dispatched response, including non-200 controller responses.
 
-### XSRF-TOKEN cookie hook (`HttpKernel::serveHttpRequest`)
+Exceptions thrown by terminal dispatch setup (including provider router construction) bubble through the pipeline to the outer `HttpKernel::handle()` catch, preserving the established unhandled-exception JSON detail and log classification. The narrower local pipeline catch remains responsible only for exceptions originating in middleware.
 
-After `ControllerDispatcher` returns the final controller response, `serveHttpRequest` calls `CsrfMiddleware::attachCookieIfHtml($httpRequest, $finalResponse)` (around line 419). This pairs with the request-side CSRF middleware step earlier in the auth pipeline.
+### Response-side middleware contract
 
-The separation exists because the auth pipeline inner-handler stub returns a bare 200 with no Content-Type; `CsrfMiddleware::attachXsrfCookie` therefore sees no `text/html` response and cannot write the cookie. The kernel post-dispatch hook runs against the real controller response, which carries the correct Content-Type and headers.
+`CsrfMiddleware` attaches `XSRF-TOKEN` while unwinding over a final `text/html` response. `SecurityHeadersMiddleware` applies framing and MIME-sniffing defaults in the same response phase. Provider middleware contributed through `HasMiddlewareInterface` gets the identical supported hook: code after `$next->handle($request)` receives the final response and may return a replacement or decorated response.
 
-Behaviour of the hook:
+Behaviour of the CSRF response step:
 
 - **Restricted to `text/html`** — skips JSON, octet-stream, and any other primary Content-Type.
 - **Idempotent** — no-ops if an `XSRF-TOKEN` cookie is already present on the response (the middleware may have set it for non-validating GET requests that pass through without the 200-stub issue).
 - **Session guard** — returns immediately if no PHP session is active or the session token key is absent.
 
-This hook is the only post-dispatch mutation `serveHttpRequest` applies to the controller response; everything else (CORS, debug headers) is handled earlier in the pipeline.
+The kernel does not duplicate these mutations after dispatch; the middleware onion is the response phase.
 
 ### SlugGenerator (Unicode-preserving slugs)
 
