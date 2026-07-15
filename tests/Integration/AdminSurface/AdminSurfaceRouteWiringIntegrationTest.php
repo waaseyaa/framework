@@ -20,6 +20,9 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionRegistry;
+use Waaseyaa\Foundation\Discovery\PackageManifest;
+use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistry;
+use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Routing\WaaseyaaRouter;
 
@@ -328,5 +331,69 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
         self::assertTrue($page['ok']);
         self::assertArrayHasKey('page_body', $page['data']['properties']);
         self::assertArrayNotHasKey('post_excerpt', $page['data']['properties']);
+    }
+
+    /**
+     * #2047 regression: exercise the production ProviderRegistry bus rather
+     * than supplying a test-double KernelServicesInterface. The mounted admin
+     * provider must receive the populated registry owned by the kernel manager.
+     */
+    #[Test]
+    public function realProviderRegistrationMountsTheCanonicalPopulatedRegistry(): void
+    {
+        $dispatcher = new EventDispatcher();
+        $registry = new FieldDefinitionRegistry();
+        $manager = new EntityTypeManager($dispatcher, fieldRegistry: $registry);
+        $manager->registerEntityType(new EntityType(
+            id: 'node',
+            label: 'Node',
+            class: TestEntity::class,
+            keys: TestEntity::definitionKeys(),
+        ));
+
+        foreach (['tribe_events', 'post', 'page', 'job_posting', 'announcement'] as $bundle) {
+            $registry->registerBundleFields('node', $bundle, [
+                new FieldDefinition(
+                    name: $bundle . '_field',
+                    type: 'string',
+                    targetEntityTypeId: 'node',
+                    targetBundle: $bundle,
+                    label: $bundle . ' field',
+                ),
+            ]);
+        }
+
+        $providers = new ProviderRegistry(new NullLogger())->discoverAndRegister(
+            manifest: new PackageManifest(providers: [AdminSurfaceServiceProvider::class]),
+            projectRoot: sys_get_temp_dir(),
+            config: [],
+            entityTypeManager: $manager,
+            database: \Waaseyaa\Database\DBALDatabase::createSqlite(),
+            dispatcher: $dispatcher,
+            accessHandlerAccessor: static fn(): EntityAccessHandler => new EntityAccessHandler([]),
+        );
+        self::assertCount(1, $providers);
+        self::assertInstanceOf(AdminSurfaceServiceProvider::class, $providers[0]);
+
+        $router = new WaaseyaaRouter(new RequestContext('', 'POST'));
+        $providers[0]->routes($router, $manager);
+        $controller = $router->getRouteCollection()->get('admin_surface.action')?->getDefault('_controller');
+        self::assertIsCallable($controller);
+
+        $account = $this->createStub(AccountInterface::class);
+        $account->method('id')->willReturn(1);
+        $account->method('hasPermission')->willReturn(true);
+        $account->method('getRoles')->willReturn(['administrator']);
+
+        $request = Request::create('/admin/_surface/node/action/schema', 'POST', content: '{}');
+        $request->attributes->set('_account', $account);
+        $base = $controller($request, 'node', 'schema');
+
+        self::assertTrue($base['ok']);
+        self::assertSame('type', $base['data']['x-bundle-key']);
+        self::assertSame(
+            ['announcement', 'job_posting', 'page', 'post', 'tribe_events'],
+            $base['data']['properties']['type']['enum'],
+        );
     }
 }
