@@ -359,23 +359,21 @@ final class AuditChainVerifier
     }
 
     /**
-     * Accept legacy empty/bare-hex signatures only before the first HKDF-v1
-     * signature. From that point forward every checkpoint is authenticated,
-     * preventing a later row from silently downgrading to the legacy format.
+     * Keyed verification is deliberately all-or-nothing: every checkpoint,
+     * including genesis, must carry the versioned derived-key signature. An
+     * unkeyed verifier remains available only for the explicit legacy migration
+     * preflight; it never treats a versioned signature as verified.
      *
      * @param list<array<string, mixed>> $checkpoints
      */
     private function verifyCheckpointSignatures(array $checkpoints): ?AuditVerificationResult
     {
-        $authenticatedSuffix = false;
-
         foreach ($checkpoints as $checkpoint) {
             $signature = (string) ($checkpoint['signature'] ?? '');
             $segmentEndId = (int) $checkpoint['segment_end_id'];
             $isVersioned = str_starts_with($signature, 'hmac-sha256.hkdf-v1:');
 
             if ($isVersioned) {
-                $authenticatedSuffix = true;
                 $mac = substr($signature, strlen('hmac-sha256.hkdf-v1:'));
                 $validShape = preg_match('/^[0-9a-f]{64}$/D', $mac) === 1;
                 $expected = $this->hmacKey === null
@@ -390,7 +388,7 @@ final class AuditChainVerifier
             }
 
             $isLegacy = $signature === '' || preg_match('/^[0-9a-f]{64}$/D', $signature) === 1;
-            if ($authenticatedSuffix || !$isLegacy) {
+            if ($this->hmacKey !== null || !$isLegacy) {
                 return $this->signatureFailure($segmentEndId, 'missing or malformed authenticated signature');
             }
         }

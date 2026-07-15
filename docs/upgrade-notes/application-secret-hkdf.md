@@ -17,10 +17,22 @@ should be removed.
 
 Existing cache rows were signed with a different key or were unsigned, so they
 become ordinary cold misses and self-heal when rewritten. Existing audit
-checkpoints remain verifiable under the legacy hash-chain rules until the first
-new `hmac-sha256.hkdf-v1:` checkpoint is written. From that checkpoint onward,
-`audit:verify` requires and verifies every versioned signature and reports
-`checkpoint_signature` on a missing, malformed, downgraded, or incorrect value.
+checkpoints must be authenticated explicitly before keyed `audit:verify` will
+pass. First take and independently verify a trusted backup, place the application
+in maintenance mode so checkpoint writers are stopped, then run:
+
+```sh
+bin/waaseyaa audit:migrate-checkpoint-signatures --confirm
+bin/waaseyaa audit:verify
+```
+
+The migration transaction first verifies the complete legacy hash chain,
+refuses malformed, mixed, changed, or broken history, signs every checkpoint
+(including genesis), and strict-verifies the result before commit. This step
+establishes authenticity from the operator-chosen migration point forward; it
+cannot prove that a database was not altered before that trusted point. Fresh
+kernel-created schemas sign genesis immediately. Keyed verification rejects any
+missing, bare, malformed, downgraded, or incorrect checkpoint signature.
 
 Local, `dev`, `development`, and `testing` kernels may boot without the variable;
 each kernel instance then gets a random ephemeral master secret. Persisted

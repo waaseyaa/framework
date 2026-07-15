@@ -12,6 +12,7 @@ use Waaseyaa\Audit\Entity\AuditCheckpoint;
 use Waaseyaa\Audit\Integrity\AuditChainVerifier;
 use Waaseyaa\Audit\Integrity\AuditCheckpointBuilder;
 use Waaseyaa\Audit\Integrity\CheckpointSink;
+use Waaseyaa\Audit\Integrity\LegacyCheckpointSignatureMigrator;
 use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
 use Waaseyaa\Database\DBALDatabase;
 
@@ -127,6 +128,7 @@ final class AuditChainVerifierTest extends TestCase
     public function hkdf_checkpoint_signatures_are_versioned_and_verified(): void
     {
         $key = random_bytes(32);
+        new LegacyCheckpointSignatureMigrator($this->db, $key)->migrate();
         $this->insertEvent('signed-1');
         $this->seal($key);
 
@@ -159,8 +161,9 @@ final class AuditChainVerifierTest extends TestCase
         $key = random_bytes(32);
         $builder = new AuditCheckpointBuilder($this->db, $this->nullSink, hmacKey: $key);
         $verifier = new AuditChainVerifier($this->db, hmacKey: $key);
+        $migrator = new LegacyCheckpointSignatureMigrator($this->db, $key);
 
-        foreach ([$builder, $verifier] as $holder) {
+        foreach ([$builder, $verifier, $migrator] as $holder) {
             ob_start();
             var_dump($holder);
             $debug = (string) ob_get_clean() . var_export($holder, true);
@@ -221,6 +224,65 @@ final class AuditChainVerifierTest extends TestCase
 
         self::assertFalse($result->ok);
         self::assertSame('checkpoint_signature', $result->failureKind);
+    }
+
+    #[Test]
+    public function stripping_every_version_prefix_cannot_downgrade_authenticated_history_to_legacy(): void
+    {
+        $key = random_bytes(32);
+        $this->insertEvent('authenticated-1');
+        $this->seal($key);
+        $this->insertEvent('authenticated-2');
+        $this->seal($key);
+
+        $this->db->getConnection()->executeStatement(
+            "UPDATE audit_checkpoint SET signature = REPLACE(signature, 'hmac-sha256.hkdf-v1:', '') WHERE is_genesis = 0",
+        );
+
+        $result = $this->verifier($key)->verify();
+
+        self::assertFalse($result->ok);
+        self::assertSame('checkpoint_signature', $result->failureKind);
+    }
+
+    #[Test]
+    public function explicit_migration_resigns_an_intact_legacy_chain_before_strict_verification(): void
+    {
+        $key = random_bytes(32);
+        $this->insertEvent('legacy-1');
+        $this->seal();
+        $this->insertEvent('legacy-2');
+        $this->seal();
+
+        self::assertFalse($this->verifier($key)->verify()->ok, 'Keyed verification must reject legacy signatures.');
+
+        $migrated = new LegacyCheckpointSignatureMigrator($this->db, $key)->migrate();
+
+        self::assertSame(3, $migrated, 'Genesis and both legacy checkpoints must be re-signed.');
+        self::assertTrue($this->verifier($key)->verify()->ok);
+        $signatures = $this->db->getConnection()->fetchFirstColumn('SELECT signature FROM audit_checkpoint');
+        foreach ($signatures as $signature) {
+            self::assertMatchesRegularExpression('/^hmac-sha256\.hkdf-v1:[0-9a-f]{64}$/D', (string) $signature);
+        }
+    }
+
+    #[Test]
+    public function explicit_migration_refuses_tampered_legacy_history_without_writing_signatures(): void
+    {
+        $key = random_bytes(32);
+        $this->insertEvent('legacy-tampered');
+        $this->seal();
+        $before = $this->db->getConnection()->fetchFirstColumn('SELECT signature FROM audit_checkpoint ORDER BY id');
+        $this->db->getConnection()->executeStatement("UPDATE audit_event SET subject_uri = '/tampered' WHERE id = 1");
+
+        try {
+            new LegacyCheckpointSignatureMigrator($this->db, $key)->migrate();
+            self::fail('Tampered legacy history must not be blessed by migration.');
+        } catch (\RuntimeException $e) {
+            self::assertStringContainsString('refused', $e->getMessage());
+        }
+
+        self::assertSame($before, $this->db->getConnection()->fetchFirstColumn('SELECT signature FROM audit_checkpoint ORDER BY id'));
     }
 
     // ------------------------------------------------------------------

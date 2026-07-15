@@ -109,6 +109,21 @@ final class AuditChainSchemaTest extends TestCase
     }
 
     #[Test]
+    public function fresh_genesis_is_authenticated_when_a_derived_key_is_supplied(): void
+    {
+        $key = random_bytes(32);
+        new AuditEventSchemaHandler($this->raw, $key)->ensureSchema();
+
+        $signature = (string) $this->fetchAllCheckpoints()[0]['signature'];
+
+        self::assertSame(
+            'hmac-sha256.hkdf-v1:' . hash_hmac('sha256', (string) $this->fetchAllCheckpoints()[0]['checkpoint_hash'], $key),
+            $signature,
+        );
+        self::assertFalse(str_contains($signature, $key));
+    }
+
+    #[Test]
     public function genesis_row_has_genesis_hash_as_prev_checkpoint_hash(): void
     {
         $this->handler->ensureSchema();

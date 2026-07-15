@@ -8,7 +8,9 @@ use Waaseyaa\Audit\Contract\AuditQueryInterface;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Integrity\AuditChainVerifier;
 use Waaseyaa\Audit\Integrity\AuditCheckpointBuilder;
+use Waaseyaa\Audit\Integrity\LegacyCheckpointSignatureMigrator;
 use Waaseyaa\CLI\Command\Audit\CheckpointCommand;
+use Waaseyaa\CLI\Command\Audit\MigrateCheckpointSignaturesCommand;
 use Waaseyaa\CLI\Command\Audit\PruneCommand;
 use Waaseyaa\CLI\Command\Audit\VerifyCommand;
 use Waaseyaa\CLI\Command\HandlerCommand;
@@ -78,6 +80,19 @@ final class AuditServiceProvider extends ServiceProvider implements ProvidesCons
                 );
             },
         );
+
+        $this->singleton(
+            MigrateCheckpointSignaturesCommand::class,
+            function (): MigrateCheckpointSignaturesCommand {
+                $applicationSecret = $this->resolve(ApplicationSecret::class);
+                assert($applicationSecret instanceof ApplicationSecret);
+
+                return new MigrateCheckpointSignaturesCommand(new LegacyCheckpointSignatureMigrator(
+                    $this->resolve(DatabaseInterface::class),
+                    $applicationSecret->derive(ApplicationSecret::PURPOSE_AUDIT_CHECKPOINT_HMAC),
+                ));
+            },
+        );
     }
 
     public function consoleCommands(): iterable
@@ -130,6 +145,19 @@ final class AuditServiceProvider extends ServiceProvider implements ProvidesCons
                 ),
             ],
             handler: [VerifyCommand::class, 'execute'],
+        );
+
+        yield new HandlerCommand(
+            name: 'audit:migrate-checkpoint-signatures',
+            description: 'Explicitly authenticate an intact wholly-legacy audit checkpoint chain with the application-derived key.',
+            options: [
+                new HandlerOption(
+                    name: 'confirm',
+                    mode: HandlerOptionMode::None,
+                    description: 'Required after taking and independently verifying a trusted backup.',
+                ),
+            ],
+            handler: [MigrateCheckpointSignaturesCommand::class, 'execute'],
         );
     }
 }

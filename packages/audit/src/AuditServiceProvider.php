@@ -124,7 +124,12 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
         // Ensure schema tables exist.
         $database = $this->resolveOptional(DatabaseInterface::class);
         if ($database instanceof DatabaseInterface) {
-            $schemaHandler = new AuditEventSchemaHandler($database);
+            $applicationSecret = $this->resolve(ApplicationSecret::class);
+            assert($applicationSecret instanceof ApplicationSecret);
+            $schemaHandler = new AuditEventSchemaHandler(
+                $database,
+                $applicationSecret->derive(ApplicationSecret::PURPOSE_AUDIT_CHECKPOINT_HMAC),
+            );
             $schemaHandler->ensureSchema();
         }
 

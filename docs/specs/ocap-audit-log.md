@@ -187,9 +187,14 @@ sink** (a host able to edit `audit_event` can also edit a local file). Optional
 HMAC over `checkpoint_hash` is mandatory in kernel-wired operation. Its raw
 32-byte key is HKDF-SHA-256-derived from `WAASEYAA_APP_SECRET` with purpose
 `waaseyaa.audit.checkpoint-hmac.v1`; the stored form is
-`hmac-sha256.hkdf-v1:<64 lowercase hex>`. The verifier accepts legacy empty or
-bare-hex signatures only before the first HKDF-v1 checkpoint, then requires and
-constant-time verifies every signature. Asymmetric/KMS signing is deferred.
+`hmac-sha256.hkdf-v1:<64 lowercase hex>`. When a derived key is configured, the
+verifier requires and constant-time verifies that envelope on **every** checkpoint,
+including genesis; empty/bare legacy values never count as authenticated history.
+Existing chains are upgraded only by the explicit, transactional
+`audit:migrate-checkpoint-signatures --confirm` command after the operator has
+established trust in a backup. It refuses malformed, mixed, or hash-chain-broken
+history and strict-verifies the result before commit. Ordinary verification never
+performs migration writes. Asymmetric/KMS signing is deferred.
 
 **Verification — `audit:verify` (WP3):** `AuditChainVerifier::verify()` walks every
 sealed segment and returns an `AuditVerificationResult` (`ok`, `firstBrokenId`,

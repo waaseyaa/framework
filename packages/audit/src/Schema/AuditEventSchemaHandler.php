@@ -8,6 +8,7 @@ use Waaseyaa\Audit\Integrity\AuditCheckpointHasher;
 use Waaseyaa\Audit\Integrity\AuditEventCanonicalizer;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Foundation\Security\SensitiveKey;
 
 /**
  * Ensures the `audit_event` and `audit_retention_policy` tables exist.
@@ -33,9 +34,15 @@ use Waaseyaa\Database\DBALDatabase;
  */
 final class AuditEventSchemaHandler
 {
+    private readonly ?SensitiveKey $hmacKey;
+
     public function __construct(
         private readonly DatabaseInterface $database,
-    ) {}
+        #[\SensitiveParameter]
+        ?string $hmacKey = null,
+    ) {
+        $this->hmacKey = ($hmacKey === null || $hmacKey === '') ? null : new SensitiveKey($hmacKey);
+    }
 
     public function ensureSchema(): void
     {
@@ -198,7 +205,9 @@ final class AuditEventSchemaHandler
                 'segment_hash'         => AuditEventCanonicalizer::GENESIS_HASH,
                 'prev_checkpoint_hash' => AuditEventCanonicalizer::GENESIS_HASH,
                 'checkpoint_hash'      => $checkpointHash,
-                'signature'            => '',
+                'signature'            => $this->hmacKey === null
+                    ? ''
+                    : 'hmac-sha256.hkdf-v1:' . hash_hmac('sha256', $checkpointHash, $this->hmacKey->bytes()),
                 'hash_version'         => AuditEventCanonicalizer::HASH_VERSION,
                 'is_genesis'           => 1,
                 'created_at'           => new \DateTimeImmutable()->format('Y-m-d H:i:s'),
