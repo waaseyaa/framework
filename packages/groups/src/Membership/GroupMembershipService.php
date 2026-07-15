@@ -14,8 +14,8 @@ use Waaseyaa\Relationship\Relationship;
  * backed by `relationship` rows (CW-v1 WP-3 read side, WP-4 write side).
  * Mirrors {@see \Waaseyaa\Genealogy\Service\GenealogyFamilyService::memberPersonIds()}.
  *
- * Takes scalar identifiers (uid, entity id), not `AccountInterface`, so
- * `waaseyaa/groups` does not need to require `waaseyaa/access`.
+ * Takes scalar identifiers (uid, entity id), not `AccountInterface`; the
+ * service remains independent of the package's JSON:API access policy.
  *
  * **Only live rows count.** Every read query additionally filters on
  * `status = 1` (relationship liveness — an int column, schema default 1,
