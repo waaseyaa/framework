@@ -7,6 +7,7 @@ namespace Waaseyaa\Audit\Integrity;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Foundation\Security\SensitiveKey;
 
 /**
  * Verifies the tamper-evidence chain of all sealed audit_checkpoint segments.
@@ -25,12 +26,16 @@ use Waaseyaa\Foundation\Log\NullLogger;
 final class AuditChainVerifier
 {
     private readonly LoggerInterface $logger;
+    private readonly ?SensitiveKey $hmacKey;
 
     public function __construct(
         private readonly DatabaseInterface $database,
         ?LoggerInterface $logger = null,
+        #[\SensitiveParameter]
+        ?string $hmacKey = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
+        $this->hmacKey = ($hmacKey === '' || $hmacKey === null ? null : new SensitiveKey($hmacKey));
     }
 
     public function verify(): AuditVerificationResult
@@ -51,6 +56,7 @@ final class AuditChainVerifier
                     'checkpoint_hash',
                     'is_genesis',
                     'pruned',
+                    'signature',
                 ])
                 ->orderBy('segment_end_id', 'ASC')
                 ->execute(),
@@ -60,6 +66,11 @@ final class AuditChainVerifier
         if ($checkpoints === []) {
             // No checkpoints at all — treat as intact with nothing verified.
             return AuditVerificationResult::intact(0, 0, $this->countUnsealedRows(0));
+        }
+
+        $signatureFailure = $this->verifyCheckpointSignatures($checkpoints);
+        if ($signatureFailure !== null) {
+            return $signatureFailure;
         }
 
         // ----------------------------------------------------------------
@@ -345,5 +356,76 @@ final class AuditChainVerifier
         );
 
         return count($rows);
+    }
+
+    /**
+     * Keyed verification is deliberately all-or-nothing: every checkpoint,
+     * including genesis, must carry the versioned derived-key signature. An
+     * unkeyed verifier remains available only for the explicit legacy migration
+     * preflight; it never treats a versioned signature as verified.
+     *
+     * @param list<array<string, mixed>> $checkpoints
+     */
+    private function verifyCheckpointSignatures(array $checkpoints): ?AuditVerificationResult
+    {
+        foreach ($checkpoints as $checkpoint) {
+            $signature = (string) ($checkpoint['signature'] ?? '');
+            $segmentEndId = (int) $checkpoint['segment_end_id'];
+            $isVersioned = str_starts_with($signature, 'hmac-sha256.hkdf-v1:');
+
+            if ($isVersioned) {
+                $mac = substr($signature, strlen('hmac-sha256.hkdf-v1:'));
+                $validShape = preg_match('/^[0-9a-f]{64}$/D', $mac) === 1;
+                $expected = $this->hmacKey === null
+                    ? null
+                    : hash_hmac('sha256', (string) $checkpoint['checkpoint_hash'], $this->hmacKey->bytes());
+
+                if (!$validShape || $expected === null || !hash_equals($expected, $mac)) {
+                    return $this->signatureFailure($segmentEndId, 'invalid authenticated signature');
+                }
+
+                continue;
+            }
+
+            $isLegacy = $signature === '' || preg_match('/^[0-9a-f]{64}$/D', $signature) === 1;
+            if ($this->hmacKey !== null || !$isLegacy) {
+                return $this->signatureFailure($segmentEndId, 'missing or malformed authenticated signature');
+            }
+        }
+
+        return null;
+    }
+
+    private function signatureFailure(int $segmentEndId, string $reason): AuditVerificationResult
+    {
+        $this->logger->warning('audit.verify.checkpoint_signature_mismatch', [
+            'segment_end_id' => $segmentEndId,
+            'reason' => $reason,
+        ]);
+
+        return AuditVerificationResult::broken(
+            $segmentEndId,
+            'checkpoint_signature',
+            sprintf('Checkpoint signature verification failed at segment_end_id %d.', $segmentEndId),
+            0,
+            0,
+            $this->countUnsealedRows($segmentEndId),
+        );
+    }
+
+    /** @return array{database: string, logger: string, hmac_key: string|null} */
+    public function __debugInfo(): array
+    {
+        return [
+            'database' => $this->database::class,
+            'logger' => $this->logger::class,
+            'hmac_key' => $this->hmacKey === null ? null : '[REDACTED]',
+        ];
+    }
+
+    /** @return never */
+    public function __serialize(): array
+    {
+        throw new \LogicException('Audit chain verifiers cannot be serialized.');
     }
 }

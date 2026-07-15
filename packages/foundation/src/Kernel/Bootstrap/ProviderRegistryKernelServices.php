@@ -17,6 +17,7 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface as FoundationEventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
@@ -73,6 +74,7 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
         private readonly ?AccountContextInterface $accountContext = null,
         ?\Closure $accessHandlerAccessor = null,
         private readonly ?PackageManifest $manifest = null,
+        private readonly ?ApplicationSecret $applicationSecret = null,
     ) {
         $this->providersAccessor = $providersAccessor;
         $this->accessHandlerAccessor = $accessHandlerAccessor;
@@ -109,6 +111,9 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
         }
         if ($abstract === PackageManifest::class) {
             return $this->manifest;
+        }
+        if ($abstract === ApplicationSecret::class) {
+            return $this->applicationSecret;
         }
         if ($abstract === EntityAccessHandler::class) {
             return $this->accessHandlerAccessor !== null

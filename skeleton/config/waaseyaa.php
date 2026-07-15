@@ -15,6 +15,9 @@ return [
     // Override with APP_ENV env var. Values: local, dev, development, staging, production.
     'environment' => getenv('APP_ENV') ?: 'production',
 
+    // WAASEYAA_APP_SECRET is intentionally consumed directly by the kernel
+    // before database boot. Do not copy master or derived key bytes into config.
+
     // Operator health probe: verifies a known non-root URL reaches the router.
     // Leave APP_URL unset only when no public HTTP server is expected to be live.
     'diagnostics' => [

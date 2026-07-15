@@ -12,6 +12,7 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Exception\EntityTypeRegistrationCollisionException;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 final class ProviderRegistry
@@ -45,6 +46,7 @@ final class ProviderRegistry
         EventDispatcherInterface $dispatcher,
         ?AccountContextInterface $accountContext = null,
         ?\Closure $accessHandlerAccessor = null,
+        ?ApplicationSecret $applicationSecret = null,
     ): array {
         $this->providers = [];
 
@@ -57,6 +59,7 @@ final class ProviderRegistry
             accountContext: $accountContext,
             accessHandlerAccessor: $accessHandlerAccessor,
             manifest: $manifest,
+            applicationSecret: $applicationSecret,
         );
 
         foreach ($manifest->providers as $providerClass) {

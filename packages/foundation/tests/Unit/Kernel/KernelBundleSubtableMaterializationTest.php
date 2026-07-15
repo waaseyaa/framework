@@ -51,7 +51,7 @@ final class KernelBundleSubtableMaterializationTest extends TestCase
 
         file_put_contents(
             $this->projectRoot . '/config/waaseyaa.php',
-            "<?php return ['database' => ':memory:'];",
+            "<?php return ['database' => ':memory:', 'environment' => 'testing'];",
         );
         file_put_contents(
             $this->projectRoot . '/config/entity-types.php',

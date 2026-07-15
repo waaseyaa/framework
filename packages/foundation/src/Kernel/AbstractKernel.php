@@ -43,6 +43,7 @@ use Waaseyaa\Foundation\Log\LogManager;
 use Waaseyaa\Foundation\Migration\MigrationLoader;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
+use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsContentModelProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -66,6 +67,7 @@ abstract class AbstractKernel
     protected EntityTypeLifecycleManager $lifecycleManager;
     protected EntityAuditLogger $entityAuditLogger;
     protected Migrator $migrator;
+    private ?ApplicationSecret $applicationSecret = null;
     protected MigrationLoader $migrationLoader;
     protected MigrationRepository $migrationRepository;
 
@@ -151,6 +153,15 @@ abstract class AbstractKernel
                 sprintf('APP_DEBUG must not be enabled in production (APP_ENV=%s). Aborting boot.', $this->resolveEnvironment()),
             );
         }
+
+        // Resolve key custody before any database or provider work. A missing
+        // production secret must fail at boot, before encrypted/signed state is
+        // read or a partially configured application begins serving requests.
+        $configuredSecret = getenv('WAASEYAA_APP_SECRET');
+        $this->applicationSecret ??= ApplicationSecret::fromEnvironmentValue(
+            is_string($configuredSecret) ? $configuredSecret : null,
+            $this->resolveEnvironment(),
+        );
 
         $this->dispatcher         = new SymfonyEventDispatcherAdapter();
         $this->lifecycleManager   = new EntityTypeLifecycleManager($this->projectRoot);
@@ -371,7 +382,18 @@ abstract class AbstractKernel
             // because $this->accessHandler is populated later by
             // discoverAccessPolicies(); it is read only at tool dispatch.
             fn(): ?EntityAccessHandler => $this->accessHandler ?? null,
+            $this->applicationSecret(),
         );
+    }
+
+    /** Return the kernel-owned secret after the early boot guard has run. */
+    protected function applicationSecret(): ApplicationSecret
+    {
+        if ($this->applicationSecret === null) {
+            throw new \LogicException('Application-secret custody is unavailable before kernel boot.');
+        }
+
+        return $this->applicationSecret;
     }
 
     protected function loadAppEntityTypes(): void

@@ -28,6 +28,7 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
+use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
@@ -95,12 +96,14 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
 
         $this->singleton(AuditCheckpointBuilder::class, function (): AuditCheckpointBuilder {
             $logger = $this->resolveOptional(LoggerInterface::class);
+            $applicationSecret = $this->resolve(ApplicationSecret::class);
+            assert($applicationSecret instanceof ApplicationSecret);
 
             return new AuditCheckpointBuilder(
                 database: $this->resolve(DatabaseInterface::class),
                 sink: $this->resolve(CheckpointSink::class),
                 logger: $logger instanceof LoggerInterface ? $logger : null,
-                hmacKey: $this->config['audit']['checkpoint_hmac_key'] ?? null,
+                hmacKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_AUDIT_CHECKPOINT_HMAC),
             );
         });
 
@@ -121,7 +124,12 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
         // Ensure schema tables exist.
         $database = $this->resolveOptional(DatabaseInterface::class);
         if ($database instanceof DatabaseInterface) {
-            $schemaHandler = new AuditEventSchemaHandler($database);
+            $applicationSecret = $this->resolve(ApplicationSecret::class);
+            assert($applicationSecret instanceof ApplicationSecret);
+            $schemaHandler = new AuditEventSchemaHandler(
+                $database,
+                $applicationSecret->derive(ApplicationSecret::PURPOSE_AUDIT_CHECKPOINT_HMAC),
+            );
             $schemaHandler->ensureSchema();
         }
 

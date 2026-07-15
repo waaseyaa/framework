@@ -346,6 +346,25 @@ final class DatabaseBackendTest extends TestCase
     }
 
     #[Test]
+    public function signed_backend_never_exposes_its_key_through_debug_or_serialization(): void
+    {
+        $key = random_bytes(32);
+        $signed = new DatabaseBackend($this->pdo, 'cache_signed', $key);
+
+        ob_start();
+        var_dump($signed);
+        $debug = (string) ob_get_clean() . var_export($signed, true);
+        self::assertFalse(str_contains($debug, $key), 'Cache debug output must not contain derived key bytes.');
+
+        try {
+            serialize($signed);
+            self::fail('Cache backends must not serialize derived key custody.');
+        } catch (\Throwable $e) {
+            self::assertFalse(str_contains($e->getMessage(), $key), 'Serialization errors must not contain derived key bytes.');
+        }
+    }
+
+    #[Test]
     public function signed_backend_treats_tampered_row_as_miss(): void
     {
         $signed = new DatabaseBackend($this->pdo, 'cache_signed', 'test-hmac-key-123');

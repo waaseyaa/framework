@@ -35,6 +35,7 @@ use Waaseyaa\Foundation\Middleware\DebugHeaderMiddleware;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpPipeline;
 use Waaseyaa\Foundation\Middleware\SecurityHeadersMiddleware;
+use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ConfiguresHttpKernelInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface;
@@ -107,7 +108,7 @@ final class HttpKernel extends AbstractKernel
         assert($pdo instanceof \PDO);
 
         $cacheConfig = new CacheConfiguration();
-        $cacheHmacKey = is_string($this->config['cache']['hmac_key'] ?? null) ? $this->config['cache']['hmac_key'] : null;
+        $cacheHmacKey = $this->applicationSecret()->derive(ApplicationSecret::PURPOSE_CACHE_PAYLOAD_HMAC);
         $cacheConfig->setFactoryForBin('render', fn(): DatabaseBackend => new DatabaseBackend(
             $pdo,
             'cache_render',

@@ -8,6 +8,7 @@ use Waaseyaa\Audit\Entity\AuditCheckpoint;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Foundation\Security\SensitiveKey;
 
 /**
  * Seals the next segment of unsealed audit_event rows into an audit_checkpoint.
@@ -28,14 +29,17 @@ use Waaseyaa\Foundation\Log\NullLogger;
 final class AuditCheckpointBuilder
 {
     private readonly LoggerInterface $logger;
+    private readonly ?SensitiveKey $hmacKey;
 
     public function __construct(
         private readonly DatabaseInterface $database,
         private readonly CheckpointSink $sink,
         ?LoggerInterface $logger = null,
-        private readonly ?string $hmacKey = null,
+        #[\SensitiveParameter]
+        ?string $hmacKey = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
+        $this->hmacKey = ($hmacKey === '' || $hmacKey === null ? null : new SensitiveKey($hmacKey));
     }
 
     public function build(): ?AuditCheckpoint
@@ -126,8 +130,8 @@ final class AuditCheckpointBuilder
         // ----------------------------------------------------------------
         // Step 6: optional HMAC signature.
         // ----------------------------------------------------------------
-        $signature = ($this->hmacKey !== null && $this->hmacKey !== '')
-            ? hash_hmac('sha256', $checkpointHash, $this->hmacKey)
+        $signature = $this->hmacKey !== null
+            ? 'hmac-sha256.hkdf-v1:' . hash_hmac('sha256', $checkpointHash, $this->hmacKey->bytes())
             : '';
 
         // ----------------------------------------------------------------
@@ -177,5 +181,22 @@ final class AuditCheckpointBuilder
         }
 
         return $checkpoint;
+    }
+
+    /** @return array{database: string, sink: string, logger: string, hmac_key: string|null} */
+    public function __debugInfo(): array
+    {
+        return [
+            'database' => $this->database::class,
+            'sink' => $this->sink::class,
+            'logger' => $this->logger::class,
+            'hmac_key' => $this->hmacKey === null ? null : '[REDACTED]',
+        ];
+    }
+
+    /** @return never */
+    public function __serialize(): array
+    {
+        throw new \LogicException('Audit checkpoint builders cannot be serialized.');
     }
 }

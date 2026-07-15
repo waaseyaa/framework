@@ -27,6 +27,7 @@ use Waaseyaa\Foundation\Kernel\BuiltinRouteRegistrar;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\Kernel\EventListenerRegistrar;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
+use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\I18n\Language;
 use Waaseyaa\I18n\LanguageManager;
 use Waaseyaa\I18n\LanguageManagerInterface;
@@ -44,11 +45,12 @@ final class HttpKernelTest extends TestCase
 
     protected function setUp(): void
     {
+        putenv('WAASEYAA_APP_SECRET');
         $this->projectRoot = sys_get_temp_dir() . '/waaseyaa_http_test_' . uniqid();
         mkdir($this->projectRoot . '/config', 0755, true);
         mkdir($this->projectRoot . '/storage', 0755, true);
         mkdir($this->projectRoot . '/vendor/composer', 0755, true);
-        file_put_contents($this->projectRoot . '/config/waaseyaa.php', "<?php return ['database' => ':memory:', 'app' => ['url' => 'http://localhost', 'name' => 'Waaseyaa Test']];");
+        file_put_contents($this->projectRoot . '/config/waaseyaa.php', "<?php return ['database' => ':memory:', 'environment' => 'testing', 'app' => ['url' => 'http://localhost', 'name' => 'Waaseyaa Test']];");
         file_put_contents(
             $this->projectRoot . '/config/entity-types.php',
             "<?php\nreturn [\n    new \\Waaseyaa\\Entity\\EntityType(\n        id: 'test',\n        label: 'Test',\n        class: \\stdClass::class,\n        keys: ['id' => 'id'],\n    ),\n];",
@@ -57,6 +59,7 @@ final class HttpKernelTest extends TestCase
 
     protected function tearDown(): void
     {
+        putenv('WAASEYAA_APP_SECRET');
         $items = new \RecursiveIteratorIterator(
             new \RecursiveDirectoryIterator($this->projectRoot, \RecursiveDirectoryIterator::SKIP_DOTS),
             \RecursiveIteratorIterator::CHILD_FIRST,
@@ -266,6 +269,48 @@ final class HttpKernelTest extends TestCase
         $this->assertNotNull($routes->get('public.home'));
         $this->assertNotNull($routes->get('public.page'));
         $this->assertTrue((bool) $routes->get('public.home')?->getOption('_render'));
+    }
+
+    #[Test]
+    public function kernel_cache_bins_use_the_derived_cache_key_without_persisting_key_material(): void
+    {
+        $master = str_repeat('c', 32);
+        putenv('WAASEYAA_APP_SECRET=base64:' . base64_encode($master));
+        file_put_contents(
+            $this->projectRoot . '/config/waaseyaa.php',
+            "<?php return ['database' => ':memory:', 'environment' => 'testing', 'cache' => ['hmac_key' => 'legacy-key-must-be-ignored']];",
+        );
+        $kernel = new HttpKernel($this->projectRoot);
+        (new \ReflectionMethod(AbstractKernel::class, 'boot'))->invoke($kernel);
+
+        $cacheProperty = new \ReflectionProperty(HttpKernel::class, 'discoveryCache');
+        $cache = $cacheProperty->getValue($kernel);
+        self::assertInstanceOf(CacheBackendInterface::class, $cache);
+        $cache->set('secret-custody-probe', 'value');
+
+        $database = $kernel->getDatabase();
+        self::assertInstanceOf(DBALDatabase::class, $database);
+        $stored = (string) $database->getConnection()->fetchOne(
+            "SELECT data FROM cache_discovery WHERE cid = 'secret-custody-probe'",
+        );
+        $derived = hash_hkdf(
+            'sha256',
+            $master,
+            32,
+            ApplicationSecret::PURPOSE_CACHE_PAYLOAD_HMAC,
+            ApplicationSecret::HKDF_SALT,
+        );
+
+        self::assertTrue(
+            str_starts_with($stored, hash_hmac('sha256', serialize('value'), $derived)),
+            'Kernel cache payloads must carry the derived-key HMAC.',
+        );
+        self::assertFalse(str_contains($stored, $master), 'Cache rows must not contain master bytes.');
+        self::assertFalse(str_contains($stored, $derived), 'Cache rows must not contain derived bytes.');
+        self::assertFalse(
+            str_contains($stored, base64_encode($master)),
+            'Cache rows must not contain encoded master bytes.',
+        );
     }
 
     #[Test]

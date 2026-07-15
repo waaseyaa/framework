@@ -19,6 +19,7 @@ use Waaseyaa\Foundation\Event\EventDispatcherInterface as FoundationEventDispatc
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistryKernelServices;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Foundation\Security\ApplicationSecret;
 
 #[CoversClass(ProviderRegistryKernelServices::class)]
 final class ProviderRegistryKernelServicesTest extends TestCase
@@ -26,6 +27,7 @@ final class ProviderRegistryKernelServicesTest extends TestCase
     private function services(
         DatabaseInterface $database,
         ?\Closure $accessHandlerAccessor = null,
+        ?ApplicationSecret $applicationSecret = null,
     ): ProviderRegistryKernelServices {
         $dispatcher = new SymfonyEventDispatcherAdapter();
 
@@ -36,7 +38,17 @@ final class ProviderRegistryKernelServicesTest extends TestCase
             logger: new NullLogger(),
             providersAccessor: static fn(): array => [],
             accessHandlerAccessor: $accessHandlerAccessor,
+            applicationSecret: $applicationSecret,
         );
+    }
+
+    #[Test]
+    public function get_exposes_the_kernel_owned_application_secret(): void
+    {
+        $secret = ApplicationSecret::fromEnvironmentValue(null, 'testing');
+        $services = $this->services(DBALDatabase::createSqlite(), applicationSecret: $secret);
+
+        self::assertSame($secret, $services->get(ApplicationSecret::class));
     }
 
     /**

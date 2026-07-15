@@ -46,7 +46,7 @@ final class AbstractKernelExtensionRunnerTest extends TestCase
 
         file_put_contents(
             $this->projectRoot . '/config/waaseyaa.php',
-            "<?php return ['database' => ':memory:', 'extensions' => ['plugin_directories' => ['" . addslashes($fixtures) . "']]];",
+            "<?php return ['database' => ':memory:', 'environment' => 'testing', 'extensions' => ['plugin_directories' => ['" . addslashes($fixtures) . "']]];",
         );
 
         $kernel = new TestKernel($this->projectRoot);
@@ -65,7 +65,7 @@ final class AbstractKernelExtensionRunnerTest extends TestCase
     {
         file_put_contents(
             $this->projectRoot . '/config/waaseyaa.php',
-            "<?php return ['database' => ':memory:'];",
+            "<?php return ['database' => ':memory:', 'environment' => 'testing'];",
         );
 
         $kernel = new TestKernel($this->projectRoot);
