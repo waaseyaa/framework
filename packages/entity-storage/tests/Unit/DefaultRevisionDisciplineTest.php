@@ -22,6 +22,7 @@ use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestRevisionableEntity;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionRegistry;
+use Waaseyaa\Field\FieldStorage;
 
 /**
  * CW-v1 option-1 forward-draft rebuild — storage mechanics (#1920 PR-1).
@@ -58,6 +59,9 @@ final class DefaultRevisionDisciplineTest extends TestCase
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id'],
             revisionable: true,
             revisionDefault: true,
+            _fieldDefinitions: [
+                'flag' => ['type' => 'boolean', 'stored' => FieldStorage::Data],
+            ],
         );
 
         $handler = new SqlSchemaHandler($entityType, $this->db);
@@ -299,6 +303,32 @@ final class DefaultRevisionDisciplineTest extends TestCase
         $this->assertSame(1, $row['published_revision_id'] ?? null, 'published pointer now equals the target');
         $this->assertSame('v1', $repo->find('1')?->label(), 'base row content was copied from the target revision');
         $this->assertSame('v1', $repo->loadPublishedRevision('1')?->label());
+    }
+
+    #[Test]
+    public function flagged_set_published_revision_normalizes_historical_boolean_values(): void
+    {
+        $repo = $this->buildRepo();
+
+        $entity = new TestRevisionableEntity(values: [
+            'title' => 'v1',
+            'id' => '1',
+            'uuid' => 'a',
+            'flag' => false,
+        ]);
+        $entity->enforceIsNew();
+        $repo->save($entity);
+
+        $this->db->getConnection()->update(
+            'test_revisionable_revision',
+            ['_data' => json_encode(['flag' => true], JSON_THROW_ON_ERROR)],
+            ['entity_id' => '1', 'revision_id' => 1],
+        );
+
+        $this->alwaysApplyDefaultRevisionSemantics();
+        $repo->setPublishedRevision('1', 1);
+
+        self::assertSame(1, $repo->find('1')?->toArray()['flag']);
     }
 
     #[Test]

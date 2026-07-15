@@ -48,6 +48,9 @@ final class EntityRepositoryTranslationAxisTest extends TestCase
             revisionable: true,
             revisionDefault: true,
             translatable: true,
+            _fieldDefinitions: [
+                'status' => ['type' => 'boolean', 'label' => 'Published', 'default' => 0],
+            ],
         );
 
         $handler = new SqlSchemaHandler($entityType, $this->db);
@@ -118,6 +121,26 @@ final class EntityRepositoryTranslationAxisTest extends TestCase
         $this->assertNotNull($oj);
         $this->assertSame('Hello', $en->label());
         $this->assertSame('Aanii', $oj->label());
+    }
+
+    #[Test]
+    public function every_translation_write_uses_canonical_boolean_storage(): void
+    {
+        $single = $this->repo->saveTranslationRevision('1', 'en', ['title' => 'Single', 'status' => true]);
+        self::assertSame(1, $this->repo->loadTranslationRevision('1', 'en', $single)?->toArray()['status']);
+
+        $batch = $this->repo->saveTranslationRevisions('2', [
+            'en' => ['title' => 'Batch', 'status' => true],
+        ]);
+        self::assertSame(1, $this->repo->loadTranslationRevision('2', 'en', $batch['en'])?->toArray()['status']);
+
+        $entity = new TestRevisionableEntity(values: ['title' => 'Default', 'uuid' => 'translation-bool']);
+        $entity->enforceIsNew();
+        $this->repo->save($entity);
+        $this->repo->saveTranslation((string) $entity->id(), 'oj', ['title' => 'Peer', 'status' => true]);
+
+        self::assertSame(1, $this->repo->loadTranslation((string) $entity->id(), 'oj')?->toArray()['status']);
+        self::assertSame(1, $this->repo->loadTranslationTip((string) $entity->id(), 'oj')?->toArray()['status']);
     }
 
     #[Test]

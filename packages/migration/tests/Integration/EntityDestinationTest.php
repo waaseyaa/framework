@@ -151,6 +151,45 @@ final class EntityDestinationTest extends TestCase
     }
 
     #[Test]
+    public function authoring_and_import_writes_persist_the_same_boolean_shape(): void
+    {
+        $authored = $this->repository->create([
+            'title' => 'Authored',
+            'status' => true,
+            'archived' => false,
+            'optional_flag' => null,
+        ]);
+        $this->repository->save($authored);
+
+        $destination = $this->makeDestination();
+        $imported = $destination->write(new DestinationRecord(
+            migrationId: self::MIGRATION_ID,
+            sourceId: new SourceId(sourceType: 'fake_source', keys: ['key' => 'boolean-parity']),
+            values: [
+                'title' => 'Imported',
+                'status' => 1,
+                'archived' => 0,
+                'optional_flag' => null,
+            ],
+        ));
+
+        $authoredRow = $this->repository->find((string) $authored->id());
+        $importedRows = $this->repository->findBy(['uuid' => $imported->destinationUuid]);
+
+        self::assertNotNull($authoredRow);
+        self::assertCount(1, $importedRows);
+        self::assertSame(1, $authoredRow->toArray()['status']);
+        self::assertSame(
+            $authoredRow->toArray()['status'],
+            $importedRows[0]->toArray()['status'],
+        );
+        self::assertSame(0, $authoredRow->toArray()['archived']);
+        self::assertSame(0, $importedRows[0]->toArray()['archived']);
+        self::assertNull($authoredRow->toArray()['optional_flag']);
+        self::assertNull($importedRows[0]->toArray()['optional_flag']);
+    }
+
+    #[Test]
     public function update_path_re_runs_with_different_hash_persist_new_values(): void
     {
         $destination = $this->makeDestination();
