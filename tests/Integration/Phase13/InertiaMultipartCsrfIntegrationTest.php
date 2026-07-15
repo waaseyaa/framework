@@ -151,6 +151,8 @@ final class InertiaMultipartCsrfIntegrationTest extends TestCase
         );
         $this->assertSame('nosniff', $this->findHeader('X-Content-Type-Options', $result['headers']));
         $this->assertSame('SAMEORIGIN', $this->findHeader('X-Frame-Options', $result['headers']));
+        $this->assertSame("default-src 'none'", $this->findHeader('Content-Security-Policy', $result['headers']));
+        $this->assertSame('max-age=3600; includeSubDomains', $this->findHeader('Strict-Transport-Security', $result['headers']));
         $this->assertNotNull($this->findSetCookieHeader('XSRF-TOKEN', $result['headers']));
     }
 

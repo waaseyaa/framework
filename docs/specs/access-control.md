@@ -494,10 +494,10 @@ The `view`-operation symmetry between layers 2 and 3 is deliberate: a row's visi
 
 **Entry point:** `public/index.php`
 
-The authorization pipeline is a pair of HTTP middleware executed in order:
+Authorization participates in the shared HTTP middleware onion around real dispatch:
 
 ```
-Request -> SessionMiddleware -> AuthorizationMiddleware -> Final Handler -> Response
+Request -> SessionMiddleware -> AuthorizationMiddleware -> Controller/domain-router dispatch -> Response
 ```
 
 ### SessionMiddleware
@@ -676,7 +676,7 @@ the per-save `withActorUid()` override is the only knob.
 **File:** `packages/user/src/Middleware/CsrfMiddleware.php`
 **Namespace:** `Waaseyaa\User\Middleware`
 
-`CsrfMiddleware` runs in the HTTP authorization pipeline (priority 20) and enforces session-based CSRF protection for all state-changing requests (`POST`, `PUT`, `PATCH`, `DELETE`).
+`CsrfMiddleware` runs in the HTTP pipeline (priority 20) and enforces session-based CSRF protection for all state-changing requests (`POST`, `PUT`, `PATCH`, `DELETE`). On allowed requests it unwinds over the final dispatched response and attaches the readable token cookie to HTML.
 
 ### XSRF-TOKEN cookie
 

@@ -21,26 +21,21 @@ final class SecurityHeadersMiddleware implements HttpMiddlewareInterface
     public const string FRAME_EXEMPT_ATTRIBUTE = '_frame_exempt';
 
     public function __construct(
-        private readonly string $csp = "default-src 'self'",
+        private readonly ?string $csp = "default-src 'self'",
         private readonly bool $hstsEnabled = true,
         private readonly int $hstsMaxAge = 31_536_000,
+        private readonly string $frameOptions = 'DENY',
     ) {}
 
     public function process(Request $request, HttpHandlerInterface $next): Response
     {
         $response = $next->handle($request);
 
-        if (!$response->headers->has('Content-Security-Policy')) {
+        if ($this->csp !== null && !$response->headers->has('Content-Security-Policy')) {
             $response->headers->set('Content-Security-Policy', $this->csp);
         }
 
-        if (!$response->headers->has('X-Frame-Options')) {
-            $response->headers->set('X-Frame-Options', 'DENY');
-        }
-
-        if (!$response->headers->has('X-Content-Type-Options')) {
-            $response->headers->set('X-Content-Type-Options', 'nosniff');
-        }
+        self::applyResponseDefaults($request, $response, $this->frameOptions);
 
         if ($this->hstsEnabled && !$response->headers->has('Strict-Transport-Security')) {
             $response->headers->set(
@@ -56,14 +51,9 @@ final class SecurityHeadersMiddleware implements HttpMiddlewareInterface
      * Apply the framing / MIME-sniffing security headers to the FINAL,
      * post-dispatch response (#1651).
      *
-     * Why a static helper and not the pipeline: this middleware's `process()`
-     * runs inside the kernel's authorization pipeline, whose inner handler
-     * returns a stub empty `200` — so a pipeline middleware decorates the stub,
-     * never the controller's real response. (`CsrfMiddleware::attachCookieIfHtml`
-     * exists for the same reason.) `HttpKernel` therefore calls this on the
-     * dispatched response. Before this, `SecurityHeadersMiddleware` was compiled
-     * into the middleware manifest but never instantiated, so every response was
-     * frameable — the spec/kernel drift #1651 documented.
+     * The kernel wires this middleware around its real dispatch handler, so this
+     * helper is used by {@see process()} on the final response. It remains public
+     * for narrowly scoped response decorators and backwards compatibility.
      *
      * Scope — the two headers safe to apply to every response:
      *  - `X-Frame-Options` (`$frameOptions`, default `SAMEORIGIN`): blocks

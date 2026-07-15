@@ -9,6 +9,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
+use Waaseyaa\Foundation\Middleware\SecurityHeadersMiddleware;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Routing\RouteBuilder;
@@ -35,7 +36,15 @@ final class CsrfTestServiceProvider extends ServiceProvider implements HasMiddle
      */
     public function middleware(EntityTypeManager $entityTypeManager): array
     {
-        return [new FinalResponseProbeMiddleware()];
+        return [
+            new SecurityHeadersMiddleware(
+                csp: "default-src 'none'",
+                hstsEnabled: true,
+                hstsMaxAge: 3600,
+                frameOptions: 'SAMEORIGIN',
+            ),
+            new FinalResponseProbeMiddleware(),
+        ];
     }
 
     public function routes(WaaseyaaRouter $router, EntityTypeManager $entityTypeManager): void
