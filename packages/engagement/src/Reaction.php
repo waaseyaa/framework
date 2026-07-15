@@ -9,7 +9,7 @@ use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
 
-#[ContentEntityType(id: 'reaction', label: 'Reaction')]
+#[ContentEntityType(id: 'reaction', label: 'Reaction', api: true)]
 #[ContentEntityKeys(id: 'rid', uuid: 'uuid', label: 'reaction_type')]
 final class Reaction extends ContentEntityBase
 {

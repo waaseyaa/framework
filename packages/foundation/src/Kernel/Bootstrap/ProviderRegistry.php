@@ -114,17 +114,29 @@ final class ProviderRegistry
         }
 
         $autoRegister = filter_var($config['entity_auto_register'] ?? false, FILTER_VALIDATE_BOOLEAN);
-        if ($autoRegister && $manifest->attributeEntityTypes !== [] && interface_exists(\Waaseyaa\Entity\DefinesEntityType::class)) {
+        if ($autoRegister && $manifest->attributeEntityTypes !== []) {
             foreach ($manifest->attributeEntityTypes as $entityClass) {
                 if (!class_exists($entityClass)) {
                     continue;
                 }
-                if (!is_subclass_of($entityClass, \Waaseyaa\Entity\DefinesEntityType::class, true)) {
+                $usesCanonicalMetadata = is_subclass_of($entityClass, \Waaseyaa\Entity\ContentEntityBase::class, true)
+                    && new \ReflectionClass($entityClass)->getAttributes(\Waaseyaa\Entity\Attribute\ContentEntityType::class) !== [];
+                if ($usesCanonicalMetadata) {
+                    $entityType = \Waaseyaa\Entity\EntityType::fromClass($entityClass);
+                } elseif (interface_exists(\Waaseyaa\Entity\DefinesEntityType::class)
+                    && is_subclass_of($entityClass, \Waaseyaa\Entity\DefinesEntityType::class, true)
+                ) {
+                    $entityType = $entityClass::entityType();
+                } elseif (is_subclass_of($entityClass, \Waaseyaa\Entity\ContentEntityBase::class, true)) {
+                    $entityType = \Waaseyaa\Entity\EntityType::fromClass($entityClass);
+                } else {
                     continue;
                 }
-                $entityType = $entityClass::entityType();
                 if ($entityTypeManager->hasDefinition($entityType->id())) {
-                    continue;
+                    $registered = $entityTypeManager->getDefinition($entityType->id());
+                    if ($registered->getClass() === $entityType->getClass()) {
+                        continue;
+                    }
                 }
                 try {
                     $entityTypeManager->registerEntityType($entityType, $entityClass);

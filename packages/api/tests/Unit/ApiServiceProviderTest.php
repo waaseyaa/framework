@@ -26,6 +26,7 @@ final class ApiServiceProviderTest extends TestCase
             label: 'Article',
             class: TestEntity::class,
             keys: TestEntity::definitionKeys(),
+            api: true,
         ));
 
         $router = new WaaseyaaRouter();

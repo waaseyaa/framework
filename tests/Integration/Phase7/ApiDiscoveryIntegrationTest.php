@@ -40,12 +40,14 @@ final class ApiDiscoveryIntegrationTest extends TestCase
             label: 'Article',
             class: \stdClass::class,
             keys: ['id' => 'id'],
+            api: true,
         ));
         $this->entityTypeManager->registerEntityType(new EntityType(
             id: 'tag',
             label: 'Tag',
             class: \stdClass::class,
             keys: ['id' => 'id'],
+            api: true,
         ));
 
         $this->router = new WaaseyaaRouter(new RequestContext('', 'GET'));

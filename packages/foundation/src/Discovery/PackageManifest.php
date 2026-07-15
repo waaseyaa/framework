@@ -38,7 +38,7 @@ final class PackageManifest
         public readonly array $policies = [],
         /** @var array<string, array{surface: 'aggregate'|'implementation'|'tooling', activation: 'discovery'|'none'|'provider'}> */
         public readonly array $packageDeclarations = [],
-        /** @var list<class-string> Classes carrying #[AsEntityType] that also implement DefinesEntityType */
+        /** @var list<class-string> Canonical ContentEntityType classes and legacy AsEntityType factories */
         public readonly array $attributeEntityTypes = [],
         /** @var list<class-string> Provider classes that implement ProvidesConsoleCommandsInterface */
         public readonly array $consoleCommandProviders = [],

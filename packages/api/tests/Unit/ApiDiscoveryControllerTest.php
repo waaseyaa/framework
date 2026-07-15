@@ -44,6 +44,21 @@ final class ApiDiscoveryControllerTest extends TestCase
     }
 
     #[Test]
+    public function discoverOmitsRegisteredTypesWithoutApiOptIn(): void
+    {
+        $manager = new EntityTypeManager(new EventDispatcher());
+        $manager->registerEntityType(new EntityType(
+            id: 'internal_feed',
+            label: 'Internal feed',
+            class: \stdClass::class,
+        ));
+
+        $doc = (new ApiDiscoveryController($manager, '/api', $this->authenticatedAccount()))->discover();
+
+        self::assertSame(['self' => '/api'], $doc['links']);
+    }
+
+    #[Test]
     public function discover_returns_only_self_link_for_anonymous_account(): void
     {
         $manager = $this->createManagerWithArticleAndTag();
@@ -74,12 +89,14 @@ final class ApiDiscoveryControllerTest extends TestCase
             label: 'Article',
             class: \stdClass::class,
             keys: ['id' => 'id'],
+        api: true,
         ));
         $manager->registerEntityType(new EntityType(
             id: 'internal_thing',
             label: 'Internal Thing',
             class: \stdClass::class,
             keys: ['id' => 'id'],
+            api: true,
             discoverable: false,
         ));
 
@@ -122,12 +139,14 @@ final class ApiDiscoveryControllerTest extends TestCase
             label: 'Article',
             class: \stdClass::class,
             keys: ['id' => 'id'],
+        api: true,
         ));
         $manager->registerEntityType(new EntityType(
             id: 'tag',
             label: 'Tag',
             class: \stdClass::class,
             keys: ['id' => 'id'],
+        api: true,
         ));
 
         return $manager;

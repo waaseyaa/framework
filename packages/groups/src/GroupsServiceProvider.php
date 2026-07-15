@@ -70,6 +70,7 @@ final class GroupsServiceProvider extends ServiceProvider
             ],
             group: 'groups',
             discoverable: false,
+            api: false,
             _fieldDefinitions: [
                 'description' => new FieldDefinition(
                     name: 'description',

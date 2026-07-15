@@ -38,6 +38,7 @@ final class EntityTypeFromClassTest extends TestCase
         self::assertSame('Simple', $type->getLabel());
         self::assertSame(SimpleFixture::class, $type->getClass());
         self::assertSame('A simple test entity.', $type->getDescription());
+        self::assertTrue($type->isApiExposed());
 
         $fields = $type->getFieldDefinitions();
         self::assertArrayHasKey('title', $fields);
@@ -51,6 +52,7 @@ final class EntityTypeFromClassTest extends TestCase
 
         self::assertSame('empty_fields', $type->id());
         self::assertSame([], $type->getFieldDefinitions());
+        self::assertFalse($type->isApiExposed());
     }
 
     public function testTenancyOverrideIsForwardedOnFirstCall(): void

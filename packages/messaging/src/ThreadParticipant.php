@@ -9,7 +9,7 @@ use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
 
-#[ContentEntityType(id: 'thread_participant', label: 'Thread Participant')]
+#[ContentEntityType(id: 'thread_participant', label: 'Thread Participant', api: true)]
 #[ContentEntityKeys(id: 'tpid', uuid: 'uuid', label: 'role')]
 final class ThreadParticipant extends ContentEntityBase
 {

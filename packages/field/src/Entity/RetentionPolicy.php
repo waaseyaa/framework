@@ -41,6 +41,7 @@ use Waaseyaa\Entity\ContentEntityBase;
     id: 'retention_policy',
     label: 'Retention Policy',
     description: 'Classification-driven retention rule (purge, redact, or hold-flag) keyed by label set.',
+    api: true,
 )]
 final class RetentionPolicy extends ContentEntityBase
 {

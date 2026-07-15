@@ -654,11 +654,21 @@ For multi-bundle entity types (those declaring `bundleEntityType`), fields may a
 
 Entity types are registered explicitly with `EntityTypeManager::registerEntityType()`. The manager throws `\InvalidArgumentException` if a type ID is already registered.
 
-### EntityTypeAttribute (future plugin discovery)
+### Compiled content-entity discovery
 
 File: `packages/entity/src/Attribute/EntityTypeAttribute.php`
 
-PHP attribute `#[EntityTypeAttribute(...)]` for class-level discovery. Extends `WaaseyaaPlugin`. Not currently used for registration (types are still registered manually via `EntityType::fromClass()` + `EntityTypeManager::registerEntityType()`); composer-classmap auto-discovery of `#[ContentEntityType]`-decorated classes is the **M2 mission** ([`attribute-entity-classmap-discovery`](../../kitty-specs/attribute-entity-classmap-discovery-01KQ6E2B/)). Once M2 lands, the explicit registration step disappears.
+`#[ContentEntityType]` is the canonical metadata and compiled-discovery marker.
+When `entity_auto_register` is enabled, `PackageManifestCompiler` records concrete
+content entities and `ProviderRegistry` hydrates the same `EntityType::fromClass()`
+definition used by explicit providers. Existing provider registration remains
+valid and wins before auto-registration. `#[AsEntityType]` plus
+`DefinesEntityType` is retained only as a deprecated compatibility path.
+
+The attribute's `api` flag defaults to `false`. `EntityType` implements
+`ApiExposableEntityTypeInterface`; generic API routing is enabled only when that
+capability returns true. Raw `new EntityType(..., api: true)` registration is the
+imperative escape hatch for dynamic or conditional definitions.
 
 ## Known Transitional Gaps (M1)
 

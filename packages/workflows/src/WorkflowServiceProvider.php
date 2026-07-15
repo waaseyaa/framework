@@ -38,6 +38,7 @@ final class WorkflowServiceProvider extends ServiceProvider
             class: Workflow::class,
             keys: ['id' => 'id', 'label' => 'label'],
             group: 'workflows',
+            api: true,
         ));
 
         // CW-v1 WP-1 (#1920, docs/specs/content-workflow.md): engine core

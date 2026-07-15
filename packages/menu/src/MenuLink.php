@@ -14,7 +14,7 @@ use Waaseyaa\Entity\ContentEntityBase;
  * Menu links are individual navigation items that belong to a menu.
  * They can be organized hierarchically via parent/child relationships.
  */
-#[ContentEntityType(id: 'menu_link')]
+#[ContentEntityType(id: 'menu_link', api: true)]
 #[ContentEntityKeys(label: 'title', bundle: 'menu_name')]
 final class MenuLink extends ContentEntityBase
 {

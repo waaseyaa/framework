@@ -9,7 +9,7 @@ use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
 
-#[ContentEntityType(id: 'genealogy_tree', label: 'Genealogy tree', description: 'Tenancy root for genealogy workspace (owner, grants, community overlays).')]
+#[ContentEntityType(id: 'genealogy_tree', label: 'Genealogy tree', description: 'Tenancy root for genealogy workspace (owner, grants, community overlays).', api: true)]
 #[ContentEntityKeys(label: 'display_name')]
 final class GenealogyTree extends ContentEntityBase
 {

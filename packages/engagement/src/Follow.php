@@ -9,7 +9,7 @@ use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
 
-#[ContentEntityType(id: 'follow', label: 'Follow')]
+#[ContentEntityType(id: 'follow', label: 'Follow', api: true)]
 #[ContentEntityKeys(id: 'fid', uuid: 'uuid', label: 'target_type')]
 final class Follow extends ContentEntityBase
 {

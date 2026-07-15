@@ -767,6 +767,7 @@ final class DiscoveryRouterTest extends TestCase
             label: 'Article',
             class: \stdClass::class,
             keys: ['id' => 'id'],
+            api: true,
         ));
 
         return $etm;

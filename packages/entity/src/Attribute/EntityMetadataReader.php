@@ -40,6 +40,7 @@ final class EntityMetadataReader
             keys: $keys,
             label: $labelDescription['label'],
             description: $labelDescription['description'],
+            api: $labelDescription['api'],
             fields: $fields,
         );
     }
@@ -152,7 +153,7 @@ final class EntityMetadataReader
      * hierarchy and surface its label/description fields.
      *
      * @param class-string $class
-     * @return array{label: string, description: string}
+     * @return array{label: string, description: string, api: bool}
      */
     private static function resolveLabelAndDescription(string $class): array
     {
@@ -164,6 +165,7 @@ final class EntityMetadataReader
                 return [
                     'label' => $instance->label,
                     'description' => $instance->description,
+                    'api' => $instance->api,
                 ];
             }
             $parent = $ref->getParentClass();
@@ -173,7 +175,7 @@ final class EntityMetadataReader
             $ref = $parent;
         }
 
-        return ['label' => '', 'description' => ''];
+        return ['label' => '', 'description' => '', 'api' => false];
     }
 
     /**

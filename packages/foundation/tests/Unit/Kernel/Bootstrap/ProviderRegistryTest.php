@@ -10,6 +10,9 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\DefinesEntityType;
+use Waaseyaa\Entity\Attribute\ContentEntityKeys;
+use Waaseyaa\Entity\Attribute\ContentEntityType;
+use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Exception\EntityTypeRegistrationCollisionException;
@@ -186,6 +189,57 @@ final class ProviderRegistryTest extends TestCase
     }
 
     #[Test]
+    public function entityAutoRegisterUsesCanonicalContentEntityMetadata(): void
+    {
+        $registry = new ProviderRegistry(new NullLogger());
+        $database = DBALDatabase::createSqlite(':memory:');
+        $dispatcher = new EventDispatcher();
+        $entityTypeManager = new EntityTypeManager($dispatcher);
+
+        $registry->discoverAndRegister(
+            manifest: new PackageManifest(
+                providers: [],
+                attributeEntityTypes: [ContentAttributeAutoEntityFixture::class],
+            ),
+            projectRoot: sys_get_temp_dir(),
+            config: ['entity_auto_register' => true],
+            entityTypeManager: $entityTypeManager,
+            database: $database,
+            dispatcher: $dispatcher,
+        );
+
+        $definition = $entityTypeManager->getDefinition('content_attr_auto_fixture');
+        self::assertSame(ContentAttributeAutoEntityFixture::class, $definition->getClass());
+        self::assertSame('Content attribute fixture', $definition->getLabel());
+        self::assertFalse($definition->isApiExposed());
+    }
+
+    #[Test]
+    public function canonicalContentEntityMetadataTakesPrecedenceOverLegacyFactoryInterface(): void
+    {
+        CanonicalAndLegacyEntityFixture::$legacyFactoryCalls = 0;
+        $entityTypeManager = new EntityTypeManager(new EventDispatcher());
+
+        new ProviderRegistry(new NullLogger())->discoverAndRegister(
+            manifest: new PackageManifest(
+                providers: [],
+                attributeEntityTypes: [CanonicalAndLegacyEntityFixture::class],
+            ),
+            projectRoot: sys_get_temp_dir(),
+            config: ['entity_auto_register' => true],
+            entityTypeManager: $entityTypeManager,
+            database: DBALDatabase::createSqlite(':memory:'),
+            dispatcher: new EventDispatcher(),
+        );
+
+        $definition = $entityTypeManager->getDefinition('canonical_metadata_fixture');
+        self::assertSame(0, CanonicalAndLegacyEntityFixture::$legacyFactoryCalls);
+        self::assertSame(CanonicalAndLegacyEntityFixture::class, $definition->getClass());
+        self::assertTrue($definition->isApiExposed());
+        self::assertFalse($entityTypeManager->hasDefinition('legacy_factory_fixture'));
+    }
+
+    #[Test]
     public function entity_auto_register_off_skips_attribute_manifest_classes(): void
     {
         $registry = new ProviderRegistry(new NullLogger());
@@ -284,6 +338,31 @@ final class AttributeAutoEntityFixture implements DefinesEntityType
             id: 'attr_auto_fixture',
             label: 'Attr fixture',
             class: self::class,
+        );
+    }
+}
+
+#[ContentEntityType(id: 'content_attr_auto_fixture', label: 'Content attribute fixture')]
+#[ContentEntityKeys(id: 'id', uuid: 'uuid', label: 'label')]
+final class ContentAttributeAutoEntityFixture extends ContentEntityBase
+{
+}
+
+#[ContentEntityType(id: 'canonical_metadata_fixture', label: 'Canonical metadata fixture', api: true)]
+#[ContentEntityKeys(id: 'id', uuid: 'uuid', label: 'label')]
+final class CanonicalAndLegacyEntityFixture extends ContentEntityBase implements DefinesEntityType
+{
+    public static int $legacyFactoryCalls = 0;
+
+    public static function entityType(): EntityType
+    {
+        ++self::$legacyFactoryCalls;
+
+        return new EntityType(
+            id: 'legacy_factory_fixture',
+            label: 'Legacy factory fixture',
+            class: self::class,
+            api: false,
         );
     }
 }

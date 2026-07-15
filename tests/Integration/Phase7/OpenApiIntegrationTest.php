@@ -45,6 +45,7 @@ final class OpenApiIntegrationTest extends TestCase
                 'label' => 'title',
                 'bundle' => 'type',
             ],
+            api: true,
         ));
     }
 
@@ -60,6 +61,7 @@ final class OpenApiIntegrationTest extends TestCase
                 'label' => 'name',
                 'bundle' => 'vid',
             ],
+            api: true,
         ));
     }
 

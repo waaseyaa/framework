@@ -42,6 +42,7 @@ final class AiAgentEntityServiceProvider extends ServiceProvider
             keys: ['id' => 'id', 'uuid' => 'id', 'label' => 'id'],
             description: 'One executor invocation. Aggregate root for agent_audit_log.',
             group: 'ai',
+            api: true,
         ));
 
         $this->entityType(new EntityType(
@@ -51,6 +52,7 @@ final class AiAgentEntityServiceProvider extends ServiceProvider
             keys: ['id' => 'id', 'uuid' => 'id', 'label' => 'event_type'],
             description: 'One audit-log row per executor event. Append-only.',
             group: 'ai',
+            api: true,
         ));
 
         $this->singleton(AgentRunRepository::class, fn(): AgentRunRepository => new AgentRunRepository(
