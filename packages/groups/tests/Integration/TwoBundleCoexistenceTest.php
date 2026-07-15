@@ -164,13 +164,8 @@ final class TwoBundleCoexistenceTest extends TestCase
             'beta_code' => 'B-42',
         ]));
 
-        // accessCheck(false): this test is exercising bundle-scoped JOIN
-        // routing for subtable storage, not access control. group/group_type
-        // have no registered AccessPolicyInterface — access is intentionally
-        // parked (deny-by-default for every account; see
-        // GroupApiSurfaceParkedTest and README.md "API exposure (parked)",
-        // #1871) — so a bound query here would always return zero rows and
-        // the JOIN behavior under test would go unverified.
+        // accessCheck(false): this test exercises bundle-scoped JOIN routing
+        // for subtable storage; GroupApiSurfaceTest covers the package policy.
         $ids = (new SqlEntityQuery($this->groupType, $this->database, null, $this->registry))
             ->accessCheck(false)
             ->condition('type', 'alpha')
@@ -192,11 +187,8 @@ final class TwoBundleCoexistenceTest extends TestCase
         // exception, never a silent bundle choice.
         $this->expectException(BundleAmbiguousFieldException::class);
 
-        // accessCheck(false): asserting query-time ambiguity detection, not
-        // access control. Access is intentionally parked for group/group_type
-        // (deny-by-default for every account, no registered access policy —
-        // see GroupApiSurfaceParkedTest and #1871); binding an account here
-        // would deny before the ambiguity check ever ran.
+        // accessCheck(false): this test asserts query-time ambiguity detection,
+        // while GroupApiSurfaceTest covers the package policy.
         (new SqlEntityQuery($this->groupType, $this->database, null, $this->registry))
             ->accessCheck(false)
             ->condition('shared_tag', 'anything')

@@ -35,6 +35,7 @@
     ],
     "require": {
         "php": ">=8.5",
+        "waaseyaa/access": "^0.1.0-alpha.265",
         "waaseyaa/entity": "^0.1.0-alpha.265",
         "waaseyaa/entity-storage": "^0.1.0-alpha.265",
         "waaseyaa/field": "^0.1.0-alpha.265",
@@ -43,7 +44,6 @@
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5",
-        "waaseyaa/access": "^0.1.0-alpha.265",
         "waaseyaa/user": "^0.1.0-alpha.265"
     },
     "autoload": {
@@ -58,6 +58,15 @@
     },
     "extra": {
         "waaseyaa": {
+            "permissions": {
+                "administer groups": {
+                    "title": "Administer groups",
+                    "description": "Create, view, update, and delete groups and group types."
+                }
+            },
+            "policies": [
+                "Waaseyaa\\Groups\\GroupAccessPolicy"
+            ],
             "providers": [
                 "Waaseyaa\\Groups\\GroupsServiceProvider"
             ]

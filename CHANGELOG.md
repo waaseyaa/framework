@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Groups JSON:API exposure is now deliberate and permission-gated (#1871, #2043).** The load-bearing `group` and `group_type` definitions opt in with `api: true`, appear in authenticated discovery, and require `administer groups` for entity CRUD through the package-owned `GroupAccessPolicy`.
+
 - **Generic JSON:API entity routes now require an explicit exposure opt-in (#2043).** `#[ContentEntityType]` and imperative `EntityType` definitions default `api` to false; routing, discovery, workflow sub-routes, and OpenAPI share the same exposure predicate, while registered unexposed types return a diagnostic naming `api: true`. Compiled discovery now consumes canonical content-entity metadata, and the prior unused `#[AsEntityType]` static-factory path is deprecated. See `docs/upgrade-notes/entity-type-api-exposure.md` for the Minoo inventory and migration.
 
 ### Fixed
