@@ -7,9 +7,12 @@ namespace Waaseyaa\Tests\Integration\Phase13\Fixtures;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Foundation\Http\Router\DomainRouterInterface;
+use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
 use Waaseyaa\Foundation\Middleware\SecurityHeadersMiddleware;
+use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Routing\RouteBuilder;
@@ -24,7 +27,7 @@ use Waaseyaa\Routing\WaaseyaaRouter;
  *   POST /test/protected     — CSRF-protected multipart endpoint (returns 200 OK)
  *   POST /test/api/json-route — JSON-exempt endpoint (returns 200 always)
  */
-final class CsrfTestServiceProvider extends ServiceProvider implements HasMiddlewareInterface
+final class CsrfTestServiceProvider extends ServiceProvider implements HasHttpDomainRoutersInterface, HasMiddlewareInterface
 {
     public function register(): void
     {
@@ -45,6 +48,16 @@ final class CsrfTestServiceProvider extends ServiceProvider implements HasMiddle
             ),
             new FinalResponseProbeMiddleware(),
         ];
+    }
+
+    /** @return iterable<DomainRouterInterface> */
+    public function httpDomainRouters(HttpKernel $kernel): iterable
+    {
+        if (($_SERVER['REQUEST_URI'] ?? '') === '/test/throws') {
+            throw new \RuntimeException('fixture router construction exploded');
+        }
+
+        return [];
     }
 
     public function routes(WaaseyaaRouter $router, EntityTypeManager $entityTypeManager): void
@@ -91,6 +104,17 @@ final class CsrfTestServiceProvider extends ServiceProvider implements HasMiddle
                 ))
                 ->allowAll()
                 ->methods('POST')
+                ->build(),
+        );
+
+        $router->addRoute(
+            'test.controller.throws',
+            RouteBuilder::create('/test/throws')
+                ->controller(static function (): never {
+                    throw new \RuntimeException('fixture controller exploded');
+                })
+                ->allowAll()
+                ->methods('GET')
                 ->build(),
         );
     }

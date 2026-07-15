@@ -156,6 +156,23 @@ final class InertiaMultipartCsrfIntegrationTest extends TestCase
         $this->assertNotNull($this->findSetCookieHeader('XSRF-TOKEN', $result['headers']));
     }
 
+    #[Test]
+    public function throwingTerminalDispatchSetupRetainsTheKernelUnhandledExceptionSurface(): void
+    {
+        $result = $this->dispatch([
+            'method' => 'GET',
+            'uri'    => '/test/throws',
+        ]);
+
+        $this->assertSame(500, $result['status']);
+        $payload = json_decode($result['body'], true, flags: JSON_THROW_ON_ERROR);
+        $this->assertSame(
+            'An unexpected error occurred.',
+            $payload['errors'][0]['detail'] ?? null,
+            'Terminal dispatch exceptions must bubble to HttpKernel::handle(), not be reclassified as middleware failures.',
+        );
+    }
+
     // -----------------------------------------------------------------------
     // T010 — Multipart POST with X-XSRF-TOKEN succeeds (contract §2, §3 happy path)
     // -----------------------------------------------------------------------
