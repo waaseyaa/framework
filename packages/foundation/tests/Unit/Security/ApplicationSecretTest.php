@@ -35,8 +35,11 @@ final class ApplicationSecretTest extends TestCase
             hash_equals((string) hex2bin('7591a9a6f363da34a9cca82a3bb670bb50e9f140d3b4a2c99cb713edffccb8bb'), $cache),
             'Cache purpose derivation must match the pinned HKDF vector.',
         );
-        self::assertSame($audit, $secret->derive('waaseyaa.audit.checkpoint-hmac.v1'));
-        self::assertNotSame($audit, $cache);
+        self::assertTrue(
+            hash_equals($audit, $secret->derive('waaseyaa.audit.checkpoint-hmac.v1')),
+            'Repeated derivation for one purpose must be stable.',
+        );
+        self::assertFalse(hash_equals($audit, $cache), 'Distinct purpose labels must derive distinct keys.');
     }
 
     /** @return iterable<string, array{?string}> */
@@ -67,9 +70,12 @@ final class ApplicationSecretTest extends TestCase
         $first = ApplicationSecret::fromEnvironmentValue(null, 'testing');
         $second = ApplicationSecret::fromEnvironmentValue(null, 'testing');
 
-        self::assertNotSame(
-            $first->derive('waaseyaa.audit.checkpoint-hmac.v1'),
-            $second->derive('waaseyaa.audit.checkpoint-hmac.v1'),
+        self::assertFalse(
+            hash_equals(
+                $first->derive('waaseyaa.audit.checkpoint-hmac.v1'),
+                $second->derive('waaseyaa.audit.checkpoint-hmac.v1'),
+            ),
+            'Separate development kernel secrets must derive distinct keys.',
         );
     }
 
@@ -82,7 +88,10 @@ final class ApplicationSecretTest extends TestCase
             ApplicationSecret::fromEnvironmentValue($invalid, 'production');
             self::fail('Invalid application secret must be rejected.');
         } catch (\RuntimeException $e) {
-            self::assertStringNotContainsString($invalid, $e->getMessage());
+            self::assertFalse(
+                str_contains($e->getMessage(), $invalid),
+                'Configuration errors must not contain the rejected secret value.',
+            );
             self::assertStringNotContainsString('operator-secret', $e->getMessage());
         }
     }
@@ -99,16 +108,22 @@ final class ApplicationSecretTest extends TestCase
         ob_start();
         var_dump($secret);
         $debug = (string) ob_get_clean();
-        self::assertStringNotContainsString(self::RAW_SECRET, $debug);
-        self::assertStringNotContainsString($derived, $debug);
+        self::assertFalse(str_contains($debug, self::RAW_SECRET), 'Debug output must not contain master bytes.');
+        self::assertFalse(str_contains($debug, $derived), 'Debug output must not contain derived bytes.');
         self::assertStringContainsString('[REDACTED]', $debug);
 
         try {
             serialize($secret);
             self::fail('ApplicationSecret serialization must fail closed.');
         } catch (\LogicException $e) {
-            self::assertStringNotContainsString(self::RAW_SECRET, $e->getMessage());
-            self::assertStringNotContainsString($derived, $e->getMessage());
+            self::assertFalse(
+                str_contains($e->getMessage(), self::RAW_SECRET),
+                'Serialization errors must not contain master bytes.',
+            );
+            self::assertFalse(
+                str_contains($e->getMessage(), $derived),
+                'Serialization errors must not contain derived bytes.',
+            );
         }
     }
 }

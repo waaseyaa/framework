@@ -301,10 +301,16 @@ final class HttpKernelTest extends TestCase
             ApplicationSecret::HKDF_SALT,
         );
 
-        self::assertStringStartsWith(hash_hmac('sha256', serialize('value'), $derived), $stored);
-        self::assertStringNotContainsString($master, $stored);
-        self::assertStringNotContainsString($derived, $stored);
-        self::assertStringNotContainsString(base64_encode($master), $stored);
+        self::assertTrue(
+            str_starts_with($stored, hash_hmac('sha256', serialize('value'), $derived)),
+            'Kernel cache payloads must carry the derived-key HMAC.',
+        );
+        self::assertFalse(str_contains($stored, $master), 'Cache rows must not contain master bytes.');
+        self::assertFalse(str_contains($stored, $derived), 'Cache rows must not contain derived bytes.');
+        self::assertFalse(
+            str_contains($stored, base64_encode($master)),
+            'Cache rows must not contain encoded master bytes.',
+        );
     }
 
     #[Test]

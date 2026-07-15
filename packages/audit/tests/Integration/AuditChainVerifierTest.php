@@ -134,8 +134,11 @@ final class AuditChainVerifierTest extends TestCase
             'SELECT signature FROM audit_checkpoint WHERE is_genesis = 0',
         );
         self::assertMatchesRegularExpression('/^hmac-sha256\\.hkdf-v1:[0-9a-f]{64}$/', $signature);
-        self::assertStringNotContainsString($key, $signature);
-        self::assertStringNotContainsString(base64_encode($key), $signature);
+        self::assertFalse(str_contains($signature, $key), 'Stored signatures must not contain raw key bytes.');
+        self::assertFalse(
+            str_contains($signature, base64_encode($key)),
+            'Stored signatures must not contain encoded key bytes.',
+        );
         self::assertTrue($this->verifier($key)->verify()->ok);
 
         $this->db->getConnection()->executeStatement(
