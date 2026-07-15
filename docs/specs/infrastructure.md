@@ -995,7 +995,7 @@ Per spec §15 Q9, `extra.waaseyaa.migrations` also accepts an **ordered list** o
 
 **SQLite / `down()`:** Additive column migrations may use a no-op `down()` when portable `DROP COLUMN` is not guaranteed; prefer compensating migrations for breaking changes.
 
-**Reference packages:** `waaseyaa/queue`, `waaseyaa/notification`, `waaseyaa/scheduler`, `waaseyaa/ai-observability` register `migrations`; `waaseyaa/oidc` registers `migrations/2026_04_26_000001_oidc_client_schema.php` for the `oidc_client` table and lookup columns (#1286).
+**Reference packages:** `waaseyaa/queue`, `waaseyaa/notification`, `waaseyaa/scheduler`, `waaseyaa/ai-observability` register `migrations`; `waaseyaa/oidc` registers its client, token, signing-key, consent, and secret-storage migrations. The secret-storage migration adds keyed lookup columns for access and refresh tokens; existing secret values are converted transactionally by the application-key-aware `oidc:migrate-secrets --confirm` command (#2037).
 
 ## HTTP Client
 

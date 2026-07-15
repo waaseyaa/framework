@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **OIDC secrets now use purpose-bound encrypted storage (#2037).** RSA private keys and opaque access/refresh tokens are stored in versioned sodium secretbox envelopes under distinct HKDF-derived keys; token lookup uses separate derived HMAC keys, runtime reads require authenticated envelopes, and `oidc:migrate-secrets --confirm` converts existing rows transactionally.
+
 - **Application key custody now has one fail-closed HKDF root (#2037).** Production-equivalent kernels require a canonical 32-byte `WAASEYAA_APP_SECRET`, derive distinct audit-checkpoint and cache-payload HMAC keys with HKDF-SHA-256, require every keyed audit checkpoint (including genesis) to carry a valid versioned signature, and treat legacy cache rows as cold misses. Existing audit chains upgrade only through the explicit transactional `audit:migrate-checkpoint-signatures --confirm` command, which refuses mixed or broken history; the skeleton generates the root secret and an upgrade note covers the trust and migration boundary.
 
 ## [0.1.0-alpha.265] - 2026-07-14

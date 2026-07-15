@@ -6,6 +6,7 @@ namespace Waaseyaa\Oidc\Token;
 
 use DateTimeImmutable;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Oidc\Security\OpaqueTokenProtector;
 
 /**
  * Issues and persists OIDC refresh tokens.
@@ -23,10 +24,17 @@ final class RefreshTokenIssuer
     private const EXPIRY_SECONDS = 7_776_000; // 90 days
 
     private bool $tableEnsured = false;
+    private readonly OpaqueTokenProtector $protector;
 
     public function __construct(
         private readonly DatabaseInterface $database,
-    ) {}
+        #[\SensitiveParameter]
+        string $encryptionKey,
+        #[\SensitiveParameter]
+        string $lookupKey,
+    ) {
+        $this->protector = new OpaqueTokenProtector($encryptionKey, $lookupKey);
+    }
 
     /**
      * Issue a new refresh token, optionally inheriting a chain from a prior token.
@@ -53,7 +61,8 @@ final class RefreshTokenIssuer
         $this->database->insert(self::TABLE)
             ->values([
                 'jti' => $jti,
-                'token' => $token,
+                'token' => $this->protector->seal($token),
+                'token_lookup' => $this->protector->lookup($token),
                 'access_token_jti' => $accessTokenJti,
                 'client_id' => $clientId,
                 'account_id' => $accountId,
@@ -88,8 +97,13 @@ final class RefreshTokenIssuer
     {
         $this->ensureTable();
 
-        foreach ($this->database->select(self::TABLE)->condition('token', $token)->execute() as $row) {
-            return $this->hydrate($row);
+        foreach ($this->database->select(self::TABLE)->condition('token_lookup', $this->protector->lookup($token))->execute() as $row) {
+            $storedToken = $this->protector->open((string) $row['token']);
+            if (hash_equals($storedToken, $token)) {
+                $row['token'] = $storedToken;
+
+                return $this->hydrate($row);
+            }
         }
 
         return null;
@@ -103,6 +117,8 @@ final class RefreshTokenIssuer
         $this->ensureTable();
 
         foreach ($this->database->select(self::TABLE)->condition('jti', $jti)->execute() as $row) {
+            $row['token'] = $this->protector->open((string) $row['token']);
+
             return $this->hydrate($row);
         }
 
@@ -173,7 +189,8 @@ final class RefreshTokenIssuer
         $this->database->query(<<<'SQL'
                 CREATE TABLE IF NOT EXISTS oidc_refresh_token (
                     jti VARCHAR(128) PRIMARY KEY NOT NULL,
-                    token VARCHAR(128) NOT NULL UNIQUE,
+                    token TEXT NOT NULL UNIQUE,
+                    token_lookup CHAR(64) NOT NULL UNIQUE,
                     access_token_jti VARCHAR(128) NOT NULL,
                     client_id VARCHAR(255) NOT NULL,
                     account_id VARCHAR(255) NOT NULL,
@@ -185,6 +202,15 @@ final class RefreshTokenIssuer
                     revoked_at INTEGER
                 )
             SQL);
+
+        $schema = $this->database->schema();
+        if (!$schema->tableExists(self::TABLE)) {
+            throw new \RuntimeException('OIDC refresh-token schema is unavailable.');
+        }
+        if (!$schema->fieldExists(self::TABLE, 'token_lookup')) {
+            $schema->addField(self::TABLE, 'token_lookup', ['type' => 'varchar', 'length' => 64]);
+            $schema->addUniqueKey(self::TABLE, 'idx_oidc_refresh_token_lookup', ['token_lookup']);
+        }
 
         $this->tableEnsured = true;
     }

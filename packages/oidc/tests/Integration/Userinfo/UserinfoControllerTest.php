@@ -49,7 +49,7 @@ final class UserinfoControllerTest extends TestCase
         // Shared in-memory connection for the oidc_access_token table so the
         // issuer and the controller see the same rows.
         $this->tokenDb = DBALDatabase::createSqlite();
-        $this->accessTokenIssuer = new AccessTokenIssuer($this->tokenDb);
+        $this->accessTokenIssuer = new AccessTokenIssuer($this->tokenDb, str_repeat('a', 32), str_repeat('b', 32));
 
         // User entity storage (separate in-memory DB is fine; the controller
         // resolves it via the EntityTypeManager).

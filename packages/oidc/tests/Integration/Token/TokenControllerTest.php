@@ -330,8 +330,8 @@ final class TokenControllerTest extends TestCase
         }
 
         $db = DBALDatabase::createSqlite();
-        $accessTokenIssuer = new AccessTokenIssuer($db);
-        $refreshTokenIssuer = new RefreshTokenIssuer($db);
+        $accessTokenIssuer = new AccessTokenIssuer($db, str_repeat('a', 32), str_repeat('b', 32));
+        $refreshTokenIssuer = new RefreshTokenIssuer($db, str_repeat('c', 32), str_repeat('d', 32));
 
         return new TokenController(
             clientLookup: new OidcClientLookup($this->repository),

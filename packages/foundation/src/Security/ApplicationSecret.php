@@ -18,6 +18,11 @@ final class ApplicationSecret
     public const string HKDF_SALT = 'waaseyaa.app-secret.hkdf.v1';
     public const string PURPOSE_AUDIT_CHECKPOINT_HMAC = 'waaseyaa.audit.checkpoint-hmac.v1';
     public const string PURPOSE_CACHE_PAYLOAD_HMAC = 'waaseyaa.cache.payload-hmac.v1';
+    public const string PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION = 'waaseyaa.oidc.signing-key-encryption.v1';
+    public const string PURPOSE_OIDC_ACCESS_TOKEN_ENCRYPTION = 'waaseyaa.oidc.access-token-encryption.v1';
+    public const string PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP = 'waaseyaa.oidc.access-token-lookup.v1';
+    public const string PURPOSE_OIDC_REFRESH_TOKEN_ENCRYPTION = 'waaseyaa.oidc.refresh-token-encryption.v1';
+    public const string PURPOSE_OIDC_REFRESH_TOKEN_LOOKUP = 'waaseyaa.oidc.refresh-token-lookup.v1';
 
     /** @var \WeakMap<self, string>|null */
     private static ?\WeakMap $secrets = null;

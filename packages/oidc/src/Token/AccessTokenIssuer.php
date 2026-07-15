@@ -6,6 +6,7 @@ namespace Waaseyaa\Oidc\Token;
 
 use DateTimeImmutable;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Oidc\Security\OpaqueTokenProtector;
 
 /**
  * Issues and persists opaque OIDC access tokens.
@@ -14,11 +15,9 @@ use Waaseyaa\Database\DatabaseInterface;
  * verify them and detect revocation without round-tripping to the IdP JWK set.
  * The token value itself is a 32-byte URL-safe random string (opaque to clients).
  *
- * Secrets at rest: the opaque token is stored unencrypted in the `token` column
- * (lookup is by exact value, see findByOpaqueToken), so confidentiality relies on
- * the database trust boundary. Hashing tokens at rest is tracked hardening
- * (audit D-13) deferred because it must be applied consistently across the
- * access- and refresh-token stores; see packages/oidc/README.md "Secrets at rest".
+ * The bearer value is persisted in a versioned secretbox envelope. Exact lookup
+ * uses a separate application-derived HMAC key and authenticates the envelope
+ * before returning a record.
  *
  * @api
  */
@@ -28,10 +27,17 @@ final class AccessTokenIssuer
     private const EXPIRY_SECONDS = 3600;
 
     private bool $tableEnsured = false;
+    private readonly OpaqueTokenProtector $protector;
 
     public function __construct(
         private readonly DatabaseInterface $database,
-    ) {}
+        #[\SensitiveParameter]
+        string $encryptionKey,
+        #[\SensitiveParameter]
+        string $lookupKey,
+    ) {
+        $this->protector = new OpaqueTokenProtector($encryptionKey, $lookupKey);
+    }
 
     /**
      * Issues a new access token and persists it.
@@ -54,7 +60,8 @@ final class AccessTokenIssuer
         $this->database->insert(self::TABLE)
             ->values([
                 'jti' => $jti,
-                'token' => $token,
+                'token' => $this->protector->seal($token),
+                'token_lookup' => $this->protector->lookup($token),
                 'client_id' => $clientId,
                 'account_id' => $accountId,
                 'scope' => implode(' ', $scopes),
@@ -79,6 +86,8 @@ final class AccessTokenIssuer
         $this->ensureTable();
 
         foreach ($this->database->select(self::TABLE)->condition('jti', $jti)->execute() as $row) {
+            $row['token'] = $this->protector->open((string) $row['token']);
+
             return $row;
         }
 
@@ -86,7 +95,7 @@ final class AccessTokenIssuer
     }
 
     /**
-     * Find an access token by its opaque token value (stored in the `token` column).
+     * Find an access token through its purpose-bound keyed lookup value.
      *
      * @return array<string, mixed>|null
      */
@@ -94,8 +103,13 @@ final class AccessTokenIssuer
     {
         $this->ensureTable();
 
-        foreach ($this->database->select(self::TABLE)->condition('token', $token)->execute() as $row) {
-            return $row;
+        foreach ($this->database->select(self::TABLE)->condition('token_lookup', $this->protector->lookup($token))->execute() as $row) {
+            $storedToken = $this->protector->open((string) $row['token']);
+            if (hash_equals($storedToken, $token)) {
+                $row['token'] = $storedToken;
+
+                return $row;
+            }
         }
 
         return null;
@@ -152,7 +166,8 @@ final class AccessTokenIssuer
         $this->database->query(<<<'SQL'
                 CREATE TABLE IF NOT EXISTS oidc_access_token (
                     jti VARCHAR(128) PRIMARY KEY NOT NULL,
-                    token VARCHAR(128) NOT NULL UNIQUE,
+                    token TEXT NOT NULL UNIQUE,
+                    token_lookup CHAR(64) NOT NULL UNIQUE,
                     client_id VARCHAR(255) NOT NULL,
                     account_id VARCHAR(255) NOT NULL,
                     scope TEXT NOT NULL,
@@ -161,6 +176,15 @@ final class AccessTokenIssuer
                     revoked_at INTEGER
                 )
             SQL);
+
+        $schema = $this->database->schema();
+        if (!$schema->tableExists(self::TABLE)) {
+            throw new \RuntimeException('OIDC access-token schema is unavailable.');
+        }
+        if (!$schema->fieldExists(self::TABLE, 'token_lookup')) {
+            $schema->addField(self::TABLE, 'token_lookup', ['type' => 'varchar', 'length' => 64]);
+            $schema->addUniqueKey(self::TABLE, 'idx_oidc_access_token_lookup', ['token_lookup']);
+        }
 
         $this->tableEnsured = true;
     }

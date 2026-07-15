@@ -24,29 +24,25 @@ This package provides the authorization-server primitives used by a dedicated Id
 
 ## Security: secrets at rest
 
-Two categories of long-lived secrets are persisted by this package, and both are
-stored **unencrypted** at rest by design in v1:
+OIDC secret persistence is rooted in `WAASEYAA_APP_SECRET` through distinct,
+versioned HKDF-SHA-256 purposes:
 
-- **Opaque access tokens** (`oidc_access_token.token`, `AccessTokenIssuer`). The
-  value is a 256-bit random string and is looked up by exact value
-  (`findByOpaqueToken`), so the at-rest column must match the bearer string.
-  Tokens are short-lived (1h) and revocable.
-- **RSA signing private keys** (`oidc_signing_key.private_key_pem`,
-  `SigningKeyRepository`). The PEM must be available in plaintext at signing
-  time (`IdTokenMinter`), and keys rotate (current + one previous).
+- RSA private keys use sodium secretbox with a fresh nonce and a strict
+  `secretbox.hkdf-v1:` envelope. Public-key material remains directly readable.
+- Opaque access and refresh tokens use separate secretbox encryption keys and
+  separate HMAC-SHA-256 lookup keys. Exact lookup uses the keyed lookup column;
+  the bearer value is returned only after its encrypted envelope authenticates.
+- Issuer signing uses the encrypted database repository unless file keys are
+  explicitly configured. Database key configuration or decryption errors are
+  propagated and do not select another provider.
 
-**Threat model:** confidentiality of these secrets relies on confidentiality of
-the database file/connection (filesystem permissions, disk encryption, network
-TLS, and DB access control) — the same trust boundary as the rest of the entity
-store. A read of the DB discloses live bearer tokens and signing keys.
+Existing installations run `bin/waaseyaa oidc:migrate-secrets --confirm` in
+maintenance mode after taking a trusted backup. The command converts signing
+keys, access tokens, and refresh tokens in one transaction. Runtime readers
+accept only authenticated envelopes; there is no ongoing plaintext read mode.
+See `docs/upgrade-notes/oidc-secrets-at-rest.md` for the bounded procedure.
 
-Hashing tokens at rest and KMS/app-key-encrypting the signing keys are tracked
-hardening (audit D-13); they are deferred because token hashing must be applied
-consistently across the access- and refresh-token stores and key encryption
-requires app-key/KMS bootstrap and encryption-key rotation — out of scope for a
-single-IdP v1. Do not weaken the DB trust boundary in the meantime.
-
-See [ADR-006](../../docs/adr/006-cross-app-identity-via-oidc.md) for full context, invariants, and migration plan.
+See [ADR-006](../../docs/adr/006-cross-app-identity-via-oidc.md) for full context.
 
 ## Status
 

@@ -43,13 +43,15 @@ final class OidcClientSchemaMigrationTest extends TestCase
 
         $migrator = new Migrator($connection, $repository);
         $result = $migrator->run($all);
-        self::assertSame(4, $result->count);
+        self::assertSame(5, $result->count);
 
         $schema = new SchemaBuilder($connection);
         self::assertTrue($schema->hasTable('oidc_client'));
         self::assertTrue($schema->hasColumn('oidc_client', 'client_id'));
         self::assertTrue($schema->hasColumn('oidc_client', 'is_confidential'));
         self::assertTrue($schema->hasColumn('oidc_client', 'client_secret_hash'));
+        self::assertTrue($schema->hasColumn('oidc_access_token', 'token_lookup'));
+        self::assertTrue($schema->hasColumn('oidc_refresh_token', 'token_lookup'));
 
         $result2 = $migrator->run($all);
         self::assertSame(0, $result2->count);
