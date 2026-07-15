@@ -129,7 +129,7 @@ final class GenericAdminSurfaceHostFieldAccessPaginationTest extends TestCase
 
             public function fieldAccess(EntityInterface $entity, string $fieldName, string $operation, AccountInterface $account): AccessResult
             {
-                if ($fieldName === 'description' && $entity->get('classified') === true) {
+                if ($fieldName === 'description' && (bool) $entity->get('classified')) {
                     return AccessResult::forbidden('Classified descriptions are hidden.');
                 }
 

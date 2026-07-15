@@ -538,6 +538,84 @@ final class EntityRepository implements EntityRepositoryInterface
     }
 
     /**
+     * Normalize declared boolean fields to the storage-canonical 0/1 shape.
+     *
+     * This runs after pre-save listeners have finished mutating the entity and
+     * before the shared value snapshot reaches base, bundle, or revision
+     * storage. Null remains null for optional fields.
+     *
+     * @param array<string, mixed> $values
+     * @return array<string, mixed>
+     */
+    private function normalizeBooleanStorageValues(
+        array $values,
+        ?EntityInterface $entity = null,
+        ?string $entityId = null,
+    ): array {
+        $definitions = $entity !== null
+            ? $this->resolveValidationFieldDefinitions($entity)
+            : $this->resolveArrayWriteFieldDefinitions($values, $entityId);
+
+        foreach ($definitions as $name => $definition) {
+            if (!\in_array(\strtolower($definition->getType()), ['bool', 'boolean'], true)
+                || !\array_key_exists($name, $values)
+                || $values[$name] === null
+            ) {
+                continue;
+            }
+
+            $value = $values[$name];
+            if ($value instanceof \BackedEnum) {
+                $value = $value->value;
+            }
+
+            $values[$name] = match (true) {
+                $value === true, $value === 1 => 1,
+                $value === false, $value === 0 => 0,
+                \is_string($value) && \in_array(\strtolower(\trim($value)), ['1', 'true', 'yes'], true) => 1,
+                default => 0,
+            };
+        }
+
+        return $values;
+    }
+
+    /**
+     * Resolve field definitions for repository entry points that accept value
+     * arrays instead of an entity object (the translation write APIs).
+     *
+     * @param array<string, mixed> $values
+     * @return array<string, \Waaseyaa\Field\FieldDefinitionInterface>
+     */
+    private function resolveArrayWriteFieldDefinitions(array $values, ?string $entityId): array
+    {
+        $fields = $this->entityType->getFieldDefinitions();
+        if ($this->fieldRegistry === null) {
+            return $fields;
+        }
+
+        $entityTypeId = $this->entityType->id();
+        foreach ($this->fieldRegistry->coreFieldsFor($entityTypeId) as $name => $definition) {
+            $fields[$name] = $definition;
+        }
+
+        $bundleKey = $this->entityType->getKeys()['bundle'] ?? null;
+        $bundle = $bundleKey !== null ? (string) ($values[$bundleKey] ?? '') : '';
+        if ($bundle === '' && $bundleKey !== null && $entityId !== null) {
+            $baseRow = $this->driver->read($entityTypeId, $entityId);
+            $bundle = (string) ($baseRow[$bundleKey] ?? '');
+        }
+
+        if ($bundle !== '') {
+            foreach ($this->fieldRegistry->bundleFieldsFor($entityTypeId, $bundle) as $name => $definition) {
+                $fields[$name] = $definition;
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
      * Coordinates a single entity save: optimistic-locking preconditions,
      * validation, the in-transaction guarded pointer claim, base + bundle +
      * revision writes, and the lifecycle event sequence.
@@ -765,7 +843,7 @@ final class EntityRepository implements EntityRepositoryInterface
             BeforeSaveEvent::class,
         );
 
-        $values = $entity->toArray();
+        $values = $this->normalizeBooleanStorageValues($entity->toArray(), $entity);
         // C-22 WP4 fix: read the id key from the entity's raw value bag
         // (toArray()), not the $entity->id() accessor. Some entity classes
         // (e.g. Waaseyaa\User\User::id(), which implements AccountInterface's
@@ -1622,6 +1700,7 @@ final class EntityRepository implements EntityRepositoryInterface
             BeforeRevisionPointerMoveEvent::class,
         );
 
+        $values = $this->normalizeBooleanStorageValues($values, entityId: $entityId);
         $revisionId = $driver->writeRevision($entityId, $values, $log, $langcode, $actor);
 
         $entity = $this->loadTranslationRevision($entityId, $langcode, $revisionId);
@@ -1673,6 +1752,7 @@ final class EntityRepository implements EntityRepositoryInterface
                     BeforeRevisionPointerMoveEvent::class,
                 );
 
+                $values = $this->normalizeBooleanStorageValues($values, entityId: $entityId);
                 $created[$langcode] = $driver->writeRevision($entityId, $values, $log, $langcode, $actor);
             }
             $transaction?->commit();
@@ -1803,6 +1883,7 @@ final class EntityRepository implements EntityRepositoryInterface
                 BeforeRevisionPointerMoveEvent::class,
             );
 
+            $values = $this->normalizeBooleanStorageValues($values, entityId: $entityId);
             $this->upsertLangcodePeerRow($entityId, $langcode, $values);
             $revisionId = $driver->writeRevision($entityId, $values, $log, $langcode, $actor);
             $transaction->commit();
