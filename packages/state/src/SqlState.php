@@ -14,10 +14,15 @@ final class SqlState implements StateInterface
 {
     /** @var bool Whether the state table has been verified/created. */
     private bool $tableEnsured = false;
+    private readonly SignedStatePayload $payloadSigner;
 
     public function __construct(
         private readonly DatabaseInterface $database,
-    ) {}
+        #[\SensitiveParameter]
+        string $hmacKey,
+    ) {
+        $this->payloadSigner = new SignedStatePayload($hmacKey);
+    }
 
     public function get(string $key, mixed $default = null): mixed
     {
@@ -29,13 +34,7 @@ final class SqlState implements StateInterface
             ->execute();
 
         foreach ($result as $row) {
-            // Trust boundary (D-12): state values are this application's own
-            // serialized payloads from a server-controlled table and are `mixed`
-            // (objects allowed — see SqlStateTest::testSerializationOfObject), so
-            // `allowed_classes => false` cannot be used. Deferred hardening (HMAC
-            // integrity signing) is tracked in docs/specs/infrastructure.md
-            // "Stored-payload unserialize() trust boundary (D-12)".
-            return unserialize($row['value']);
+            return unserialize($this->payloadSigner->open((string) $row['value']));
         }
 
         return $default;
@@ -56,9 +55,7 @@ final class SqlState implements StateInterface
             ->execute();
 
         foreach ($result as $row) {
-            // Trust boundary (D-12): see get() — server-controlled `mixed`
-            // state payload; `allowed_classes => false` is not viable.
-            $values[$row['name']] = unserialize($row['value']);
+            $values[$row['name']] = unserialize($this->payloadSigner->open((string) $row['value']));
         }
 
         return $values;
@@ -68,7 +65,7 @@ final class SqlState implements StateInterface
     {
         $this->ensureTable();
 
-        $serialized = serialize($value);
+        $serialized = $this->payloadSigner->seal(serialize($value));
 
         // Fast path: update an existing key.
         $affected = $this->database->update('state')

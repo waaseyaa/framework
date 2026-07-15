@@ -23,6 +23,8 @@ final class ApplicationSecret
     public const string PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP = 'waaseyaa.oidc.access-token-lookup.v1';
     public const string PURPOSE_OIDC_REFRESH_TOKEN_ENCRYPTION = 'waaseyaa.oidc.refresh-token-encryption.v1';
     public const string PURPOSE_OIDC_REFRESH_TOKEN_LOOKUP = 'waaseyaa.oidc.refresh-token-lookup.v1';
+    public const string PURPOSE_QUEUE_PAYLOAD_HMAC = 'waaseyaa.queue.payload-hmac.v1';
+    public const string PURPOSE_STATE_PAYLOAD_HMAC = 'waaseyaa.state.payload-hmac.v1';
 
     /** @var \WeakMap<self, string>|null */
     private static ?\WeakMap $secrets = null;

@@ -38,3 +38,19 @@ Local, `dev`, `development`, and `testing` kernels may boot without the variable
 each kernel instance then gets a random ephemeral master secret. Persisted
 signatures or encrypted data will not survive a kernel restart in that mode, so
 set a stable application secret for any durable local workflow.
+
+## Rotation impact
+
+Changing `WAASEYAA_APP_SECRET` invalidates all material bound to its derived
+keys:
+
+- cache payload signatures;
+- audit checkpoint HMAC validation;
+- OIDC private-key and token ciphertext, plus opaque-token lookup values;
+- pending and failed persistent queue payloads;
+- SQL state payloads.
+
+This batch does not provide re-encryption or key-rotation tooling. Plan rotation
+as a maintenance event: preserve required audit history under the existing key,
+replace OIDC material and sessions, drain or clear persistent queues, clear SQL
+state and caches, then start every process with the new secret.

@@ -11,6 +11,7 @@ use Waaseyaa\CLI\Handler\QueueRetryHandler;
 use Waaseyaa\CLI\Provider\QueueServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Queue\QueueInterface;
+use Waaseyaa\Queue\Security\SignedQueuePayload;
 use Waaseyaa\Queue\Storage\InMemoryFailedJobRepository;
 use Waaseyaa\Queue\SyncQueue;
 use Waaseyaa\Queue\Tests\Unit\Fixtures\SuccessfulJob;
@@ -43,7 +44,7 @@ final class QueueRetryHandlerTest extends TestCase
             public function get(string $id): mixed
             {
                 if ($id === QueueRetryHandler::class) {
-                    return new QueueRetryHandler($this->repo, $this->queue);
+                    return new QueueRetryHandler($this->repo, $this->queue, new SignedQueuePayload(str_repeat('q', 32)));
                 }
 
                 throw new \RuntimeException(sprintf('Container::get(%s) called unexpectedly', $id));
@@ -60,7 +61,7 @@ final class QueueRetryHandlerTest extends TestCase
     public function retriesSingleFailedJob(): void
     {
         $repo = new InMemoryFailedJobRepository();
-        $jobId = $repo->record('default', serialize(new SuccessfulJob()), new \RuntimeException('Error'));
+        $jobId = $repo->record('default', $this->signed(new SuccessfulJob()), new \RuntimeException('Error'));
 
         $queue = new SyncQueue();
         $tester = CliTester::for($this->makeDefinition(), $this->makeContainer($repo, $queue));
@@ -89,8 +90,8 @@ final class QueueRetryHandlerTest extends TestCase
     public function retriesAllFailedJobs(): void
     {
         $repo = new InMemoryFailedJobRepository();
-        $repo->record('default', serialize(new SuccessfulJob()), new \RuntimeException('Error 1'));
-        $repo->record('default', serialize(new SuccessfulJob()), new \RuntimeException('Error 2'));
+        $repo->record('default', $this->signed(new SuccessfulJob()), new \RuntimeException('Error 1'));
+        $repo->record('default', $this->signed(new SuccessfulJob()), new \RuntimeException('Error 2'));
 
         $queue = new SyncQueue();
         $tester = CliTester::for($this->makeDefinition(), $this->makeContainer($repo, $queue));
@@ -105,7 +106,7 @@ final class QueueRetryHandlerTest extends TestCase
     public function preservesFailedJobWhenDispatchThrows(): void
     {
         $repo = new InMemoryFailedJobRepository();
-        $jobId = $repo->record('default', serialize(new SuccessfulJob()), new \RuntimeException('Error'));
+        $jobId = $repo->record('default', $this->signed(new SuccessfulJob()), new \RuntimeException('Error'));
 
         $queue = new class implements QueueInterface {
             public function dispatch(object $message): void
@@ -127,7 +128,7 @@ final class QueueRetryHandlerTest extends TestCase
     public function doesNotDispatchWhenAnotherCallerOwnsTheClaim(): void
     {
         $repo = new InMemoryFailedJobRepository();
-        $jobId = $repo->record('default', serialize(new SuccessfulJob()), new \RuntimeException('Error'));
+        $jobId = $repo->record('default', $this->signed(new SuccessfulJob()), new \RuntimeException('Error'));
         self::assertTrue($repo->claimForRetry($jobId));
         $queue = new class implements QueueInterface {
             public int $dispatches = 0;
@@ -162,7 +163,7 @@ final class QueueRetryHandlerTest extends TestCase
     {
         $repo = new InMemoryFailedJobRepository();
         $badId = $repo->record('default', 'not-a-valid-serialized-payload', new \RuntimeException('Error 1'));
-        $goodId = $repo->record('default', serialize(new SuccessfulJob()), new \RuntimeException('Error 2'));
+        $goodId = $repo->record('default', $this->signed(new SuccessfulJob()), new \RuntimeException('Error 2'));
 
         $queue = new SyncQueue();
         $tester = CliTester::for($this->makeDefinition(), $this->makeContainer($repo, $queue));
@@ -178,8 +179,8 @@ final class QueueRetryHandlerTest extends TestCase
     public function retryAllContinuesPastThrowingDispatch(): void
     {
         $repo = new InMemoryFailedJobRepository();
-        $failingId = $repo->record('default', serialize(new SuccessfulJob()), new \RuntimeException('Error 1'));
-        $succeedingId = $repo->record('default', serialize(new SuccessfulJob()), new \RuntimeException('Error 2'));
+        $failingId = $repo->record('default', $this->signed(new SuccessfulJob()), new \RuntimeException('Error 1'));
+        $succeedingId = $repo->record('default', $this->signed(new SuccessfulJob()), new \RuntimeException('Error 2'));
 
         $queue = new class implements QueueInterface {
             private int $calls = 0;
@@ -213,5 +214,10 @@ final class QueueRetryHandlerTest extends TestCase
 
         self::assertSame(0, $tester->getExitCode());
         self::assertStringContainsString('No failed jobs to retry.', $tester->getStdout());
+    }
+
+    private function signed(object $message): string
+    {
+        return new SignedQueuePayload(str_repeat('q', 32))->seal(serialize($message));
     }
 }

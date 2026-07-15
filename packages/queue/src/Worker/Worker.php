@@ -9,6 +9,7 @@ use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Queue\FailedJobRepositoryInterface;
 use Waaseyaa\Queue\Handler\HandlerInterface;
 use Waaseyaa\Queue\Job;
+use Waaseyaa\Queue\Security\SignedQueuePayload;
 use Waaseyaa\Queue\Transport\TransportInterface;
 
 /**
@@ -31,6 +32,7 @@ final class Worker
         private readonly TransportInterface $transport,
         private readonly FailedJobRepositoryInterface $failedJobRepository,
         array $handlers,
+        private readonly SignedQueuePayload $payloadSigner,
         ?LoggerInterface $logger = null,
     ) {
         $this->handlers = $handlers;
@@ -100,16 +102,9 @@ final class Worker
      */
     private function processJob(array $raw, string $queue, WorkerOptions $options): void
     {
-        // Trust boundary (D-12): payloads are serialized job messages this same
-        // application enqueued into the server-controlled queue transport — never
-        // request-derived. We must restore arbitrary consumer-defined message
-        // objects (no marker interface; dispatched to HandlerInterface and tested
-        // with `instanceof Job`), so `allowed_classes => false` cannot be used here.
-        // Object-injection hardening for stored payloads (HMAC integrity signing)
-        // is tracked tech-debt — see docs/specs/infrastructure.md "Stored-payload
-        // unserialize() trust boundary (D-12)".
         try {
-            $message = @unserialize($raw['payload']);
+            $serialized = $this->payloadSigner->open($raw['payload']);
+            $message = @unserialize($serialized);
         } catch (\Throwable $e) {
             $this->failedJobRepository->record($queue, $raw['payload'], $e);
             $this->transport->reject($raw['id']);

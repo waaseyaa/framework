@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Queue\DbalQueue;
 use Waaseyaa\Queue\Handler\JobHandler;
+use Waaseyaa\Queue\Security\SignedQueuePayload;
 use Waaseyaa\Queue\Storage\DatabaseFailedJobRepository;
 use Waaseyaa\Queue\Tests\Unit\Fixtures\FailingJob;
 use Waaseyaa\Queue\Tests\Unit\Fixtures\HighPriorityJob;
@@ -31,6 +32,7 @@ final class QueueIntegrationTest extends TestCase
     private DbalQueue $queue;
     private DatabaseFailedJobRepository $failedRepo;
     private Worker $worker;
+    private SignedQueuePayload $signer;
 
     protected function setUp(): void
     {
@@ -38,12 +40,14 @@ final class QueueIntegrationTest extends TestCase
         $this->createTables();
 
         $this->transport = new DbalTransport($this->database);
-        $this->queue = new DbalQueue($this->transport);
+        $this->signer = new SignedQueuePayload(str_repeat('q', 32));
+        $this->queue = new DbalQueue($this->transport, $this->signer);
         $this->failedRepo = new DatabaseFailedJobRepository($this->database);
         $this->worker = new Worker(
             $this->transport,
             $this->failedRepo,
             [new JobHandler()],
+            $this->signer,
         );
 
         SuccessfulJob::reset();
@@ -149,7 +153,7 @@ final class QueueIntegrationTest extends TestCase
 
         $record = reset($failures);
         self::assertSame('default', $record['queue']);
-        self::assertStringContainsString('FailingJob', $record['payload']);
+        self::assertStringContainsString('FailingJob', $this->signer->open($record['payload']));
         self::assertStringContainsString('RuntimeException', $record['exception']);
         self::assertNotEmpty($record['failed_at']);
     }

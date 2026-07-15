@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Queue\Handler\JobHandler;
+use Waaseyaa\Queue\Security\SignedQueuePayload;
 use Waaseyaa\Queue\Storage\InMemoryFailedJobRepository;
 use Waaseyaa\Queue\Tests\Unit\Fixtures\FailingJob;
 use Waaseyaa\Queue\Tests\Unit\Fixtures\SuccessfulJob;
@@ -24,15 +25,18 @@ final class WorkerTest extends TestCase
     private InMemoryTransport $transport;
     private InMemoryFailedJobRepository $failedRepo;
     private Worker $worker;
+    private SignedQueuePayload $signer;
 
     protected function setUp(): void
     {
         $this->transport = new InMemoryTransport();
         $this->failedRepo = new InMemoryFailedJobRepository();
+        $this->signer = new SignedQueuePayload(str_repeat('q', 32));
         $this->worker = new Worker(
             $this->transport,
             $this->failedRepo,
             [new JobHandler()],
+            $this->signer,
         );
         SuccessfulJob::reset();
         FailingJob::reset();
@@ -41,7 +45,7 @@ final class WorkerTest extends TestCase
     #[Test]
     public function processesJobSuccessfully(): void
     {
-        $this->transport->push('default', serialize(new SuccessfulJob()));
+        $this->transport->push('default', $this->signer->seal(serialize(new SuccessfulJob())));
 
         $result = $this->worker->runNextJob('default', new WorkerOptions());
 
@@ -61,7 +65,7 @@ final class WorkerTest extends TestCase
     #[Test]
     public function retriesFailingJobUpToMaxAttempts(): void
     {
-        $this->transport->push('default', serialize(new FailingJob()));
+        $this->transport->push('default', $this->signer->seal(serialize(new FailingJob())));
         $options = new WorkerOptions();
 
         // First attempt — should release for retry
@@ -94,9 +98,9 @@ final class WorkerTest extends TestCase
     #[Test]
     public function runProcessesMultipleJobsUpToMaxJobs(): void
     {
-        $this->transport->push('default', serialize(new SuccessfulJob()));
-        $this->transport->push('default', serialize(new SuccessfulJob()));
-        $this->transport->push('default', serialize(new SuccessfulJob()));
+        $this->transport->push('default', $this->signer->seal(serialize(new SuccessfulJob())));
+        $this->transport->push('default', $this->signer->seal(serialize(new SuccessfulJob())));
+        $this->transport->push('default', $this->signer->seal(serialize(new SuccessfulJob())));
 
         $processed = $this->worker->run('default', new WorkerOptions(maxJobs: 2));
 
@@ -111,7 +115,7 @@ final class WorkerTest extends TestCase
         $job = new FailingJob();
         $job->tries = 1;
 
-        $this->transport->push('default', serialize($job));
+        $this->transport->push('default', $this->signer->seal(serialize($job)));
 
         $this->worker->runNextJob('default', new WorkerOptions());
 
@@ -121,9 +125,9 @@ final class WorkerTest extends TestCase
     #[Test]
     public function stopCausesWorkerToExitAfterCurrentJob(): void
     {
-        $this->transport->push('default', serialize(new SuccessfulJob()));
-        $this->transport->push('default', serialize(new SuccessfulJob()));
-        $this->transport->push('default', serialize(new SuccessfulJob()));
+        $this->transport->push('default', $this->signer->seal(serialize(new SuccessfulJob())));
+        $this->transport->push('default', $this->signer->seal(serialize(new SuccessfulJob())));
+        $this->transport->push('default', $this->signer->seal(serialize(new SuccessfulJob())));
 
         // Request stop before run — worker should process zero jobs
         $this->worker->stop();
@@ -148,9 +152,10 @@ final class WorkerTest extends TestCase
             $this->transport,
             $this->failedRepo,
             [new JobHandler()],
+            $this->signer,
             $logger,
         );
-        $this->transport->push('default', serialize(new ThrowingFailureHookJob()));
+        $this->transport->push('default', $this->signer->seal(serialize(new ThrowingFailureHookJob())));
 
         $worker->runNextJob('default', new WorkerOptions());
 
