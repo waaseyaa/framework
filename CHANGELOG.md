@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Generic JSON:API entity routes now require an explicit exposure opt-in (#2043).** `#[ContentEntityType]` and imperative `EntityType` definitions default `api` to false; routing, discovery, workflow sub-routes, and OpenAPI share the same exposure predicate, while registered unexposed types return a diagnostic naming `api: true`. Compiled discovery now consumes canonical content-entity metadata, and the prior unused `#[AsEntityType]` static-factory path is deprecated. See `docs/upgrade-notes/entity-type-api-exposure.md` for the Minoo inventory and migration.
+
 ### Fixed
 
 - **Provider and framework HTTP middleware now unwind over the real dispatched response (#2039).** Response-side app effects, security headers, debug headers, and the HTML CSRF cookie reach final controller/domain-router responses instead of being applied to an empty pre-dispatch `200` sentinel.

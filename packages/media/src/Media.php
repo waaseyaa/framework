@@ -16,7 +16,7 @@ use Waaseyaa\Entity\ContentEntityBase;
  * that can be reused across the site. Each media entity belongs to a media type
  * (bundle) which determines the source plugin and field configuration.
  */
-#[ContentEntityType(id: 'media')]
+#[ContentEntityType(id: 'media', api: true)]
 #[ContentEntityKeys(id: 'mid', uuid: 'uuid', label: 'name', bundle: 'bundle')]
 final class Media extends ContentEntityBase
 {

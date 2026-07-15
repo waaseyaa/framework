@@ -48,6 +48,10 @@ final class PackageManifestCompiler
      */
     private const ENTITY_TYPE_DEFINITION_INTERFACE = 'Waaseyaa\\Entity\\DefinesEntityType';
 
+    /** @internal Layer-1 names stay strings to preserve Foundation's layer boundary. */
+    private const CONTENT_ENTITY_TYPE_ATTRIBUTE = 'Waaseyaa\\Entity\\Attribute\\ContentEntityType';
+    private const CONTENT_ENTITY_BASE = 'Waaseyaa\\Entity\\ContentEntityBase';
+
     private readonly LoggerInterface $logger;
 
     /**
@@ -174,6 +178,13 @@ final class PackageManifestCompiler
                 ) {
                     $attributeEntityTypes[] = $class;
                 }
+            }
+
+            if ($ref->getAttributes(self::CONTENT_ENTITY_TYPE_ATTRIBUTE) !== []
+                && class_exists(self::CONTENT_ENTITY_BASE)
+                && is_subclass_of($class, self::CONTENT_ENTITY_BASE, true)
+            ) {
+                $attributeEntityTypes[] = $class;
             }
 
             foreach ($ref->getAttributes(self::POLICY_ATTRIBUTE) as $attr) {
@@ -940,6 +951,7 @@ final class PackageManifestCompiler
                 $hasDiscoveryAttribute = !empty($ref->getAttributes(AsFieldType::class))
                     || !empty($ref->getAttributes(AsMiddleware::class))
                     || !empty($ref->getAttributes(AsEntityType::class))
+                    || $ref->getAttributes(self::CONTENT_ENTITY_TYPE_ATTRIBUTE) !== []
                     || !empty($ref->getAttributes(self::POLICY_ATTRIBUTE))
                     || !empty($ref->getAttributes(self::FORMATTER_ATTRIBUTE))
                     || $ref->getAttributes(self::AGENT_TOOL_ATTRIBUTE) !== []

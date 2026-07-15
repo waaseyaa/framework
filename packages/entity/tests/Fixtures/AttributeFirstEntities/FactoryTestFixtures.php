@@ -12,7 +12,7 @@ use Waaseyaa\Entity\ContentEntityBase;
 /**
  * Simple content entity used by EntityType::fromClass() happy-path tests.
  */
-#[ContentEntityType(id: 'simple', label: 'Simple', description: 'A simple test entity.')]
+#[ContentEntityType(id: 'simple', label: 'Simple', description: 'A simple test entity.', api: true)]
 final class SimpleFixture extends ContentEntityBase
 {
     #[Field(label: 'Title')]

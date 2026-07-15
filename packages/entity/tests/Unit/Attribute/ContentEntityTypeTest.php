@@ -20,6 +20,7 @@ final class ContentEntityTypeTest extends TestCase
         self::assertSame('foo', $attr->id);
         self::assertSame('', $attr->label);
         self::assertSame('', $attr->description);
+        self::assertFalse($attr->api);
     }
 
     #[Test]
@@ -29,11 +30,13 @@ final class ContentEntityTypeTest extends TestCase
             id: 'todo',
             label: 'Todo Item',
             description: 'A unit of work.',
+            api: true,
         );
 
         self::assertSame('todo', $attr->id);
         self::assertSame('Todo Item', $attr->label);
         self::assertSame('A unit of work.', $attr->description);
+        self::assertTrue($attr->api);
     }
 
     #[Test]

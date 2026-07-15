@@ -33,6 +33,7 @@ final class NodeServiceProvider extends ServiceProvider
             class: NodeType::class,
             keys: ['id' => 'type', 'label' => 'name'],
             group: 'content',
+            api: true,
         ));
     }
 

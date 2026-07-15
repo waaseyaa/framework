@@ -28,7 +28,7 @@ use Waaseyaa\Entity\ContentEntityBase;
  *
  * @api
  */
-#[ContentEntityType(id: 'wayfinding_trail', label: 'Wayfinding Trail', description: 'A saved, versioned, translatable guided trail of beacons.')]
+#[ContentEntityType(id: 'wayfinding_trail', label: 'Wayfinding Trail', description: 'A saved, versioned, translatable guided trail of beacons.', api: true)]
 #[ContentEntityKeys(
     id: 'tid',
     uuid: 'uuid',

@@ -9,7 +9,7 @@ use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
 
-#[ContentEntityType(id: 'message_thread', label: 'Message Thread')]
+#[ContentEntityType(id: 'message_thread', label: 'Message Thread', api: true)]
 #[ContentEntityKeys(id: 'mtid', uuid: 'uuid', label: 'title')]
 final class MessageThread extends ContentEntityBase
 {

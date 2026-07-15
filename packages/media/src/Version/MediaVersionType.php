@@ -21,6 +21,7 @@ final class MediaVersionType
             class: MediaVersion::class,
             keys: ['id' => 'id', 'uuid' => 'uuid'],
             description: 'Content-addressed blob version record for a media entity.',
+            api: true,
         );
     }
 }

@@ -8,7 +8,7 @@ use Waaseyaa\Entity\Attribute\ContentEntityKeys;
 use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\ContentEntityBase;
 
-#[ContentEntityType(id: 'relationship')]
+#[ContentEntityType(id: 'relationship', api: true)]
 #[ContentEntityKeys(id: 'rid', uuid: 'uuid', label: 'relationship_type', bundle: 'relationship_type')]
 final class Relationship extends ContentEntityBase
 {

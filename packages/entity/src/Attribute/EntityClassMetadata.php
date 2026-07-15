@@ -23,6 +23,7 @@ final readonly class EntityClassMetadata
         public array $keys,
         public string $label = '',
         public string $description = '',
+        public bool $api = false,
         public array $fields = [],
     ) {}
 }

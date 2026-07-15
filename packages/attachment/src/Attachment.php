@@ -30,7 +30,7 @@ use Waaseyaa\Entity\ContentEntityBase;
  * canonical-shape rationale. Other descriptive fields (filename, content_type,
  * size, storage_uri, checksum) live in the `_data` JSON blob.
  */
-#[ContentEntityType(id: 'attachment', label: 'Attachment', description: 'File attachment linked to a parent entity.')]
+#[ContentEntityType(id: 'attachment', label: 'Attachment', description: 'File attachment linked to a parent entity.', api: true)]
 #[ContentEntityKeys(id: 'id', uuid: 'uuid', label: 'filename')]
 final class Attachment extends ContentEntityBase
 {

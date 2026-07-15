@@ -39,7 +39,7 @@ use Waaseyaa\Field\FieldStorage;
  * listener that actually calls `setNewRevision()` from the bundle's
  * `NodeType::isNewRevision()` when nothing else has decided first.
  */
-#[ContentEntityType(id: 'node', label: 'Content', description: 'Published content items')]
+#[ContentEntityType(id: 'node', label: 'Content', description: 'Published content items', api: true)]
 #[ContentEntityKeys(id: 'nid', uuid: 'uuid', label: 'title', bundle: 'type', revision: 'revision_id')]
 final class Node extends ContentEntityBase implements HydratableFromStorageInterface, RevisionableInterface
 {

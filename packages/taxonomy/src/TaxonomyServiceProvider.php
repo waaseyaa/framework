@@ -32,6 +32,7 @@ final class TaxonomyServiceProvider extends ServiceProvider
             class: Vocabulary::class,
             keys: ['id' => 'vid', 'label' => 'name'],
             group: 'taxonomy',
+            api: true,
             _fieldDefinitions: [
                 'description' => new FieldDefinition(
                     name: 'description',

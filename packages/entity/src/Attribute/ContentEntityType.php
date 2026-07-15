@@ -16,6 +16,7 @@ namespace Waaseyaa\Entity\Attribute;
  *                            single-argument call sites.
  * @param string $description Optional human prose describing the entity type. May
  *                            be surfaced in admin UIs and generated documentation.
+ * @param bool   $api         Whether generic JSON:API routes are deliberately exposed.
  */
 #[\Attribute(\Attribute::TARGET_CLASS)]
 final readonly class ContentEntityType
@@ -24,5 +25,6 @@ final readonly class ContentEntityType
         public string $id,
         public string $label = '',
         public string $description = '',
+        public bool $api = false,
     ) {}
 }

@@ -1216,7 +1216,14 @@ final class JsonApiRouteProvider
 }
 ```
 
-Registers a single public discovery route plus five CRUD routes per entity type. The discovery route is always registered, even when no entity types are present.
+Registers a single public discovery route plus generic routes only for entity
+types that deliberately opt in through `ApiExposableEntityTypeInterface`.
+`EntityType` sources that value from `api: true` on `#[ContentEntityType]` or
+the imperative constructor. The default is false. Registered unexposed types
+receive diagnostic-only routes that return `entity_type_not_api_exposed` and
+name the required flag; they receive no CRUD, field auto-save, translation, or
+workflow routes. Discovery and OpenAPI apply the same predicate. The discovery
+route is always registered, even when no entity types are exposed.
 
 | Route Name | Method | Path | Controller Method | Access |
 |-----------|--------|------|-------------------|--------|

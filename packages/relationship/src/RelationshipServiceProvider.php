@@ -27,6 +27,7 @@ final class RelationshipServiceProvider extends ServiceProvider
                 'bundle' => 'relationship_type',
             ],
             group: 'content',
+            api: true,
         ));
     }
 

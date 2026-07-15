@@ -11,6 +11,9 @@ use Waaseyaa\Foundation\Log\LogLevel;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Entity\Attribute\ContentEntityKeys;
+use Waaseyaa\Entity\Attribute\ContentEntityType;
+use Waaseyaa\Entity\ContentEntityBase;
 
 #[CoversClass(PackageManifestCompiler::class)]
 final class PackageManifestCompilerTest extends TestCase
@@ -71,6 +74,24 @@ final class PackageManifestCompilerTest extends TestCase
             static fn(string $m): bool => str_contains($m, 'extra.waaseyaa.commands'),
         );
         $this->assertNotEmpty($warned, 'legacy extra.waaseyaa.commands should log a deprecation warning');
+    }
+
+    #[Test]
+    public function compileDiscoversCanonicalContentEntityAttribute(): void
+    {
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/autoload_classmap.php',
+            '<?php return [' . var_export(CompilerContentEntityFixture::class, true)
+            . ' => ' . var_export(__FILE__, true) . '];',
+        );
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode(['packages' => []], JSON_THROW_ON_ERROR),
+        );
+
+        $manifest = (new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage'))->compile();
+
+        self::assertContains(CompilerContentEntityFixture::class, $manifest->attributeEntityTypes);
     }
 
     #[Test]
@@ -1563,4 +1584,10 @@ final class PackageManifestCompilerTest extends TestCase
         }
         rmdir($dir);
     }
+}
+
+#[ContentEntityType(id: 'compiler_content_fixture')]
+#[ContentEntityKeys(id: 'id', uuid: 'uuid', label: 'label')]
+final class CompilerContentEntityFixture extends ContentEntityBase
+{
 }

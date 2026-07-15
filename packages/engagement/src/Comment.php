@@ -9,7 +9,7 @@ use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
 
-#[ContentEntityType(id: 'comment', label: 'Comment')]
+#[ContentEntityType(id: 'comment', label: 'Comment', api: true)]
 #[ContentEntityKeys(id: 'cid', uuid: 'uuid', label: 'body')]
 final class Comment extends ContentEntityBase
 {

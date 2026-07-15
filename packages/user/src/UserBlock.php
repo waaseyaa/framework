@@ -9,7 +9,7 @@ use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
 
-#[ContentEntityType(id: 'user_block', label: 'User Block', description: 'Block rules for restricting user access')]
+#[ContentEntityType(id: 'user_block', label: 'User Block', description: 'Block rules for restricting user access', api: true)]
 #[ContentEntityKeys(id: 'ubid', uuid: 'uuid', label: 'blocker_id')]
 final class UserBlock extends ContentEntityBase
 {

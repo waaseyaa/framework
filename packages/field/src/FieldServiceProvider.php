@@ -82,6 +82,7 @@ final class FieldServiceProvider extends ServiceProvider
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'display_name'],
             description: 'Defines the vocabulary of classification labels available in the system',
             group: 'classification',
+            api: true,
         ));
 
         // Wire the inheritance resolver as a singleton so host applications
@@ -109,6 +110,7 @@ final class FieldServiceProvider extends ServiceProvider
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'name'],
             description: 'Classification-driven retention rule (purge, redact, or hold-flag) keyed by label set.',
             group: 'classification',
+            api: true,
         ));
 
         // Bind the classification label registry (consumed by

@@ -28,6 +28,7 @@ use Waaseyaa\Entity\ContentEntityBase;
     id: 'classification_label_definition',
     label: 'Classification Label Definition',
     description: 'Defines the vocabulary of classification labels available in the system',
+    api: true,
 )]
 final class ClassificationLabelDefinition extends ContentEntityBase
 {

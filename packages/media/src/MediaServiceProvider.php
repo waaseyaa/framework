@@ -50,6 +50,7 @@ final class MediaServiceProvider extends ServiceProvider implements HasHttpDomai
             class: Media::class,
             keys: ['id' => 'mid', 'uuid' => 'uuid', 'label' => 'name', 'bundle' => 'bundle'],
             group: 'media',
+            api: true,
         ));
 
         $this->entityType(new EntityType(
@@ -59,6 +60,7 @@ final class MediaServiceProvider extends ServiceProvider implements HasHttpDomai
             class: MediaType::class,
             keys: ['id' => 'id', 'label' => 'label'],
             group: 'media',
+            api: true,
         ));
 
         // WP01 (versioned-blob-media-abstraction-01KSEFTJ): content-addressed version entity.

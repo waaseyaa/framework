@@ -22,7 +22,7 @@ use Waaseyaa\Field\FieldStorage;
  * `#[Field]` attributes. The constructor's `$_fieldDefinitions` slot is
  * `@internal` and is reserved for that factory plus the test stub helper.
  */
-final readonly class EntityType implements EntityTypeInterface
+final readonly class EntityType implements EntityTypeInterface, ApiExposableEntityTypeInterface
 {
     /**
      * Canonical scope identifier for community-scoped tenancy.
@@ -52,6 +52,7 @@ final readonly class EntityType implements EntityTypeInterface
      *   legacy `HasCommunityInterface` marker (mission #1257 §C1).
      * @param bool $discoverable Whether this entity type appears in the GET /api discovery
      *   index. Visibility only — CRUD routes and access enforcement are unaffected.
+     * @param bool $api Whether generic JSON:API routes are deliberately exposed.
      * @param array<string, FieldDefinitionInterface|array<string, mixed>> $_fieldDefinitions
      *   @internal Field definitions keyed by field name. Populated only by
      *   {@see self::fromClass()} and {@see \Waaseyaa\Entity\Tests\Helper\TestEntityType::stub()}.
@@ -76,6 +77,7 @@ final readonly class EntityType implements EntityTypeInterface
         private ?string $primaryStorageBackend = null,
         private ?array $tenancy = null,
         private bool $discoverable = true,
+        private bool $api = false,
         private array $_fieldDefinitions = [],
     ) {
         // T036: revisionable entity types must declare a non-empty revision key.
@@ -248,6 +250,7 @@ final readonly class EntityType implements EntityTypeInterface
             description: $description,
             tenancy: $tenancy,
             discoverable: $discoverable,
+            api: $metadata->api,
             _fieldDefinitions: $metadata->fields,
         );
     }
@@ -424,5 +427,10 @@ final readonly class EntityType implements EntityTypeInterface
     public function isDiscoverable(): bool
     {
         return $this->discoverable;
+    }
+
+    public function isApiExposed(): bool
+    {
+        return $this->api;
     }
 }

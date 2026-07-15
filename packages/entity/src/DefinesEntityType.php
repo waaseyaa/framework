@@ -9,6 +9,8 @@ namespace Waaseyaa\Entity;
  *
  * Used when {@see \Waaseyaa\Foundation\Attribute\AsEntityType} is present on the class and
  * {@see \Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistry} auto-registration is enabled.
+ *
+ * @deprecated Use #[Attribute\ContentEntityType] and EntityType::fromClass().
  */
 interface DefinesEntityType
 {

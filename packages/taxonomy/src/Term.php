@@ -16,7 +16,7 @@ use Waaseyaa\Entity\ContentEntityBase;
  * They support hierarchical relationships through parent term IDs,
  * and can be published or unpublished.
  */
-#[ContentEntityType(id: 'taxonomy_term', label: 'Taxonomy Term', description: 'Categorization terms for organizing content')]
+#[ContentEntityType(id: 'taxonomy_term', label: 'Taxonomy Term', description: 'Categorization terms for organizing content', api: true)]
 #[ContentEntityKeys(id: 'tid', uuid: 'uuid', label: 'name', bundle: 'vid')]
 final class Term extends ContentEntityBase
 {

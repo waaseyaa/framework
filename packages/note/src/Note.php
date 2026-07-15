@@ -15,7 +15,7 @@ use Waaseyaa\Entity\ContentEntityBase;
  * A Note is the minimal default content type shipped with Waaseyaa.
  * It is non-deletable via API — use NoteAccessPolicy to enforce that.
  */
-#[ContentEntityType(id: 'note', label: 'Note', description: 'Quick-entry content items with minimal structure')]
+#[ContentEntityType(id: 'note', label: 'Note', description: 'Quick-entry content items with minimal structure', api: true)]
 #[ContentEntityKeys(label: 'title')]
 final class Note extends ContentEntityBase
 {

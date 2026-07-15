@@ -16,7 +16,7 @@ use Waaseyaa\Entity\ContentEntityBase;
  * (e.g. '/about-us'). Supports language-specific aliases and a published
  * status to control alias visibility.
  */
-#[ContentEntityType(id: 'path_alias', label: 'Path Alias', description: 'URL aliases for human-readable paths')]
+#[ContentEntityType(id: 'path_alias', label: 'Path Alias', description: 'URL aliases for human-readable paths', api: true)]
 #[ContentEntityKeys(label: 'alias', langcode: 'langcode')]
 final class PathAlias extends ContentEntityBase
 {

@@ -268,7 +268,8 @@ The compiler scans `Waaseyaa\` classes (from either classmap or PSR-4 fallback).
 | `AsFieldType` | Field type plugins | `$instance->id` => class name |
 | `Listener` | Event listeners | Reads `__invoke()` parameter type to determine event class; `$instance->priority` for ordering |
 | `AsMiddleware` | Middleware | `$instance->pipeline` (http/event/job) + `$instance->priority` |
-| `AsEntityType` | Entity types | Currently tracked via providers (no-op in compiler) |
+| `ContentEntityType` | Content entity types | Compiled to `attributeEntityTypes`, hydrated through `EntityType::fromClass()` when auto-registration is enabled |
+| `AsEntityType` | Legacy entity factories | Deprecated compatibility path for `DefinesEntityType` implementations |
 | `PolicyAttribute` | Access policies | `$instance->entityType` => class name |
 
 **Cache output**: `storage/framework/packages.php`

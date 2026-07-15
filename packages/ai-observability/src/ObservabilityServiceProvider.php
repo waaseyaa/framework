@@ -26,6 +26,7 @@ final class ObservabilityServiceProvider extends ServiceProvider
             class: Trace::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'label'],
             group: 'ai',
+            api: true,
         ));
 
         $this->singleton(TraceContext::class, fn(): TraceContext => new TraceContext());

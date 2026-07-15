@@ -61,6 +61,7 @@ final class ApiRoutingIntegrationTest extends TestCase
             _fieldDefinitions: [
                 'status' => new FieldDefinition(name: 'status', type: 'boolean'),
             ],
+            api: true,
         ));
 
         // Set up router with API routes through the package-owned provider surface.
@@ -290,6 +291,7 @@ final class ApiRoutingIntegrationTest extends TestCase
             label: 'Node',
             class: \Waaseyaa\Api\Tests\Fixtures\NodeContentTestEntity::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type'],
+            api: true,
         ));
 
         $entityTypeManager->registerEntityType(new EntityType(
@@ -297,6 +299,7 @@ final class ApiRoutingIntegrationTest extends TestCase
             label: 'Taxonomy Term',
             class: \Waaseyaa\Api\Tests\Fixtures\TaxonomyTermContentTestEntity::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'name', 'bundle' => 'vid'],
+            api: true,
         ));
 
         $router = new WaaseyaaRouter(new RequestContext('', 'GET'));

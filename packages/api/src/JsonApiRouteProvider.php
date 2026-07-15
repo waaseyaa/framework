@@ -44,9 +44,46 @@ final class JsonApiRouteProvider
         );
 
         foreach ($this->entityTypeManager->getDefinitions() as $entityTypeId => $definition) {
+            if (!EntityTypeApiExposure::isExposed($definition)) {
+                $this->registerNotExposedRoutes($router, $entityTypeId);
+                continue;
+            }
             $this->registerEntityTypeRoutes($router, $entityTypeId);
             $this->registerFieldAutoSave($router, $entityTypeId);
             $this->registerTranslationRoutes($router, $entityTypeId);
+        }
+    }
+
+    private function registerNotExposedRoutes(WaaseyaaRouter $router, string $entityTypeId): void
+    {
+        $diagnostic = static fn(): array => [
+            'statusCode' => 404,
+            'body' => [
+                'jsonapi' => ['version' => '1.1'],
+                'errors' => [[
+                    'status' => '404',
+                    'code' => 'entity_type_not_api_exposed',
+                    'title' => 'Entity type is not API-exposed',
+                    'detail' => sprintf(
+                        'Entity type "%s" is registered but not API-exposed. Set api: true on #[ContentEntityType] or the imperative EntityType definition.',
+                        $entityTypeId,
+                    ),
+                ]],
+            ],
+        ];
+
+        foreach ([
+            "api.{$entityTypeId}.not_exposed" => $this->basePath . '/' . $entityTypeId,
+            "api.{$entityTypeId}.not_exposed_path" => $this->basePath . '/' . $entityTypeId . '/{path}',
+        ] as $name => $path) {
+            $builder = RouteBuilder::create($path)
+                ->controller($diagnostic)
+                ->methods('GET', 'POST', 'PATCH', 'DELETE', 'PUT')
+                ->allowAll();
+            if (str_ends_with($name, '_path')) {
+                $builder->requirement('path', '.+');
+            }
+            $router->addRoute($name, $builder->build());
         }
     }
 
@@ -224,6 +261,9 @@ final class JsonApiRouteProvider
     public function registerWorkflowTransitionRoutes(WaaseyaaRouter $router): void
     {
         foreach ($this->entityTypeManager->getDefinitions() as $entityTypeId => $definition) {
+            if (!EntityTypeApiExposure::isExposed($definition)) {
+                continue;
+            }
             $this->registerWorkflowTransitionRoutesForType($router, $entityTypeId);
         }
     }

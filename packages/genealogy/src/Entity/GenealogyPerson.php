@@ -9,7 +9,7 @@ use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
 
-#[ContentEntityType(id: 'genealogy_person', label: 'Genealogy person', description: 'An individual in a genealogy dataset')]
+#[ContentEntityType(id: 'genealogy_person', label: 'Genealogy person', description: 'An individual in a genealogy dataset', api: true)]
 #[ContentEntityKeys(label: 'display_name')]
 final class GenealogyPerson extends ContentEntityBase
 {

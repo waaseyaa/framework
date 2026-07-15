@@ -38,6 +38,9 @@ final class ApiDiscoveryController
 
         if ($this->account?->isAuthenticated() === true) {
             foreach ($this->entityTypeManager->getDefinitions() as $id => $definition) {
+                if (!EntityTypeApiExposure::isExposed($definition)) {
+                    continue;
+                }
                 if (method_exists($definition, 'isDiscoverable') && !$definition->isDiscoverable()) {
                     continue; // non-discoverable: absent for every caller (FR-002)
                 }

@@ -19,7 +19,7 @@ use Waaseyaa\Entity\Hydration\HydrationContext;
  * user-defined at creation time and never rewritten. The `id` column is an internal
  * auto-increment primary key for entity-system consistency.
  */
-#[ContentEntityType(id: 'oidc_client', label: 'OIDC Client', description: 'Relying-party clients registered with the OIDC issuer.')]
+#[ContentEntityType(id: 'oidc_client', label: 'OIDC Client', description: 'Relying-party clients registered with the OIDC issuer.', api: true)]
 #[ContentEntityKeys(label: 'name')]
 final class OidcClient extends ContentEntityBase implements HydratableFromStorageInterface
 {

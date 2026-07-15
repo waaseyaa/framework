@@ -24,7 +24,7 @@ use Waaseyaa\Entity\Hydration\HydrationContext;
  * service) is responsible for populating the permissions from role
  * definitions.
  */
-#[ContentEntityType(id: 'user', label: 'User', description: 'Manage user accounts, roles, and authentication')]
+#[ContentEntityType(id: 'user', label: 'User', description: 'Manage user accounts, roles, and authentication', api: true)]
 #[ContentEntityKeys(id: 'uid', uuid: 'uuid', label: 'name')]
 final class User extends ContentEntityBase implements AccountInterface, HydratableFromStorageInterface
 {
