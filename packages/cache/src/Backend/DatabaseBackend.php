@@ -7,6 +7,7 @@ namespace Waaseyaa\Cache\Backend;
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Cache\CacheItem;
 use Waaseyaa\Cache\TagAwareCacheInterface;
+use Waaseyaa\Foundation\Security\SensitiveKey;
 
 /**
  * Cache backend that stores cache items in a database table via PDO.
@@ -29,15 +30,16 @@ final class DatabaseBackend implements TagAwareCacheInterface
     private const string SERIALIZED_FALSE = 'b:0;';
 
     private bool $tableInitialized = false;
-    private readonly ?string $hmacKey;
+    private readonly ?SensitiveKey $hmacKey;
 
     public function __construct(
         private readonly \PDO $pdo,
         private readonly string $bin = 'cache_default',
+        #[\SensitiveParameter]
         ?string $hmacKey = null,
     ) {
         $this->pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
-        $this->hmacKey = ($hmacKey === '' ? null : $hmacKey);
+        $this->hmacKey = ($hmacKey === '' || $hmacKey === null ? null : new SensitiveKey($hmacKey));
     }
 
     public function get(string $cid): CacheItem|false
@@ -240,7 +242,7 @@ final class DatabaseBackend implements TagAwareCacheInterface
             return $serialized;
         }
 
-        return hash_hmac('sha256', $serialized, $this->hmacKey) . $serialized;
+        return hash_hmac('sha256', $serialized, $this->hmacKey->bytes()) . $serialized;
     }
 
     /**
@@ -267,11 +269,27 @@ final class DatabaseBackend implements TagAwareCacheInterface
         $mac = substr($stored, 0, 64);
         $serialized = substr($stored, 64);
 
-        if (!hash_equals(hash_hmac('sha256', $serialized, $this->hmacKey), $mac)) {
+        if (!hash_equals(hash_hmac('sha256', $serialized, $this->hmacKey->bytes()), $mac)) {
             return false;
         }
 
         return $serialized;
+    }
+
+    /** @return array{bin: string, table_initialized: bool, hmac_key: string|null} */
+    public function __debugInfo(): array
+    {
+        return [
+            'bin' => $this->bin,
+            'table_initialized' => $this->tableInitialized,
+            'hmac_key' => $this->hmacKey === null ? null : '[REDACTED]',
+        ];
+    }
+
+    /** @return never */
+    public function __serialize(): array
+    {
+        throw new \LogicException('Cache backends cannot be serialized.');
     }
 
     /**

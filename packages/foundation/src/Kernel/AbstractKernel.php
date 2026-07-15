@@ -158,7 +158,7 @@ abstract class AbstractKernel
         // production secret must fail at boot, before encrypted/signed state is
         // read or a partially configured application begins serving requests.
         $configuredSecret = getenv('WAASEYAA_APP_SECRET');
-        $this->applicationSecret = ApplicationSecret::fromEnvironmentValue(
+        $this->applicationSecret ??= ApplicationSecret::fromEnvironmentValue(
             is_string($configuredSecret) ? $configuredSecret : null,
             $this->resolveEnvironment(),
         );

@@ -59,6 +59,39 @@ final class DebugModeTest extends TestCase
         $kernel->publicBoot();
     }
 
+    #[Test]
+    public function failed_boot_retry_reuses_the_same_per_kernel_ephemeral_secret(): void
+    {
+        $this->writeConfig(['environment' => 'testing']);
+        $kernel = new class($this->projectRoot) extends AbstractKernel {
+            public function publicBoot(): void { $this->boot(); }
+            public function cacheKey(): string
+            {
+                return $this->applicationSecret()->derive(
+                    \Waaseyaa\Foundation\Security\ApplicationSecret::PURPOSE_CACHE_PAYLOAD_HMAC,
+                );
+            }
+            protected function bootDatabase(): void
+            {
+                throw new \RuntimeException('synthetic boot failure');
+            }
+        };
+
+        try {
+            $kernel->publicBoot();
+        } catch (\RuntimeException) {
+        }
+        $first = $kernel->cacheKey();
+
+        try {
+            $kernel->publicBoot();
+        } catch (\RuntimeException) {
+        }
+        $second = $kernel->cacheKey();
+
+        self::assertTrue(hash_equals($first, $second), 'A boot retry on one kernel must retain its ephemeral secret.');
+    }
+
     private function writeConfig(array $overrides = []): void
     {
         $config = array_merge(['database' => ':memory:'], $overrides);

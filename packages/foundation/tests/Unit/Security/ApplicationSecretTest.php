@@ -27,8 +27,14 @@ final class ApplicationSecretTest extends TestCase
         $cache = $secret->derive('waaseyaa.cache.payload-hmac.v1');
 
         self::assertSame(32, strlen($audit));
-        self::assertSame('e23e4d27a298049796e8130365c0c604165c1677996b91e6b9af8abe264f5674', bin2hex($audit));
-        self::assertSame('7591a9a6f363da34a9cca82a3bb670bb50e9f140d3b4a2c99cb713edffccb8bb', bin2hex($cache));
+        self::assertTrue(
+            hash_equals((string) hex2bin('e23e4d27a298049796e8130365c0c604165c1677996b91e6b9af8abe264f5674'), $audit),
+            'Audit purpose derivation must match the pinned HKDF vector.',
+        );
+        self::assertTrue(
+            hash_equals((string) hex2bin('7591a9a6f363da34a9cca82a3bb670bb50e9f140d3b4a2c99cb713edffccb8bb'), $cache),
+            'Cache purpose derivation must match the pinned HKDF vector.',
+        );
         self::assertSame($audit, $secret->derive('waaseyaa.audit.checkpoint-hmac.v1'));
         self::assertNotSame($audit, $cache);
     }

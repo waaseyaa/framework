@@ -148,6 +148,28 @@ final class AuditChainVerifierTest extends TestCase
     }
 
     #[Test]
+    public function audit_key_holders_never_expose_derived_bytes_through_debug_or_serialization(): void
+    {
+        $key = random_bytes(32);
+        $builder = new AuditCheckpointBuilder($this->db, $this->nullSink, hmacKey: $key);
+        $verifier = new AuditChainVerifier($this->db, hmacKey: $key);
+
+        foreach ([$builder, $verifier] as $holder) {
+            ob_start();
+            var_dump($holder);
+            $debug = (string) ob_get_clean() . var_export($holder, true);
+            self::assertFalse(str_contains($debug, $key), 'Audit debug output must not contain derived key bytes.');
+
+            try {
+                serialize($holder);
+                self::fail('Audit key holders must not be serializable.');
+            } catch (\Throwable $e) {
+                self::assertFalse(str_contains($e->getMessage(), $key), 'Serialization errors must not contain derived key bytes.');
+            }
+        }
+    }
+
+    #[Test]
     public function legacy_signatures_are_accepted_only_before_authenticated_suffix(): void
     {
         $key = random_bytes(32);

@@ -7,6 +7,7 @@ namespace Waaseyaa\Audit\Integrity;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Foundation\Security\SensitiveKey;
 
 /**
  * Verifies the tamper-evidence chain of all sealed audit_checkpoint segments.
@@ -25,13 +26,16 @@ use Waaseyaa\Foundation\Log\NullLogger;
 final class AuditChainVerifier
 {
     private readonly LoggerInterface $logger;
+    private readonly ?SensitiveKey $hmacKey;
 
     public function __construct(
         private readonly DatabaseInterface $database,
         ?LoggerInterface $logger = null,
-        private readonly ?string $hmacKey = null,
+        #[\SensitiveParameter]
+        ?string $hmacKey = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
+        $this->hmacKey = ($hmacKey === '' || $hmacKey === null ? null : new SensitiveKey($hmacKey));
     }
 
     public function verify(): AuditVerificationResult
@@ -376,7 +380,7 @@ final class AuditChainVerifier
                 $validShape = preg_match('/^[0-9a-f]{64}$/D', $mac) === 1;
                 $expected = $this->hmacKey === null
                     ? null
-                    : hash_hmac('sha256', (string) $checkpoint['checkpoint_hash'], $this->hmacKey);
+                    : hash_hmac('sha256', (string) $checkpoint['checkpoint_hash'], $this->hmacKey->bytes());
 
                 if (!$validShape || $expected === null || !hash_equals($expected, $mac)) {
                     return $this->signatureFailure($segmentEndId, 'invalid authenticated signature');
@@ -409,5 +413,21 @@ final class AuditChainVerifier
             0,
             $this->countUnsealedRows($segmentEndId),
         );
+    }
+
+    /** @return array{database: string, logger: string, hmac_key: string|null} */
+    public function __debugInfo(): array
+    {
+        return [
+            'database' => $this->database::class,
+            'logger' => $this->logger::class,
+            'hmac_key' => $this->hmacKey === null ? null : '[REDACTED]',
+        ];
+    }
+
+    /** @return never */
+    public function __serialize(): array
+    {
+        throw new \LogicException('Audit chain verifiers cannot be serialized.');
     }
 }
