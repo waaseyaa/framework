@@ -58,10 +58,22 @@ final class ApplicationSecretTest extends TestCase
     #[DataProvider('invalidProductionSecrets')]
     public function rejects_invalid_secrets_outside_development(?string $value): void
     {
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('WAASEYAA_APP_SECRET');
-
-        ApplicationSecret::fromEnvironmentValue($value, 'staging');
+        try {
+            ApplicationSecret::fromEnvironmentValue($value, 'staging');
+            self::fail('Invalid application secrets must be rejected outside development.');
+        } catch (\Throwable $e) {
+            if ($value !== null && $value !== '') {
+                self::assertFalse(
+                    str_contains($e->getMessage(), $value),
+                    'Configuration errors must not contain the rejected secret value.',
+                );
+            }
+            self::assertTrue($e instanceof \RuntimeException, 'Invalid application secrets must raise RuntimeException.');
+            self::assertTrue(
+                str_contains($e->getMessage(), 'WAASEYAA_APP_SECRET'),
+                'Configuration errors must identify WAASEYAA_APP_SECRET without echoing its value.',
+            );
+        }
     }
 
     #[Test]
@@ -92,7 +104,10 @@ final class ApplicationSecretTest extends TestCase
                 str_contains($e->getMessage(), $invalid),
                 'Configuration errors must not contain the rejected secret value.',
             );
-            self::assertStringNotContainsString('operator-secret', $e->getMessage());
+            self::assertFalse(
+                str_contains($e->getMessage(), 'operator-secret'),
+                'Configuration errors must not contain recognizable secret fragments.',
+            );
         }
     }
 
