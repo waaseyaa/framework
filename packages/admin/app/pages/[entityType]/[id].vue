@@ -106,5 +106,8 @@ function onTransitioned() {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
 }
 </style>

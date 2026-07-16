@@ -8,15 +8,88 @@ const { appName: configAppName } = useAdminConfig()
 const { tenant, ui } = useAdmin()
 const appName = tenant?.name ?? configAppName
 const sidebarOpen = ref(false)
+const isMobile = ref(false)
+const sidebarRef = ref<HTMLElement | null>(null)
+const sidebarToggleRef = ref<HTMLButtonElement | null>(null)
+const sidebarCloseRef = ref<HTMLButtonElement | null>(null)
+let mobileQuery: MediaQueryList | null = null
+let previousBodyOverflow = ''
+
+function unlockPageScroll() {
+  document.body.style.overflow = previousBodyOverflow
+}
+
+function closeSidebar(restoreFocus = false) {
+  const wasOpen = sidebarOpen.value
+  sidebarOpen.value = false
+  if (import.meta.client) unlockPageScroll()
+  if (restoreFocus && wasOpen) void nextTick(() => sidebarToggleRef.value?.focus())
+}
+
+async function openSidebar() {
+  if (!isMobile.value) return
+  previousBodyOverflow = document.body.style.overflow
+  document.body.style.overflow = 'hidden'
+  sidebarOpen.value = true
+  await nextTick()
+  sidebarCloseRef.value?.focus()
+}
 
 function toggleSidebar() {
-  sidebarOpen.value = !sidebarOpen.value
+  if (sidebarOpen.value) closeSidebar(true)
+  else void openSidebar()
+}
+
+function onMobileChange(event: MediaQueryListEvent | MediaQueryList) {
+  isMobile.value = event.matches
+  if (!event.matches) closeSidebar(false)
+}
+
+function focusableSidebarElements(): HTMLElement[] {
+  if (!sidebarRef.value) return []
+  return Array.from(sidebarRef.value.querySelectorAll<HTMLElement>(
+    'a[href], button:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+  )).filter(element => !element.hasAttribute('inert'))
+}
+
+function onSidebarKeydown(event: KeyboardEvent) {
+  if (!sidebarOpen.value || !isMobile.value) return
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closeSidebar(true)
+    return
+  }
+  if (event.key !== 'Tab') return
+
+  const focusable = focusableSidebarElements()
+  const first = focusable[0]
+  const last = focusable.at(-1)
+  if (!first || !last) return
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  }
+  else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
 }
 
 // Close sidebar on route change (mobile).
 const route = useRoute()
 watch(() => route.fullPath, () => {
-  sidebarOpen.value = false
+  closeSidebar(false)
+})
+
+onMounted(() => {
+  mobileQuery = window.matchMedia('(max-width: 768px)')
+  onMobileChange(mobileQuery)
+  mobileQuery.addEventListener('change', onMobileChange)
+})
+
+onBeforeUnmount(() => {
+  mobileQuery?.removeEventListener('change', onMobileChange)
+  unlockPageScroll()
 })
 
 function onLocaleChange(event: Event) {
@@ -28,7 +101,14 @@ function onLocaleChange(event: Event) {
   <div class="admin-shell">
     <a href="#main-content" class="skip-link">{{ t('skip_to_main_content') }}</a>
     <header class="topbar" role="banner">
-      <button class="topbar-toggle" :aria-label="t('toggle_menu')" @click="toggleSidebar">
+      <button
+        ref="sidebarToggleRef"
+        class="topbar-toggle touch-target"
+        :aria-label="t('toggle_menu')"
+        aria-controls="admin-sidebar"
+        :aria-expanded="sidebarOpen ? 'true' : 'false'"
+        @click="toggleSidebar"
+      >
         <Icon name="heroicons:bars-3" class="topbar-toggle-icon" aria-hidden="true" />
       </button>
       <NuxtLink to="/" class="topbar-brand">{{ appName }}</NuxtLink>
@@ -71,18 +151,41 @@ function onLocaleChange(event: Event) {
     </header>
 
     <div class="admin-body">
-      <div v-if="sidebarOpen" class="sidebar-overlay" @click="sidebarOpen = false" />
+      <button
+        v-if="sidebarOpen && isMobile"
+        type="button"
+        class="sidebar-overlay"
+        :aria-label="t('close_menu')"
+        tabindex="-1"
+        @click="closeSidebar(true)"
+      />
       <aside
+        id="admin-sidebar"
+        ref="sidebarRef"
         class="sidebar"
         :class="{ 'sidebar--open': sidebarOpen }"
         role="navigation"
         :aria-label="t('sidebar_nav')"
+        :aria-hidden="isMobile && !sidebarOpen ? 'true' : undefined"
+        :inert="isMobile && !sidebarOpen ? true : undefined"
+        :data-pointer-state="isMobile && !sidebarOpen ? 'disabled' : 'enabled'"
+        @keydown="onSidebarKeydown"
       >
+        <button
+          ref="sidebarCloseRef"
+          type="button"
+          class="sidebar-close btn touch-target"
+          :aria-label="t('close_menu')"
+          @click="closeSidebar(true)"
+        >
+          <span aria-hidden="true">×</span>
+          <span>{{ t('close') }}</span>
+        </button>
         <ClientOnly>
           <LayoutNavBuilder />
         </ClientOnly>
       </aside>
-      <main id="main-content" class="content" role="main">
+      <main id="main-content" class="content" role="main" :inert="isMobile && sidebarOpen ? true : undefined">
         <slot />
       </main>
     </div>
@@ -109,6 +212,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   color: var(--color-text);
   background: var(--color-bg);
+  overflow-wrap: anywhere;
 }
 
 .admin-shell {
@@ -164,7 +268,7 @@ body {
   color: #fff;
   font-size: 20px;
   cursor: pointer;
-  padding: 0 8px;
+  padding: 0;
   margin-right: 8px;
 }
 
@@ -174,7 +278,8 @@ body {
 }
 
 .topbar-locale-select {
-  height: 32px;
+  min-width: 44px;
+  height: 44px;
   border: 1px solid rgba(255, 255, 255, 0.35);
   background: rgba(255, 255, 255, 0.15);
   color: #fff;
@@ -186,14 +291,28 @@ body {
 
 .admin-body {
   display: flex;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: calc(100vh - var(--topbar-height));
 }
 
 .sidebar {
+  flex: 0 0 var(--sidebar-width);
   width: var(--sidebar-width);
   background: var(--color-surface);
   border-right: 1px solid var(--color-border);
   padding: 16px 0;
+}
+
+.sidebar[data-pointer-state="disabled"] {
+  pointer-events: none;
+}
+
+.sidebar-close {
+  display: none;
+  margin: 0 12px 12px;
+  gap: 8px;
 }
 
 .sidebar-overlay {
@@ -205,11 +324,16 @@ body {
   min-width: 0;
   max-width: 100%;
   padding: 24px;
+  overflow-x: clip;
 }
 
 /* Shared utility styles */
 .btn {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
   padding: 8px 16px;
   border: 1px solid var(--color-border);
   border-radius: 4px;
@@ -220,8 +344,27 @@ body {
   text-decoration: none;
   transition: background 0.15s, border-color 0.15s;
 }
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+}
 .btn:hover { background: var(--color-bg); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn:focus-visible,
+.topbar-toggle:focus-visible,
+.topbar-locale-select:focus-visible,
+a:focus-visible,
+button:focus-visible,
+select:focus-visible {
+  outline: 3px solid var(--color-primary-hover);
+  outline-offset: 2px;
+}
+.topbar-toggle:focus-visible,
+.topbar-locale-select:focus-visible,
+.topbar-link:focus-visible,
+.topbar-brand:focus-visible {
+  outline-color: #fff;
+}
 .btn-primary { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
 .btn-primary:hover { background: var(--color-primary-hover); }
 .btn-danger { color: var(--color-danger); border-color: var(--color-danger); }
@@ -258,7 +401,9 @@ body {
 .entity-table .actions { white-space: nowrap; }
 .entity-table .actions > * { margin-right: 4px; }
 
-.pagination { display: flex; align-items: center; gap: 12px; margin-top: 16px; font-size: 14px; color: var(--color-muted); }
+.pagination { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; font-size: 14px; color: var(--color-muted); }
+.pagination-summary { flex: 1 1 100%; }
+.pagination-ellipsis { display: inline-flex; align-items: center; justify-content: center; min-width: 1.5rem; }
 
 .form-actions { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--color-border); }
 
@@ -268,6 +413,30 @@ body {
 
 .page-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 24px; }
 .page-header h1 { font-size: 24px; font-weight: 600; }
+.page-actions,
+.page-header-actions,
+.form-actions,
+.modal-actions {
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+pre,
+code,
+.breadcrumbs,
+.breadcrumb,
+.alert,
+.error,
+.success {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+pre {
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
 
 /* Skip link for accessibility */
 .skip-link {
@@ -328,10 +497,17 @@ body {
     z-index: 50;
     transform: translateX(-100%);
     transition: transform 0.2s ease;
+    max-width: min(var(--sidebar-width), calc(100vw - 48px));
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   .sidebar--open {
     transform: translateX(0);
+  }
+
+  .sidebar-close {
+    display: inline-flex;
   }
 
   .sidebar-overlay {
@@ -345,6 +521,7 @@ body {
 
   .content {
     padding: 16px;
+    width: 100%;
   }
 
   .page-header h1 {
@@ -356,6 +533,12 @@ body {
   }
   .entity-table th, .entity-table td {
     padding: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar {
+    transition: none;
   }
 }
 </style>
