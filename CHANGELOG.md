@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Admin hosts can declare safe generic list experiences and catalog-only navigation (#2052).** Optional validated `x-list` metadata now supplies inert columns, closed formatters, labelled search/filters, and allowed/default sorts; `SurfaceQueryPolicy` rejects every undeclared field/operator/direction before delegation. Generic list resources carry only access-derived `view`/`edit`/`delete` booleans, while direct mutations retain authoritative server authorization. The SPA renders declared controls with URL/page synchronization, stale-response protection, per-row actions, human option labels, and 44 px targets. An optional `catalog-only` session UI mode suppresses static operational navigation without changing route authorization; hosts without either contract retain the existing `x-list-display`, bundle-filter, row-action, and full-navigation behavior.
+
 ### Fixed
 
 - **Generic admin listings and controls now remain usable at narrow widths and enlarged text (#2051).** Schema listings keep a single semantic table/action set, adapt that markup to labelled cards below 600px, contain wider arbitrary-column tables in a named horizontal-scroll region, and truncate many-page pagination without losing current-page semantics. Ordinary actions, pagination, menu, close, and navigation controls expose 44 × 44 CSS-pixel targets and visible focus. The mobile sidebar is inert and hidden from assistive technology while closed, manages focus/scroll while open, closes on Escape/backdrop/route/breakpoint changes, and restores focus to its opener. Generic shell containment prevents long values, action bars, alerts, breadcrumbs, and preformatted content from expanding the document.

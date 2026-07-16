@@ -113,7 +113,7 @@ function onLocaleChange(event: Event) {
       </button>
       <NuxtLink to="/" class="topbar-brand">{{ appName }}</NuxtLink>
       <nav
-        v-if="ui.headerLinks.length > 0"
+        v-if="ui.navigationMode !== 'catalog-only' && ui.headerLinks.length > 0"
         class="topbar-links"
         :aria-label="t('topbar_links')"
       >

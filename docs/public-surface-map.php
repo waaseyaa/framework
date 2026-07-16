@@ -482,6 +482,7 @@ return [
     // Layer 6: Interfaces — public
     'Waaseyaa\AdminSurface\Action\SurfaceActionHandlerInterface' => 'public',
     'Waaseyaa\AdminSurface\Query\SurfaceFilterOperator' => 'public',
+    'Waaseyaa\AdminSurface\List\ListFormatter' => 'public',
     'Waaseyaa\AdminSurface\Host\AbstractAdminSurfaceHost' => 'public',
     // ('Waaseyaa\Bimaaji\Graph\GraphSectionProviderInterface' is listed once in the Layer-5 public block above.)
     'Waaseyaa\Mcp\Auth\McpAuthInterface' => 'public',

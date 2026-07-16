@@ -38,6 +38,11 @@ export interface EntityResource {
   type: string
   id: string
   attributes: Record<string, any>
+  capabilities?: {
+    view?: boolean
+    edit?: boolean
+    delete?: boolean
+  }
 }
 
 export class TransportError extends Error {

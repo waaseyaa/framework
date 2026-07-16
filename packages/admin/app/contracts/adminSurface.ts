@@ -70,6 +70,11 @@ export interface AdminSurfaceEntity {
   type: string
   id: string
   attributes: Record<string, unknown>
+  capabilities?: {
+    view?: boolean
+    edit?: boolean
+    delete?: boolean
+  }
 }
 
 export interface AdminSurfaceResult<T> {

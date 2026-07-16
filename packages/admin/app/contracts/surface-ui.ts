@@ -23,4 +23,5 @@ export interface AdminSurfaceSidebarItem {
 export interface AdminSurfaceUiCustomization {
   headerLinks?: AdminSurfaceHeaderLink[]
   sidebarItems?: AdminSurfaceSidebarItem[]
+  navigationMode?: 'full' | 'catalog-only'
 }

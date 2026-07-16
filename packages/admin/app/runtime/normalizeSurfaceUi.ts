@@ -62,9 +62,11 @@ function normalizeSidebarItems(raw: unknown): AdminSurfaceSidebarItem[] {
 export function normalizeSurfaceUi(ui: AdminSurfaceUiCustomization | undefined): {
   headerLinks: AdminSurfaceHeaderLink[]
   sidebarItems: AdminSurfaceSidebarItem[]
+  navigationMode: 'full' | 'catalog-only'
 } {
   return {
     headerLinks: normalizeHeaderLinks(ui?.headerLinks),
     sidebarItems: normalizeSidebarItems(ui?.sidebarItems),
+    navigationMode: ui?.navigationMode === 'catalog-only' ? 'catalog-only' : 'full',
   }
 }

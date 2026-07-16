@@ -77,4 +77,15 @@ final class AdminSurfaceUiPayloadTest extends TestCase
         );
         self::assertSame(10, $payload->sidebarItems[0]['weight'] ?? null);
     }
+
+    #[Test]
+    public function navigation_mode_is_closed_and_defaults_to_full(): void
+    {
+        self::assertSame([], AdminSurfaceUiPayload::fromArrays()->toArray());
+        self::assertSame(
+            ['navigationMode' => 'catalog-only'],
+            AdminSurfaceUiPayload::fromArrays(navigationMode: 'catalog-only')->toArray(),
+        );
+        self::assertSame([], AdminSurfaceUiPayload::fromArrays(navigationMode: 'everything')->toArray());
+    }
 }

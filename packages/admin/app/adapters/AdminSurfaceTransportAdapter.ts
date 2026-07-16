@@ -194,6 +194,7 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
       type: entity.type,
       id: entity.id,
       attributes: entity.attributes as Record<string, any>,
+      ...(entity.capabilities ? { capabilities: entity.capabilities } : {}),
     }
   }
 }

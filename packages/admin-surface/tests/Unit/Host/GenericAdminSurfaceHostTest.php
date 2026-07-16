@@ -122,7 +122,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         ]);
         $etm->method('getRepository')->willReturn($repository);
 
-        $host = $this->permissiveHost($etm);
+        $host = $this->permissiveHost($etm, deniedOperations: ['update']);
         $result = $host->list('article', new SurfaceQuery(
             filters: [['field' => 'title', 'operator' => SurfaceFilterOperator::STARTS_WITH, 'value' => 'Vis']],
             sortField: 'title',
@@ -134,6 +134,10 @@ final class GenericAdminSurfaceHostTest extends TestCase
         self::assertTrue($result->ok);
         self::assertSame(3, $result->data['total']);
         self::assertSame([9], array_map(static fn(array $row): int => (int) $row['id'], $result->data['entities']));
+        self::assertSame(
+            ['view' => true, 'edit' => false, 'delete' => true],
+            $result->data['entities'][0]['capabilities'],
+        );
         self::assertSame([
             ['title', 'Vis', 'STARTS_WITH'],
         ], $pageConditions);
@@ -148,10 +152,15 @@ final class GenericAdminSurfaceHostTest extends TestCase
      * host fails closed without both, which these data-shaping tests do not
      * exercise (dedicated fail-closed tests cover that path).
      */
-    private function permissiveHost(EntityTypeManagerInterface $etm): GenericAdminSurfaceHost
+    /** @param list<string> $deniedOperations */
+    private function permissiveHost(EntityTypeManagerInterface $etm, array $deniedOperations = []): GenericAdminSurfaceHost
     {
         $accessHandler = $this->createMock(EntityAccessHandler::class);
-        $accessHandler->method('check')->willReturn(AccessResult::allowed('ok'));
+        $accessHandler->method('check')->willReturnCallback(
+            static fn(EntityInterface $entity, string $operation): AccessResult => in_array($operation, $deniedOperations, true)
+                ? AccessResult::forbidden('private policy reason that must not be serialized')
+                : AccessResult::allowed('ok'),
+        );
         $accessHandler->method('filterFields')->willReturnCallback(
             static fn(EntityInterface $entity, array $fields): array => $fields,
         );
@@ -1024,10 +1033,11 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $older->method('getEntityTypeId')->willReturn('article');
         $older->method('uuid')->willReturn('');
         $older->method('id')->willReturn(1);
-        $older->method('toArray')->willReturn(['id' => 1, 'title' => 'Older', 'created_at' => '2024-01-01']);
+        $older->method('toArray')->willReturn(['id' => 1, 'type' => 'article_bundle', 'title' => 'Older', 'created_at' => '2024-01-01']);
         $older->method('get')->willReturnCallback(
             fn(string $field) => match ($field) {
-                'created_at' => '2024-01-01',
+                'created_at' => new \DateTimeImmutable('2024-01-01T00:00:00Z'),
+                'type' => 'article_bundle',
                 'title' => 'Older',
                 default => null,
             },
@@ -1037,23 +1047,29 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $newer->method('getEntityTypeId')->willReturn('article');
         $newer->method('uuid')->willReturn('');
         $newer->method('id')->willReturn(2);
-        $newer->method('toArray')->willReturn(['id' => 2, 'title' => 'Newer', 'created_at' => '2024-06-01']);
+        $newer->method('toArray')->willReturn(['id' => 2, 'type' => 'other_bundle', 'title' => 'Newer', 'created_at' => '2024-06-01']);
         $newer->method('get')->willReturnCallback(
             fn(string $field) => match ($field) {
-                'created_at' => '2024-06-01',
+                'created_at' => new \DateTimeImmutable('2024-06-01T00:00:00Z'),
+                'type' => 'other_bundle',
                 'title' => 'Newer',
                 default => null,
             },
         );
 
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->method('loadMultiple')->willReturn([$older, $newer]);
+        $scopeQuery = $this->createMock(EntityQueryInterface::class);
+        $scopeQuery->expects(self::once())->method('setAccount')->willReturnSelf();
+        $scopeQuery->expects(self::once())->method('execute')->willReturn([1, 2]);
+
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects(self::once())->method('getQuery')->willReturn($scopeQuery);
+        $repository->expects(self::once())->method('findMany')->with([1, 2])->willReturn([$older, $newer]);
 
         $articleType = new EntityType(
             id: 'article',
             label: 'Article',
             class: \stdClass::class,
-            keys: ['id' => 'id'],
+            keys: ['id' => 'id', 'bundle' => 'type'],
         );
 
         $etm = $this->createMock(EntityTypeManagerInterface::class);
@@ -1061,24 +1077,96 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm->method('getDefinition')->willReturn($articleType);
         // R13 WP1: list() now validates filter/sort fields against
         // resolveFieldDefinitions() + entity keys before running the query.
-        $etm->method('resolveFieldDefinitions')->willReturn([
-            'created_at' => new FieldDefinition(name: 'created_at', type: 'string'),
-        ]);
-        $etm->method('getStorage')->willReturn($storage);
-        $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
+        $etm->method('resolveFieldDefinitions')->willReturnCallback(
+            static fn(string $type, ?string $bundle = null): array => in_array($bundle, ['article_bundle', 'other_bundle'], true)
+                ? ['created_at' => new FieldDefinition(name: 'created_at', type: 'datetime', targetEntityTypeId: 'article', targetBundle: 'article_bundle')]
+                : [],
+        );
+        $etm->method('getRepository')->willReturn($repository);
 
         $host = $this->permissiveHost($etm);
 
         $query = new SurfaceQuery(
+            filters: [['field' => 'type', 'operator' => SurfaceFilterOperator::IN, 'value' => ['article_bundle', 'other_bundle']]],
             sortField: 'created_at',
             sortDirection: 'DESC',
+            limit: 1,
+            trustedBundleScope: ['article_bundle', 'other_bundle'],
         );
         $result = $host->list('article', $query);
 
         $this->assertTrue($result->ok);
-        $this->assertCount(2, $result->data['entities']);
+        $this->assertSame(2, $result->data['total']);
+        $this->assertCount(1, $result->data['entities']);
         $this->assertSame('Newer', $result->data['entities'][0]['attributes']['title']);
-        $this->assertSame('Older', $result->data['entities'][1]['attributes']['title']);
+    }
+
+    #[Test]
+    public function caller_bundle_filter_cannot_claim_trusted_bundle_field_scope(): void
+    {
+        $type = new EntityType(
+            id: 'article',
+            label: 'Article',
+            class: \stdClass::class,
+            keys: ['id' => 'id', 'bundle' => 'type'],
+        );
+        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm->method('hasDefinition')->willReturn(true);
+        $etm->method('getDefinition')->willReturn($type);
+        $etm->method('resolveFieldDefinitions')->willReturnCallback(
+            static fn(string $entityType, ?string $bundle = null): array => $bundle === 'private'
+                ? ['bundle_secret' => new FieldDefinition(name: 'bundle_secret', type: 'string', targetEntityTypeId: 'article', targetBundle: 'private')]
+                : [],
+        );
+        $etm->expects(self::never())->method('getRepository');
+
+        $result = (new GenericAdminSurfaceHost($etm))->list('article', new SurfaceQuery(
+            filters: [['field' => 'type', 'operator' => SurfaceFilterOperator::EQUALS, 'value' => 'private']],
+            sortField: 'bundle_secret',
+        ));
+
+        self::assertFalse($result->ok);
+        self::assertSame(400, $result->error['status']);
+        self::assertSame('Invalid sort field', $result->error['title']);
+    }
+
+    #[Test]
+    public function trusted_bundle_fields_must_be_common_and_non_internal_across_the_complete_scope(): void
+    {
+        $type = new EntityType(
+            id: 'article',
+            label: 'Article',
+            class: \stdClass::class,
+            keys: ['id' => 'id', 'bundle' => 'type'],
+        );
+        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm->method('hasDefinition')->willReturn(true);
+        $etm->method('getDefinition')->willReturn($type);
+        $etm->method('resolveFieldDefinitions')->willReturnCallback(
+            static function (string $entityType, ?string $bundle = null): array {
+                return match ($bundle) {
+                    'a', 'c' => ['shared' => new FieldDefinition(name: 'shared', type: 'string', targetEntityTypeId: 'article', targetBundle: $bundle)],
+                    'internal' => ['shared' => new FieldDefinition(name: 'shared', type: 'string', settings: ['internal' => true], targetEntityTypeId: 'article', targetBundle: $bundle)],
+                    default => [],
+                };
+            },
+        );
+        $etm->expects(self::never())->method('getRepository');
+        $host = new GenericAdminSurfaceHost($etm);
+
+        $missingMiddle = $host->list('article', new SurfaceQuery(
+            sortField: 'shared',
+            trustedBundleScope: ['a', 'missing', 'c'],
+        ));
+        $internalVariant = $host->list('article', new SurfaceQuery(
+            sortField: 'shared',
+            trustedBundleScope: ['a', 'internal'],
+        ));
+
+        self::assertFalse($missingMiddle->ok);
+        self::assertSame('Invalid sort field', $missingMiddle->error['title']);
+        self::assertFalse($internalVariant->ok);
+        self::assertSame('Invalid sort field', $internalVariant->error['title']);
     }
 
     #[Test]
