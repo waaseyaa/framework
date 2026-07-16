@@ -18,6 +18,7 @@ use Waaseyaa\AdminSurface\Host\AdminSurfaceSessionData;
 use Waaseyaa\AdminSurface\Host\AdminSurfaceUiPayload;
 use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
 use Waaseyaa\Entity\ConfigEntityBase;
+use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\Tests\Helper\TestEntityType;
@@ -29,6 +30,7 @@ use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
 use Waaseyaa\Field\FieldDefinition;
+use Waaseyaa\Field\FieldDefinitionRegistry;
 
 #[CoversClass(GenericAdminSurfaceHost::class)]
 final class GenericAdminSurfaceHostTest extends TestCase
@@ -122,7 +124,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
 
         $host = $this->permissiveHost($etm);
         $result = $host->list('article', new SurfaceQuery(
-            filters: [['field' => 'status', 'operator' => SurfaceFilterOperator::EQUALS, 'value' => 'published']],
+            filters: [['field' => 'title', 'operator' => SurfaceFilterOperator::STARTS_WITH, 'value' => 'Vis']],
             sortField: 'title',
             sortDirection: 'DESC',
             offset: 20,
@@ -133,10 +135,10 @@ final class GenericAdminSurfaceHostTest extends TestCase
         self::assertSame(3, $result->data['total']);
         self::assertSame([9], array_map(static fn(array $row): int => (int) $row['id'], $result->data['entities']));
         self::assertSame([
-            ['status', 'published', '='],
+            ['title', 'Vis', 'STARTS_WITH'],
         ], $pageConditions);
         self::assertSame([
-            ['status', 'published', '='],
+            ['title', 'Vis', 'STARTS_WITH'],
         ], $totalConditions);
     }
 
@@ -344,6 +346,74 @@ final class GenericAdminSurfaceHostTest extends TestCase
     }
 
     #[Test]
+    public function build_catalog_exposes_authoritative_reference_fields_and_fails_closed_for_unsafe_labels(): void
+    {
+        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm->method('getDefinitions')->willReturn([
+            new EntityType(
+                id: 'node',
+                label: 'Content',
+                class: \stdClass::class,
+                keys: ['id' => 'nid', 'label' => 'title'],
+            ),
+            new EntityType(
+                id: 'media',
+                label: 'Media',
+                class: \stdClass::class,
+                keys: ['id' => 'mid', 'label' => 'name'],
+            ),
+            new EntityType(
+                id: 'unlabelled',
+                label: 'Unlabelled',
+                class: \stdClass::class,
+                keys: ['id' => 'id'],
+            ),
+            new EntityType(
+                id: 'malformed',
+                label: 'Malformed',
+                class: \stdClass::class,
+                keys: ['id' => 'id', 'label' => 'not-a-field'],
+            ),
+            new EntityType(
+                id: 'restricted',
+                label: 'Restricted',
+                class: \stdClass::class,
+                keys: ['id' => 'id', 'label' => 'secret_label'],
+                _fieldDefinitions: [
+                    'secret_label' => new FieldDefinition(
+                        name: 'secret_label',
+                        type: 'string',
+                        settings: ['internal' => true],
+                    ),
+                ],
+            ),
+        ]);
+
+        $host = new GenericAdminSurfaceHost($etm);
+        $catalog = $host->buildCatalog(new AdminSurfaceSessionData(
+            accountId: '1',
+            accountName: 'Admin',
+            roles: ['administrator'],
+            policies: [],
+        ))->build();
+        $byId = array_column($catalog, null, 'id');
+
+        self::assertSame([
+            'labelField' => 'title',
+            'search' => ['field' => 'title', 'operator' => 'STARTS_WITH'],
+            'sort' => ['field' => 'title', 'direction' => 'ASC'],
+        ], $byId['node']['reference']);
+        self::assertSame([
+            'labelField' => 'name',
+            'search' => ['field' => 'name', 'operator' => 'STARTS_WITH'],
+            'sort' => ['field' => 'name', 'direction' => 'ASC'],
+        ], $byId['media']['reference']);
+        self::assertArrayNotHasKey('reference', $byId['unlabelled']);
+        self::assertArrayNotHasKey('reference', $byId['malformed']);
+        self::assertArrayNotHasKey('reference', $byId['restricted']);
+    }
+
+    #[Test]
     public function build_catalog_marks_config_entities_read_only(): void
     {
         // Use a class that extends ConfigEntityBase
@@ -379,6 +449,76 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $this->assertFalse($built[0]['capabilities']['delete']);
         $this->assertTrue($built[0]['capabilities']['list']);
         $this->assertTrue($built[0]['capabilities']['get']);
+    }
+
+    #[Test]
+    public function explicit_create_bundle_schema_is_create_gated_but_id_scoped_edit_schema_is_not(): void
+    {
+        $registry = new FieldDefinitionRegistry();
+        $registry->registerBundleFields('article', 'restricted', [
+            new FieldDefinition(
+                name: 'restricted_body',
+                type: 'text',
+                targetEntityTypeId: 'article',
+                targetBundle: 'restricted',
+            ),
+        ]);
+        $definition = new EntityType(
+            id: 'article',
+            label: 'Article',
+            class: BundleSchemaTestEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type'],
+        );
+        $existing = new BundleSchemaTestEntity([
+            'id' => 1,
+            'uuid' => 'existing-uuid',
+            'title' => 'Existing restricted article',
+            'type' => 'restricted',
+        ]);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('find')->with('1')->willReturn($existing);
+
+        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm->method('hasDefinition')->willReturn(true);
+        $etm->method('getDefinition')->willReturn($definition);
+        $etm->method('getRepository')->willReturn($repository);
+        $etm->method('resolveFieldDefinitions')->willReturnCallback(
+            static fn(string $type, ?string $bundle = null): array => $bundle === 'restricted'
+                ? ['restricted_body' => new FieldDefinition(name: 'restricted_body', type: 'text')]
+                : [],
+        );
+
+        $account = $this->createStub(AccountInterface::class);
+        $account->method('id')->willReturn(1);
+        $account->method('hasPermission')->willReturn(true);
+        $account->method('getRoles')->willReturn(['administrator']);
+        $accessHandler = $this->createMock(EntityAccessHandler::class);
+        $accessHandler->expects(self::once())
+            ->method('checkCreateAccess')
+            ->with('article', 'restricted', $account)
+            ->willReturn(AccessResult::forbidden('private bundle detail'));
+        $accessHandler->method('checkFieldAccess')->willReturn(AccessResult::neutral());
+
+        $host = new GenericAdminSurfaceHost(
+            $etm,
+            $accessHandler,
+            new \Waaseyaa\Api\Schema\SchemaPresenter($registry),
+        );
+        $request = Request::create('/admin/_surface/session');
+        $request->attributes->set('_account', $account);
+        self::assertNotNull($host->resolveSession($request));
+
+        $createSchema = $host->action('article', 'schema', ['bundle' => 'restricted']);
+        self::assertFalse($createSchema->ok);
+        self::assertSame(403, $createSchema->error['status']);
+        self::assertSame('Access denied', $createSchema->error['title']);
+        self::assertSame('You do not have permission to create this entity.', $createSchema->error['detail']);
+        self::assertStringNotContainsString('restricted', json_encode($createSchema->toArray(), JSON_THROW_ON_ERROR));
+        self::assertStringNotContainsString('private bundle detail', json_encode($createSchema->toArray(), JSON_THROW_ON_ERROR));
+
+        $editSchema = $host->action('article', 'schema', ['id' => '1']);
+        self::assertTrue($editSchema->ok);
+        self::assertArrayHasKey('restricted_body', $editSchema->data['properties']);
     }
 
     #[Test]
@@ -1092,5 +1232,17 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $this->assertTrue($result->ok);
         // Schema result should contain field definitions, not the custom handler's output
         $this->assertArrayNotHasKey('should_not_see', $result->data);
+    }
+}
+
+final class BundleSchemaTestEntity extends ContentEntityBase
+{
+    public function __construct(array $values = [])
+    {
+        parent::__construct(
+            $values,
+            'article',
+            ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type'],
+        );
     }
 }

@@ -18,6 +18,7 @@ final class SurfaceFilterOperatorTest extends TestCase
         $this->assertSame(SurfaceFilterOperator::EQUALS, SurfaceFilterOperator::fromString('EQUALS'));
         $this->assertSame(SurfaceFilterOperator::IN, SurfaceFilterOperator::fromString('IN'));
         $this->assertSame(SurfaceFilterOperator::CONTAINS, SurfaceFilterOperator::fromString('CONTAINS'));
+        $this->assertSame(SurfaceFilterOperator::STARTS_WITH, SurfaceFilterOperator::fromString('STARTS_WITH'));
     }
 
     #[Test]
@@ -41,6 +42,7 @@ final class SurfaceFilterOperatorTest extends TestCase
         $this->assertSame('!=', SurfaceFilterOperator::NOT_EQUALS->toSqlOperator());
         $this->assertSame('IN', SurfaceFilterOperator::IN->toSqlOperator());
         $this->assertSame('LIKE', SurfaceFilterOperator::CONTAINS->toSqlOperator());
+        $this->assertSame('LIKE', SurfaceFilterOperator::STARTS_WITH->toSqlOperator());
         $this->assertSame('>', SurfaceFilterOperator::GT->toSqlOperator());
         $this->assertSame('<', SurfaceFilterOperator::LT->toSqlOperator());
         $this->assertSame('>=', SurfaceFilterOperator::GTE->toSqlOperator());

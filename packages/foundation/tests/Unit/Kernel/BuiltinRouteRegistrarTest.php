@@ -35,6 +35,10 @@ final class BuiltinRouteRegistrarTest extends TestCase
         $this->assertNotNull($routes->get('api.broadcast'));
         $this->assertNotNull($routes->get('api.search'));
         $this->assertNotNull($routes->get('api.media.upload'));
+        $this->assertSame(['GET', 'POST'], $routes->get('api.media.upload')?->getMethods());
+        $this->assertTrue((bool) $routes->get('api.media.upload')?->getOption('_authenticated'));
+        $this->assertSame('access media', $routes->get('api.media.upload')?->getOption('_permission'));
+        $this->assertNotSame(false, $routes->get('api.media.upload')?->getOption('_csrf'));
         $this->assertNotNull($routes->get('media.download'));
         $this->assertTrue((bool) $routes->get('media.download')?->getOption('_public'));
     }

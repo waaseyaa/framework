@@ -152,6 +152,22 @@ final class CatalogBuilderTest extends TestCase
     }
 
     #[Test]
+    public function reference_metadata_can_explicitly_disable_search_and_sort(): void
+    {
+        $builder = new CatalogBuilder();
+        $builder->defineEntity('external_record', 'External records')
+            ->reference(labelField: 'display_name');
+
+        $result = $builder->build();
+
+        self::assertSame([
+            'labelField' => 'display_name',
+            'search' => null,
+            'sort' => null,
+        ], $result[0]['reference']);
+    }
+
+    #[Test]
     public function invalidCapabilityThrows(): void
     {
         $entity = new EntityDefinition('test', 'Test');

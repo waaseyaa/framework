@@ -19,11 +19,13 @@ final class AbstractAdminSurfaceHostTest extends TestCase
     private function createHost(
         ?AdminSurfaceSessionData $session = null,
         ?CatalogBuilder $catalog = null,
+        ?object $calls = null,
     ): AbstractAdminSurfaceHost {
-        return new class ($session, $catalog) extends AbstractAdminSurfaceHost {
+        return new class ($session, $catalog, $calls) extends AbstractAdminSurfaceHost {
             public function __construct(
                 private readonly ?AdminSurfaceSessionData $session,
                 private readonly ?CatalogBuilder $catalog,
+                private readonly ?object $calls,
             ) {
             }
 
@@ -39,6 +41,10 @@ final class AbstractAdminSurfaceHostTest extends TestCase
 
             public function list(string $type, \Waaseyaa\AdminSurface\Query\SurfaceQuery|array $query = []): AdminSurfaceResultData
             {
+                if ($this->calls !== null) {
+                    ++$this->calls->list;
+                }
+
                 return AdminSurfaceResultData::success([
                     'entities' => [],
                     'total' => 0,
@@ -158,6 +164,56 @@ final class AbstractAdminSurfaceHostTest extends TestCase
 
         self::assertTrue($result['ok']);
         self::assertSame(0, $result['data']['total']);
+    }
+
+    #[Test]
+    public function handle_list_returns_structured_bad_request_for_an_unknown_filter_operator(): void
+    {
+        $session = new AdminSurfaceSessionData(
+            accountId: '1',
+            accountName: 'Admin',
+            roles: [],
+            policies: [],
+        );
+        $calls = (object) ['list' => 0];
+        $host = $this->createHost(session: $session, calls: $calls);
+        $request = Request::create('/admin/_surface/node', 'GET', [
+            'filter' => [
+                'title' => ['operator' => 'LIKE', 'value' => 'secret'],
+            ],
+        ]);
+
+        $result = $host->handleList($request, 'node');
+
+        self::assertFalse($result['ok']);
+        self::assertSame(400, $result['error']['status']);
+        self::assertSame('Invalid filter', $result['error']['title']);
+        self::assertSame('The requested filter is malformed or unsupported.', $result['error']['detail']);
+        self::assertSame(0, $calls->list, 'An invalid filter must be rejected before an unfiltered list can run.');
+    }
+
+    #[Test]
+    public function handle_list_returns_structured_bad_request_for_a_malformed_filter(): void
+    {
+        $session = new AdminSurfaceSessionData(
+            accountId: '1',
+            accountName: 'Admin',
+            roles: [],
+            policies: [],
+        );
+        $calls = (object) ['list' => 0];
+        $host = $this->createHost(session: $session, calls: $calls);
+        $request = Request::create('/admin/_surface/node', 'GET', [
+            'filter' => ['title' => 'secret'],
+        ]);
+
+        $result = $host->handleList($request, 'node');
+
+        self::assertFalse($result['ok']);
+        self::assertSame(400, $result['error']['status']);
+        self::assertSame('Invalid filter', $result['error']['title']);
+        self::assertSame('The requested filter is malformed or unsupported.', $result['error']['detail']);
+        self::assertSame(0, $calls->list, 'A malformed filter must be rejected before an unfiltered list can run.');
     }
 
     #[Test]

@@ -7,7 +7,14 @@ export interface TransportAdapter {
   update(type: string, id: string, attributes: Record<string, any>): Promise<EntityResource>
   remove(type: string, id: string): Promise<void>
   schema(type: string, scope?: SchemaScope): Promise<EntitySchema>
-  search(type: string, field: string, query: string, limit?: number): Promise<EntityResource[]>
+  search(
+    type: string,
+    field: string,
+    query: string,
+    limit?: number,
+    operator?: 'STARTS_WITH',
+    sort?: { field: string; direction: 'ASC' } | null,
+  ): Promise<EntityResource[]>
   runAction(type: string, action: string, payload?: Record<string, unknown>): Promise<unknown>
 }
 

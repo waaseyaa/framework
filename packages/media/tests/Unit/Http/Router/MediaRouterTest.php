@@ -8,9 +8,12 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
+use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Media\Http\Router\MediaRouter;
+use Waaseyaa\Media\MediaAccessPolicy;
 
 #[CoversClass(MediaRouter::class)]
 final class MediaRouterTest extends TestCase
@@ -19,7 +22,12 @@ final class MediaRouterTest extends TestCase
         string $projectRoot = '/tmp/test-project',
         array $config = [],
     ): MediaRouter {
-        return new MediaRouter($projectRoot, $config);
+        return new MediaRouter(
+            $projectRoot,
+            $config,
+            accessHandler: new EntityAccessHandler([new MediaAccessPolicy()]),
+            bundleExists: static fn(string $bundle): bool => in_array($bundle, ['image', 'private_document'], true),
+        );
     }
 
     #[Test]
@@ -111,6 +119,8 @@ final class MediaRouterTest extends TestCase
         string $tmpFile,
         string $clientName,
         string $clientType,
+        mixed $bundle = 'image',
+        ?AccountInterface $account = null,
     ): Request {
         // Plain UploadedFile in test mode — the router must sniff the real
         // file contents (ext-fileinfo), never Symfony's getMimeType() (which
@@ -123,9 +133,10 @@ final class MediaRouterTest extends TestCase
             true,
         );
 
-        $request = Request::create('/api/media/upload', 'POST', server: ['CONTENT_TYPE' => 'multipart/form-data']);
+        $parameters = $bundle === null ? [] : ['bundle' => $bundle];
+        $request = Request::create('/api/media/upload', 'POST', $parameters, server: ['CONTENT_TYPE' => 'multipart/form-data']);
         $request->attributes->set('_controller', 'media.upload');
-        $request->attributes->set('_account', new class implements \Waaseyaa\Access\AccountInterface {
+        $request->attributes->set('_account', $account ?? new class implements AccountInterface {
             public function id(): string|int
             {
                 return 1;
@@ -149,6 +160,33 @@ final class MediaRouterTest extends TestCase
         return $request;
     }
 
+    private function accountWithPermissions(array $permissions): AccountInterface
+    {
+        return new class ($permissions) implements AccountInterface {
+            public function __construct(private readonly array $permissions) {}
+
+            public function id(): string|int
+            {
+                return 7;
+            }
+
+            public function isAuthenticated(): bool
+            {
+                return true;
+            }
+
+            public function hasPermission(string $permission): bool
+            {
+                return in_array($permission, $this->permissions, true);
+            }
+
+            public function getRoles(): array
+            {
+                return [];
+            }
+        };
+    }
+
     private function makeUploadWorkspace(): array
     {
         $tmpDir = sys_get_temp_dir() . '/waaseyaa_media_test_' . uniqid();
@@ -167,6 +205,134 @@ final class MediaRouterTest extends TestCase
     private function svgBytes(): string
     {
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1\" height=\"1\"><rect/></svg>\n";
+    }
+
+    #[Test]
+    public function get_exposes_only_safe_upload_constraints(): void
+    {
+        $privateRoot = '/srv/private/customer-storage';
+        $router = $this->createRouter(config: [
+            'files_root' => $privateRoot,
+            'upload_max_bytes' => 2_500_000,
+            'upload_allowed_mime_types' => ['image/png', 'application/pdf'],
+        ]);
+        $request = Request::create('/api/media/upload', 'GET');
+        $request->attributes->set('_controller', 'media.upload');
+
+        $response = $router->handle($request);
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('application/vnd.api+json', $response->headers->get('Content-Type'));
+        $decoded = json_decode($response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame(2_500_000, $decoded['meta']['constraints']['max_bytes']);
+        self::assertSame(['image/png', 'application/pdf'], $decoded['meta']['constraints']['allowed_mime_types']);
+        self::assertStringNotContainsString($privateRoot, $response->getContent());
+        self::assertArrayNotHasKey('files_root', $decoded['meta']['constraints']);
+    }
+
+    #[Test]
+    public function upload_requires_a_canonical_bundle_before_persisting_bytes(): void
+    {
+        [$tmpDir, $filesRoot] = $this->makeUploadWorkspace();
+        $tmpFile = $tmpDir . '/source.png';
+        file_put_contents($tmpFile, $this->pngBytes());
+        $router = $this->createRouter(config: ['files_root' => $filesRoot]);
+
+        $response = $router->handle($this->makeUploadRequest($tmpFile, 'photo.png', 'image/png', null));
+
+        self::assertSame(400, $response->getStatusCode());
+        self::assertSame([], array_values(array_diff(scandir($filesRoot) ?: [], ['.', '..'])));
+        self::assertStringNotContainsString($filesRoot, $response->getContent());
+        $this->removeDirectory($tmpDir);
+    }
+
+    #[Test]
+    public function upload_rejects_malformed_bundle_before_persisting_bytes(): void
+    {
+        [$tmpDir, $filesRoot] = $this->makeUploadWorkspace();
+        $tmpFile = $tmpDir . '/source.png';
+        file_put_contents($tmpFile, $this->pngBytes());
+        $router = $this->createRouter(config: ['files_root' => $filesRoot]);
+
+        $response = $router->handle($this->makeUploadRequest($tmpFile, 'photo.png', 'image/png', '../secret'));
+
+        self::assertSame(400, $response->getStatusCode());
+        self::assertSame([], array_values(array_diff(scandir($filesRoot) ?: [], ['.', '..'])));
+        self::assertStringNotContainsString('../secret', $response->getContent());
+        $this->removeDirectory($tmpDir);
+    }
+
+    #[Test]
+    public function upload_rejects_non_scalar_bundle_without_throwing_or_persisting_bytes(): void
+    {
+        [$tmpDir, $filesRoot] = $this->makeUploadWorkspace();
+        $tmpFile = $tmpDir . '/source.png';
+        file_put_contents($tmpFile, $this->pngBytes());
+        $router = $this->createRouter(config: ['files_root' => $filesRoot]);
+
+        $response = $router->handle($this->makeUploadRequest($tmpFile, 'photo.png', 'image/png', ['image']));
+
+        self::assertSame(400, $response->getStatusCode());
+        self::assertSame([], array_values(array_diff(scandir($filesRoot) ?: [], ['.', '..'])));
+        self::assertStringNotContainsString($filesRoot, $response->getContent());
+        $this->removeDirectory($tmpDir);
+    }
+
+    #[Test]
+    public function upload_enforces_bundle_create_access_before_persisting_bytes(): void
+    {
+        [$tmpDir, $filesRoot] = $this->makeUploadWorkspace();
+        $tmpFile = $tmpDir . '/source.png';
+        file_put_contents($tmpFile, $this->pngBytes());
+        $router = $this->createRouter(config: ['files_root' => $filesRoot]);
+        $viewer = $this->accountWithPermissions(['access media']);
+
+        $response = $router->handle($this->makeUploadRequest($tmpFile, 'photo.png', 'image/png', 'private_document', $viewer));
+
+        self::assertSame(403, $response->getStatusCode());
+        self::assertSame([], array_values(array_diff(scandir($filesRoot) ?: [], ['.', '..'])));
+        self::assertStringNotContainsString('private_document', $response->getContent());
+        self::assertStringNotContainsString('create private_document media', $response->getContent());
+        $this->removeDirectory($tmpDir);
+    }
+
+    #[Test]
+    public function upload_rejects_an_unregistered_bundle_even_for_a_media_administrator(): void
+    {
+        [$tmpDir, $filesRoot] = $this->makeUploadWorkspace();
+        $tmpFile = $tmpDir . '/source.png';
+        file_put_contents($tmpFile, $this->pngBytes());
+        $router = $this->createRouter(config: ['files_root' => $filesRoot]);
+        $administrator = $this->accountWithPermissions(['access media', 'administer media']);
+
+        $response = $router->handle($this->makeUploadRequest($tmpFile, 'photo.png', 'image/png', 'unregistered_bundle', $administrator));
+
+        self::assertSame(403, $response->getStatusCode());
+        self::assertSame([], array_values(array_diff(scandir($filesRoot) ?: [], ['.', '..'])));
+        self::assertStringNotContainsString('unregistered_bundle', $response->getContent());
+        $this->removeDirectory($tmpDir);
+    }
+
+    #[Test]
+    public function upload_allows_only_the_authorized_canonical_bundle_and_returns_the_canonical_shape(): void
+    {
+        [$tmpDir, $filesRoot] = $this->makeUploadWorkspace();
+        $tmpFile = $tmpDir . '/source.png';
+        file_put_contents($tmpFile, $this->pngBytes());
+        $router = $this->createRouter(config: ['files_root' => $filesRoot]);
+        $creator = $this->accountWithPermissions(['access media', 'create private_document media']);
+
+        $response = $router->handle($this->makeUploadRequest($tmpFile, 'photo.png', 'image/png', 'private_document', $creator));
+
+        self::assertSame(201, $response->getStatusCode());
+        $decoded = json_decode($response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame('file', $decoded['data']['type']);
+        self::assertStringStartsWith('public://', $decoded['data']['attributes']['uri']);
+        self::assertStringStartsWith('/files/', $decoded['data']['attributes']['url']);
+        self::assertSame('image/png', $decoded['data']['attributes']['mime_type']);
+        self::assertArrayNotHasKey('path', $decoded['data']['attributes']);
+        self::assertStringNotContainsString($filesRoot, $response->getContent());
+        $this->removeDirectory($tmpDir);
     }
 
     #[Test]
@@ -307,7 +473,13 @@ final class MediaRouterTest extends TestCase
             $filesRoot,
             mimeDetector: static fn(string $filePath): ?string => null,
         );
-        $router = new MediaRouter('/tmp/test-project', ['files_root' => $filesRoot], $uploadHandler);
+        $router = new MediaRouter(
+            '/tmp/test-project',
+            ['files_root' => $filesRoot],
+            $uploadHandler,
+            new EntityAccessHandler([new MediaAccessPolicy()]),
+            static fn(string $bundle): bool => $bundle === 'image',
+        );
 
         $response = $router->handle($this->makeUploadRequest($tmpFile, 'photo.png', 'image/png'));
 

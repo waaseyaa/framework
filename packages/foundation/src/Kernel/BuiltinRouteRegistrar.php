@@ -81,8 +81,9 @@ final class BuiltinRouteRegistrar
             'api.media.upload',
             RouteBuilder::create('/api/media/upload')
                 ->controller('media.upload')
+                ->requireAuthentication()
                 ->requirePermission('access media')
-                ->methods('POST')
+                ->methods('GET', 'POST')
                 ->build(),
         );
 

@@ -21,6 +21,15 @@ final class EntityDefinition
     /** @var ActionDefinition[] */
     private array $actions = [];
 
+    /**
+     * @var array{
+     *   labelField: string,
+     *   search: array{field: string, operator: 'STARTS_WITH'}|null,
+     *   sort: array{field: string, direction: 'ASC'}|null
+     * }|null
+     */
+    private ?array $reference = null;
+
     private bool $canList = true;
     private bool $canGet = true;
     private bool $canCreate = true;
@@ -57,6 +66,38 @@ final class EntityDefinition
         $action = new ActionDefinition($id, $label);
         $this->actions[] = $action;
         return $action;
+    }
+
+    /**
+     * Declare authoritative display and query fields for entity references.
+     *
+     * A null search or sort field explicitly means that operation is not
+     * available. Callers must not invent a fallback field or unfiltered list.
+     */
+    public function reference(
+        string $labelField,
+        ?string $searchField = null,
+        ?string $sortField = null,
+    ): self {
+        foreach (array_filter([$labelField, $searchField, $sortField], static fn(?string $field): bool => $field !== null) as $field) {
+            if ($field === '' || preg_match('/^[A-Za-z0-9_]+$/', $field) !== 1) {
+                throw new \InvalidArgumentException('Reference metadata fields must be non-empty machine names.');
+            }
+        }
+
+        $this->reference = [
+            'labelField' => $labelField,
+            'search' => $searchField === null ? null : [
+                'field' => $searchField,
+                'operator' => 'STARTS_WITH',
+            ],
+            'sort' => $sortField === null ? null : [
+                'field' => $sortField,
+                'direction' => 'ASC',
+            ],
+        ];
+
+        return $this;
     }
 
     /**
@@ -98,6 +139,7 @@ final class EntityDefinition
             'label' => $this->label,
             'description' => $this->description,
             'group' => $this->group,
+            'reference' => $this->reference,
             'fields' => array_map(fn(FieldDefinition $f) => $f->toArray(), $this->fields),
             'actions' => array_map(fn(ActionDefinition $a) => $a->toArray(), $this->actions),
             'capabilities' => [

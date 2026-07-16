@@ -7,7 +7,9 @@ namespace Waaseyaa\Media;
 use DateTimeInterface;
 use Waaseyaa\Entity\Attribute\ContentEntityKeys;
 use Waaseyaa\Entity\Attribute\ContentEntityType;
+use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Field\FieldStorage;
 
 /**
  * Defines the media content entity.
@@ -16,7 +18,7 @@ use Waaseyaa\Entity\ContentEntityBase;
  * that can be reused across the site. Each media entity belongs to a media type
  * (bundle) which determines the source plugin and field configuration.
  */
-#[ContentEntityType(id: 'media', api: true)]
+#[ContentEntityType(id: 'media', label: 'Media', description: 'Uploaded files, images, and embedded media', api: true)]
 #[ContentEntityKeys(id: 'mid', uuid: 'uuid', label: 'name', bundle: 'bundle')]
 final class Media extends ContentEntityBase
 {
@@ -27,6 +29,30 @@ final class Media extends ContentEntityBase
         'created' => ['type' => 'datetime_immutable', 'storage' => 'unix'],
         'changed' => ['type' => 'datetime_immutable', 'storage' => 'unix'],
     ];
+
+    #[Field(label: 'Name', description: 'The display name of this media item.', required: true, settings: ['weight' => 0])]
+    public string $name = '';
+
+    #[Field(label: 'Media type', description: 'The bundle (media type) of this item.', required: true, readOnly: true, settings: ['weight' => 1])]
+    public string $bundle = '';
+
+    /**
+     * Canonical URI returned by the media upload endpoint.
+     *
+     * A media upload returns a URI string rather than an embedded file metadata
+     * object, so this remains a string field with an explicit file-widget hint.
+     * Bytes and sidecar metadata continue to be owned by the existing upload
+     * path; this declaration only makes that path reachable to generic schema
+     * authoring and does not activate the parked media-version subsystem.
+     */
+    #[Field(
+        type: 'string',
+        label: 'File',
+        description: 'The uploaded file for this media item.',
+        settings: ['widget' => 'file', 'weight' => 5],
+        stored: FieldStorage::Data,
+    )]
+    public ?string $source_uri = null;
 
     /**
      * @param array<string, string> $entityKeys Explicit keys when reconstructing via {@see ContentEntityBase::duplicateInstance()}.

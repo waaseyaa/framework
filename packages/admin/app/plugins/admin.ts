@@ -95,6 +95,7 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
       fields: entry.fields,
       actions: entry.actions,
       capabilities: entry.capabilities,
+      ...('reference' in entry && entry.reference !== undefined ? { reference: entry.reference } : {}),
       ...(description !== undefined ? { description } : {}),
       ...(disabled !== undefined ? { disabled } : {}),
     }

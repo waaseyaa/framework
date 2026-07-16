@@ -33,11 +33,14 @@ final class SurfaceQueryParser
         $filters = [];
         foreach ($raw as $field => $condition) {
             if (!is_array($condition) || !isset($condition['operator'], $condition['value'])) {
-                continue;
+                throw new \InvalidArgumentException('Malformed filter condition.');
+            }
+            if (!is_string($condition['operator'])) {
+                throw new \InvalidArgumentException('Unsupported filter operator.');
             }
             $operator = SurfaceFilterOperator::fromString($condition['operator']);
             if ($operator === null) {
-                continue;
+                throw new \InvalidArgumentException('Unsupported filter operator.');
             }
             $filters[] = [
                 'field' => (string) $field,

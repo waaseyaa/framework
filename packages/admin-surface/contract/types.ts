@@ -71,9 +71,16 @@ export interface AdminSurfaceCatalogEntry {
   description?: string
   group?: string
   disabled?: boolean
+  reference?: AdminSurfaceReferenceMetadata
   fields: AdminSurfaceField[]
   actions: AdminSurfaceAction[]
   capabilities: AdminSurfaceCapabilities
+}
+
+export interface AdminSurfaceReferenceMetadata {
+  labelField: string
+  search: { field: string; operator: 'STARTS_WITH' } | null
+  sort: { field: string; direction: 'ASC' } | null
 }
 
 export interface AdminSurfaceCapabilities {

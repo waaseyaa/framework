@@ -7,6 +7,7 @@ namespace Waaseyaa\Media\Http\Router;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Foundation\Http\JsonApiResponseTrait;
 use Waaseyaa\Foundation\Http\Router\DomainRouterInterface;
 use Waaseyaa\Foundation\Http\Router\WaaseyaaContext;
@@ -22,11 +23,15 @@ final class MediaRouter implements DomainRouterInterface
      * @param array<string, mixed> $config
      * @param ?UploadHandler $uploadHandler Overrides the per-request handler
      *        (testing seam — e.g. to simulate unavailable MIME detection).
+     * @param ?\Closure(string): bool $bundleExists Resolves canonical media
+     *        bundle membership. Null fails closed for POST uploads.
      */
     public function __construct(
         private readonly string $projectRoot,
         private readonly array $config,
         private readonly ?UploadHandler $uploadHandler = null,
+        private readonly ?EntityAccessHandler $accessHandler = null,
+        private readonly ?\Closure $bundleExists = null,
     ) {}
 
     public function supports(Request $request): bool
@@ -36,6 +41,10 @@ final class MediaRouter implements DomainRouterInterface
 
     public function handle(Request $request): Response
     {
+        if ($request->isMethod('GET')) {
+            return $this->uploadConstraintsResponse();
+        }
+
         $ctx = WaaseyaaContext::fromRequest($request);
 
         return $this->handleMediaUpload($request, $ctx);
@@ -45,6 +54,27 @@ final class MediaRouter implements DomainRouterInterface
         Request $httpRequest,
         WaaseyaaContext $ctx,
     ): Response {
+        $bundle = $httpRequest->request->all()['bundle'] ?? null;
+        if (!is_string($bundle) || preg_match('/^[a-z][a-z0-9_]*$/', $bundle) !== 1) {
+            return $this->jsonApiResponse(400, [
+                'jsonapi' => ['version' => '1.1'],
+                'errors' => [['status' => '400', 'title' => 'Bad Request', 'detail' => 'A valid media bundle is required.']],
+            ]);
+        }
+
+        try {
+            $bundleIsRegistered = $this->bundleExists !== null && ($this->bundleExists)($bundle);
+        } catch (\Throwable) {
+            $bundleIsRegistered = false;
+        }
+        $createAccess = $this->accessHandler?->checkCreateAccess('media', $bundle, $ctx->account);
+        if (!$bundleIsRegistered || $createAccess === null || !$createAccess->isAllowed()) {
+            return $this->jsonApiResponse(403, [
+                'jsonapi' => ['version' => '1.1'],
+                'errors' => [['status' => '403', 'title' => 'Forbidden', 'detail' => 'You are not authorized to upload media for this bundle.']],
+            ]);
+        }
+
         $contentType = strtolower((string) $httpRequest->headers->get('Content-Type', ''));
         if (!str_starts_with($contentType, 'multipart/form-data')) {
             return $this->jsonApiResponse(415, [
@@ -117,22 +147,23 @@ final class MediaRouter implements DomainRouterInterface
 
         try {
             $uploadedFile->move(dirname($destPath), basename($destPath));
-        } catch (\Throwable $e) {
+            $file = new File(
+                uri: $uri,
+                filename: $safeName,
+                mimeType: $mimeType,
+                size: (int) filesize($destPath),
+                ownerId: $ctx->account->isAuthenticated() ? (int) $ctx->account->id() : null,
+                createdTime: time(),
+                originalName: $originalName,
+            );
+
+            $repo = new LocalFileRepository($filesRoot);
+            $repo->save($file);
+        } catch (\Throwable) {
+            @unlink($destPath);
+
             return $this->uploadStorageFailureResponse();
         }
-
-        $file = new File(
-            uri: $uri,
-            filename: $safeName,
-            mimeType: $mimeType,
-            size: (int) filesize($destPath),
-            ownerId: $ctx->account->isAuthenticated() ? (int) $ctx->account->id() : null,
-            createdTime: time(),
-            originalName: $originalName,
-        );
-
-        $repo = new LocalFileRepository($filesRoot);
-        $repo->save($file);
 
         $fileUrl = $this->buildPublicFileUrl($file->uri);
         $fileData = [
@@ -150,6 +181,19 @@ final class MediaRouter implements DomainRouterInterface
         ];
 
         return $this->jsonApiResponse(201, ['jsonapi' => ['version' => '1.1'], 'data' => $fileData]);
+    }
+
+    private function uploadConstraintsResponse(): Response
+    {
+        return $this->jsonApiResponse(200, [
+            'jsonapi' => ['version' => '1.1'],
+            'meta' => [
+                'constraints' => [
+                    'max_bytes' => $this->resolveUploadMaxBytes(),
+                    'allowed_mime_types' => $this->resolveAllowedUploadMimeTypes(),
+                ],
+            ],
+        ]);
     }
 
     private function uploadStorageFailureResponse(): Response
