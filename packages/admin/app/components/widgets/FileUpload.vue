@@ -2,18 +2,23 @@
 import type { SchemaProperty } from '~/composables/useSchema'
 import { schemaFormContextKey } from '~/components/schema/schemaFormContext'
 
-defineProps<{
+const props = defineProps<{
   modelValue: string
   label?: string
   description?: string
   required?: boolean
   disabled?: boolean
   schema?: SchemaProperty
+  inputId?: string
+  descriptionId?: string
+  error?: string
+  errorId?: string
+  describedBy?: string
 }>()
 
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 const context = inject(schemaFormContextKey, null)
-const inputId = useId()
+const inputId = props.inputId ?? useId()
 
 const uploading = ref(false)
 const progress = ref(0)
@@ -31,6 +36,11 @@ const constraintsText = computed(() => {
   if (maxBytes.value !== null) parts.push(`Maximum size: ${formatBytes(maxBytes.value)}`)
   return parts.join('. ')
 })
+const accessibleDescription = computed(() => [
+  props.describedBy,
+  constraintsText.value ? `${inputId}-constraints` : undefined,
+  errorMessage.value ? `${inputId}-upload-error` : undefined,
+].filter(Boolean).join(' ') || undefined)
 
 let objectUrl: string | null = null
 
@@ -211,7 +221,7 @@ function onFileChange(event: Event) {
   <div class="field">
     <label v-if="label" class="field-label" :for="inputId">
       {{ label }}
-      <span v-if="required" class="required">*</span>
+      <span v-if="required" class="required" aria-hidden="true">*</span>
     </label>
 
     <input
@@ -219,7 +229,10 @@ function onFileChange(event: Event) {
       type="file"
       class="field-input"
       :accept="acceptedTypes || undefined"
-      :aria-describedby="constraintsText ? `${inputId}-constraints` : undefined"
+      :required="required"
+      :aria-required="required ? 'true' : undefined"
+      :aria-invalid="error || errorMessage ? 'true' : undefined"
+      :aria-describedby="accessibleDescription"
       :disabled="disabled || uploading || constraintsLoading"
       @change="onFileChange"
     >
@@ -244,8 +257,9 @@ function onFileChange(event: Event) {
 
     <p v-if="modelValue" class="field-description">A file has been uploaded.</p>
 
-    <p v-if="description" class="field-description">{{ description }}</p>
-    <p v-if="errorMessage" class="field-error" role="alert" aria-live="assertive">{{ errorMessage }}</p>
+    <p v-if="description" :id="descriptionId" class="field-description">{{ description }}</p>
+    <p v-if="error" :id="errorId" class="field-error"><strong>Error:</strong> {{ error }}</p>
+    <p v-if="errorMessage" :id="`${inputId}-upload-error`" class="field-error" role="alert" aria-live="assertive"><strong>Error:</strong> {{ errorMessage }}</p>
   </div>
 </template>
 

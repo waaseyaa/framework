@@ -97,7 +97,7 @@ function onLocaleChange(event: Event) {
   --color-surface: #fff;
   --color-primary: #0f766e;
   --color-primary-hover: #0d4f4f;
-  --color-danger: #dc2626;
+  --color-danger: #b42318;
   --color-text: #1f2937;
   --color-muted: #6b7280;
   --color-border: #e5e7eb;
@@ -202,6 +202,8 @@ body {
 
 .content {
   flex: 1;
+  min-width: 0;
+  max-width: 100%;
   padding: 24px;
 }
 
@@ -236,10 +238,16 @@ body {
   font-family: inherit;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.field-input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15); }
+.field-input:focus-visible {
+  border-color: var(--color-primary-hover);
+  outline: 3px solid var(--color-primary-hover);
+  outline-offset: 2px;
+  box-shadow: none;
+}
 .field-textarea { resize: vertical; min-height: 100px; }
 .field-richtext { min-height: 120px; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 4px; }
-.field-description { margin-top: 4px; font-size: 12px; color: var(--color-muted); }
+.field-description { margin-top: 4px; font-size: 12px; color: #4b5563; }
+.field-error { margin-top: 4px; color: var(--color-danger); font-weight: 600; }
 .required { color: var(--color-danger); }
 
 .entity-table { width: 100%; border-collapse: collapse; background: var(--color-surface); border-radius: 4px; }
@@ -258,7 +266,7 @@ body {
 .error { padding: 12px 16px; background: #fef2f2; color: var(--color-danger); border-radius: 4px; margin-bottom: 16px; }
 .success { padding: 12px 16px; background: #f0fdf4; color: #16a34a; border-radius: 4px; margin-bottom: 16px; }
 
-.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+.page-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 24px; }
 .page-header h1 { font-size: 24px; font-weight: 600; }
 
 /* Skip link for accessibility */

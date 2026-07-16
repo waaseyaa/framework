@@ -359,6 +359,65 @@ final class SchemaPresenterTest extends TestCase
     }
 
     #[Test]
+    public function presentProjectsDateFieldsWithoutReclassifyingStringsOrDateTimes(): void
+    {
+        $entityType = $this->createEntityType();
+
+        $schema = $this->presenter->present($entityType, [
+            'available_on' => [
+                'type' => 'date',
+                'label' => 'Available on',
+            ],
+            'date_like_string' => [
+                'type' => 'string',
+                'label' => 'Date-like string',
+                'settings' => ['min' => 3],
+            ],
+            'recorded_at' => [
+                'type' => 'timestamp',
+                'label' => 'Recorded at',
+            ],
+        ]);
+        $properties = $schema['properties'];
+
+        $this->assertSame('string', $properties['available_on']['type']);
+        $this->assertSame('date', $properties['available_on']['format']);
+        $this->assertSame('date', $properties['available_on']['x-widget']);
+        $this->assertArrayNotHasKey('default', $properties['available_on']);
+
+        $this->assertSame('string', $properties['date_like_string']['type']);
+        $this->assertSame('text', $properties['date_like_string']['x-widget']);
+        $this->assertArrayNotHasKey('format', $properties['date_like_string']);
+        $this->assertSame(3, $properties['date_like_string']['minimum']);
+
+        $this->assertSame('string', $properties['recorded_at']['type']);
+        $this->assertSame('date-time', $properties['recorded_at']['format']);
+        $this->assertSame('datetime', $properties['recorded_at']['x-widget']);
+    }
+
+    #[Test]
+    public function presentProjectsAuthoritativeDateBoundsAsPresentationHints(): void
+    {
+        $entityType = $this->createEntityType();
+
+        $schema = $this->presenter->present($entityType, [
+            'available_on' => [
+                'type' => 'date',
+                'settings' => [
+                    'min' => '2026-01-01',
+                    'max' => '2026-12-31',
+                ],
+            ],
+        ]);
+        $property = $schema['properties']['available_on'];
+
+        $this->assertSame('2026-01-01', $property['x-min']);
+        $this->assertSame('2026-12-31', $property['x-max']);
+        $this->assertArrayNotHasKey('minimum', $property);
+        $this->assertArrayNotHasKey('maximum', $property);
+    }
+
+    #[Test]
     public function presentWithCustomWidgetOverride(): void
     {
         $entityType = $this->createEntityType();

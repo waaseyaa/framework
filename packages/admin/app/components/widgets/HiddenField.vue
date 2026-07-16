@@ -8,6 +8,11 @@ defineProps<{
   required?: boolean
   disabled?: boolean
   schema?: SchemaProperty
+  inputId?: string
+  descriptionId?: string
+  error?: string
+  errorId?: string
+  describedBy?: string
 }>()
 </script>
 

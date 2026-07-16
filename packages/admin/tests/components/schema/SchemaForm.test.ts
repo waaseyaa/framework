@@ -308,6 +308,7 @@ describe('SchemaForm submit — create mode (no entityId)', () => {
       props: { entityType: 'user_create' },
     })
     await flushPromises()
+    await wrapper.get('input[type="text"]').setValue('alice')
     await wrapper.find('form').trigger('submit')
     await flushPromises()
     expect(wrapper.emitted('saved')?.[0]).toEqual([resource])
@@ -359,6 +360,7 @@ describe('SchemaForm submit — create mode (no entityId)', () => {
       props: { entityType: 'user_create_err' },
     })
     await flushPromises()
+    await wrapper.get('input[type="text"]').setValue('alice')
     await wrapper.find('form').trigger('submit')
     await flushPromises()
     // Should emit an error event
