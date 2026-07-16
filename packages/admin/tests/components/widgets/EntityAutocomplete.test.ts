@@ -98,6 +98,25 @@ describe('EntityAutocomplete authoritative reference search', () => {
     expect(wrapper.get('[role="status"]').text()).toBe('autocomplete_no_results')
   })
 
+  it('uses separate 44px target contracts for the input, clear control, and options', async () => {
+    search.mockResolvedValue([mediaResult()])
+    const wrapper = await mountWidget()
+    const input = wrapper.get('input[role="combobox"]')
+
+    expect(input.classes()).toContain('touch-target')
+    await enterQuery(wrapper, 'Ann')
+
+    const clear = wrapper.get('.autocomplete-clear')
+    const option = wrapper.get('[role="option"]')
+    expect(clear.classes()).toContain('touch-target')
+    expect(option.classes()).toContain('touch-target')
+    expect(clear.element.parentElement).not.toBe(input.element.parentElement)
+
+    await clear.trigger('click')
+    expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([''])
+    expect(document.activeElement).not.toBe(option.element)
+  })
+
   it.each([
     [403, 'autocomplete_forbidden'],
     [404, 'autocomplete_not_found'],

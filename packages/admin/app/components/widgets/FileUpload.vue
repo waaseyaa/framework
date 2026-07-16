@@ -227,7 +227,7 @@ function onFileChange(event: Event) {
     <input
       :id="inputId"
       type="file"
-      class="field-input"
+      class="field-input touch-target"
       :accept="acceptedTypes || undefined"
       :required="required"
       :aria-required="required ? 'true' : undefined"

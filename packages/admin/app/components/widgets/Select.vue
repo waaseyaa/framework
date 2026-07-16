@@ -41,7 +41,7 @@ const options = computed(() => {
       :aria-invalid="error ? 'true' : undefined"
       :aria-describedby="describedBy"
       :disabled="disabled"
-      class="field-input"
+      class="field-input touch-target"
       @change="emit('update:modelValue', ($event.target as HTMLSelectElement).value)"
     >
       <option value="" disabled>-- Select --</option>

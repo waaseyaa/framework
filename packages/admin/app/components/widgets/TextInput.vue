@@ -42,7 +42,7 @@ const inputType = computed(() => {
       :disabled="disabled"
       :maxlength="schema?.maxLength"
       :aria-label="label"
-      class="field-input"
+      class="field-input touch-target"
       @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
     >
     <p v-if="description" :id="descriptionId" class="field-description">{{ description }}</p>

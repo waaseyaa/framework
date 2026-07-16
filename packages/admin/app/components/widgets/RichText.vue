@@ -199,7 +199,7 @@ function onEditorKeydown(event: KeyboardEvent) {
     <div class="richtext-toolbar" role="toolbar" aria-label="Rich text editing tools">
       <button
         type="button"
-        class="richtext-source-toggle"
+        class="richtext-source-toggle touch-target"
         :aria-controls="inputId"
         :aria-pressed="sourceMode"
         :disabled="disabled"
@@ -213,7 +213,7 @@ function onEditorKeydown(event: KeyboardEvent) {
       v-if="sourceMode"
       :id="inputId"
       ref="sourceRef"
-      class="field-input field-source"
+      class="field-input field-source touch-target"
       :value="canonicalHtml"
       :disabled="disabled"
       :aria-labelledby="label ? labelId : undefined"
@@ -238,7 +238,7 @@ function onEditorKeydown(event: KeyboardEvent) {
       :aria-invalid="error ? 'true' : undefined"
       :aria-disabled="disabled ? 'true' : undefined"
       :contenteditable="disabled ? 'false' : 'true'"
-      class="field-input field-richtext"
+      class="field-input field-richtext touch-target"
       :class="{ disabled }"
       @click="preventLinkNavigation"
       @input="onVisualInput"

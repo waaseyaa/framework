@@ -75,7 +75,7 @@ function onInput(event: Event) {
       :disabled="isLocked"
       :maxlength="128"
       pattern="[a-z0-9_]+"
-      class="field-input field-input--machine-name"
+      class="field-input field-input--machine-name touch-target"
       @input="onInput"
     >
     <p v-if="description" :id="descriptionId" class="field-description">{{ description }}</p>

@@ -55,7 +55,7 @@ function customSectionHeading(groupKey: string): string {
 
 <template>
   <nav class="nav">
-    <NuxtLink v-if="showOperationalNavigation" to="/" class="nav-item">
+    <NuxtLink v-if="showOperationalNavigation" to="/" class="nav-item touch-target">
       {{ t('dashboard') }}
     </NuxtLink>
     <template v-for="[groupKey, items] in customNavSections" :key="'cu-' + groupKey">
@@ -64,14 +64,14 @@ function customSectionHeading(groupKey: string): string {
         <a
           v-if="adminNavLinkIsExternal(it)"
           :href="it.href"
-          class="nav-item"
+          class="nav-item touch-target"
           target="_blank"
           rel="noopener noreferrer"
         >{{ it.label }}</a>
         <NuxtLink
           v-else
           :to="it.href"
-          class="nav-item"
+          class="nav-item touch-target"
         >{{ it.label }}</NuxtLink>
       </template>
     </template>
@@ -80,14 +80,14 @@ function customSectionHeading(groupKey: string): string {
       <template v-for="et in group.entityTypes" :key="et.id">
         <NuxtLink
           :to="`/${et.id}`"
-          class="nav-item"
+          class="nav-item touch-target"
         >
           {{ entityLabel(et.id, et.label) }}
         </NuxtLink>
         <NuxtLink
           v-if="et.actions.some(action => action.id === 'board-config')"
           :to="`/${et.id}/pipeline`"
-          class="nav-item nav-item--sub"
+          class="nav-item nav-item--sub touch-target"
         >
           {{ entityLabel(et.id, et.label) }} {{ t('entity_type_pipeline') }}
         </NuxtLink>
@@ -95,16 +95,16 @@ function customSectionHeading(groupKey: string): string {
     </template>
     <template v-if="showOperationalNavigation">
       <div class="nav-section" data-testid="nav-section-mcp">{{ t('nav_group_mcp') }}</div>
-      <NuxtLink to="/mcp/tools" class="nav-item" data-testid="nav-mcp-tools">{{ t('mcp_tools_title') }}</NuxtLink>
-      <NuxtLink to="/mcp/server-config" class="nav-item" data-testid="nav-mcp-server-config">{{ t('mcp_server_config_title') }}</NuxtLink>
+      <NuxtLink to="/mcp/tools" class="nav-item touch-target" data-testid="nav-mcp-tools">{{ t('mcp_tools_title') }}</NuxtLink>
+      <NuxtLink to="/mcp/server-config" class="nav-item touch-target" data-testid="nav-mcp-server-config">{{ t('mcp_server_config_title') }}</NuxtLink>
       <div class="nav-section" data-testid="nav-section-operations">{{ t('nav_group_operations') }}</div>
-      <NuxtLink to="/workflows" class="nav-item">{{ t('workflows') }}</NuxtLink>
-      <NuxtLink to="/queue" class="nav-item" data-testid="nav-queue">{{ t('queue_title') }}</NuxtLink>
-      <NuxtLink to="/scheduler" class="nav-item" data-testid="nav-scheduler">{{ t('scheduler_title') }}</NuxtLink>
-      <NuxtLink to="/notifications" class="nav-item" data-testid="nav-notifications">{{ t('notifications_title') }}</NuxtLink>
-      <NuxtLink to="/mercure/monitor" class="nav-item" data-testid="nav-mercure-monitor">{{ t('mercure_monitor_title') }}</NuxtLink>
+      <NuxtLink to="/workflows" class="nav-item touch-target">{{ t('workflows') }}</NuxtLink>
+      <NuxtLink to="/queue" class="nav-item touch-target" data-testid="nav-queue">{{ t('queue_title') }}</NuxtLink>
+      <NuxtLink to="/scheduler" class="nav-item touch-target" data-testid="nav-scheduler">{{ t('scheduler_title') }}</NuxtLink>
+      <NuxtLink to="/notifications" class="nav-item touch-target" data-testid="nav-notifications">{{ t('notifications_title') }}</NuxtLink>
+      <NuxtLink to="/mercure/monitor" class="nav-item touch-target" data-testid="nav-mercure-monitor">{{ t('mercure_monitor_title') }}</NuxtLink>
       <div class="nav-section" data-testid="nav-section-governance">{{ t('nav_group_governance') }}</div>
-      <NuxtLink to="/classification/policies" class="nav-item" data-testid="nav-classification-policies">{{ t('classification_policies_nav') }}</NuxtLink>
+      <NuxtLink to="/classification/policies" class="nav-item touch-target" data-testid="nav-classification-policies">{{ t('classification_policies_nav') }}</NuxtLink>
     </template>
   </nav>
 </template>
@@ -120,6 +120,8 @@ function customSectionHeading(groupKey: string): string {
   letter-spacing: 0.05em;
 }
 .nav-item {
+  display: flex;
+  align-items: center;
   padding: 8px 16px;
   color: var(--color-text);
   text-decoration: none;

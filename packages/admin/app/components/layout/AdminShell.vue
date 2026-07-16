@@ -111,7 +111,7 @@ function onLocaleChange(event: Event) {
       >
         <Icon name="heroicons:bars-3" class="topbar-toggle-icon" aria-hidden="true" />
       </button>
-      <NuxtLink to="/" class="topbar-brand">{{ appName }}</NuxtLink>
+      <NuxtLink to="/" class="topbar-brand touch-target">{{ appName }}</NuxtLink>
       <nav
         v-if="ui.navigationMode !== 'catalog-only' && ui.headerLinks.length > 0"
         class="topbar-links"
@@ -121,14 +121,14 @@ function onLocaleChange(event: Event) {
           <a
             v-if="adminNavLinkIsExternal(link)"
             :href="link.href"
-            class="topbar-link"
+            class="topbar-link touch-target"
             target="_blank"
             rel="noopener noreferrer"
           >{{ link.label }}</a>
           <NuxtLink
             v-else
             :to="link.href"
-            class="topbar-link"
+            class="topbar-link touch-target"
           >{{ link.label }}</NuxtLink>
         </template>
       </nav>
@@ -194,6 +194,7 @@ function onLocaleChange(event: Event) {
 
 <style>
 :root {
+  --admin-target-size: 44px;
   --sidebar-width: 220px;
   --topbar-height: 48px;
   --color-bg: #f5f5f5;
@@ -230,6 +231,8 @@ body {
 }
 
 .topbar-brand {
+  display: inline-flex;
+  align-items: center;
   color: #fff;
   text-decoration: none;
   font-weight: 600;
@@ -250,6 +253,8 @@ body {
 }
 
 .topbar-link {
+  display: inline-flex;
+  align-items: center;
   color: rgba(255, 255, 255, 0.95);
   text-decoration: none;
   font-size: 13px;
@@ -332,8 +337,8 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 44px;
-  min-height: 44px;
+  min-width: var(--admin-target-size);
+  min-height: var(--admin-target-size);
   padding: 8px 16px;
   border: 1px solid var(--color-border);
   border-radius: 4px;
@@ -345,8 +350,28 @@ body {
   transition: background 0.15s, border-color 0.15s;
 }
 .touch-target {
-  min-width: 44px;
-  min-height: 44px;
+  min-inline-size: var(--admin-target-size);
+  min-block-size: var(--admin-target-size);
+}
+
+/* Ordinary authenticated-admin actions and form controls share one effective
+   target floor. Native checkbox/radio glyphs stay compact inside a labelled
+   target supplied by their widget. */
+.admin-shell :where(
+  a[href]:not(.skip-link),
+  button,
+  input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]),
+  select
+) {
+  min-inline-size: var(--admin-target-size);
+  min-block-size: var(--admin-target-size);
+}
+
+/* Inline anchors ignore logical minimum sizes. Promote authenticated-admin
+   links to inline flex targets without forcing them to fill their container. */
+.admin-shell a[href]:not(.skip-link) {
+  display: inline-flex;
+  align-items: center;
 }
 .btn:hover { background: var(--color-bg); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -373,6 +398,7 @@ select:focus-visible {
 .field { margin-bottom: 16px; }
 .field-label { display: block; margin-bottom: 4px; font-weight: 500; font-size: 14px; }
 .field-input {
+  min-block-size: var(--admin-target-size);
   width: 100%;
   padding: 8px 12px;
   border: 1px solid var(--color-border);

@@ -285,67 +285,71 @@ onBeforeUnmount(() => {
         {{ selectedDisplayLabel(item, index) }}
         <button
           type="button"
-          class="autocomplete-remove"
+          class="autocomplete-remove touch-target"
           :aria-label="t('autocomplete_remove', { label: selectedDisplayLabel(item, index) })"
           :disabled="disabled"
           @click="removeSelected(item.id)"
         >&times;</button>
       </span>
     </div>
-    <div class="autocomplete-wrapper">
-      <input
-        :id="inputId"
-        type="text"
-        :value="inputValue"
-        :required="required && idsFromModel().length === 0"
-        :aria-required="required ? 'true' : undefined"
-        :aria-invalid="error ? 'true' : undefined"
-        :aria-describedby="describedBy"
-        :disabled="disabled"
-        :placeholder="t('autocomplete_placeholder')"
-        class="field-input"
-        role="combobox"
-        :aria-expanded="showDropdown"
-        aria-autocomplete="list"
-        aria-haspopup="listbox"
-        :aria-controls="listboxId"
-        :aria-activedescendant="activeDescendant"
-        @input="onInput"
-        @blur="onBlur"
-        @focus="onFocus"
-        @keydown="onKeydown"
-      >
+    <div class="autocomplete-controls">
+      <div class="autocomplete-input-wrapper">
+        <input
+          :id="inputId"
+          type="text"
+          :value="inputValue"
+          :required="required && idsFromModel().length === 0"
+          :aria-required="required ? 'true' : undefined"
+          :aria-invalid="error ? 'true' : undefined"
+          :aria-describedby="describedBy"
+          :disabled="disabled"
+          :placeholder="t('autocomplete_placeholder')"
+          class="field-input touch-target"
+          role="combobox"
+          :aria-expanded="showDropdown"
+          aria-autocomplete="list"
+          aria-haspopup="listbox"
+          :aria-controls="listboxId"
+          :aria-activedescendant="activeDescendant"
+          @input="onInput"
+          @blur="onBlur"
+          @focus="onFocus"
+          @keydown="onKeydown"
+        >
+        <div v-if="showDropdown" :id="listboxId" class="autocomplete-dropdown" role="listbox">
+          <div v-if="searching" class="autocomplete-item autocomplete-loading" role="status" aria-live="polite">
+            {{ t('autocomplete_loading') }}
+          </div>
+          <div v-else-if="searchError" class="autocomplete-item autocomplete-error" role="alert" aria-live="assertive">
+            {{ searchError }}
+          </div>
+          <div v-else-if="results.length === 0" class="autocomplete-item autocomplete-empty" role="status" aria-live="polite">
+            {{ t('autocomplete_no_results') }}
+          </div>
+          <button
+            v-for="(resource, index) in results"
+            :id="`${listboxId}-option-${index}`"
+            :key="resource.id"
+            type="button"
+            class="autocomplete-item touch-target"
+            :class="{ 'autocomplete-item--active': index === activeIndex }"
+            role="option"
+            :aria-selected="index === activeIndex"
+            @mousedown.prevent="selectResult(resource)"
+          >
+            {{ resultLabel(resource) }}
+          </button>
+        </div>
+      </div>
       <button
         v-if="inputValue"
         type="button"
-        class="autocomplete-clear"
+        class="autocomplete-clear touch-target"
         :aria-label="t('delete')"
-        @click="clear"
+        :disabled="disabled"
+        @mousedown.prevent.stop
+        @click.stop="clear"
       >&times;</button>
-      <div v-if="showDropdown" :id="listboxId" class="autocomplete-dropdown" role="listbox">
-        <div v-if="searching" class="autocomplete-item autocomplete-loading" role="status" aria-live="polite">
-          {{ t('autocomplete_loading') }}
-        </div>
-        <div v-else-if="searchError" class="autocomplete-item autocomplete-error" role="alert" aria-live="assertive">
-          {{ searchError }}
-        </div>
-        <div v-else-if="results.length === 0" class="autocomplete-item autocomplete-empty" role="status" aria-live="polite">
-          {{ t('autocomplete_no_results') }}
-        </div>
-        <button
-          v-for="(resource, index) in results"
-          :id="`${listboxId}-option-${index}`"
-          :key="resource.id"
-          type="button"
-          class="autocomplete-item"
-          :class="{ 'autocomplete-item--active': index === activeIndex }"
-          role="option"
-          :aria-selected="index === activeIndex"
-          @mousedown.prevent="selectResult(resource)"
-        >
-          {{ resultLabel(resource) }}
-        </button>
-      </div>
     </div>
     <p v-if="description" :id="descriptionId" class="field-description">{{ description }}</p>
     <p v-if="error" :id="errorId" class="field-error"><strong>Error:</strong> {{ error }}</p>
@@ -355,10 +359,12 @@ onBeforeUnmount(() => {
 <style scoped>
 .autocomplete-selected { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-bottom: 0.375rem; }
 .autocomplete-selected-item { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.5rem; border-radius: 999px; background: var(--color-bg); }
-.autocomplete-remove { border: 0; background: none; cursor: pointer; font-size: 1rem; line-height: 1; }
-.autocomplete-wrapper { position: relative; }
-.autocomplete-clear { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 18px; color: var(--color-muted); cursor: pointer; padding: 0 4px; line-height: 1; }
+.autocomplete-remove { display: inline-flex; align-items: center; justify-content: center; border: 0; background: none; cursor: pointer; font-size: 1rem; line-height: 1; }
+.autocomplete-controls { display: flex; align-items: start; gap: 0.5rem; min-width: 0; }
+.autocomplete-input-wrapper { position: relative; flex: 1 1 auto; min-width: 0; }
+.autocomplete-clear { display: inline-flex; flex: 0 0 var(--admin-target-size); align-items: center; justify-content: center; background: none; border: 1px solid var(--color-border); border-radius: 4px; font-size: 18px; color: var(--color-muted); cursor: pointer; padding: 0; line-height: 1; }
 .autocomplete-clear:hover { color: var(--color-text); }
+.autocomplete-clear:disabled, .autocomplete-remove:disabled { cursor: not-allowed; }
 .autocomplete-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: var(--color-surface); border: 1px solid var(--color-border); border-top: none; border-radius: 0 0 4px 4px; max-height: 200px; overflow-y: auto; z-index: 100; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); }
 .autocomplete-item { display: block; width: 100%; padding: 8px 12px; text-align: left; border: none; background: none; font-size: 14px; cursor: pointer; color: var(--color-text); font-family: inherit; }
 .autocomplete-item:hover { background: var(--color-bg); }

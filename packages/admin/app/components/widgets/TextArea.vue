@@ -33,7 +33,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
       :aria-describedby="describedBy"
       :disabled="disabled"
       rows="5"
-      class="field-input field-textarea"
+      class="field-input field-textarea touch-target"
       @input="emit('update:modelValue', ($event.target as HTMLTextAreaElement).value)"
     />
     <p v-if="description" :id="descriptionId" class="field-description">{{ description }}</p>

@@ -121,21 +121,21 @@ onUnmounted(() => {
       <span class="wf-beacon__step" aria-hidden="true">{{ activeIndex + 1 }} / {{ trail.length }}</span>
       <button
         type="button"
-        class="wf-beacon__btn"
+        class="wf-beacon__btn touch-target"
         :disabled="!hasPrev"
         :aria-label="t('previous')"
         @click="prev"
       >‹</button>
       <button
         type="button"
-        class="wf-beacon__btn"
+        class="wf-beacon__btn touch-target"
         :disabled="!hasNext"
         :aria-label="t('next')"
         @click="next"
       >›</button>
       <button
         type="button"
-        class="wf-beacon__btn wf-beacon__dismiss"
+        class="wf-beacon__btn wf-beacon__dismiss touch-target"
         :aria-label="t('dismiss')"
         @click="dismiss"
       >×</button>

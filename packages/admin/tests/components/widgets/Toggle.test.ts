@@ -9,6 +9,22 @@ describe('Toggle', () => {
       props: { modelValue: false, label: 'Active' },
     })
     expect(wrapper.find('input[type="checkbox"]').exists()).toBe(true)
+    expect(wrapper.get('label').classes()).toContain('touch-target')
+  })
+
+  it('toggles from label whitespace while focus remains associated with the native control', async () => {
+    const wrapper = await mountSuspended(Toggle, {
+      props: { modelValue: false, label: 'Active', inputId: 'active-toggle' },
+      attachTo: document.body,
+    })
+    const input = wrapper.get('input')
+
+    await wrapper.get('label').trigger('click')
+
+    expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([true])
+    expect(wrapper.get('label').attributes('for')).toBe('active-toggle')
+    expect(input.attributes('id')).toBe('active-toggle')
+    wrapper.unmount()
   })
 
   it('reflects modelValue as checked state', async () => {
