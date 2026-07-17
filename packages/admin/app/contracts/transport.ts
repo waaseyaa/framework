@@ -6,9 +6,14 @@ export interface TransportAdapter {
   create(type: string, attributes: Record<string, any>): Promise<EntityResource>
   update(type: string, id: string, attributes: Record<string, any>): Promise<EntityResource>
   remove(type: string, id: string): Promise<void>
-  schema(type: string, id?: string): Promise<EntitySchema>
+  schema(type: string, scope?: SchemaScope): Promise<EntitySchema>
   search(type: string, field: string, query: string, limit?: number): Promise<EntityResource[]>
   runAction(type: string, action: string, payload?: Record<string, unknown>): Promise<unknown>
+}
+
+export interface SchemaScope {
+  id?: string
+  bundle?: string
 }
 
 export interface ListQuery {

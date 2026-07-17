@@ -2,6 +2,60 @@ import { describe, expect, it, vi } from 'vitest'
 import { AdminSurfaceTransportAdapter } from '~/adapters/AdminSurfaceTransportAdapter'
 
 describe('AdminSurfaceTransportAdapter', () => {
+  it('serializes an explicit bundle when requesting a create schema', async () => {
+    const schema = {
+      $schema: 'https://json-schema.org/draft-07/schema#',
+      title: 'Page',
+      description: 'Page schema',
+      type: 'object',
+      'x-entity-type': 'node',
+      'x-translatable': false,
+      'x-revisionable': false,
+      'x-bundle-key': 'type',
+      properties: {},
+    }
+    const fetchFn = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true, data: schema }),
+    })
+    const adapter = new AdminSurfaceTransportAdapter('/admin/', fetchFn as typeof fetch)
+
+    await adapter.schema('node', { bundle: 'page' })
+
+    expect(fetchFn).toHaveBeenCalledWith(
+      '/admin/_surface/node/action/schema',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ bundle: 'page' }),
+        credentials: 'include',
+      }),
+    )
+  })
+
+  it('serializes the selected bundle key and value in create attributes', async () => {
+    const fetchFn = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        data: { type: 'node', id: '7', attributes: { type: 'page', title: 'About' } },
+      }),
+    })
+    const adapter = new AdminSurfaceTransportAdapter('/admin/', fetchFn as typeof fetch)
+
+    await adapter.create('node', { type: 'page', title: 'About' })
+
+    expect(fetchFn).toHaveBeenCalledWith(
+      '/admin/_surface/node/action/create',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ attributes: { type: 'page', title: 'About' } }),
+        credentials: 'include',
+      }),
+    )
+  })
+
   it('normalizes surface list responses into transport resources', async () => {
     const fetchFn = vi.fn().mockResolvedValue({
       ok: true,

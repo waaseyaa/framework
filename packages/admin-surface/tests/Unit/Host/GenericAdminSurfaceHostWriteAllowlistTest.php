@@ -13,12 +13,14 @@ use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
+use Waaseyaa\Api\Schema\SchemaPresenter;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Field\FieldDefinition;
+use Waaseyaa\Field\FieldDefinitionRegistry;
 
 /**
  * CW-v1 option-1 design §5 (PR-4), findings #1/#2: `GenericAdminSurfaceHost`
@@ -33,6 +35,54 @@ use Waaseyaa\Field\FieldDefinition;
 #[CoversClass(GenericAdminSurfaceHost::class)]
 final class GenericAdminSurfaceHostWriteAllowlistTest extends TestCase
 {
+    private function bundledHost(AccessResult $createAccess): GenericAdminSurfaceHost
+    {
+        $registry = new FieldDefinitionRegistry();
+        $storage = new InMemoryEntityStorage('article');
+        $entityTypeManager = new EntityTypeManager(
+            new EventDispatcher(),
+            fn() => $storage,
+            fn() => new InMemoryEntityRepository($storage),
+            fieldRegistry: $registry,
+        );
+        $entityTypeManager->registerEntityType(new EntityType(
+            id: 'article',
+            label: 'Article',
+            class: TestEntity::class,
+            keys: TestEntity::definitionKeys(),
+        ));
+        $registry->registerBundleFields('article', 'page', [
+            new FieldDefinition(
+                name: 'page_body',
+                type: 'text',
+                targetEntityTypeId: 'article',
+                targetBundle: 'page',
+            ),
+        ]);
+
+        $accessHandler = $this->createMock(EntityAccessHandler::class);
+        $accessHandler->method('checkCreateAccess')->willReturn($createAccess);
+        $accessHandler->method('checkFieldAccess')->willReturn(AccessResult::neutral('ok'));
+        $accessHandler->method('filterFields')->willReturnCallback(
+            static fn($entity, array $fields) => $fields,
+        );
+
+        $host = new GenericAdminSurfaceHost(
+            $entityTypeManager,
+            $accessHandler,
+            new SchemaPresenter($registry),
+        );
+        $account = $this->createStub(AccountInterface::class);
+        $account->method('id')->willReturn(1);
+        $account->method('hasPermission')->willReturn(true);
+        $account->method('getRoles')->willReturn(['administrator']);
+        $request = Request::create('/');
+        $request->attributes->set('_account', $account);
+        $host->resolveSession($request);
+
+        return $host;
+    }
+
     private function host(): GenericAdminSurfaceHost
     {
         $storage = new InMemoryEntityStorage('article');
@@ -114,5 +164,51 @@ final class GenericAdminSurfaceHostWriteAllowlistTest extends TestCase
 
         $this->assertTrue($result->ok);
         $this->assertSame('New', $result->data['attributes']['title']);
+    }
+
+    #[Test]
+    public function bundledCreateRejectsMissingEmptyAndUnknownBundleValues(): void
+    {
+        $host = $this->bundledHost(AccessResult::allowed('ok'));
+
+        foreach ([null, '', 'unknown'] as $bundle) {
+            $attributes = ['title' => 'New'];
+            if ($bundle !== null) {
+                $attributes['type'] = $bundle;
+            }
+
+            $result = $host->action('article', 'create', ['attributes' => $attributes]);
+
+            self::assertFalse($result->ok);
+            self::assertSame(422, $result->error['status']);
+            self::assertStringContainsString('bundle', strtolower((string) $result->error['detail']));
+        }
+    }
+
+    #[Test]
+    public function bundledCreateForwardsTheSelectedBundleKeyAndBundleFields(): void
+    {
+        $result = $this->bundledHost(AccessResult::allowed('ok'))->action('article', 'create', [
+            'attributes' => [
+                'type' => 'page',
+                'title' => 'New page',
+                'page_body' => 'Page content.',
+            ],
+        ]);
+
+        self::assertTrue($result->ok);
+        self::assertSame('page', $result->data['attributes']['type']);
+        self::assertSame('Page content.', $result->data['attributes']['page_body']);
+    }
+
+    #[Test]
+    public function bundledCreateKeepsExistingBundleAwareAuthorization(): void
+    {
+        $result = $this->bundledHost(AccessResult::forbidden('no page create access'))->action('article', 'create', [
+            'attributes' => ['type' => 'page', 'title' => 'Denied page'],
+        ]);
+
+        self::assertFalse($result->ok);
+        self::assertSame(403, $result->error['status']);
     }
 }

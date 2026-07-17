@@ -45,6 +45,27 @@ final class SchemaPresenter
     ) {}
 
     /**
+     * Return the structurally registered bundles for an entity type.
+     *
+     * Null means this presenter was constructed without a registry and cannot
+     * authoritatively validate bundle membership. An empty array means a
+     * registry is present and no bundles have registered fields.
+     *
+     * @return list<string>|null
+     */
+    public function availableBundles(string $entityTypeId): ?array
+    {
+        if ($this->fieldDefinitionRegistry === null) {
+            return null;
+        }
+
+        $bundles = $this->fieldDefinitionRegistry->bundleNamesFor($entityTypeId);
+        sort($bundles);
+
+        return $bundles;
+    }
+
+    /**
      * Known widget mappings from field types to UI widget hints.
      *
      * @var array<string, string>
@@ -324,9 +345,8 @@ final class SchemaPresenter
             ];
 
             if ($this->fieldDefinitionRegistry !== null) {
-                $bundleNames = $this->fieldDefinitionRegistry->bundleNamesFor($entityType->id());
+                $bundleNames = $this->availableBundles($entityType->id()) ?? [];
                 if ($bundleNames !== []) {
-                    sort($bundleNames);
                     // With a known set of bundles, the bundle becomes a real
                     // user-facing field on create: a required select sorted to
                     // the top of the form. M3B (#1413). Edit-side enforcement

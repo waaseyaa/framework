@@ -15,31 +15,100 @@ use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
+use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface as FoundationEventDispatcherInterface;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistryKernelServices;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 #[CoversClass(ProviderRegistryKernelServices::class)]
 final class ProviderRegistryKernelServicesTest extends TestCase
 {
+    /** @param list<ServiceProvider> $providers */
     private function services(
         DatabaseInterface $database,
         ?\Closure $accessHandlerAccessor = null,
         ?ApplicationSecret $applicationSecret = null,
+        ?EntityTypeManager $entityTypeManager = null,
+        array $providers = [],
     ): ProviderRegistryKernelServices {
         $dispatcher = new SymfonyEventDispatcherAdapter();
 
         return new ProviderRegistryKernelServices(
-            entityTypeManager: new EntityTypeManager($dispatcher),
+            entityTypeManager: $entityTypeManager ?? new EntityTypeManager($dispatcher),
             database: $database,
             dispatcher: $dispatcher,
             logger: new NullLogger(),
-            providersAccessor: static fn(): array => [],
+            providersAccessor: static fn(): array => $providers,
             accessHandlerAccessor: $accessHandlerAccessor,
             applicationSecret: $applicationSecret,
         );
+    }
+
+    #[Test]
+    public function get_field_definition_registry_returns_the_manager_owned_instance(): void
+    {
+        $dispatcher = new SymfonyEventDispatcherAdapter();
+        $registry = new FieldDefinitionRegistry();
+        $manager = new EntityTypeManager($dispatcher, fieldRegistry: $registry);
+        $services = $this->services(
+            DBALDatabase::createSqlite(),
+            entityTypeManager: $manager,
+        );
+
+        self::assertSame(
+            $registry,
+            $services->get(FieldDefinitionRegistryInterface::class),
+        );
+        self::assertSame(
+            $manager->getFieldRegistry(),
+            $services->get(FieldDefinitionRegistryInterface::class),
+        );
+    }
+
+    #[Test]
+    public function get_field_definition_registry_returns_null_when_the_manager_has_none(): void
+    {
+        $dispatcher = new SymfonyEventDispatcherAdapter();
+        $manager = new EntityTypeManager($dispatcher);
+        $services = $this->services(
+            DBALDatabase::createSqlite(),
+            entityTypeManager: $manager,
+        );
+
+        self::assertNull($services->get(FieldDefinitionRegistryInterface::class));
+    }
+
+    #[Test]
+    public function kernel_field_registry_shadows_a_sibling_provider_binding(): void
+    {
+        $dispatcher = new SymfonyEventDispatcherAdapter();
+        $canonical = new FieldDefinitionRegistry();
+        $duplicate = new FieldDefinitionRegistry();
+        $manager = new EntityTypeManager($dispatcher, fieldRegistry: $canonical);
+        $provider = new class ($duplicate) extends ServiceProvider {
+            public function __construct(private readonly FieldDefinitionRegistryInterface $registry) {}
+
+            public function register(): void
+            {
+                $this->singleton(
+                    FieldDefinitionRegistryInterface::class,
+                    fn(): FieldDefinitionRegistryInterface => $this->registry,
+                );
+            }
+        };
+        $provider->register();
+        $services = $this->services(
+            DBALDatabase::createSqlite(),
+            entityTypeManager: $manager,
+            providers: [$provider],
+        );
+
+        self::assertSame($canonical, $services->get(FieldDefinitionRegistryInterface::class));
+        self::assertNotSame($duplicate, $services->get(FieldDefinitionRegistryInterface::class));
     }
 
     #[Test]

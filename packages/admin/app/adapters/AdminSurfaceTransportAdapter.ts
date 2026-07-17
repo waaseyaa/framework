@@ -1,4 +1,4 @@
-import type { TransportAdapter, ListQuery, ListResult, EntityResource } from '../contracts/transport'
+import type { TransportAdapter, ListQuery, ListResult, EntityResource, SchemaScope } from '../contracts/transport'
 import { TransportError } from '../contracts/transport'
 import type { EntitySchema } from '../contracts/schema'
 import type {
@@ -111,11 +111,11 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
     )
   }
 
-  async schema(type: string, id?: string): Promise<EntitySchema> {
-    // Pass the entity id (when editing/viewing a specific record) so the backend
-    // can scope the schema to that entity's bundle and include its per-bundle
-    // fields (e.g. body, blocks for a node of bundle "page").
-    const body = id ? JSON.stringify({ id }) : '{}'
+  async schema(type: string, scope?: SchemaScope): Promise<EntitySchema> {
+    // An entity id scopes an existing record to its bundle. An explicit bundle
+    // scopes a create form after the user chooses from the base schema's bundle
+    // enum. The host owns validation for both hints.
+    const body = JSON.stringify(scope ?? {})
     return this.request<EntitySchema>(
       this.surfaceUrl('admin_surface.action', { type, action: 'schema' }),
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body },

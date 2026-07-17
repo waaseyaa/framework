@@ -594,13 +594,40 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             return AdminSurfaceResultData::error(403, 'Access denied', 'You do not have permission to create this entity.');
         }
 
+        $attributes = $payload['attributes'] ?? [];
+        if (!is_array($attributes)) {
+            return AdminSurfaceResultData::error(422, 'Unprocessable', 'Create attributes must be an object.');
+        }
+
+        $presenter = $this->schemaPresenter ?? new SchemaPresenter();
+        $availableBundles = $presenter->availableBundles($type);
+        if ($availableBundles !== null && $availableBundles !== []) {
+            $bundleKey = $this->entityTypeManager->getDefinition($type)->getKeys()['bundle'] ?? null;
+            $selectedBundle = $bundleKey !== null ? ($attributes[$bundleKey] ?? null) : null;
+            if (!is_string($selectedBundle)
+                || $selectedBundle === ''
+                || !in_array($selectedBundle, $availableBundles, true)) {
+                $bundleKeyLabel = $bundleKey ?? 'bundle';
+
+                return AdminSurfaceResultData::error(
+                    422,
+                    'Invalid bundle',
+                    sprintf(
+                        "The '%s' bundle attribute must be one of: %s.",
+                        $bundleKeyLabel,
+                        implode(', ', $availableBundles),
+                    ),
+                );
+            }
+        }
+
         $api = $this->jsonApi();
 
         try {
             $doc = $api->store($type, [
                 'data' => [
                     'type' => $type,
-                    'attributes' => $payload['attributes'] ?? [],
+                    'attributes' => $attributes,
                 ],
             ]);
         } catch (\InvalidArgumentException $e) {

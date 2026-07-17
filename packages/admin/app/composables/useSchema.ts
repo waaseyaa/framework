@@ -1,8 +1,10 @@
 import { ref, type Ref } from 'vue'
 import type { SchemaProperty, EntitySchema } from '../contracts/schema'
+import type { SchemaScope } from '../contracts/transport'
 import { requireAdminRuntime } from './useAdminRuntime'
 
 export type { SchemaProperty, EntitySchema }
+export type { SchemaScope }
 
 const schemaCache = new Map<string, EntitySchema>()
 const inflightCache = new Map<string, Promise<EntitySchema>>()
@@ -12,17 +14,16 @@ export function useSchema(entityType: string) {
   const loading = ref(false)
   const error: Ref<string | null> = ref(null)
 
-  // Schemas are cached per entity type AND per scoping entity id, because a
-  // bundled content type (e.g. a node of bundle "page") has a different field
-  // set than the bare entity type. Passing the entity id lets the backend scope
-  // the schema to that entity's bundle so its per-bundle fields (body, blocks)
-  // appear in the form. No id (list/create) keeps the base, core-field schema.
-  function cacheKey(scopeId?: string) {
-    return `${entityType}:${scopeId ?? ''}`
+  // Schemas are cached per entity type and explicit scope. Existing records use
+  // an id scope; create forms first fetch the base discovery schema and then a
+  // bundle scope. Keeping both dimensions in the key prevents schemas for two
+  // bundles from aliasing each other.
+  function cacheKey(scope?: SchemaScope) {
+    return `${entityType}:id=${scope?.id ?? ''}:bundle=${scope?.bundle ?? ''}`
   }
 
-  async function fetch(scopeId?: string) {
-    const key = cacheKey(scopeId)
+  async function fetch(scope?: SchemaScope) {
+    const key = cacheKey(scope)
 
     if (schemaCache.has(key)) {
       schema.value = schemaCache.get(key)!
@@ -44,7 +45,7 @@ export function useSchema(entityType: string) {
       // requireAdminRuntime() call is inside try so a synchronous throw
       // (e.g. runtime unavailable) is caught and sets error.value.
       const promise = requireAdminRuntime()
-        .transport.schema(entityType, scopeId)
+        .transport.schema(entityType, scope)
         .then((result: EntitySchema) => {
           schemaCache.set(key, result)
           inflightCache.delete(key) // clean up after resolution
@@ -64,8 +65,8 @@ export function useSchema(entityType: string) {
     }
   }
 
-  function invalidate(scopeId?: string) {
-    const key = cacheKey(scopeId)
+  function invalidate(scope?: SchemaScope) {
+    const key = cacheKey(scope)
     schemaCache.delete(key)
     inflightCache.delete(key) // FR-003: clear in-flight on invalidate
   }

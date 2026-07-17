@@ -14,6 +14,7 @@ use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface as FoundationEventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -84,6 +85,20 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
     {
         if ($abstract === EntityTypeManager::class || $abstract === EntityTypeManagerInterface::class) {
             return $this->entityTypeManager;
+        }
+        if ($abstract === FieldDefinitionRegistryInterface::class) {
+            // #2047: this hardcoded kernel-owned case intentionally precedes
+            // and shadows sibling-provider bindings (including FieldServiceProvider's
+            // duplicate registry). Admin and API consumers must see the exact
+            // canonical registry already held by EntityTypeManager, never a
+            // separately constructed registry.
+            try {
+                return $this->entityTypeManager->getFieldRegistry();
+            } catch (\RuntimeException) {
+                // Bare/unit-constructed managers may omit the registry. Preserve
+                // optional bus semantics instead of leaking the manager exception.
+                return null;
+            }
         }
         if ($abstract === DatabaseInterface::class) {
             return $this->database;

@@ -32,6 +32,23 @@ provide(schemaFormContextKey, {
   isEditMode,
 })
 
+function valuesForSchema(
+  targetSchema: NonNullable<typeof schema.value>,
+  existing: Record<string, any> = {},
+): Record<string, any> {
+  const values: Record<string, any> = {}
+  for (const [fieldName, fieldSchema] of Object.entries(targetSchema.properties ?? {})) {
+    if (fieldName in existing) {
+      values[fieldName] = existing[fieldName]
+    } else if ('default' in fieldSchema) {
+      values[fieldName] = fieldSchema.default
+    } else if (fieldSchema.type === 'boolean') {
+      values[fieldName] = false
+    }
+  }
+  return values
+}
+
 // Load schema, then optionally load existing entity if schema succeeded.
 // In edit mode the entity id scopes the schema to the record's bundle so its
 // per-bundle fields (e.g. a page's body) appear in the form.
@@ -42,7 +59,7 @@ onMounted(async () => {
     // wait. The entity GET is deduped against the sibling history widget
     // requesting the same record in the same tick (see the transport adapter).
     const [, entityResult] = await Promise.allSettled([
-      fetchSchema(props.entityId),
+      fetchSchema({ id: props.entityId }),
       get(props.entityType, props.entityId),
     ])
     if (entityResult.status === 'fulfilled') {
@@ -55,21 +72,31 @@ onMounted(async () => {
     // Create mode: only the schema is needed; seed defaults from it.
     await fetchSchema()
     if (schema.value) {
-      const defaults: Record<string, any> = {}
-      for (const [fieldName, fieldSchema] of Object.entries(schema.value.properties ?? {})) {
-        if ('default' in fieldSchema) {
-          defaults[fieldName] = fieldSchema.default
-        } else if (fieldSchema.type === 'boolean') {
-          defaults[fieldName] = false
-        }
-      }
-      formData.value = defaults
+      formData.value = valuesForSchema(schema.value)
     }
   }
   loading.value = false
 })
 
 const editableFields = computed(() => sortedProperties(true))
+
+async function onFieldUpdate(fieldName: string, value: any, accessRestricted: boolean) {
+  if (accessRestricted) return
+
+  formData.value[fieldName] = value
+  const bundleKey = schema.value?.['x-bundle-key']
+  if (props.entityId || bundleKey !== fieldName || typeof value !== 'string' || value === '') return
+
+  await fetchSchema({ bundle: value })
+  if (schema.value && !schemaError.value) {
+    // Preserve shared fields and defaults, but discard values belonging only to
+    // the previously selected bundle so they cannot leak into create payloads.
+    formData.value = valuesForSchema(schema.value, {
+      ...formData.value,
+      [bundleKey]: value,
+    })
+  }
+}
 
 async function onSubmit() {
   saving.value = true
@@ -104,7 +131,7 @@ async function onSubmit() {
           :schema="fieldSchema"
           :disabled="!!fieldSchema['x-access-restricted']"
           :model-value="formData[fieldName] ?? ''"
-          @update:model-value="(val: any) => { if (!fieldSchema['x-access-restricted']) formData[fieldName] = val }"
+          @update:model-value="(val: any) => onFieldUpdate(fieldName, val, !!fieldSchema['x-access-restricted'])"
         />
       </div>
 

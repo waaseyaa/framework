@@ -2,8 +2,50 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
+import { readBody } from 'h3'
 import SchemaForm from '~/components/schema/SchemaForm.vue'
 import { userSchema } from '../../fixtures/schemas'
+
+const bundledNodeDiscoverySchema = {
+  $schema: 'https://json-schema.org/draft-07/schema#',
+  title: 'Content',
+  description: 'Content schema',
+  type: 'object',
+  'x-entity-type': 'node',
+  'x-translatable': false,
+  'x-revisionable': true,
+  'x-bundle-key': 'type',
+  properties: {
+    type: {
+      type: 'string',
+      enum: ['page', 'post'],
+      'x-widget': 'select',
+      'x-label': 'Bundle',
+      'x-required': true,
+      'x-weight': -100,
+    },
+    title: {
+      type: 'string',
+      'x-widget': 'text',
+      'x-label': 'Title',
+    },
+  },
+  required: ['type', 'title'],
+}
+
+const pageNodeSchema = {
+  ...bundledNodeDiscoverySchema,
+  title: 'Page',
+  properties: {
+    ...bundledNodeDiscoverySchema.properties,
+    page_summary: {
+      type: 'string',
+      'x-widget': 'textarea',
+      'x-label': 'Page summary',
+      'x-weight': 10,
+    },
+  },
+}
 
 // Register schema endpoints — transport POSTs to /admin/_surface/{type}/action/schema
 registerEndpoint('/admin/_surface/user/action/schema', {
@@ -134,6 +176,124 @@ describe('SchemaForm loading and error states', () => {
 })
 
 describe('SchemaForm submit — create mode (no entityId)', () => {
+  it('loads a bundle-specific schema after selection and submits the selected bundle', async () => {
+    const schemaPayloads: Array<Record<string, unknown>> = []
+    let createPayload: Record<string, any> | null = null
+    registerEndpoint('/admin/_surface/node_bundled_create/action/schema', {
+      method: 'POST',
+      handler: async (event) => {
+        const payload = await readBody<Record<string, unknown>>(event)
+        schemaPayloads.push(payload)
+        return {
+          ok: true,
+          data: payload.bundle === 'page' ? pageNodeSchema : bundledNodeDiscoverySchema,
+        }
+      },
+    })
+    registerEndpoint('/admin/_surface/node_bundled_create/action/create', {
+      method: 'POST',
+      handler: async (event) => {
+        createPayload = await readBody<Record<string, any>>(event)
+        return {
+          ok: true,
+          data: { type: 'node_bundled_create', id: '99', attributes: createPayload.attributes },
+        }
+      },
+    })
+
+    const { default: SchemaFormFresh } = await import('~/components/schema/SchemaForm.vue')
+    const wrapper = await mountSuspended(SchemaFormFresh, {
+      props: { entityType: 'node_bundled_create' },
+    })
+    await flushPromises()
+    await vi.waitFor(() => expect(wrapper.find('.loading').exists()).toBe(false))
+
+    const bundleSelect = wrapper.get('select')
+    expect(bundleSelect.isVisible()).toBe(true)
+    expect(wrapper.find('input[type="hidden"]').exists()).toBe(false)
+    expect(wrapper.find('textarea').exists()).toBe(false)
+
+    await bundleSelect.setValue('page')
+    await flushPromises()
+    await vi.waitFor(() => expect(wrapper.find('textarea').exists()).toBe(true))
+
+    expect(schemaPayloads).toEqual([{}, { bundle: 'page' }])
+    expect(wrapper.get('textarea').element.closest('.field')?.textContent).toContain('Page summary')
+
+    await wrapper.get('input[type="text"]').setValue('About')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(createPayload).toEqual({
+      attributes: expect.objectContaining({ type: 'page', title: 'About' }),
+    })
+  })
+
+  it('shows a clear load failure instead of a usable form when the selected bundle schema is rejected', async () => {
+    registerEndpoint('/admin/_surface/node_invalid_bundle/action/schema', {
+      method: 'POST',
+      handler: async (event) => {
+        const payload = await readBody<Record<string, unknown>>(event)
+        if (payload.bundle === 'page') {
+          return {
+            ok: false,
+            error: { status: 400, title: 'Invalid bundle', detail: "Bundle 'page' is not available." },
+          }
+        }
+        return { ok: true, data: bundledNodeDiscoverySchema }
+      },
+    })
+
+    const { default: SchemaFormFresh } = await import('~/components/schema/SchemaForm.vue')
+    const wrapper = await mountSuspended(SchemaFormFresh, {
+      props: { entityType: 'node_invalid_bundle' },
+    })
+    await flushPromises()
+    await vi.waitFor(() => expect(wrapper.find('.loading').exists()).toBe(false))
+
+    await wrapper.get('select').setValue('page')
+    await flushPromises()
+    await vi.waitFor(() => expect(wrapper.find('.error').exists()).toBe(true))
+
+    expect(wrapper.get('.error').text()).toContain("Bundle 'page' is not available.")
+    expect(wrapper.find('form').exists()).toBe(false)
+  })
+
+  it('preserves the existing one-stage create flow for an unbundled entity type', async () => {
+    const schemaPayloads: Array<Record<string, unknown>> = []
+    let createPayload: Record<string, any> | null = null
+    registerEndpoint('/admin/_surface/unbundled_create/action/schema', {
+      method: 'POST',
+      handler: async (event) => {
+        schemaPayloads.push(await readBody<Record<string, unknown>>(event))
+        return { ok: true, data: userSchema }
+      },
+    })
+    registerEndpoint('/admin/_surface/unbundled_create/action/create', {
+      method: 'POST',
+      handler: async (event) => {
+        createPayload = await readBody<Record<string, any>>(event)
+        return { ok: true, data: { type: 'unbundled_create', id: '5', attributes: createPayload.attributes } }
+      },
+    })
+
+    const { default: SchemaFormFresh } = await import('~/components/schema/SchemaForm.vue')
+    const wrapper = await mountSuspended(SchemaFormFresh, {
+      props: { entityType: 'unbundled_create' },
+    })
+    await flushPromises()
+    await vi.waitFor(() => expect(wrapper.find('.loading').exists()).toBe(false))
+
+    expect(schemaPayloads).toEqual([{}])
+    expect(wrapper.find('form').exists()).toBe(true)
+    await wrapper.get('input[type="text"]').setValue('alice')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(schemaPayloads).toEqual([{}])
+    expect(createPayload).toEqual({ attributes: expect.objectContaining({ name: 'alice' }) })
+  })
+
   it('emits saved event with resource on successful create', async () => {
     const resource = { type: 'user', id: '5', attributes: { name: 'alice' } }
     registerEndpoint('/admin/_surface/user_create/action/create', {

@@ -1,5 +1,7 @@
 # Admin SPA
 
+<!-- Spec reviewed 2026-07-15 - #2047: generic bundled create is a two-stage schema flow. The mounted provider supplies SchemaPresenter's field registry; base schemas advertise the schema-declared bundle key plus registered enum, create-mode SchemaForm requests an explicit bundle scope, drops stale prior-bundle values, and submits the selected key/value. Schema transport/cache scopes are typed as {id?, bundle?}; unbundled creation remains one-stage. -->
+
 <!-- Spec reviewed 2026-07-14 - R21 WP4 (#2010): GenericAdminSurfaceHost now enforces configured readOnlyTypes at the server write boundary for create/update/delete, not only as catalogue UI capabilities. list() pushes filters, sort, pagination, and access-bound candidate selection through EntityQueryInterface instead of unconditionally hydrating the whole table with findBy([]). For a requested filter/sort, it resolves per-entity field access first and, when a filter field is Forbidden on some entities, constrains both page and count queries to the resulting ID scope before caller conditions/range run; fully viewable filters retain the unscoped SQL fast path. A dynamically Forbidden filter field therefore excludes that entity without consuming the visible page, and a dynamic Forbidden sort is rejected with 400 value-independently. Access-checked count() returns [survivorCount], which the host consumes as a scalar rather than misreading it as entity IDs. -->
 
 <!-- Spec reviewed 2026-07-13 - CW-v1 WP-5 WP1 (#1920): deleted the retired read-only workflow
@@ -249,7 +251,8 @@ Fetches and caches JSON Schema for an entity type. Drives all form rendering.
 ```ts
 function useSchema(entityType: string): {
   schema: Ref<EntitySchema | null>; loading: Ref<boolean>; error: Ref<string | null>
-  fetch(scopeId?: string): Promise<void>; invalidate(scopeId?: string): void
+  fetch(scope?: { id?: string; bundle?: string }): Promise<void>
+  invalidate(scope?: { id?: string; bundle?: string }): void
   sortedProperties(editable?: boolean): [string, SchemaProperty][]
 }
 ```
@@ -271,18 +274,26 @@ interface EntitySchema {
 ```
 
 - Endpoint: `GET /api/schema/{entityType}` returns `{ meta: { schema: EntitySchema } }`
-- **Bundle-aware fetch:** `fetch(scopeId?)` passes the scoping entity id through the
-  transport (`transport.schema(type, id?)`) so the backend can scope the schema to
-  that entity's bundle and include its per-bundle fields. A node of bundle `page`
-  thus exposes `body`/`blocks` in the form, not only the shared core fields
-  (title, slug, published). The backend resolution lives in
-  `GenericAdminSurfaceHost::handleSchema` (an explicit `bundle` in the payload
-  wins, else the bundle is read from the entity named by `id`); non-bundled types
-  and a missing id keep the base schema. `SchemaForm`/`SchemaView` pass the record
-  id; lists and create forms call `fetch()` with no id and get the base schema.
-- Module-level `Map<string, EntitySchema>` cache keyed by `type:scopeId` (so a
-  bundled record's field set never collides with the bare type's). Call
-  `invalidate(scopeId?)` to clear a single key.
+- **Bundle-aware fetch:** `fetch(scope?)` accepts either `{ id }` for an existing
+  record or `{ bundle }` for the second stage of create. The backend resolution
+  lives in `GenericAdminSurfaceHost::handleSchema`: explicit `bundle` wins, else
+  the bundle is read from the entity named by `id`. The base create schema exposes
+  `x-bundle-key` plus a required select whose enum is the registry's sorted bundle
+  roster. Selecting a value requests `{ bundle }`, replaces the schema with its
+  bundle-specific fields, preserves shared values/the selected bundle, and drops
+  fields belonging only to a previously selected bundle before submission. A
+  rejected scope replaces the form with its clear transport error. Types without
+  a non-empty bundle enum retain the existing one-stage create behavior.
+- The generic host validates a bundled create against that same authoritative
+  roster before repository creation: missing, empty, or unknown values under the
+  entity type's actual bundle key return 422. A registered selection continues
+  to the existing bundle-aware `checkCreateAccess()` boundary, where an account
+  without create permission receives 403. Discovery remains structural schema
+  metadata for the authenticated admin session; it does not add a second,
+  selector-specific authorization policy.
+- Module-level `Map<string, EntitySchema>` cache keys include entity type, id, and
+  bundle independently, so base, edit, and per-bundle schemas cannot collide.
+  `invalidate(scope?)` clears the matching scoped key.
 - `sortedProperties(true)` filters out system `readOnly` fields (id, uuid) and hidden widgets, but keeps `x-access-restricted` fields (rendered as disabled inputs). Sorted by `x-weight` ascending.
 - `sortedProperties(false)` returns all properties sorted by weight.
 

@@ -25,7 +25,7 @@ onMounted(async () => {
   // The entity GET is deduped against the sibling history widget requesting the
   // same record in the same tick (see the transport adapter).
   const [, entityResult] = await Promise.allSettled([
-    fetchSchema(props.entityId),
+    fetchSchema({ id: props.entityId }),
     get(props.entityType, props.entityId),
   ])
   if (entityResult.status === 'fulfilled') {
