@@ -40,7 +40,7 @@ function onInput(event: Event) {
       :disabled="disabled"
       :min="schema?.minimum"
       :max="schema?.maximum"
-      class="field-input"
+      class="field-input touch-target"
       @input="onInput"
     >
     <p v-if="description" :id="descriptionId" class="field-description">{{ description }}</p>

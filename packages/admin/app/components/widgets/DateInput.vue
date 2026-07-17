@@ -44,7 +44,7 @@ function onInput(event: Event) {
       :max="schema?.['x-max']"
       :aria-describedby="describedBy || undefined"
       :aria-invalid="error ? 'true' : undefined"
-      class="field-input"
+      class="field-input touch-target"
       @input="onInput"
     >
     <p v-if="description" :id="descriptionId" class="field-description">{{ description }}</p>

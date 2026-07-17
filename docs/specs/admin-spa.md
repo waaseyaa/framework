@@ -2,6 +2,7 @@
 
 <!-- Spec reviewed 2026-07-16 - #2052: optional validated x-list metadata declares inert columns, closed framework formatters, labelled search/filters, and allowed/default sort pairs. Hosts enforce caller filters/operators/sorts server-side through SurfaceQueryPolicy before delegation. Generic list resources expose access-derived view/edit/delete booleans without policy reasons and mutations remain authoritatively checked. SchemaList protects against stale responses, synchronizes declared query state with the URL, resets pagination on control changes, and keeps legacy x-list-display behavior only when x-list is absent. Session UI navigationMode defaults to full; catalog-only suppresses static operational/governance links as presentation only. -->
 
+<!-- Spec reviewed 2026-07-16 - #2053: one --admin-target-size token gives ordinary authenticated-admin links, buttons, inputs, selects, date controls, autocomplete controls/options, rich-text controls, toggle labels, disclosures, actions, and pagination effective 44 by 44 CSS-pixel targets. Autocomplete clear is an adjacent non-overlapping control; the toggle label owns the effective target while focus and state remain on its native checkbox. Geometry is pinned at 360/768/1024/1440 and 200% text enlargement. -->
 <!-- Spec reviewed 2026-07-16 - #2051: schema listings retain one semantic table/action set, adapt that markup to labelled cards below 600px, contain wider tables in a named scroll region, and use bounded semantic pagination. Generic ordinary controls use 44px targets. Closed mobile navigation is inert/aria-hidden/pointer-disabled; open navigation manages focus, Escape, scroll, backdrop, route, and breakpoint cleanup. Shell boundaries shrink/wrap long content without document overflow. -->
 
 <!-- Spec reviewed 2026-07-15 - #2050: schema fields share stable label/help/error IDs and required/invalid semantics; submission failures use a focused assertive summary, structured-error mapping and single-flight guard. RichText preserves untouched canonical HTML behind an inert visual projection plus explicit source mode. Date-only fields use ISO YYYY-MM-DD without timezone conversion and enforce authoritative x-min/x-max bounds. -->
@@ -623,6 +624,9 @@ error contract. Ordinary strings and `date-time` widgets are not reclassified.
 - Resolves display, search, and sort fields from the target type's catalog `reference` metadata; it never assumes `title` or requests an unfiltered fallback list
 - Keyboard navigation: ArrowUp/ArrowDown/Enter/Escape
 - ARIA: `role="combobox"`, `aria-expanded`, `aria-autocomplete="list"`, dropdown has `role="listbox"`, items have `role="option"`
+- The combobox and each option use the shared 44 px target floor. A present clear
+  button is an adjacent flex item with its own 44 px target, so its rectangle
+  never overlaps the combobox, obscures entered text, or steals result selection.
 
 ## SSE Integration
 
@@ -936,11 +940,18 @@ That means `useAuth()` does not establish an independent session source of truth
   a solid high-contrast outline, and form help/error tokens meet normal-text AA
   contrast on their framework backgrounds.
 - Responsive: sidebar collapses to off-canvas drawer below 768px with overlay
-- Ordinary admin actions, pagination, menu/close, and navigation controls use at
-  least a 44 by 44 CSS-pixel target and a visible focus outline. Generic content
-  and action containers may shrink; long identifiers, URLs, alerts,
+- Ordinary authenticated-admin links, buttons, inputs, selects, date controls,
+  autocomplete controls/options, rich-text controls, toggle labels,
+  disclosures, row/workflow actions, pagination, menu/close, and navigation
+  controls consume `--admin-target-size` and use at least a 44 by 44 CSS-pixel
+  effective target with a visible focus outline. Native checkbox/radio glyphs
+  may remain visually smaller inside their associated 44 px label target; label
+  whitespace activates the native control, which retains focus and state.
+  Disabled and read-only controls retain the same geometry and native semantics.
+  Generic content and action containers may shrink; long identifiers, URLs, alerts,
   breadcrumbs, tables, and preformatted output are contained rather than
-  widening the document.
+  widening the document. At 200% text enlargement, targets may grow but must not
+  overlap or create document-level horizontal overflow.
 
 ## Build & Testing
 

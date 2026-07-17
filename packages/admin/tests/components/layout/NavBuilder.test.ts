@@ -68,6 +68,8 @@ describe('NavBuilder', () => {
     const wrapper = await mountSuspended(NavBuilder)
     expect(wrapper.text()).toContain('User')
     expect(wrapper.text()).toContain('Content')
+    expect(wrapper.findAll('.nav-item').length).toBeGreaterThan(0)
+    expect(wrapper.findAll('.nav-item').every(link => link.classes().includes('touch-target'))).toBe(true)
   })
 
   it('renders the dashboard + Operations section when the catalog is empty', async () => {

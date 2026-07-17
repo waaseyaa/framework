@@ -89,7 +89,7 @@ function formatValue(value: any, fieldSchema: Record<string, any>): string {
       </template>
 
       <div v-if="emptyFields.length > 0" class="empty-fields-toggle">
-        <button class="btn-link" @click="showEmpty = !showEmpty">
+        <button type="button" class="btn-link touch-target" @click="showEmpty = !showEmpty">
           {{ showEmpty ? t('hide') : t('show') }} {{ emptyFields.length }} {{ t('empty_fields') }}
         </button>
       </div>

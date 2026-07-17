@@ -67,6 +67,7 @@ describe('RichText', () => {
     expect(editor.attributes('contenteditable')).toBe('true')
     expect(sourceToggle.attributes('aria-controls')).toBe('field-body')
     expect(sourceToggle.attributes('aria-pressed')).toBe('false')
+    expect(sourceToggle.classes()).toContain('touch-target')
     expect(sourceToggle.text().toLowerCase()).toContain('html source')
 
     await editor.trigger('keydown', { key: 's', ctrlKey: true, shiftKey: true })

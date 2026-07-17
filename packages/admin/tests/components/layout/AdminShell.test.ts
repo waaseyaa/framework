@@ -38,6 +38,7 @@ describe('AdminShell locale switcher', () => {
     const brand = wrapper.find('.topbar-brand')
     // The bootstrap mock provides tenant name 'Waaseyaa'
     expect(brand.text()).toBe('Waaseyaa')
+    expect(brand.classes()).toContain('touch-target')
   })
 })
 

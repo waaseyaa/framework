@@ -19,7 +19,7 @@ const { t } = useLanguage()
         <NuxtLink :to="notePath" class="btn btn-primary">{{ t('onboarding_use_note') }}</NuxtLink>
         <NuxtLink :to="customTypePath" class="btn">{{ t('onboarding_create_type') }}</NuxtLink>
       </div>
-      <a :href="docsUrl" class="onboarding-link" target="_blank" rel="noreferrer">
+      <a :href="docsUrl" class="onboarding-link touch-target" target="_blank" rel="noreferrer">
         {{ t('onboarding_quickstart') }}
       </a>
     </div>

@@ -20,7 +20,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
 
 <template>
   <div class="field field-toggle">
-    <label class="field-label toggle-label" :for="inputId">
+    <label class="field-label toggle-label touch-target" :for="inputId">
       <input
         :id="inputId"
         type="checkbox"
@@ -40,3 +40,23 @@ const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
     <p v-if="error" :id="errorId" class="field-error"><strong>Error:</strong> {{ error }}</p>
   </div>
 </template>
+
+<style scoped>
+.toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-block-end: 0;
+  padding-inline: 0.25rem;
+  cursor: pointer;
+}
+
+.toggle-label:has(.toggle-checkbox:disabled) {
+  cursor: not-allowed;
+}
+
+.toggle-checkbox:focus-visible {
+  outline: 3px solid var(--color-primary-hover);
+  outline-offset: 3px;
+}
+</style>
