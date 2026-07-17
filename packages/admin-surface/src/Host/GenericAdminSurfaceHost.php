@@ -221,6 +221,8 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         // that entity from the query scope; a Forbidden sort rejects the whole
         // sort value-independently, matching the established surface contract.
         $queryScopeIds = null;
+        $filterScopeEntities = [];
+        $useInMemoryBundleQuery = $this->queryUsesMultiBundleScopedField($type, $query);
         if ($query->filters !== [] || $query->sortField !== null) {
             $scopeIds = $repository->getQuery()->setAccount($this->currentAccount)->execute();
             $scopeEntities = array_values(array_filter(
@@ -270,45 +272,58 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             }
         }
 
-        // Push filter, sort, and page work into the existing entity-query SQL
-        // machinery. The previous findBy([]) path hydrated the whole table and
-        // then repeated all query work in PHP. The access-resolved ID scope is
-        // applied first, so Forbidden values cannot consume a page or affect
-        // ordering while permitted fields retain SQL pushdown.
-        $idKey = $this->entityTypeManager->getDefinition($type)->getKeys()['id'] ?? 'id';
-        $pageQuery = $this->applySurfaceQuery($repository->getQuery()->setAccount($this->currentAccount), $query, true, $queryScopeIds, $idKey);
-        $pageIds = $pageQuery->execute();
+        if ($useInMemoryBundleQuery) {
+            // SQL storage deliberately rejects ambiguous fields shared by
+            // several bundle subtables. Field-access preflight already loaded
+            // this bounded authoritative bundle scope, so finish the common
+            // field query in memory without duplicate loads or unsafe routing.
+            $pageEntities = array_values(array_filter(
+                $filterScopeEntities,
+                function ($entity) use ($query): bool {
+                    foreach ($query->filters as $filter) {
+                        if (!$this->filterValueMatches($entity->get($filter['field']), $filter['operator'], $filter['value'])) {
+                            return false;
+                        }
+                    }
 
-        // Access-checked count queries return `[survivorCount]`, not survivor
-        // IDs. Treating that scalar as an entity ID made totals depend on which
-        // row happened to own that numeric ID.
-        $totalQuery = $this->applySurfaceQuery($repository->getQuery()->setAccount($this->currentAccount), $query, false, $queryScopeIds, $idKey);
-        $totalResult = $totalQuery->count()->execute();
-        $total = (int) ($totalResult[0] ?? 0);
+                    return true;
+                },
+            ));
+            if ($query->sortField !== null) {
+                self::sortEntities($pageEntities, $query->sortField, $query->sortDirection === 'DESC');
+            }
+            $total = count($pageEntities);
+            $pageEntities = array_slice($pageEntities, $query->offset, $query->limit);
+            $totalResult = [$total];
+        } else {
+            // Push ordinary filter, sort, and page work into the existing
+            // entity-query SQL machinery.
+            $idKey = $this->entityTypeManager->getDefinition($type)->getKeys()['id'] ?? 'id';
+            $pageQuery = $this->applySurfaceQuery($repository->getQuery()->setAccount($this->currentAccount), $query, true, $queryScopeIds, $idKey);
+            $pageIds = $pageQuery->execute();
 
-        $pageEntities = $repository->findMany($pageIds);
-        $pageEntities = array_values(array_filter(
-            $pageEntities,
-            fn($entity): bool => $this->accessHandler->check($entity, 'view', $this->currentAccount)->isAllowed(),
-        ));
-        foreach ($query->filters as $filter) {
+            // Access-checked count queries return `[survivorCount]`, not survivor IDs.
+            $totalQuery = $this->applySurfaceQuery($repository->getQuery()->setAccount($this->currentAccount), $query, false, $queryScopeIds, $idKey);
+            $totalResult = $totalQuery->count()->execute();
+            $total = (int) ($totalResult[0] ?? 0);
+            $pageEntities = $repository->findMany($pageIds);
+        }
+        if (!$useInMemoryBundleQuery) {
             $pageEntities = array_values(array_filter(
                 $pageEntities,
-                fn($entity): bool => $this->applyFilter($entity, $filter['field'], $filter['operator'], $filter['value']),
+                fn($entity): bool => $this->accessHandler->check($entity, 'view', $this->currentAccount)->isAllowed(),
             ));
-        }
+            foreach ($query->filters as $filter) {
+                $pageEntities = array_values(array_filter(
+                    $pageEntities,
+                    fn($entity): bool => $this->applyFilter($entity, $filter['field'], $filter['operator'], $filter['value']),
+                ));
+            }
 
-        // The access scope above establishes that this field is viewable on
-        // every eligible entity before SQL sort/range. Re-sort the hydrated
-        // page because repository adapters need not preserve input-ID order.
-        if ($query->sortField !== null) {
-            $field = $query->sortField;
-            $desc = $query->sortDirection === 'DESC';
-            usort($pageEntities, static function ($a, $b) use ($field, $desc): int {
-                $cmp = (string) $a->get($field) <=> (string) $b->get($field);
-
-                return $desc ? -$cmp : $cmp;
-            });
+            // Repository adapters need not preserve input-ID order.
+            if ($query->sortField !== null) {
+                self::sortEntities($pageEntities, $query->sortField, $query->sortDirection === 'DESC');
+            }
         }
 
         // Keep the response internally coherent for repository adapters that
@@ -321,9 +336,19 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
 
         $surfaceEntities = [];
         foreach ($pageEntities as $entity) {
-            $surfaceEntities[] = $this->jsonApiResourceToSurfaceEntity(
+            $surfaceEntity = $this->jsonApiResourceToSurfaceEntity(
                 $serializer->serialize($entity, $this->accessHandler, $this->currentAccount),
             );
+            $surfaceEntity['capabilities'] = [
+                // Reuse the authoritative view decision that admitted this row;
+                // repeating it here can amplify expensive policy checks.
+                'view' => true,
+                'edit' => !in_array($type, $this->readOnlyTypes, true)
+                    && $this->accessHandler->check($entity, 'update', $this->currentAccount)->isAllowed(),
+                'delete' => !in_array($type, $this->readOnlyTypes, true)
+                    && $this->accessHandler->check($entity, 'delete', $this->currentAccount)->isAllowed(),
+            ];
+            $surfaceEntities[] = $surfaceEntity;
         }
 
         return AdminSurfaceResultData::success([
@@ -384,13 +409,19 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             return false;
         }
 
-        $fieldValue = (string) $entity->get($field);
-        $filterValue = (string) $value;
+        return $this->filterValueMatches($entity->get($field), $operator, $value);
+    }
+
+    private function filterValueMatches(mixed $fieldRaw, SurfaceFilterOperator $operator, mixed $value): bool
+    {
+        $fieldValue = (string) $fieldRaw;
+        $filterValue = is_array($value) ? '' : (string) $value;
+        $inValues = is_array($value) ? array_map('strval', $value) : explode(',', $filterValue);
 
         return match ($operator) {
             SurfaceFilterOperator::EQUALS => $fieldValue === $filterValue,
             SurfaceFilterOperator::NOT_EQUALS => $fieldValue !== $filterValue,
-            SurfaceFilterOperator::IN => in_array($fieldValue, explode(',', $filterValue), true),
+            SurfaceFilterOperator::IN => in_array($fieldValue, $inValues, true),
             SurfaceFilterOperator::CONTAINS => mb_stripos($fieldValue, $filterValue) !== false,
             SurfaceFilterOperator::STARTS_WITH => mb_stripos($fieldValue, $filterValue) === 0,
             SurfaceFilterOperator::GT => $this->compareOrderedFilterValues($fieldValue, $filterValue) > 0,
@@ -455,21 +486,47 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
     {
         $fieldDefinitions = $this->entityTypeManager->resolveFieldDefinitions($type);
         $keys = $this->entityTypeManager->getDefinition($type)->getKeys();
+        $internalFields = [];
+        foreach ($fieldDefinitions as $name => $definition) {
+            if ($definition->getSetting('internal') === true) {
+                $internalFields[$name] = true;
+            }
+        }
+
+        // A host may constrain a generic list to declared bundles before it
+        // reaches this guard. Include only fields registered for every bundle
+        // named by that authoritative constraint; unrelated bundle fields stay
+        // unavailable and cannot be selected by a caller-controlled field name.
+        $constrainedBundles = $this->constrainedBundles($type, $query);
+
+        $bundleDefinitions = null;
+        foreach ($constrainedBundles as $bundle) {
+            $resolved = $this->entityTypeManager->resolveFieldDefinitions($type, $bundle);
+            foreach ($resolved as $name => $definition) {
+                if ($definition->getSetting('internal') === true) {
+                    $internalFields[$name] = true;
+                }
+            }
+            $bundleDefinitions = $bundleDefinitions === null
+                ? $resolved
+                : array_intersect_key($bundleDefinitions, $resolved);
+        }
+        foreach ($bundleDefinitions ?? [] as $name => $definition) {
+            $fieldDefinitions[$name] = $definition;
+        }
 
         /** @var array<string, true> $allowedFields */
         $allowedFields = array_fill_keys(array_keys($fieldDefinitions), true)
             + array_fill_keys(array_values($keys), true);
 
-        $isRejected = static function (string $field) use ($allowedFields, $fieldDefinitions): bool {
+        $isRejected = static function (string $field) use ($allowedFields, $internalFields): bool {
             if (!isset($allowedFields[$field])) {
                 return true;
             }
             if (in_array($field, self::ALWAYS_INTERNAL_FIELDS, true)) {
                 return true;
             }
-            $definition = $fieldDefinitions[$field] ?? null;
-
-            return $definition !== null && $definition->getSetting('internal') === true;
+            return isset($internalFields[$field]);
         };
 
         foreach ($query->filters as $filter) {
@@ -841,6 +898,68 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             $this->accessHandler,
             $this->currentAccount,
         );
+    }
+
+    private static function comparableSortValue(mixed $value): int|float|string
+    {
+        if ($value instanceof \DateTimeInterface) {
+            return (float) $value->format('U.u');
+        }
+        if (is_bool($value)) {
+            return (int) $value;
+        }
+        if (is_int($value) || is_float($value) || is_string($value)) {
+            return $value;
+        }
+        if ($value instanceof \Stringable) {
+            return (string) $value;
+        }
+
+        return '';
+    }
+
+    /** @param list<\Waaseyaa\Entity\EntityInterface> $entities */
+    private static function sortEntities(array &$entities, string $field, bool $descending): void
+    {
+        usort($entities, static function ($a, $b) use ($field, $descending): int {
+            $comparison = self::comparableSortValue($a->get($field)) <=> self::comparableSortValue($b->get($field));
+
+            return $descending ? -$comparison : $comparison;
+        });
+    }
+
+    private function queryUsesMultiBundleScopedField(string $type, SurfaceQuery $query): bool
+    {
+        $bundles = $this->constrainedBundles($type, $query);
+        if (count($bundles) < 2) {
+            return false;
+        }
+
+        $baseFields = $this->entityTypeManager->resolveFieldDefinitions($type);
+        $queriedFields = array_map(static fn(array $filter): string => $filter['field'], $query->filters);
+        if ($query->sortField !== null) {
+            $queriedFields[] = $query->sortField;
+        }
+        foreach (array_unique($queriedFields) as $field) {
+            if (isset($baseFields[$field])) {
+                continue;
+            }
+            foreach ($bundles as $bundle) {
+                if (!isset($this->entityTypeManager->resolveFieldDefinitions($type, $bundle)[$field])) {
+                    continue 2;
+                }
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /** @return list<string> */
+    private function constrainedBundles(string $type, SurfaceQuery $query): array
+    {
+        return $query->trustedBundleScope;
     }
 
     private function serializer(): ResourceSerializer

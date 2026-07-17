@@ -179,5 +179,11 @@
   "close": "Fermer",
 
   "bundle_filter_label": "Faisceau :",
-  "bundle_filter_all": "Tous les faisceaux"
+  "bundle_filter_all": "Tous les faisceaux",
+  "list_filter_all": "Tous",
+  "list_sort_label": "Trier par",
+  "list_sort_none": "Ordre par défaut",
+  "search": "Rechercher",
+  "reset": "Réinitialiser",
+  "view": "Voir"
 }

@@ -8,7 +8,7 @@ const { catalogRef, uiRef, runActionSpy } = vi.hoisted(() => {
   const { ref } = require('vue') as typeof import('vue')
   return {
     catalogRef: ref<CatalogEntry[]>([]),
-    uiRef: ref<{ headerLinks: unknown[]; sidebarItems: unknown[] }>({
+    uiRef: ref<{ headerLinks: unknown[]; sidebarItems: unknown[]; navigationMode?: 'full' | 'catalog-only' }>({
       headerLinks: [],
       sidebarItems: [],
     }),
@@ -180,5 +180,31 @@ describe('NavBuilder', () => {
     await mountSuspended(NavBuilder)
 
     expect(runActionSpy).not.toHaveBeenCalled()
+  })
+
+  it('catalog-only renders only catalog navigation without dashboard, host, or operational links', async () => {
+    uiRef.value = {
+      headerLinks: [],
+      sidebarItems: [{ id: 'reports', label: 'Operational reports', href: '/reports' }],
+      navigationMode: 'catalog-only',
+    }
+    catalogRef.value = [
+      entry({ id: 'node', label: 'Content', group: 'content' }),
+      entry({ id: 'media', label: 'Media', group: 'media' }),
+    ]
+
+    const wrapper = await mountSuspended(NavBuilder)
+
+    expect(wrapper.text()).toContain('Content')
+    expect(wrapper.text()).toContain('Media')
+    expect(wrapper.text()).not.toContain('Dashboard')
+    expect(wrapper.text()).not.toContain('Operational reports')
+    expect(wrapper.find('[data-testid="nav-mcp-tools"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="nav-queue"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="nav-scheduler"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="nav-notifications"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="nav-mercure-monitor"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="nav-classification-policies"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Workflows')
   })
 })

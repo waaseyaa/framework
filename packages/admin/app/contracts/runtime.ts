@@ -20,5 +20,6 @@ export interface AdminRuntime {
   ui: {
     headerLinks: AdminSurfaceHeaderLink[]
     sidebarItems: AdminSurfaceSidebarItem[]
+    navigationMode: 'full' | 'catalog-only'
   }
 }

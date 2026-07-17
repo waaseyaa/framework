@@ -43,6 +43,8 @@ export interface EntitySchema {
     bound: boolean
     id: string | null
   }
+  /** Optional validated host-declared list presentation/query contract. */
+  'x-list'?: unknown
   properties: Record<string, SchemaProperty>
   required?: string[]
 }

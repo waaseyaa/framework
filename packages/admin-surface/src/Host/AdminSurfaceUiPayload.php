@@ -20,17 +20,19 @@ final readonly class AdminSurfaceUiPayload
     private function __construct(
         public array $headerLinks,
         public array $sidebarItems,
+        public string $navigationMode,
     ) {}
 
     /**
      * @param list<array<string, mixed>> $headerLinks
      * @param list<array<string, mixed>> $sidebarItems
      */
-    public static function fromArrays(array $headerLinks = [], array $sidebarItems = []): self
+    public static function fromArrays(array $headerLinks = [], array $sidebarItems = [], string $navigationMode = 'full'): self
     {
         return new self(
             self::normalizeHeaderLinks($headerLinks),
             self::normalizeSidebarItems($sidebarItems),
+            in_array($navigationMode, ['full', 'catalog-only'], true) ? $navigationMode : 'full',
         );
     }
 
@@ -46,13 +48,16 @@ final readonly class AdminSurfaceUiPayload
         if ($this->sidebarItems !== []) {
             $out['sidebarItems'] = $this->sidebarItems;
         }
+        if ($this->navigationMode !== 'full') {
+            $out['navigationMode'] = $this->navigationMode;
+        }
 
         return $out;
     }
 
     public function isEmpty(): bool
     {
-        return $this->headerLinks === [] && $this->sidebarItems === [];
+        return $this->headerLinks === [] && $this->sidebarItems === [] && $this->navigationMode === 'full';
     }
 
     /**

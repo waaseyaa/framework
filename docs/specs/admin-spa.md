@@ -1,5 +1,7 @@
 # Admin SPA
 
+<!-- Spec reviewed 2026-07-16 - #2052: optional validated x-list metadata declares inert columns, closed framework formatters, labelled search/filters, and allowed/default sort pairs. Hosts enforce caller filters/operators/sorts server-side through SurfaceQueryPolicy before delegation. Generic list resources expose access-derived view/edit/delete booleans without policy reasons and mutations remain authoritatively checked. SchemaList protects against stale responses, synchronizes declared query state with the URL, resets pagination on control changes, and keeps legacy x-list-display behavior only when x-list is absent. Session UI navigationMode defaults to full; catalog-only suppresses static operational/governance links as presentation only. -->
+
 <!-- Spec reviewed 2026-07-16 - #2051: schema listings retain one semantic table/action set, adapt that markup to labelled cards below 600px, contain wider tables in a named scroll region, and use bounded semantic pagination. Generic ordinary controls use 44px targets. Closed mobile navigation is inert/aria-hidden/pointer-disabled; open navigation manages focus, Escape, scroll, backdrop, route, and breakpoint cleanup. Shell boundaries shrink/wrap long content without document overflow. -->
 
 <!-- Spec reviewed 2026-07-15 - #2050: schema fields share stable label/help/error IDs and required/invalid semantics; submission failures use a focused assertive summary, structured-error mapping and single-flight guard. RichText preserves untouched canonical HTML behind an inert visual projection plus explicit source mode. Date-only fields use ISO YYYY-MM-DD without timezone conversion and enforce authoritative x-min/x-max bounds. -->
@@ -338,6 +340,13 @@ The root Nuxt plugin is the authoritative bootstrap for `$admin`. On non-public 
 
 **Session UI customization (PHP → SPA):** Hosts extend `GenericAdminSurfaceHost` and override `buildAdminUi(AccountInterface): ?AdminSurfaceUiPayload` to attach non-empty `AdminSurfaceUiPayload` to `AdminSurfaceSessionData`. JSON includes a top-level `ui` object only when the payload has at least one valid header link or sidebar item. Sidebar `group` values that look like i18n keys (`nav_*`) are passed through `t()` in `NavBuilder`; an empty/missing `group` uses `nav_group_custom` (“Shortcuts”). External targets use `external: true` or absolute URLs (`http(s):`, `//`, `mailto:`, `tel:`) and render as `<a target="_blank" rel="noopener noreferrer">`.
 
+The same payload accepts the closed optional `navigationMode`. Missing or `full`
+preserves the static MCP, Operations, and Governance sections. `catalog-only`
+renders dashboard/custom/catalog navigation plus shell-owned session, locale, and
+logout controls, but omits those static sections. Unknown values normalize to
+`full`. This changes presentation only: route access and every controller policy
+remain unchanged.
+
 **Host extension typing (mission #824 WP04 surface C).** `GenericAdminSurfaceHost` and `AdminSurfaceServiceProvider::routes()` accept `Waaseyaa\Entity\EntityTypeManagerInterface`, never the concrete `EntityTypeManager`. Subclasses extending the host receive the interface and must not narrow that parameter. The acceptance gate is `grep -rn 'EntityTypeManager[^I]' packages/admin*` returning no results — re-run it whenever you touch admin-surface code or its tests.
 
 This plugin is the source of truth for `$admin` injection and for composables that call `useAdmin()`.
@@ -430,6 +439,44 @@ The form rendering pipeline:
 4. Each widget receives `modelValue`, `label`, `description`, `required`, `disabled`, `schema`
 
 ### List-View Column Policy (`packages/admin/app/components/schema/SchemaList.vue`)
+
+#### Host-declared `x-list`
+
+A schema may add an optional validated `x-list` object. Its closed shape is:
+
+- `columns[]`: `field`, non-empty plain-text `label`, `sortable`, formatter ID
+  `text|date|datetime|boolean/status|enum`, and optional string `valueLabels`;
+- `search`: one `field`, existing `SurfaceFilterOperator`, label, and optional
+  accessible description;
+- `filters[]`: `field`, one existing operator, label, optional finite inert
+  `{value,label}` options, and optional scalar default;
+- `sorts[]`: explicit field/direction (`ASC|DESC`) pairs and human labels, plus
+  an optional `defaultSort` that must match a declared pair.
+
+Unknown keys, formatter IDs, operators, directions, callbacks, templates, URLs,
+format strings, or malformed structures invalidate the whole declaration. The
+client renders all labels with Vue text interpolation and never uses metadata as
+HTML. A present but invalid `x-list` does not fall back to unrestricted declared
+controls. When `x-list` is absent, the existing `x-list-display`/first-six column
+policy and bundle filter remain unchanged.
+
+The declaring host passes the parsed `SurfaceQuery` and validated `ListMetadata`
+to `SurfaceQueryPolicy::validate()` before adding internal scope filters or
+delegating. Any undeclared filter field/operator or sort field/direction returns
+the same generic 400 response. Client visibility is never the enforcement layer.
+
+Declared control changes reset the page offset, issue one request, and synchronize
+the supported filter/sort/page query keys with the current URL. A monotonically
+increasing request ID prevents a late response from overwriting newer results.
+Loading/result changes are announced and controls remain keyboard-operable with
+44 px targets.
+
+Each generic list row contains `capabilities: {view, edit, delete}`. `view` reuses
+the authoritative decision that admitted the row; `edit` and `delete` are derived
+from update/delete access after hydration. Only booleans are serialized—never
+policy reasons. Under `x-list`, row actions render solely from this object. Legacy
+hosts without `x-list` retain catalog-level action presentation. Every direct
+mutation still repeats server authorization.
 
 The list table (`SchemaList`) is schema-driven: by default it renders the first six
 non-hidden fields as columns. Without a bound, a content type with a long-text /
@@ -723,6 +770,9 @@ Error handling uses `TransportError` from `~/contracts/transport` to distinguish
 - Pipeline visibility is deterministic and must remain a pure function of `runtime.catalog`.
 - Navigation components must not call `runAction(type, 'board-config')` or rely on request failures to infer whether pipeline navigation should be shown.
 - User-facing navigation labels in `AdminShell` and `NavBuilder` route through `useLanguage()`, including the skip link and pipeline suffix.
+- `ui.navigationMode === 'catalog-only'` suppresses the static MCP, Operations,
+  and Governance sections. Missing/invalid/`full` keeps them, preserving legacy
+  hosts. This condition is not consulted by routing or authorization.
 - Below 768px the closed sidebar is `inert`, `aria-hidden`, translated off-canvas,
   pointer-disabled, and absent from sequential focus. The toggle exposes
   `aria-controls`/`aria-expanded`. Opening locks page scroll and focuses the

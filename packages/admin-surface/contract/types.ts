@@ -25,6 +25,7 @@ export interface AdminSurfaceSidebarItem {
 export interface AdminSurfaceUiCustomization {
   headerLinks?: AdminSurfaceHeaderLink[]
   sidebarItems?: AdminSurfaceSidebarItem[]
+  navigationMode?: 'full' | 'catalog-only'
 }
 
 export interface AdminSurfaceSession {
@@ -122,6 +123,11 @@ export interface AdminSurfaceEntity {
   type: string
   id: string
   attributes: Record<string, unknown>
+  capabilities?: {
+    view?: boolean
+    edit?: boolean
+    delete?: boolean
+  }
 }
 
 // ── Result ───────────────────────────────────────────────────────

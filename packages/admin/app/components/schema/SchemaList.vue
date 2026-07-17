@@ -4,6 +4,7 @@ import { useEntity, type JsonApiResource } from '~/composables/useEntity'
 import { useLanguage } from '~/composables/useLanguage'
 import { useRealtime } from '~/composables/useRealtime'
 import { useAdmin } from '~/composables/useAdmin'
+import { normalizeListMetadata, type ListColumnMetadata } from '~/runtime/normalizeListMetadata'
 
 const props = defineProps<{
   entityType: string
@@ -31,6 +32,10 @@ const listError = ref<string | null>(null)
 // whole list with what looked like a "Not found" page (D7).
 const deleteError = ref<string | null>(null)
 const bundleFilter = ref<string | null>(null)
+const searchValue = ref('')
+const filterValues = reactive<Record<string, string | number | boolean | null>>({})
+const selectedSort = ref('')
+let latestListRequest = 0
 // Id of the row whose Edit link was activated, held until navigation replaces
 // this list. Drives an immediate aria-busy / disabled state on the clicked link
 // so opening an entity is never a silent click (the destination editor still
@@ -57,6 +62,11 @@ const bundleOptions = computed<string[] | null>(() => {
   return values && values.length > 0 ? values : null
 })
 
+const hasDeclaredList = computed(() => Boolean(
+  schema.value && Object.prototype.hasOwnProperty.call(schema.value, 'x-list'),
+))
+const listMetadata = computed(() => normalizeListMetadata(schema.value?.['x-list']))
+
 // List-view column policy (UX-1). Long-text / rich-text bodies must never be
 // dumped into a table cell (it blows out row height and makes the list
 // unusable). Two complementary rules, framework-wide for every content type:
@@ -75,6 +85,20 @@ const SNIPPET_MAX_CHARS = 120
 // Otherwise the default policy drops rich-text/text-format columns and takes the
 // first 6 of what remains.
 const columns = computed(() => {
+  if (hasDeclaredList.value) {
+    const metadata = listMetadata.value
+    if (!metadata) return []
+    return metadata.columns.map((column): [string, Record<string, unknown>] => [
+      column.field,
+      {
+        ...(schema.value?.properties?.[column.field] ?? { type: 'string' }),
+        'x-label': column.label,
+        'x-list-sortable': column.sortable,
+        'x-list-formatter': column.formatter,
+        'x-list-value-labels': column.valueLabels,
+      },
+    ])
+  }
   const all = sortedProperties(false).filter(([, prop]) => prop['x-widget'] !== 'hidden')
   const explicit = all.filter(([, prop]) => prop['x-list-display'] === true)
   if (explicit.length > 0) return explicit
@@ -83,6 +107,7 @@ const columns = computed(() => {
 })
 
 async function fetchEntities() {
+  const requestId = ++latestListRequest
   loading.value = true
   listError.value = null
   try {
@@ -92,21 +117,54 @@ async function fetchEntities() {
     if (sortField.value) {
       query.sort = (sortAsc.value ? '' : '-') + sortField.value
     }
-    if (bundleKey.value && bundleFilter.value) {
+    if (hasDeclaredList.value && listMetadata.value) {
+      const sort = parseSelectedSort()
+      if (sort) query.sort = (sort.direction === 'DESC' ? '-' : '') + sort.field
+      const search = listMetadata.value.search
+      if (search && searchValue.value.trim() !== '') {
+        query.filter = {
+          ...(query.filter ?? {}),
+          [search.field]: { operator: search.operator, value: searchValue.value.trim() },
+        }
+      }
+      for (const filter of listMetadata.value.filters) {
+        const value = filterValues[filter.field]
+        if (value !== '' && value !== null && value !== undefined) {
+          query.filter = {
+            ...(query.filter ?? {}),
+            [filter.field]: { operator: filter.operator, value: String(value) },
+          }
+        }
+      }
+    } else if (bundleKey.value && bundleFilter.value) {
       query.filter = { ...(query.filter ?? {}), [bundleKey.value]: bundleFilter.value }
     }
     const result = await list(props.entityType, query)
+    if (requestId !== latestListRequest) return
     entities.value = result.data
     total.value = result.meta?.total ?? result.data.length
   } catch (e: any) {
+    if (requestId !== latestListRequest) return
     console.error('[Waaseyaa] Failed to fetch entities:', e)
     listError.value = e.data?.errors?.[0]?.detail ?? e.message ?? t('error_loading_entities')
   } finally {
-    loading.value = false
+    if (requestId === latestListRequest) loading.value = false
   }
 }
 
 function toggleSort(field: string) {
+  if (hasDeclaredList.value) {
+    const column = listMetadata.value?.columns.find(item => item.field === field)
+    const allowed = listMetadata.value?.sorts.filter(item => item.field === field) ?? []
+    if (!column?.sortable || allowed.length === 0) return
+    const current = parseSelectedSort()
+    const currentIndex = allowed.findIndex(item => item.field === current?.field && item.direction === current.direction)
+    const next = allowed[(currentIndex + 1) % allowed.length] ?? allowed[0]
+    if (!next) return
+    selectedSort.value = encodeSort(next.field, next.direction)
+    void applyListControls()
+    return
+  }
   if (sortField.value === field) {
     sortAsc.value = !sortAsc.value
   } else {
@@ -114,6 +172,94 @@ function toggleSort(field: string) {
     sortAsc.value = true
   }
   fetchEntities()
+}
+
+function encodeSort(field: string, direction: 'ASC' | 'DESC'): string {
+  return `${field}:${direction}`
+}
+
+function parseSelectedSort(): { field: string; direction: 'ASC' | 'DESC' } | null {
+  const [field, direction] = selectedSort.value.split(':')
+  return field && (direction === 'ASC' || direction === 'DESC') ? { field, direction } : null
+}
+
+function initializeListControls() {
+  const metadata = listMetadata.value
+  if (!metadata) return
+  searchValue.value = ''
+  for (const key of Object.keys(filterValues)) filterValues[key] = null
+  for (const filter of metadata.filters) filterValues[filter.field] = filter.default ?? ''
+  selectedSort.value = metadata.defaultSort
+    ? encodeSort(metadata.defaultSort.field, metadata.defaultSort.direction)
+    : ''
+  restoreBrowserQuery()
+}
+
+function restoreBrowserQuery() {
+  if (typeof window === 'undefined' || !listMetadata.value) return
+  const params = new URL(window.location.href).searchParams
+  const search = listMetadata.value.search
+  if (search) searchValue.value = params.get(`filter[${search.field}][value]`) ?? searchValue.value
+  for (const filter of listMetadata.value.filters) {
+    const value = params.get(`filter[${filter.field}][value]`)
+    if (value !== null) filterValues[filter.field] = value
+  }
+  const rawSort = params.get('sort')
+  if (rawSort) {
+    const direction = rawSort.startsWith('-') ? 'DESC' : 'ASC'
+    const field = rawSort.replace(/^-/, '')
+    if (listMetadata.value.sorts.some(sort => sort.field === field && sort.direction === direction)) {
+      selectedSort.value = encodeSort(field, direction)
+    }
+  }
+  offset.value = Math.max(0, Number(params.get('page[offset]') ?? 0) || 0)
+}
+
+function syncBrowserQuery() {
+  if (typeof window === 'undefined' || !listMetadata.value) return
+  const url = new URL(window.location.href)
+  const declaredFields = [listMetadata.value.search?.field, ...listMetadata.value.filters.map(filter => filter.field)]
+    .filter((field): field is string => Boolean(field))
+  for (const field of declaredFields) {
+    url.searchParams.delete(`filter[${field}][operator]`)
+    url.searchParams.delete(`filter[${field}][value]`)
+  }
+  const search = listMetadata.value.search
+  if (search && searchValue.value.trim() !== '') {
+    url.searchParams.set(`filter[${search.field}][operator]`, search.operator)
+    url.searchParams.set(`filter[${search.field}][value]`, searchValue.value.trim())
+  }
+  for (const filter of listMetadata.value.filters) {
+    const value = filterValues[filter.field]
+    if (value !== '' && value !== null && value !== undefined) {
+      url.searchParams.set(`filter[${filter.field}][operator]`, filter.operator)
+      url.searchParams.set(`filter[${filter.field}][value]`, String(value))
+    }
+  }
+  const sort = parseSelectedSort()
+  if (sort) url.searchParams.set('sort', (sort.direction === 'DESC' ? '-' : '') + sort.field)
+  else url.searchParams.delete('sort')
+  if (offset.value > 0) url.searchParams.set('page[offset]', String(offset.value))
+  else url.searchParams.delete('page[offset]')
+  window.history.replaceState(window.history.state, '', url)
+}
+
+async function applyListControls() {
+  offset.value = 0
+  syncBrowserQuery()
+  await fetchEntities()
+}
+
+async function resetListControls() {
+  initializeListControls()
+  // Reset is authoritative; do not immediately re-read the URL values that it
+  // is clearing.
+  searchValue.value = ''
+  for (const filter of listMetadata.value?.filters ?? []) filterValues[filter.field] = filter.default ?? ''
+  selectedSort.value = listMetadata.value?.defaultSort
+    ? encodeSort(listMetadata.value.defaultSort.field, listMetadata.value.defaultSort.direction)
+    : ''
+  await applyListControls()
 }
 
 function nextPage() {
@@ -167,6 +313,18 @@ function getCellValue(entity: JsonApiResource, fieldName: string, fieldSchema: R
 
 function formatCellValue(value: unknown, fieldSchema: Record<string, unknown>): string {
   if (value === null || value === undefined) return ''
+
+  const formatter = fieldSchema['x-list-formatter'] as string | undefined
+  const valueLabels = fieldSchema['x-list-value-labels'] as Record<string, string> | undefined
+  if (valueLabels && Object.prototype.hasOwnProperty.call(valueLabels, String(value))) {
+    return truncateSnippet(valueLabels[String(value)] ?? '')
+  }
+  if (formatter === 'boolean/status') return value ? t('yes') : t('no')
+  if (formatter === 'date') return truncateSnippet(String(value).slice(0, 10))
+  if (formatter === 'datetime' && typeof value === 'string') {
+    const date = new Date(value)
+    return Number.isNaN(date.valueOf()) ? truncateSnippet(value) : date.toLocaleString()
+  }
 
   const type = fieldSchema.type as string
   const format = fieldSchema.format as string | undefined
@@ -238,10 +396,35 @@ function fieldLabel(fieldName: string, fieldSchema: Record<string, unknown>): st
   return String(fieldSchema['x-label'] ?? fieldName)
 }
 
+function declaredColumn(fieldName: string): ListColumnMetadata | undefined {
+  return listMetadata.value?.columns.find(column => column.field === fieldName)
+}
+
+function isColumnSortable(fieldName: string): boolean {
+  return hasDeclaredList.value ? declaredColumn(fieldName)?.sortable === true : true
+}
+
+function columnAriaSort(fieldName: string): 'ascending' | 'descending' | 'none' | undefined {
+  if (!isColumnSortable(fieldName)) return undefined
+  if (hasDeclaredList.value) {
+    const selected = parseSelectedSort()
+    return selected?.field === fieldName ? (selected.direction === 'ASC' ? 'ascending' : 'descending') : 'none'
+  }
+  return sortField.value === fieldName ? (sortAsc.value ? 'ascending' : 'descending') : 'none'
+}
+
+function rowCan(entity: JsonApiResource, action: 'view' | 'edit' | 'delete'): boolean {
+  if (hasDeclaredList.value) return entity.capabilities?.[action] === true
+  if (action === 'edit') return canUpdate
+  if (action === 'delete') return canDelete
+  return false
+}
+
 async function goToPage(page: number, restoreFocus = true) {
   const boundedPage = Math.min(Math.max(page, 1), totalPages.value)
   if (boundedPage === currentPage.value) return
   offset.value = (boundedPage - 1) * limit.value
+  syncBrowserQuery()
   await fetchEntities()
   if (restoreFocus) {
     await nextTick()
@@ -267,6 +450,7 @@ function getEntityLabel(entity: JsonApiResource): string {
 
 onMounted(async () => {
   await fetchSchema()
+  initializeListControls()
   await fetchEntities()
   if (realtimeEnabled) {
     connect()
@@ -296,12 +480,74 @@ watch(messages, (msgs) => {
     :data-anchor="`list:${entityType}`"
     data-testid="listing-region"
     :aria-label="t('listing_region', { type: schema?.title ?? entityType })"
+    :aria-busy="loading ? 'true' : 'false'"
   >
-    <div v-if="schemaLoading || loading" class="loading listing-state listing-state--loading" role="status">{{ t('loading') }}</div>
-    <div v-else-if="listError" class="error listing-state listing-state--error" role="alert">{{ listError }}</div>
+    <div v-if="schemaLoading" class="loading listing-state listing-state--loading" role="status">{{ t('loading') }}</div>
     <template v-else>
+      <div v-if="loading" class="loading listing-state listing-state--loading" role="status">{{ t('loading') }}</div>
+      <div v-if="listError" class="error listing-state listing-state--error" role="alert">{{ listError }}</div>
       <div v-if="deleteError" class="error error--inline" role="alert">{{ deleteError }}</div>
-      <div v-if="bundleOptions" class="entity-filters">
+      <form
+        v-if="listMetadata"
+        class="entity-filters list-controls"
+        data-testid="list-controls"
+        @submit.prevent="applyListControls"
+      >
+        <label v-if="listMetadata.search" class="entity-filter-label">
+          {{ listMetadata.search.label }}
+          <input
+            v-model="searchValue"
+            type="search"
+            class="entity-filter-input touch-target"
+            data-testid="list-search"
+            :aria-describedby="listMetadata.search.description ? `list-search-description-${entityType}` : undefined"
+          >
+          <span
+            v-if="listMetadata.search.description"
+            :id="`list-search-description-${entityType}`"
+            class="entity-filter-description"
+          >{{ listMetadata.search.description }}</span>
+        </label>
+        <label v-for="filter in listMetadata.filters" :key="filter.field" class="entity-filter-label">
+          {{ filter.label }}
+          <select
+            v-if="filter.options"
+            v-model="filterValues[filter.field]"
+            class="entity-filter-select touch-target"
+            :data-testid="`list-filter-${filter.field}`"
+            @change="applyListControls"
+          >
+            <option value="">{{ t('list_filter_all') }}</option>
+            <option v-for="option in filter.options" :key="String(option.value)" :value="option.value">
+              {{ option.label }}
+            </option>
+          </select>
+          <input
+            v-else
+            v-model="filterValues[filter.field]"
+            class="entity-filter-input touch-target"
+            :data-testid="`list-filter-${filter.field}`"
+            @change="applyListControls"
+          >
+        </label>
+        <label v-if="listMetadata.sorts.length > 0" class="entity-filter-label">
+          {{ t('list_sort_label') }}
+          <select
+            v-model="selectedSort"
+            class="entity-filter-select touch-target"
+            data-testid="list-sort"
+            @change="applyListControls"
+          >
+            <option value="">{{ t('list_sort_none') }}</option>
+            <option v-for="sort in listMetadata.sorts" :key="encodeSort(sort.field, sort.direction)" :value="encodeSort(sort.field, sort.direction)">
+              {{ sort.label }}
+            </option>
+          </select>
+        </label>
+        <button type="submit" class="btn touch-target">{{ t('search') }}</button>
+        <button type="button" class="btn touch-target" data-testid="list-reset" @click="resetListControls">{{ t('reset') }}</button>
+      </form>
+      <div v-else-if="!hasDeclaredList && bundleOptions" class="entity-filters">
         <label class="entity-filter-label">
           {{ t('bundle_filter_label') }}
           <select
@@ -312,7 +558,7 @@ watch(messages, (msgs) => {
           >
             <option :value="null">{{ t('bundle_filter_all') }}</option>
             <option v-for="bundle in bundleOptions" :key="bundle" :value="bundle">
-              {{ bundle }}
+              {{ schema?.properties?.[bundleKey ?? '']?.['x-enum-labels']?.[bundle] ?? bundle }}
             </option>
           </select>
         </label>
@@ -332,19 +578,22 @@ watch(messages, (msgs) => {
                 v-for="[fieldName, fieldSchema] in columns"
                 :key="fieldName"
                 scope="col"
-                class="sortable"
-                :aria-sort="sortField === fieldName ? (sortAsc ? 'ascending' : 'descending') : 'none'"
+                :class="{ sortable: isColumnSortable(fieldName) }"
+                :aria-sort="columnAriaSort(fieldName)"
                 :data-anchor="`list-field:${entityType}:${fieldName}`"
               >
                 <button
+                  v-if="isColumnSortable(fieldName)"
                   type="button"
                   class="sortable-control touch-target"
                   :aria-label="fieldLabel(fieldName, fieldSchema as unknown as Record<string, unknown>)"
                   @click="toggleSort(fieldName)"
                 >
                   {{ fieldSchema['x-label'] ?? fieldName }}
-                  <span v-if="sortField === fieldName" aria-hidden="true">{{ sortAsc ? ' ↑' : ' ↓' }}</span>
+                  <span v-if="columnAriaSort(fieldName) === 'ascending'" aria-hidden="true"> ↑</span>
+                  <span v-else-if="columnAriaSort(fieldName) === 'descending'" aria-hidden="true"> ↓</span>
                 </button>
+                <span v-else>{{ fieldSchema['x-label'] ?? fieldName }}</span>
               </th>
               <th v-if="showSyntheticWorkflowStateColumn" scope="col">{{ t('workflow_state_column_label') }}</th>
               <th scope="col">{{ t('actions') }}</th>
@@ -384,7 +633,7 @@ watch(messages, (msgs) => {
                 :aria-label="`${t('actions')}: ${getEntityLabel(entity)}`"
               >
               <NuxtLink
-                v-if="canUpdate"
+                v-if="rowCan(entity, 'edit')"
                 :to="`/${entityType}/${entity.id}`"
                 class="btn btn-sm touch-target"
                 :class="{ 'is-busy': navigatingId === entity.id }"
@@ -395,8 +644,16 @@ watch(messages, (msgs) => {
               >
                 {{ navigatingId === entity.id ? t('opening') : t('edit') }}
               </NuxtLink>
+              <NuxtLink
+                v-else-if="rowCan(entity, 'view')"
+                :to="`/${entityType}/${entity.id}`"
+                class="btn btn-sm touch-target"
+                :data-anchor="`action:${entityType}:view`"
+              >
+                {{ t('view') }}
+              </NuxtLink>
               <button
-                v-if="canDelete"
+                v-if="rowCan(entity, 'delete')"
                 class="btn btn-sm btn-danger touch-target"
                 :aria-label="t('delete') + ': ' + getEntityLabel(entity)"
                 :data-anchor="`action:${entityType}:delete`"
@@ -460,6 +717,32 @@ watch(messages, (msgs) => {
    than replacing the whole list like a load error. */
 .error--inline {
   margin-bottom: 12px;
+}
+
+.list-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+  margin-block-end: 1rem;
+}
+
+.entity-filter-label {
+  display: grid;
+  gap: 0.25rem;
+  min-width: min(100%, 12rem);
+}
+
+.entity-filter-input,
+.entity-filter-select {
+  min-height: 44px;
+  max-width: 100%;
+}
+
+.entity-filter-description {
+  max-width: 32rem;
+  color: var(--color-muted);
+  font-size: 0.875rem;
 }
 
 .listing-region,

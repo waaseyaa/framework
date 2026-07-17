@@ -9,9 +9,12 @@ const { t, entityLabel } = useLanguage()
 const { catalog, ui } = useAdmin()
 
 const navGroups = computed(() => groupEntityTypes(catalog))
+const showOperationalNavigation = computed(() => ui.navigationMode !== 'catalog-only')
 
 /** Group key → items (sorted by weight). Empty key = default “custom” bucket. */
 const customNavSections = computed((): Array<[string, AdminSurfaceSidebarItem[]]> => {
+  if (!showOperationalNavigation.value) return []
+
   const map = new Map<string, AdminSurfaceSidebarItem[]>()
   for (const item of ui.sidebarItems) {
     const key = item.group ?? ''
@@ -52,7 +55,7 @@ function customSectionHeading(groupKey: string): string {
 
 <template>
   <nav class="nav">
-    <NuxtLink to="/" class="nav-item">
+    <NuxtLink v-if="showOperationalNavigation" to="/" class="nav-item">
       {{ t('dashboard') }}
     </NuxtLink>
     <template v-for="[groupKey, items] in customNavSections" :key="'cu-' + groupKey">
@@ -90,17 +93,19 @@ function customSectionHeading(groupKey: string): string {
         </NuxtLink>
       </template>
     </template>
-    <div class="nav-section" data-testid="nav-section-mcp">{{ t('nav_group_mcp') }}</div>
-    <NuxtLink to="/mcp/tools" class="nav-item" data-testid="nav-mcp-tools">{{ t('mcp_tools_title') }}</NuxtLink>
-    <NuxtLink to="/mcp/server-config" class="nav-item" data-testid="nav-mcp-server-config">{{ t('mcp_server_config_title') }}</NuxtLink>
-    <div class="nav-section" data-testid="nav-section-operations">{{ t('nav_group_operations') }}</div>
-    <NuxtLink to="/workflows" class="nav-item">{{ t('workflows') }}</NuxtLink>
-    <NuxtLink to="/queue" class="nav-item" data-testid="nav-queue">{{ t('queue_title') }}</NuxtLink>
-    <NuxtLink to="/scheduler" class="nav-item" data-testid="nav-scheduler">{{ t('scheduler_title') }}</NuxtLink>
-    <NuxtLink to="/notifications" class="nav-item" data-testid="nav-notifications">{{ t('notifications_title') }}</NuxtLink>
-    <NuxtLink to="/mercure/monitor" class="nav-item" data-testid="nav-mercure-monitor">{{ t('mercure_monitor_title') }}</NuxtLink>
-    <div class="nav-section" data-testid="nav-section-governance">{{ t('nav_group_governance') }}</div>
-    <NuxtLink to="/classification/policies" class="nav-item" data-testid="nav-classification-policies">{{ t('classification_policies_nav') }}</NuxtLink>
+    <template v-if="showOperationalNavigation">
+      <div class="nav-section" data-testid="nav-section-mcp">{{ t('nav_group_mcp') }}</div>
+      <NuxtLink to="/mcp/tools" class="nav-item" data-testid="nav-mcp-tools">{{ t('mcp_tools_title') }}</NuxtLink>
+      <NuxtLink to="/mcp/server-config" class="nav-item" data-testid="nav-mcp-server-config">{{ t('mcp_server_config_title') }}</NuxtLink>
+      <div class="nav-section" data-testid="nav-section-operations">{{ t('nav_group_operations') }}</div>
+      <NuxtLink to="/workflows" class="nav-item">{{ t('workflows') }}</NuxtLink>
+      <NuxtLink to="/queue" class="nav-item" data-testid="nav-queue">{{ t('queue_title') }}</NuxtLink>
+      <NuxtLink to="/scheduler" class="nav-item" data-testid="nav-scheduler">{{ t('scheduler_title') }}</NuxtLink>
+      <NuxtLink to="/notifications" class="nav-item" data-testid="nav-notifications">{{ t('notifications_title') }}</NuxtLink>
+      <NuxtLink to="/mercure/monitor" class="nav-item" data-testid="nav-mercure-monitor">{{ t('mercure_monitor_title') }}</NuxtLink>
+      <div class="nav-section" data-testid="nav-section-governance">{{ t('nav_group_governance') }}</div>
+      <NuxtLink to="/classification/policies" class="nav-item" data-testid="nav-classification-policies">{{ t('classification_policies_nav') }}</NuxtLink>
+    </template>
   </nav>
 </template>
 
