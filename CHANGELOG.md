@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.267] - 2026-07-17
+
 ### Added
 
 - **Admin hosts can declare safe generic list experiences and catalog-only navigation (#2052).** Optional validated `x-list` metadata now supplies inert columns, closed formatters, labelled search/filters, and allowed/default sorts; `SurfaceQueryPolicy` rejects every undeclared field/operator/direction before delegation. Generic list resources carry only access-derived `view`/`edit`/`delete` booleans, while direct mutations retain authoritative server authorization. The SPA renders declared controls with URL/page synchronization, stale-response protection, per-row actions, human option labels, and 44 px targets. An optional `catalog-only` session UI mode suppresses static operational navigation without changing route authorization; hosts without either contract retain the existing `x-list-display`, bundle-filter, row-action, and full-navigation behavior.
