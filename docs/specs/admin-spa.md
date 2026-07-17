@@ -1,5 +1,7 @@
 # Admin SPA
 
+<!-- Spec reviewed 2026-07-15 - #2050: schema fields share stable label/help/error IDs and required/invalid semantics; submission failures use a focused assertive summary, structured-error mapping and single-flight guard. RichText preserves untouched canonical HTML behind an inert visual projection plus explicit source mode. Date-only fields use ISO YYYY-MM-DD without timezone conversion and enforce authoritative x-min/x-max bounds. -->
+
 <!-- Spec reviewed 2026-07-15 - #2048: mounted admin workflow/API transport now keeps the Nuxt app base (`/admin/`) separate from the canonical JSON API base (`/`). The admin SPA catch-all excludes both `_surface` and `api` path segments, so missing `/admin/api/*` requests remain non-success API-looking misses rather than `200 text/html`. Workflow discovery validates the response shape and models loading, bound/no-transition, 403, 404, malformed, network, and server failures explicitly; transition submission is single-flight and errors are announced. GenericAdminSurfaceHost resolves bundle-specific workflow binding metadata as `x-workflow` and removes raw `workflow_state` and `status` properties only from bound schemas; unbound schemas preserve their prior fields. -->
 
 <!-- Spec reviewed 2026-07-15 - #2047: generic bundled create is a two-stage schema flow. The mounted provider supplies SchemaPresenter's field registry; base schemas advertise the schema-declared bundle key plus registered enum, create-mode SchemaForm requests an explicit bundle scope, drops stale prior-bundle values, and submits the selected key/value. Schema transport/cache scopes are typed as {id?, bundle?}; unbundled creation remains one-stage. -->
@@ -501,6 +503,7 @@ distribution").
 | `boolean`            | `WidgetsToggle`            | `<input type="checkbox">` |
 | `select`             | `WidgetsSelect`            | `<select>`           |
 | `datetime`           | `WidgetsDateTimeInput`     | `<input type="datetime-local">` |
+| `date`               | `WidgetsDateInput`         | `<input type="date">` |
 | `entity_autocomplete`| `WidgetsEntityAutocomplete`| `<input type="text">` + dropdown |
 | `hidden`             | `WidgetsHiddenField`       | (renders nothing)    |
 | `image`, `file`      | `WidgetsTextInput`         | `<input type="text">` |
@@ -513,19 +516,38 @@ When the PHP `SchemaPresenter` marks a field with `readOnly: true` + `x-access-r
 - The `@update:model-value` handler guards: `if (!fieldSchema['x-access-restricted']) formData[fieldName] = val`
 - Result: field is visible but not editable in the UI
 
-### RichText Sanitization
+### Rich-text preservation and editing
 
-`WidgetsRichText` (`packages/admin/app/components/widgets/RichText.vue`) sanitizes HTML client-side using DOMParser. Allowed tags: `P, BR, B, I, U, STRONG, EM, A, UL, OL, LI, H1-H6, BLOCKQUOTE, PRE, CODE, SUB, SUP, HR`. Links restricted to `http://`, `https://`, or `/` prefixes.
+`WidgetsRichText` keeps a canonical source string separate from its visual
+editing projection. Mounting, rerendering, or switching to source mode emits
+nothing, so untouched migrated HTML remains byte-for-byte identical, including
+images, supported embeds, and unfamiliar valid attributes. Empty and null inputs
+render empty without placeholder markup. No editor dependency is added.
 
-The contenteditable is driven **imperatively**, not via a reactive `v-html`
-binding: `innerHTML` is set on mount and only when the model changes from outside
-the component, and the component skips the reactive echo of its own `@input`
-emit. Binding `v-html` to a contenteditable re-renders it on every keystroke,
-resetting the caret to the start and scrambling typed text; the imperative
-approach preserves the caret. Because the editor emits sanitized semantic HTML,
-editing the body of content migrated as page-builder markup (e.g. a `pb-band`
-hero) simplifies that markup to clean prose; structured (blocks) editing that
-preserves rich layouts is a separate, future surface.
+The visual projection is parsed in an inert `<template>` and replaces scripts,
+remote-fetching media/embed elements, and form controls before inserting markup
+into the contenteditable; it is an editor, never an executable preview. A user
+who edits visually accepts deterministic projection HTML as the new value.
+Explicit HTML source mode preserves and emits the exact edited string and is
+reachable by button or Ctrl+Shift+S. Both modes share field label/help/error/
+required associations and visible focus treatment. Server-side rich-text
+sanitization at the read/render boundary remains authoritative for content
+delivered to clients.
+
+### Field validation and date-only values
+
+`SchemaForm` renders with `novalidate` so browser bubbles are not the sole
+feedback. It maps client and structured transport failures to associated field
+messages plus an assertive, programmatically focused summary. Unknown/malformed,
+forbidden, network, and server failures use safe global messages. Corrections,
+bundle changes, and reloads clear stale errors; a synchronous latch prevents
+duplicate submission. Requiredness comes only from `x-required` or the schema
+`required` roster.
+
+Date widgets transport a real date as ISO `YYYY-MM-DD`, preserve an untouched
+null in form data, emit null when cleared, and perform no timezone conversion.
+Calendar syntax plus `x-min`/`x-max` bounds are validated into the same associated
+error contract. Ordinary strings and `date-time` widgets are not reclassified.
 
 ### EntityAutocomplete Widget
 
@@ -831,6 +853,12 @@ That means `useAuth()` does not establish an independent session source of truth
   names, and all controls are disabled behind a same-tick single-flight guard
   during submission.
 - Screen-reader-only class: `.sr-only` for visually hidden announcements
+- Every schema control has a stable unique ID, associated label, help/error
+  `aria-describedby` chain, semantic required state, and `aria-invalid` only
+  while invalid. Error text includes a non-color cue.
+- Form failures use an assertive focused validation summary; focus indicators use
+  a solid high-contrast outline, and form help/error tokens meet normal-text AA
+  contrast on their framework backgrounds.
 - Responsive: sidebar collapses to off-canvas drawer below 768px with overlay
 
 ## Build & Testing

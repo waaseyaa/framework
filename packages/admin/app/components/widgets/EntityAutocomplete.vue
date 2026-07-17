@@ -12,6 +12,11 @@ const props = defineProps<{
   required?: boolean
   disabled?: boolean
   schema?: SchemaProperty
+  inputId?: string
+  descriptionId?: string
+  error?: string
+  errorId?: string
+  describedBy?: string
 }>()
 
 const emit = defineEmits<{ 'update:modelValue': [value: string | string[]] }>()
@@ -29,7 +34,7 @@ const selectedLabel = ref('')
 const selectedItems = ref<Array<{ id: string; label: string | null }>>([])
 const activeIndex = ref(-1)
 const instanceId = useId()
-const inputId = `entity-autocomplete-${instanceId}`
+const inputId = props.inputId ?? `entity-autocomplete-${instanceId}`
 const listboxId = `${inputId}-listbox`
 
 const targetType = computed(() => props.schema?.['x-target-type'] ?? '')
@@ -273,7 +278,7 @@ onBeforeUnmount(() => {
   <div class="field autocomplete-field">
     <label v-if="label" :for="inputId" class="field-label">
       {{ label }}
-      <span v-if="required" class="required">*</span>
+      <span v-if="required" class="required" aria-hidden="true">*</span>
     </label>
     <div v-if="multiple && selectedItems.length > 0" class="autocomplete-selected">
       <span v-for="(item, index) in selectedItems" :key="item.id" class="autocomplete-selected-item">
@@ -293,6 +298,9 @@ onBeforeUnmount(() => {
         type="text"
         :value="inputValue"
         :required="required && idsFromModel().length === 0"
+        :aria-required="required ? 'true' : undefined"
+        :aria-invalid="error ? 'true' : undefined"
+        :aria-describedby="describedBy"
         :disabled="disabled"
         :placeholder="t('autocomplete_placeholder')"
         class="field-input"
@@ -339,7 +347,8 @@ onBeforeUnmount(() => {
         </button>
       </div>
     </div>
-    <p v-if="description" class="field-description">{{ description }}</p>
+    <p v-if="description" :id="descriptionId" class="field-description">{{ description }}</p>
+    <p v-if="error" :id="errorId" class="field-error"><strong>Error:</strong> {{ error }}</p>
   </div>
 </template>
 

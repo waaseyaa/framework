@@ -1,5 +1,6 @@
 # API Layer
 
+<!-- Spec reviewed 2026-07-15 - #2050: SchemaPresenter maps authoritative field type date to JSON Schema string/format date/x-widget date and projects date settings min/max as x-min/x-max presentation bounds; timestamp/datetime and ordinary strings remain distinct. -->
 <!-- Spec reviewed 2026-07-15 - #2047: SchemaPresenter exposes its sorted registry-backed bundle roster to mounted generic admin callers; null means no registry, [] means registry present/no registered bundles. SchemaController rejects a non-empty explicit bundle outside that authoritative roster with 422 instead of silently returning the base schema. -->
 <!-- Spec reviewed 2026-07-14 - #2018 authoring spine: EntityValidationException is mapped to 422 on store(), plain update(), and expectation-stated update(); repository validation can no longer escape as an admin/API HTTP 500. -->
 <!-- Spec reviewed 2026-07-14 - R21 WP4 (#2010): GraphQlRouter propagates GraphQlEndpoint's statusCode instead of forcing HTTP 200, so parse/auth/method failures reach clients as 400/401/405. withMutationOverrides() remains supported, but a custom update/delete resolver replaces the generated EntityResolver path and therefore owns the enduring not-found/access-denied collapse obligation; delegating to EntityResolver is the preferred way to preserve it. -->
@@ -786,7 +787,7 @@ Follows JSON Schema draft-07 with custom extensions:
 
 | Extension | Type | Purpose |
 |-----------|------|---------|
-| `x-widget` | string | Widget type hint for admin SPA (text, textarea, richtext, select, boolean, number, email, url, datetime, entity_autocomplete, image, file, password, hidden) |
+| `x-widget` | string | Widget type hint for admin SPA (text, textarea, richtext, select, boolean, number, email, url, date, datetime, entity_autocomplete, image, file, password, hidden) |
 | `x-label` | string | Human-readable field label |
 | `x-description` | string | Field help text |
 | `x-weight` | int | Display order weight |
@@ -798,6 +799,7 @@ Follows JSON Schema draft-07 with custom extensions:
 | `x-target-type` | string | Target entity type for entity_reference fields |
 | `x-cardinality` | int | Authoritative field cardinality (`1` scalar; negative means unbounded) |
 | `x-enum-labels` | object | Human-readable labels for enum values |
+| `x-min` / `x-max` | string | ISO `YYYY-MM-DD` presentation bounds for a date-only string field; draft-07 numeric `minimum`/`maximum` do not apply to formatted strings |
 
 ### readOnly vs x-access-restricted
 
@@ -819,11 +821,11 @@ System keys (id, uuid, label, bundle, langcode) are always shown as-is.
 
 ### Type and Widget Mappings
 
-Field type to JSON Schema type: `string->string`, `text->string`, `boolean->boolean`, `integer->integer`, `float->number`, `decimal->number`, `email->string`, `uri->string`, `timestamp->string`, `entity_reference->string`.
+Field type to JSON Schema type: `string->string`, `text->string`, `boolean->boolean`, `integer->integer`, `float->number`, `decimal->number`, `email->string`, `uri->string`, `date->string`, `timestamp->string`, `datetime->string`, `entity_reference->string`.
 
-Field type to widget: `string->text`, `text->textarea`, `text_long->richtext`, `boolean->boolean`, `integer->number`, `email->email`, `uri->url`, `timestamp->datetime`, `entity_reference->entity_autocomplete`, `list_string->select`.
+Field type to widget: `string->text`, `text->textarea`, `text_long->richtext`, `boolean->boolean`, `integer->number`, `email->email`, `uri->url`, `date->date`, `timestamp->datetime`, `datetime->datetime`, `entity_reference->entity_autocomplete`, `list_string->select`.
 
-Format mappings: `email->email`, `uri->uri`, `timestamp->date-time`, `datetime->date-time`.
+Format mappings: `email->email`, `uri->uri`, `date->date`, `timestamp->date-time`, `datetime->date-time`. Date values are transported as ISO `YYYY-MM-DD`; schema presentation does not introduce a default, null coercion, timezone conversion, or inference from field names/values.
 
 ### SchemaController
 

@@ -30,6 +30,7 @@ use Waaseyaa\Field\FieldStorage;
  * - "x-required": whether the field is required in forms
  * - "x-access-restricted": field is viewable but not editable by the current account
  * - "x-source-field": for machine_name widgets, the field name to auto-generate from
+ * - "x-min" / "x-max": presentation bounds for date-only string widgets
  */
 final class SchemaPresenter
 {
@@ -80,6 +81,7 @@ final class SchemaPresenter
         'decimal' => 'number',
         'email' => 'email',
         'uri' => 'url',
+        'date' => 'date',
         'timestamp' => 'datetime',
         'datetime' => 'datetime',
         'entity_reference' => 'entity_autocomplete',
@@ -106,6 +108,7 @@ final class SchemaPresenter
         'decimal' => 'number',
         'email' => 'string',
         'uri' => 'string',
+        'date' => 'string',
         'timestamp' => 'string',
         'datetime' => 'string',
         'entity_reference' => 'string',
@@ -125,6 +128,7 @@ final class SchemaPresenter
     private const FORMAT_MAP = [
         'email' => 'email',
         'uri' => 'uri',
+        'date' => 'date',
         'timestamp' => 'date-time',
         'datetime' => 'date-time',
     ];
@@ -447,12 +451,22 @@ final class SchemaPresenter
                 $schema['maxLength'] = $settings['max_length'];
             }
 
-            // Handle min/max for numeric fields.
-            if (isset($settings['min'])) {
-                $schema['minimum'] = $settings['min'];
-            }
-            if (isset($settings['max'])) {
-                $schema['maximum'] = $settings['max'];
+            // Date-only bounds are presentation hints: draft-07's numeric
+            // minimum/maximum keywords do not apply to formatted strings.
+            if ($fieldType === 'date') {
+                if (isset($settings['min'])) {
+                    $schema['x-min'] = $settings['min'];
+                }
+                if (isset($settings['max'])) {
+                    $schema['x-max'] = $settings['max'];
+                }
+            } else {
+                if (isset($settings['min'])) {
+                    $schema['minimum'] = $settings['min'];
+                }
+                if (isset($settings['max'])) {
+                    $schema['maximum'] = $settings['max'];
+                }
             }
 
             // Handle target_type for entity_reference fields (legacy settings format).
