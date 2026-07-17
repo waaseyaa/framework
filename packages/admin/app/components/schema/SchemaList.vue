@@ -118,15 +118,13 @@ function toggleSort(field: string) {
 
 function nextPage() {
   if (offset.value + limit.value < total.value) {
-    offset.value += limit.value
-    fetchEntities()
+    void goToPage(currentPage.value + 1)
   }
 }
 
 function prevPage() {
   if (offset.value > 0) {
-    offset.value = Math.max(0, offset.value - limit.value)
-    fetchEntities()
+    void goToPage(currentPage.value - 1)
   }
 }
 
@@ -211,6 +209,45 @@ const hasWorkflowStateAttribute = computed(() =>
   entities.value.some(entity => Object.prototype.hasOwnProperty.call(entity.attributes ?? {}, 'workflow_state')),
 )
 const showSyntheticWorkflowStateColumn = computed(() => hasWorkflowStateAttribute.value && !workflowStateInColumns.value)
+const currentPage = computed(() => Math.floor(offset.value / limit.value) + 1)
+const totalPages = computed(() => Math.max(1, Math.ceil(total.value / limit.value)))
+const paginationRef = ref<HTMLElement | null>(null)
+
+type PaginationItem = number | `ellipsis-${number}`
+const paginationItems = computed<PaginationItem[]>(() => {
+  const count = totalPages.value
+  if (count <= 5) return Array.from({ length: count }, (_, index) => index + 1)
+
+  const pages = [...new Set([
+    1,
+    Math.max(1, currentPage.value - 1),
+    currentPage.value,
+    Math.min(count, currentPage.value + 1),
+    count,
+  ])].sort((a, b) => a - b)
+  const items: PaginationItem[] = []
+  pages.forEach((page, index) => {
+    const previous = pages[index - 1]
+    if (previous !== undefined && page - previous > 1) items.push(`ellipsis-${previous}`)
+    items.push(page)
+  })
+  return items
+})
+
+function fieldLabel(fieldName: string, fieldSchema: Record<string, unknown>): string {
+  return String(fieldSchema['x-label'] ?? fieldName)
+}
+
+async function goToPage(page: number, restoreFocus = true) {
+  const boundedPage = Math.min(Math.max(page, 1), totalPages.value)
+  if (boundedPage === currentPage.value) return
+  offset.value = (boundedPage - 1) * limit.value
+  await fetchEntities()
+  if (restoreFocus) {
+    await nextTick()
+    paginationRef.value?.querySelector<HTMLElement>(`[data-page="${boundedPage}"]`)?.focus()
+  }
+}
 
 const KNOWN_WORKFLOW_STATE_CLASSES = new Set(['draft', 'review', 'published', 'archived'])
 function workflowStateClass(value: unknown): string {
@@ -254,9 +291,14 @@ watch(messages, (msgs) => {
 </script>
 
 <template>
-  <div class="schema-list" :data-anchor="`list:${entityType}`">
-    <div v-if="schemaLoading || loading" class="loading">{{ t('loading') }}</div>
-    <div v-else-if="listError" class="error">{{ listError }}</div>
+  <section
+    class="schema-list listing-region"
+    :data-anchor="`list:${entityType}`"
+    data-testid="listing-region"
+    :aria-label="t('listing_region', { type: schema?.title ?? entityType })"
+  >
+    <div v-if="schemaLoading || loading" class="loading listing-state listing-state--loading" role="status">{{ t('loading') }}</div>
+    <div v-else-if="listError" class="error listing-state listing-state--error" role="alert">{{ listError }}</div>
     <template v-else>
       <div v-if="deleteError" class="error error--inline" role="alert">{{ deleteError }}</div>
       <div v-if="bundleOptions" class="entity-filters">
@@ -275,46 +317,76 @@ watch(messages, (msgs) => {
           </select>
         </label>
       </div>
-      <table class="entity-table">
-        <thead>
-          <tr>
-            <th
-              v-for="[fieldName, fieldSchema] in columns"
-              :key="fieldName"
-              class="sortable"
-              :data-anchor="`list-field:${entityType}:${fieldName}`"
-              @click="toggleSort(fieldName)"
+      <div
+        class="listing-scroll"
+        data-testid="listing-scroll"
+        role="region"
+        tabindex="0"
+        :aria-label="t('listing_table', { type: schema?.title ?? entityType })"
+      >
+        <table class="entity-table" data-responsive-mode="table-card">
+          <caption class="sr-only">{{ t('listing_table', { type: schema?.title ?? entityType }) }}</caption>
+          <thead>
+            <tr>
+              <th
+                v-for="[fieldName, fieldSchema] in columns"
+                :key="fieldName"
+                scope="col"
+                class="sortable"
+                :aria-sort="sortField === fieldName ? (sortAsc ? 'ascending' : 'descending') : 'none'"
+                :data-anchor="`list-field:${entityType}:${fieldName}`"
+              >
+                <button
+                  type="button"
+                  class="sortable-control touch-target"
+                  :aria-label="fieldLabel(fieldName, fieldSchema as unknown as Record<string, unknown>)"
+                  @click="toggleSort(fieldName)"
+                >
+                  {{ fieldSchema['x-label'] ?? fieldName }}
+                  <span v-if="sortField === fieldName" aria-hidden="true">{{ sortAsc ? ' ↑' : ' ↓' }}</span>
+                </button>
+              </th>
+              <th v-if="showSyntheticWorkflowStateColumn" scope="col">{{ t('workflow_state_column_label') }}</th>
+              <th scope="col">{{ t('actions') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="entities.length === 0">
+              <td :colspan="columns.length + (showSyntheticWorkflowStateColumn ? 1 : 0) + 1" class="empty">{{ t('no_items') }}</td>
+            </tr>
+            <tr
+              v-for="entity in entities"
+              :key="entity.id"
+              :data-row-id="entity.id"
+              :aria-label="getEntityLabel(entity)"
             >
-              {{ fieldSchema['x-label'] ?? fieldName }}
-              <span v-if="sortField === fieldName">{{ sortAsc ? ' ↑' : ' ↓' }}</span>
-            </th>
-            <th v-if="showSyntheticWorkflowStateColumn">{{ t('workflow_state_column_label') }}</th>
-            <th>{{ t('actions') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="entities.length === 0">
-            <td :colspan="columns.length + (showSyntheticWorkflowStateColumn ? 1 : 0) + 1" class="empty">{{ t('no_items') }}</td>
-          </tr>
-          <tr v-for="entity in entities" :key="entity.id">
-            <td v-for="[fieldName, fieldSchema] in columns" :key="fieldName">
+              <td
+                v-for="[fieldName, fieldSchema] in columns"
+                :key="fieldName"
+                :data-label="fieldLabel(fieldName, fieldSchema as unknown as Record<string, unknown>)"
+              >
               <span v-if="fieldName === 'workflow_state'" :class="workflowStateClass(getCellValue(entity, fieldName, fieldSchema as unknown as Record<string, unknown>))">
                 {{ getCellValue(entity, fieldName, fieldSchema as unknown as Record<string, unknown>) }}
               </span>
               <template v-else>
                 {{ formatCellValue(getCellValue(entity, fieldName, fieldSchema as unknown as Record<string, unknown>), fieldSchema as unknown as Record<string, unknown>) }}
               </template>
-            </td>
-            <td v-if="showSyntheticWorkflowStateColumn">
+              </td>
+              <td v-if="showSyntheticWorkflowStateColumn" :data-label="t('workflow_state_column_label')">
               <span v-if="entity.attributes.workflow_state" :class="workflowStateClass(entity.attributes.workflow_state)">
                 {{ entity.attributes.workflow_state }}
               </span>
-            </td>
-            <td class="actions">
+              </td>
+              <td
+                class="actions"
+                :data-label="t('actions')"
+                role="group"
+                :aria-label="`${t('actions')}: ${getEntityLabel(entity)}`"
+              >
               <NuxtLink
                 v-if="canUpdate"
                 :to="`/${entityType}/${entity.id}`"
-                class="btn btn-sm"
+                class="btn btn-sm touch-target"
                 :class="{ 'is-busy': navigatingId === entity.id }"
                 :aria-busy="navigatingId === entity.id ? 'true' : 'false'"
                 :aria-disabled="navigatingId === entity.id ? 'true' : undefined"
@@ -325,33 +397,54 @@ watch(messages, (msgs) => {
               </NuxtLink>
               <button
                 v-if="canDelete"
-                class="btn btn-sm btn-danger"
+                class="btn btn-sm btn-danger touch-target"
                 :aria-label="t('delete') + ': ' + getEntityLabel(entity)"
                 :data-anchor="`action:${entityType}:delete`"
                 @click="deleteEntity(entity)"
               >
                 {{ t('delete') }}
               </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-      <div class="pagination">
+      <nav
+        v-if="total > 0"
+        ref="paginationRef"
+        class="pagination"
+        :aria-label="t('pagination')"
+      >
         <template v-if="total > 0">
-          <span>{{ t('showing') }} {{ offset + 1 }}–{{ Math.min(offset + limit, total) }} {{ t('of') }} {{ total }}</span>
-          <button :disabled="offset === 0" class="btn btn-sm" @click="prevPage">{{ t('previous') }}</button>
-          <button :disabled="offset + limit >= total" class="btn btn-sm" @click="nextPage">{{ t('next') }}</button>
+          <span class="pagination-summary">{{ t('showing') }} {{ offset + 1 }}–{{ Math.min(offset + limit, total) }} {{ t('of') }} {{ total }}</span>
+          <button data-pagination="previous" :aria-label="t('previous')" :disabled="offset === 0" class="btn btn-sm touch-target pagination-control" @click="prevPage">{{ t('previous') }}</button>
+          <template v-for="item in paginationItems" :key="item">
+            <span v-if="typeof item === 'string'" class="pagination-ellipsis" aria-hidden="true">…</span>
+            <button
+              v-else
+              type="button"
+              class="btn btn-sm touch-target pagination-control pagination-page"
+              :class="{ 'pagination-page--current': item === currentPage }"
+              :data-page="item"
+              :aria-label="t('page_number', { page: String(item) })"
+              :aria-current="item === currentPage ? 'page' : undefined"
+              @click="goToPage(item)"
+            >
+              {{ item }}
+            </button>
+          </template>
+          <button data-pagination="next" :aria-label="t('next')" :disabled="offset + limit >= total" class="btn btn-sm touch-target pagination-control" @click="nextPage">{{ t('next') }}</button>
         </template>
         <span v-if="connected" class="sse-status" :title="t('realtime_connected')">&#9679;</span>
-        <button v-else-if="sseError" class="btn btn-sm" @click="reconnect">{{ sseError }}</button>
-      </div>
+        <button v-else-if="sseError" class="btn btn-sm touch-target" @click="reconnect">{{ sseError }}</button>
+      </nav>
 
       <div v-if="total > 0" class="sr-only" role="status" aria-live="polite">
         {{ t('showing') }} {{ offset + 1 }}–{{ Math.min(offset + limit, total) }} {{ t('of') }} {{ total }}
       </div>
     </template>
-  </div>
+  </section>
 </template>
 
 <style scoped>
@@ -367,6 +460,46 @@ watch(messages, (msgs) => {
    than replacing the whole list like a load error. */
 .error--inline {
   margin-bottom: 12px;
+}
+
+.listing-region,
+.listing-scroll {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.listing-scroll {
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  border-radius: 4px;
+}
+
+.listing-scroll:focus-visible {
+  outline: 3px solid var(--color-primary-hover);
+  outline-offset: 2px;
+}
+
+.entity-table {
+  min-width: 100%;
+  width: max-content;
+}
+
+.sortable-control {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  padding-inline: 0.25rem;
+}
+
+.pagination-page--current {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: #fff;
 }
 
 /* Bound every data column so a long value can never stretch a row, even if one
@@ -404,5 +537,72 @@ watch(messages, (msgs) => {
 .status-pill--archived {
   background: #e5e7eb;
   color: #374151;
+}
+
+@media (max-width: 600px) {
+  .listing-scroll {
+    overflow: visible;
+  }
+
+  .entity-table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    background: transparent;
+  }
+
+  .entity-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .entity-table tbody,
+  .entity-table tr,
+  .entity-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .entity-table tr[data-row-id] {
+    margin-block-end: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0.5rem;
+    background: var(--color-surface);
+    overflow: hidden;
+  }
+
+  .entity-table td[data-label] {
+    display: grid;
+    grid-template-columns: minmax(7rem, 35%) minmax(0, 1fr);
+    gap: 0.75rem;
+    max-width: none;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+  }
+
+  .entity-table td[data-label]::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--color-muted);
+  }
+
+  .entity-table td.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .entity-table td.actions::before {
+    flex: 1 0 100%;
+  }
 }
 </style>

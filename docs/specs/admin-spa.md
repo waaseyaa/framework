@@ -1,5 +1,7 @@
 # Admin SPA
 
+<!-- Spec reviewed 2026-07-16 - #2051: schema listings retain one semantic table/action set, adapt that markup to labelled cards below 600px, contain wider tables in a named scroll region, and use bounded semantic pagination. Generic ordinary controls use 44px targets. Closed mobile navigation is inert/aria-hidden/pointer-disabled; open navigation manages focus, Escape, scroll, backdrop, route, and breakpoint cleanup. Shell boundaries shrink/wrap long content without document overflow. -->
+
 <!-- Spec reviewed 2026-07-15 - #2050: schema fields share stable label/help/error IDs and required/invalid semantics; submission failures use a focused assertive summary, structured-error mapping and single-flight guard. RichText preserves untouched canonical HTML behind an inert visual projection plus explicit source mode. Date-only fields use ISO YYYY-MM-DD without timezone conversion and enforce authoritative x-min/x-max bounds. -->
 
 <!-- Spec reviewed 2026-07-15 - #2048: mounted admin workflow/API transport now keeps the Nuxt app base (`/admin/`) separate from the canonical JSON API base (`/`). The admin SPA catch-all excludes both `_surface` and `api` path segments, so missing `/admin/api/*` requests remain non-success API-looking misses rather than `200 text/html`. Workflow discovery validates the response shape and models loading, bound/no-transition, 403, 404, malformed, network, and server failures explicitly; transition submission is single-flight and errors are announced. GenericAdminSurfaceHost resolves bundle-specific workflow binding metadata as `x-workflow` and removes raw `workflow_state` and `status` properties only from bound schemas; unbound schemas preserve their prior fields. -->
@@ -459,6 +461,24 @@ Acceptance: `tests/components/schema/SchemaListColumnPolicy.test.ts` proves a
 long-text/rich-text content type renders bounded columns — the rich-text column
 is absent and the long-text cell is a truncated snippet, never the full body.
 
+### Responsive list and pagination contract
+
+`SchemaList` renders one semantic table and one action group per row at every
+breakpoint. At widths through 600px, CSS adapts those same rows into cards: the
+table header remains available to assistive technology and each cell repeats its
+authoritative header through `data-label`. No duplicate mobile action copy is
+rendered. Above that breakpoint, or whenever arbitrary columns still need more
+room, the table is contained by a named, keyboard-focusable horizontal-scroll
+region; it must never expand the document.
+
+The list region owns populated, empty, loading, and failure states. Long and
+unbroken values wrap or remain clipped inside their cell/card; row identity and
+the single labelled action group stay explicit. Pagination renders labelled
+previous/next controls, a bounded boundary/current/neighbour page window,
+non-interactive ellipses, and `aria-current="page"`. Navigation restores focus
+to the newly current page control. All ordinary list and pagination controls
+meet the shared 44 by 44 CSS-pixel target contract.
+
 ### Element anchors (Wayfinding Phase-1 groundwork)
 
 The schema-driven components emit stable, **inert** `data-anchor` attributes derived
@@ -703,6 +723,12 @@ Error handling uses `TransportError` from `~/contracts/transport` to distinguish
 - Pipeline visibility is deterministic and must remain a pure function of `runtime.catalog`.
 - Navigation components must not call `runAction(type, 'board-config')` or rely on request failures to infer whether pipeline navigation should be shown.
 - User-facing navigation labels in `AdminShell` and `NavBuilder` route through `useLanguage()`, including the skip link and pipeline suffix.
+- Below 768px the closed sidebar is `inert`, `aria-hidden`, translated off-canvas,
+  pointer-disabled, and absent from sequential focus. The toggle exposes
+  `aria-controls`/`aria-expanded`. Opening locks page scroll and focuses the
+  in-panel close control; Tab remains in the panel, Escape/backdrop/close return
+  focus to the opener, and route or desktop-breakpoint changes clear open and
+  scroll-lock state. Desktop navigation remains persistently available.
 
 ## SchemaForm / MachineNameInput Contract
 
@@ -860,6 +886,11 @@ That means `useAuth()` does not establish an independent session source of truth
   a solid high-contrast outline, and form help/error tokens meet normal-text AA
   contrast on their framework backgrounds.
 - Responsive: sidebar collapses to off-canvas drawer below 768px with overlay
+- Ordinary admin actions, pagination, menu/close, and navigation controls use at
+  least a 44 by 44 CSS-pixel target and a visible focus outline. Generic content
+  and action containers may shrink; long identifiers, URLs, alerts,
+  breadcrumbs, tables, and preformatted output are contained rather than
+  widening the document.
 
 ## Build & Testing
 
