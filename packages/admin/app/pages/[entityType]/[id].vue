@@ -6,11 +6,12 @@ const route = useRoute()
 const { t, entityLabel: translateEntityLabel } = useLanguage()
 
 const entityType = computed(() => route.params.entityType as string)
-const { schema, fetch: fetchSchema } = useSchema(entityType.value)
-onMounted(() => fetchSchema())
-const entityLabel = computed(() => translateEntityLabel(entityType.value, schema.value?.title ?? entityType.value))
-const { appName } = useAdminConfig()
 const entityId = computed(() => route.params.id as string)
+const { schema, fetch: fetchSchema } = useSchema(entityType.value)
+onMounted(() => fetchSchema({ id: entityId.value }))
+const entityLabel = computed(() => translateEntityLabel(entityType.value, schema.value?.title ?? entityType.value))
+const workflowBound = computed(() => schema.value?.['x-workflow']?.bound === true)
+const { appName } = useAdminConfig()
 
 const mode = ref<'view' | 'edit'>('view')
 const successMessage = ref('')
@@ -48,6 +49,7 @@ function onTransitioned() {
       <h1 v-else>{{ t('edit_entity', { type: entityLabel }) }} #{{ entityId }}</h1>
       <div class="page-header-actions">
         <WorkflowTransitionControls
+          v-if="workflowBound"
           :entity-type="entityType"
           :entity-id="entityId"
           @transitioned="onTransitioned"
@@ -91,6 +93,7 @@ function onTransitioned() {
     />
 
     <WorkflowTransitionHistoryTimeline
+      v-if="workflowBound"
       :key="`history-${entityType}-${entityId}`"
       :entity-type="entityType"
       :entity-id="entityId"

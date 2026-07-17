@@ -28,12 +28,12 @@ const versionB = {
 
 let storedVersions: typeof versionA[] = []
 
-registerEndpoint('/admin/api/media/media-abc/versions', () => ({
+registerEndpoint('/api/media/media-abc/versions', () => ({
   data: storedVersions,
   meta: { total: storedVersions.length },
 }))
 
-registerEndpoint('/admin/api/media/no-such-media/versions', () => ({
+registerEndpoint('/api/media/no-such-media/versions', () => ({
   data: [],
   meta: { total: 0 },
 }))

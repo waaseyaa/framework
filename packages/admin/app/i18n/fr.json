@@ -37,6 +37,8 @@
   "workflow_history_at": "le",
   "workflow_transitioned": "Transition appliquée.",
   "workflow_transition_error_generic": "Échec de l'application de la transition.",
+  "workflow_transitions_loading": "Chargement des transitions de flux de travail.",
+  "workflow_transitions_empty": "Aucune transition de flux de travail n’est disponible pour le moment.",
   "workflow_state_column_label": "État du flux de travail",
   "confirm_delete": "Êtes-vous sûr de vouloir supprimer cet élément ?",
   "entity_created": "Création réussie.",

@@ -51,7 +51,7 @@ let discardCalls: string[] = []
 let nextRetryResponse: { status: number, body?: unknown } = { status: 204 }
 let nextDiscardResponse: { status: number, body?: unknown } = { status: 204 }
 
-registerEndpoint('/admin/api/queue/jobs', (event: unknown) => {
+registerEndpoint('/api/queue/jobs', (event: unknown) => {
   const e = event as { node?: { req?: { url?: string } } }
   const url = e.node?.req?.url ?? ''
   const statusMatch = url.match(/[?&]status=([^&]+)/)
@@ -79,7 +79,7 @@ registerEndpoint('/admin/api/queue/jobs', (event: unknown) => {
   }
 })
 
-registerEndpoint('/admin/api/queue/jobs/1/retry', {
+registerEndpoint('/api/queue/jobs/1/retry', {
   method: 'POST',
   handler: (event: unknown) => {
     retryCalls.push('1')
@@ -97,7 +97,7 @@ registerEndpoint('/admin/api/queue/jobs/1/retry', {
   },
 })
 
-registerEndpoint('/admin/api/queue/jobs/1/discard', {
+registerEndpoint('/api/queue/jobs/1/discard', {
   method: 'POST',
   handler: (event: unknown) => {
     discardCalls.push('1')

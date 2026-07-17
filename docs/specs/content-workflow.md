@@ -1,5 +1,7 @@
 # Content Workflow (CW-v1)
 
+<!-- Spec reviewed 2026-07-15 - #2048: the generic admin surface now transports discovery/execution to the canonical root `/api` paths even when mounted at `/admin`, validates discovery response shape, exposes accessible loading/empty/error states, and prevents duplicate transition submission. Bundle-scoped admin schemas resolve workflow binding ownership: bound forms omit raw `workflow_state` and `status`, while unbound forms preserve existing editing behavior. The server remains the transition authorization oracle and the working-copy controller/service semantics are unchanged. -->
+
 <!-- Spec reviewed 2026-07-13 - CW-v1 WP-5 WP1 (#1920): "Cleanup inventory" section rewritten —
      the retired read-only dry-run/guards machinery (`AuthoringRoleMatrix`, `WorkflowDryRunController`,
      `WorkflowGuardsController`, `WorkflowGuardsApiRouter`, their route registrations, and the

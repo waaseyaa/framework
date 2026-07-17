@@ -1,0 +1,82 @@
+import type { EntitySchema } from '~/contracts/schema'
+import { flushPromises } from '@vue/test-utils'
+import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { schemaRef, fetchSchemaMock } = vi.hoisted(() => {
+  const { ref } = require('vue') as typeof import('vue')
+  return {
+    schemaRef: ref<EntitySchema | null>(null),
+    fetchSchemaMock: vi.fn(),
+  }
+})
+
+mockNuxtImport('useRoute', () => () => ({ params: { entityType: 'node', id: '5' } }))
+mockNuxtImport('useAdminConfig', () => () => ({ appName: 'Test admin' }))
+
+vi.mock('~/composables/useLanguage', () => ({
+  useLanguage: () => ({
+    t: (key: string) => key,
+    entityLabel: (_type: string, fallback: string) => fallback,
+  }),
+}))
+
+vi.mock('~/composables/useSchema', () => ({
+  useSchema: () => ({
+    schema: schemaRef,
+    fetch: fetchSchemaMock,
+  }),
+}))
+
+const baseSchema = {
+  $schema: 'https://json-schema.org/draft/2020-12/schema',
+  title: 'Content',
+  description: '',
+  type: 'object',
+  'x-entity-type': 'node',
+  'x-translatable': false,
+  'x-revisionable': true,
+  properties: {},
+} satisfies EntitySchema
+
+async function mountPage() {
+  const { default: EntityDetailPage } = await import('~/pages/[entityType]/[id].vue')
+  const wrapper = await mountSuspended(EntityDetailPage, {
+    global: {
+      stubs: {
+        WorkflowTransitionControls: { template: '<div data-testid="workflow-controls" />' },
+        WorkflowTransitionHistoryTimeline: { template: '<div data-testid="workflow-history" />' },
+        SchemaView: { template: '<div />' },
+        SchemaForm: { template: '<div />' },
+        NuxtLink: { template: '<a><slot /></a>' },
+      },
+    },
+  })
+  await flushPromises()
+  return wrapper
+}
+
+describe('entity detail workflow binding', () => {
+  beforeEach(() => {
+    schemaRef.value = null
+    fetchSchemaMock.mockReset()
+  })
+
+  it('requests an entity-scoped schema and renders workflow UI only when bound', async () => {
+    schemaRef.value = { ...baseSchema, 'x-workflow': { bound: true, id: 'editorial' } }
+    const wrapper = await mountPage()
+
+    expect(fetchSchemaMock).toHaveBeenCalledWith({ id: '5' })
+    expect(wrapper.find('[data-testid="workflow-controls"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="workflow-history"]').exists()).toBe(true)
+  })
+
+  it('does not render workflow UI for an unbound entity with ordinary editing behavior', async () => {
+    schemaRef.value = { ...baseSchema, 'x-workflow': { bound: false, id: null } }
+    const wrapper = await mountPage()
+
+    expect(wrapper.find('[data-testid="workflow-controls"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="workflow-history"]').exists()).toBe(false)
+    expect(wrapper.find('button.btn-primary').exists()).toBe(true)
+  })
+})

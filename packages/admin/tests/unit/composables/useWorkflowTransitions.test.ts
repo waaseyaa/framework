@@ -8,28 +8,39 @@ import { registerEndpoint } from '@nuxt/test-utils/runtime'
 const publishTransition = { id: 'publish', label: 'Publish', to: 'published' }
 const archiveTransition = { id: 'archive', label: 'Archive', to: 'archived' }
 
-registerEndpoint('/admin/api/node/5/workflow/transitions', () => ({
+registerEndpoint('/api/node/5/workflow/transitions', () => ({
   data: [publishTransition, archiveTransition],
   meta: { workflow_state: 'review' },
 }))
 
-registerEndpoint('/admin/api/node/6/workflow/transitions', () => ({
+registerEndpoint('/api/node/6/workflow/transitions', () => ({
   data: [],
   meta: {},
 }))
 
-registerEndpoint('/admin/api/node/missing/workflow/transitions', (event: unknown) => {
+registerEndpoint('/api/node/malformed/workflow/transitions', () => '<!doctype html><title>Admin</title>')
+
+registerEndpoint('/api/node/forbidden/workflow/transitions', (event: unknown) => {
+  const e = event as { node?: { res?: { statusCode: number } } }
+  if (e.node?.res) e.node.res.statusCode = 403
+  throw createError({
+    status: 403,
+    data: { errors: [{ detail: 'Workflow discovery is forbidden.' }] },
+  })
+})
+
+registerEndpoint('/api/node/missing/workflow/transitions', (event: unknown) => {
   const e = event as { node?: { res?: { statusCode: number } } }
   if (e.node?.res) e.node.res.statusCode = 404
   throw createError({ status: 404, message: 'not found' })
 })
 
-registerEndpoint('/admin/api/node/5/workflow/transition', {
+registerEndpoint('/api/node/5/workflow/transition', {
   method: 'POST',
   handler: () => ({ data: { transition: 'publish', from: 'review', to: 'published' } }),
 })
 
-registerEndpoint('/admin/api/node/7/workflow/transition', {
+registerEndpoint('/api/node/7/workflow/transition', {
   method: 'POST',
   handler: (event: unknown) => {
     const e = event as { node?: { res?: { statusCode: number } } }
@@ -82,6 +93,27 @@ describe('useWorkflowTransitions', () => {
     const result = await fetchTransitions('node', 'missing')
     expect(result.transitions).toEqual([])
     expect(error.value).toBeNull()
+  })
+
+  it('reports a structured 403 discovery failure explicitly', async () => {
+    const { useWorkflowTransitions } = await import('~/composables/useWorkflowTransitions')
+    const { fetchTransitions, error, errorKind } = useWorkflowTransitions()
+    await fetchTransitions('node', 'forbidden')
+    expect(error.value).toBe('Workflow discovery is forbidden.')
+    expect(errorKind.value).toBe('forbidden')
+  })
+
+  it('rejects an HTML or malformed discovery document instead of treating it as no transitions', async () => {
+    const { useWorkflowTransitions } = await import('~/composables/useWorkflowTransitions')
+    const { fetchTransitions, error, errorKind } = useWorkflowTransitions()
+    await fetchTransitions('node', 'malformed')
+    expect(error.value).toBeTruthy()
+    expect(errorKind.value).toBe('malformed_response')
+  })
+
+  it('reports network failure separately from an empty transition list', async () => {
+    const { classifyWorkflowTransitionError } = await import('~/composables/useWorkflowTransitions')
+    expect(classifyWorkflowTransitionError(new TypeError('Network connection failed'), 0)).toBe('network')
   })
 
   it('applyTransition posts to the transition endpoint and returns the result', async () => {

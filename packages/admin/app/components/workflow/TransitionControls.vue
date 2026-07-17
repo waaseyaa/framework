@@ -17,7 +17,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useLanguage()
-const { transitions, error: fetchError, fetchTransitions, applyTransition } = useWorkflowTransitions()
+const { transitions, state, loading, error: fetchError, fetchTransitions, applyTransition } = useWorkflowTransitions()
 
 const loaded = ref(false)
 const pending = ref(false)
@@ -31,6 +31,8 @@ async function load() {
 onMounted(load)
 
 async function apply(transitionId: string) {
+  if (pending.value) return
+
   pending.value = true
   applyError.value = null
   try {
@@ -47,13 +49,23 @@ async function apply(transitionId: string) {
 </script>
 
 <template>
-  <div v-if="loaded && (transitions.length > 0 || fetchError)" class="transition-controls" data-testid="transition-controls">
+  <div
+    v-if="!loaded || loading"
+    class="transition-status"
+    role="status"
+    aria-live="polite"
+  >
+    {{ t('workflow_transitions_loading') }}
+  </div>
+
+  <div v-else-if="transitions.length > 0 || fetchError" class="transition-controls" data-testid="transition-controls">
     <button
       v-for="transition in transitions"
       :key="transition.id"
       type="button"
       class="btn btn-sm"
       :disabled="pending"
+      :aria-label="`${transition.label}: ${transition.to}`"
       :data-testid="`transition-btn-${transition.id}`"
       @click="apply(transition.id)"
     >
@@ -61,8 +73,18 @@ async function apply(transitionId: string) {
       <span class="transition-target">&rarr; {{ transition.to }}</span>
     </button>
 
-    <div v-if="applyError" class="error" data-testid="transition-error">{{ applyError }}</div>
-    <div v-if="fetchError" class="error" data-testid="transition-fetch-error">{{ fetchError }}</div>
+    <div v-if="applyError" class="error" role="alert" aria-live="assertive" data-testid="transition-error">{{ applyError }}</div>
+    <div v-if="fetchError" class="error" role="alert" aria-live="assertive" data-testid="transition-fetch-error">{{ fetchError }}</div>
+  </div>
+
+  <div
+    v-else-if="state !== null"
+    class="transition-status"
+    role="status"
+    aria-live="polite"
+    data-testid="transition-empty"
+  >
+    {{ t('workflow_transitions_empty') }}
   </div>
 </template>
 

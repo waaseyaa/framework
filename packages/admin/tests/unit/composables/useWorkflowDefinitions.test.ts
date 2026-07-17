@@ -18,7 +18,7 @@ const editorial = {
   ],
 }
 
-registerEndpoint('/admin/api/workflow-definitions', () => ({ data: [editorial] }))
+registerEndpoint('/api/workflow-definitions', () => ({ data: [editorial] }))
 
 beforeEach(() => {
   vi.resetModules()

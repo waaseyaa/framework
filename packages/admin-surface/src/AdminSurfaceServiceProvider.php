@@ -14,6 +14,7 @@ use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Routing\RouteBuilder;
 use Waaseyaa\Routing\WaaseyaaRouter;
+use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 
 /**
  * Registers admin surface routes with a generic CRUD host.
@@ -98,6 +99,7 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
     public function routes(WaaseyaaRouter $router, EntityTypeManagerInterface $entityTypeManager): void
     {
         $fieldDefinitionRegistry = $this->resolveOptional(FieldDefinitionRegistryInterface::class);
+        $workflowBindingResolver = $this->resolveOptional(WorkflowBindingResolver::class);
         $host = new GenericAdminSurfaceHost(
             entityTypeManager: $entityTypeManager,
             accessHandler: $this->discoverAccessHandler(),
@@ -106,6 +108,9 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
                     ? $fieldDefinitionRegistry
                     : null,
             ),
+            workflowBindingResolver: $workflowBindingResolver instanceof WorkflowBindingResolver
+                ? $workflowBindingResolver
+                : null,
         );
 
         self::registerRoutes($router, $host);
@@ -151,7 +156,7 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
 
                 return AdminSpaFallback::htmlResponse($appName);
             })
-            ->requirement('path', '(?!_surface(/|$)).*')
+            ->requirement('path', '(?!(?:_surface|api)(?:/|$)).*')
             ->default('path', '')
             ->build());
     }

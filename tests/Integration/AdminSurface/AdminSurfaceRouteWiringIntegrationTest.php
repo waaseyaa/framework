@@ -15,9 +15,12 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AdminSurface\AdminSurfaceRoutePaths;
 use Waaseyaa\AdminSurface\AdminSurfaceServiceProvider;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
+use Waaseyaa\Config\ConfigFactoryInterface;
+use Waaseyaa\Config\ConfigInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
@@ -25,6 +28,8 @@ use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistry;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Routing\WaaseyaaRouter;
+use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
+use Waaseyaa\Workflows\Workflow;
 
 /**
  * Cross-package wiring integration test for the admin-surface seam.
@@ -230,6 +235,7 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
         $requirement = $spa->getRequirement('path');
         self::assertNotNull($requirement);
         self::assertStringContainsString('_surface', $requirement);
+        self::assertStringContainsString('api', $requirement);
     }
 
     #[Test]
@@ -250,6 +256,14 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
     }
 
     #[Test]
+    public function adminApiLookingPathsNeverMatchTheSpaHtmlShell(): void
+    {
+        $this->expectException(\Waaseyaa\Routing\Exception\RouteNotFoundException::class);
+
+        $this->router->match('/admin/api/node/1/workflow/transitions');
+    }
+
+    #[Test]
     public function mountedSchemaActionDiscoversBundlesAndLoadsTheSelectedBundleFields(): void
     {
         $registry = new FieldDefinitionRegistry();
@@ -262,6 +276,10 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
             label: 'Article',
             class: TestEntity::class,
             keys: TestEntity::definitionKeys(),
+            _fieldDefinitions: [
+                'workflow_state' => ['type' => 'string', 'label' => 'Workflow state'],
+                'status' => ['type' => 'boolean', 'label' => 'Published'],
+            ],
         ));
         $registry->registerBundleFields('article', 'page', [
             new FieldDefinition(
@@ -283,12 +301,29 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
         ]);
 
         $accessHandler = new EntityAccessHandler([]);
+        $config = $this->createStub(ConfigInterface::class);
+        $config->method('getRawData')->willReturn(['article.page' => 'editorial']);
+        $configFactory = $this->createStub(ConfigFactoryInterface::class);
+        $configFactory->method('get')->willReturn($config);
+        $workflowRepository = $this->createStub(EntityRepositoryInterface::class);
+        $workflowRepository->method('find')->willReturn(new Workflow(['id' => 'editorial', 'label' => 'Editorial']));
+        $bindingManager = $this->createStub(\Waaseyaa\Entity\EntityTypeManagerInterface::class);
+        $bindingManager->method('getDefinition')->willReturn(new EntityType(
+            id: 'article',
+            label: 'Article',
+            class: TestEntity::class,
+            keys: [...TestEntity::definitionKeys(), 'revision' => 'revision_id'],
+            revisionable: true,
+        ));
+        $bindingManager->method('getRepository')->willReturn($workflowRepository);
+        $bindingResolver = new WorkflowBindingResolver($configFactory, $bindingManager);
         $provider = new AdminSurfaceServiceProvider();
         $provider->setKernelContext(sys_get_temp_dir(), [], []);
-        $provider->setKernelServices(new class ($registry, $accessHandler) implements KernelServicesInterface {
+        $provider->setKernelServices(new class ($registry, $accessHandler, $bindingResolver) implements KernelServicesInterface {
             public function __construct(
                 private readonly FieldDefinitionRegistryInterface $registry,
                 private readonly EntityAccessHandler $accessHandler,
+                private readonly WorkflowBindingResolver $bindingResolver,
             ) {}
 
             public function get(string $abstract): ?object
@@ -296,6 +331,7 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
                 return match ($abstract) {
                     FieldDefinitionRegistryInterface::class => $this->registry,
                     EntityAccessHandler::class => $this->accessHandler,
+                    WorkflowBindingResolver::class => $this->bindingResolver,
                     default => null,
                 };
             }
@@ -331,6 +367,22 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
         self::assertTrue($page['ok']);
         self::assertArrayHasKey('page_body', $page['data']['properties']);
         self::assertArrayNotHasKey('post_excerpt', $page['data']['properties']);
+        self::assertSame(['bound' => true, 'id' => 'editorial'], $page['data']['x-workflow']);
+        self::assertArrayNotHasKey('workflow_state', $page['data']['properties']);
+        self::assertArrayNotHasKey('status', $page['data']['properties']);
+
+        $postRequest = Request::create(
+            '/admin/_surface/article/action/schema',
+            'POST',
+            content: json_encode(['bundle' => 'post'], JSON_THROW_ON_ERROR),
+        );
+        $postRequest->attributes->set('_account', $account);
+        $post = $controller($postRequest, 'article', 'schema');
+
+        self::assertTrue($post['ok']);
+        self::assertSame(['bound' => false, 'id' => null], $post['data']['x-workflow']);
+        self::assertArrayHasKey('workflow_state', $post['data']['properties']);
+        self::assertArrayHasKey('status', $post['data']['properties']);
     }
 
     /**

@@ -34,6 +34,10 @@ export interface EntitySchema {
    * `SchemaList`. Added in M3A (#1413).
    */
   'x-bundle-key'?: string | null
+  'x-workflow'?: {
+    bound: boolean
+    id: string | null
+  }
   properties: Record<string, SchemaProperty>
   required?: string[]
 }

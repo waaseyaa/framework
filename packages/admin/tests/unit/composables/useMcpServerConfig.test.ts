@@ -22,7 +22,7 @@ const configSeed = {
 
 let nextStatus = 200
 
-registerEndpoint('/admin/api/mcp/server-config', () => {
+registerEndpoint('/api/mcp/server-config', () => {
   if (nextStatus !== 200) {
     throw createError({ status: nextStatus, message: 'server error' })
   }

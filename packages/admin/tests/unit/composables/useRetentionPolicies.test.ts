@@ -18,12 +18,12 @@ interface StoredAttrs {
 let listResource: Array<{ type: string, id: string, attributes: StoredAttrs }> = []
 let deletedIds: string[] = []
 
-registerEndpoint('/admin/api/classification/policies', {
+registerEndpoint('/api/classification/policies', {
   method: 'GET',
   handler: () => ({ data: listResource }),
 })
 
-registerEndpoint('/admin/api/classification/policies', {
+registerEndpoint('/api/classification/policies', {
   method: 'POST',
   handler: () => ({
     data: {
@@ -41,7 +41,7 @@ registerEndpoint('/admin/api/classification/policies', {
   }),
 })
 
-registerEndpoint('/admin/api/classification/policies/p1', {
+registerEndpoint('/api/classification/policies/p1', {
   method: 'DELETE',
   handler: () => {
     deletedIds.push('p1')
