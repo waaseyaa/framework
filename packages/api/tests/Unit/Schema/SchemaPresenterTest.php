@@ -277,6 +277,29 @@ final class SchemaPresenterTest extends TestCase
     }
 
     #[Test]
+    public function present_exposes_authoritative_field_cardinality(): void
+    {
+        $entityType = $this->createEntityType();
+        $schema = $this->presenter->present($entityType, [
+            'attachment' => [
+                'type' => 'entity_reference',
+                'label' => 'Attachments',
+                'cardinality' => -1,
+                'settings' => ['target_type' => 'media'],
+            ],
+            'author' => [
+                'type' => 'entity_reference',
+                'label' => 'Author',
+                'cardinality' => 1,
+                'settings' => ['target_type' => 'user'],
+            ],
+        ]);
+
+        self::assertSame(-1, $schema['properties']['attachment']['x-cardinality']);
+        self::assertSame(1, $schema['properties']['author']['x-cardinality']);
+    }
+
+    #[Test]
     public function presentWithFieldConstraints(): void
     {
         $entityType = $this->createEntityType();

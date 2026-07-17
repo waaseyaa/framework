@@ -22,6 +22,12 @@ const formData = ref<Record<string, any>>({})
 const saving = ref(false)
 const loadError = ref<string | null>(null)
 const isEditMode = computed(() => !!props.entityId)
+const bundleKey = computed(() => schema.value?.['x-bundle-key'] ?? null)
+const selectedBundle = computed(() => {
+  const key = bundleKey.value
+  const value = key ? formData.value[key] : null
+  return typeof value === 'string' && value !== '' ? value : null
+})
 // True for the whole initial load (schema, plus the existing record in edit
 // mode). Keeps the form in one busy state instead of flashing blank between
 // the schema and entity fetches.
@@ -30,6 +36,9 @@ const loading = ref(true)
 provide(schemaFormContextKey, {
   formData,
   isEditMode,
+  entityType: props.entityType,
+  bundleKey,
+  selectedBundle,
 })
 
 function valuesForSchema(

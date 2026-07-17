@@ -18,6 +18,7 @@ use Waaseyaa\Api\JsonApiResource;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Api\Schema\SchemaPresenter;
 use Waaseyaa\Entity\ConfigEntityBase;
+use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 
@@ -115,6 +116,15 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
                 $entity->group($group);
             }
 
+            $referenceField = $this->safeReferenceLabelField($definition);
+            if ($referenceField !== null) {
+                $entity->reference(
+                    labelField: $referenceField,
+                    searchField: $referenceField,
+                    sortField: $referenceField,
+                );
+            }
+
             foreach ($definition->getFieldDefinitions() as $name => $fieldDef) {
                 $entity->field(
                     $name,
@@ -140,6 +150,31 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         }
 
         return $catalog;
+    }
+
+    /**
+     * Resolve reference metadata from the entity type's canonical label key.
+     *
+     * This is structural metadata only. Entity and field access remain
+     * enforced by list(); unsafe/internal fields are omitted rather than
+     * advertised and clients must not guess a replacement.
+     */
+    private function safeReferenceLabelField(EntityTypeInterface $definition): ?string
+    {
+        $labelField = $definition->getKeys()['label'] ?? null;
+        if (!is_string($labelField)
+            || $labelField === ''
+            || preg_match('/^[A-Za-z0-9_]+$/', $labelField) !== 1
+            || in_array($labelField, self::ALWAYS_INTERNAL_FIELDS, true)) {
+            return null;
+        }
+
+        $fieldDefinition = $definition->getFieldDefinitions()[$labelField] ?? null;
+        if ($fieldDefinition !== null && $fieldDefinition->getSetting('internal') === true) {
+            return null;
+        }
+
+        return $labelField;
     }
 
     public function list(string $type, SurfaceQuery|array $query = []): AdminSurfaceResultData
@@ -317,6 +352,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
                 SurfaceFilterOperator::EQUALS => '=',
                 SurfaceFilterOperator::NOT_EQUALS => '!=',
                 SurfaceFilterOperator::CONTAINS => 'CONTAINS',
+                SurfaceFilterOperator::STARTS_WITH => 'STARTS_WITH',
                 SurfaceFilterOperator::IN => 'IN',
                 SurfaceFilterOperator::GT => '>',
                 SurfaceFilterOperator::LT => '<',
@@ -356,6 +392,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             SurfaceFilterOperator::NOT_EQUALS => $fieldValue !== $filterValue,
             SurfaceFilterOperator::IN => in_array($fieldValue, explode(',', $filterValue), true),
             SurfaceFilterOperator::CONTAINS => mb_stripos($fieldValue, $filterValue) !== false,
+            SurfaceFilterOperator::STARTS_WITH => mb_stripos($fieldValue, $filterValue) === 0,
             SurfaceFilterOperator::GT => $this->compareOrderedFilterValues($fieldValue, $filterValue) > 0,
             SurfaceFilterOperator::LT => $this->compareOrderedFilterValues($fieldValue, $filterValue) < 0,
             SurfaceFilterOperator::GTE => $this->compareOrderedFilterValues($fieldValue, $filterValue) >= 0,
@@ -524,6 +561,20 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
      */
     private function handleSchema(string $type, array $payload = []): AdminSurfaceResultData
     {
+        $bundle = $this->resolveSchemaBundle($type, $payload);
+        if ($this->isCreateBundleSchemaRequest($payload)) {
+            if ($this->accessHandler === null
+                || $this->currentAccount === null
+                || $bundle === null
+                || !$this->accessHandler->checkCreateAccess($type, $bundle, $this->currentAccount)->isAllowed()) {
+                return AdminSurfaceResultData::error(
+                    403,
+                    'Access denied',
+                    'You do not have permission to create this entity.',
+                );
+            }
+        }
+
         $presenter = $this->schemaPresenter ?? new SchemaPresenter();
         $controller = new SchemaController(
             $this->entityTypeManager,
@@ -531,7 +582,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             $this->accessHandler,
             $this->currentAccount,
         );
-        $doc = $controller->show($type, $this->resolveSchemaBundle($type, $payload));
+        $doc = $controller->show($type, $bundle);
         if ($doc->errors !== []) {
             return $this->jsonApiDocumentToSurfaceError($doc);
         }
@@ -542,7 +593,6 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         }
 
         if ($this->workflowBindingResolver !== null) {
-            $bundle = $this->resolveSchemaBundle($type, $payload);
             $definition = $this->entityTypeManager->getDefinition($type);
             $bindingBundle = $bundle
                 ?? (isset($definition->getKeys()['bundle']) ? '*' : $type);
@@ -566,45 +616,54 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         return AdminSurfaceResultData::success($schema);
     }
 
+    /** @param array<string, mixed> $payload */
+    private function isCreateBundleSchemaRequest(array $payload): bool
+    {
+        $bundle = $payload['bundle'] ?? null;
+        $id = $payload['id'] ?? null;
+
+        return is_string($bundle)
+            && $bundle !== ''
+            && (!is_string($id) || $id === '');
+    }
+
     /**
      * Resolve the bundle to scope the schema to, so a bundled content type
      * (e.g. a node of bundle "page") exposes its per-bundle fields in the editor
      * form instead of only the shared core fields.
      *
-     * Generic: an explicit `bundle` in the payload wins (used for create forms);
-     * otherwise, when an entity `id` is given, the bundle is read from that
-     * entity, so the client never needs to know which attribute is the bundle
-     * key. Returns null for non-bundled types or when nothing resolves, leaving
-     * the base (core-field) schema behaviour unchanged.
+     * Generic: when an entity `id` is given, its stored bundle is authoritative
+     * for edit schemas; an accompanying caller-supplied bundle cannot redirect
+     * the request to another bundle's fields. Without an id, an explicit
+     * `bundle` scopes create discovery after handleSchema() checks create access.
+     * Returns null for non-bundled types or when nothing resolves, leaving the
+     * base (core-field) schema behaviour unchanged.
      *
      * @param array<string, mixed> $payload
      */
     private function resolveSchemaBundle(string $type, array $payload): ?string
     {
-        $bundleHint = $payload['bundle'] ?? null;
-        if (is_string($bundleHint) && $bundleHint !== '') {
-            return $bundleHint;
-        }
-
         $id = $payload['id'] ?? null;
-        if (!is_string($id) || $id === '') {
-            return null;
-        }
+        if (is_string($id) && $id !== '') {
+            try {
+                $entity = $this->findByIdOrUuid($type, $id);
+                if ($entity === null) {
+                    return null;
+                }
+                $bundle = $entity->bundle();
 
-        try {
-            $entity = $this->findByIdOrUuid($type, $id);
-            if ($entity === null) {
+                // A bundle equal to the entity type id means "no real bundle"
+                // (unbundled types report the type as their bundle).
+                return ($bundle !== '' && $bundle !== $type) ? $bundle : null;
+            } catch (\Throwable) {
+                // Best-effort: fall back to the base schema if the lookup fails.
                 return null;
             }
-            $bundle = $entity->bundle();
-
-            // A bundle equal to the entity type id means "no real bundle"
-            // (unbundled types report the type as their bundle).
-            return ($bundle !== '' && $bundle !== $type) ? $bundle : null;
-        } catch (\Throwable) {
-            // Best-effort: fall back to the base schema if the lookup fails.
-            return null;
         }
+
+        $bundleHint = $payload['bundle'] ?? null;
+
+        return is_string($bundleHint) && $bundleHint !== '' ? $bundleHint : null;
     }
 
     /**

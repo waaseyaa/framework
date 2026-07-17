@@ -30,8 +30,15 @@ export function useEntity() {
     return transport.remove(type, id)
   }
 
-  async function search(type: string, labelField: string, query: string, limit: number = 10): Promise<EntityResource[]> {
-    return transport.search(type, labelField, query, limit)
+  async function search(
+    type: string,
+    field: string,
+    query: string,
+    limit: number = 10,
+    operator: 'STARTS_WITH' = 'STARTS_WITH',
+    sort: { field: string; direction: 'ASC' } | null = { field, direction: 'ASC' },
+  ): Promise<EntityResource[]> {
+    return transport.search(type, field, query, limit, operator, sort)
   }
 
   async function runAction(type: string, action: string, payload?: Record<string, unknown>): Promise<unknown> {

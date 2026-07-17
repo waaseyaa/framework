@@ -389,6 +389,9 @@ final class SchemaPresenter
     {
         $schema = [
             'type' => self::TYPE_MAP[$fieldType] ?? 'string',
+            // Preserve the canonical FieldDefinition cardinality so generic
+            // widgets can distinguish scalar and multi-value authoring.
+            'x-cardinality' => $definition->getCardinality(),
         ];
 
         // Add format if applicable.

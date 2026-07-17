@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\AdminSurface\Tests\Unit\Query;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
@@ -14,6 +15,16 @@ use Waaseyaa\AdminSurface\Query\SurfaceQueryParser;
 #[CoversClass(SurfaceQueryParser::class)]
 final class SurfaceQueryParserTest extends TestCase
 {
+    /**
+     * @return iterable<string, array{array<string, mixed>}>
+     */
+    public static function malformedFilters(): iterable
+    {
+        yield 'scalar condition' => [['filter' => ['title' => 'secret']]];
+        yield 'operator without value' => [['filter' => ['title' => ['operator' => 'EQUALS']]]];
+        yield 'value without operator' => [['filter' => ['title' => ['value' => 'secret']]]];
+    }
+
     #[Test]
     public function empty_request_returns_default_query(): void
     {
@@ -43,6 +54,20 @@ final class SurfaceQueryParserTest extends TestCase
     }
 
     #[Test]
+    public function parses_the_canonical_prefix_filter(): void
+    {
+        $request = Request::create('/admin/_surface/media', 'GET', [
+            'filter' => [
+                'name' => ['operator' => 'STARTS_WITH', 'value' => 'Birch'],
+            ],
+        ]);
+
+        $query = SurfaceQueryParser::fromRequest($request);
+
+        self::assertSame(SurfaceFilterOperator::STARTS_WITH, $query->filters[0]['operator']);
+    }
+
+    #[Test]
     public function parses_multiple_filters(): void
     {
         $request = Request::create('/admin/surface/lead', 'GET', [
@@ -57,16 +82,30 @@ final class SurfaceQueryParserTest extends TestCase
     }
 
     #[Test]
-    public function ignores_invalid_operator(): void
+    public function rejects_invalid_operator_instead_of_silently_broadening_the_query(): void
     {
         $request = Request::create('/admin/surface/lead', 'GET', [
             'filter' => [
                 'stage' => ['operator' => 'LIKE', 'value' => 'lead'],
             ],
         ]);
-        $query = SurfaceQueryParser::fromRequest($request);
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Unsupported filter operator.');
 
-        $this->assertSame([], $query->filters);
+        SurfaceQueryParser::fromRequest($request);
+    }
+
+    /** @param array<string, mixed> $query */
+    #[Test]
+    #[DataProvider('malformedFilters')]
+    public function rejects_malformed_filter_conditions_instead_of_silently_broadening_the_query(array $query): void
+    {
+        $request = Request::create('/admin/_surface/media', 'GET', $query);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Malformed filter condition.');
+
+        SurfaceQueryParser::fromRequest($request);
     }
 
     #[Test]

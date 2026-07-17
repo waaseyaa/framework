@@ -133,6 +133,15 @@ final class SchemaController
             $this->account,
         );
 
+        // A base schema is the bundled-create discovery surface. Filter its
+        // structural roster through the same bundle-aware create access check
+        // used by persistence. A requested bundle, however, also scopes edit
+        // schemas and must not be rejected merely because the actor cannot
+        // create another entity in that bundle.
+        if ($bundle === null && $this->accessHandler !== null && $this->account !== null) {
+            $schema = $this->filterCreateBundles($entityTypeId, $schema);
+        }
+
         $self = "/api/schema/{$entityTypeId}";
         if ($bundle !== null) {
             $self .= '?bundle=' . rawurlencode($bundle);
@@ -147,6 +156,53 @@ final class SchemaController
             ],
             statusCode: 200,
         );
+    }
+
+    /**
+     * @param array<string, mixed> $schema
+     * @return array<string, mixed>
+     */
+    private function filterCreateBundles(string $entityTypeId, array $schema): array
+    {
+        if ($this->accessHandler === null || $this->account === null) {
+            return $schema;
+        }
+
+        $availableBundles = $this->schemaPresenter->availableBundles($entityTypeId);
+        $bundleKey = $schema['x-bundle-key'] ?? null;
+        if ($availableBundles === null
+            || $availableBundles === []
+            || !is_string($bundleKey)
+            || !isset($schema['properties'][$bundleKey])
+            || !is_array($schema['properties'][$bundleKey])) {
+            return $schema;
+        }
+
+        $authorizedBundles = array_values(array_filter(
+            $availableBundles,
+            fn(string $candidate): bool => $this->accessHandler
+                ->checkCreateAccess($entityTypeId, $candidate, $this->account)
+                ->isAllowed(),
+        ));
+
+        if ($authorizedBundles !== []) {
+            $schema['properties'][$bundleKey]['enum'] = $authorizedBundles;
+
+            return $schema;
+        }
+
+        // Keep the structural key for bundled-create detection, but remove the
+        // selector/free-text affordance. A direct create remains protected by
+        // JsonApiController::store() and returns 403.
+        unset(
+            $schema['properties'][$bundleKey]['enum'],
+            $schema['properties'][$bundleKey]['x-label'],
+            $schema['properties'][$bundleKey]['x-required'],
+        );
+        $schema['properties'][$bundleKey]['x-widget'] = 'hidden';
+        $schema['properties'][$bundleKey]['readOnly'] = true;
+
+        return $schema;
     }
 
     /**

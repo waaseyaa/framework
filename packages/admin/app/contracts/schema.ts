@@ -18,6 +18,8 @@ export interface SchemaProperty {
   'x-access-restricted'?: boolean
   'x-source-field'?: string
   'x-list-display'?: boolean
+  /** 1 for scalar fields; -1 or a value greater than 1 for multi-value fields. */
+  'x-cardinality'?: number
 }
 
 export interface EntitySchema {

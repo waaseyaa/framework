@@ -7,6 +7,8 @@ namespace Waaseyaa\Media\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Api\Schema\SchemaPresenter;
+use Waaseyaa\Field\FieldStorage;
 use Waaseyaa\Media\Media;
 use Waaseyaa\Media\MediaServiceProvider;
 use Waaseyaa\Media\MediaType;
@@ -31,5 +33,30 @@ final class MediaServiceProviderTest extends TestCase
         $this->assertSame(MediaType::class, $entityTypes[1]->getClass());
         $this->assertSame('media_version', $entityTypes[2]->id());
         $this->assertSame(MediaVersion::class, $entityTypes[2]->getClass());
+    }
+
+    #[Test]
+    public function media_registration_exposes_its_bundle_provider_and_generic_upload_field(): void
+    {
+        $provider = new MediaServiceProvider();
+        $provider->register();
+        $mediaType = $provider->getEntityTypes()[0];
+
+        $this->assertSame('media_type', $mediaType->getBundleEntityType());
+
+        $definitions = $mediaType->getFieldDefinitions();
+        $this->assertArrayHasKey('name', $definitions);
+        $this->assertTrue($definitions['name']->isRequired());
+        $this->assertArrayHasKey('bundle', $definitions);
+        $this->assertTrue($definitions['bundle']->isRequired());
+        $this->assertArrayHasKey('source_uri', $definitions);
+        $this->assertSame('string', $definitions['source_uri']->getType());
+        $this->assertSame('file', $definitions['source_uri']->getSetting('widget'));
+        $this->assertSame(FieldStorage::Data, $definitions['source_uri']->getStored());
+
+        $schema = new SchemaPresenter()->present($mediaType, $definitions);
+        $this->assertArrayHasKey('name', $schema['properties']);
+        $this->assertArrayHasKey('bundle', $schema['properties']);
+        $this->assertSame('file', $schema['properties']['source_uri']['x-widget']);
     }
 }

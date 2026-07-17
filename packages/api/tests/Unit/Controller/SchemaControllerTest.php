@@ -157,6 +157,90 @@ final class SchemaControllerTest extends TestCase
     }
 
     #[Test]
+    public function base_create_schema_exposes_only_authorized_bundles_without_gating_requested_edit_schema(): void
+    {
+        $registry = new FieldDefinitionRegistry();
+        $manager = new EntityTypeManager(
+            new EventDispatcher(),
+            fn() => new InMemoryEntityStorage('article'),
+            fieldRegistry: $registry,
+        );
+        $manager->registerEntityType(new EntityType(
+            id: 'article',
+            label: 'Article',
+            class: TestEntity::class,
+            keys: TestEntity::definitionKeys(),
+        ));
+        foreach (['page', 'restricted'] as $bundle) {
+            $registry->registerBundleFields('article', $bundle, [
+                new FieldDefinition(
+                    name: $bundle . '_body',
+                    type: 'text',
+                    targetEntityTypeId: 'article',
+                    targetBundle: $bundle,
+                ),
+            ]);
+        }
+
+        $account = $this->createStub(AccountInterface::class);
+        $handler = $this->createMock(EntityAccessHandler::class);
+        $handler->method('checkFieldAccess')->willReturn(AccessResult::neutral());
+        $handler->expects(self::exactly(2))->method('checkCreateAccess')->willReturnCallback(
+            static fn(string $type, string $bundle, AccountInterface $actor): AccessResult => $bundle === 'page'
+                ? AccessResult::allowed('page create allowed')
+                : AccessResult::forbidden('restricted create denied'),
+        );
+        $controller = new SchemaController($manager, new SchemaPresenter($registry), $handler, $account);
+
+        $base = $controller->show('article')->toArray()['meta']['schema'];
+        self::assertSame(['page'], $base['properties']['type']['enum']);
+
+        // Supplying a bundle scopes an existing/edit schema. It must remain
+        // structurally available even when the actor cannot create that bundle.
+        $requested = $controller->show('article', 'restricted');
+        self::assertSame(200, $requested->statusCode);
+        self::assertArrayHasKey('restricted_body', $requested->toArray()['meta']['schema']['properties']);
+    }
+
+    #[Test]
+    public function base_create_schema_with_no_authorized_bundles_has_no_editable_bundle_field(): void
+    {
+        $registry = new FieldDefinitionRegistry();
+        $manager = new EntityTypeManager(
+            new EventDispatcher(),
+            fn() => new InMemoryEntityStorage('article'),
+            fieldRegistry: $registry,
+        );
+        $manager->registerEntityType(new EntityType(
+            id: 'article',
+            label: 'Article',
+            class: TestEntity::class,
+            keys: TestEntity::definitionKeys(),
+        ));
+        $registry->registerBundleFields('article', 'restricted', [
+            new FieldDefinition(
+                name: 'restricted_body',
+                type: 'text',
+                targetEntityTypeId: 'article',
+                targetBundle: 'restricted',
+            ),
+        ]);
+
+        $account = $this->createStub(AccountInterface::class);
+        $handler = $this->createMock(EntityAccessHandler::class);
+        $handler->method('checkFieldAccess')->willReturn(AccessResult::neutral());
+        $handler->method('checkCreateAccess')->willReturn(AccessResult::forbidden('no bundle create access'));
+        $controller = new SchemaController($manager, new SchemaPresenter($registry), $handler, $account);
+
+        $schema = $controller->show('article')->toArray()['meta']['schema'];
+        $bundleProperty = $schema['properties']['type'];
+
+        self::assertArrayNotHasKey('enum', $bundleProperty);
+        self::assertSame('hidden', $bundleProperty['x-widget']);
+        self::assertTrue($bundleProperty['readOnly']);
+    }
+
+    #[Test]
     public function showIncludesFieldDefinitionsInSchema(): void
     {
         $storage = new InMemoryEntityStorage('node');

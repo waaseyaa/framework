@@ -16,8 +16,15 @@ final class MediaServiceProvider extends ServiceProvider implements HasHttpDomai
 {
     public function httpDomainRouters(HttpKernel $httpKernel): iterable
     {
+        $mediaTypeRepository = $httpKernel->getEntityTypeManager()->getRepository('media_type');
+
         return [
-            new MediaRouter($httpKernel->getProjectRoot(), $httpKernel->getConfig()),
+            new MediaRouter(
+                $httpKernel->getProjectRoot(),
+                $httpKernel->getConfig(),
+                accessHandler: $httpKernel->getAccessHandler(),
+                bundleExists: static fn(string $bundle): bool => $mediaTypeRepository->find($bundle) !== null,
+            ),
             new MediaDownloadRouter(
                 $httpKernel->getEntityTypeManager(),
                 $httpKernel->getAccessHandler(),
@@ -43,14 +50,10 @@ final class MediaServiceProvider extends ServiceProvider implements HasHttpDomai
             maxSizeBytes: $this->config['media']['max_size'] ?? UploadHandler::DEFAULT_MAX_SIZE,
         ));
 
-        $this->entityType(new EntityType(
-            id: 'media',
-            label: 'Media',
-            description: 'Uploaded files, images, and embedded media',
-            class: Media::class,
-            keys: ['id' => 'mid', 'uuid' => 'uuid', 'label' => 'name', 'bundle' => 'bundle'],
+        $this->entityType(EntityType::fromClass(
+            Media::class,
             group: 'media',
-            api: true,
+            bundleEntityType: 'media_type',
         ));
 
         $this->entityType(new EntityType(

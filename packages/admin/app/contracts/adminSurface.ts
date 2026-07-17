@@ -30,6 +30,11 @@ export interface AdminSurfaceCatalogEntry {
   fields: AdminSurfaceField[]
   actions: AdminSurfaceAction[]
   capabilities: AdminSurfaceCapabilities
+  reference?: {
+    labelField: string
+    search: { field: string; operator: 'STARTS_WITH' } | null
+    sort: { field: string; direction: 'ASC' } | null
+  }
 }
 
 export interface AdminSurfaceCapabilities {

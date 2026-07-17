@@ -106,7 +106,17 @@ abstract class AbstractAdminSurfaceHost
             return AdminSurfaceResultData::error(401, 'Unauthorized')->toArray();
         }
 
-        return $this->list($type, SurfaceQueryParser::fromRequest($request))->toArray();
+        try {
+            $query = SurfaceQueryParser::fromRequest($request);
+        } catch (\InvalidArgumentException) {
+            return AdminSurfaceResultData::error(
+                400,
+                'Invalid filter',
+                'The requested filter is malformed or unsupported.',
+            )->toArray();
+        }
+
+        return $this->list($type, $query)->toArray();
     }
 
     /**

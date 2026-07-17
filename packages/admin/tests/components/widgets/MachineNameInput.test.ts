@@ -20,6 +20,9 @@ async function mountWithContext(options: ContextOptions = {}) {
       provide(schemaFormContextKey, {
         formData,
         isEditMode: computed(() => isEditMode.value),
+        entityType: 'node',
+        bundleKey: computed(() => 'type'),
+        selectedBundle: computed(() => 'page'),
       })
 
       return () => h(MachineNameInput, {

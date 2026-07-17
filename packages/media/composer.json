@@ -14,6 +14,10 @@
         },
         {
             "type": "path",
+            "url": "../field"
+        },
+        {
+            "type": "path",
             "url": "../access"
         },
         {
@@ -32,6 +36,7 @@
     "require": {
         "php": ">=8.5",
         "waaseyaa/entity": "^0.1.0-alpha.266",
+        "waaseyaa/field": "^0.1.0-alpha.266",
         "waaseyaa/foundation": "^0.1.0-alpha.266",
         "waaseyaa/access": "^0.1.0-alpha.266",
         "waaseyaa/audit": "^0.1.0-alpha.266",

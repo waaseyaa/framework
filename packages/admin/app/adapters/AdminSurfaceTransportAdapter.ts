@@ -122,11 +122,18 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
     )
   }
 
-  async search(type: string, field: string, query: string, limit: number = 10): Promise<EntityResource[]> {
+  async search(
+    type: string,
+    field: string,
+    query: string,
+    limit: number = 10,
+    operator: 'STARTS_WITH' = 'STARTS_WITH',
+    sort: { field: string; direction: 'ASC' } | null = { field, direction: 'ASC' },
+  ): Promise<EntityResource[]> {
     if (query.length < 2) return []
     const result = await this.list(type, {
-      filter: { [field]: { operator: 'STARTS_WITH', value: query } },
-      sort: field,
+      filter: { [field]: { operator, value: query } },
+      ...(sort === null ? {} : { sort: sort.field }),
       page: { offset: 0, limit },
     })
     return result.data

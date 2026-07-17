@@ -146,6 +146,21 @@ describe('AdminSurfaceTransportAdapter', () => {
       expect(result).toEqual([])
       expect(fetchFn).not.toHaveBeenCalled()
     })
+
+    it('uses the authoritative media name field and omits sort when metadata forbids it', async () => {
+      const fetchFn = mockFetchResponse({
+        ok: true,
+        data: { entities: [], total: 0, offset: 0, limit: 10 },
+      })
+      const adapter = makeAdapter(fetchFn)
+
+      await adapter.search('media', 'name', 'ann', 10, 'STARTS_WITH', null)
+
+      const decoded = decodeURIComponent(fetchFn.mock.calls[0][0] as string)
+      expect(decoded).toContain('filter[name][operator]=STARTS_WITH')
+      expect(decoded).not.toContain('sort=')
+      expect(decoded).not.toContain('title')
+    })
   })
 
   describe('error handling', () => {

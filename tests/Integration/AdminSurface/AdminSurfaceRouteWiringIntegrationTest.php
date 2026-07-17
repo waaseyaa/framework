@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\RequestContext;
+use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AdminSurface\AdminSurfaceRoutePaths;
@@ -300,7 +301,9 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
             ),
         ]);
 
-        $accessHandler = new EntityAccessHandler([]);
+        $accessHandler = $this->createMock(EntityAccessHandler::class);
+        $accessHandler->method('checkCreateAccess')->willReturn(AccessResult::allowed('integration fixture allows create'));
+        $accessHandler->method('checkFieldAccess')->willReturn(AccessResult::neutral());
         $config = $this->createStub(ConfigInterface::class);
         $config->method('getRawData')->willReturn(['article.page' => 'editorial']);
         $configFactory = $this->createStub(ConfigFactoryInterface::class);
@@ -415,6 +418,10 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
             ]);
         }
 
+        $accessHandler = $this->createMock(EntityAccessHandler::class);
+        $accessHandler->method('checkCreateAccess')->willReturn(AccessResult::allowed('integration fixture allows create'));
+        $accessHandler->method('checkFieldAccess')->willReturn(AccessResult::neutral());
+
         $providers = new ProviderRegistry(new NullLogger())->discoverAndRegister(
             manifest: new PackageManifest(providers: [AdminSurfaceServiceProvider::class]),
             projectRoot: sys_get_temp_dir(),
@@ -422,7 +429,7 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
             entityTypeManager: $manager,
             database: \Waaseyaa\Database\DBALDatabase::createSqlite(),
             dispatcher: $dispatcher,
-            accessHandlerAccessor: static fn(): EntityAccessHandler => new EntityAccessHandler([]),
+            accessHandlerAccessor: static fn(): EntityAccessHandler => $accessHandler,
         );
         self::assertCount(1, $providers);
         self::assertInstanceOf(AdminSurfaceServiceProvider::class, $providers[0]);

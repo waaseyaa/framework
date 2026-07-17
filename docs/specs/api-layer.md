@@ -796,6 +796,7 @@ Follows JSON Schema draft-07 with custom extensions:
 | `x-translatable` | bool | Whether entity type supports translations (top-level) |
 | `x-revisionable` | bool | Whether entity type supports revisions (top-level) |
 | `x-target-type` | string | Target entity type for entity_reference fields |
+| `x-cardinality` | int | Authoritative field cardinality (`1` scalar; negative means unbounded) |
 | `x-enum-labels` | object | Human-readable labels for enum values |
 
 ### readOnly vs x-access-restricted
@@ -850,6 +851,14 @@ value outside that roster with 422 and emits no schema. The base (`bundle=null`)
 request remains the bundle-discovery schema. The mounted generic admin provider
 resolves the kernel registry and supplies it to the presenter; bare callers that
 intentionally omit the registry keep their compatibility behavior.
+
+With a complete access context, the base discovery schema filters that structural
+roster through `EntityAccessHandler::checkCreateAccess(entityType, bundle, account)`
+and exposes only allowed bundle enum values. If none are allowed, the bundle
+property is hidden/read-only with no enum, never an editable free-text field. A
+non-empty requested bundle remains a structural schema/edit scope and is not
+create-gated; the actual create endpoint independently rechecks bundle-aware
+create access before persistence.
 
 Creates a prototype entity for field access checking when `accessHandler`/`account` are both supplied. To keep the endpoint available for entity types whose constructors require certain fields to be present (`isset()`-gated invariants — e.g. `UserBlock`'s `blocker_id`, engagement `Comment`'s `user_id`/`body`), `show()` **seeds** `$protoValues` with a non-null, type-appropriate placeholder (`0` for integer, `false` for boolean, `''` otherwise — presence, not value validity, is what constructor gates test) for every declared field (`resolveFieldDefinitions($entityTypeId, $bundle)`) and every entity key (`getKeys()`), plus the requested bundle key. **Fails closed** as a last-resort backstop (audit-remediation batch 2026-07-02 R2, WP3): if construction STILL throws after seeding, `show()` logs the failure via `LoggerInterface` at ERROR (entity type, class, exception message — server-side only) and returns a `JsonApiError::internalError()` 500 document with a generic detail; it does NOT fall through to `SchemaPresenter::present()` with a null entity. This matters because `present()`'s field-access-filtering block is itself gated on `$entity !== null` (see "Field Access Filtering" below) — passing a null entity there silently skips ALL per-account field filtering, which would emit an unfiltered schema instead of an error. In the non-access-context path (`accessHandler`/`account` both null, no account to filter for) the base schema is presented as before — that path is unaffected. Returns the schema in `meta.schema` of a `JsonApiDocument` on success.
 

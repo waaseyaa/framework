@@ -250,7 +250,7 @@ interface JsonApiDocument {
 ```
 
 - `list()` uses offset-based pagination: `page[offset]`, `page[limit]`
-- `search()` uses `filter[{labelField}][operator]=STARTS_WITH` with 250ms debounce on the widget side. Minimum 2 characters required.
+- `search()` uses catalog `reference.search` and optional `reference.sort` metadata with 250ms debounce on the widget side. The generic canonical operator is `STARTS_WITH`; missing or malformed metadata disables the search. Minimum 2 characters required.
 - All methods should use `apiFetch` from `useApi()` for imperative data fetching (ensures correct `baseURL` and `credentials`).
 - **`get()` serves the working copy to editors (CW-v1 option-1, #1920 PR-3).** Both `SchemaView` (the entity page's "view" sub-mode) and `SchemaForm` (its "edit" sub-mode) call the SAME `useEntity().get()` — there is no client-side signal distinguishing them, and `AdminSurfaceTransportAdapter.get()`'s request shape/URL is unchanged. The server (`GenericAdminSurfaceHost::get()`) decides transparently: an account with entity UPDATE access receives the entity's working copy (the tip revision — draft content, if a forward draft is in flight); a view-only account keeps receiving the published (`find()`) entity. This is a deliberate deviation from JSON:API's `?workingCopy=1` opt-in param — documented as "unconditional for editors" — because the admin surface's single GET call backs both sub-modes, so a param would need a signal the transport does not carry. `update()`/`SchemaForm`'s save round trip needs no change either: it already delegates through `JsonApiController::update()`, whose PATCH target is now the working copy too. Full contract: `docs/specs/api-layer.md` "GET single"/"PATCH — update" (`?workingCopy=1`, the JSON:API-surface equivalent).
 
@@ -274,7 +274,7 @@ interface SchemaProperty {
   enum?: string[]; minimum?: number; maximum?: number; maxLength?: number
   'x-widget'?: string; 'x-label'?: string; 'x-description'?: string
   'x-weight'?: number; 'x-required'?: boolean; 'x-enum-labels'?: Record<string, string>
-  'x-target-type'?: string; 'x-access-restricted'?: boolean
+  'x-target-type'?: string; 'x-access-restricted'?: boolean; 'x-cardinality'?: number
 }
 interface EntitySchema {
   $schema: string; title: string; description: string; type: string
@@ -289,19 +289,24 @@ interface EntitySchema {
   record or `{ bundle }` for the second stage of create. The backend resolution
   lives in `GenericAdminSurfaceHost::handleSchema`: explicit `bundle` wins, else
   the bundle is read from the entity named by `id`. The base create schema exposes
-  `x-bundle-key` plus a required select whose enum is the registry's sorted bundle
-  roster. Selecting a value requests `{ bundle }`, replaces the schema with its
+  `x-bundle-key` plus a required select whose enum is the registry's bundle roster
+  filtered through `checkCreateAccess(entityType, bundle, account)`. Selecting a value requests `{ bundle }`, replaces the schema with its
   bundle-specific fields, preserves shared values/the selected bundle, and drops
   fields belonging only to a previously selected bundle before submission. A
   rejected scope replaces the form with its clear transport error. Types without
   a non-empty bundle enum retain the existing one-stage create behavior.
 - The generic host validates a bundled create against that same authoritative
   roster before repository creation: missing, empty, or unknown values under the
-  entity type's actual bundle key return 422. A registered selection continues
-  to the existing bundle-aware `checkCreateAccess()` boundary, where an account
-  without create permission receives 403. Discovery remains structural schema
-  metadata for the authenticated admin session; it does not add a second,
-  selector-specific authorization policy.
+  entity type's actual bundle key return 422. An explicit create-schema request
+  (`bundle` with no `id`) rechecks bundle-aware `checkCreateAccess()` before the
+  selected bundle's fields are presented and returns a generic 403 with no bundle
+  or field detail when denied; persistence checks the same boundary again. When no bundle is authorized, the base
+  schema retains the structural bundle key but hides and locks its property rather
+  than exposing an empty or free-text selector. An explicitly requested bundle
+  can also scope an edit schema, so that path validates structural membership but
+  does not require create permission. For id-scoped schemas the stored entity
+  bundle is authoritative over any caller-supplied bundle hint, preventing an
+  edit request from being redirected into another bundle's schema.
 - **Workflow-owned fields:** when the workflows binding resolver is available,
   a scoped schema includes `x-workflow: { bound, id }`. A bound schema omits
   `workflow_state` and `status` from `properties`: state and publication are
@@ -333,7 +338,7 @@ The root Nuxt plugin is the authoritative bootstrap for `$admin`. On non-public 
 
 This plugin is the source of truth for `$admin` injection and for composables that call `useAdmin()`.
 
-`runtime.catalog` preserves each `AdminSurfaceCatalogEntry` field and action declaration and carries the admin-facing metadata used by the SPA (`description`, `disabled`). Components that need action-aware UI state must derive it from the injected catalog rather than by issuing mount-time transport requests to discover whether an action exists. For contract builds, the admin package maintains a local TypeScript mirror of the admin-surface payload shape under `app/contracts/` so generated declarations do not import files from outside `packages/admin/app`.
+`runtime.catalog` preserves each `AdminSurfaceCatalogEntry` field and action declaration and carries the admin-facing metadata used by the SPA (`description`, `disabled`). The optional `reference` member is the authoritative entity-reference presentation/query contract: `labelField` names the display attribute, while nullable `search` (`field`, canonical `STARTS_WITH` operator) and `sort` (`field`, direction) members explicitly enable those operations. Missing or malformed metadata disables lookup; clients must never guess `title`, retry an unfiltered list, or fall back to an ID-derived catalogue. The generic host derives safe metadata from `EntityTypeInterface::getKeys()['label']`, omits malformed/internal/credential label keys, and leaves entity/field authorization to the existing server list boundary. Components that need action-aware UI state must derive it from the injected catalog rather than by issuing mount-time transport requests to discover whether an action exists. For contract builds, the admin package maintains a local TypeScript mirror of the admin-surface payload shape under `app/contracts/` so generated declarations do not import files from outside `packages/admin/app`.
 
 #### Admin Runtime Availability Contract
 
@@ -526,7 +531,7 @@ preserves rich layouts is a separate, future surface.
 
 `WidgetsEntityAutocomplete` (`packages/admin/app/components/widgets/EntityAutocomplete.vue`):
 - Uses `x-target-type` from schema to determine which entity type to search
-- Calls `useEntity().search(targetType, 'title', query)` with 250ms debounce
+- Resolves display, search, and sort fields from the target type's catalog `reference` metadata; it never assumes `title` or requests an unfiltered fallback list
 - Keyboard navigation: ArrowUp/ArrowDown/Enter/Escape
 - ARIA: `role="combobox"`, `aria-expanded`, `aria-autocomplete="list"`, dropdown has `role="listbox"`, items have `role="option"`
 
