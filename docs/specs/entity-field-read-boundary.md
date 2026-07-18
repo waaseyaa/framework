@@ -1,6 +1,6 @@
 # Entity Field-Read Boundary
 
-**Status:** WP1 contracts plus WP2 closed primitives and propagation; field-read enforcement remains dormant until the single no-shim activation PR.
+**Status:** WP1 contracts, WP2 closed authorities, and WP3 sealed entity/convergence primitives; field-read enforcement remains dormant until the single no-shim activation PR.
 **Anchor:** GitHub #2064, with Design Revisions 2 and 3 controlling.
 
 ## WP1 contract
@@ -98,12 +98,24 @@ type only; `EntityBase` serialization and queue/cache/state behavior remain
 unchanged.
 
 `benchmarks/field-read.php` records an unbooted public-read baseline and names the
-required activation fixtures: booted class/bundle definitions, translations,
+required diagnostic fixtures: booted class/bundle definitions, translations,
 revisions, config and audit read models, principal creation, cold/warm Protected
-reads, strict audited reads, and 50-field projection. Activation budgets remain:
-warm Public median no more than 25% above its matched baseline, and warm Protected
-no more than twice guarded Public, with peak memory/allocation results reported
-per fixture.
+reads, strict audited reads, and 50-field projection. Its warm-Public 1.25 ratio
+and warm-Protected 2.0 ratio are synthetic microbenchmark diagnostics, with
+peak-memory/allocation results reported per fixture; they do not decide
+activation readiness. The diagnostic report carries those reference ratios but
+no pass/fail result.
+
+Activation performance is decided only by the frozen real-page harness. It
+compares the WP2 baseline tree with the activation candidate across nine fresh
+process blocks per tree, after 30 warmups and with 200 timed samples per block.
+Both the cache-cold content page and the cache-cold members-directory page must
+have a paired upper-95 ratio no greater than 1.03 **and** a paired upper-95
+absolute delta no greater than 500,000 ns (0.50 ms). Response bodies, execution
+traces, workload hashes, fixture manifests, PHP binaries/configuration, and
+extensions must match before timings are comparable. The cache-hit content page
+and the synthetic field-read microbenchmarks are diagnostic only and cannot
+rescue a cache-cold failure.
 
 ## Explicit non-effects in WP1
 
@@ -232,3 +244,206 @@ notifications, and CLI handlers remain an explicit WP3 convergence inventory;
 WP3 must convert and preflight those consumers before WP4 activation.
 Accessor/query enforcement and hard cache/state/entity-serialization rejection
 also remain later work.
+
+## WP3 classification and preflight tranche
+
+WP3 classifies first-party definitions while ordinary entity access remains
+dormant. Structural id, uuid, bundle, language, and revision selectors are
+Public. General published content/navigation/taxonomy fields are Public;
+fields whose release depends on the viewing account are Protected; values that
+exist only for credential, authorization, administration, storage, or audit
+work are Internal.
+
+| First-party area | Public | Protected | Internal |
+|---|---|---|---|
+| User | uid, uuid | name; status (self/admin direct read; exact entity/name authorization input) | mail, pass, roles, permissions, created, email verification, all two-factor state |
+| Content/navigation | published node/note/taxonomy/path/menu fields and chronology | node author/workflow state | none |
+| Identity-bearing collaboration | structural selectors | messaging bodies/participants, engagement actors/targets, relationships, trails | participant role |
+| Genealogy | structural selectors | names, dates, living state, tree ownership and publication state | deletion tombstones |
+| Files/media | structural selectors and published media chronology | attachment names/type/size/parentage, media owner/source | storage URI and checksum |
+| OIDC | client_id and structural selectors | administrative display name | redirect URIs, scopes, grants, confidentiality and secret hash |
+| Classification/retention | label vocabulary | none | retention rules and exemptions |
+
+The semantic architecture inventory resolves names before checking
+classifications. It covers aliased and fully-qualified `FieldDefinition`
+construction, `#[Field]`, `#[FieldTemplate]`, and literal imperative
+`_fieldDefinitions`; a named null is unclassified. Normalizers preserve a
+non-null level rather than moving it into arbitrary settings.
+
+User identity/PII classification is explicit: `uid` and `uuid` are structural
+Public selectors; `name` is Protected profile identity; `status` is Protected
+and marked `authorizationInput` so only the exact non-recursive User entity/name
+policy map may inspect it. Direct status reads are self/admin only. Inactive
+profiles and names are administrator-only; active profiles still require
+`access user profiles`. `mail`, password material, roles, permissions,
+email-verification state, and all two-factor state remain Internal and are never
+released by an account policy. `created` is Internal audited-administration
+chronology rather than public profile content.
+
+`UserAccessPolicy`, already present in the package's authoritative discovered
+policy manifest, implements the additive `ProtectedReadPolicyProviderInterface`
+and exposes the separate V2 entity and field policies. This keeps discovery
+single-sourced while avoiding the incompatible legacy/V2 `access()` signatures;
+the WP4 evaluator consumes the V2 companions and does not pass a `User` entity as
+the acting account.
+
+`field-access:preflight --format=json` is read-only by default. Its database
+scanner emits names and type markers only: registered core/bundle/application
+definitions, base/bundle/translation/revision columns and `_data` keys, schema
+fingerprint, V1 driver identities, serialized entity locations, and current or
+legacy persistent queue locations. Signed queue payloads are authenticated
+before their envelope type is inspected; malformed, unverifiable, or signed
+legacy payloads remain blockers. `--write-artifact` atomically writes the exact
+checksum-bound candidate result. Classification, package-lock, definition, or
+schema changes produce a different artifact identity.
+
+The reusable `FieldReadGuard` decision/cache path is exercised only by WP3
+fixtures and benchmarks. `EntityBase`, queries, serialization, and normal boot
+do not install it in this tranche; WP4 performs that single no-shim activation.
+
+## WP3 sealed entity-read convergence
+
+`EntityBase` owns one private authoritative `EntityValueContainer`; there is no
+protected or public raw value bag for subclasses. Public fields remain stored as
+raw scalars/arrays in that container, while Protected and Internal fields are
+stored as restricted cells bound to the exact entity-view identity and compiled
+`EntityReadLayout`. The layout is sealed to a process generation. Every sealed
+read checks that generation before field lookup, so an entity compiled under an
+obsolete classification/policy generation must be reloaded rather than read
+under stale semantics.
+
+V2 creation and hydration use an opaque `EntityInitialization` issued by one
+`EntityInitializationBoundary`. The factory seals values and immutable
+`EntityStructure` before an entity object exists; the paired installer creates
+the object without invoking its constructor or `fromStorage()` and installs the
+container, structure, entity type, and key map atomically. Entity code therefore
+never receives a repository array during V2 hydration. Id, uuid, bundle,
+language/translation, and revision selectors read the attached structure rather
+than content fields; repository-owned backfills replace only the immutable
+structural snapshot.
+
+Ordinary sealed reads have three outcomes. Public values are returned without a
+policy decision. Protected values require an established account read context
+and an explicit Allowed decision; missing context and insufficient authority are
+distinct failures. Internal values are never returned by the ordinary accessor
+and require an exact declared capability through `AuditedFieldRead`, whose
+strict ledger reservation is recorded before its closed reader obtains the
+value. Mutation invalidates the guard's decision cache.
+
+`EntityBase::__clone()` is final and reissues every restricted cell and guard
+cache identity. Sealed `duplicate()` uses that clone path and never passes a raw
+bag through the legacy overridable `duplicateInstance()` hook. Translation bags
+are private related containers; translation clones and fallback reads use their
+reissued view identities. Separately hydrated revision views likewise receive
+distinct identities, while translation, fallback, and revision structural
+metadata remains value-free.
+
+`fieldNames()` is the canonical non-value-bearing enumeration surface.
+`toArray()` first scans the complete layout and, if any Internal field exists,
+throws before reading any Public or Protected value; it can never return a
+partial array. `EntityValues` uses `fieldNames()` for framework entities,
+excludes Internal names from ordinary projections, and obtains every selected
+value through guarded `get()`. Its `toArray()` name-discovery fallback remains
+only for third-party `EntityInterface` compatibility. `EntityValuesSnapshot`
+preflights framework entities and refuses any non-Public sealed field before a
+guarded read, so Protected/Internal values cannot be detached into an
+unguarded snapshot. The repository's persistence snapshot remains a separate
+private closure authority and is not implemented through `toArray()`,
+`EntityValues`, or an overridable callback.
+
+Whole-bag comparisons use the closed `EntityValueComparator` inside the private
+containers and return only equality or changed-field-name metadata. Revision
+restoration and write-echo bookkeeping never export compared values; their
+legacy `toArray()` branches remain only for third-party `EntityInterface`
+implementations that cannot expose the framework container.
+
+Validation of a non-Public field is closed to the framework's reviewed Symfony
+constraint set. `ValidationFieldReader` rejects custom constraints before
+reservation, reserves a one-shot validation read before obtaining the value,
+and finalizes success or failure. Outward violations use a constant message,
+empty parameters, a value-free structural root, and `RedactedInvalidValue`; the
+field value, entity object, constraint object, and causal exception are absent.
+
+The approved matched-baseline memory gates use 10,000 sealed entities: at most
+160 bytes per populated restricted field, at most 2 KiB total overhead for a
+full User-shaped entity, no per-field object allocation for Public fields, and
+zero retained entities after references are released (verified with
+`WeakReference`). These are activation acceptance gates alongside, not a
+replacement for, the frozen real-page latency gate above.
+
+## WP3 fingerprinted field-storage gateway
+
+The multi-backend field-storage SPI gains an additive V2 contract while the
+ordinary entity read boundary remains dormant. A V2 implementation declares a
+stable lowercase SHA-256 fingerprint and receives only a registrar-issued
+`FieldStorageGatewayRole` plus an opaque `FieldStorageGatewayInput`. It must
+unwrap the invocation and construct its opaque output through that same role;
+the registrar exposes only `FieldStorageBackendGateway`, never the raw V2
+implementation. Inputs, outputs, roles, invocations, and audit receipts reject
+serialization and are bound to the exact registrar/backend object identity.
+
+Every active V2 registration requires `StrictFieldStorageGatewayAuditInterface`.
+The gateway synchronously reserves a value-free attempt descriptor before
+fingerprint validation or backend invocation. Failure to reserve begins no
+backend call and therefore no write. Fingerprint drift likewise finalizes a
+failure with `backendInvocationStarted=false` before calling the backend. Once
+the backend invocation begins, storage remains deliberately nontransactional:
+a backend may have written before throwing or before returning an invalid
+output, and a later backend in coordinator fan-out may fail after earlier
+backends committed. The strict failure finalization records that invocation
+started; existing `PartialSaveException` committed/uncommitted reporting and
+application-owned reconciliation semantics remain unchanged.
+
+WP3 does not route `EntityStorageCoordinator` or `EntityRepository` through the
+new gateway. `FieldStorageBackendInterface` and its provider capability remain
+dormant compatibility surfaces, and `BackendRegistrar::get()` remains only for
+that unchanged V1 coordinator. The registrar exposes a deterministic exact
+`provider:id:implementation` V1 blocker inventory. The live
+`field-access:preflight` scanner merges that inventory into `v1_drivers`, so it
+changes the checksum-bound artifact and blocks readiness. Its inventory-only
+registrar mode validates V2 ids/fingerprints but issues no gateway authority.
+
+The WP4 no-shim activation removes the compatibility path in one change:
+
+1. convert first-party and approved extension backends to
+   `FieldStorageBackendV2Interface` and freeze their reviewed fingerprints;
+2. require the strict gateway audit binding at the production composition root;
+3. switch `BackendResolver`, definition validation, and
+   `EntityStorageCoordinator` to registrar-owned gateways and opaque calls;
+4. delete `FieldStorageBackendInterface`, `HasFieldStorageBackendsInterface`,
+   `IsFrameworkBackendProviderInterface`, the V1 conformance harness, and the
+   registrar's `get()`/`all()` V1 exposure; and
+5. refuse activation unless preflight reports an empty V1 backend inventory.
+
+There is no adapter from V1 to V2 and no fallback from a missing or rejected V2
+gateway to V1 in the activation change.
+The guard depends only on entity/access-layer compiled rules. Field-definition
+metadata is resolved and weakly compiled by `FieldReadMetadataResolver` at the
+existing field composition boundary, so the access package has no dependency
+on the field package and no access↔field package cycle is introduced.
+
+Before activation, framework User consumers converge on two required seams.
+`UserInternalFieldReaderInterface` exposes typed, reason-specific snapshots for
+credential verification, two-factor verification, mail delivery, verification,
+session response identity, and maintenance authorization; it never accepts a
+caller-selected field name. `UserIdentityLookupInterface` owns active login and
+mail-existence queries. Their audit implementations open one registry boundary,
+issue an exact reviewed capability, reserve before value/query execution,
+finalize the strict ledger outcome, and revoke the boundary in `finally`.
+Framework auth/session/mail/notification/CLI constructors require these seams;
+there is no optional compatibility or raw-access fallback. Audited value reads
+authorize and describe an attached `EntityStructure::bundleId` as canonical,
+falling back to `EntityInterface::bundle()` only for non-V2/third-party entities.
+
+Cache, state, queue, and entity-serialization convergence is activation-ready
+but remains dormant by explicit configuration. Enforced cache/state diagnostics
+reject a nested entity graph before any write and require identifiers or an
+explicit Public projection. The entity serialization boundary throws
+`EntitySerializationForbidden` before PHP serialization when enforced.
+Persistent queue enforcement rejects entity-bearing messages before
+serialization, requires a reviewed `QueueEnvelopeV1` factory at dispatch, and
+rejects authenticated legacy rows before handler execution. An activated worker
+also requires an authority-restoring runtime; its scope closes in `finally`
+before acknowledgement, release, or failure handling. Preflight readiness is
+enforceable through `assertReadyForActivation()`, with V1 drivers, serialized
+entities, and legacy queue payloads remaining hard checksum-bound blockers.

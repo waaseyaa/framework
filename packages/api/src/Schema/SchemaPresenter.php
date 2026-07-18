@@ -255,7 +255,7 @@ final class SchemaPresenter
             $settings = [];
         }
         foreach ($definition as $key => $value) {
-            if (!in_array($key, ['type', 'label', 'description', 'required', 'readOnly', 'read_only', 'cardinality', 'translatable', 'revisionable', 'default', 'defaultValue', 'settings', 'constraints', 'stored'], true)) {
+            if (!in_array($key, ['type', 'label', 'description', 'required', 'readOnly', 'read_only', 'cardinality', 'translatable', 'revisionable', 'default', 'defaultValue', 'settings', 'constraints', 'stored', 'read'], true)) {
                 $settings[$key] = $value;
             }
         }
@@ -283,6 +283,7 @@ final class SchemaPresenter
             readOnly: (bool) ($definition['readOnly'] ?? $definition['read_only'] ?? false),
             constraints: is_array($definition['constraints'] ?? null) ? $definition['constraints'] : [],
             stored: $stored,
+            read: ($definition['read'] ?? null) instanceof \Waaseyaa\Entity\FieldReadLevel ? $definition['read'] : null,
         );
     }
 

@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Queue\Tests\Unit;
 
+use PHPUnit\Framework\TestCase;
 use Waaseyaa\Queue\InMemoryQueue;
 use Waaseyaa\Queue\Message\EntityMessage;
 use Waaseyaa\Queue\Message\GenericMessage;
 use Waaseyaa\Queue\QueueInterface;
-use PHPUnit\Framework\TestCase;
 
 final class InMemoryQueueTest extends TestCase
 {

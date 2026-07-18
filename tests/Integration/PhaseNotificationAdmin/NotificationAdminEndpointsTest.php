@@ -24,6 +24,7 @@ use Waaseyaa\Notification\NotificationDispatcher;
 use Waaseyaa\Notification\NotificationInterface;
 use Waaseyaa\Queue\SyncQueue;
 use Waaseyaa\Routing\WaaseyaaRouter;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 
 /**
  * End-to-end wiring for the M4C WP01 admin notifications dashboard.
@@ -188,7 +189,7 @@ final class NotificationAdminEndpointsTest extends TestCase
             }
         };
         $dispatcher = new NotificationDispatcher(new SyncQueue(), ['mail' => $failing]);
-        $controller = new NotificationController($dispatcher);
+        $controller = new NotificationController($dispatcher, new UserInternalFieldReaderFixture());
         $router = new NotificationAdminApiRouter($controller);
 
         $request = Request::create('/api/notification/channels/mail/test', 'POST');
@@ -221,7 +222,7 @@ final class NotificationAdminEndpointsTest extends TestCase
         );
 
         return [
-            new NotificationController($dispatcher),
+            new NotificationController($dispatcher, new UserInternalFieldReaderFixture()),
             ['mail' => $mail, 'database' => $database],
         ];
     }

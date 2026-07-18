@@ -13,12 +13,12 @@ use Waaseyaa\Entity\ContentEntityBase;
 #[ContentEntityKeys(label: 'display_name')]
 final class GenealogyTree extends ContentEntityBase
 {
-    #[Field(label: 'Display name', description: 'Human-facing tree title.', required: true, settings: ['weight' => 0])]
+    #[Field(label: 'Display name', description: 'Human-facing tree title.', required: true, settings: ['weight' => 0], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $display_name = '';
 
-    #[Field(type: 'integer', label: 'Owner user ID', description: 'Account that owns this tree workspace.', required: true, settings: ['weight' => 1, 'not_null' => true])]
+    #[Field(type: 'integer', label: 'Owner user ID', description: 'Account that owns this tree workspace.', required: true, settings: ['weight' => 1, 'not_null' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public int $owner_uid = 0;
 
-    #[Field(type: 'boolean', label: 'Published', description: 'Workflow-style visibility flag; defaults off (private-by-default).', required: false, default: false, settings: ['weight' => 10])]
+    #[Field(type: 'boolean', label: 'Published', description: 'Workflow-style visibility flag; defaults off (private-by-default).', required: false, default: false, settings: ['weight' => 10], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public bool $status = false;
 }

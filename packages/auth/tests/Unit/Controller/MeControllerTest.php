@@ -10,16 +10,23 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Auth\Controller\MeController;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 use Waaseyaa\User\AnonymousUser;
+use Waaseyaa\User\Http\AuthController;
 use Waaseyaa\User\User;
 
 #[CoversClass(MeController::class)]
 final class MeControllerTest extends TestCase
 {
+    private function controller(): MeController
+    {
+        return new MeController(new AuthController(new UserInternalFieldReaderFixture()));
+    }
+
     #[Test]
     public function returns_401_for_anonymous_user(): void
     {
-        $controller = new MeController();
+        $controller = $this->controller();
         $request = Request::create('/api/user/me');
         $request->attributes->set('_account', new AnonymousUser());
 
@@ -32,7 +39,7 @@ final class MeControllerTest extends TestCase
     #[Test]
     public function returns_200_with_user_data_for_authenticated_user(): void
     {
-        $controller = new MeController();
+        $controller = $this->controller();
         $user = new User(['uid' => 42, 'name' => 'admin', 'mail' => 'admin@example.com', 'roles' => ['admin']]);
         $request = Request::create('/api/user/me');
         $request->attributes->set('_account', $user);

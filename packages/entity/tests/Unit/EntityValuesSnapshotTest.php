@@ -7,13 +7,46 @@ namespace Waaseyaa\Entity\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Entity\EntityInitializationBoundary;
+use Waaseyaa\Entity\EntityReadLayout;
+use Waaseyaa\Entity\EntityReadLayoutGeneration;
+use Waaseyaa\Entity\EntityStructure;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityValueReadGuardInterface;
+use Waaseyaa\Entity\Exception\EntitySerializationForbidden;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Entity\Hydration\HydrationContext;
 use Waaseyaa\Entity\Snapshot\EntityValuesSnapshot;
 
 #[CoversClass(EntityValuesSnapshot::class)]
 final class EntityValuesSnapshotTest extends TestCase
 {
+    #[Test]
+    public function sealed_non_public_values_cannot_be_detached_into_an_unguarded_snapshot(): void
+    {
+        $guard = new SnapshotPermitCountingGuard();
+        $boundary = new EntityInitializationBoundary();
+        $payload = $boundary->factory()->seal(
+            values: ['id' => 1, 'name' => 'Protected name'],
+            layout: new EntityReadLayout(new EntityReadLayoutGeneration(), [
+                'id' => FieldReadLevel::Public,
+                'name' => FieldReadLevel::Protected,
+            ]),
+            structure: new EntityStructure('user', 'user', 1, null, fieldNames: ['id', 'name']),
+            entityTypeId: 'user',
+            entityKeys: ['id' => 'id', 'label' => 'name'],
+            guard: $guard,
+        );
+        $entity = $boundary->installer()->instantiate(TestEntity::class, $payload);
+
+        try {
+            EntityValuesSnapshot::fromEntity($entity, new HydrationContext('user', ['id' => 'id', 'label' => 'name']));
+            self::fail('A sealed non-Public value must not be copied into an unguarded snapshot.');
+        } catch (EntitySerializationForbidden) {
+            self::assertSame(0, $guard->reads, 'Snapshot rejection must happen before any protected value read.');
+        }
+    }
+
     #[Test]
     public function fromEntityCapturesShallowStorageBag(): void
     {
@@ -107,4 +140,16 @@ final class EntityValuesSnapshotTest extends TestCase
         $this->assertSame(['id' => 'nid', 'label' => 'title'], $snap->context()->entityKeys);
         $this->assertSame('X', $snap->get('title'));
     }
+}
+
+final class SnapshotPermitCountingGuard implements EntityValueReadGuardInterface
+{
+    public int $reads = 0;
+
+    public function assertProtectedReadable(\Waaseyaa\Entity\EntityBase $entity, string $field, object $viewIdentity): void
+    {
+        ++$this->reads;
+    }
+
+    public function invalidate(\Waaseyaa\Entity\EntityBase $entity): void {}
 }

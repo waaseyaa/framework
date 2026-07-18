@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Entity\Write;
 
+use Waaseyaa\Entity\EntityBase;
+use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\EntityValueComparator;
 
 /**
  * Write-side field allowlist for the HTTP/agent entity-mutation surfaces
@@ -203,6 +206,46 @@ final class EntityWritePayloadGuard
                 if (self::isEcho($value, $key, $currentValues)) {
                     $echoed[] = $key;
                 } else {
+                    $refused[] = $key;
+                }
+                continue;
+            }
+            if (isset($fieldDefinitions[$key]) || in_array($key, $writableKeys, true)) {
+                continue;
+            }
+            $refused[] = $key;
+        }
+
+        return new EntityWritePayloadGuardResult(self::sortedUnique($refused), self::sortedUnique($echoed));
+    }
+
+    /**
+     * Entity-backed echo comparison. Framework entities never export a value bag; third-party
+     * implementations retain the diagnosed EntityInterface::toArray() compatibility path.
+     *
+     * @param array<int|string, mixed> $attributes
+     */
+    public static function evaluateEntityForUpdate(
+        EntityTypeInterface $definition,
+        string $bundle,
+        array $attributes,
+        EntityTypeManagerInterface $entityTypeManager,
+        EntityInterface $current,
+    ): EntityWritePayloadGuardResult {
+        if (!$current instanceof EntityBase) {
+            return self::evaluateForUpdate($definition, $bundle, $attributes, $entityTypeManager, $current->toArray());
+        }
+
+        [$identitySet, $writableKeys, $fieldDefinitions] = self::resolveSets($definition, $bundle, $entityTypeManager);
+        $echoed = new EntityValueComparator()->matchingSubmittedFieldNames($current, $attributes, $identitySet);
+        $echoedSet = array_fill_keys($echoed, true);
+        $refused = [];
+        foreach ($attributes as $key => $_value) {
+            if (!is_string($key)) {
+                continue;
+            }
+            if (in_array($key, $identitySet, true)) {
+                if (!isset($echoedSet[$key])) {
                     $refused[] = $key;
                 }
                 continue;

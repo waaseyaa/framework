@@ -6,6 +6,7 @@ namespace Waaseyaa\AI\Tools\Entity;
 
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\EntityValues;
 
 /**
  * Shared internal-field redaction steps for entity tools that expose or
@@ -30,6 +31,18 @@ final class EntityFieldRedaction
     public const array ALWAYS_INTERNAL_FIELDS = ['pass', 'password', 'password_hash'];
 
     private function __construct() {}
+
+    /**
+     * Enumerate ordinary-readable field names without obtaining their values.
+     *
+     * @return list<string>
+     */
+    public static function ordinaryFieldNames(EntityTypeManagerInterface $entityTypeManager, EntityInterface $entity): array
+    {
+        $names = EntityValues::ordinaryFieldNames($entity);
+
+        return array_keys(self::stripInternal($entityTypeManager, $entity, array_fill_keys($names, true)));
+    }
 
     /**
      * @param array<string, mixed> $values

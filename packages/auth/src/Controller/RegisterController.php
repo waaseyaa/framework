@@ -6,6 +6,8 @@ namespace Waaseyaa\Auth\Controller;
 
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Waaseyaa\Access\User\UserIdentityLookupInterface;
+use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Auth\Config\AuthConfig;
 use Waaseyaa\Auth\RateLimiterInterface;
 use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
@@ -25,6 +27,8 @@ final class RegisterController
         private readonly AuthTokenRepositoryInterface $tokenRepo,
         private readonly AuthMailer $authMailer,
         private readonly RateLimiterInterface $rateLimiter,
+        private readonly UserIdentityLookupInterface $identityLookup,
+        private readonly UserInternalFieldReaderInterface $internalFields,
         ?LoggerInterface $logger = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
@@ -88,13 +92,7 @@ final class RegisterController
         // 6. Check email uniqueness (anti-enumeration: generic 422). C-22 WP3:
         // loadByKey() has no repository equivalent, so this is a bounded query + find().
         $repository = $this->entityTypeManager->getRepository('user');
-        $existingIds = $repository->getQuery()
-            ->accessCheck(false)
-            ->condition('mail', $email)
-            ->range(0, 1)
-            ->execute();
-
-        if ($existingIds !== []) {
+        if ($this->identityLookup->mailExists($repository, $email)) {
             return new JsonResponse(['errors' => ['email' => 'Registration failed. Please try again.']], 422);
         }
 
@@ -147,12 +145,14 @@ final class RegisterController
         $_SESSION['waaseyaa_uid'] = $user->id();
 
         // 13. Return 201 with user data
+        $identity = $this->internalFields->verification($user);
+
         return new JsonResponse([
             'data' => [
                 'id' => $user->id(),
                 'name' => $user->getName(),
-                'email' => $user->getEmail(),
-                'email_verified' => $user->isEmailVerified(),
+                'email' => $identity->mail,
+                'email_verified' => $identity->emailVerified,
             ],
         ], 201);
     }

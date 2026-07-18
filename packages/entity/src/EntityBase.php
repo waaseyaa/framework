@@ -28,12 +28,13 @@ abstract class EntityBase implements EntityInterface
      */
     protected string $entityTypeId = '';
 
-    /**
-     * Internal entity values keyed by field/property name.
-     *
-     * @var array<string, mixed>
-     */
-    protected array $values = [];
+    /** Private authoritative value storage; subclasses never receive the container. */
+    private EntityValueContainer $valueContainer;
+
+    private bool $valueContainerInitialized = false;
+
+    /** @var array<string, EntityValueContainer> Private sealed translation/fallback views. */
+    private array $translationValueContainers = [];
 
     /**
      * Whether to force this entity to be treated as new.
@@ -70,36 +71,71 @@ abstract class EntityBase implements EntityInterface
             $this->entityKeys = $entityKeys;
         }
 
-        $this->values = $values;
+        $this->valueContainer = EntityValueContainer::compatibility($values);
+        $this->valueContainerInitialized = true;
 
         // Auto-generate UUID only when the entity type defines a uuid key.
         if (isset($this->entityKeys['uuid'])) {
             $uuidKey = $this->entityKeys['uuid'];
-            if (!isset($this->values[$uuidKey]) || $this->values[$uuidKey] === '') {
-                $this->values[$uuidKey] = Uuid::v4()->toRfc4122();
+            if (!$this->valueContainer->has($uuidKey) || $this->valueContainer->read($this, $uuidKey) === '') {
+                $this->valueContainer->write($this, $uuidKey, Uuid::v4()->toRfc4122());
             }
         }
     }
 
+    /**
+     * Atomic V2 initialization hook. The paired opaque identities prevent a
+     * payload from another boundary from installing repository values.
+     *
+     * @internal EntityInitialization only.
+     * @param array<string, string> $entityKeys
+     */
+    final public function _installSealedInitialization(
+        EntityValueContainer $container,
+        EntityStructure $structure,
+        string $entityTypeId,
+        array $entityKeys,
+        EntityInitializationIdentity $presentedIdentity,
+        EntityInitializationIdentity $expectedIdentity,
+    ): void {
+        if ($presentedIdentity !== $expectedIdentity) {
+            throw new \LogicException('A matching entity initialization boundary is required.');
+        }
+        if ($this->valueContainerInitialized || $this->entityStructure !== null) {
+            throw new \LogicException('An entity can be initialized exactly once.');
+        }
+        $this->valueContainer = $container;
+        $this->valueContainerInitialized = true;
+        $this->entityStructure = $structure;
+        $this->entityTypeId = $entityTypeId;
+        $this->entityKeys = $entityKeys;
+    }
+
     public function id(): int|string|null
     {
+        if ($this->entityStructure !== null) {
+            return $this->entityStructure->id;
+        }
         $idKey = $this->entityKeys['id'] ?? 'id';
 
-        return $this->values[$idKey] ?? null;
+        return $this->get($idKey);
     }
 
     public function uuid(): string
     {
+        if ($this->entityStructure !== null) {
+            return $this->entityStructure->uuid ?? '';
+        }
         $uuidKey = $this->entityKeys['uuid'] ?? 'uuid';
 
-        return $this->values[$uuidKey] ?? '';
+        return (string) ($this->get($uuidKey) ?? '');
     }
 
     public function label(): string
     {
         $labelKey = $this->entityKeys['label'] ?? 'label';
 
-        return (string) ($this->values[$labelKey] ?? '');
+        return (string) ($this->get($labelKey) ?? '');
     }
 
     public function getEntityTypeId(): string
@@ -198,10 +234,13 @@ abstract class EntityBase implements EntityInterface
 
     public function bundle(): string
     {
+        if ($this->entityStructure !== null) {
+            return $this->entityStructure->bundleId;
+        }
         $bundleKey = $this->entityKeys['bundle'] ?? 'bundle';
 
         // Default bundle is the entity type ID itself when no bundle key exists.
-        return (string) ($this->values[$bundleKey] ?? $this->entityTypeId);
+        return (string) ($this->get($bundleKey) ?? $this->entityTypeId);
     }
 
     public function isNew(): bool
@@ -239,7 +278,7 @@ abstract class EntityBase implements EntityInterface
 
     public function get(string $name): mixed
     {
-        $raw = \array_key_exists($name, $this->values) ? $this->values[$name] : null;
+        $raw = $this->valueContainer->read($this, $name);
 
         if (isset($this->casts[$name])) {
             return $this->valueCaster()->castIn($name, $raw, $this->casts[$name]);
@@ -253,27 +292,109 @@ abstract class EntityBase implements EntityInterface
         $stored = isset($this->casts[$name])
             ? $this->valueCaster()->castOut($name, $value, $this->casts[$name])
             : $value;
-        $this->values[$name] = $stored;
+        $this->valueContainer->write($this, $name, $stored);
 
         return $this;
     }
 
     public function toArray(): array
     {
-        return $this->values;
+        return $this->valueContainer->publicArray($this);
+    }
+
+    /** Non-value-bearing field/layout enumeration. @api @return list<string> */
+    final public function fieldNames(): array
+    {
+        return $this->valueContainer->fieldNames();
+    }
+
+    /** @internal Validation planning and semantic gates only. */
+    final public function fieldReadLevel(string $field): FieldReadLevel
+    {
+        return $this->valueContainer->level($field);
+    }
+
+    /** @internal Closed reader authority; callers are private bound closures only. @return array<string, mixed> */
+    private function rawValuesForClosedAuthority(): array
+    {
+        return $this->valueContainer->rawValues();
     }
 
     /**
-     * Shallow copy of this entity: new instance via {@see duplicateInstance()} with the same storage bag,
-     * identity keys (id, uuid, …), and {@see $enforceIsNew} flag.
+     * Every object view reissues restricted cells and its policy-cache identity.
+     */
+    final public function __clone(): void
+    {
+        $this->valueContainer = $this->valueContainer->reissue();
+        foreach ($this->translationValueContainers as $langcode => $container) {
+            $this->translationValueContainers[$langcode] = $container->reissue();
+        }
+    }
+
+    /** @internal Reviewed translation implementation only. @param array<string, array<string, mixed>> $data */
+    final protected function replaceTranslationValues(array $data): void
+    {
+        $containers = [];
+        foreach ($data as $langcode => $values) {
+            $containers[$langcode] = $this->valueContainer->relatedView($values);
+        }
+        $this->translationValueContainers = $containers;
+    }
+
+    /** @internal Reviewed translation implementation only. */
+    final protected function hasTranslationValues(string $langcode): bool
+    {
+        return isset($this->translationValueContainers[$langcode]);
+    }
+
+    /** @internal Reviewed translation implementation only. */
+    final protected function readTranslationValue(string $langcode, string $field): mixed
+    {
+        return $this->translationValueContainers[$langcode]->read($this, $field);
+    }
+
+    /** @internal Reviewed translation implementation only. @return list<string> */
+    final protected function translationValueLanguages(): array
+    {
+        return array_keys($this->translationValueContainers);
+    }
+
+    /** @internal Reviewed translation implementation only. */
+    final protected function addTranslationValues(string $langcode): void
+    {
+        $this->translationValueContainers[$langcode] = $this->valueContainer->relatedView([]);
+    }
+
+    /** @internal Reviewed translation implementation only. */
+    final protected function removeTranslationValues(string $langcode): void
+    {
+        unset($this->translationValueContainers[$langcode]);
+    }
+
+    /** @internal Reviewed translation implementation only. */
+    final protected function translationValueHasField(string $langcode, string $field): bool
+    {
+        return isset($this->translationValueContainers[$langcode])
+            && $this->translationValueContainers[$langcode]->has($field);
+    }
+
+    /**
+     * Shallow copy with the same identity keys and {@see $enforceIsNew} flag.
      *
-     * Nested structures inside {@see $values} are not deep-cloned; they remain reference-shared with
-     * the source entity (formal invariant — see docs/specs/entity-system.md, P3 branching).
+     * Sealed entities clone their opaque container so raw values never cross a virtual reconstruction
+     * hook. Compatibility entities retain constructor re-entry through {@see duplicateInstance()}.
      */
     public function duplicate(): static
     {
+        if ($this->valueContainer->isSealed()) {
+            $copy = clone $this;
+            $copy->enforceIsNew($this->enforceIsNew);
+
+            return $copy;
+        }
+
         $shallowValues = [];
-        foreach ($this->values as $key => $value) {
+        foreach ($this->rawValuesForClosedAuthority() as $key => $value) {
             $shallowValues[$key] = $value;
         }
 
@@ -324,9 +445,12 @@ abstract class EntityBase implements EntityInterface
 
     public function language(): string
     {
+        if ($this->entityStructure !== null) {
+            return $this->entityStructure->activeLanguageId;
+        }
         $langcodeKey = $this->entityKeys['langcode'] ?? 'langcode';
 
-        return (string) ($this->values[$langcodeKey] ?? 'en');
+        return (string) ($this->get($langcodeKey) ?? 'en');
     }
 
     /**

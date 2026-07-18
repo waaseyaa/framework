@@ -30,10 +30,10 @@ final class OidcClient extends ContentEntityBase implements HydratableFromStorag
         'is_confidential' => 'bool',
     ];
 
-    #[Field(label: 'Client ID', description: 'Stable public identifier for the client (OIDC spec).', settings: ['weight' => 0])]
+    #[Field(label: 'Client ID', description: 'Stable public identifier for the client (OIDC spec).', settings: ['weight' => 0], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public string $client_id = '';
 
-    #[Field(label: 'Name', description: 'Human-readable name shown in admin UIs.', settings: ['weight' => 1])]
+    #[Field(label: 'Name', description: 'Human-readable name shown in admin UIs.', settings: ['weight' => 1], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $name = '';
 
     /**
@@ -41,7 +41,7 @@ final class OidcClient extends ContentEntityBase implements HydratableFromStorag
      *
      * @var string[]
      */
-    #[Field(label: 'Redirect URIs', description: 'Registered redirect URIs. Matched byte-for-byte per OIDC spec §3.1.2.1.', settings: ['weight' => 2, 'subtype' => 'string_list'])]
+    #[Field(label: 'Redirect URIs', description: 'Registered redirect URIs. Matched byte-for-byte per OIDC spec §3.1.2.1.', settings: ['weight' => 2, 'subtype' => 'string_list'], read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
     public array $redirect_uris = [];
 
     /**
@@ -49,7 +49,7 @@ final class OidcClient extends ContentEntityBase implements HydratableFromStorag
      *
      * @var string[]
      */
-    #[Field(label: 'Scopes', description: 'Scopes the client may request.', settings: ['weight' => 3, 'subtype' => 'string_list'])]
+    #[Field(label: 'Scopes', description: 'Scopes the client may request.', settings: ['weight' => 3, 'subtype' => 'string_list'], read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
     public array $scopes = ['openid'];
 
     /**
@@ -57,13 +57,13 @@ final class OidcClient extends ContentEntityBase implements HydratableFromStorag
      *
      * @var string[]
      */
-    #[Field(label: 'Grant types', description: 'OAuth grant types the client may use.', settings: ['weight' => 4, 'subtype' => 'string_list'])]
+    #[Field(label: 'Grant types', description: 'OAuth grant types the client may use.', settings: ['weight' => 4, 'subtype' => 'string_list'], read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
     public array $grant_types = ['authorization_code'];
 
-    #[Field(label: 'Confidential', description: 'Whether the client authenticates with a secret.', settings: ['weight' => 5])]
+    #[Field(label: 'Confidential', description: 'Whether the client authenticates with a secret.', settings: ['weight' => 5], read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
     public bool $is_confidential = false;
 
-    #[Field(label: 'Client secret hash', description: 'Hashed client secret. Never exposed through the API.', settings: ['weight' => 6, 'internal' => true], readOnly: true)]
+    #[Field(label: 'Client secret hash', description: 'Hashed client secret. Never exposed through the API.', settings: ['weight' => 6, 'internal' => true], readOnly: true, read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
     public ?string $client_secret_hash = null;
 
     /**

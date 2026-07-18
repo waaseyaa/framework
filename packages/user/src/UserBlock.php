@@ -13,13 +13,13 @@ use Waaseyaa\Entity\ContentEntityBase;
 #[ContentEntityKeys(id: 'ubid', uuid: 'uuid', label: 'blocker_id')]
 final class UserBlock extends ContentEntityBase
 {
-    #[Field(type: 'integer', label: 'Blocker ID', settings: ['weight' => 0])]
+    #[Field(type: 'integer', label: 'Blocker ID', settings: ['weight' => 0], read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
     public int $blocker_id = 0;
 
-    #[Field(type: 'integer', label: 'Blocked ID', settings: ['weight' => 1])]
+    #[Field(type: 'integer', label: 'Blocked ID', settings: ['weight' => 1], read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
     public int $blocked_id = 0;
 
-    #[Field(type: 'integer', label: 'Created', settings: ['weight' => 10, 'subtype' => 'timestamp'])]
+    #[Field(type: 'integer', label: 'Created', settings: ['weight' => 10, 'subtype' => 'timestamp'], read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
     public ?int $created_at = 0;
     /**
      * @param array<string, mixed> $values

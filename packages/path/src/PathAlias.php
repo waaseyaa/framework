@@ -20,16 +20,16 @@ use Waaseyaa\Entity\ContentEntityBase;
 #[ContentEntityKeys(label: 'alias', langcode: 'langcode')]
 final class PathAlias extends ContentEntityBase
 {
-    #[Field(label: 'System path', description: 'Internal path such as /node/1.')]
+    #[Field(label: 'System path', description: 'Internal path such as /node/1.', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public string $path = '';
 
-    #[Field(label: 'Alias', description: 'Public alias path.')]
+    #[Field(label: 'Alias', description: 'Public alias path.', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public string $alias = '';
 
-    #[Field(label: 'Language', description: 'Alias language code.')]
+    #[Field(label: 'Language', description: 'Alias language code.', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public string $langcode = 'en';
 
-    #[Field(type: 'boolean', label: 'Published', description: 'Whether this alias is active.', default: 1)]
+    #[Field(type: 'boolean', label: 'Published', description: 'Whether this alias is active.', default: 1, read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public bool $status = true;
 
     /**

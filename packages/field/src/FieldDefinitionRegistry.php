@@ -57,7 +57,7 @@ final class FieldDefinitionRegistry implements FieldDefinitionRegistryInterface
     {
         $known = ['type', 'label', 'description', 'required', 'readOnly', 'read_only',
             'cardinality', 'translatable', 'revisionable', 'default', 'defaultValue',
-            'settings', 'constraints', 'stored'];
+            'settings', 'constraints', 'stored', 'read'];
 
         $settings = $meta['settings'] ?? [];
         if (!\is_array($settings)) {
@@ -93,6 +93,7 @@ final class FieldDefinitionRegistry implements FieldDefinitionRegistryInterface
             readOnly: (bool) ($meta['readOnly'] ?? $meta['read_only'] ?? false),
             constraints: \is_array($meta['constraints'] ?? null) ? $meta['constraints'] : [],
             stored: $stored,
+            read: ($meta['read'] ?? null) instanceof \Waaseyaa\Entity\FieldReadLevel ? $meta['read'] : null,
         );
     }
 

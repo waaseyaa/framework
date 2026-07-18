@@ -9,6 +9,7 @@ use Waaseyaa\Entity\Attribute\ContentEntityKeys;
 use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Entity\Hydration\HydratableFromStorageInterface;
 use Waaseyaa\Entity\Hydration\HydrationContext;
 
@@ -36,7 +37,27 @@ final class User extends ContentEntityBase implements AccountInterface, Hydratab
         'email_verified' => 'bool',
     ];
 
-    #[Field(type: 'email', label: 'Email address', description: 'The email address of the user.', settings: ['weight' => 5])]
+    #[Field(type: 'integer', required: false, label: 'User ID', readOnly: true, read: FieldReadLevel::Public)]
+    public int $uid = 0;
+
+    #[Field(required: false, label: 'UUID', readOnly: true, read: FieldReadLevel::Public)]
+    public string $uuid = '';
+
+    #[Field(required: false, label: 'Username', description: 'Login identifier and account label.', read: FieldReadLevel::Protected)]
+    public string $name = '';
+
+    #[Field(required: false, label: 'Password hash', readOnly: true, read: FieldReadLevel::Internal)]
+    public string $pass = '';
+
+    /** @var list<string> */
+    #[Field(required: false, label: 'Roles', settings: ['subtype' => 'string_list'], read: FieldReadLevel::Internal)]
+    public array $roles = [];
+
+    /** @var list<string> */
+    #[Field(required: false, label: 'Permissions', settings: ['subtype' => 'string_list'], read: FieldReadLevel::Internal)]
+    public array $permissions = [];
+
+    #[Field(type: 'email', label: 'Email address', description: 'The email address of the user.', settings: ['weight' => 5], read: FieldReadLevel::Internal)]
     public ?string $mail = null;
 
     // required: false (#1655): consumers never supply this at creation (the PHP
@@ -44,23 +65,26 @@ final class User extends ContentEntityBase implements AccountInterface, Hydratab
     // may hold NULL — a derived NotNull rejected the framework's own
     // smoke-shaped save. The flag was inert before save-time validation went
     // live in alpha.204.
-    #[Field(required: false, label: 'Email verified', description: 'Whether the user has verified their email address.', settings: ['weight' => 6])]
+    #[Field(required: false, label: 'Email verified', description: 'Whether the user has verified their email address.', settings: ['weight' => 6], read: FieldReadLevel::Internal)]
     public bool $email_verified = false;
 
-    #[Field(type: 'boolean', label: 'Active', description: 'Whether the user account is active.', settings: ['weight' => 10])]
+    // Account state is a non-recursive authorization input. Direct release is
+    // self/admin only; entity/name policies receive it through the exact V2 map.
+    #[Field(type: 'boolean', label: 'Active', description: 'Whether the user account is active.', settings: ['weight' => 10, 'authorizationInput' => true], read: FieldReadLevel::Protected)]
     public bool $status = true;
 
-    #[Field(type: 'integer', label: 'Member since', description: 'The date the user account was created.', settings: ['weight' => 20, 'subtype' => 'timestamp'])]
+    // Account chronology is retained for audited administration only.
+    #[Field(type: 'integer', label: 'Member since', description: 'The date the user account was created.', settings: ['weight' => 20, 'subtype' => 'timestamp'], read: FieldReadLevel::Internal)]
     public ?int $created = null;
 
-    #[Field(label: 'Two-factor secret', description: 'Base32 TOTP secret. null when 2FA is disabled.', settings: ['weight' => 50, 'internal' => true])]
+    #[Field(label: 'Two-factor secret', description: 'Base32 TOTP secret. null when 2FA is disabled.', settings: ['weight' => 50, 'internal' => true], read: FieldReadLevel::Internal)]
     public ?string $two_factor_secret = null;
 
     /** @var list<string>|null */
-    #[Field(label: 'Two-factor recovery code hashes', description: 'Argon2id-hashed recovery codes; null when 2FA is disabled.', settings: ['weight' => 51, 'internal' => true])]
+    #[Field(label: 'Two-factor recovery code hashes', description: 'Argon2id-hashed recovery codes; null when 2FA is disabled.', settings: ['weight' => 51, 'internal' => true], read: FieldReadLevel::Internal)]
     public ?array $two_factor_recovery_codes_hash = null;
 
-    #[Field(type: 'integer', label: 'Two-factor last-used step', description: 'Last consumed TOTP time step; blocks replay of a code within its validity window. null until the first successful TOTP verification.', settings: ['weight' => 52, 'internal' => true])]
+    #[Field(type: 'integer', label: 'Two-factor last-used step', description: 'Last consumed TOTP time step; blocks replay of a code within its validity window. null until the first successful TOTP verification.', settings: ['weight' => 52, 'internal' => true], read: FieldReadLevel::Internal)]
     public ?int $two_factor_last_used_step = null;
 
     /**

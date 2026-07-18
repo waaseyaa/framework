@@ -33,7 +33,8 @@ final readonly class AuditedFieldRead
     ) {
         $this->firstPartyObtain = \Closure::bind(
             static function (EntityBase $source, string $name): mixed {
-                $raw = array_key_exists($name, $source->values) ? $source->values[$name] : null;
+                $values = $source->rawValuesForClosedAuthority();
+                $raw = array_key_exists($name, $values) ? $values[$name] : null;
                 if (isset($source->casts[$name])) {
                     return $source->valueCaster()->castIn($name, $raw, $source->casts[$name]);
                 }
@@ -78,7 +79,12 @@ final readonly class AuditedFieldRead
             throw new FieldReadDenied(sprintf('This closed reader requires the %s capability reason.', $requiredReason->value));
         }
         $entityType = $entity->getEntityTypeId();
-        $bundle = $entity->bundle();
+        // V2 hydration attaches canonical structural selectors independently
+        // of content fields. A legacy `bundle` value may be absent/empty and
+        // must never weaken or spuriously reject audited authorization.
+        $bundle = $entity instanceof EntityBase && $entity->_hasEntityStructure()
+            ? $entity->entityStructure()->bundleId
+            : $entity->bundle();
         if ($fields === [] || array_values(array_unique($fields)) !== $fields) {
             throw new \InvalidArgumentException('Audited multi-field reads require a non-empty unique field list.');
         }

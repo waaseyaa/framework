@@ -89,10 +89,7 @@ final class EntitySetCurrentRevisionTool extends AbstractAgentTool
             // in EntityUpdateTool, run BEFORE the write.
             $targetRevision = $repository->loadRevision((string) $id, $revisionId);
             if ($targetRevision !== null) {
-                $changedValues = EntityRevisionRestoreGuard::changedValues(
-                    EntityRevisionRestoreGuard::values($entity),
-                    EntityRevisionRestoreGuard::values($targetRevision),
-                );
+                $changedValues = array_fill_keys(EntityRevisionRestoreGuard::changedFieldNames($entity, $targetRevision), true);
                 $fieldDenied = $this->requireFieldEditAccess($entity, $changedValues, $account);
                 if ($fieldDenied !== null) {
                     return $fieldDenied;

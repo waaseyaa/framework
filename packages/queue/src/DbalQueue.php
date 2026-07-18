@@ -36,6 +36,8 @@ final class DbalQueue implements QueueInterface, PersistentPayloadReplayInterfac
     private readonly ?QueueEnvelopeFactoryInterface $envelopeFactory;
 
     private readonly QueuePayloadDeprecationDiagnostic $payloadDiagnostic;
+    private readonly QueuePayloadDeprecationDiagnostic $activationDiagnostic;
+    private readonly PersistentQueueBoundaryConfig $boundaryConfig;
 
     private bool $missingAuthorityDiagnosticEmitted = false;
 
@@ -60,14 +62,21 @@ final class DbalQueue implements QueueInterface, PersistentPayloadReplayInterfac
         ?LoggerInterface $logger = null,
         ?QueueEnvelopeFactoryInterface $envelopeFactory = null,
         ?QueuePayloadDeprecationDiagnostic $payloadDiagnostic = null,
+        ?PersistentQueueBoundaryConfig $boundaryConfig = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
         $this->envelopeFactory = $envelopeFactory;
-        $this->payloadDiagnostic = $payloadDiagnostic ?? new QueuePayloadDeprecationDiagnostic(
+        $this->boundaryConfig = $boundaryConfig ?? PersistentQueueBoundaryConfig::dormant();
+        $defaultDiagnostic = new QueuePayloadDeprecationDiagnostic(
             function (string $code, array $context): void {
                 $this->logger->notice($code, $context);
             },
+            $this->boundaryConfig,
         );
+        $this->payloadDiagnostic = $payloadDiagnostic ?? $defaultDiagnostic;
+        $this->activationDiagnostic = $payloadDiagnostic === null
+            ? $defaultDiagnostic
+            : new QueuePayloadDeprecationDiagnostic(static function (): void {}, $this->boundaryConfig);
     }
 
     public function dispatch(object $message): void
@@ -80,6 +89,13 @@ final class DbalQueue implements QueueInterface, PersistentPayloadReplayInterfac
 
         $this->warnIfAttributeNotEnforced($message);
         $this->payloadDiagnostic->inspect($message);
+        if ($this->activationDiagnostic !== $this->payloadDiagnostic) {
+            $this->activationDiagnostic->inspect($message);
+        }
+
+        if ($this->boundaryConfig->requireAuthorityEnvelope && $this->envelopeFactory === null) {
+            throw new InvalidPersistentPayload('Activated persistent queue dispatch requires a reviewed authority envelope factory.');
+        }
 
         $queue = $this->resolveQueue($message);
         $delay = $this->resolveDelay($message);

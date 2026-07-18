@@ -9,11 +9,14 @@ namespace Waaseyaa\Queue;
  */
 final class InMemoryQueue implements QueueInterface
 {
+    public function __construct(private readonly ?QueuePayloadDeprecationDiagnostic $payloadDiagnostic = null) {}
+
     /** @var object[] */
     private array $messages = [];
 
     public function dispatch(object $message): void
     {
+        $this->payloadDiagnostic?->inspect($message);
         $this->messages[] = $message;
     }
 

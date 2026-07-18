@@ -9,7 +9,8 @@
     "packages/frankenphp/"
   ],
   "rationales": {
-    "packages/access/src/Middleware/FieldReadContextMiddleware.php": "Implements the established HTTP middleware contract, whose request and response types are Symfony HttpFoundation objects."
+    "packages/access/src/Middleware/FieldReadContextMiddleware.php": "Implements the established HTTP middleware contract, whose request and response types are Symfony HttpFoundation objects.",
+    "packages/entity/src/Validation/ValidationFieldReader.php": "Implements the closed restricted-field validation boundary using Symfony Validator constraints and violation result types."
   },
   "legacy_files": [
     "packages/access/src/Middleware/FieldReadContextMiddleware.php",
@@ -79,6 +80,7 @@
     "packages/entity/src/Validation/EntityValidationException.php",
     "packages/entity/src/Validation/EntityValidator.php",
     "packages/entity/src/Validation/FieldDefinitionConstraintBuilder.php",
+    "packages/entity/src/Validation/ValidationFieldReader.php",
     "packages/field/src/Classification/ClassificationLabelFieldType.php",
     "packages/field/src/Classification/EntityLifecycleSubscriber.php",
     "packages/field/src/FieldDefinition.php",

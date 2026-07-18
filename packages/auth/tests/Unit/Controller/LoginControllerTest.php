@@ -14,6 +14,8 @@ use Waaseyaa\Auth\TwoFactorManager;
 use Waaseyaa\Auth\TwoFactorService;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Tests\Support\UserIdentityLookupFixture;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 
 #[CoversClass(LoginController::class)]
 final class LoginControllerTest extends TestCase
@@ -43,7 +45,9 @@ final class LoginControllerTest extends TestCase
         return new LoginController(
             entityTypeManager: $entityTypeManager,
             rateLimiter: $rateLimiter ?? new RateLimiter(),
-            twoFactor: $twoFactor ?? new TwoFactorService(new TwoFactorManager(), $entityTypeManager),
+            twoFactor: $twoFactor ?? new TwoFactorService(new TwoFactorManager(), $entityTypeManager, new UserInternalFieldReaderFixture()),
+            identityLookup: new UserIdentityLookupFixture(),
+            internalFields: new UserInternalFieldReaderFixture(),
         );
     }
 

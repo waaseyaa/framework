@@ -46,6 +46,7 @@ final class BackendRegistrarFactory
     public function __construct(
         private readonly array $providerFqcns,
         private readonly ?\Closure $instantiator = null,
+        private readonly ?StrictFieldStorageGatewayAuditInterface $gatewayAudit = null,
     ) {}
 
     /**
@@ -65,7 +66,10 @@ final class BackendRegistrarFactory
             }
 
             $implements = class_implements($fqcn);
-            if (!is_array($implements) || !in_array(self::CAPABILITY_INTERFACE, $implements, true)) {
+            if (!is_array($implements)
+                || (!in_array(self::CAPABILITY_INTERFACE, $implements, true)
+                    && !in_array(HasFieldStorageBackendsV2Interface::class, $implements, true))
+            ) {
                 continue;
             }
 
@@ -74,11 +78,12 @@ final class BackendRegistrarFactory
 
             $allFqcns[] = $fqcn;
 
-            if ($provider instanceof IsFrameworkBackendProviderInterface) {
+            if ($provider instanceof IsFrameworkBackendProviderInterface
+                || $provider instanceof IsFrameworkBackendProviderV2Interface) {
                 $frameworkFqcns[] = $fqcn;
             }
         }
 
-        return new BackendRegistrar($allFqcns, $frameworkFqcns);
+        return new BackendRegistrar($allFqcns, $frameworkFqcns, $this->gatewayAudit);
     }
 }

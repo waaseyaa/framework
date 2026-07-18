@@ -7,7 +7,7 @@ namespace Waaseyaa\EntityStorage;
 /**
  * Request-scoped cache for {@see SqlEntityQuery} result ID lists / counts.
  *
- * Invalidation is coarse per entity type — see {@see SqlEntityStorage} on save/delete.
+ * A fresh instance starts a new request cache generation.
  */
 final class SqlEntityQueryResultCache
 {
@@ -28,10 +28,5 @@ final class SqlEntityQueryResultCache
     public function set(string $entityTypeId, string $fingerprint, array $result): void
     {
         $this->entriesByType[$entityTypeId][$fingerprint] = $result;
-    }
-
-    public function invalidate(string $entityTypeId): void
-    {
-        unset($this->entriesByType[$entityTypeId]);
     }
 }

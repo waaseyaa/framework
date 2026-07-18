@@ -56,12 +56,11 @@ final class Pipeline extends ConfigEntityBase
             }
         }
 
-        $this->syncStepsToValues();
-
         $entityTypeId = $entityTypeId !== '' ? $entityTypeId : 'pipeline';
         $entityKeys = $entityKeys !== [] ? $entityKeys : ['id' => 'id', 'label' => 'label'];
 
         parent::__construct($values, $entityTypeId, $entityKeys);
+        $this->syncStepsToValues();
     }
 
     /**
@@ -116,7 +115,7 @@ final class Pipeline extends ConfigEntityBase
     public function setDescription(string $description): static
     {
         $this->description = $description;
-        $this->values['description'] = $description;
+        $this->set('description', $description);
 
         return $this;
     }
@@ -147,7 +146,7 @@ final class Pipeline extends ConfigEntityBase
      */
     private function syncStepsToValues(): void
     {
-        $this->values['steps'] = array_map(
+        $this->set('steps', array_map(
             static fn(PipelineStepConfig $step): array => [
                 'id' => $step->id,
                 'plugin_id' => $step->pluginId,
@@ -156,6 +155,6 @@ final class Pipeline extends ConfigEntityBase
                 'configuration' => $step->configuration,
             ],
             $this->steps,
-        );
+        ));
     }
 }

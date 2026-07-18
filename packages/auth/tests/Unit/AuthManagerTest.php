@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Auth\AuthManager;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 use Waaseyaa\User\User;
 
 #[CoversClass(AuthManager::class)]
@@ -18,7 +19,7 @@ final class AuthManagerTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->auth = new AuthManager();
+        $this->auth = new AuthManager(new UserInternalFieldReaderFixture());
     }
 
     public function testAuthenticateReturnsUserOnValidCredentials(): void
@@ -94,7 +95,7 @@ final class AuthManagerTest extends TestCase
         $originalId = session_id();
         $this->assertNotSame('', $originalId);
 
-        (new AuthManager())->logout();
+        (new AuthManager(new UserInternalFieldReaderFixture()))->logout();
 
         // All session data cleared.
         $this->assertSame([], $_SESSION);

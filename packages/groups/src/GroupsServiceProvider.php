@@ -52,6 +52,7 @@ final class GroupsServiceProvider extends ServiceProvider
                     label: 'Description',
                     description: 'Human-readable description of this group type.',
                     settings: ['weight' => 5],
+                    read: \Waaseyaa\Entity\FieldReadLevel::Public,
                 ),
             ],
         ));

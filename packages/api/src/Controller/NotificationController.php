@@ -7,6 +7,8 @@ namespace Waaseyaa\Api\Controller;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
+use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Mail\Envelope;
 use Waaseyaa\Notification\ChannelInterface;
 use Waaseyaa\Notification\NotifiableInterface;
@@ -42,6 +44,7 @@ final class NotificationController
 {
     public function __construct(
         private readonly NotificationDispatcher $dispatcher,
+        private readonly UserInternalFieldReaderInterface $internalFields,
     ) {}
 
     /**
@@ -92,7 +95,7 @@ final class NotificationController
         }
 
         $account = $request->attributes->get('_account');
-        $recipient = self::buildTestRecipient($account);
+        $recipient = $this->buildTestRecipient($account);
         $notification = self::buildTestNotification();
 
         try {
@@ -127,14 +130,14 @@ final class NotificationController
      * if none is available); for any other channel, we surface the account id
      * stringified — the channel implementation chooses what to do with it.
      */
-    private static function buildTestRecipient(mixed $account): NotifiableInterface
+    private function buildTestRecipient(mixed $account): NotifiableInterface
     {
         $email = null;
         $accountId = null;
         if (is_object($account)) {
-            if (method_exists($account, 'getEmail')) {
-                $candidate = $account->getEmail();
-                if (is_string($candidate) && $candidate !== '') {
+            if ($account instanceof EntityInterface && $account->getEntityTypeId() === 'user') {
+                $candidate = $this->internalFields->mailDelivery($account)->mail;
+                if ($candidate !== '') {
                     $email = $candidate;
                 }
             }

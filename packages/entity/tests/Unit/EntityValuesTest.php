@@ -8,7 +8,12 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\EntityInitializationBoundary;
+use Waaseyaa\Entity\EntityReadLayout;
+use Waaseyaa\Entity\EntityReadLayoutGeneration;
+use Waaseyaa\Entity\EntityStructure;
 use Waaseyaa\Entity\EntityValues;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Entity\Tests\Unit\Cast\Fixture\SampleNestedChildVo;
 use Waaseyaa\Entity\Tests\Unit\Cast\Fixture\SampleNestedParentVo;
 use Waaseyaa\Entity\Tests\Unit\Cast\Fixture\SampleStringEnum;
@@ -16,6 +21,28 @@ use Waaseyaa\Entity\Tests\Unit\Cast\Fixture\SampleStringEnum;
 #[CoversClass(EntityValues::class)]
 final class EntityValuesTest extends TestCase
 {
+    #[Test]
+    public function selected_projection_enumerates_without_exporting_unselected_internal_fields(): void
+    {
+        $boundary = new EntityInitializationBoundary();
+        $payload = $boundary->factory()->seal(
+            values: ['id' => 7, 'title' => 'Public title', 'mail' => 'member@example.test'],
+            layout: new EntityReadLayout(new EntityReadLayoutGeneration(), [
+                'id' => FieldReadLevel::Public,
+                'title' => FieldReadLevel::Public,
+                'mail' => FieldReadLevel::Internal,
+            ]),
+            structure: new EntityStructure('article', 'article', 7, null, fieldNames: ['id', 'title', 'mail']),
+            entityTypeId: 'article',
+            entityKeys: ['id' => 'id', 'label' => 'title'],
+        );
+        $entity = $boundary->installer()->instantiate(TestEntity::class, $payload);
+
+        self::assertSame(['id' => 7, 'title' => 'Public title'], EntityValues::toCastAwareMap($entity, ['id', 'title']));
+        self::assertSame(['id', 'mail', 'title'], EntityValues::fieldNames($entity));
+        self::assertSame(['id' => 7, 'title' => 'Public title'], EntityValues::toCastAwareMap($entity));
+    }
+
     #[Test]
     public function toCastAwareMapUsesGetPerKey(): void
     {

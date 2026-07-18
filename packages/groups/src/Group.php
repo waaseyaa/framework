@@ -22,13 +22,13 @@ use Waaseyaa\Field\FieldStorage;
 #[ContentEntityKeys(id: 'gid', uuid: 'uuid', bundle: 'type', label: 'name', langcode: 'langcode')]
 final class Group extends ContentEntityBase
 {
-    #[Field(type: 'integer', default: 1, label: 'Status', description: 'Whether the group is published.', stored: FieldStorage::Data)]
+    #[Field(type: 'integer', default: 1, label: 'Status', description: 'Whether the group is published.', stored: FieldStorage::Data, read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public ?int $status = null;
 
-    #[Field(type: 'integer', label: 'Created at', stored: FieldStorage::Data)]
+    #[Field(type: 'integer', label: 'Created at', stored: FieldStorage::Data, read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public ?int $created_at = null;
 
-    #[Field(type: 'integer', label: 'Updated at', stored: FieldStorage::Data)]
+    #[Field(type: 'integer', label: 'Updated at', stored: FieldStorage::Data, read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public ?int $updated_at = null;
 
     /**

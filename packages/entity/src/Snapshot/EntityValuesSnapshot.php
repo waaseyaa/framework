@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Waaseyaa\Entity\Snapshot;
 
 use Waaseyaa\Entity\Cast\ValueCaster;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
+use Waaseyaa\Entity\Exception\EntitySerializationForbidden;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Entity\Hydration\HydrationContext;
 
 /**
@@ -38,6 +41,17 @@ final readonly class EntityValuesSnapshot
      */
     public static function fromEntity(EntityInterface $entity, HydrationContext $context, ?array $casts = null): self
     {
+        if ($entity instanceof EntityBase) {
+            foreach ($entity->fieldNames() as $field) {
+                if ($entity->fieldReadLevel($field) !== FieldReadLevel::Public) {
+                    throw new EntitySerializationForbidden(sprintf(
+                        'A sealed non-Public field cannot be detached into an EntityValuesSnapshot (%s.%s).',
+                        $entity->getEntityTypeId(),
+                        $field,
+                    ));
+                }
+            }
+        }
         $bag = $entity->toArray();
 
         return new self(

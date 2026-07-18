@@ -13,8 +13,14 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\AI\Tools\Entity\EntityReadTool;
+use Waaseyaa\Entity\EntityBase;
+use Waaseyaa\Entity\EntityInitializationBoundary;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityReadLayout;
+use Waaseyaa\Entity\EntityReadLayoutGeneration;
+use Waaseyaa\Entity\EntityStructure;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Field\FieldDefinitionInterface;
 
@@ -172,4 +178,37 @@ final class EntityReadToolFieldFilterTest extends TestCase
         self::assertArrayHasKey('body', $values);
         self::assertArrayNotHasKey('secret_note', $values);
     }
+
+    #[Test]
+    public function sealed_framework_entity_is_projected_by_names_without_whole_array_export(): void
+    {
+        $boundary = new EntityInitializationBoundary();
+        $payload = $boundary->factory()->seal(
+            values: ['id' => 1, 'title' => 'T', 'mail' => 'member@example.test'],
+            layout: new EntityReadLayout(new EntityReadLayoutGeneration(), [
+                'id' => FieldReadLevel::Public,
+                'title' => FieldReadLevel::Public,
+                'mail' => FieldReadLevel::Internal,
+            ]),
+            structure: new EntityStructure('story', 'story', 1, null, fieldNames: ['id', 'title', 'mail']),
+            entityTypeId: 'story',
+            entityKeys: ['id' => 'id', 'label' => 'title'],
+        );
+        $entity = $boundary->installer()->instantiate(SealedStoryEntity::class, $payload);
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->method('find')->willReturn($entity);
+        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm->method('hasDefinition')->willReturn(true);
+        $etm->method('getRepository')->willReturn($repository);
+        $etm->method('resolveFieldDefinitions')->willReturn($this->fieldDefinitions(['id', 'title', 'mail'], []));
+        $tool = new EntityReadTool($etm);
+        $tool->setAccessHandler($this->handler());
+
+        $values = $this->readValues($tool, $this->account());
+
+        self::assertSame('T', $values['title']);
+        self::assertArrayNotHasKey('mail', $values);
+    }
 }
+
+final class SealedStoryEntity extends EntityBase {}

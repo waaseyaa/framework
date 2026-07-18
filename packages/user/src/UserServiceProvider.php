@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\User;
 
 use Twig\Environment;
+use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -50,6 +51,7 @@ final class UserServiceProvider extends ServiceProvider
                     ?? (getenv('APP_URL') !== false && getenv('APP_URL') !== '' ? (string) getenv('APP_URL') : 'http://localhost:8000'),
                 appName: $config['app']['name']
                     ?? (getenv('APP_NAME') !== false && getenv('APP_NAME') !== '' ? (string) getenv('APP_NAME') : 'Waaseyaa'),
+                internalFields: $this->resolve(UserInternalFieldReaderInterface::class),
             );
         });
     }

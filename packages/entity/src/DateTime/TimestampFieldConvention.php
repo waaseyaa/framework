@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Entity\DateTime;
 
 use InvalidArgumentException;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 
 /**
@@ -81,12 +82,25 @@ final class TimestampFieldConvention
      */
     public static function isRawTimestampUnset(EntityInterface $entity, string $fieldName): bool
     {
+        if ($entity instanceof EntityBase) {
+            if (!in_array($fieldName, $entity->fieldNames(), true)) {
+                return true;
+            }
+            $val = $entity->get($fieldName);
+
+            return self::isUnsetValue($val);
+        }
+
         $raw = $entity->toArray();
         if (!array_key_exists($fieldName, $raw)) {
             return true;
         }
 
-        $val = $raw[$fieldName];
+        return self::isUnsetValue($raw[$fieldName]);
+    }
+
+    private static function isUnsetValue(mixed $val): bool
+    {
         if ($val === null || $val === '') {
             return true;
         }

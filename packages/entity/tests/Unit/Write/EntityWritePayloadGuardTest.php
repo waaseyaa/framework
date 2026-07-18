@@ -8,9 +8,15 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Waaseyaa\Entity\EntityInitializationBoundary;
+use Waaseyaa\Entity\EntityReadLayout;
+use Waaseyaa\Entity\EntityReadLayoutGeneration;
+use Waaseyaa\Entity\EntityStructure;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Entity\Tests\Helper\TestEntityType;
+use Waaseyaa\Entity\Tests\Unit\TestEntity;
 use Waaseyaa\Entity\Write\EntityWritePayloadGuard;
 use Waaseyaa\Entity\Write\EntityWritePayloadGuardResult;
 use Waaseyaa\Field\FieldDefinition;
@@ -25,6 +31,40 @@ use Waaseyaa\Field\FieldDefinitionRegistry;
 #[CoversClass(EntityWritePayloadGuard::class)]
 final class EntityWritePayloadGuardTest extends TestCase
 {
+    #[Test]
+    public function sealed_entity_bookkeeping_echo_is_compared_without_whole_array_export(): void
+    {
+        $definition = TestEntityType::stub(
+            'sealed_echo',
+            [],
+            keys: ['id' => 'id', 'revision' => 'revision_id'],
+        );
+        $boundary = new EntityInitializationBoundary();
+        $payload = $boundary->factory()->seal(
+            values: ['id' => 1, 'revision_id' => 9, 'mail' => 'member@example.test'],
+            layout: new EntityReadLayout(new EntityReadLayoutGeneration(), [
+                'id' => FieldReadLevel::Public,
+                'revision_id' => FieldReadLevel::Public,
+                'mail' => FieldReadLevel::Internal,
+            ]),
+            structure: new EntityStructure('sealed_echo', 'sealed_echo', 1, null, revisionId: 9, fieldNames: ['id', 'revision_id', 'mail']),
+            entityTypeId: 'sealed_echo',
+            entityKeys: ['id' => 'id', 'revision' => 'revision_id'],
+        );
+        $entity = $boundary->installer()->instantiate(TestEntity::class, $payload);
+
+        $result = EntityWritePayloadGuard::evaluateEntityForUpdate(
+            $definition,
+            'sealed_echo',
+            ['revision_id' => 9],
+            $this->managerWith($definition),
+            $entity,
+        );
+
+        self::assertSame([], $result->refusedKeys);
+        self::assertSame(['revision_id'], $result->echoedKeys);
+    }
+
     /**
      * resolveFieldDefinitions() requires the type to be registered — this
      * builds a fresh manager per test and registers the given type.

@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Tools\Entity;
 
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityValueComparator;
+use Waaseyaa\Entity\EntityValues;
 
 /**
  * Field-level write guard shared by the two whole-row revision-restore tools
@@ -38,8 +41,28 @@ final class EntityRevisionRestoreGuard
     private function __construct() {}
 
     /**
-     * The entity's own curated values (getValues() when present, else the
-     * guaranteed toArray()) — same fallback EntityReadTool/EntitySearchTool use.
+     * @return list<string> Exact changed content names; no value leaves the comparison authority.
+     */
+    public static function changedFieldNames(EntityInterface $current, EntityInterface $target): array
+    {
+        if ($current instanceof EntityBase || $target instanceof EntityBase) {
+            if (!$current instanceof EntityBase || !$target instanceof EntityBase) {
+                throw new \LogicException('A framework revision comparison requires two EntityBase views.');
+            }
+            $fields = array_values(array_filter(
+                EntityValues::fieldNames($target),
+                static fn(string $field): bool => !in_array($field, self::METADATA_KEYS, true)
+                    && !in_array($field, EntityFieldRedaction::ALWAYS_INTERNAL_FIELDS, true),
+            ));
+
+            return new EntityValueComparator()->changedFieldNames($current, $target, $fields);
+        }
+
+        return array_keys(self::changedValues(self::values($current), self::values($target)));
+    }
+
+    /**
+     * Third-party compatibility only. Framework entities use the closed name-only comparator.
      *
      * @return array<string, mixed>
      */

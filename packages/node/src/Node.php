@@ -51,22 +51,22 @@ final class Node extends ContentEntityBase implements HydratableFromStorageInter
         'changed' => ['type' => 'datetime_immutable', 'storage' => 'unix'],
     ];
 
-    #[Field(label: 'Title', description: 'The title of the content.', required: true, settings: ['weight' => 0])]
+    #[Field(label: 'Title', description: 'The title of the content.', required: true, settings: ['weight' => 0], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public string $title = '';
 
-    #[Field(label: 'Content type', description: 'The bundle (content type) of this node.', required: true, readOnly: true, settings: ['weight' => 1])]
+    #[Field(label: 'Content type', description: 'The bundle (content type) of this node.', required: true, readOnly: true, settings: ['weight' => 1], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public string $type = '';
 
-    #[Field(label: 'Slug', description: 'The URL-friendly identifier for this content.', required: true, settings: ['weight' => 2])]
+    #[Field(label: 'Slug', description: 'The URL-friendly identifier for this content.', required: true, settings: ['weight' => 2], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public string $slug = '';
 
-    #[Field(type: 'boolean', label: 'Published', description: 'Whether the content is published.', default: 0, settings: ['weight' => 10])]
+    #[Field(type: 'boolean', label: 'Published', description: 'Whether the content is published.', default: 0, settings: ['weight' => 10], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public bool $status = false;
 
-    #[Field(type: 'boolean', label: 'Promoted to front page', description: 'Whether the content is promoted to the front page.', default: 0, settings: ['weight' => 11])]
+    #[Field(type: 'boolean', label: 'Promoted to front page', description: 'Whether the content is promoted to the front page.', default: 0, settings: ['weight' => 11], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public bool $promote = false;
 
-    #[Field(type: 'boolean', label: 'Sticky at top of lists', description: 'Whether the content is sticky at the top of lists.', default: 0, settings: ['weight' => 12])]
+    #[Field(type: 'boolean', label: 'Sticky at top of lists', description: 'Whether the content is sticky at the top of lists.', default: 0, settings: ['weight' => 12], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public bool $sticky = false;
 
     /**
@@ -78,16 +78,16 @@ final class Node extends ContentEntityBase implements HydratableFromStorageInter
      * it here only makes it visible to SchemaPresenter / JSON:API discovery,
      * it does not change how it is stored (docs/specs/content-workflow.md).
      */
-    #[Field(type: 'string', label: 'Workflow state', description: 'The current editorial workflow state of this node (workflow-bound bundles only).', stored: FieldStorage::Data, settings: ['weight' => 13])]
+    #[Field(type: 'string', label: 'Workflow state', description: 'The current editorial workflow state of this node (workflow-bound bundles only).', stored: FieldStorage::Data, settings: ['weight' => 13], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public ?string $workflow_state = null;
 
-    #[Field(type: 'entity_reference', label: 'Author', description: 'The user who authored this content.', settings: ['weight' => 20, 'target_entity_type_id' => 'user'])]
+    #[Field(type: 'entity_reference', label: 'Author', description: 'The user who authored this content.', settings: ['weight' => 20, 'target_entity_type_id' => 'user'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public ?int $uid = null;
 
-    #[Field(type: 'integer', label: 'Authored on', description: 'The date and time the content was created.', settings: ['weight' => 30, 'subtype' => 'timestamp'])]
+    #[Field(type: 'integer', label: 'Authored on', description: 'The date and time the content was created.', settings: ['weight' => 30, 'subtype' => 'timestamp'], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public ?int $created = null;
 
-    #[Field(type: 'integer', label: 'Last updated', description: 'The date and time the content was last updated.', settings: ['weight' => 31, 'subtype' => 'timestamp'])]
+    #[Field(type: 'integer', label: 'Last updated', description: 'The date and time the content was last updated.', settings: ['weight' => 31, 'subtype' => 'timestamp'], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public ?int $changed = null;
 
     /**

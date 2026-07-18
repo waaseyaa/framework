@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
+use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\User\RoleRepository;
@@ -27,6 +28,7 @@ final class UserAssignRoleHandler
     public function __construct(
         private readonly RoleRepository $roleRepository,
         private readonly EntityTypeManagerInterface $entityTypeManager,
+        private readonly UserInternalFieldReaderInterface $internalFields,
     ) {}
 
     public function execute(SymfonyCommandIO $io): int
@@ -59,8 +61,7 @@ final class UserAssignRoleHandler
             return 1;
         }
 
-        /** @var array<int, string> $currentRoles */
-        $currentRoles = $user->get('roles') ?? [];
+        $currentRoles = $this->internalFields->maintenanceAuthorization($user)->roles;
 
         if ($remove) {
             $roles = array_values(array_filter(

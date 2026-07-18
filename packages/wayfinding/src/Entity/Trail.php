@@ -45,16 +45,16 @@ final class Trail extends ContentEntityBase
     /** The live value originated from an agent recording (safe to advance on re-record). */
     public const string ORIGIN_RECORDED = 'recorded';
 
-    #[Field(label: 'Title', description: 'Human-readable trail title.', required: true, settings: ['weight' => 0])]
+    #[Field(label: 'Title', description: 'Human-readable trail title.', required: true, settings: ['weight' => 0], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $title = '';
 
-    #[Field(type: 'text', label: 'Beacons', description: 'JSON-encoded ordered list of {anchor_id, content, order}.', required: true, settings: ['weight' => 1])]
+    #[Field(type: 'text', label: 'Beacons', description: 'JSON-encoded ordered list of {anchor_id, content, order}.', required: true, settings: ['weight' => 1], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $beacons = '[]';
 
-    #[Field(type: 'integer', label: 'Owner UID', description: 'Account that owns this saved trail.', required: true, settings: ['weight' => 2, 'not_null' => true])]
+    #[Field(type: 'integer', label: 'Owner UID', description: 'Account that owns this saved trail.', required: true, settings: ['weight' => 2, 'not_null' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public int $owner_uid = 0;
 
-    #[Field(label: 'Origin', description: 'Provenance of the live value: "recorded" or "human".', required: true, settings: ['weight' => 3])]
+    #[Field(label: 'Origin', description: 'Provenance of the live value: "recorded" or "human".', required: true, settings: ['weight' => 3], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $origin = self::ORIGIN_RECORDED;
 
     public function __construct(

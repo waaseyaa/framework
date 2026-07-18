@@ -245,6 +245,32 @@ final class SymfonyConsoleRuntimeTest extends TestCase
         self::assertSame($first, $application->find('sample'));
     }
 
+    public function testFieldAccessPreflightFactoryExposesOnlyTheExactRestrictedCommand(): void
+    {
+        $provider = new class extends ServiceProvider implements ProvidesConsoleCommandsInterface {
+            public function register(): void {}
+
+            public function consoleCommands(): iterable
+            {
+                throw new \LogicException('Application providers must not be consulted by restricted bootstrap.');
+                yield;
+            }
+        };
+
+        $application = new ConsoleApplicationFactory(
+            kernel: $this->kernel(),
+            container: $this->container(),
+            providers: [$provider],
+        )->createFieldAccessPreflightOnly();
+
+        self::assertTrue($application->has('field-access:preflight'));
+        self::assertFalse($application->has('app:mutating-command'));
+        self::assertSame(['field-access:preflight'], array_values(array_filter(
+            array_keys($application->all()),
+            static fn(string $name): bool => !in_array($name, ['help', 'list', 'completion', '_complete'], true),
+        )));
+    }
+
     public function testFactoryRejectsReservedConfigCommandCollisions(): void
     {
         $provider = new class extends ServiceProvider implements ProvidesConsoleCommandsInterface {

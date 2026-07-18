@@ -8,7 +8,13 @@ use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\DateTime\TimestampFieldConvention;
+use Waaseyaa\Entity\EntityInitializationBoundary;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityReadLayout;
+use Waaseyaa\Entity\EntityReadLayoutGeneration;
+use Waaseyaa\Entity\EntityStructure;
+use Waaseyaa\Entity\FieldReadLevel;
+use Waaseyaa\Entity\Tests\Unit\TestEntity;
 
 /**
  * @covers \Waaseyaa\Entity\DateTime\TimestampFieldConvention
@@ -85,5 +91,24 @@ final class TimestampFieldConventionTest extends TestCase
         $entity3 = $this->createStub(EntityInterface::class);
         $entity3->method('toArray')->willReturn([]);
         self::assertTrue(TimestampFieldConvention::isRawTimestampUnset($entity3, 'created'));
+    }
+
+    #[Test]
+    public function framework_timestamp_probe_does_not_export_unrelated_internal_fields(): void
+    {
+        $boundary = new EntityInitializationBoundary();
+        $payload = $boundary->factory()->seal(
+            values: ['created' => 0, 'mail' => 'member@example.test'],
+            layout: new EntityReadLayout(new EntityReadLayoutGeneration(), [
+                'created' => FieldReadLevel::Public,
+                'mail' => FieldReadLevel::Internal,
+            ]),
+            structure: new EntityStructure('article', 'article', null, null, fieldNames: ['created', 'mail']),
+            entityTypeId: 'article',
+            entityKeys: ['id' => 'id'],
+        );
+        $entity = $boundary->installer()->instantiate(TestEntity::class, $payload);
+
+        self::assertTrue(TimestampFieldConvention::isRawTimestampUnset($entity, 'created'));
     }
 }

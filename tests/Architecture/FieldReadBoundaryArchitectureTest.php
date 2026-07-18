@@ -148,38 +148,20 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
      *
      * @var array<string, non-empty-string>
      */
-    private const array DIRECT_VALUE_ALLOWLIST = [
-        'packages/ai-pipeline/src/Pipeline.php' => 'Pipeline-local step configuration, not an entity field bag.',
-        'packages/audit/src/Entity/AuditCheckpoint.php' => 'Legacy flat audit row accessor scheduled for guarded read-model convergence.',
-        'packages/audit/src/Entity/AuditEvent.php' => 'Legacy flat audit row accessor scheduled for guarded read-model convergence.',
-        'packages/audit/src/Entity/AuditRetentionPolicy.php' => 'Legacy flat audit row accessor scheduled for guarded read-model convergence.',
-        'packages/audit/src/AuditedFieldRead.php' => 'Reader-private closure authority used only after strict audit reservation.',
-        'packages/entity-storage/src/EntityRepository.php' => 'Repository-private persistence closure authority after pre-save callbacks.',
-        'packages/entity/src/ConfigEntityBase.php' => 'Legacy config export internals; activation guard convergence is tracked for WP4.',
-        'packages/entity/src/ContentEntityBase.php' => 'Base field-definition storage, not a value release path.',
-        'packages/entity/src/EntityBase.php' => 'Canonical value bag; all supported release paths converge here at activation.',
-        'packages/entity/src/RevisionableEntityTrait.php' => 'Revision structural state pending closed structural hydration convergence.',
-        'packages/entity/src/TranslatableEntityTrait.php' => 'Translation compatibility storage pending guarded translation convergence.',
-        'packages/groups/src/GroupType.php' => 'Legacy config-entity domain helper pending accessor convergence.',
-        'packages/media/src/MediaType.php' => 'Legacy config-entity domain helper pending accessor convergence.',
-        'packages/media/src/Version/MediaVersion.php' => 'Legacy content-entity helper pending accessor convergence.',
-        'packages/menu/src/Menu.php' => 'Legacy config-entity domain helper pending accessor convergence.',
-        'packages/node/src/NodeType.php' => 'Legacy config-entity domain helper pending accessor convergence.',
-        'packages/taxonomy/src/Vocabulary.php' => 'Legacy config-entity domain helper pending accessor convergence.',
-        'packages/workflows/src/Workflow.php' => 'Legacy config-entity domain helper pending accessor convergence.',
-    ];
+    private const array DIRECT_VALUE_ALLOWLIST = [];
 
     /** @var array<string, non-empty-string> */
     private const array ENTITY_TO_ARRAY_ALLOWLIST = [
-        'packages/ai-tools/src/Entity/EntityReadTool.php' => 'WP3 surface convergence inventory; guarded serialization remains dormant.',
-        'packages/ai-tools/src/Entity/EntityRevisionRestoreGuard.php' => 'WP3 write-diff convergence inventory.',
-        'packages/ai-tools/src/Entity/EntitySearchTool.php' => 'WP3 surface convergence inventory; guarded serialization remains dormant.',
-        'packages/ai-tools/src/Relationship/RelationshipTraverseTool.php' => 'WP3 relationship projection convergence inventory.',
+        'packages/ai-tools/src/Entity/EntityReadTool.php' => 'Third-party EntityInterface compatibility fallback only; framework values are selected by fieldNames before guarded get().',
+        'packages/ai-tools/src/Entity/EntityRevisionRestoreGuard.php' => 'Third-party EntityInterface compatibility fallback only; framework revisions use the closed name-only comparator.',
+        'packages/ai-tools/src/Entity/EntitySearchTool.php' => 'Third-party EntityInterface compatibility fallback only; framework search selects names before guarded get().',
+        'packages/ai-tools/src/Relationship/RelationshipTraverseTool.php' => 'Third-party EntityInterface compatibility fallback only; framework edge projection uses selected guarded reads.',
         'packages/entity-storage/src/EntityRepository.php' => 'Private diagnosed legacy third-party persistence fallback only.',
-        'packages/entity/src/ConfigEntityBase.php' => 'Config export compatibility projection pending activation convergence.',
-        'packages/entity/src/DateTime/TimestampFieldConvention.php' => 'Legacy field-shape inspection scheduled for WP3 accessor convergence.',
-        'packages/entity/src/EntityValues.php' => 'Legacy entity field-name enumeration and nested normalization scheduled for WP3.',
-        'packages/entity/src/Snapshot/EntityValuesSnapshot.php' => 'Deprecated compatibility snapshot scheduled for WP4 removal.',
+        'packages/entity/src/ConfigEntityBase.php' => 'Explicit public config export; sealed Internal fields intentionally make the whole export fail atomically.',
+        'packages/entity/src/DateTime/TimestampFieldConvention.php' => 'Third-party EntityInterface compatibility fallback only; framework entities enumerate and use guarded get().',
+        'packages/entity/src/EntityValues.php' => 'Third-party EntityInterface compatibility fallback only; framework entities use non-value fieldNames() enumeration.',
+        'packages/entity/src/Snapshot/EntityValuesSnapshot.php' => 'Third-party compatibility fallback; framework snapshots preflight Public-only before exporting and remain scheduled for WP4 removal.',
+        'packages/entity/src/Write/EntityWritePayloadGuard.php' => 'Third-party EntityInterface bookkeeping-echo compatibility only; framework echoes use the closed name-only comparator.',
     ];
 
     /** @var array<string, non-empty-string> */
@@ -208,7 +190,10 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
         'packages/engagement/src/EngagementAccessPolicy.php' => 'Engagement policy input pending WP3 guarded accessor convergence.',
         'packages/entity-storage/src/CoordinatorLifecycleDispatcher.php' => 'Persistence lifecycle input pending activation convergence.',
         'packages/entity/src/Audit/EntityWriteAuditListener.php' => 'Write-audit input pending WP3 guarded accessor convergence.',
-        'packages/entity/src/EntityValues.php' => 'Legacy cast-aware projection helper pending WP3 convergence.',
+        'packages/entity/src/EntityBase.php' => 'Canonical guarded accessor and structural helper implementation.',
+        'packages/entity/src/DateTime/TimestampFieldConvention.php' => 'Framework timestamp inspection uses fieldNames() plus the canonical guarded accessor.',
+        'packages/entity/src/EntityValues.php' => 'Selected cast-aware projections enumerate field names without first exporting a value bag.',
+        'packages/entity/src/RevisionableEntityTrait.php' => 'Revision helpers route through the canonical guarded accessor when structural metadata is unavailable.',
         'packages/entity/src/Validation/EntityValidator.php' => 'Entity validation input pending activation convergence.',
         'packages/entity/testing/StorageBackedStubRepository.php' => 'Testing-package entity repository helper retained for consumer fixtures.',
         'packages/field/src/Classification/EntityLifecycleSubscriber.php' => 'Classification lifecycle input pending WP3 guarded accessor convergence.',
@@ -225,6 +210,7 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
         'packages/groups/src/GroupType.php' => 'Group-type label helper pending WP3 guarded accessor convergence.',
         'packages/listing/src/ListingResolver.php' => 'Listing projection input pending WP3 guarded accessor convergence.',
         'packages/media/src/Media.php' => 'Media entity domain helper pending WP3 convergence.',
+        'packages/media/src/Version/MediaVersion.php' => 'Media-version domain helpers route through the canonical guarded accessor.',
         'packages/menu/src/MenuLink.php' => 'Menu-link entity input pending WP3 guarded accessor convergence.',
         'packages/messaging/src/MessagingAccessPolicy.php' => 'Messaging policy input pending WP3 guarded accessor convergence.',
         'packages/migration/src/Plugin/Destination/EntityDestination.php' => 'Migration structural key reads pending WP3 convergence.',
@@ -254,7 +240,7 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
         'packages/audit/src/Entity/AuditCheckpoint.php' => ['methods' => ['get'], 'rationale' => 'Legacy flat audit read-model entity override pending convergence.'],
         'packages/audit/src/Entity/AuditEvent.php' => ['methods' => ['get'], 'rationale' => 'Legacy flat audit read-model entity override pending convergence.'],
         'packages/audit/src/Entity/AuditRetentionPolicy.php' => ['methods' => ['get'], 'rationale' => 'Legacy flat audit read-model entity override pending convergence.'],
-        'packages/entity/src/TranslatableEntityTrait.php' => ['methods' => ['get'], 'rationale' => 'Translation dispatch override converges into EntityBase get().'],
+        'packages/entity/src/TranslatableEntityTrait.php' => ['methods' => ['get'], 'rationale' => 'Translation and fallback dispatch use sealed related-view containers and converge into EntityBase get().'],
     ];
 
     /** @var array<string, array{methods: non-empty-list<string>, rationale: non-empty-string}> */
@@ -326,6 +312,25 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
         );
         self::assertFalse(method_exists(\Waaseyaa\Entity\EntityBase::class, '_storageValuesForPersistence'));
         self::assertFalse(class_exists('Waaseyaa\\EntityStorage\\PersistenceValueExtractor'));
+    }
+
+    #[Test]
+    public function whole_bag_comparisons_are_confined_to_the_name_only_authority(): void
+    {
+        $root = dirname(__DIR__, 2);
+        self::assertStringNotContainsString('->toArray()', (string) file_get_contents($root . '/packages/api/src/JsonApiController.php'));
+        self::assertStringNotContainsString('->toArray()', (string) file_get_contents($root . '/packages/graphql/src/Resolver/EntityResolver.php'));
+
+        $callers = [];
+        foreach ($this->phpSources() as $relative => $source) {
+            if (str_contains($source, 'new EntityValueComparator')) {
+                $callers[] = $relative;
+            }
+        }
+        self::assertSame([
+            'packages/ai-tools/src/Entity/EntityRevisionRestoreGuard.php',
+            'packages/entity/src/Write/EntityWritePayloadGuard.php',
+        ], $callers);
     }
 
     #[Test]
@@ -442,6 +447,56 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
     }
 
     #[Test]
+    public function first_party_field_definitions_are_semantically_classified(): void
+    {
+        self::assertSame([], $this->astInventoryForSources($this->phpSources())['unclassified_field_definitions']);
+    }
+
+    #[Test]
+    public function classification_inventory_resolves_aliases_fqcn_attributes_and_metadata_arrays(): void
+    {
+        $inventory = $this->astInventoryForSources([
+            'fixture/Definitions.php' => <<<'PHP'
+                <?php
+                namespace Fixture;
+                use Waaseyaa\Field\FieldDefinition as FD;
+                use Waaseyaa\Entity\Attribute\Field as EntityField;
+                use Waaseyaa\Field\Attribute\FieldTemplate as Template;
+                final class Definitions {
+                    #[EntityField(type: 'string')]
+                    public string $attribute = '';
+                    #[Template(key: 'dynamic', type: 'string')]
+                    public string $dynamic = '';
+                    public function definitions(): array {
+                        return [
+                            new FD(name: 'alias', type: 'string'),
+                            new \Waaseyaa\Field\FieldDefinition(name: 'fqcn', type: 'string'),
+                            new FD(name: 'named_null', type: 'string', read: null),
+                            new \Waaseyaa\Entity\EntityType(
+                                id: 'fixture', label: 'Fixture', class: self::class,
+                                _fieldDefinitions: [
+                                    'metadata' => ['type' => 'string'],
+                                    'metadata_null' => ['type' => 'string', 'read' => null],
+                                ],
+                            ),
+                        ];
+                    }
+                }
+                PHP,
+        ])['unclassified_field_definitions'];
+
+        self::assertSame([
+            'attribute:7',
+            'constructor:13',
+            'constructor:14',
+            'constructor:15',
+            'field_template:9',
+            'metadata:19',
+            'metadata:20',
+        ], $inventory['fixture/Definitions.php']);
+    }
+
+    #[Test]
     public function closed_first_party_raw_authorities_are_exact_and_non_exported(): void
     {
         $actual = [];
@@ -454,9 +509,14 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
         self::assertSame([
             'packages/audit/src/AuditedFieldRead.php',
             'packages/entity-storage/src/EntityRepository.php',
+            'packages/entity/src/EntityValueComparator.php',
+            'packages/entity/src/Validation/ValidationFieldReader.php',
         ], $actual);
         self::assertTrue(new \ReflectionMethod(\Waaseyaa\Audit\AuditedFieldRead::class, 'obtainReservedValue')->isPrivate());
         self::assertTrue(new \ReflectionMethod(\Waaseyaa\EntityStorage\EntityRepository::class, 'extractPersistenceValues')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Entity\EntityValueComparator::class, 'changedFields')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Entity\EntityValueComparator::class, 'matchingSubmittedFields')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Entity\Validation\ValidationFieldReader::class, 'obtain')->isPrivate());
     }
 
     private function hasBoundEntityBaseClosure(string $source): bool
@@ -513,7 +573,8 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
      *   entity_calls: array<string, list<string>>,
      *   entity_overrides: array<string, list<string>>,
      *   snapshot_raw_methods: array<string, list<string>>,
-     *   v2_signature_violations: array<string, list<string>>
+     *   v2_signature_violations: array<string, list<string>>,
+     *   unclassified_field_definitions: array<string, list<string>>
      * }
      */
     private function astInventoryForSources(array $sources): array
@@ -651,7 +712,11 @@ final class FieldReadBoundaryAstInventory
             'entity_overrides' => [],
             'snapshot_raw_methods' => [],
             'v2_signature_violations' => [],
+            'unclassified_field_definitions' => [],
         ];
+        foreach ($asts as $file => $ast) {
+            $this->scanFieldDefinitions($ast, $file, $inventory['unclassified_field_definitions']);
+        }
         foreach ($this->classes as $class => $metadata) {
             $this->scanClass($class, $metadata['file'], $metadata['node'], $inventory);
         }
@@ -668,6 +733,79 @@ final class FieldReadBoundaryAstInventory
         }
 
         return $inventory;
+    }
+
+    /** @param list<Node> $nodes @param array<string, list<string>> $occurrences */
+    private function scanFieldDefinitions(array $nodes, string $file, array &$occurrences): void
+    {
+        $finder = new NodeFinder();
+        foreach ($finder->findInstanceOf($nodes, Node\Attribute::class) as $attribute) {
+            assert($attribute instanceof Node\Attribute);
+            $kind = match ($this->resolvedName($attribute->name)) {
+                'Waaseyaa\Entity\Attribute\Field' => 'attribute',
+                'Waaseyaa\Field\Attribute\FieldTemplate' => 'field_template',
+                default => null,
+            };
+            if (null !== $kind && !$this->hasNonNullNamedArgument($attribute->args, 'read')) {
+                $occurrences[$file][] = $kind . ':' . $attribute->getStartLine();
+            }
+        }
+        foreach ($finder->findInstanceOf($nodes, Expr\New_::class) as $construction) {
+            assert($construction instanceof Expr\New_);
+            if (!$construction->class instanceof Name) {
+                continue;
+            }
+            $class = $this->resolvedName($construction->class);
+            if ('Waaseyaa\Field\FieldDefinition' === $class && !$this->hasNonNullNamedArgument($construction->args, 'read')) {
+                $occurrences[$file][] = 'constructor:' . $construction->getStartLine();
+            }
+            if ('Waaseyaa\Entity\EntityType' !== $class) {
+                continue;
+            }
+            foreach ($construction->args as $argument) {
+                if ('_fieldDefinitions' !== $argument->name?->toString() || !$argument->value instanceof Expr\Array_) {
+                    continue;
+                }
+                foreach ($argument->value->items as $item) {
+                    if (null === $item || !$item->value instanceof Expr\Array_ || $this->arrayHasNonNullStringKey($item->value, 'read')) {
+                        continue;
+                    }
+                    $occurrences[$file][] = 'metadata:' . $item->value->getStartLine();
+                }
+            }
+        }
+    }
+
+    private function resolvedName(Name $name): string
+    {
+        $resolved = $name->getAttribute('resolvedName');
+
+        return $resolved instanceof Name ? $resolved->toString() : $name->toString();
+    }
+
+    /** @param list<Node\Arg> $arguments */
+    private function hasNonNullNamedArgument(array $arguments, string $name): bool
+    {
+        foreach ($arguments as $argument) {
+            if ($name === $argument->name?->toString()) {
+                return !$argument->value instanceof Expr\ConstFetch
+                    || 'null' !== strtolower($argument->value->name->toString());
+            }
+        }
+
+        return false;
+    }
+
+    private function arrayHasNonNullStringKey(Expr\Array_ $array, string $name): bool
+    {
+        foreach ($array->items as $item) {
+            if (null !== $item && $item->key instanceof Node\Scalar\String_ && $name === $item->key->value) {
+                return !$item->value instanceof Expr\ConstFetch
+                    || 'null' !== strtolower($item->value->name->toString());
+            }
+        }
+
+        return false;
     }
 
     /** @param list<Node> $nodes */

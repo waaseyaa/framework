@@ -66,7 +66,7 @@ final class Vocabulary extends ConfigEntityBase
      */
     public function setName(string $name): static
     {
-        $this->values['name'] = $name;
+        $this->set('name', $name);
 
         return $this;
     }
@@ -76,7 +76,7 @@ final class Vocabulary extends ConfigEntityBase
      */
     public function getDescription(): string
     {
-        return (string) ($this->values['description'] ?? '');
+        return (string) ($this->get('description') ?? '');
     }
 
     /**
@@ -84,7 +84,7 @@ final class Vocabulary extends ConfigEntityBase
      */
     public function setDescription(string $description): static
     {
-        $this->values['description'] = $description;
+        $this->set('description', $description);
 
         return $this;
     }
@@ -94,7 +94,7 @@ final class Vocabulary extends ConfigEntityBase
      */
     public function getWeight(): int
     {
-        return (int) ($this->values['weight'] ?? 0);
+        return (int) ($this->get('weight') ?? 0);
     }
 
     /**
@@ -102,7 +102,7 @@ final class Vocabulary extends ConfigEntityBase
      */
     public function setWeight(int $weight): static
     {
-        $this->values['weight'] = $weight;
+        $this->set('weight', $weight);
 
         return $this;
     }

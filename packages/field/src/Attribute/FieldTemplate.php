@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Field\Attribute;
 
+use Waaseyaa\Entity\FieldReadLevel;
+
 /**
  * @api
  */
@@ -28,5 +30,6 @@ final readonly class FieldTemplate
         public bool $required = false,
         public bool $readOnly = false,
         public bool $pii = false,
+        public ?FieldReadLevel $read = null,
     ) {}
 }

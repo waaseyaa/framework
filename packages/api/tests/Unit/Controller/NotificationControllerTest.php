@@ -15,6 +15,7 @@ use Waaseyaa\Notification\NotifiableInterface;
 use Waaseyaa\Notification\NotificationDispatcher;
 use Waaseyaa\Notification\NotificationInterface;
 use Waaseyaa\Queue\SyncQueue;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 
 /**
  * Unit tests for the M4C WP01 notification admin controller.
@@ -37,7 +38,7 @@ final class NotificationControllerTest extends TestCase
             new SyncQueue(),
             ['mail' => $mail, 'database' => $database],
         );
-        $controller = new NotificationController($dispatcher);
+        $controller = new NotificationController($dispatcher, new UserInternalFieldReaderFixture());
 
         $payload = $controller->index(new Request());
 
@@ -53,7 +54,7 @@ final class NotificationControllerTest extends TestCase
     public function indexReturnsEmptyDataWhenNoChannelsRegistered(): void
     {
         $dispatcher = new NotificationDispatcher(new SyncQueue(), []);
-        $controller = new NotificationController($dispatcher);
+        $controller = new NotificationController($dispatcher, new UserInternalFieldReaderFixture());
 
         $payload = $controller->index(new Request());
 
@@ -65,7 +66,7 @@ final class NotificationControllerTest extends TestCase
     {
         $channel = self::recordingChannel();
         $dispatcher = new NotificationDispatcher(new SyncQueue(), ['mail' => $channel]);
-        $controller = new NotificationController($dispatcher);
+        $controller = new NotificationController($dispatcher, new UserInternalFieldReaderFixture());
 
         $response = $controller->test(new Request(), 'mail');
 
@@ -87,7 +88,7 @@ final class NotificationControllerTest extends TestCase
             new SyncQueue(),
             ['mail' => self::recordingChannel()],
         );
-        $controller = new NotificationController($dispatcher);
+        $controller = new NotificationController($dispatcher, new UserInternalFieldReaderFixture());
 
         $response = $controller->test(new Request(), 'does-not-exist');
 
@@ -109,7 +110,7 @@ final class NotificationControllerTest extends TestCase
             }
         };
         $dispatcher = new NotificationDispatcher(new SyncQueue(), ['mail' => $channel]);
-        $controller = new NotificationController($dispatcher);
+        $controller = new NotificationController($dispatcher, new UserInternalFieldReaderFixture());
 
         $response = $controller->test(new Request(), 'mail');
 
@@ -135,7 +136,7 @@ final class NotificationControllerTest extends TestCase
             }
         };
         $dispatcher = new NotificationDispatcher(new SyncQueue(), ['mail' => $channel]);
-        $controller = new NotificationController($dispatcher);
+        $controller = new NotificationController($dispatcher, new UserInternalFieldReaderFixture());
 
         $response = $controller->test(new Request(), 'mail');
 

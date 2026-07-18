@@ -41,6 +41,7 @@ final class TaxonomyServiceProvider extends ServiceProvider
                     label: 'Description',
                     description: 'A description of the vocabulary.',
                     settings: ['weight' => 5],
+                    read: \Waaseyaa\Entity\FieldReadLevel::Public,
                 ),
                 'weight' => new FieldDefinition(
                     name: 'weight',
@@ -49,6 +50,7 @@ final class TaxonomyServiceProvider extends ServiceProvider
                     label: 'Weight',
                     description: 'Sort order for this vocabulary.',
                     settings: ['weight' => 10],
+                    read: \Waaseyaa\Entity\FieldReadLevel::Public,
                 ),
             ],
         ));

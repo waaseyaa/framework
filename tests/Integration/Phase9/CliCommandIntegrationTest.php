@@ -30,6 +30,7 @@ use Waaseyaa\Config\ConfigManager;
 use Waaseyaa\Config\Storage\MemoryStorage;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 
 /**
  * Integration tests for CLI commands with real (in-memory) Waaseyaa services.
@@ -414,7 +415,7 @@ final class CliCommandIntegrationTest extends TestCase
             {
                 return match ($id) {
                     UserCreateHandler::class => new UserCreateHandler($this->manager),
-                    UserRoleHandler::class   => new UserRoleHandler($this->manager),
+                    UserRoleHandler::class   => new UserRoleHandler($this->manager, new UserInternalFieldReaderFixture()),
                     default => throw new \RuntimeException("Container::get({$id}) unexpected"),
                 };
             }

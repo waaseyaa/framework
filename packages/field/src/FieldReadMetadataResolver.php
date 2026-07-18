@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Field;
 
+use Waaseyaa\Access\CompiledFieldReadRule;
 use Waaseyaa\Entity\FieldReadLevel;
 
 /**
@@ -14,6 +15,23 @@ use Waaseyaa\Entity\FieldReadLevel;
  */
 final class FieldReadMetadataResolver
 {
+    /** @var \WeakMap<FieldDefinitionInterface, CompiledFieldReadRule> */
+    private \WeakMap $compiledRules;
+
+    public function __construct()
+    {
+        $this->compiledRules = new \WeakMap();
+    }
+
+    /** @internal field/entity composition only */
+    public function compile(FieldDefinitionInterface $definition): CompiledFieldReadRule
+    {
+        return $this->compiledRules[$definition] ??= new CompiledFieldReadRule(
+            $definition->getName(),
+            $this->resolve($definition)->level ?? FieldReadLevel::Internal,
+        );
+    }
+
     public function resolve(
         FieldDefinitionInterface $definition,
         ?FieldReadLevel $artifactLevel = null,

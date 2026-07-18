@@ -6,10 +6,12 @@ namespace Waaseyaa\Auth\Controller;
 
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Waaseyaa\Access\User\UserIdentityLookupInterface;
+use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Auth\RateLimiterInterface;
 use Waaseyaa\Auth\TwoFactorService;
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\User\Http\AuthController;
+use Waaseyaa\User\User;
 
 final class LoginController
 {
@@ -17,6 +19,8 @@ final class LoginController
         private readonly EntityTypeManager $entityTypeManager,
         private readonly RateLimiterInterface $rateLimiter,
         private readonly TwoFactorService $twoFactor,
+        private readonly UserIdentityLookupInterface $identityLookup,
+        private readonly UserInternalFieldReaderInterface $internalFields,
     ) {}
 
     public function __invoke(Request $request): JsonResponse
@@ -51,10 +55,11 @@ final class LoginController
 
         // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
         $userRepository = $this->entityTypeManager->getRepository('user');
-        $authController = new AuthController();
-        $user = $authController->findUserByName($userRepository, $username);
+        $candidate = $this->identityLookup->findActiveByLogin($userRepository, $username);
+        $user = $candidate instanceof User ? $candidate : null;
+        $credentials = $user === null ? null : $this->internalFields->credentials($user);
 
-        if ($user === null || !$user->isActive() || !$user->checkPassword($password)) {
+        if ($user === null || $credentials === null || !$credentials->active || $credentials->passwordHash === '' || !password_verify($password, $credentials->passwordHash)) {
             $this->rateLimiter->hit($rateLimitKey, 60);
             return new JsonResponse([
                 'jsonapi' => ['version' => '1.1'],
@@ -93,13 +98,15 @@ final class LoginController
         $_SESSION['waaseyaa_uid'] = $user->id();
         session_regenerate_id(true);
 
+        $identity = $this->internalFields->sessionIdentity($user);
+
         return new JsonResponse([
             'jsonapi' => ['version' => '1.1'],
             'data' => [
                 'id' => $user->id(),
-                'name' => $user->getName(),
-                'email' => $user->getEmail(),
-                'roles' => $user->getRoles(),
+                'name' => $identity->name,
+                'email' => $identity->mail,
+                'roles' => $identity->roles,
             ],
         ]);
     }

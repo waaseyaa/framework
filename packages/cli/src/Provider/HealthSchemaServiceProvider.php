@@ -9,21 +9,59 @@ use Waaseyaa\CLI\Command\HandlerArgumentMode;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
+use Waaseyaa\CLI\Handler\FieldAccessPreflightHandler;
 use Waaseyaa\CLI\Handler\HealthCheckHandler;
 use Waaseyaa\CLI\Handler\HealthReportHandler;
 use Waaseyaa\CLI\Handler\RevisionsEnableHandler;
 use Waaseyaa\CLI\Handler\SchemaCheckHandler;
 use Waaseyaa\CLI\Handler\SchemaListHandler;
 use Waaseyaa\CLI\Handler\SchemaSyncHandler;
+use Waaseyaa\CLI\Security\DatabaseFieldAccessInventoryScanner;
+use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\EntityStorage\Backend\BackendRegistrarFactory;
+use Waaseyaa\Field\Preflight\FieldAccessPreflightScanner;
+use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\Queue\Security\SignedQueuePayload;
 
 final class HealthSchemaServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface
 {
-    public function register(): void {}
+    public function register(): void
+    {
+        $this->singleton(FieldAccessPreflightHandler::class, function (): FieldAccessPreflightHandler {
+            $database = $this->resolve(DatabaseInterface::class);
+            $manager = $this->resolve(EntityTypeManager::class);
+            $signer = $this->resolveOptional(SignedQueuePayload::class);
+            $manifest = $this->resolveOptional(PackageManifest::class);
+            assert($database instanceof DatabaseInterface);
+            assert($manager instanceof EntityTypeManager);
+
+            $backendRegistrar = null;
+            if ($manifest instanceof PackageManifest) {
+                $backendRegistrar = new BackendRegistrarFactory($manifest->providers)->create();
+                $backendRegistrar->buildPreflightInventory();
+            }
+
+            return new FieldAccessPreflightHandler(
+                new DatabaseFieldAccessInventoryScanner(
+                    $database,
+                    $manager,
+                    $signer instanceof SignedQueuePayload ? $signer : null,
+                    $backendRegistrar,
+                ),
+                $manager,
+                new FieldAccessPreflightScanner(),
+                $this->projectRoot,
+            );
+        });
+    }
 
     public function consoleCommands(): iterable
     {
+        yield self::fieldAccessPreflightCommand();
+
         yield new HandlerCommand(
             name: 'health:check',
             description: 'Run all diagnostic health checks and report results',
@@ -106,6 +144,29 @@ final class HealthSchemaServiceProvider extends ServiceProvider implements Provi
                 ),
             ],
             handler: [RevisionsEnableHandler::class, 'execute'],
+        );
+    }
+
+    /** Restricted-bootstrap descriptor; constructing it resolves no application service. */
+    public static function fieldAccessPreflightCommand(): HandlerCommand
+    {
+        return new HandlerCommand(
+            name: 'field-access:preflight',
+            description: 'Read-only inventory of field classifications and activation blockers.',
+            options: [
+                new HandlerOption(
+                    name: 'format',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Machine-readable output format (json).',
+                    default: 'json',
+                ),
+                new HandlerOption(
+                    name: 'write-artifact',
+                    mode: HandlerOptionMode::None,
+                    description: 'Write the checksum-bound result to .waaseyaa/field-access-preflight.json.',
+                ),
+            ],
+            handler: [FieldAccessPreflightHandler::class, 'execute'],
         );
     }
 }

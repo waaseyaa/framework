@@ -9,10 +9,11 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Twig\Environment;
 use Twig\Loader\ArrayLoader;
-use Waaseyaa\Entity\FieldableInterface;
 use Waaseyaa\Mail\Envelope;
 use Waaseyaa\Mail\MailerInterface;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 use Waaseyaa\User\AuthMailer;
+use Waaseyaa\User\User;
 
 #[CoversClass(AuthMailer::class)]
 final class AuthMailerTest extends TestCase
@@ -54,6 +55,7 @@ final class AuthMailerTest extends TestCase
             twig: $this->twig,
             baseUrl: 'https://example.com',
             appName: 'TestApp',
+            internalFields: new UserInternalFieldReaderFixture(),
         );
     }
 
@@ -70,11 +72,12 @@ final class AuthMailerTest extends TestCase
             twig: null,
             baseUrl: 'https://example.com',
             appName: 'TestApp',
+            internalFields: new UserInternalFieldReaderFixture(),
         );
 
         self::assertFalse($mailer->isConfigured());
 
-        $user = $this->createMock(FieldableInterface::class);
+        $user = new User();
         $mailer->sendPasswordReset($user, 'abc123');
         $mailer->sendEmailVerification($user, 'def456');
         $mailer->sendWelcome($user);
@@ -85,11 +88,7 @@ final class AuthMailerTest extends TestCase
     #[Test]
     public function sends_password_reset_email(): void
     {
-        $user = $this->createMock(FieldableInterface::class);
-        $user->method('get')->willReturnMap([
-            ['name', 'Alice'],
-            ['mail', 'alice@example.com'],
-        ]);
+        $user = new User(['name' => 'Alice', 'mail' => 'alice@example.com']);
 
         $this->authMailer->sendPasswordReset($user, 'abc123');
 
@@ -103,11 +102,7 @@ final class AuthMailerTest extends TestCase
     #[Test]
     public function sends_email_verification(): void
     {
-        $user = $this->createMock(FieldableInterface::class);
-        $user->method('get')->willReturnMap([
-            ['name', 'Bob'],
-            ['mail', 'bob@example.com'],
-        ]);
+        $user = new User(['name' => 'Bob', 'mail' => 'bob@example.com']);
 
         $this->authMailer->sendEmailVerification($user, 'xyz789');
 
@@ -120,11 +115,7 @@ final class AuthMailerTest extends TestCase
     #[Test]
     public function sends_welcome_email(): void
     {
-        $user = $this->createMock(FieldableInterface::class);
-        $user->method('get')->willReturnMap([
-            ['name', 'Carol'],
-            ['mail', 'carol@example.com'],
-        ]);
+        $user = new User(['name' => 'Carol', 'mail' => 'carol@example.com']);
 
         $this->authMailer->sendWelcome($user);
 
@@ -146,8 +137,9 @@ final class AuthMailerTest extends TestCase
             twig: $this->twig,
             baseUrl: 'https://example.com',
             appName: 'App',
+            internalFields: new UserInternalFieldReaderFixture(),
         );
-        $user = $this->createMock(FieldableInterface::class);
+        $user = new User();
 
         $authMailer->sendPasswordReset($user, 'token');
     }
@@ -161,6 +153,7 @@ final class AuthMailerTest extends TestCase
             twig: $this->twig,
             baseUrl: 'https://example.com',
             appName: 'App',
+            internalFields: new UserInternalFieldReaderFixture(),
         );
         $this->assertTrue($configured->isConfigured());
 
@@ -170,6 +163,7 @@ final class AuthMailerTest extends TestCase
             twig: $this->twig,
             baseUrl: 'https://example.com',
             appName: 'App',
+            internalFields: new UserInternalFieldReaderFixture(),
         );
         $this->assertFalse($notConfigured->isConfigured());
     }

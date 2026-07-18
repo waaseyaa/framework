@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Entity\Tests\Unit;
 
+use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\Cast\Exception\CastException;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\Tests\Unit\Cast\Fixture\SampleStringEnum;
-use PHPUnit\Framework\TestCase;
 
 /**
  * @covers \Waaseyaa\Entity\EntityBase
@@ -288,15 +288,11 @@ class EntityBaseTest extends TestCase
         $entity = new TestEntity(['id' => 1, 'meta' => ['x' => 1]]);
         $dup = $entity->duplicate();
 
-        $ref = new \ReflectionProperty(EntityBase::class, 'values');
-        /** @var array<string, mixed> $srcBag */
-        $srcBag = $ref->getValue($entity);
-        /** @var array<string, mixed> $dupBag */
-        $dupBag = $ref->getValue($dup);
-
-        $this->assertArrayHasKey('meta', $srcBag);
-        $this->assertArrayHasKey('meta', $dupBag);
-        $this->assertSame($srcBag['meta'], $dupBag['meta'], 'Nested array must be reference-shared (shallow copy invariant).');
+        $this->assertSame(
+            $entity->get('meta'),
+            $dup->get('meta'),
+            'Nested array must remain a shallow copy without inspecting the private authoritative container.',
+        );
     }
 
     public function testWithReturnsNewInstanceAndDoesNotMutateOriginal(): void

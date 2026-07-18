@@ -145,6 +145,7 @@ final class BundleTemplateCompiler
             targetBundle: $bundleTpl->bundle,
             group: $tpl->group,
             promptAliases: $tpl->promptAliases,
+            read: $tpl->read,
         );
     }
 

@@ -19,10 +19,10 @@ use Waaseyaa\Entity\ContentEntityBase;
 #[ContentEntityKeys(label: 'title')]
 final class Note extends ContentEntityBase
 {
-    #[Field(label: 'Title', description: 'Note title.', required: true, settings: ['weight' => 0])]
+    #[Field(label: 'Title', description: 'Note title.', required: true, settings: ['weight' => 0], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public string $title = '';
 
-    #[Field(type: 'text', label: 'Body', description: 'Note body. Plain text or Markdown.', required: false, settings: ['weight' => 1])]
+    #[Field(type: 'text', label: 'Body', description: 'Note body. Plain text or Markdown.', required: false, settings: ['weight' => 1], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public ?string $body = null;
 
     public function getTitle(): string

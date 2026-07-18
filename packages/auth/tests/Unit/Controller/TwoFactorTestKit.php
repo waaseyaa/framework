@@ -15,6 +15,7 @@ use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 use Waaseyaa\User\User;
 
 /**
@@ -29,7 +30,7 @@ final class TwoFactorTestKit
 
     public static function makeService(?EntityTypeManagerInterface $manager = null): TwoFactorService
     {
-        return new TwoFactorService(new TwoFactorManager(), $manager ?? self::makeEntityTypeManager());
+        return new TwoFactorService(new TwoFactorManager(), $manager ?? self::makeEntityTypeManager(), new UserInternalFieldReaderFixture());
     }
 
     /**

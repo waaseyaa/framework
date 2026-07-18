@@ -1,0 +1,7 @@
+{% extends "layouts/base.html.twig" %}
+{% block title %}{{ title }}{% endblock %}
+{% block body %}
+<article id="frozen-content-page">
+{% for field_name, field in fields %}<section data-field="{{ field_name }}">{{ field.formatted|raw }}</section>{% endfor %}
+</article>
+{% endblock %}

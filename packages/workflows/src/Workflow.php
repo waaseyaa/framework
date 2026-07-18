@@ -319,7 +319,7 @@ final class Workflow extends ConfigEntityBase
             }
             $states[$state->id] = $entry;
         }
-        $this->values['states'] = $states;
+        $this->set('states', $states);
     }
 
     private function syncTransitionsToValues(): void
@@ -340,7 +340,7 @@ final class Workflow extends ConfigEntityBase
             }
             $transitions[$transition->id] = $entry;
         }
-        $this->values['transitions'] = $transitions;
+        $this->set('transitions', $transitions);
     }
 
     /**

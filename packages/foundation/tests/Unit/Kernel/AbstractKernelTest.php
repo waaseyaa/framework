@@ -16,6 +16,27 @@ use Waaseyaa\Scheduler\ScheduleInterface;
 #[CoversClass(ScheduleEntryRegistry::class)]
 final class AbstractKernelTest extends TestCase
 {
+    public function test_field_access_preflight_preserves_parameterless_boot_override_compatibility(): void
+    {
+        $kernel = new class ($this->projectRoot) extends AbstractKernel {
+            public bool $overrideCalled = false;
+
+            public function runPreflightBoot(): void
+            {
+                $this->bootForFieldAccessPreflight();
+            }
+
+            protected function boot(): void
+            {
+                $this->overrideCalled = true;
+            }
+        };
+
+        $kernel->runPreflightBoot();
+
+        self::assertTrue($kernel->overrideCalled);
+        self::assertSame(0, new \ReflectionMethod($kernel, 'boot')->getNumberOfParameters());
+    }
     private string $projectRoot;
 
     protected function setUp(): void
@@ -27,8 +48,8 @@ final class AbstractKernelTest extends TestCase
     private function createMinimalProjectRoot(): string
     {
         $projectRoot = sys_get_temp_dir() . '/waaseyaa_kernel_test_' . uniqid();
-        mkdir($projectRoot . '/config', 0755, true);
-        mkdir($projectRoot . '/storage', 0755, true);
+        mkdir($projectRoot . '/config', 0o755, true);
+        mkdir($projectRoot . '/storage', 0o755, true);
 
         file_put_contents(
             $projectRoot . '/config/waaseyaa.php',
@@ -58,8 +79,7 @@ final class AbstractKernelTest extends TestCase
     #[Test]
     public function kernel_provides_project_root(): void
     {
-        $kernel = new class('/tmp/test-project') extends AbstractKernel {
-        };
+        $kernel = new class ('/tmp/test-project') extends AbstractKernel {};
 
         $this->assertSame('/tmp/test-project', $kernel->getProjectRoot());
     }
@@ -67,7 +87,7 @@ final class AbstractKernelTest extends TestCase
     #[Test]
     public function kernel_boots_core_services(): void
     {
-        $kernel = new class($this->projectRoot) extends AbstractKernel {
+        $kernel = new class ($this->projectRoot) extends AbstractKernel {
             public function publicBoot(): void
             {
                 $this->boot();
@@ -84,7 +104,7 @@ final class AbstractKernelTest extends TestCase
     #[Test]
     public function boot_is_idempotent(): void
     {
-        $kernel = new class($this->projectRoot) extends AbstractKernel {
+        $kernel = new class ($this->projectRoot) extends AbstractKernel {
             public int $bootCount = 0;
 
             public function publicBoot(): void
@@ -109,7 +129,7 @@ final class AbstractKernelTest extends TestCase
             "<?php return ['database' => ':memory:', 'environment' => 'production'];",
         );
         putenv('WAASEYAA_APP_SECRET=base64:' . base64_encode(str_repeat('m', 32)));
-        $kernel = new class($this->projectRoot) extends AbstractKernel {
+        $kernel = new class ($this->projectRoot) extends AbstractKernel {
             public function publicBoot(): void
             {
                 $this->boot();
@@ -132,7 +152,7 @@ final class AbstractKernelTest extends TestCase
             $registerCallCount++;
         });
 
-        $kernel = new class($this->projectRoot, null, $entryClass) extends AbstractKernel {
+        $kernel = new class ($this->projectRoot, null, $entryClass) extends AbstractKernel {
             public function __construct(
                 string $projectRoot,
                 mixed $logger,
@@ -165,7 +185,7 @@ final class AbstractKernelTest extends TestCase
     {
         $entryClass = $this->createEntryWithUnresolvableDep();
 
-        $kernel = new class($this->projectRoot, null, $entryClass) extends AbstractKernel {
+        $kernel = new class ($this->projectRoot, null, $entryClass) extends AbstractKernel {
             public function __construct(
                 string $projectRoot,
                 mixed $logger,
@@ -207,7 +227,7 @@ final class AbstractKernelTest extends TestCase
             $disabledCount++;
         });
 
-        $kernel = new class($this->projectRoot, null, $enabledClass, $disabledClass) extends AbstractKernel {
+        $kernel = new class ($this->projectRoot, null, $enabledClass, $disabledClass) extends AbstractKernel {
             public function __construct(
                 string $projectRoot,
                 mixed $logger,
@@ -247,7 +267,7 @@ final class AbstractKernelTest extends TestCase
         // Override config before boot: patch config after compileManifest but before bootScheduleEntries.
         // Since config is read from the project root, inject the disabled_entries via
         // a subclass override of bootScheduleEntries().
-        $kernelFinal = new class($this->projectRoot, null, $enabledClass, $disabledClass) extends AbstractKernel {
+        $kernelFinal = new class ($this->projectRoot, null, $enabledClass, $disabledClass) extends AbstractKernel {
             public function __construct(
                 string $projectRoot,
                 mixed $logger,

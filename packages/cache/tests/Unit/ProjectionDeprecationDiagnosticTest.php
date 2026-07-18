@@ -9,11 +9,30 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Cache\Backend\DatabaseBackend;
 use Waaseyaa\Cache\Backend\MemoryBackend;
 use Waaseyaa\Cache\CacheFactory;
+use Waaseyaa\Cache\EntityPayloadBoundaryConfig;
+use Waaseyaa\Cache\Exception\EntityProjectionWriteForbidden;
 use Waaseyaa\Cache\ProjectionDeprecationDiagnostic;
 use Waaseyaa\Entity\EntityBase;
 
 final class ProjectionDeprecationDiagnosticTest extends TestCase
 {
+    public function test_activation_rejects_nested_entity_before_cache_write(): void
+    {
+        $diagnostic = ProjectionDeprecationDiagnostic::forEntityPayloads(
+            static function (): void {},
+            EntityPayloadBoundaryConfig::enforced(),
+        );
+        $backend = new MemoryBackend($diagnostic);
+        $entity = new class ([], 'user') extends EntityBase {};
+
+        try {
+            $backend->set('user:1', ['entity' => $entity]);
+            self::fail('Activated cache accepted an entity payload.');
+        } catch (EntityProjectionWriteForbidden) {
+        }
+        self::assertFalse($backend->get('user:1'));
+    }
+
     #[Test]
     public function diagnosticIsDeduplicatedAndDoesNotRejectTheDormantWrite(): void
     {
@@ -83,8 +102,8 @@ final class ProjectionDeprecationDiagnosticTest extends TestCase
                 $events[] = [$code, $context];
             },
         );
-        $entity = new class(['id' => 9], 'test', ['id' => 'id']) extends EntityBase {};
-        $projection = new class($entity) {
+        $entity = new class (['id' => 9], 'test', ['id' => 'id']) extends EntityBase {};
+        $projection = new class ($entity) {
             public function __construct(private readonly object $entity) {}
         };
 

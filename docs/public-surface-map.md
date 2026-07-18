@@ -50,6 +50,8 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `Exception\InvalidCacheTagException` | exception | Thrown by `setWithTags()` on malformed tag strings (no silent normalisation) |
 | `ProtectedCacheDimensions` | final class | Complete protected-cache authority, bundle, language, revision, and generation key dimensions |
 | `ProjectionDeprecationDiagnostic` | final class | Deduplicated dormant entity-payload diagnostic wired into first-party cache writes |
+| `EntityPayloadBoundaryConfig` | final readonly class | Explicit dormant/enforced cache entity-payload write mode |
+| `EntityProjectionWriteForbidden` | final exception | Activated cache rejection before an entity graph can be retained |
 
 ### database-legacy
 
@@ -94,6 +96,7 @@ Machine-readable source: `docs/public-surface-map.php`.
 |---------|------|---------|
 | `QueueInterface` | interface | Dispatches messages to the queue for asynchronous processing |
 | `QueueEnvelopeV1` | final class | Dormant versioned authority envelope carrying exactly one actor or system authority plus tenant/community and correlation dimensions |
+| `PersistentQueueBoundaryConfig` | final readonly class | Explicit dormant/enforced persistent dispatch and legacy-envelope mode |
 | `QueueSystemReason` | enum | Closed reason vocabulary for system-owned queue authority |
 | `QueueEnvelopeFactoryInterface` | interface | Dispatch-bound factory for an explicit actor/system authority envelope |
 | `QueueAuthorityRuntimeInterface` | interface | Confines envelope authority resolution and installation to one handler invocation |
@@ -111,6 +114,8 @@ Machine-readable source: `docs/public-surface-map.php`.
 |---------|------|---------|
 | `PublicStateProjection` | final class | Identifier plus explicitly Public scalar/array values; grants no protected/internal authority |
 | `ProjectionDeprecationDiagnostic` | final class | Deduplicated dormant entity-payload diagnostic wired into memory/SQL state writes |
+| `EntityPayloadBoundaryConfig` | final readonly class | Explicit dormant/enforced state entity-payload write mode |
+| `EntityProjectionWriteForbidden` | final exception | Activated state rejection before an entity graph can be retained |
 
 ### testing
 
@@ -131,6 +136,10 @@ Machine-readable source: `docs/public-surface-map.php`.
 | Element | Type | Purpose |
 |---------|------|---------|
 | `EntityInterface` | interface | Core contract for all entity types: identity, label, type ID, and value access |
+| `EntityValueReadGuardInterface` | interface | Internal sealed-entity adapter for protected-field read decisions and decision-cache invalidation |
+| `EntitySerializationBoundary` | final class | Explicit dormant/enforced PHP serialization boundary for value-bearing entities |
+| `EntitySerializationBoundaryConfig` | final readonly class | Exact activation toggle for entity PHP serialization rejection |
+| `FieldAccessActivationBlocked` | final exception | Checksum-backed hard failure when preflight blockers remain |
 | `EntityBase` | abstract class | Default implementations of `EntityInterface`; subclasses hardcode entity type ID and keys |
 | `ContentEntityBase` | abstract class | Fieldable entity base supporting dynamic field values and per-language translation |
 | `ContentEntityInterface` | interface | Marker combining `EntityInterface` and `FieldableInterface` for content entities |
@@ -153,6 +162,9 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `RevisionableStorageInterface` | interface | Extends entity storage with load, delete, and list operations for specific revisions |
 | `EntityQueryInterface` | interface | Fluent query builder for filtering and loading entities by field conditions |
 | `FieldReadLevel` | enum | Additive `public` / `protected` / `internal` definition metadata; dormant until the no-shim activation work package |
+| `RedactedInvalidValue` | enum | Internal value-free sentinel used when validation reports a restricted invalid field |
+| `ValidationReadLedgerInterface` | interface | Internal validation adapter that reserves an authorized restricted-field read before value access |
+| `ValidationReadReservationInterface` | interface | Internal one-shot reservation that records validation-read success or failure without retaining the value |
 
 ### entity-storage
 
@@ -165,12 +177,25 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `SqlStorageDriverV2` | final class | Opaque V2 adapter over the first-party SQL ordinary storage backend |
 | `RevisionableStorageDriverV2` | final class | Opaque V2 adapter used by the repository for the first-party revision/langcode storage backend |
 | `ConnectionResolverInterface` | interface | Resolves named database connections; multi-tenancy seam for entity storage |
-| `FieldStorageBackendInterface` | interface | Contract for pluggable field storage backends (M-001, WP01) |
+| `FieldStorageBackendInterface` | interface | Dormant V1 pluggable backend contract; exact registrations block the #2064 WP4 no-shim removal |
 | `HasFieldStorageBackendsInterface` | interface | Mix-in for packages that provide custom field storage backends (M-001, WP01) |
 | `IsFrameworkBackendProviderInterface` | interface | Marker for built-in framework backend providers; do not implement in application code (M-001, WP01) |
 | `ReservedBackendIds` | final class | String constants for built-in backend ids: `SQL_BLOB`, `SQL_COLUMN`, `VECTOR` (M-001, WP01) |
 | `BackendRegistrar` | final class | Registers field storage backends by id for an entity type (M-001, WP01) |
 | `BackendRegistrarFactory` | final class | Creates a `BackendRegistrar` bound to a specific entity type (M-001, WP01) |
+| `FieldStorageBackendV2Interface` | interface | Dormant fingerprinted privileged backend SPI; accepts only registrar-issued roles and opaque inputs (#2064 WP3) |
+| `HasFieldStorageBackendsV2Interface` | interface | Provider capability for reviewed V2 field-storage implementations (#2064 WP3) |
+| `IsFrameworkBackendProviderV2Interface` | interface | Marker allowing framework-owned V2 providers to claim reserved backend ids (#2064 WP3) |
+| `FieldStorageBackendGateway` | final class | Registrar-owned V2 facade that reserves strict audit and never exposes the implementation (#2064 WP3) |
+| `FieldStorageGatewayOperation` | enum | Closed read/write/delete/query-support invocation vocabulary (#2064 WP3) |
+| `FieldStorageGatewayInput` | final class | Opaque non-serializable boundary-bound backend input handle (#2064 WP3) |
+| `FieldStorageGatewayOutput` | final class | Opaque non-serializable boundary-bound backend result handle (#2064 WP3) |
+| `FieldStorageGatewayRole` | final class | Opaque registrar-issued role required to unwrap inputs and construct results (#2064 WP3) |
+| `FieldStorageGatewayInvocation` | final class | Backend-only invocation exposed after successful role/boundary validation (#2064 WP3) |
+| `FieldStorageGatewayAttempt` | final class | Value-free strict-audit descriptor reserved before invocation (#2064 WP3) |
+| `FieldStorageGatewayAuditReceipt` | final class | Opaque receipt for strict attempt finalization (#2064 WP3) |
+| `FieldStorageGatewayFailure` | final class | Value-free failure record including whether backend invocation began (#2064 WP3) |
+| `StrictFieldStorageGatewayAuditInterface` | interface | Synchronous reserve/success/failure audit required for V2 gateway activation (#2064 WP3) |
 | `UnsupportedQueryException` | final class | Thrown when a query operator is unsupported by the active backend (M-001, WP01) |
 | `UnsupportedListingException` | final class | Thrown when listing is unsupported by the active backend (M-001, WP06) |
 | `EntityStorageCoordinator` | final class | Fan-out engine dispatching read/write/delete to all registered backends (M-001, WP02) |
@@ -183,7 +208,7 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `BeforeDeleteEvent` | final class | Dispatched before any backend delete (M-001, WP04) |
 | `AfterDeleteEvent` | final class | Dispatched after all backends confirm delete (M-001, WP04) |
 | `AbortOperationException` | final class | Thrown from `BeforeSave`/`BeforeDelete` listener to abort the operation (M-001, WP04) |
-| `PartialSaveException` | final class | Thrown when at least one backend succeeds and one fails; carries `$errorCode` (M-001, WP04) |
+| `PartialSaveException` | final class | Thrown on backend fan-out failure, including first-backend failure with an empty committed set; carries `$errorCode` (M-001, WP04) |
 | `SaveContext` | final class | Immutable value object passed to save operations; carries revision flags and translation langcode. `withLangcode(string $langcode): self` returns an immutable copy targeting a translation write (M-001, WP04 + M-006, WP07) |
 | `EntityRepository::findTranslations(EntityInterface): array<string, EntityInterface>` | method | Returns every translation of the given entity, keyed by langcode, default-langcode first; single SQL query (M-006, WP10) |
 | `CoordinatorLifecycleDispatcher` | final class | Dispatches lifecycle events from the coordinator (M-001, WP04) |
@@ -220,8 +245,14 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `AuthorizationPrincipalBootstrapReaderInterface` | interface | Closed bridge for strictly audited immutable principal construction from an entity-backed account |
 | `FieldReadContextMiddleware` | final class | Priority-15 HTTP seam that installs/restores the immutable principal after identity resolution and wraps deferred streams |
 | `AccountFieldReadScopeInterface` | interface | Fiber-local, nested account principal scope restored in `finally`; it carries no privileged authority |
+| `FastAccountFieldReadScopeInterface` | internal interface | Internal compiled-read fast path exposing the current immutable account context without widening public authority |
 | `PolicySubjectViewInterface` | interface | Closed view limited to compiled `authorizationInput` subject fields |
+| `ProtectedEntityReadPolicyInterface` | interface | Fail-closed V2 entity-read policy over immutable principal, structural identity, and exact compiled subject inputs |
 | `ProtectedFieldReadPolicyInterface` | interface | Dedicated fail-closed Protected read policy; only explicit Allowed will release a value after activation |
+| `ProtectedReadPolicyProviderInterface` | interface | Additive companion through which a discovered legacy policy exposes its entity and field V2 read policies |
+| `UserInternalFieldReaderInterface` | interface | Narrow reason-specific User credential, session, mail, verification, 2FA, and maintenance read boundary |
+| `UserIdentityLookupInterface` | interface | Closed audited active-login and mail-existence query boundary |
+| `User*Snapshot` | final readonly classes | Typed exact User internal inputs returned without exposing arbitrary field-name authority |
 | `CapabilityRegistryInterface` | interface | Kernel registry for reviewed, exact value-read and query-read capability declarations and one-boundary handles |
 | `CapabilityExecutionBoundary` | final class | Opaque, non-serializable proof whose registry-owned identity must be live and match at capability issuance and use |
 | `CapabilityReason` | enum | Closed reason vocabulary for privileged field reads |
@@ -306,6 +337,8 @@ Configuration Management v1 — active/sync store split, six `config:*` CLI comm
 | `AuditedQueryFieldRead` | final class | Dormant exact-capability compiler boundary that reserves non-public query metadata before execution |
 | `AuditedQueryReservation` | final class | One-shot explicit success/failure finalizer for a reserved query operation |
 | `CredentialBootstrapReader` | final class | Reason-constrained strictly audited credential verification reader |
+| `AuditedUserInternalFieldReader` | final class | Issues, consumes, and revokes exact framework User value-read capabilities |
+| `AuditedUserIdentityLookup` | final class | Reserves and finalizes exact non-public login/mail repository queries |
 | `SessionBootstrapReader` | final class | Reason-constrained strictly audited session and authorization-claims reader |
 | `IdentityBootstrapReader` | final class | Per-snapshot capability issuer that builds immutable principals and revokes bootstrap authority in `finally` |
 | `AuditReadModelDefinitionRegistry` | final class | Exact read classifications for every column of the deliberately unregistered flat audit tables |

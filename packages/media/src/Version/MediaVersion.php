@@ -45,41 +45,41 @@ final class MediaVersion extends ContentEntityBase
 
     public function mediaUuid(): string
     {
-        return (string) ($this->values['media_uuid'] ?? '');
+        return (string) ($this->get('media_uuid') ?? '');
     }
 
     public function vid(): int
     {
-        return (int) ($this->values['vid'] ?? 0);
+        return (int) ($this->get('vid') ?? 0);
     }
 
     public function blobUri(): string
     {
-        return (string) ($this->values['blob_uri'] ?? '');
+        return (string) ($this->get('blob_uri') ?? '');
     }
 
     public function mime(): string
     {
-        return (string) ($this->values['mime'] ?? '');
+        return (string) ($this->get('mime') ?? '');
     }
 
     public function size(): int
     {
-        return (int) ($this->values['size'] ?? 0);
+        return (int) ($this->get('size') ?? 0);
     }
 
     public function sha256(): string
     {
-        return (string) ($this->values['sha256'] ?? '');
+        return (string) ($this->get('sha256') ?? '');
     }
 
     public function createdAt(): int
     {
-        return (int) ($this->values['created_at'] ?? 0);
+        return (int) ($this->get('created_at') ?? 0);
     }
 
     public function createdBy(): int
     {
-        return (int) ($this->values['created_by'] ?? 0);
+        return (int) ($this->get('created_by') ?? 0);
     }
 }
