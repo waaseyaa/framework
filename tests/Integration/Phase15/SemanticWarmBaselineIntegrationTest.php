@@ -19,15 +19,19 @@ use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\Policy\PublishedContentStatusReader;
 use Waaseyaa\AI\Vector\SearchController;
 use Waaseyaa\AI\Vector\SemanticIndexWarmer;
 use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
 use Waaseyaa\AI\Vector\Testing\FakeEmbeddingProvider;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
@@ -56,6 +60,8 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
 
     protected function setUp(): void
     {
+        new \ReflectionProperty(ContentEntityBase::class, 'fieldRegistry')->setValue(null, null);
+        EntityReadRuntime::installFieldRegistry(null);
         $this->database = DBALDatabase::createSqlite();
         $dispatcher = new EventDispatcher();
         $resolver = new SingleConnectionResolver($this->database);
@@ -89,10 +95,11 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
             class: \Waaseyaa\Api\Tests\Fixtures\NodeContentTestEntity::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type'],
             _fieldDefinitions: [
-                'title' => ['type' => 'string'],
-                'body' => ['type' => 'text'],
-                'status' => ['type' => 'boolean'],
-                'workflow_state' => ['type' => 'string'],
+                'title' => ['type' => 'string', 'read' => FieldReadLevel::Public],
+                'body' => ['type' => 'text', 'read' => FieldReadLevel::Public],
+                'status' => ['type' => 'boolean', 'read' => FieldReadLevel::Public],
+                'workflow_state' => ['type' => 'string', 'read' => FieldReadLevel::Public],
+                'type' => ['type' => 'string', 'read' => FieldReadLevel::Public],
             ],
         ));
         $this->entityTypeManager->registerEntityType(new EntityType(
@@ -101,14 +108,14 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
             class: Relationship::class,
             keys: ['id' => 'rid', 'uuid' => 'uuid', 'label' => 'relationship_type', 'bundle' => 'relationship_type'],
             _fieldDefinitions: [
-                'relationship_type' => ['type' => 'string'],
-                'from_entity_type' => ['type' => 'string'],
-                'from_entity_id' => ['type' => 'string'],
-                'to_entity_type' => ['type' => 'string'],
-                'to_entity_id' => ['type' => 'string'],
-                'status' => ['type' => 'boolean'],
-                'start_date' => ['type' => 'integer'],
-                'end_date' => ['type' => 'integer'],
+                'relationship_type' => ['type' => 'string', 'read' => FieldReadLevel::Public],
+                'from_entity_type' => ['type' => 'string', 'settings' => ['authorizationInput' => true], 'read' => FieldReadLevel::Protected],
+                'from_entity_id' => ['type' => 'string', 'settings' => ['authorizationInput' => true], 'read' => FieldReadLevel::Protected],
+                'to_entity_type' => ['type' => 'string', 'settings' => ['authorizationInput' => true], 'read' => FieldReadLevel::Protected],
+                'to_entity_id' => ['type' => 'string', 'settings' => ['authorizationInput' => true], 'read' => FieldReadLevel::Protected],
+                'status' => ['type' => 'boolean', 'read' => FieldReadLevel::Protected],
+                'start_date' => ['type' => 'integer', 'read' => FieldReadLevel::Protected],
+                'end_date' => ['type' => 'integer', 'read' => FieldReadLevel::Protected],
             ],
         ));
 
@@ -123,6 +130,12 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
         $this->embeddingStorage = new SqliteEmbeddingStorage($this->database->getConnection()->getNativeConnection());
 
         $this->seedFixtureCorpus();
+    }
+
+    protected function tearDown(): void
+    {
+        new \ReflectionProperty(ContentEntityBase::class, 'fieldRegistry')->setValue(null, null);
+        EntityReadRuntime::installFieldRegistry(null);
     }
 
     #[Test]
@@ -374,7 +387,7 @@ final class BaselineNodeViewPolicy implements AccessPolicyInterface
             return AccessResult::neutral();
         }
 
-        return (int) ($entity->toArray()['status'] ?? 0) === 1
+        return new PublishedContentStatusReader()->isPublished($entity)
             ? AccessResult::allowed('Published')
             : AccessResult::forbidden('Unpublished');
     }

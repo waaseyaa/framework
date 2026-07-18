@@ -19,6 +19,7 @@ use Waaseyaa\AI\Agent\Provider\ProviderInterface;
 use Waaseyaa\AI\Agent\Reaper\StalledRunReaper;
 use Waaseyaa\AI\Agent\Repository\AgentAuditLogRepository;
 use Waaseyaa\AI\Agent\Repository\AgentRunRepository;
+use Waaseyaa\AI\Agent\Security\AgentRunWorkerReaderInterface;
 use Waaseyaa\AI\Agent\Service\AgentRunService;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
@@ -89,6 +90,7 @@ final class MessagingServiceProvider extends ServiceProvider
                 broadcaster: $this->resolve(AgentRunBroadcasterInterface::class),
                 provider: $this->resolve(ProviderInterface::class),
                 accountLoader: $this->resolve(InitiatorAccountLoaderInterface::class),
+                workerReader: $this->resolve(AgentRunWorkerReaderInterface::class),
                 logger: $this->safeResolve(LoggerInterface::class) ?? new NullLogger(),
                 eventDispatcher: ($dispatcher = $this->safeResolve(\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class)) instanceof EventDispatcherInterface
                     ? $dispatcher

@@ -6,7 +6,7 @@ namespace Waaseyaa\EntityStorage;
 
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\EntityStorage\Backend\BackendRegistrar;
-use Waaseyaa\EntityStorage\Backend\FieldStorageBackendInterface;
+use Waaseyaa\EntityStorage\Backend\FieldStorageBackendGateway;
 use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\Exception\UnknownBackendException;
 use Waaseyaa\Field\FieldDefinition;
@@ -40,11 +40,11 @@ final class BackendResolver
      *
      * @throws UnknownBackendException When the resolved backend id is not registered.
      */
-    public function resolve(EntityTypeInterface $entityType, FieldDefinition $field): FieldStorageBackendInterface
+    public function resolve(EntityTypeInterface $entityType, FieldDefinition $field): FieldStorageBackendGateway
     {
         $backendId = $this->resolveId($entityType, $field);
 
-        $backend = $this->registrar->get($backendId);
+        $backend = $this->registrar->gateway($backendId);
 
         if ($backend === null) {
             throw new UnknownBackendException(

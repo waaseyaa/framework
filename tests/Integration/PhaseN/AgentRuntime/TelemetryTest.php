@@ -155,10 +155,11 @@ final class TelemetryTest extends TestCase
         // AgentRun row updated.
         $row = $this->runRepository->find('run-int-1');
         self::assertNotNull($row);
-        self::assertSame(2_000_000, (int) $row->get('token_usage_in'));
-        self::assertSame(500_000, (int) $row->get('token_usage_out'));
-        self::assertSame(6750, (int) $row->get('cost_cents'));
-        self::assertSame(2, (int) $row->get('tool_call_count'));
+        $projection = new \Waaseyaa\Tests\Support\AgentRunAccountProjectionReaderFixture()->readWithoutAccount($row);
+        self::assertSame(2_000_000, $projection->tokenUsageIn);
+        self::assertSame(500_000, $projection->tokenUsageOut);
+        self::assertSame(6750, $projection->costCents);
+        self::assertSame(2, $projection->toolCallCount);
     }
 
     #[Test]

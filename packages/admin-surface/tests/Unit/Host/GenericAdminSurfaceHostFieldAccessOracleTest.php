@@ -12,12 +12,16 @@ use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
+use Waaseyaa\Access\FieldReadGuard;
 use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
 use Waaseyaa\AdminSurface\Query\SurfaceFilterOperator;
 use Waaseyaa\AdminSurface\Query\SurfaceQuery;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
@@ -294,19 +298,31 @@ final class GenericAdminSurfaceHostFieldAccessOracleTest extends TestCase
         $host = new GenericAdminSurfaceHost($etm, $accessHandler, adminPermission: 'access user profiles');
         $this->resolveViewerSession($host, 'access user profiles');
 
-        // Filter on the legitimate `mail` field.
-        $filtered = $host->list('user', new SurfaceQuery(
-            filters: [['field' => 'mail', 'operator' => SurfaceFilterOperator::EQUALS, 'value' => 'victim@example.com']],
+        $scope = new AccountFieldReadScope();
+        EntityReadRuntime::installGuard(new FieldReadGuard(
+            $scope,
+            static fn(...$args): AccessResult => AccessResult::allowed(
+                'The explicit profile-view test principal may read this fixture projection.',
+            ),
         ));
-        $this->assertTrue($filtered->ok);
-        $this->assertSame(1, $filtered->data['total']);
-        $this->assertSame('victim@example.com', $filtered->data['entities'][0]['attributes']['mail']);
+        $principal = new AuthorizationPrincipal(1, true, ['viewer'], ['access user profiles'], 'admin-surface-oracle-test');
+        try {
+            // Internal mail is structurally unavailable; `name` is the
+            // legitimate profile-view field used as the positive control.
+            $filtered = $scope->run($principal, fn() => $host->list('user', new SurfaceQuery(
+                filters: [['field' => 'name', 'operator' => SurfaceFilterOperator::EQUALS, 'value' => 'victim']],
+            )));
+            $this->assertTrue($filtered->ok);
+            $this->assertSame(1, $filtered->data['total']);
+            $this->assertSame('victim', $filtered->data['entities'][0]['attributes']['name']);
 
-        // Sort on the legitimate `name` entity-key field.
-        $sorted = $host->list('user', new SurfaceQuery(sortField: 'name'));
-        $this->assertTrue($sorted->ok);
-        $names = array_map(static fn(array $e) => $e['attributes']['name'] ?? null, $sorted->data['entities']);
-        $this->assertSame(['alpha', 'victim'], $names);
+            $sorted = $scope->run($principal, fn() => $host->list('user', new SurfaceQuery(sortField: 'name')));
+            $this->assertTrue($sorted->ok);
+            $names = array_map(static fn(array $e) => $e['attributes']['name'] ?? null, $sorted->data['entities']);
+            $this->assertSame(['alpha', 'victim'], $names);
+        } finally {
+            EntityReadRuntime::installGuard(null);
+        }
     }
 
     /**
@@ -398,29 +414,7 @@ final class GenericAdminSurfaceHostFieldAccessOracleTest extends TestCase
 
     private function viewerAccount(string $permission): AccountInterface
     {
-        return new class($permission) implements AccountInterface {
-            public function __construct(private readonly string $permission) {}
-
-            public function id(): int|string
-            {
-                return 1;
-            }
-
-            public function hasPermission(string $permission): bool
-            {
-                return $permission === $this->permission;
-            }
-
-            public function getRoles(): array
-            {
-                return ['viewer'];
-            }
-
-            public function isAuthenticated(): bool
-            {
-                return true;
-            }
-        };
+        return new AuthorizationPrincipal(1, true, ['viewer'], [$permission], 'admin-surface-oracle-test');
     }
 
     private function resolveViewerSession(GenericAdminSurfaceHost $host, string $permission): void

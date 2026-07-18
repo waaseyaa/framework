@@ -12,6 +12,7 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
@@ -49,12 +50,12 @@ abstract class GraphQlIntegrationTestBase extends TestCase
             class: TestArticle::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title'],
             _fieldDefinitions: [
-                'id' => ['type' => 'integer'],
-                'uuid' => ['type' => 'string'],
-                'title' => ['type' => 'string', 'required' => true],
-                'body' => ['type' => 'text'],
-                'author_id' => ['type' => 'entity_reference', 'target_entity_type_id' => 'author'],
-                'related_article_id' => ['type' => 'entity_reference', 'target_entity_type_id' => 'article'],
+                'id' => ['type' => 'integer', 'read' => FieldReadLevel::Public],
+                'uuid' => ['type' => 'string', 'read' => FieldReadLevel::Public],
+                'title' => ['type' => 'string', 'required' => true, 'read' => FieldReadLevel::Public],
+                'body' => ['type' => 'text', 'read' => FieldReadLevel::Public],
+                'author_id' => ['type' => 'entity_reference', 'target_entity_type_id' => 'author', 'read' => FieldReadLevel::Public],
+                'related_article_id' => ['type' => 'entity_reference', 'target_entity_type_id' => 'article', 'read' => FieldReadLevel::Public],
             ],
         );
 
@@ -64,12 +65,14 @@ abstract class GraphQlIntegrationTestBase extends TestCase
             class: TestAuthor::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'name'],
             _fieldDefinitions: [
-                'id' => ['type' => 'integer'],
-                'uuid' => ['type' => 'string'],
-                'name' => ['type' => 'string', 'required' => true],
-                'bio' => ['type' => 'text'],
-                'secret' => ['type' => 'string'],
-                'organization_id' => ['type' => 'entity_reference', 'target_entity_type_id' => 'organization'],
+                'id' => ['type' => 'integer', 'read' => FieldReadLevel::Public],
+                'uuid' => ['type' => 'string', 'read' => FieldReadLevel::Public],
+                'name' => ['type' => 'string', 'required' => true, 'read' => FieldReadLevel::Public],
+                'bio' => ['type' => 'text', 'read' => FieldReadLevel::Public],
+                // This fixture exercises the legacy GraphQL surface-policy filter;
+                // entity-layer Protected behavior has dedicated activation tests.
+                'secret' => ['type' => 'string', 'read' => FieldReadLevel::Public],
+                'organization_id' => ['type' => 'entity_reference', 'target_entity_type_id' => 'organization', 'read' => FieldReadLevel::Public],
             ],
         );
 
@@ -79,10 +82,10 @@ abstract class GraphQlIntegrationTestBase extends TestCase
             class: TestOrganization::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'name'],
             _fieldDefinitions: [
-                'id' => ['type' => 'integer'],
-                'uuid' => ['type' => 'string'],
-                'name' => ['type' => 'string', 'required' => true],
-                'location' => ['type' => 'string'],
+                'id' => ['type' => 'integer', 'read' => FieldReadLevel::Public],
+                'uuid' => ['type' => 'string', 'read' => FieldReadLevel::Public],
+                'name' => ['type' => 'string', 'required' => true, 'read' => FieldReadLevel::Public],
+                'location' => ['type' => 'string', 'read' => FieldReadLevel::Public],
             ],
         );
 

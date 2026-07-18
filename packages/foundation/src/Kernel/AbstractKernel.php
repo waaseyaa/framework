@@ -6,8 +6,11 @@ namespace Waaseyaa\Foundation\Kernel;
 
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface as SymfonyContractEventDispatcherInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\Context\RequestAccountContext;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\FieldReadGuard;
 use Waaseyaa\Access\Policy\ContentAdminAccessPolicy;
 use Waaseyaa\Access\Policy\PublishedContentAccessPolicy;
 use Waaseyaa\Database\DatabaseInterface;
@@ -15,10 +18,13 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\Audit\EntityAuditLogger;
 use Waaseyaa\Entity\Audit\EntityWriteAuditListener;
 use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeLifecycleManager;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\Backend\BackendRegistrarFactory;
+use Waaseyaa\EntityStorage\Backend\DatabaseStrictFieldStorageGatewayAudit;
+use Waaseyaa\EntityStorage\Backend\StrictFieldStorageGatewayAuditInterface;
 use Waaseyaa\EntityStorage\BackendResolver;
 use Waaseyaa\EntityStorage\Query\DefinitionValidator;
 use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
@@ -36,6 +42,7 @@ use Waaseyaa\Foundation\Kernel\Bootstrap\ManifestBootstrapper;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistry;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistryKernelServices;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ScheduleEntryRegistry;
+use Waaseyaa\Foundation\Kernel\Preflight\FieldAccessActivationPreflight;
 use Waaseyaa\Foundation\Log\Handler\ErrorLogHandler as HandlerErrorLogHandler;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\LogLevel;
@@ -91,6 +98,7 @@ abstract class AbstractKernel
      * second construction site would silently fork the context.
      */
     private ?RequestAccountContext $accountContext = null;
+    private ?AccountFieldReadScopeInterface $fieldReadScope = null;
 
     /**
      * Optional community context for tenancy-scoped entity types
@@ -181,9 +189,13 @@ abstract class AbstractKernel
         $this->injectContentModelProviders();
         $this->loadAppEntityTypes();
         $this->validateContentTypes();
+        if (!$this->fieldAccessPreflightOnly && !$this->isDevelopmentMode()) {
+            $this->assertFieldAccessActivationReady();
+        }
         if (!$this->fieldAccessPreflightOnly) {
             $this->bootProviders();
             $this->discoverAccessPolicies();
+            $this->installFieldReadRuntime();
             $this->bootScheduleEntries();
             $this->validateQueryDefinitions();
             $this->validateEntitySchemas();
@@ -388,6 +400,7 @@ abstract class AbstractKernel
             // discoverAccessPolicies(); it is read only at tool dispatch.
             fn(): ?EntityAccessHandler => $this->accessHandler ?? null,
             $this->applicationSecret(),
+            $this->fieldReadScope(),
         );
     }
 
@@ -399,6 +412,12 @@ abstract class AbstractKernel
         }
 
         return $this->applicationSecret;
+    }
+
+    /** The single process/request scope shared by the accessor guard and HTTP middleware. */
+    protected function fieldReadScope(): AccountFieldReadScopeInterface
+    {
+        return $this->fieldReadScope ??= new AccountFieldReadScope();
     }
 
     protected function loadAppEntityTypes(): void
@@ -505,6 +524,38 @@ abstract class AbstractKernel
         );
     }
 
+    /** Refuse a production boot unless its exact deployment inventory was clean. */
+    private function assertFieldAccessActivationReady(): void
+    {
+        $version = is_file($this->projectRoot . '/VERSION')
+            ? trim((string) file_get_contents($this->projectRoot . '/VERSION'))
+            : 'dev';
+        if (is_file($this->projectRoot . '/composer.lock')) {
+            $version .= '@' . substr(hash_file('sha256', $this->projectRoot . '/composer.lock'), 0, 16);
+        }
+        $classificationPath = $this->projectRoot . '/.waaseyaa/field-access-classification.json';
+        $classification = is_file($classificationPath)
+            ? json_decode((string) file_get_contents($classificationPath), true, flags: JSON_THROW_ON_ERROR)
+            : [];
+        $version .= '@classification-' . substr(hash('sha256', json_encode($classification, JSON_THROW_ON_ERROR)), 0, 16);
+
+        if (!$this->database instanceof DBALDatabase) {
+            throw new \RuntimeException('Field-read activation preflight requires the portable DBAL schema manager.');
+        }
+        $schema = $this->database->getConnection()->createSchemaManager();
+        $tables = $schema->listTableNames();
+        sort($tables);
+        $shape = [];
+        foreach ($tables as $table) {
+            $columns = array_keys($schema->listTableColumns($table));
+            sort($columns);
+            $shape[$table] = $columns;
+        }
+        $schemaFingerprint = hash('sha256', json_encode($shape, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+
+        new FieldAccessActivationPreflight()->assertReady($this->projectRoot, $version, $schemaFingerprint);
+    }
+
     protected function bootProviders(): void
     {
         new ProviderRegistry($this->logger)->boot($this->providers);
@@ -521,6 +572,7 @@ abstract class AbstractKernel
             static fn() => $providers,
             $this->accountContext(),
             manifest: $this->manifest,
+            fieldReadScope: $this->fieldReadScope(),
         );
         $resolver = new KernelPolicyDependencyResolver($kernelServices);
         $this->accessHandler = new AccessPolicyRegistry($this->logger, $resolver)->discover($this->manifest);
@@ -537,6 +589,33 @@ abstract class AbstractKernel
         // Forbidden); gated strictly on `administer content`, so anonymous and
         // the public/MCP read path keep published-view-only.
         $this->accessHandler->addPolicy(new ContentAdminAccessPolicy($this->entityTypeManager));
+    }
+
+    /** Install the process guard with the same scope singleton used by HTTP middleware. */
+    private function installFieldReadRuntime(): void
+    {
+        $providers = $this->providers;
+        $kernelServices = new ProviderRegistryKernelServices(
+            $this->entityTypeManager,
+            $this->database,
+            $this->dispatcher,
+            $this->logger,
+            static fn() => $providers,
+            $this->accountContext(),
+            fn(): EntityAccessHandler => $this->accessHandler,
+            $this->manifest,
+            $this->applicationSecret,
+            $this->fieldReadScope(),
+        );
+        $scope = $kernelServices->get(AccountFieldReadScopeInterface::class);
+        if (!$scope instanceof AccountFieldReadScopeInterface) {
+            throw new \LogicException('Field-read activation requires the shared account field-read scope binding.');
+        }
+
+        EntityReadRuntime::installGuard(new FieldReadGuard(
+            $scope,
+            $this->accessHandler->checkProtectedFieldRead(...),
+        ));
     }
 
     /**
@@ -563,6 +642,7 @@ abstract class AbstractKernel
             static fn() => $providers,
             $this->accountContext(),
             manifest: $this->manifest,
+            fieldReadScope: $this->fieldReadScope(),
         );
         $resolver = new KernelPolicyDependencyResolver($kernelServices);
         new ScheduleEntryRegistry($this->logger, $resolver)
@@ -580,7 +660,26 @@ abstract class AbstractKernel
      */
     protected function validateQueryDefinitions(): void
     {
-        $registrar = new BackendRegistrarFactory($this->manifest->providers)->create();
+        $providers = $this->providers;
+        $kernelServices = new ProviderRegistryKernelServices(
+            $this->entityTypeManager,
+            $this->database,
+            $this->dispatcher,
+            $this->logger,
+            static fn() => $providers,
+            $this->accountContext(),
+            manifest: $this->manifest,
+            applicationSecret: $this->applicationSecret,
+            fieldReadScope: $this->fieldReadScope(),
+        );
+        $gatewayAudit = $kernelServices->get(StrictFieldStorageGatewayAuditInterface::class);
+        $gatewayAudit = $gatewayAudit instanceof StrictFieldStorageGatewayAuditInterface
+            ? $gatewayAudit
+            : new DatabaseStrictFieldStorageGatewayAudit($this->database);
+        $registrar = new BackendRegistrarFactory(
+            $this->manifest->providers,
+            gatewayAudit: $gatewayAudit,
+        )->create();
         $registrar->build();
 
         $resolver = new BackendResolver($registrar);

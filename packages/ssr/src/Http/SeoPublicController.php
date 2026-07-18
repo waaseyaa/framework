@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Waaseyaa\SSR\Http;
 
 use Symfony\Component\HttpFoundation\Response;
+use Waaseyaa\Access\AccountPrincipalFactoryInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Seo\Llms\LlmsTxtGenerator;
 use Waaseyaa\Seo\RobotsTxtGenerator;
@@ -63,6 +65,8 @@ final class SeoPublicController
 
     public function __construct(
         private readonly EntityTypeManager $entityTypeManager,
+        private readonly ?AccountFieldReadScopeInterface $fieldReadScope = null,
+        private readonly ?AccountPrincipalFactoryInterface $principalFactory = null,
     ) {}
 
     public function robotsTxt(): Response
@@ -80,12 +84,14 @@ final class SeoPublicController
         $generator = new SitemapGenerator();
 
         try {
-            $urls = $generator->collectFromEntityTypes(
-                $this->entityTypeManager,
-                fn(string $type, int|string $id): ?string => $this->isPublicType($type)
-                    ? sprintf('/%s/%s', $type, rawurlencode((string) $id))
-                    : null,
-                account: new AnonymousUser(),
+            $urls = $this->runAsAnonymous(
+                fn(AnonymousUser $anonymous): array => $generator->collectFromEntityTypes(
+                    $this->entityTypeManager,
+                    fn(string $type, int|string $id): ?string => $this->isPublicType($type)
+                        ? sprintf('/%s/%s', $type, rawurlencode((string) $id))
+                        : null,
+                    account: $anonymous,
+                ),
             );
         } catch (\Throwable) {
             $urls = [];
@@ -99,17 +105,19 @@ final class SeoPublicController
         $generator = new LlmsTxtGenerator();
 
         try {
-            $topics = $generator->collectTopics(
-                $this->entityTypeManager,
-                fn(string $type): ?array => $this->isPublicType($type)
-                    ? ['title' => $this->humanize($type), 'summary' => sprintf('%s content as Markdown.', $this->humanize($type))]
-                    : null,
-                static fn(string $type, int|string $id, string $label): array => [
-                    'title' => sprintf('%s %s', $type, $id),
-                    // Same-URL Markdown representation (Accept negotiation / ?format=md).
-                    'url' => sprintf('/%s/%s?format=md', $type, rawurlencode((string) $id)),
-                ],
-                account: new AnonymousUser(),
+            $topics = $this->runAsAnonymous(
+                fn(AnonymousUser $anonymous): array => $generator->collectTopics(
+                    $this->entityTypeManager,
+                    fn(string $type): ?array => $this->isPublicType($type)
+                        ? ['title' => $this->humanize($type), 'summary' => sprintf('%s content as Markdown.', $this->humanize($type))]
+                        : null,
+                    static fn(string $type, int|string $id, string $label): array => [
+                        'title' => sprintf('%s %s', $type, $id),
+                        // Same-URL Markdown representation (Accept negotiation / ?format=md).
+                        'url' => sprintf('/%s/%s?format=md', $type, rawurlencode((string) $id)),
+                    ],
+                    account: $anonymous,
+                ),
             );
         } catch (\Throwable) {
             $topics = [];
@@ -127,6 +135,20 @@ final class SeoPublicController
     private function isPublicType(string $entityTypeId): bool
     {
         return !\in_array($entityTypeId, self::NON_PUBLIC_TYPES, true);
+    }
+
+    /** Run crawler enumeration under its declared anonymous principal. */
+    private function runAsAnonymous(callable $callback): array
+    {
+        $anonymous = new AnonymousUser();
+        if ($this->fieldReadScope === null || $this->principalFactory === null) {
+            return $callback($anonymous);
+        }
+
+        return $this->fieldReadScope->run(
+            $this->principalFactory->fromAccount($anonymous),
+            fn(): array => $callback($anonymous),
+        );
     }
 
     private function humanize(string $entityTypeId): string

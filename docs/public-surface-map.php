@@ -207,13 +207,10 @@ return [
     'Waaseyaa\EntityStorage\Exception\BundleAmbiguousFieldException' => 'public',
     // entity-storage-v2 mission public surface (WP01–WP12, M-001)
     // WP01 — backend registration
-    'Waaseyaa\EntityStorage\Backend\FieldStorageBackendInterface' => 'public',
-    'Waaseyaa\EntityStorage\Backend\HasFieldStorageBackendsInterface' => 'public',
-    'Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderInterface' => 'public',
     'Waaseyaa\EntityStorage\Backend\ReservedBackendIds' => 'public',
     'Waaseyaa\EntityStorage\Backend\BackendRegistrar' => 'public',
     'Waaseyaa\EntityStorage\Backend\BackendRegistrarFactory' => 'public',
-    // #2064 WP3 — dormant fingerprinted privileged field-storage gateway
+    // #2064 WP4 — active fingerprinted privileged field-storage gateway
     'Waaseyaa\EntityStorage\Backend\FieldStorageBackendV2Interface' => 'public',
     'Waaseyaa\EntityStorage\Backend\HasFieldStorageBackendsV2Interface' => 'public',
     'Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderV2Interface' => 'public',
@@ -270,8 +267,6 @@ return [
     'Waaseyaa\CLI\Command\Migration\BackfillHelper' => 'public',
     'Waaseyaa\CLI\Command\Migration\UnmappedFieldTypeException' => 'public',
     'Waaseyaa\CLI\Command\Migration\BackfillRowCountMismatchException' => 'public',
-    // WP12 — conformance test harness (autoload-dev only; still part of stable surface for extenders)
-    'Waaseyaa\EntityStorage\Testing\Contract\FieldStorageBackendContractTestCase' => 'public',
     // EntityQuery marker interface
     'Waaseyaa\EntityStorage\Query\EntityQuery' => 'public',
     // entity-storage-translations-v1 mission public surface (M-006, ADR 017)
@@ -406,6 +401,7 @@ return [
 
     // Layer 2: Content Types — public
     'Waaseyaa\Media\FileRepositoryInterface' => 'public',
+    'Waaseyaa\Relationship\EntityVisibilityFilterInterface' => 'public',
     'Waaseyaa\Relationship\VisibilityFilterInterface' => 'public',
     'Waaseyaa\NorthCloud\Sync\NcHitToEntityMapperInterface' => 'public',
     'Waaseyaa\NorthCloud\Sync\NcHitSupportDiagnosticsInterface' => 'public',
@@ -517,8 +513,12 @@ return [
     'Waaseyaa\AI\Agent\AgentDefinitionRegistry' => 'public',
     'Waaseyaa\AI\Agent\Attribute\AsAgentDefinition' => 'public',
     'Waaseyaa\AI\Agent\Broadcast\AgentRunBroadcasterInterface' => 'public',
+    'Waaseyaa\AI\Agent\Security\AgentRunAccountProjectionReaderInterface' => 'public',
+    'Waaseyaa\AI\Agent\Security\AgentRunWorkerReaderInterface' => 'public',
     'Waaseyaa\AI\Agent\Provider\ProviderInterface' => 'public',
     'Waaseyaa\AI\Agent\Provider\StreamingProviderInterface' => 'public',
+    'Waaseyaa\Attachment\Http\AttachmentDownloadMetadataReaderInterface' => 'public',
+    'Waaseyaa\Genealogy\Access\GenealogyInternalFieldReaderInterface' => 'public',
     'Waaseyaa\AI\Tools\AbstractAgentTool' => 'public',
     'Waaseyaa\AI\Tools\AgentTool' => 'public',
     'Waaseyaa\AI\Tools\AgentToolInterface' => 'public',

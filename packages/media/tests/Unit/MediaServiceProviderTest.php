@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Api\Schema\SchemaPresenter;
 use Waaseyaa\Field\FieldStorage;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Media\Media;
 use Waaseyaa\Media\MediaServiceProvider;
 use Waaseyaa\Media\MediaType;
@@ -53,6 +54,8 @@ final class MediaServiceProviderTest extends TestCase
         $this->assertSame('string', $definitions['source_uri']->getType());
         $this->assertSame('file', $definitions['source_uri']->getSetting('widget'));
         $this->assertSame(FieldStorage::Data, $definitions['source_uri']->getStored());
+        $this->assertSame(FieldReadLevel::Protected, $definitions['uid']->getReadLevel());
+        $this->assertTrue($definitions['uid']->getSetting('authorizationInput'));
 
         $schema = new SchemaPresenter()->present($mediaType, $definitions);
         $this->assertArrayHasKey('name', $schema['properties']);

@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\Gate\EntityAccessGate;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Migration\Account\MigrationSystemAccount;
 use Waaseyaa\Migration\ContentModel\ContentModel;
@@ -125,6 +126,7 @@ final class ContentModelRegistrationEndToEndTest extends TestCase
                         type: 'string',
                         targetEntityTypeId: self::ENTITY_TYPE_ID,
                         targetBundle: self::BUNDLE,
+                        read: FieldReadLevel::Public,
                     ),
                 ],
             ),

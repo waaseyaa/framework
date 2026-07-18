@@ -9,6 +9,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Oidc\ClientRegistry\OidcClientLookup;
+use Waaseyaa\Oidc\ClientRegistry\OidcClientSystemReader;
 use Waaseyaa\Oidc\Token\AccessTokenIssuer;
 use Waaseyaa\Oidc\Token\RefreshTokenIssuer;
 
@@ -25,11 +26,16 @@ use Waaseyaa\Oidc\Token\RefreshTokenIssuer;
  */
 final readonly class RevocationController
 {
+    private OidcClientSystemReader $clientReader;
+
     public function __construct(
         private OidcClientLookup $clientLookup,
         private AccessTokenIssuer $accessTokenIssuer,
         private RefreshTokenIssuer $refreshTokenIssuer,
-    ) {}
+        ?OidcClientSystemReader $clientReader = null,
+    ) {
+        $this->clientReader = $clientReader ?? new OidcClientSystemReader();
+    }
 
     public function __invoke(Request $request): Response
     {
@@ -49,12 +55,11 @@ final readonly class RevocationController
             return $this->error(401, 'invalid_client', 'Unknown client_id.');
         }
 
-        if ($client->isConfidential()) {
+        if ($this->clientReader->registration($client)->confidential) {
             if ($credClientSecret === null) {
                 return $this->error(401, 'invalid_client', 'Client authentication required.');
             }
-            $hash = $client->getClientSecretHash();
-            if ($hash === null || !password_verify($credClientSecret, $hash)) {
+            if (!$this->clientReader->verifySecret($client, $credClientSecret)) {
                 return $this->error(401, 'invalid_client', 'Client authentication failed.');
             }
         }

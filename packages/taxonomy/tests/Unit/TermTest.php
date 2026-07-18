@@ -431,8 +431,9 @@ class TermTest extends TestCase
 
         $term->set('custom_field', 'custom_value');
 
-        $this->assertSame('custom_value', $term->get('custom_field'));
         $this->assertTrue($term->hasField('custom_field'));
+        $this->expectException(\Waaseyaa\Entity\Exception\FieldReadDenied::class);
+        $term->get('custom_field');
     }
 
     // ---------------------------------------------------------------

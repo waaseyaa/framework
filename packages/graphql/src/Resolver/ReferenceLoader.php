@@ -66,9 +66,8 @@ final class ReferenceLoader
                 return null;
             }
 
-            $values = EntityValues::toCastAwareMap($entity);
-            $allowed = $this->guard->filterFields($entity, array_keys($values), 'view');
-            $data = array_intersect_key($values, array_flip($allowed));
+            $allowed = $this->guard->filterFields($entity, EntityValues::ordinaryFieldNames($entity), 'view');
+            $data = EntityValues::toCastAwareMap($entity, $allowed);
             $data['_graphql_depth'] = $currentDepth;
 
             return $data;

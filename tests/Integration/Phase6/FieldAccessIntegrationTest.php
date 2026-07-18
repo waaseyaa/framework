@@ -222,7 +222,7 @@ final class FieldAccessIntegrationTest extends TestCase
     // ---------------------------------------------------------------
 
     #[Test]
-    public function noFieldPoliciesAllowsAllFieldsByDefault(): void
+    public function noFieldPoliciesStillWithholdsInternalFields(): void
     {
         // Entity-level allow policy, but no FieldAccessPolicyInterface.
         $entityOnlyPolicy = new class implements AccessPolicyInterface {
@@ -258,11 +258,13 @@ final class FieldAccessIntegrationTest extends TestCase
             'status' => 'draft',
         ]);
 
-        // GET: all fields present.
+        // Entity-level access cannot release an Internal field. Internal reads
+        // require their fixed audited framework reader even when no optional
+        // surface-level field policy is registered.
         $doc = $controller->show('article', $entity->id());
         $attrs = $doc->toArray()['data']['attributes'];
         $this->assertArrayHasKey('body', $attrs);
-        $this->assertArrayHasKey('internal_notes', $attrs);
+        $this->assertArrayNotHasKey('internal_notes', $attrs);
         $this->assertArrayHasKey('status', $attrs);
 
         // PATCH: all fields editable.

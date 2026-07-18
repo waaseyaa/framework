@@ -21,7 +21,7 @@ use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\Entity\Validation\EntityValidator;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
@@ -32,6 +32,8 @@ use Waaseyaa\Routing\ParamConverter\EntityParamConverter;
 use Waaseyaa\Routing\RouteBuilder;
 use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\State\MemoryState;
+use Waaseyaa\Tests\Support\AuthorizationPrincipalFactory;
+use Waaseyaa\Tests\Support\ClosedEntityValidatorFactory;
 use Waaseyaa\User\AnonymousUser;
 use Waaseyaa\User\User;
 use Waaseyaa\User\UserSession;
@@ -78,6 +80,15 @@ final class FullStackIntegrationTest extends TestCase
                 'bundle' => 'bundle',
                 'label' => 'title',
                 'langcode' => 'langcode',
+            ],
+            _fieldDefinitions: [
+                'id' => ['type' => 'integer', 'read' => FieldReadLevel::Public],
+                'uuid' => ['type' => 'string', 'read' => FieldReadLevel::Public],
+                'bundle' => ['type' => 'string', 'read' => FieldReadLevel::Public],
+                'title' => ['type' => 'string', 'read' => FieldReadLevel::Public],
+                'langcode' => ['type' => 'string', 'read' => FieldReadLevel::Public],
+                'body' => ['type' => 'text', 'read' => FieldReadLevel::Public],
+                'status' => ['type' => 'integer', 'read' => FieldReadLevel::Public],
             ],
         );
 
@@ -187,12 +198,10 @@ final class FullStackIntegrationTest extends TestCase
         $this->assertNotNull($articleId);
 
         // Step 2: Create an authenticated user with content viewing permission.
-        $user = new User([
-            'uid' => 10,
-            'name' => 'reader',
-            'permissions' => ['access content'],
-            'roles' => ['authenticated'],
-        ]);
+        $user = AuthorizationPrincipalFactory::authenticated(
+            permissions: ['access content'],
+            accountId: 10,
+        );
 
         // Step 3: Match the route.
         $params = $this->router->match("/article/{$articleId}");
@@ -254,7 +263,7 @@ final class FullStackIntegrationTest extends TestCase
     public function testEntityValidationBeforeSave(): void
     {
         $validator = Validation::createValidatorBuilder()->getValidator();
-        $entityValidator = new EntityValidator($validator);
+        $entityValidator = ClosedEntityValidatorFactory::create($validator);
 
         // Create an article with invalid data.
         $article = $this->articleStorage->create([
@@ -284,7 +293,7 @@ final class FullStackIntegrationTest extends TestCase
     public function testValidEntityPassesValidationAndSaves(): void
     {
         $validator = Validation::createValidatorBuilder()->getValidator();
-        $entityValidator = new EntityValidator($validator);
+        $entityValidator = ClosedEntityValidatorFactory::create($validator);
 
         $article = $this->articleStorage->create([
             'title' => 'Valid Article',
@@ -358,12 +367,10 @@ final class FullStackIntegrationTest extends TestCase
         $this->assertTrue($result->isForbidden(), 'Anonymous session should be forbidden from article.view.');
 
         // Elevate to authenticated user.
-        $user = new User([
-            'uid' => 1,
-            'name' => 'admin',
-            'permissions' => ['access content', 'edit articles'],
-            'roles' => ['administrator'],
-        ]);
+        $user = AuthorizationPrincipalFactory::authenticated(
+            permissions: ['access content', 'edit articles'],
+            roles: ['administrator'],
+        );
         $session->setAccount($user);
 
         // Now check access again.

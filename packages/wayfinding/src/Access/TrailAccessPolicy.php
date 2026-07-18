@@ -9,6 +9,8 @@ use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Access\Gate\PolicyAttribute;
+use Waaseyaa\Access\PolicySubjectViewInterface;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Wayfinding\Http\EmitBeaconController;
 
@@ -39,6 +41,18 @@ final class TrailAccessPolicy implements AccessPolicyInterface, FieldAccessPolic
 
     /** Store-managed or identity fields that are never directly editable. */
     private const array READONLY_FIELDS = ['tid', 'uuid', 'revision_id', 'langcode', 'default_langcode', 'owner_uid', 'origin'];
+
+    /** @var \Closure(EntityBase): PolicySubjectViewInterface */
+    private readonly \Closure $ownerSubjectAuthority;
+
+    public function __construct()
+    {
+        $this->ownerSubjectAuthority = \Closure::bind(
+            static fn(EntityBase $entity): PolicySubjectViewInterface => $entity->valueContainer->entityPolicySubjectView(),
+            null,
+            EntityBase::class,
+        );
+    }
 
     public function appliesTo(string $entityTypeId): bool
     {
@@ -95,10 +109,14 @@ final class TrailAccessPolicy implements AccessPolicyInterface, FieldAccessPolic
 
     private function isOwner(EntityInterface $entity, AccountInterface $account): bool
     {
-        $ownerUid = $entity->get('owner_uid');
-        if ($ownerUid === null) {
+        if (!$entity instanceof EntityBase) {
             return false;
         }
+        $subject = ($this->ownerSubjectAuthority)($entity);
+        if ($subject->fields() !== ['owner_uid']) {
+            return false;
+        }
+        $ownerUid = $subject->get('owner_uid');
 
         return (string) $ownerUid === (string) $account->id() && (int) $account->id() > 0;
     }

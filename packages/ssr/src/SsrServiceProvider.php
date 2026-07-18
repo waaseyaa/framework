@@ -7,6 +7,8 @@ namespace Waaseyaa\SSR;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Twig\Environment;
+use Waaseyaa\Access\AccountPrincipalFactoryInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\ErrorPageRendererInterface;
 use Waaseyaa\Access\Gate\EntityAccessGate;
 use Waaseyaa\Cache\CacheBackendInterface;
@@ -186,6 +188,8 @@ final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttp
             gate: new EntityAccessGate($kernel->getAccessHandler()),
             inertiaFullPageRenderer: $kernel->getInertiaFullPageRenderer(),
             accessHandler: $kernel->getAccessHandler(),
+            fieldReadScope: $this->resolve(AccountFieldReadScopeInterface::class),
+            principalFactory: $this->resolve(AccountPrincipalFactoryInterface::class),
         );
     }
 

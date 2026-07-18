@@ -82,7 +82,7 @@ final class ReaperTest extends TestCase
         $stuck = $this->runRepository->find('run-stuck');
         self::assertNotNull($stuck);
         self::assertSame(RunStatus::Failed, $stuck->getStatus());
-        self::assertSame('worker_crashed', $stuck->get('error_code'));
+        self::assertSame('worker_crashed', $this->projection($stuck)->errorCode);
 
         $fresh = $this->runRepository->find('run-fresh');
         self::assertNotNull($fresh);
@@ -91,8 +91,9 @@ final class ReaperTest extends TestCase
         // Audit row was appended.
         $audit = $this->auditRepository->findByRunId('run-stuck');
         self::assertNotEmpty($audit);
-        self::assertSame(EventType::Error, $audit[0]->getEventType());
-        self::assertSame('worker_crashed', $audit[0]->get('tool_result_summary'));
+        $auditReader = new \Waaseyaa\Tests\Support\AgentAuditEventTypeReaderFixture();
+        self::assertSame(EventType::Error, $auditReader->read($audit[0]));
+        self::assertSame('worker_crashed', $auditReader->toolResultSummary($audit[0]));
 
         // SSE event was emitted.
         self::assertContains('run_failed', $broadcaster->eventsFor('run-stuck'));
@@ -123,7 +124,7 @@ final class ReaperTest extends TestCase
         $reloaded = $this->runRepository->find('run-raced');
         self::assertNotNull($reloaded);
         self::assertSame(RunStatus::Completed, $reloaded->getStatus(), 'Terminal status must not regress.');
-        self::assertNull($reloaded->get('error_code'));
+        self::assertNull($this->projection($reloaded)->errorCode);
     }
 
     #[Test]
@@ -142,17 +143,18 @@ final class ReaperTest extends TestCase
 
         self::assertSame(3, $reaper->reap(maxRuntimeSeconds: 600));
         self::assertSame(RunStatus::Failed, $this->runRepository->find('run-queued')?->getStatus());
-        self::assertSame('queue_timeout', $this->runRepository->find('run-queued')?->get('error_code'));
+        self::assertSame('queue_timeout', $this->projection($this->runRepository->find('run-queued'))->errorCode);
         self::assertSame(RunStatus::Failed, $this->runRepository->find('run-approval')?->getStatus());
-        self::assertSame('approval_timeout', $this->runRepository->find('run-approval')?->get('error_code'));
+        $approval = $this->projection($this->runRepository->find('run-approval'));
+        self::assertSame('approval_timeout', $approval->errorCode);
         self::assertStringContainsString(
             'legacy started_at fallback',
-            (string) $this->runRepository->find('run-approval')?->get('error_message'),
+            (string) $approval->errorMessage,
         );
-        self::assertNull($this->runRepository->find('run-approval')?->get('pending_approval_call_id'));
-        self::assertNull($this->runRepository->find('run-approval')?->get('approval_expires_at'));
+        self::assertNull($approval->pendingApprovalCallId);
+        self::assertNull($approval->approvalExpiresAt);
         self::assertSame(RunStatus::Cancelled, $this->runRepository->find('run-cancelling')?->getStatus());
-        self::assertSame('cancellation_timeout', $this->runRepository->find('run-cancelling')?->get('error_code'));
+        self::assertSame('cancellation_timeout', $this->projection($this->runRepository->find('run-cancelling'))->errorCode);
         self::assertSame(RunStatus::Queued, $this->runRepository->find('run-fresh-queued')?->getStatus());
     }
 
@@ -209,8 +211,9 @@ final class ReaperTest extends TestCase
         self::assertSame(0, $reaper->reapSelected($selected, 600, $now));
         $run = $this->runRepository->find('run-renewed-approval');
         self::assertSame(RunStatus::AwaitingApproval, $run?->getStatus());
-        self::assertSame('call-new', $run?->get('pending_approval_call_id'));
-        self::assertSame($renewed->format('Y-m-d H:i:s.uP'), $run?->get('approval_expires_at'));
+        $projection = $this->projection($run);
+        self::assertSame('call-new', $projection->pendingApprovalCallId);
+        self::assertSame($renewed->format('Y-m-d H:i:s.uP'), $projection->approvalExpiresAt);
         self::assertSame([], $this->auditRepository->findByRunId('run-renewed-approval'));
     }
 
@@ -244,7 +247,7 @@ final class ReaperTest extends TestCase
             $this->runRepository->find('run-long-before-approval')?->getStatus(),
         );
         self::assertSame(RunStatus::Failed, $this->runRepository->find('run-expired-approval')?->getStatus());
-        $message = (string) $this->runRepository->find('run-expired-approval')?->get('error_message');
+        $message = (string) $this->projection($this->runRepository->find('run-expired-approval'))->errorMessage;
         self::assertStringContainsString('Approval deadline expired at', $message);
         self::assertStringContainsString($now->modify('-1 second')->format('Y-m-d H:i:s.uP'), $message);
         self::assertStringNotContainsString('worker TTL', $message);
@@ -318,6 +321,13 @@ final class ReaperTest extends TestCase
         $entityRepo = new EntityRepository($entityType, $driver, new EventDispatcher(), null, $this->database);
 
         return new AgentAuditLogRepository($entityRepo, $this->database);
+    }
+
+    private function projection(?AgentRun $run): \Waaseyaa\AI\Agent\Security\AgentRunAccountProjection
+    {
+        self::assertNotNull($run);
+
+        return new \Waaseyaa\Tests\Support\AgentRunAccountProjectionReaderFixture()->readWithoutAccount($run);
     }
 }
 

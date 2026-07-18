@@ -25,6 +25,8 @@ use Waaseyaa\Entity\ContentEntityBase;
  */
 final class EventEntity extends ContentEntityBase
 {
+    use PublicListingFields;
+
     /**
      * @param array<string, mixed>     $values
      * @param array<string, string>    $entityKeys

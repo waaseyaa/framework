@@ -177,13 +177,10 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `SqlStorageDriverV2` | final class | Opaque V2 adapter over the first-party SQL ordinary storage backend |
 | `RevisionableStorageDriverV2` | final class | Opaque V2 adapter used by the repository for the first-party revision/langcode storage backend |
 | `ConnectionResolverInterface` | interface | Resolves named database connections; multi-tenancy seam for entity storage |
-| `FieldStorageBackendInterface` | interface | Dormant V1 pluggable backend contract; exact registrations block the #2064 WP4 no-shim removal |
-| `HasFieldStorageBackendsInterface` | interface | Mix-in for packages that provide custom field storage backends (M-001, WP01) |
-| `IsFrameworkBackendProviderInterface` | interface | Marker for built-in framework backend providers; do not implement in application code (M-001, WP01) |
 | `ReservedBackendIds` | final class | String constants for built-in backend ids: `SQL_BLOB`, `SQL_COLUMN`, `VECTOR` (M-001, WP01) |
 | `BackendRegistrar` | final class | Registers field storage backends by id for an entity type (M-001, WP01) |
 | `BackendRegistrarFactory` | final class | Creates a `BackendRegistrar` bound to a specific entity type (M-001, WP01) |
-| `FieldStorageBackendV2Interface` | interface | Dormant fingerprinted privileged backend SPI; accepts only registrar-issued roles and opaque inputs (#2064 WP3) |
+| `FieldStorageBackendV2Interface` | interface | Active fingerprinted privileged backend SPI; accepts only registrar-issued roles and opaque inputs (#2064 WP4) |
 | `HasFieldStorageBackendsV2Interface` | interface | Provider capability for reviewed V2 field-storage implementations (#2064 WP3) |
 | `IsFrameworkBackendProviderV2Interface` | interface | Marker allowing framework-owned V2 providers to claim reserved backend ids (#2064 WP3) |
 | `FieldStorageBackendGateway` | final class | Registrar-owned V2 facade that reserves strict audit and never exposes the implementation (#2064 WP3) |
@@ -220,7 +217,6 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `RevisionPruningPolicy` | final class | Immutable value object describing how many revisions to keep (M-001, WP08) |
 | `RevisionPruningReport` | final class | Result of a pruning run: counts of deleted and retained revisions (M-001, WP08) |
 | `RevisionTableBuilder` | final class | Creates the `{entity_type}_revision` schema table (M-001, WP07) |
-| `FieldStorageBackendContractTestCase` | abstract class | Abstract PHPUnit harness; extend to verify any `FieldStorageBackendInterface` implementation (M-001, WP12) |
 | `Waaseyaa\EntityStorage\Exception\StorageMigrationException` | final class | Typed exception for storage-migration / two-axis schema failures during kernel boot, schema sync, or migration generator runs. Stable `errorCode` strings: `no_op_promotion`, `unsupported_two_axis_field` (M-004, WP04) |
 | `Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver` | final class | Driver-level two-axis save/load orchestration: composes `RevisionTableBuilder` + `TranslationSchemaHandler` and honours `SaveContext::withTranslations()` for atomic multi-language revision writes (M-004, WP03 + WP04) |
 | `Waaseyaa\EntityStorage\Schema\TranslationSchemaHandler` | final class | Emits the `<entity>__translation__revision` table for two-axis entities; pairs with `RevisionTableBuilder::buildTwoAxis()` (M-004, WP02) |

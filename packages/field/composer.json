@@ -70,7 +70,8 @@
         },
         "waaseyaa": {
             "policies": [
-                "Waaseyaa\\Field\\Classification\\Policy\\ClassificationFieldAccessPolicy"
+                "Waaseyaa\\Field\\Classification\\Policy\\ClassificationFieldAccessPolicy",
+                "Waaseyaa\\Field\\Classification\\Policy\\RetentionPolicyAccessPolicy"
             ],
             "providers": [
                 "Waaseyaa\\Field\\FieldServiceProvider"

@@ -33,12 +33,16 @@ final class EntityLifecycleSubscriber implements EventSubscriberInterface
 {
     private readonly LoggerInterface $logger;
 
+    private readonly ClassificationSubjectReader $subjectReader;
+
     public function __construct(
         private readonly LabelInheritanceResolver $resolver,
         private readonly AuditWriterInterface $auditWriter,
         ?LoggerInterface $logger = null,
+        ?ClassificationSubjectReader $subjectReader = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
+        $this->subjectReader = $subjectReader ?? new ClassificationSubjectReader();
     }
 
     public static function getSubscribedEvents(): array
@@ -56,8 +60,7 @@ final class EntityLifecycleSubscriber implements EventSubscriberInterface
             // Read the currently-persisted label for change detection.
             $previousLabel = null;
             if ($event->originalEntity !== null) {
-                $raw = $event->originalEntity->get('classification_label');
-                $previousLabel = ($raw !== null && $raw !== '') ? (string) $raw : null;
+                $previousLabel = $this->subjectReader->read($event->originalEntity)->label;
             }
 
             // Resolve the effective classification decision.
@@ -103,11 +106,9 @@ final class EntityLifecycleSubscriber implements EventSubscriberInterface
 
             // Resolve account UID from the entity's `uid` field when available.
             $accountUid = 0;
-            if ($entity instanceof \Waaseyaa\Entity\FieldableInterface) {
-                $uid = $entity->get('uid');
-                if ($uid !== null && $uid !== '') {
-                    $accountUid = (int) $uid;
-                }
+            $authorId = $this->subjectReader->read($entity)->authorId;
+            if ($authorId !== null && $authorId !== '') {
+                $accountUid = (int) $authorId;
             }
 
             $subjectUri = sprintf(
@@ -149,13 +150,6 @@ final class EntityLifecycleSubscriber implements EventSubscriberInterface
      */
     private function carriesClassificationValue(EntityInterface $entity, array $keys): bool
     {
-        foreach ($keys as $key) {
-            $value = $entity->get($key);
-            if ($value !== null && $value !== '') {
-                return true;
-            }
-        }
-
-        return false;
+        return $this->subjectReader->read($entity)->carriesStoredValue();
     }
 }

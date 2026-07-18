@@ -26,7 +26,10 @@ use Waaseyaa\Node\NodeType;
 use Waaseyaa\Path\PathAlias;
 use Waaseyaa\Taxonomy\Term;
 use Waaseyaa\Taxonomy\Vocabulary;
+use Waaseyaa\Tests\Support\AuthorizationPrincipalFactory;
+use Waaseyaa\Tests\Support\ProtectedFieldRead;
 use Waaseyaa\User\User;
+use Waaseyaa\User\UserAccessPolicy;
 use Waaseyaa\Workflows\Workflow;
 
 /**
@@ -167,7 +170,8 @@ final class EntityTypeRegistrationTest extends TestCase
 
         $this->assertNotNull($loaded, 'User must be loadable by uid.');
         $this->assertSame($uid, $loaded->id());
-        $this->assertSame('alice', $loaded->get('name'));
+        $admin = AuthorizationPrincipalFactory::authenticated(permissions: ['administer users']);
+        $this->assertSame('alice', ProtectedFieldRead::run([new UserAccessPolicy()], $admin, fn() => $loaded->get('name')));
     }
 
     /**

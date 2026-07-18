@@ -8,6 +8,7 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\Exception\PartialAccessContextException;
 use Waaseyaa\Api\Sanitizer\RichTextSanitizer;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\EntityValues;
@@ -83,22 +84,29 @@ final class ResourceSerializer
             default => (string) ($id ?? ''),
         };
 
-        $attributes = $this->attributesFromEntity($entity, $keys);
-
         // Canonical, bundle-aware field set so a content type's distinct typed
         // fields (e.g. page's body/blocks/featured_image) are filtered and cast
         // with their real definitions, not just the entity-type base fields.
         $fieldDefinitions = $this->entityTypeManager->resolveFieldDefinitions($entityTypeId, $entity->bundle());
 
-        // Drop fields marked `internal: true` and any always-internal credential keys.
-        // Runs before the per-account filter so credentials never reach EntityAccessHandler.
-        $attributes = $this->filterInternalFields($attributes, $fieldDefinitions);
+        // Decide the projection from names and metadata before reading any values.
+        // This is required for Protected fields whose policy denies this principal:
+        // reading every value first would activate the guard before filterFields()
+        // had a chance to conceal the field.
+        $fieldNames = EntityValues::ordinaryFieldNames($entity);
+        $fieldNames = array_keys($this->filterInternalFields(array_fill_keys($fieldNames, true), $fieldDefinitions));
 
         // Filter out fields the account cannot view.
         if ($accessHandler !== null && $account !== null) {
-            $allowedFields = $accessHandler->filterFields($entity, array_keys($attributes), 'view', $account);
-            $attributes = array_intersect_key($attributes, array_flip($allowedFields));
+            $fieldNames = $accessHandler->filterFields($entity, $fieldNames, 'view', $account);
+        } elseif ($entity instanceof EntityBase) {
+            $fieldNames = array_values(array_filter(
+                $fieldNames,
+                static fn(string $field): bool => $entity->fieldReadLevel($field) === \Waaseyaa\Entity\FieldReadLevel::Public,
+            ));
         }
+
+        $attributes = $this->attributesFromEntity($entity, $keys, $fieldNames);
 
         $attributes = $this->castAttributes($attributes, $fieldDefinitions);
         $attributes = $this->normalizeAttributesForJson($attributes);
@@ -164,15 +172,16 @@ final class ResourceSerializer
      * so {@see \Waaseyaa\Entity\EntityBase::$casts} apply. Keys follow {@see EntityInterface::toArray()}.
      *
      * @param array<string, string> $keys
+     * @param list<string> $fieldNames
      *
      * @return array<string, mixed>
      */
-    private function attributesFromEntity(EntityInterface $entity, array $keys): array
+    private function attributesFromEntity(EntityInterface $entity, array $keys, array $fieldNames): array
     {
         $excluded = array_flip($this->getExcludedFields($keys));
         $attributes = [];
 
-        foreach (EntityValues::toCastAwareMap($entity) as $fieldName => $value) {
+        foreach (EntityValues::toCastAwareMap($entity, $fieldNames) as $fieldName => $value) {
             if (isset($excluded[$fieldName])) {
                 continue;
             }

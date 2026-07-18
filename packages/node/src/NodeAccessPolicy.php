@@ -9,6 +9,9 @@ use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Access\Gate\PolicyAttribute;
+use Waaseyaa\Access\ProtectedEntityReadPolicyInterface;
+use Waaseyaa\Access\ProtectedFieldReadPolicyInterface;
+use Waaseyaa\Access\ProtectedReadPolicyProviderInterface;
 use Waaseyaa\Entity\EntityInterface;
 
 /**
@@ -30,7 +33,7 @@ use Waaseyaa\Entity\EntityInterface;
  * `promote`/`sticky` remain ungated pending the engine.
  */
 #[PolicyAttribute(entityType: 'node')]
-final class NodeAccessPolicy implements AccessPolicyInterface, FieldAccessPolicyInterface
+final class NodeAccessPolicy implements AccessPolicyInterface, FieldAccessPolicyInterface, ProtectedReadPolicyProviderInterface
 {
     /**
      * Interim CW-v1 publish gate (WP-0, spec: docs/specs/content-workflow.md).
@@ -49,6 +52,23 @@ final class NodeAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
      */
     private const ADMIN_ONLY_EDIT_FIELDS = ['uid', 'type', 'created', 'changed'];
 
+    private readonly NodeAuthorizationSnapshotReader $authorizationReader;
+
+    public function __construct(?NodeAuthorizationSnapshotReader $authorizationReader = null)
+    {
+        $this->authorizationReader = $authorizationReader ?? new NodeAuthorizationSnapshotReader();
+    }
+
+    public function protectedEntityReadPolicy(): ProtectedEntityReadPolicyInterface
+    {
+        return new NodeProtectedReadPolicy();
+    }
+
+    public function protectedFieldReadPolicy(): ProtectedFieldReadPolicyInterface
+    {
+        return new NodeProtectedReadPolicy();
+    }
+
     public function appliesTo(string $entityTypeId): bool
     {
         return $entityTypeId === 'node';
@@ -56,6 +76,12 @@ final class NodeAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
 
     public function fieldAccess(EntityInterface $entity, string $fieldName, string $operation, AccountInterface $account): AccessResult
     {
+        if ($operation === 'view' && in_array($fieldName, ['status', 'uid', 'workflow_state'], true)) {
+            return $account->hasPermission('administer nodes')
+                ? AccessResult::neutral('Node administrator view is decided by the protected field policy.')
+                : AccessResult::forbidden('Protected node fields are not part of the ordinary view projection.');
+        }
+
         // This gate restricts writes only; view of these fields is unaffected.
         if ($operation !== 'edit') {
             return AccessResult::neutral('Node field gate restricts edit only.');
@@ -99,15 +125,17 @@ final class NodeAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
 
         assert($entity instanceof Node);
 
-        $type = $entity->getType();
+        $authorization = $this->authorizationReader->read($entity);
+        $type = $authorization->type;
         // An unauthenticated account is never an owner: the anonymous account's
         // id() is 0, which would otherwise equal an authorless node's
         // getAuthorId() ((int) (null) = 0), making anonymous the "owner" of every
         // authorless node and granting it any 'own'-scoped permission it was given.
-        $isOwner = $account->isAuthenticated() && $account->id() === $entity->getAuthorId();
+        $isOwner = $account->isAuthenticated() && $authorization->authorId !== null
+            && (string) $account->id() === (string) $authorization->authorId;
 
         return match ($operation) {
-            'view' => $this->viewAccess($entity, $account, $isOwner),
+            'view' => $this->viewAccess($authorization->published, $account, $isOwner),
             'update' => $this->editAccess($type, $account, $isOwner),
             'delete' => $this->deleteAccess($type, $account, $isOwner),
             default => AccessResult::neutral("No opinion on '$operation' operation."),
@@ -131,9 +159,9 @@ final class NodeAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
     /**
      * Check view access for a node.
      */
-    private function viewAccess(Node $node, AccountInterface $account, bool $isOwner): AccessResult
+    private function viewAccess(bool $published, AccountInterface $account, bool $isOwner): AccessResult
     {
-        if ($node->isPublished()) {
+        if ($published) {
             if ($account->hasPermission('access content')) {
                 return AccessResult::allowed('Published node and user has access content permission.');
             }

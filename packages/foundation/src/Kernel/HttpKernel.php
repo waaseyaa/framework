@@ -19,6 +19,7 @@ use Waaseyaa\Cache\Backend\DatabaseBackend;
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Cache\CacheConfiguration;
 use Waaseyaa\Cache\CacheFactory;
+use Waaseyaa\Cache\EntityPayloadBoundaryConfig;
 use Waaseyaa\Cache\ProjectionDeprecationDiagnostic;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Foundation\Http\ControllerDispatcher;
@@ -114,6 +115,7 @@ final class HttpKernel extends AbstractKernel
             function (string $channel, array $context): void {
                 $this->logger->notice($channel, $context);
             },
+            EntityPayloadBoundaryConfig::enforced(),
         );
         $cacheConfig->setFactoryForBin('render', fn(): DatabaseBackend => new DatabaseBackend(
             $pdo,
@@ -209,6 +211,7 @@ final class HttpKernel extends AbstractKernel
                 logger: $this->logger,
                 providersAccessor: fn(): array => $this->providers,
                 manifest: $this->manifest,
+                fieldReadScope: $this->fieldReadScope(),
             ),
             logger: $this->logger,
         );

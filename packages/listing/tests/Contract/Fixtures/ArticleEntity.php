@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Listing\Tests\Contract\Fixtures;
 
 use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Listing\Tests\Fixtures\PublicListingFields;
 
 /**
  * Test article entity for the resolver contract suite.
@@ -17,6 +18,8 @@ use Waaseyaa\Entity\ContentEntityBase;
  */
 final class ArticleEntity extends ContentEntityBase
 {
+    use PublicListingFields;
+
     public function __construct(
         array $values = [],
         string $entityTypeId = 'article',

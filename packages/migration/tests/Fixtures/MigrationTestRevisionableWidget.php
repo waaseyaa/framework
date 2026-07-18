@@ -6,7 +6,9 @@ namespace Waaseyaa\Migration\Tests\Fixtures;
 
 use Waaseyaa\Entity\Attribute\ContentEntityKeys;
 use Waaseyaa\Entity\Attribute\ContentEntityType;
+use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Entity\RevisionableEntityTrait;
 use Waaseyaa\Entity\RevisionableInterface;
 
@@ -25,6 +27,9 @@ use Waaseyaa\Entity\RevisionableInterface;
 class MigrationTestRevisionableWidget extends ContentEntityBase implements RevisionableInterface
 {
     use RevisionableEntityTrait;
+
+    #[Field(type: 'string', read: FieldReadLevel::Public)] public string $title;
+    #[Field(type: 'text', read: FieldReadLevel::Public)] public string $summary;
 
     public function __construct(
         array $values = [],

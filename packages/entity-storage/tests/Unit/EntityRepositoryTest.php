@@ -171,7 +171,7 @@ final class EntityRepositoryTest extends TestCase
     }
 
     #[Test]
-    public function findUsesHydratableFromStorageWhenEntityImplementsInterface(): void
+    public function findUsesSealedHydrationBeforeLegacyFromStorageForEntityBase(): void
     {
         $driver = new InMemoryStorageDriver();
         $entityType = new EntityType(
@@ -198,8 +198,8 @@ final class EntityRepositoryTest extends TestCase
 
         $this->assertNotNull($found);
         $this->assertInstanceOf(HydratableFromStorageTestEntity::class, $found);
-        $this->assertTrue($found->get('_rehydrated_via_storage'));
-        $this->assertSame('hydratable_test_entity', $found->get('_context_type'));
+        $this->assertNull($found->get('_rehydrated_via_storage'));
+        $this->assertNull($found->get('_context_type'));
         $this->assertSame('From row', $found->label());
     }
 

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Waaseyaa\Workflows\Transition;
 
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AccountPrincipalFactoryInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
@@ -19,6 +21,7 @@ use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 use Waaseyaa\Workflows\Event\WorkflowEvents;
 use Waaseyaa\Workflows\Event\WorkflowTransitionEvent;
 use Waaseyaa\Workflows\Group\GroupConstraintChecker;
+use Waaseyaa\Workflows\Read\WorkflowEntitySnapshotReader;
 use Waaseyaa\Workflows\Workflow;
 use Waaseyaa\Workflows\WorkflowTransition;
 
@@ -63,6 +66,9 @@ final class TransitionService
         // remains fine for callers (unit fixtures, the WP-1/WP-2 integration
         // spines) that never exercise group_constraint transitions.
         private readonly ?GroupConstraintChecker $groupConstraintChecker = null,
+        private readonly ?WorkflowEntitySnapshotReader $workflowValues = null,
+        private readonly ?AccountFieldReadScopeInterface $fieldReadScope = null,
+        private readonly ?AccountPrincipalFactoryInterface $principalFactory = null,
     ) {}
 
     /**
@@ -72,6 +78,11 @@ final class TransitionService
      *   working copy's — a stale caller, never silently discarded or promoted.
      */
     public function transition(EntityInterface $entity, string $transitionId, AccountInterface $account): TransitionResult
+    {
+        return $this->withAccount($account, fn(): TransitionResult => $this->doTransition($entity, $transitionId, $account));
+    }
+
+    private function doTransition(EntityInterface $entity, string $transitionId, AccountInterface $account): TransitionResult
     {
         $entityTypeId = $entity->getEntityTypeId();
         $bundle = $entity->bundle();
@@ -313,7 +324,7 @@ final class TransitionService
             // writes whatever `status` sits on the entity into the base row
             // on every save, with no special-casing for that column) is
             // idempotent, not a silent flip.
-            $entity->set('status', $publishedRevision->get('status'));
+            $entity->set('status', $this->workflowValues()->read($publishedRevision)->status);
             $repository->save($entity);
         } else {
             // Never published: WP-1 behavior stands — status follows the
@@ -341,6 +352,12 @@ final class TransitionService
      * @return list<WorkflowTransition>
      */
     public function getAvailableTransitions(EntityInterface $entity, AccountInterface $account): array
+    {
+        return $this->withAccount($account, fn(): array => $this->doGetAvailableTransitions($entity, $account));
+    }
+
+    /** @return list<WorkflowTransition> */
+    private function doGetAvailableTransitions(EntityInterface $entity, AccountInterface $account): array
     {
         $workflow = $this->bindings->resolve($entity->getEntityTypeId(), $entity->bundle());
         if ($workflow === null) {
@@ -422,9 +439,23 @@ final class TransitionService
 
     private function currentState(EntityInterface $entity, Workflow $workflow): string
     {
-        $state = $entity->get('workflow_state');
+        $state = $this->workflowValues()->read($entity)->workflowState;
 
         return \is_string($state) && $state !== '' ? $state : $workflow->getInitialState();
+    }
+
+    private function workflowValues(): WorkflowEntitySnapshotReader
+    {
+        return $this->workflowValues ?? new WorkflowEntitySnapshotReader();
+    }
+
+    private function withAccount(AccountInterface $account, callable $callback): mixed
+    {
+        if ($this->fieldReadScope === null || $this->principalFactory === null) {
+            return $callback();
+        }
+
+        return $this->fieldReadScope->run($this->principalFactory->fromAccount($account), $callback);
     }
 
     /**

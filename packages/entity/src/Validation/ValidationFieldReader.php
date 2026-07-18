@@ -8,6 +8,7 @@ use Symfony\Component\Validator\Constraint;
 use Symfony\Component\Validator\Constraints\AtLeastOneOf;
 use Symfony\Component\Validator\Constraints\Choice;
 use Symfony\Component\Validator\Constraints\Email;
+use Symfony\Component\Validator\Constraints\GreaterThan;
 use Symfony\Component\Validator\Constraints\Length;
 use Symfony\Component\Validator\Constraints\NotBlank;
 use Symfony\Component\Validator\Constraints\NotNull;
@@ -18,6 +19,9 @@ use Symfony\Component\Validator\ConstraintViolationList;
 use Symfony\Component\Validator\ConstraintViolationListInterface;
 use Symfony\Component\Validator\Validation;
 use Waaseyaa\Entity\EntityBase;
+use Waaseyaa\Validation\Constraint\AllowedValues;
+use Waaseyaa\Validation\Constraint\NotEmpty;
+use Waaseyaa\Validation\Constraint\SafeMarkup;
 
 /** Closed framework-only validator for non-Public values. @api */
 final class ValidationFieldReader
@@ -82,10 +86,14 @@ final class ValidationFieldReader
         foreach ($constraints as $constraint) {
             if (!$constraint instanceof NotBlank
                 && !$constraint instanceof NotNull
+                && !$constraint instanceof NotEmpty
                 && !$constraint instanceof Choice
+                && !$constraint instanceof AllowedValues
                 && !$constraint instanceof Email
+                && !$constraint instanceof GreaterThan
                 && !$constraint instanceof Length
                 && !$constraint instanceof Range
+                && !$constraint instanceof SafeMarkup
                 && !$constraint instanceof Type
                 && !$constraint instanceof AtLeastOneOf) {
                 throw new \LogicException(sprintf(

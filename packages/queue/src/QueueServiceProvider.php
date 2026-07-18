@@ -11,6 +11,7 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Queue\Envelope\NoAuthorityQueueRuntime;
 use Waaseyaa\Queue\Envelope\QueueAuthorityRuntimeInterface;
 use Waaseyaa\Queue\Envelope\QueueEnvelopeFactoryInterface;
+use Waaseyaa\Queue\Exception\InvalidPersistentPayload;
 use Waaseyaa\Queue\Handler\HandlerInterface;
 use Waaseyaa\Queue\Handler\JobHandler;
 use Waaseyaa\Queue\Security\SignedQueuePayload;
@@ -47,12 +48,16 @@ final class QueueServiceProvider extends ServiceProvider
         $this->singleton(QueueInterface::class, match ($driver) {
             'database' => function (): DbalQueue {
                 $factory = $this->resolveOptional(QueueEnvelopeFactoryInterface::class);
+                if (!$factory instanceof QueueEnvelopeFactoryInterface) {
+                    throw new InvalidPersistentPayload('Activated persistent queue dispatch requires a reviewed authority envelope factory.');
+                }
 
                 return new DbalQueue(
                     $this->resolve(TransportInterface::class),
                     $this->resolve(SignedQueuePayload::class),
                     $this->config['queue']['default'] ?? 'default',
-                    envelopeFactory: $factory instanceof QueueEnvelopeFactoryInterface ? $factory : null,
+                    envelopeFactory: $factory,
+                    boundaryConfig: PersistentQueueBoundaryConfig::enforced(),
                 );
             },
             default => fn(): SyncQueue => new SyncQueue(),
@@ -65,9 +70,12 @@ final class QueueServiceProvider extends ServiceProvider
             default => fn(): InMemoryFailedJobRepository => new InMemoryFailedJobRepository(),
         });
 
-        $this->singleton(Worker::class, function (): Worker {
+        $this->singleton(Worker::class, function () use ($driver): Worker {
             $logger = $this->resolveOptional(LoggerInterface::class);
             $authorityRuntime = $this->resolveOptional(QueueAuthorityRuntimeInterface::class);
+            if ($driver === 'database' && !$authorityRuntime instanceof QueueAuthorityRuntimeInterface) {
+                throw new \InvalidArgumentException('Activated queue workers require an authority-restoring runtime.');
+            }
 
             return new Worker(
                 $this->resolve(TransportInterface::class),
@@ -78,6 +86,7 @@ final class QueueServiceProvider extends ServiceProvider
                 $authorityRuntime instanceof QueueAuthorityRuntimeInterface
                     ? $authorityRuntime
                     : new NoAuthorityQueueRuntime(),
+                $driver === 'database' ? PersistentQueueBoundaryConfig::enforced() : PersistentQueueBoundaryConfig::dormant(),
             );
         });
     }

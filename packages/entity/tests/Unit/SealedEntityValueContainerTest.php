@@ -87,29 +87,25 @@ final class SealedEntityValueContainerTest extends TestCase
     }
 
     #[Test]
-    public function attached_structural_selectors_win_over_blank_compatibility_values(): void
+    public function ordinary_construction_seals_structural_selectors_atomically(): void
     {
         $entity = new TestEntity(
-            ['uid' => 15, 'bundle' => '', 'langcode' => ''],
+            [
+                'uid' => 15,
+                'uuid' => '018f5f20-0000-7000-8000-000000000001',
+                'bundle' => 'user',
+                'langcode' => 'en',
+                'revision_id' => 7,
+            ],
             'user',
-            ['id' => 'uid', 'bundle' => 'bundle', 'langcode' => 'langcode'],
+            ['id' => 'uid', 'uuid' => 'uuid', 'bundle' => 'bundle', 'langcode' => 'langcode', 'revision' => 'revision_id'],
         );
-        $entity->_attachEntityStructure(new EntityStructure(
-            entityTypeId: 'user',
-            bundleId: 'user',
-            id: 15,
-            uuid: '018f5f20-0000-7000-8000-000000000001',
-            activeLanguageId: 'en',
-            defaultLanguageId: 'en',
-            knownTranslationIds: ['en'],
-            revisionId: 7,
-            fieldNames: ['uid', 'bundle', 'langcode'],
-        ));
 
         self::assertSame(15, $entity->id());
         self::assertSame('018f5f20-0000-7000-8000-000000000001', $entity->uuid());
         self::assertSame('user', $entity->bundle());
         self::assertSame('en', $entity->language());
+        self::assertSame(7, $entity->entityStructure()->revisionId);
     }
 
     #[Test]

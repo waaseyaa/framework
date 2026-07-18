@@ -25,6 +25,7 @@ final class TwoFactorServiceTest extends TestCase
 {
     private TwoFactorManager $manager;
     private TwoFactorService $service;
+    private UserInternalFieldReaderFixture $internalFields;
 
     /** @var list<array{user: User, op: string}> */
     private array $saveLog = [];
@@ -36,9 +37,7 @@ final class TwoFactorServiceTest extends TestCase
 
         $storage = new class ($this->saveLog) implements EntityStorageInterface {
             /** @param list<array{user: User, op: string}> $saveLog */
-            public function __construct(private array &$saveLog)
-            {
-            }
+            public function __construct(private array &$saveLog) {}
 
             public function create(array $values = []): EntityInterface
             {
@@ -68,9 +67,7 @@ final class TwoFactorServiceTest extends TestCase
                 return 2; // SAVED_UPDATED
             }
 
-            public function delete(array $entities): void
-            {
-            }
+            public function delete(array $entities): void {}
 
             public function getQuery(): EntityQueryInterface
             {
@@ -84,23 +81,20 @@ final class TwoFactorServiceTest extends TestCase
         };
 
         $typeManager = new class ($storage) implements EntityTypeManagerInterface {
-            public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array { return []; }
-            public function __construct(private readonly EntityStorageInterface $storage)
+            public function resolveFieldDefinitions(string $entityTypeId, ?string $bundle = null): array
             {
+                return [];
             }
+            public function __construct(private readonly EntityStorageInterface $storage) {}
 
             public function getDefinition(string $entityTypeId): EntityTypeInterface
             {
                 throw new \BadMethodCallException('not used in this test');
             }
 
-            public function registerEntityType(EntityTypeInterface $type, ?string $registrant = null): void
-            {
-            }
+            public function registerEntityType(EntityTypeInterface $type, ?string $registrant = null): void {}
 
-            public function registerCoreEntityType(EntityTypeInterface $type, ?string $registrant = null): void
-            {
-            }
+            public function registerCoreEntityType(EntityTypeInterface $type, ?string $registrant = null): void {}
 
             public function hasDefinition(string $entityTypeId): bool
             {
@@ -124,7 +118,8 @@ final class TwoFactorServiceTest extends TestCase
             }
         };
 
-        $this->service = new TwoFactorService($this->manager, $typeManager, new UserInternalFieldReaderFixture());
+        $this->internalFields = new UserInternalFieldReaderFixture();
+        $this->service = new TwoFactorService($this->manager, $typeManager, $this->internalFields);
     }
 
     public function testSetupReturnsResultWithAllFields(): void
@@ -149,7 +144,7 @@ final class TwoFactorServiceTest extends TestCase
         $this->service->setup($user);
 
         $this->assertSame([], $this->saveLog, 'setup must not persist anything');
-        $this->assertNull($user->getTwoFactorSecret());
+        $this->assertNull($this->internalFields->twoFactor($user)->secret);
     }
 
     public function testSetupThrowsWhenAlreadyEnabled(): void
@@ -170,7 +165,7 @@ final class TwoFactorServiceTest extends TestCase
 
         $this->assertFalse($ok);
         $this->assertSame([], $this->saveLog, 'enable must not persist on failed verification');
-        $this->assertNull($user->getTwoFactorSecret());
+        $this->assertNull($this->internalFields->twoFactor($user)->secret);
     }
 
     public function testEnablePersistsOnSuccess(): void
@@ -183,9 +178,9 @@ final class TwoFactorServiceTest extends TestCase
 
         $this->assertTrue($ok);
         $this->assertCount(1, $this->saveLog);
-        $this->assertSame($setup->secret, $user->getTwoFactorSecret());
-        $hashes = $user->getTwoFactorRecoveryCodesHash();
-        $this->assertNotNull($hashes);
+        $snapshot = $this->internalFields->twoFactor($user);
+        $this->assertSame($setup->secret, $snapshot->secret);
+        $hashes = $snapshot->recoveryCodeHashes;
         $this->assertCount(8, $hashes);
         foreach ($hashes as $hash) {
             $this->assertStringStartsWith('$argon2id$', $hash);
@@ -224,8 +219,7 @@ final class TwoFactorServiceTest extends TestCase
 
         // First use: succeeds.
         $this->assertTrue($this->service->verify($user, $recoveryCode));
-        $remaining = $user->getTwoFactorRecoveryCodesHash();
-        $this->assertNotNull($remaining);
+        $remaining = $this->internalFields->twoFactor($user)->recoveryCodeHashes;
         $this->assertCount(7, $remaining, 'recovery code must be consumed');
 
         // Second use: fails (code already consumed).
@@ -248,8 +242,9 @@ final class TwoFactorServiceTest extends TestCase
 
         $this->service->disable($user);
 
-        $this->assertNull($user->getTwoFactorSecret());
-        $this->assertNull($user->getTwoFactorRecoveryCodesHash());
+        $snapshot = $this->internalFields->twoFactor($user);
+        $this->assertNull($snapshot->secret);
+        $this->assertSame([], $snapshot->recoveryCodeHashes);
     }
 
     public function testIsEnabledReflectsState(): void

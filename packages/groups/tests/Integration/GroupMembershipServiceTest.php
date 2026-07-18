@@ -24,6 +24,7 @@ use Waaseyaa\Groups\GroupRelationshipTypes;
 use Waaseyaa\Groups\GroupsServiceProvider;
 use Waaseyaa\Groups\Membership\GroupMembershipService;
 use Waaseyaa\Relationship\Relationship;
+use Waaseyaa\Relationship\RelationshipMaintenanceReader;
 
 /**
  * GroupMembershipService against real SQLite relationship storage.
@@ -586,7 +587,7 @@ final class GroupMembershipServiceTest extends TestCase
         self::assertCount(2, $rows);
         foreach ($rows as $row) {
             \assert($row instanceof Relationship);
-            self::assertSame(0, (int) $row->get('status'), 'Every duplicate live row must be revoked.');
+            self::assertSame(0, (new RelationshipMaintenanceReader())->read($row)->status, 'Every duplicate live row must be revoked.');
         }
     }
 
@@ -630,7 +631,7 @@ final class GroupMembershipServiceTest extends TestCase
         self::assertCount(2, $rows);
         foreach ($rows as $row) {
             \assert($row instanceof Relationship);
-            self::assertSame(0, (int) $row->get('status'), 'Every duplicate live row must be revoked.');
+            self::assertSame(0, (new RelationshipMaintenanceReader())->read($row)->status, 'Every duplicate live row must be revoked.');
         }
     }
 

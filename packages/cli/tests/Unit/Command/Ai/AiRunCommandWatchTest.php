@@ -232,6 +232,7 @@ final class AiRunCommandWatchTest extends TestCase
         $command = new AiRunCommand(
             runService: $service,
             definitionRegistry: $registry,
+            workerReader: new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture(),
             aiConfig: ['providers' => [['id' => 'null', 'model_default' => 'noop']]],
             sseClient: $sseClient,
             baseUrl: 'http://localhost:8000',
@@ -304,6 +305,7 @@ final class AiRunCommandWatchTest extends TestCase
             broadcaster: new InertBroadcasterForWatchTest(),
             provider: new NullLlmProvider(),
             accountLoader: new StubInitiatorAccountLoader(),
+            workerReader: new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture(),
         );
 
         $bus = new MessageBus([

@@ -51,8 +51,10 @@ use Waaseyaa\Foundation\Log\NullLogger;
  *
  * @internal Only instantiate via the framework provider; use BackendRegistrar to obtain.
  */
-final class SqlBlobBackend implements FieldStorageBackendInterface
+final class SqlBlobBackend implements FieldStorageBackendV2Interface
 {
+    public const string FINGERPRINT = 'ef98f35497a5cf2e5234b969fe9c7eb9f9e624b3956e635e840b6ef196164c40';
+
     private readonly LoggerInterface $logger;
 
     public function __construct(
@@ -70,6 +72,36 @@ final class SqlBlobBackend implements FieldStorageBackendInterface
         return ReservedBackendIds::SQL_BLOB;
     }
 
+    public function fingerprint(): string
+    {
+        return self::FINGERPRINT;
+    }
+
+    public function invoke(FieldStorageGatewayRole $gateway, FieldStorageGatewayInput $input): FieldStorageGatewayOutput
+    {
+        $call = $gateway->unwrap($input, $this);
+        $value = match ($call->operation) {
+            FieldStorageGatewayOperation::Read => $this->read(
+                $call->entity ?? throw new \LogicException('sql-blob read requires an entity.'),
+                $call->field ?? throw new \LogicException('sql-blob read requires a field.'),
+            ),
+            FieldStorageGatewayOperation::Write => $this->write(
+                $call->entity ?? throw new \LogicException('sql-blob write requires an entity.'),
+                $call->field ?? throw new \LogicException('sql-blob write requires a field.'),
+                $call->value,
+            ),
+            FieldStorageGatewayOperation::Delete => $this->delete(
+                $call->entity ?? throw new \LogicException('sql-blob delete requires an entity.'),
+            ),
+            FieldStorageGatewayOperation::SupportsQuery => $this->supportsQuery(
+                $call->field ?? throw new \LogicException('sql-blob query support requires a field.'),
+                $call->query ?? throw new \LogicException('sql-blob query support requires a query.'),
+            ),
+        };
+
+        return $gateway->complete($input, $this, $value);
+    }
+
     /**
      * Read a single field value for an entity.
      *
@@ -78,7 +110,7 @@ final class SqlBlobBackend implements FieldStorageBackendInterface
      *
      * Returns null when the entity does not exist or the field is absent.
      */
-    public function read(EntityInterface $entity, FieldDefinition $field): mixed
+    private function read(EntityInterface $entity, FieldDefinition $field): mixed
     {
         $id = $entity->id();
         if ($id === null) {
@@ -142,11 +174,11 @@ final class SqlBlobBackend implements FieldStorageBackendInterface
      * Idempotent: calling write() twice with the same value produces the
      * same stored state as calling it once (UPDATE is applied either way).
      */
-    public function write(EntityInterface $entity, FieldDefinition $field, mixed $value): void
+    private function write(EntityInterface $entity, FieldDefinition $field, mixed $value): null
     {
         $id = $entity->id();
         if ($id === null) {
-            return;
+            return null;
         }
 
         $fieldName = $field->getName();
@@ -173,7 +205,7 @@ final class SqlBlobBackend implements FieldStorageBackendInterface
                 ->condition($this->idKey, $id)
                 ->execute();
 
-            return;
+            return null;
         }
 
         // Column-stored field — encode json-typed values.
@@ -185,6 +217,8 @@ final class SqlBlobBackend implements FieldStorageBackendInterface
             ->fields([$fieldName => $value])
             ->condition($this->idKey, $id)
             ->execute();
+
+        return null;
     }
 
     /**
@@ -193,11 +227,11 @@ final class SqlBlobBackend implements FieldStorageBackendInterface
      * Resets the `_data` blob to `{}`. Column-backed fields for this entity
      * are removed by the DELETE SQL issued at the coordinator/storage level.
      */
-    public function delete(EntityInterface $entity): void
+    private function delete(EntityInterface $entity): null
     {
         $id = $entity->id();
         if ($id === null) {
-            return;
+            return null;
         }
 
         // Only wipe _data if the row still exists (idempotent).
@@ -219,6 +253,8 @@ final class SqlBlobBackend implements FieldStorageBackendInterface
                 ->condition($this->idKey, $id)
                 ->execute();
         }
+
+        return null;
     }
 
     /**
@@ -228,7 +264,7 @@ final class SqlBlobBackend implements FieldStorageBackendInterface
      * Entity-key equality queries are handled by SqlEntityStorage directly
      * via real columns and do not go through this method (FR-010).
      */
-    public function supportsQuery(FieldDefinition $field, EntityQuery $query): bool
+    private function supportsQuery(FieldDefinition $field, EntityQuery $query): bool
     {
         return false;
     }

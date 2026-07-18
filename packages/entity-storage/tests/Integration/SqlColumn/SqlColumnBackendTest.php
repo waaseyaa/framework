@@ -10,10 +10,16 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\EntityStorage\Backend\BackendRegistrar;
+use Waaseyaa\EntityStorage\Backend\FieldStorageBackendGateway;
+use Waaseyaa\EntityStorage\Backend\FieldStorageBackendV2Interface;
+use Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderV2Interface;
+use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\Backend\SqlColumnBackend;
 use Waaseyaa\EntityStorage\Backend\SqlColumnSchemaBuilder;
 use Waaseyaa\EntityStorage\Backend\TypeMapping;
 use Waaseyaa\EntityStorage\Query\EntityQuery;
+use Waaseyaa\EntityStorage\Tests\Support\PermissiveFieldStorageGatewayAudit;
 use Waaseyaa\Field\FieldDefinition;
 
 /**
@@ -89,7 +95,7 @@ final class SqlColumnBackendTest extends TestCase
     {
         // A float_vector field explicitly routed away via storedIn('vector') must NOT be rejected.
         $fields = [
-            (new FieldDefinition(name: 'embedding', type: 'float_vector_768'))->storedIn('vector'),
+            new FieldDefinition(name: 'embedding', type: 'float_vector_768')->storedIn('vector'),
             new FieldDefinition(name: 'name', type: 'string'),
         ];
         $builder = new SqlColumnSchemaBuilder($this->db);
@@ -108,7 +114,7 @@ final class SqlColumnBackendTest extends TestCase
     public function it_emits_index_for_indexed_fields(): void
     {
         $fields = [
-            (new FieldDefinition(name: 'slug', type: 'string'))->indexed(),
+            new FieldDefinition(name: 'slug', type: 'string')->indexed(),
             new FieldDefinition(name: 'score', type: 'int'),
         ];
         $builder = new SqlColumnSchemaBuilder($this->db);
@@ -215,7 +221,7 @@ final class SqlColumnBackendTest extends TestCase
             $field = new FieldDefinition(name: 'f', type: $type);
             self::assertTrue(
                 $backend->supportsQuery($field, $query),
-                "supportsQuery should return true for field type: {$type}"
+                "supportsQuery should return true for field type: {$type}",
             );
         }
     }
@@ -358,14 +364,23 @@ final class SqlColumnBackendTest extends TestCase
             ->execute();
     }
 
-    private function makeBackend(): SqlColumnBackend
+    private function makeBackend(): FieldStorageBackendGateway
     {
-        return new SqlColumnBackend(
+        SqlColumnTestBackendProvider::$backend = new SqlColumnBackend(
             database: $this->db,
             entityTableName: $this->tableName,
             idKey: $this->idKey,
             entityTypeId: $this->tableName,
         );
+        $registrar = new BackendRegistrar(
+            [SqlColumnTestBackendProvider::class],
+            [SqlColumnTestBackendProvider::class],
+            new PermissiveFieldStorageGatewayAudit(),
+        );
+        $registrar->build();
+
+        return $registrar->gateway(ReservedBackendIds::SQL_COLUMN)
+            ?? throw new \LogicException('The sql-column test gateway was not registered.');
     }
 
     /**
@@ -387,6 +402,17 @@ final class SqlColumnBackendTest extends TestCase
             'primary key' => ['id'],
             'indexes'     => [],
         ];
+    }
+}
+
+/** @internal */
+final class SqlColumnTestBackendProvider implements IsFrameworkBackendProviderV2Interface
+{
+    public static ?FieldStorageBackendV2Interface $backend = null;
+
+    public function fieldStorageBackendsV2(): array
+    {
+        return [self::$backend ?? throw new \LogicException('The sql-column test backend was not installed.')];
     }
 }
 

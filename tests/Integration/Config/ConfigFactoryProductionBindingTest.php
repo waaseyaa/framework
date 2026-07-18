@@ -145,7 +145,7 @@ final class ConfigFactoryProductionBindingTest extends TestCase
 
         file_put_contents(
             $projectRoot . '/config/waaseyaa.php',
-            "<?php return ['database' => ':memory:'];",
+            "<?php return ['database' => ':memory:', 'environment' => 'testing'];",
         );
 
         file_put_contents(

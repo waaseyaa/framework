@@ -142,7 +142,10 @@ final class PathAlias extends ContentEntityBase
      */
     public function setLanguage(string $langcode): static
     {
-        $this->set('langcode', $langcode);
+        if ($langcode === '') {
+            throw new \InvalidArgumentException('Path alias language cannot be empty.');
+        }
+        $this->_hydrateStructuralLanguages($langcode, $langcode, [$langcode]);
 
         return $this;
     }

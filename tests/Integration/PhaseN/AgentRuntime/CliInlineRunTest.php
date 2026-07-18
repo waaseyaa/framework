@@ -83,6 +83,7 @@ final class CliInlineRunTest extends TestCase
         $command = new AiRunCommand(
             runService: $service,
             definitionRegistry: $registry,
+            workerReader: new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture(),
             aiConfig: [
                 'providers' => [['id' => 'null', 'model_default' => 'noop']],
             ],
@@ -115,6 +116,7 @@ final class CliInlineRunTest extends TestCase
         $command = new AiRunCommand(
             runService: $service,
             definitionRegistry: $registry,
+            workerReader: new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture(),
             aiConfig: ['providers' => [['id' => 'null', 'model_default' => 'noop']]],
         );
 
@@ -175,6 +177,7 @@ final class CliInlineRunTest extends TestCase
             broadcaster: $broadcaster,
             provider: new NullLlmProvider(),
             accountLoader: new StubInitiatorAccountLoader(),
+            workerReader: new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture(),
         );
 
         $bus = new MessageBus([

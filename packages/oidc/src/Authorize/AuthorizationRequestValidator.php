@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Oidc\Authorize;
 
+use Waaseyaa\Oidc\ClientRegistry\OidcClientSystemReader;
 use Waaseyaa\Oidc\Entity\OidcClient;
 
 /**
@@ -20,6 +21,13 @@ final class AuthorizationRequestValidator
     private const REQUIRED_RESPONSE_TYPE = 'code';
     private const REQUIRED_CODE_CHALLENGE_METHOD = 'S256';
 
+    private readonly OidcClientSystemReader $clientReader;
+
+    public function __construct(?OidcClientSystemReader $clientReader = null)
+    {
+        $this->clientReader = $clientReader ?? new OidcClientSystemReader();
+    }
+
     /**
      * @param array<string, mixed> $query
      */
@@ -33,7 +41,8 @@ final class AuthorizationRequestValidator
             );
         }
 
-        if (!$client->hasRedirectUri($redirectUri)) {
+        $registration = $this->clientReader->registration($client);
+        if (!$registration->hasRedirectUri($redirectUri)) {
             throw new AuthorizationRequestException(
                 errorCode: 'invalid_request',
                 errorDescription: 'redirect_uri is not registered for this client.',
@@ -63,7 +72,7 @@ final class AuthorizationRequestValidator
         }
 
         foreach ($scopes as $scope) {
-            if (!$client->hasScope($scope)) {
+            if (!$registration->hasScope($scope)) {
                 throw new AuthorizationRequestException(
                     errorCode: 'invalid_scope',
                     errorDescription: "Scope '$scope' is not allowed for this client.",

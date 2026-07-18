@@ -12,6 +12,8 @@ use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Genealogy\Entity\GenealogyPerson;
 use Waaseyaa\Genealogy\GenealogyRelationshipType;
 use Waaseyaa\Relationship\Relationship;
+use Waaseyaa\Relationship\RelationshipTopology;
+use Waaseyaa\Relationship\RelationshipTopologyReader;
 
 /**
  * Parent/child/spouse reads and simple ancestor layering over `relationship` rows.
@@ -31,6 +33,7 @@ final class GenealogyPedigreeService
         // emission fails closed to the redacted placeholder rather than
         // falling back to the raw, field-access-unfiltered label.
         private readonly ?EntityAccessHandler $accessHandler = null,
+        private readonly RelationshipTopologyReader $topologyReader = new RelationshipTopologyReader(),
     ) {}
 
     /**
@@ -52,8 +55,8 @@ final class GenealogyPedigreeService
         $q->condition('to_entity_id', $personId);
         $q->condition('from_entity_type', 'genealogy_person');
 
-        return $this->sortedPersonIdsFromRelationships($repository, $q->execute(), static function (Relationship $r): string {
-            return (string) $r->get('from_entity_id');
+        return $this->sortedPersonIdsFromRelationships($repository, $q->execute(), static function (RelationshipTopology $topology): string {
+            return $topology->fromId;
         });
     }
 
@@ -76,8 +79,8 @@ final class GenealogyPedigreeService
         $q->condition('from_entity_id', $personId);
         $q->condition('to_entity_type', 'genealogy_person');
 
-        return $this->sortedPersonIdsFromRelationships($repository, $q->execute(), static function (Relationship $r): string {
-            return (string) $r->get('to_entity_id');
+        return $this->sortedPersonIdsFromRelationships($repository, $q->execute(), static function (RelationshipTopology $topology): string {
+            return $topology->toId;
         });
     }
 
@@ -251,7 +254,7 @@ final class GenealogyPedigreeService
 
     /**
      * @param list<int|string> $relationshipIds
-     * @param callable(Relationship): string $extractPersonId
+     * @param callable(RelationshipTopology): string $extractPersonId
      * @return list<string>
      */
     private function sortedPersonIdsFromRelationships(
@@ -267,7 +270,8 @@ final class GenealogyPedigreeService
         $ids = [];
         foreach ($entities as $entity) {
             if ($entity instanceof Relationship) {
-                $ids[] = $extractPersonId($entity);
+                $topology = $this->topologyReader->read($entity);
+                $ids[] = $extractPersonId($topology);
             }
         }
 
@@ -306,8 +310,9 @@ final class GenealogyPedigreeService
 
     private function otherPersonId(Relationship $edge, string $personId): ?string
     {
-        $from = (string) $edge->get('from_entity_id');
-        $to = (string) $edge->get('to_entity_id');
+        $topology = $this->topologyReader->read($edge);
+        $from = $topology->fromId;
+        $to = $topology->toId;
         if ($from === $personId) {
             return $to;
         }

@@ -8,11 +8,17 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Validator\Validation;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
+use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\FieldReadGuard;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\Validation\EntityValidator;
 use Waaseyaa\Media\File;
 use Waaseyaa\Media\InMemoryFileRepository;
 use Waaseyaa\Media\Media;
+use Waaseyaa\Media\MediaAccessPolicy;
 use Waaseyaa\Media\MediaType;
+use Waaseyaa\Tests\Support\AuthorizationPrincipalFactory;
 use Waaseyaa\Validation\Constraint\NotEmpty;
 
 /**
@@ -27,6 +33,7 @@ final class MediaFileIntegrationTest extends TestCase
 {
     private InMemoryFileRepository $fileRepository;
     private EntityValidator $entityValidator;
+    private AccountFieldReadScope $fieldReadScope;
 
     protected function setUp(): void
     {
@@ -34,6 +41,12 @@ final class MediaFileIntegrationTest extends TestCase
 
         $validator = Validation::createValidatorBuilder()->getValidator();
         $this->entityValidator = new EntityValidator($validator);
+        $this->fieldReadScope = new AccountFieldReadScope();
+        $handler = new EntityAccessHandler([new MediaAccessPolicy()]);
+        EntityReadRuntime::installGuard(new FieldReadGuard(
+            $this->fieldReadScope,
+            $handler->checkProtectedFieldRead(...),
+        ));
     }
 
     #[Test]
@@ -76,18 +89,19 @@ final class MediaFileIntegrationTest extends TestCase
             'status' => true,
             'created' => 1700000000,
         ]);
-        $media->set('file_uri', $file->uri);
+        $media->set('source_uri', $file->uri);
 
         // Verify media properties.
         $this->assertSame(1, $media->id());
         $this->assertSame('image', $media->getBundle());
         $this->assertSame('Beach Photo', $media->getName());
-        $this->assertSame(1, $media->getOwnerId());
+        $owner = AuthorizationPrincipalFactory::authenticated(permissions: ['administer media'], accountId: 1);
+        $this->assertSame(1, $this->fieldReadScope->run($owner, $media->getOwnerId(...)));
         $this->assertTrue($media->isPublished());
         $this->assertSame(1700000000, $media->getCreatedTime());
 
         // Retrieve the file via its URI stored on the media.
-        $loadedFile = $this->fileRepository->load($media->get('file_uri'));
+        $loadedFile = $this->fileRepository->load($this->fieldReadScope->run($owner, fn() => $media->get('source_uri')));
         $this->assertNotNull($loadedFile);
         $this->assertSame('photo.jpg', $loadedFile->filename);
         $this->assertSame('image/jpeg', $loadedFile->mimeType);
@@ -254,7 +268,7 @@ final class MediaFileIntegrationTest extends TestCase
             ownerId: 1,
         );
         $this->fileRepository->save($file);
-        $media->set('file_uri', $file->uri);
+        $media->set('source_uri', $file->uri);
 
         // Update.
         $media->setName('Beautiful Sunset Photo');
@@ -263,7 +277,8 @@ final class MediaFileIntegrationTest extends TestCase
         $this->assertSame(1700001000, $media->getChangedTime());
 
         // Verify file is still accessible.
-        $loadedFile = $this->fileRepository->load($media->get('file_uri'));
+        $owner = AuthorizationPrincipalFactory::authenticated(permissions: ['administer media'], accountId: 1);
+        $loadedFile = $this->fileRepository->load($this->fieldReadScope->run($owner, fn() => $media->get('source_uri')));
         $this->assertNotNull($loadedFile);
         $this->assertTrue($loadedFile->isImage());
 
@@ -343,10 +358,10 @@ final class MediaFileIntegrationTest extends TestCase
 
         // Create media entities referencing these files.
         $media1 = new Media(['mid' => 1, 'bundle' => 'image', 'name' => 'Photo A', 'uid' => 1]);
-        $media1->set('file_uri', 'public://u1/a.jpg');
+        $media1->set('source_uri', 'public://u1/a.jpg');
 
         $media2 = new Media(['mid' => 2, 'bundle' => 'image', 'name' => 'Photo B', 'uid' => 1]);
-        $media2->set('file_uri', 'public://u1/b.jpg');
+        $media2->set('source_uri', 'public://u1/b.jpg');
 
         // Verify ownership tracking via file repository.
         $owner1Files = $this->fileRepository->findByOwner(1);
@@ -356,7 +371,8 @@ final class MediaFileIntegrationTest extends TestCase
         $this->assertCount(1, $owner2Files);
 
         // Files referenced by media entities match.
-        $fileFromMedia = $this->fileRepository->load($media1->get('file_uri'));
+        $owner = AuthorizationPrincipalFactory::authenticated(permissions: ['administer media'], accountId: 1);
+        $fileFromMedia = $this->fileRepository->load($this->fieldReadScope->run($owner, fn() => $media1->get('source_uri')));
         $this->assertNotNull($fileFromMedia);
         $this->assertSame(1, $fileFromMedia->ownerId);
     }

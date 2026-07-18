@@ -6,7 +6,7 @@ namespace Waaseyaa\Field\Classification\Job;
 
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\Field\Entity\RetentionPolicy;
+use Waaseyaa\Field\Entity\RetentionPolicyMaintenanceView;
 
 /**
  * Bounded, keyset-batched scan over the classification-labelled entities of a
@@ -35,9 +35,9 @@ final class RetentionScanner
      *
      * @return array{operator: string, value: string}|null
      */
-    public static function labelCondition(RetentionPolicy $policy): ?array
+    public static function labelCondition(RetentionPolicyMaintenanceView $policy): ?array
     {
-        $patterns = $policy->getAppliesTo();
+        $patterns = $policy->appliesTo;
         if (count($patterns) !== 1) {
             return null;
         }

@@ -9,8 +9,10 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Waaseyaa\Access\AccountPrincipalFactoryInterface;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\Middleware\FieldReadContextMiddleware;
 use Waaseyaa\Access\User\UserIdentityLookupInterface;
 use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
@@ -26,6 +28,31 @@ use Waaseyaa\User\User;
 
 final class AuditServiceProviderFieldReadMiddlewareTest extends TestCase
 {
+    #[Test]
+    public function provider_reuses_the_kernel_owned_scope_by_identity(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $scope = new AccountFieldReadScope();
+        $provider = new AuditServiceProvider();
+        $provider->setKernelServices(new class($database, $scope) implements KernelServicesInterface {
+            public function __construct(
+                private readonly DatabaseInterface $database,
+                private readonly AccountFieldReadScopeInterface $scope,
+            ) {}
+            public function get(string $abstract): ?object
+            {
+                return match ($abstract) {
+                    DatabaseInterface::class => $this->database,
+                    AccountFieldReadScopeInterface::class => $this->scope,
+                    default => null,
+                };
+            }
+        });
+        $provider->register();
+
+        self::assertSame($scope, $provider->resolve(AccountFieldReadScopeInterface::class));
+    }
+
     #[Test]
     public function provider_contributes_the_production_context_middleware_and_strict_ledger(): void
     {
@@ -49,6 +76,7 @@ final class AuditServiceProviderFieldReadMiddlewareTest extends TestCase
         self::assertInstanceOf(StrictPrivilegedReadLedgerInterface::class, $provider->resolve(StrictPrivilegedReadLedgerInterface::class));
         self::assertInstanceOf(UserInternalFieldReaderInterface::class, $provider->resolve(UserInternalFieldReaderInterface::class));
         self::assertInstanceOf(UserIdentityLookupInterface::class, $provider->resolve(UserIdentityLookupInterface::class));
+        self::assertInstanceOf(AccountPrincipalFactoryInterface::class, $provider->resolve(AccountPrincipalFactoryInterface::class));
     }
 
     #[Test]

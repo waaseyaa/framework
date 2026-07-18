@@ -10,9 +10,14 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\FieldReadGuard;
+use Waaseyaa\Engagement\Comment;
 use Waaseyaa\Engagement\EngagementAccessPolicy;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
@@ -105,6 +110,31 @@ final class EngagementAccessPolicyTest extends TestCase
 
         $result = $policy->access($entity, 'view', $account);
         $this->assertTrue($result->isAllowed());
+    }
+
+    #[Test]
+    public function protected_unpublished_comment_body_is_released_only_to_its_owner_principal(): void
+    {
+        $handler = new EntityAccessHandler([$this->policy]);
+        $scope = new AccountFieldReadScope();
+        EntityReadRuntime::installGuard(new FieldReadGuard($scope, $handler->checkProtectedFieldRead(...)));
+        $comment = new Comment(['user_id' => 42, 'target_type' => 'post', 'target_id' => 7, 'body' => 'Pending', 'status' => false]);
+
+        try {
+            $owner = new AuthorizationPrincipal(42, true, [], [], 'engagement-policy-test');
+            self::assertSame('Pending', $scope->run($owner, fn(): mixed => $comment->get('body')));
+
+            $outsider = new AuthorizationPrincipal(99, true, [], [], 'engagement-policy-test');
+            $result = $handler->checkProtectedFieldRead(
+                $outsider,
+                $comment->entityStructure(),
+                new \Waaseyaa\Access\CompiledPolicySubjectView(['user_id' => 42, 'target_type' => 'post', 'target_id' => 7, 'status' => false]),
+                'body',
+            );
+            self::assertTrue($result->isForbidden());
+        } finally {
+            EntityReadRuntime::installGuard(null);
+        }
     }
 
     #[Test]

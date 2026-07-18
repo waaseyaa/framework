@@ -31,6 +31,13 @@ final class LabelInheritanceResolver
     /** @var array<string, ClassificationParentResolverInterface> */
     private array $resolvers = [];
 
+    private readonly ClassificationSubjectReader $subjectReader;
+
+    public function __construct(?ClassificationSubjectReader $subjectReader = null)
+    {
+        $this->subjectReader = $subjectReader ?? new ClassificationSubjectReader();
+    }
+
     /**
      * Register a parent resolver for a given entity type.
      *
@@ -99,11 +106,6 @@ final class LabelInheritanceResolver
 
     private function readLabel(EntityInterface $entity): ?string
     {
-        $raw = $entity->get('classification_label');
-        if ($raw === null || $raw === '') {
-            return null;
-        }
-
-        return (string) $raw;
+        return $this->subjectReader->read($entity)->label;
     }
 }

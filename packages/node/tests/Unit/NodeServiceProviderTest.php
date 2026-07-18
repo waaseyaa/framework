@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Event\EntityEvents;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Node\Listener\NodeRevisionDefaultListener;
@@ -83,14 +84,25 @@ final class NodeServiceProviderTest extends TestCase
     }
 
     #[Test]
-    public function node_type_has_no_field_definitions(): void
+    public function node_type_fields_are_explicit_public_configuration(): void
     {
         $provider = new NodeServiceProvider();
         $provider->register();
 
         $fields = $provider->getEntityTypes()[1]->getFieldDefinitions();
 
-        $this->assertSame([], $fields);
+        self::assertSame([
+            'type',
+            'name',
+            'description',
+            'new_revision',
+            'display_submitted',
+            'status',
+            'dependencies',
+        ], array_keys($fields));
+        foreach ($fields as $field) {
+            self::assertSame(FieldReadLevel::Public, $field->getReadLevel());
+        }
     }
 
     #[Test]

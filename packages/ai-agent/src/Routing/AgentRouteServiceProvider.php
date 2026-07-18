@@ -121,6 +121,7 @@ final class AgentRouteServiceProvider extends ServiceProvider
                 $this->resolve(AgentRunRepository::class),
             ),
             validator: new AgentRunRequestValidator(),
+            accountProjectionReader: $this->resolve(\Waaseyaa\AI\Agent\Security\AgentRunAccountProjectionReaderInterface::class),
             logger: $this->safeResolve(LoggerInterface::class) ?? new NullLogger(),
         );
     }

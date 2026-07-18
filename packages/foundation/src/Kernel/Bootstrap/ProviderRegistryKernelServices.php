@@ -7,6 +7,7 @@ namespace Waaseyaa\Foundation\Kernel\Bootstrap;
 use Psr\EventDispatcher\EventDispatcherInterface as PsrEventDispatcherInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\Gate\EntityAccessGate;
 use Waaseyaa\Access\Gate\GateInterface;
@@ -76,6 +77,7 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
         ?\Closure $accessHandlerAccessor = null,
         private readonly ?PackageManifest $manifest = null,
         private readonly ?ApplicationSecret $applicationSecret = null,
+        private readonly ?AccountFieldReadScopeInterface $fieldReadScope = null,
     ) {
         $this->providersAccessor = $providersAccessor;
         $this->accessHandlerAccessor = $accessHandlerAccessor;
@@ -123,6 +125,9 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
         }
         if ($abstract === AccountContextInterface::class) {
             return $this->accountContext;
+        }
+        if ($abstract === AccountFieldReadScopeInterface::class && $this->fieldReadScope !== null) {
+            return $this->fieldReadScope;
         }
         if ($abstract === PackageManifest::class) {
             return $this->manifest;

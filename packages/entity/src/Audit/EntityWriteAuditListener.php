@@ -19,7 +19,14 @@ final class EntityWriteAuditListener implements EventSubscriberInterface
 {
     private bool $pendingIsNew = false;
 
-    public function __construct(private readonly EntityAuditLogger $logger) {}
+    private readonly EntityWriteAuditSubjectReader $subjectReader;
+
+    public function __construct(
+        private readonly EntityAuditLogger $logger,
+        ?EntityWriteAuditSubjectReader $subjectReader = null,
+    ) {
+        $this->subjectReader = $subjectReader ?? new EntityWriteAuditSubjectReader();
+    }
 
     public static function getSubscribedEvents(): array
     {
@@ -39,43 +46,35 @@ final class EntityWriteAuditListener implements EventSubscriberInterface
     {
         $entity   = $event->entity;
         $action   = $this->pendingIsNew ? 'create' : 'update';
-        $tenantId = $entity instanceof \Waaseyaa\Entity\FieldableInterface
-            ? (string) ($entity->get('tenant_id') ?? '')
-            : '';
+        $subject = $this->subjectReader->read($entity);
 
         $this->logger->append(new EntityAuditEntry(
-            actor: $this->resolveActor($entity),
+            actor: $this->resolveActor($subject),
             action: $action,
             entityId: (string) ($entity->id() ?? ''),
             entityType: $entity->getEntityTypeId(),
-            tenantId: $tenantId,
+            tenantId: $subject->tenantId ?? '',
         ));
     }
 
     public function onPostDelete(EntityEvent $event): void
     {
         $entity   = $event->entity;
-        $tenantId = $entity instanceof \Waaseyaa\Entity\FieldableInterface
-            ? (string) ($entity->get('tenant_id') ?? '')
-            : '';
+        $subject = $this->subjectReader->read($entity);
 
         $this->logger->append(new EntityAuditEntry(
-            actor: $this->resolveActor($entity),
+            actor: $this->resolveActor($subject),
             action: 'delete',
             entityId: (string) ($entity->id() ?? ''),
             entityType: $entity->getEntityTypeId(),
-            tenantId: $tenantId,
+            tenantId: $subject->tenantId ?? '',
         ));
     }
 
-    private function resolveActor(\Waaseyaa\Entity\EntityInterface $entity): string
+    private function resolveActor(EntityWriteAuditSubject $subject): string
     {
-        if ($entity instanceof \Waaseyaa\Entity\FieldableInterface) {
-            $uid = $entity->get('uid');
-
-            if ($uid !== null && $uid !== '') {
-                return 'uid:' . $uid;
-            }
+        if ($subject->authorId !== null && $subject->authorId !== '') {
+            return 'uid:' . $subject->authorId;
         }
 
         return 'system';

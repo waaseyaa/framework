@@ -16,16 +16,16 @@ final class Comment extends ContentEntityBase
     #[Field(type: 'text', label: 'Body', settings: ['weight' => 0, 'subtype' => 'text_long'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $body = '';
 
-    #[Field(label: 'User ID', settings: ['weight' => 1], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(label: 'User ID', settings: ['weight' => 1, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public int $user_id = 0;
 
-    #[Field(label: 'Target Entity Type', settings: ['weight' => 2], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(label: 'Target Entity Type', settings: ['weight' => 2, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $target_type = '';
 
-    #[Field(label: 'Target Entity ID', settings: ['weight' => 3], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(label: 'Target Entity ID', settings: ['weight' => 3, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public int $target_id = 0;
 
-    #[Field(type: 'boolean', label: 'Published', default: 1, settings: ['weight' => 5], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(type: 'boolean', label: 'Published', default: 1, settings: ['weight' => 5, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public bool $status = true;
 
     #[Field(type: 'integer', label: 'Created', settings: ['weight' => 10, 'subtype' => 'timestamp'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]

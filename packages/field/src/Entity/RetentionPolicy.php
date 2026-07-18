@@ -53,27 +53,27 @@ final class RetentionPolicy extends ContentEntityBase
     public const string TRIGGER_AGE_BASED = 'age_based';
     public const string TRIGGER_EVENT_BASED = 'event_based';
 
-    #[Field(required: false, label: 'Name', read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
+    #[Field(required: false, label: 'Name', read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $name = '';
 
     /** @var list<string> */
-    #[Field(required: false, label: 'Applies to', settings: ['subtype' => 'string_list'], read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
+    #[Field(required: false, label: 'Applies to', settings: ['subtype' => 'string_list'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public array $applies_to = [];
 
-    #[Field(required: false, label: 'Action', read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
+    #[Field(required: false, label: 'Action', read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $action = '';
 
-    #[Field(required: false, label: 'Trigger kind', read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
+    #[Field(required: false, label: 'Trigger kind', read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $trigger_kind = '';
 
-    #[Field(required: false, label: 'Trigger value', read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
+    #[Field(required: false, label: 'Trigger value', read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $trigger_value = '';
 
     /** @var list<string> */
-    #[Field(required: false, label: 'Exemptions', settings: ['subtype' => 'string_list'], read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
+    #[Field(required: false, label: 'Exemptions', settings: ['subtype' => 'string_list'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public array $exemptions = [];
 
-    #[Field(type: 'integer', required: false, label: 'Created', settings: ['subtype' => 'timestamp'], read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
+    #[Field(type: 'integer', required: false, label: 'Created', settings: ['subtype' => 'timestamp'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public ?int $created_at = null;
 
     /**

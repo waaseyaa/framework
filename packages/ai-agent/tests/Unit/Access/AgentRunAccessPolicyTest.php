@@ -9,6 +9,8 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccessStatus;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Agent\Access\AgentRunAccessPolicy;
 use Waaseyaa\AI\Agent\Entity\AgentRun;
 
@@ -40,6 +42,18 @@ final class AgentRunAccessPolicyTest extends TestCase
                 "Initiator must be allowed for $op",
             );
         }
+    }
+
+    #[Test]
+    public function realEntityHandlerUsesTheCompiledOwnerSubjectWithoutAnOrdinaryProtectedRead(): void
+    {
+        $handler = new EntityAccessHandler([new AgentRunAccessPolicy()]);
+        $run = $this->makeRun(accountId: 42);
+        $owner = new AuthorizationPrincipal(42, true, ['authenticated'], [], 'claims-1');
+        $stranger = new AuthorizationPrincipal(99, true, ['authenticated'], [], 'claims-1');
+
+        self::assertTrue($handler->check($run, 'view', $owner)->isAllowed());
+        self::assertTrue($handler->check($run, 'view', $stranger)->isForbidden());
     }
 
     #[Test]

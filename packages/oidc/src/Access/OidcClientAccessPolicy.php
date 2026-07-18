@@ -9,6 +9,9 @@ use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Access\Gate\PolicyAttribute;
+use Waaseyaa\Access\ProtectedEntityReadPolicyInterface;
+use Waaseyaa\Access\ProtectedFieldReadPolicyInterface;
+use Waaseyaa\Access\ProtectedReadPolicyProviderInterface;
 use Waaseyaa\Entity\EntityInterface;
 
 /**
@@ -32,9 +35,19 @@ use Waaseyaa\Entity\EntityInterface;
  *    semantics).
  */
 #[PolicyAttribute(entityType: 'oidc_client')]
-final class OidcClientAccessPolicy implements AccessPolicyInterface, FieldAccessPolicyInterface
+final class OidcClientAccessPolicy implements AccessPolicyInterface, FieldAccessPolicyInterface, ProtectedReadPolicyProviderInterface
 {
     private const ADMIN_PERMISSION = 'administer oidc clients';
+
+    public function protectedEntityReadPolicy(): ?ProtectedEntityReadPolicyInterface
+    {
+        return null;
+    }
+
+    public function protectedFieldReadPolicy(): ProtectedFieldReadPolicyInterface
+    {
+        return new OidcClientProtectedFieldReadPolicy();
+    }
 
     public function appliesTo(string $entityTypeId): bool
     {

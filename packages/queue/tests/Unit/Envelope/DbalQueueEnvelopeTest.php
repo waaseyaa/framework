@@ -22,6 +22,50 @@ use Waaseyaa\Queue\Transport\InMemoryTransport;
 
 final class DbalQueueEnvelopeTest extends TestCase
 {
+    public function test_activation_rejects_authenticated_legacy_payload_replay(): void
+    {
+        $transport = new InMemoryTransport();
+        $signer = new SignedQueuePayload(str_repeat('q', 32));
+        $queue = new DbalQueue(
+            $transport,
+            $signer,
+            envelopeFactory: new SystemQueueEnvelopeFactory(QueueSystemReason::SystemJob, 'reviewed-service'),
+            boundaryConfig: PersistentQueueBoundaryConfig::enforced(),
+        );
+
+        try {
+            $queue->replaySignedPayload('default', $signer->seal(serialize(new GenericMessage('legacy'))));
+            self::fail('The activated retry boundary accepted a signed legacy payload.');
+        } catch (InvalidPersistentPayload) {
+        }
+
+        self::assertSame(0, $transport->size('default'));
+    }
+
+    public function test_activation_replays_an_authenticated_authority_envelope_byte_for_byte(): void
+    {
+        $transport = new InMemoryTransport();
+        $signer = new SignedQueuePayload(str_repeat('q', 32));
+        $queue = new DbalQueue(
+            $transport,
+            $signer,
+            envelopeFactory: new SystemQueueEnvelopeFactory(QueueSystemReason::SystemJob, 'reviewed-service'),
+            boundaryConfig: PersistentQueueBoundaryConfig::enforced(),
+        );
+        $sealed = $signer->seal(serialize(QueueEnvelopeV1::forSystem(
+            serialize(new GenericMessage('retry')),
+            QueueSystemReason::SystemJob,
+            'reviewed-service',
+            null,
+            null,
+            'retry-correlation',
+        )));
+
+        $queue->replaySignedPayload('critical', $sealed);
+
+        self::assertSame($sealed, $transport->pop('critical')['payload'] ?? null);
+    }
+
     public function test_activation_requires_reviewed_authority_envelope_before_persistent_dispatch(): void
     {
         $transport = new InMemoryTransport();

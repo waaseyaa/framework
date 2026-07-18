@@ -11,14 +11,9 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\CLI\Security\DatabaseFieldAccessInventoryScanner;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityBase;
-use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\FieldReadLevel;
-use Waaseyaa\EntityStorage\Backend\BackendRegistrar;
-use Waaseyaa\EntityStorage\Backend\FieldStorageBackendInterface;
-use Waaseyaa\EntityStorage\Backend\HasFieldStorageBackendsInterface;
-use Waaseyaa\EntityStorage\Query\EntityQuery;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\Queue\Envelope\QueueEnvelopeV1;
@@ -74,8 +69,11 @@ final class DatabaseFieldAccessInventoryScannerTest extends TestCase
             null,
             'correlation-1',
         );
+        // Authenticated representation of a row written before sealed entities
+        // forbade serialization. Do not construct or serialize a live WP4 entity.
+        $legacySerializedEntity = 'O:17:"App\\ProfileEntity":0:{}';
         $entityEnvelope = QueueEnvelopeV1::forSystem(
-            serialize(new \App\ProfileEntity(['id' => 1])),
+            $legacySerializedEntity,
             QueueSystemReason::SystemJob,
             'preflight-test',
             null,
@@ -87,14 +85,14 @@ final class DatabaseFieldAccessInventoryScannerTest extends TestCase
             2 => $signer->seal(serialize(new \stdClass())),
             3 => $signer->seal(serialize($current)) . 'tampered',
             4 => $signer->seal(serialize($entityEnvelope)),
-            6 => $signer->seal(serialize(new \App\ProfileEntity(['id' => 2]))),
+            6 => $signer->seal($legacySerializedEntity),
         ];
         foreach ($rows as $id => $payload) {
             $database->query('INSERT INTO waaseyaa_queue_jobs (id, payload) VALUES (?, ?)', [$id, $payload]);
         }
         $database->query('INSERT INTO waaseyaa_failed_jobs (id, payload) VALUES (?, ?)', [5, $signer->seal(serialize($current))]);
         $database->query('INSERT INTO app_cache (id, data) VALUES (?, ?)', [1, json_encode([
-            'wrapped' => base64_encode(serialize(new \App\ProfileEntity(['id' => 3]))),
+            'wrapped' => base64_encode($legacySerializedEntity),
         ], JSON_THROW_ON_ERROR)]);
 
         $manager = new EntityTypeManager(new EventDispatcher(), fieldRegistry: new FieldDefinitionRegistry());
@@ -139,27 +137,13 @@ final class DatabaseFieldAccessInventoryScannerTest extends TestCase
         ], $inventory->legacyPayloads);
     }
 
-    public function test_retained_v1_field_storage_backends_are_exact_sorted_preflight_blockers(): void
+    public function test_v1_field_storage_inventory_is_empty_after_v2_activation(): void
     {
         $database = DBALDatabase::createSqlite();
         $manager = new EntityTypeManager(new EventDispatcher(), fieldRegistry: new FieldDefinitionRegistry());
-        DatabasePreflightBackendProvider::$backends = [
-            new DatabasePreflightLegacyBackend('zeta'),
-            new DatabasePreflightLegacyBackend('alpha'),
-        ];
-        $registrar = new BackendRegistrar([DatabasePreflightBackendProvider::class]);
-        $registrar->build();
+        $inventory = new DatabaseFieldAccessInventoryScanner($database, $manager)->scan('candidate-1');
 
-        $inventory = new DatabaseFieldAccessInventoryScanner(
-            $database,
-            $manager,
-            backendRegistrar: $registrar,
-        )->scan('candidate-1');
-
-        self::assertSame([
-            DatabasePreflightBackendProvider::class . ':alpha:' . DatabasePreflightLegacyBackend::class,
-            DatabasePreflightBackendProvider::class . ':zeta:' . DatabasePreflightLegacyBackend::class,
-        ], $inventory->v1Drivers);
+        self::assertSame([], $inventory->v1Drivers);
     }
 }
 
@@ -168,35 +152,5 @@ final class DatabasePreflightProfile extends EntityBase
     public function __construct(array $values = [])
     {
         parent::__construct($values, 'profile', ['id' => 'pid', 'uuid' => 'uuid', 'bundle' => 'type', 'label' => 'name']);
-    }
-}
-
-final class DatabasePreflightBackendProvider implements HasFieldStorageBackendsInterface
-{
-    /** @var list<FieldStorageBackendInterface> */
-    public static array $backends = [];
-
-    public function fieldStorageBackends(): array
-    {
-        return self::$backends;
-    }
-}
-
-final class DatabasePreflightLegacyBackend implements FieldStorageBackendInterface
-{
-    public function __construct(private readonly string $backendId) {}
-    public function id(): string
-    {
-        return $this->backendId;
-    }
-    public function read(EntityInterface $entity, FieldDefinition $field): mixed
-    {
-        return null;
-    }
-    public function write(EntityInterface $entity, FieldDefinition $field, mixed $value): void {}
-    public function delete(EntityInterface $entity): void {}
-    public function supportsQuery(FieldDefinition $field, EntityQuery $query): bool
-    {
-        return false;
     }
 }

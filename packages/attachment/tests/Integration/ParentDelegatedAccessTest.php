@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Attachment\Attachment;
 use Waaseyaa\Attachment\Policy\ParentDelegatedAccessPolicy;
@@ -31,13 +32,13 @@ use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
 #[CoversNothing]
 final class ParentDelegatedAccessTest extends TestCase
 {
-    private AccountInterface $account;
+    private AuthorizationPrincipalInterface $account;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->account = $this->createStub(AccountInterface::class);
+        $this->account = $this->createStub(AuthorizationPrincipalInterface::class);
     }
 
     /**
@@ -81,7 +82,7 @@ final class ParentDelegatedAccessTest extends TestCase
             'parent_entity_id' => '1',
         ]);
 
-        $result = $policy->access($attachment, 'view', $this->account);
+        $result = new EntityAccessHandler([$policy])->check($attachment, 'view', $this->account);
 
         self::assertTrue($result->isAllowed(), 'Should be allowed when parent policy allows.');
     }
@@ -124,7 +125,7 @@ final class ParentDelegatedAccessTest extends TestCase
             'parent_entity_id' => '2',
         ]);
 
-        $result = $policy->access($attachment, 'view', $this->account);
+        $result = new EntityAccessHandler([$policy])->check($attachment, 'view', $this->account);
 
         self::assertTrue($result->isForbidden(), 'Should be forbidden when parent policy forbids.');
     }
@@ -150,7 +151,7 @@ final class ParentDelegatedAccessTest extends TestCase
             'parent_entity_id' => '3',
         ]);
 
-        $result = $policy->access($attachment, 'view', $this->account);
+        $result = new EntityAccessHandler([$policy])->check($attachment, 'view', $this->account);
 
         // EntityAccessHandler.check() returns Neutral when no policy has an opinion.
         self::assertTrue($result->isNeutral(), 'Should be neutral when parent has no registered policy.');
@@ -174,7 +175,7 @@ final class ParentDelegatedAccessTest extends TestCase
             'parent_entity_id' => '999',
         ]);
 
-        $result = $policy->access($attachment, 'view', $this->account);
+        $result = new EntityAccessHandler([$policy])->check($attachment, 'view', $this->account);
 
         self::assertTrue($result->isNeutral(), 'Should be neutral when parent entity does not exist.');
     }
@@ -202,7 +203,7 @@ final class ParentDelegatedAccessTest extends TestCase
             'parent_entity_id' => '5',
         ]);
 
-        $result = $policy->access($attachment, 'delete', $this->account);
+        $result = new EntityAccessHandler([$policy])->check($attachment, 'delete', $this->account);
 
         self::assertTrue($result->isAllowed());
         self::assertSame('delete', $capturingPolicy->lastOperation, 'The delete operation must be forwarded to the parent policy.');

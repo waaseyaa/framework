@@ -7,12 +7,15 @@ namespace Waaseyaa\Tests\Integration\Phase6;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\FieldReadGuard;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Node\Node;
 use Waaseyaa\Node\NodeAccessPolicy;
 use Waaseyaa\Node\NodeType;
+use Waaseyaa\Tests\Support\AuthorizationPrincipalFactory;
 use Waaseyaa\User\AnonymousUser;
-use Waaseyaa\User\User;
 use Waaseyaa\Workflows\ContentModerationState;
 use Waaseyaa\Workflows\ContentModerator;
 use Waaseyaa\Workflows\Workflow;
@@ -29,6 +32,7 @@ final class NodeWorkflowIntegrationTest extends TestCase
     private ContentModerator $moderator;
     private Workflow $editorialWorkflow;
     private EntityAccessHandler $accessHandler;
+    private AccountFieldReadScope $fieldReadScope;
 
     protected function setUp(): void
     {
@@ -72,6 +76,11 @@ final class NodeWorkflowIntegrationTest extends TestCase
         $this->accessHandler = new EntityAccessHandler([
             new NodeAccessPolicy(),
         ]);
+        $this->fieldReadScope = new AccountFieldReadScope();
+        EntityReadRuntime::installGuard(new FieldReadGuard(
+            $this->fieldReadScope,
+            $this->accessHandler->checkProtectedFieldRead(...),
+        ));
     }
 
     #[Test]
@@ -112,7 +121,10 @@ final class NodeWorkflowIntegrationTest extends TestCase
 
         $this->assertSame('article', $node->getType());
         $this->assertSame('Integration Test Article', $node->getTitle());
-        $this->assertFalse($node->isPublished());
+        $admin = AuthorizationPrincipalFactory::authenticated(
+            permissions: ['administer nodes'],
+        );
+        $this->assertFalse($this->fieldReadScope->run($admin, $node->isPublished(...)));
 
         // Create initial moderation state (draft).
         $moderationState = new ContentModerationState(
@@ -133,7 +145,7 @@ final class NodeWorkflowIntegrationTest extends TestCase
 
         // Update the node to published.
         $node->setPublished(true);
-        $this->assertTrue($node->isPublished());
+        $this->assertTrue($this->fieldReadScope->run($admin, $node->isPublished(...)));
     }
 
     #[Test]
@@ -196,7 +208,7 @@ final class NodeWorkflowIntegrationTest extends TestCase
             'status' => 1, // Published.
         ]);
 
-        $viewer = new User([
+        $viewer = AuthorizationPrincipalFactory::fromValues([
             'uid' => 20,
             'name' => 'reader',
             'permissions' => ['access content'],
@@ -218,7 +230,7 @@ final class NodeWorkflowIntegrationTest extends TestCase
             'status' => 0, // Unpublished.
         ]);
 
-        $nonOwner = new User([
+        $nonOwner = AuthorizationPrincipalFactory::fromValues([
             'uid' => 20,
             'name' => 'reader',
             'permissions' => ['access content'],
@@ -240,7 +252,7 @@ final class NodeWorkflowIntegrationTest extends TestCase
             'status' => 0, // Unpublished.
         ]);
 
-        $owner = new User([
+        $owner = AuthorizationPrincipalFactory::fromValues([
             'uid' => 10,
             'name' => 'author',
             'permissions' => ['access content', 'view own unpublished content'],
@@ -271,14 +283,14 @@ final class NodeWorkflowIntegrationTest extends TestCase
     #[Test]
     public function fullModerationLifecycleWithAccessAtEachState(): void
     {
-        $author = new User([
+        $author = AuthorizationPrincipalFactory::fromValues([
             'uid' => 10,
             'name' => 'author',
             'permissions' => ['access content', 'view own unpublished content'],
             'roles' => ['authenticated'],
         ]);
 
-        $reader = new User([
+        $reader = AuthorizationPrincipalFactory::fromValues([
             'uid' => 20,
             'name' => 'reader',
             'permissions' => ['access content'],
@@ -367,7 +379,7 @@ final class NodeWorkflowIntegrationTest extends TestCase
             'status' => 0,
         ]);
 
-        $admin = new User([
+        $admin = AuthorizationPrincipalFactory::fromValues([
             'uid' => 1,
             'name' => 'admin',
             'permissions' => ['administer nodes'],
@@ -416,14 +428,14 @@ final class NodeWorkflowIntegrationTest extends TestCase
     #[Test]
     public function createAccessRequiresPermission(): void
     {
-        $editor = new User([
+        $editor = AuthorizationPrincipalFactory::fromValues([
             'uid' => 5,
             'name' => 'editor',
             'permissions' => ['create article content'],
             'roles' => ['editor'],
         ]);
 
-        $reader = new User([
+        $reader = AuthorizationPrincipalFactory::fromValues([
             'uid' => 6,
             'name' => 'reader',
             'permissions' => ['access content'],

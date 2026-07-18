@@ -49,7 +49,7 @@ final class OidcClient extends ContentEntityBase implements HydratableFromStorag
      *
      * @var string[]
      */
-    #[Field(label: 'Scopes', description: 'Scopes the client may request.', settings: ['weight' => 3, 'subtype' => 'string_list'], read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
+    #[Field(label: 'Scopes', description: 'Scopes the client may request.', settings: ['weight' => 3, 'subtype' => 'string_list'], default: ['openid'], read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
     public array $scopes = ['openid'];
 
     /**
@@ -57,7 +57,7 @@ final class OidcClient extends ContentEntityBase implements HydratableFromStorag
      *
      * @var string[]
      */
-    #[Field(label: 'Grant types', description: 'OAuth grant types the client may use.', settings: ['weight' => 4, 'subtype' => 'string_list'], read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
+    #[Field(label: 'Grant types', description: 'OAuth grant types the client may use.', settings: ['weight' => 4, 'subtype' => 'string_list'], default: ['authorization_code'], read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
     public array $grant_types = ['authorization_code'];
 
     #[Field(label: 'Confidential', description: 'Whether the client authenticates with a secret.', settings: ['weight' => 5], read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
@@ -84,6 +84,12 @@ final class OidcClient extends ContentEntityBase implements HydratableFromStorag
             'is_confidential' => false,
             'client_secret_hash' => null,
         ];
+        if ($values['scopes'] === []) {
+            $values['scopes'] = ['openid'];
+        }
+        if ($values['grant_types'] === []) {
+            $values['grant_types'] = ['authorization_code'];
+        }
 
         parent::__construct($values, $entityTypeId, $entityKeys, $fieldDefinitions);
     }

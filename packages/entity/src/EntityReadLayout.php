@@ -16,10 +16,12 @@ final readonly class EntityReadLayout
 
     private string $fingerprint;
 
-    /** @param array<string, FieldReadLevel> $levels */
+    /** @param array<string, FieldReadLevel> $levels @param list<string> $authorizationInputs */
     public function __construct(
         private EntityReadLayoutGeneration $generation,
         array $levels,
+        private array $authorizationInputs = [],
+        private FieldReadLevel $undeclaredLevel = FieldReadLevel::Internal,
     ) {
         ksort($levels);
         foreach ($levels as $field => $level) {
@@ -29,15 +31,26 @@ final readonly class EntityReadLayout
         }
         $this->levels = $levels;
         $this->sealedGeneration = $generation->current();
-        $this->fingerprint = hash('xxh128', json_encode(array_map(
+        $fingerprintLevels = array_map(
             static fn(FieldReadLevel $level): string => $level->value,
             $levels,
-        ), JSON_THROW_ON_ERROR));
+        );
+        $fingerprintLevels["\0undeclared"] = $this->undeclaredLevel->value;
+        $this->fingerprint = hash('xxh128', json_encode($fingerprintLevels, JSON_THROW_ON_ERROR));
+    }
+
+    /** @return list<string> */
+    public function authorizationInputsFor(string $releasedField): array
+    {
+        return array_values(array_filter(
+            $this->authorizationInputs,
+            static fn(string $field): bool => $field !== $releasedField,
+        ));
     }
 
     public function level(string $field): FieldReadLevel
     {
-        return $this->levels[$field] ?? FieldReadLevel::Internal;
+        return $this->levels[$field] ?? $this->undeclaredLevel;
     }
 
     /** @return array<string, FieldReadLevel> */

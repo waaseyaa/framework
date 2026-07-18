@@ -12,8 +12,15 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\FieldReadGuard;
+use Waaseyaa\Access\PolicySubjectViewInterface;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityReadRuntime;
+use Waaseyaa\Entity\EntityStructure;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
@@ -24,18 +31,30 @@ use Waaseyaa\Media\Media;
 final class MediaDownloadRouterTest extends TestCase
 {
     private string $filesRoot;
+    private AccountFieldReadScope $fieldReadScope;
 
     protected function setUp(): void
     {
         $this->filesRoot = sys_get_temp_dir() . '/waaseyaa_media_dl_' . bin2hex(random_bytes(6));
         mkdir($this->filesRoot, 0o755, true);
         file_put_contents($this->filesRoot . '/teaching.txt', 'AANIIN');
+        $this->fieldReadScope = new AccountFieldReadScope();
+        EntityReadRuntime::installGuard(new FieldReadGuard(
+            $this->fieldReadScope,
+            static fn(
+                AuthorizationPrincipalInterface $principal,
+                EntityStructure $structure,
+                PolicySubjectViewInterface $subject,
+                string $field,
+            ): AccessResult => AccessResult::allowed(),
+        ));
     }
 
     protected function tearDown(): void
     {
         @unlink($this->filesRoot . '/teaching.txt');
         @rmdir($this->filesRoot);
+        EntityReadRuntime::installGuard(null);
     }
 
     #[Test]
@@ -60,6 +79,10 @@ final class MediaDownloadRouterTest extends TestCase
 
         $request = Request::create('/media/10/download');
         $request->attributes->set('id', '10');
+        self::assertSame(404, $router->handle($request)->getStatusCode());
+
+        $request = $this->request(accountId: 7);
+        $request->attributes->remove('_authorization_principal');
         self::assertSame(404, $router->handle($request)->getStatusCode());
     }
 
@@ -102,20 +125,28 @@ final class MediaDownloadRouterTest extends TestCase
             }
         };
 
-        return new MediaDownloadRouter($manager, new EntityAccessHandler([$policy]), $this->filesRoot);
+        return new MediaDownloadRouter($manager, new EntityAccessHandler([$policy]), $this->filesRoot, $this->fieldReadScope);
     }
 
     private function request(int $accountId): Request
     {
         $request = Request::create('/media/10/download');
         $request->attributes->set('id', '10');
-        $request->attributes->set('_account', new class ($accountId) implements AccountInterface {
+        $account = new class ($accountId) implements AccountInterface {
             public function __construct(private readonly int $id) {}
             public function id(): int|string { return $this->id; }
             public function isAuthenticated(): bool { return true; }
             public function hasPermission(string $permission): bool { return false; }
             public function getRoles(): array { return ['authenticated']; }
-        });
+        };
+        $request->attributes->set('_account', $account);
+        $request->attributes->set('_authorization_principal', new AuthorizationPrincipal(
+            $account->id(),
+            $account->isAuthenticated(),
+            $account->getRoles(),
+            [],
+            'media-download-test',
+        ));
 
         return $request;
     }

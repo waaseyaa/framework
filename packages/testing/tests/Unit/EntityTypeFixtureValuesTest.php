@@ -10,11 +10,15 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Validator\Constraints\NotBlank;
 use Symfony\Component\Validator\Validation;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Waaseyaa\Entity\EntityStructure;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\Tests\Helper\TestEntityType;
 use Waaseyaa\Entity\Validation\EntityTypeValidationConstraints;
 use Waaseyaa\Entity\Validation\EntityValidator;
+use Waaseyaa\Entity\Validation\ValidationFieldReader;
+use Waaseyaa\Entity\Validation\ValidationReadLedgerInterface;
+use Waaseyaa\Entity\Validation\ValidationReadReservationInterface;
 use Waaseyaa\Testing\Factory\EntityTypeFixtureValues;
 use Waaseyaa\Testing\Tests\Fixture\StubFieldableEntity;
 
@@ -37,7 +41,7 @@ final class EntityTypeFixtureValuesTest extends TestCase
 
         $entity = new StubFieldableEntity($values);
         $constraints = EntityTypeValidationConstraints::forEntityType($type);
-        $violations = (new EntityValidator($this->validator))->validate($entity, $constraints);
+        $violations = $this->closedEntityValidator()->validate($entity, $constraints);
 
         self::assertCount(0, $violations, (string) $violations);
     }
@@ -73,7 +77,7 @@ final class EntityTypeFixtureValuesTest extends TestCase
 
         $entity = new StubFieldableEntity($values);
         $constraints = EntityTypeValidationConstraints::forEntityType($type);
-        $violations = (new EntityValidator($this->validator))->validate($entity, $constraints);
+        $violations = $this->closedEntityValidator()->validate($entity, $constraints);
         self::assertCount(0, $violations, (string) $violations);
     }
 
@@ -115,7 +119,7 @@ final class EntityTypeFixtureValuesTest extends TestCase
 
         $entity = new StubFieldableEntity($values);
         $constraints = EntityTypeValidationConstraints::forEntityType($type);
-        $violations = (new EntityValidator($this->validator))->validate($entity, $constraints);
+        $violations = $this->closedEntityValidator()->validate($entity, $constraints);
         self::assertCount(0, $violations, (string) $violations);
     }
 
@@ -137,7 +141,7 @@ final class EntityTypeFixtureValuesTest extends TestCase
 
         $entity = new StubFieldableEntity($values);
         $constraints = EntityTypeValidationConstraints::forEntityType($type);
-        $violations = (new EntityValidator($this->validator))->validate($entity, $constraints);
+        $violations = $this->closedEntityValidator()->validate($entity, $constraints);
         self::assertCount(0, $violations, (string) $violations);
     }
 
@@ -197,5 +201,19 @@ final class EntityTypeFixtureValuesTest extends TestCase
                 'body' => ['type' => 'text', 'required' => false],
             ],
         );
+    }
+
+    private function closedEntityValidator(): EntityValidator
+    {
+        $ledger = new class implements ValidationReadLedgerInterface {
+            public function reserve(EntityStructure $subject, string $field): ValidationReadReservationInterface
+            {
+                return new class implements ValidationReadReservationInterface {
+                    public function finalize(bool $success): void {}
+                };
+            }
+        };
+
+        return new EntityValidator($this->validator, new ValidationFieldReader($ledger));
     }
 }

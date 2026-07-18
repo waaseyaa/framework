@@ -375,6 +375,9 @@ final class EntityRepositorySqlCrudTest extends TestCase
                 'bundle' => 'bundle',
                 'langcode' => 'langcode',
             ],
+            _fieldDefinitions: [
+                'name' => new FieldDefinition(name: 'name', type: 'string', read: \Waaseyaa\Entity\FieldReadLevel::Public),
+            ],
         );
 
         $schemaHandler = new SqlSchemaHandler($configType, $this->database);

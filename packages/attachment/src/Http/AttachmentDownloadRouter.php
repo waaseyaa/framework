@@ -38,6 +38,7 @@ final class AttachmentDownloadRouter implements DomainRouterInterface
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly EntityAccessHandler $accessHandler,
         private readonly PrivateFileStore $privateStore,
+        private readonly AttachmentDownloadMetadataReaderInterface $metadataReader,
     ) {}
 
     public function supports(Request $request): bool
@@ -66,13 +67,14 @@ final class AttachmentDownloadRouter implements DomainRouterInterface
             return $this->notFound();
         }
 
-        $path = $this->privateStore->resolve((string) $attachment->get('storage_uri'));
+        $metadata = $this->metadataReader->read($attachment, $account);
+        $path = $this->privateStore->resolve($metadata->storageUri);
         if ($path === null) {
             // Not a private-scheme file, escapes the root, or bytes are missing.
             return $this->notFound();
         }
 
-        $contentType = (string) $attachment->get('content_type');
+        $contentType = $metadata->contentType;
         if ($contentType === '') {
             $contentType = 'application/octet-stream';
         }
@@ -91,7 +93,7 @@ final class AttachmentDownloadRouter implements DomainRouterInterface
             200,
             [
                 'Content-Type' => $contentType,
-                'Content-Disposition' => $this->contentDisposition((string) $attachment->get('filename')),
+                'Content-Disposition' => $this->contentDisposition($metadata->filename),
                 'X-Content-Type-Options' => 'nosniff',
             ],
         );

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Attachment;
 
+use Waaseyaa\Attachment\Maintenance\AttachmentMaintenanceFieldReader;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -39,13 +40,16 @@ use Waaseyaa\Foundation\Log\NullLogger;
 final class AttachmentRepository
 {
     private readonly LoggerInterface $logger;
+    private readonly AttachmentMaintenanceFieldReader $maintenanceFields;
 
     public function __construct(
         private readonly EntityRepositoryInterface $entityRepository,
         private readonly DatabaseInterface $database,
         ?LoggerInterface $logger = null,
+        ?AttachmentMaintenanceFieldReader $maintenanceFields = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
+        $this->maintenanceFields = $maintenanceFields ?? new AttachmentMaintenanceFieldReader();
     }
 
     /**
@@ -159,7 +163,7 @@ final class AttachmentRepository
      */
     public function save(Attachment $attachment): void
     {
-        if (!AttachmentActiveInvariant::isActive($attachment)) {
+        if (!AttachmentActiveInvariant::isActive($attachment, $this->maintenanceFields)) {
             $this->entityRepository->save($attachment);
 
             return;
@@ -169,10 +173,11 @@ final class AttachmentRepository
 
         $transaction = $this->database->transaction();
         try {
+            $fields = $this->maintenanceFields->read($attachment);
             AttachmentActiveInvariant::demoteSiblings(
                 $this->database,
-                (string) $attachment->get('parent_entity_type'),
-                (string) $attachment->get('parent_entity_id'),
+                $fields->parentEntityType,
+                $fields->parentEntityId,
                 $id !== null ? (string) $id : null,
             );
 
@@ -224,8 +229,9 @@ final class AttachmentRepository
             throw new AttachmentNotFoundException($attachmentId);
         }
 
-        $parentType = (string) $attachment->get('parent_entity_type');
-        $parentId = (string) $attachment->get('parent_entity_id');
+        $fields = $this->maintenanceFields->read($attachment);
+        $parentType = $fields->parentEntityType;
+        $parentId = $fields->parentEntityId;
         $now = time();
 
         $transaction = $this->database->transaction();

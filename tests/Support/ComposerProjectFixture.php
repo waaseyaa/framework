@@ -42,6 +42,20 @@ final class ComposerProjectFixture
             }
         }
 
+        // installed.json records the normal Composer-relative install paths.
+        // Materialize those package roots as symlinks so discovery can verify
+        // declared policies against the same on-disk sources as a real install.
+        $vendorWaaseyaa = $projectRoot . '/vendor/waaseyaa';
+        if (!is_dir($vendorWaaseyaa) && !mkdir($vendorWaaseyaa, 0o755, true)) {
+            throw new \RuntimeException(sprintf('Failed to create fixture package directory: %s', $vendorWaaseyaa));
+        }
+        foreach (glob($repoRoot . '/packages/*', GLOB_ONLYDIR) ?: [] as $packageRoot) {
+            $target = $vendorWaaseyaa . '/' . basename($packageRoot);
+            if (!file_exists($target) && !is_link($target) && !symlink($packageRoot, $target)) {
+                throw new \RuntimeException(sprintf('Failed to link fixture package: %s', $target));
+            }
+        }
+
         self::writeAutoloadWrapper($repoRoot, $projectRoot);
     }
 

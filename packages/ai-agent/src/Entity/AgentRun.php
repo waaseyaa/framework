@@ -6,7 +6,11 @@ namespace Waaseyaa\AI\Agent\Entity;
 
 use Waaseyaa\AI\Agent\Enum\HitlMode;
 use Waaseyaa\AI\Agent\Enum\RunStatus;
+use Waaseyaa\Entity\Attribute\ContentEntityKeys;
+use Waaseyaa\Entity\Attribute\ContentEntityType;
+use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\FieldReadLevel;
 
 /**
  * The `agent_run` aggregate root — one row per executor invocation.
@@ -43,8 +47,31 @@ use Waaseyaa\Entity\ContentEntityBase;
  *
  * @api
  */
+#[ContentEntityType(id: 'agent_run')]
+#[ContentEntityKeys(id: 'id', uuid: 'id', label: 'id')]
 final class AgentRun extends ContentEntityBase
 {
+    #[Field(type: 'string', read: FieldReadLevel::Public)] public string $id = '';
+    #[Field(type: 'integer', settings: ['authorizationInput' => true], read: FieldReadLevel::Protected)] public int $account_id = 0;
+    #[Field(type: 'string', read: FieldReadLevel::Public)] public mixed $agent_definition_id = null;
+    #[Field(type: 'string', read: FieldReadLevel::Internal)] public string $bundle_json = '';
+    #[Field(type: 'string', read: FieldReadLevel::Public)] public mixed $status = null;
+    #[Field(type: 'string', read: FieldReadLevel::Public)] public mixed $destructive_approval = null;
+    #[Field(type: 'string', read: FieldReadLevel::Protected)] public mixed $pending_approval_call_id = null;
+    #[Field(type: 'string', read: FieldReadLevel::Protected)] public mixed $approval_expires_at = null;
+    #[Field(type: 'text', read: FieldReadLevel::Protected)] public string $prompt = '';
+    #[Field(type: 'text', read: FieldReadLevel::Protected)] public mixed $response = null;
+    #[Field(type: 'text', read: FieldReadLevel::Protected)] public string $transcript_json = '';
+    #[Field(type: 'integer', read: FieldReadLevel::Protected)] public int $token_usage_in = 0;
+    #[Field(type: 'integer', read: FieldReadLevel::Protected)] public int $token_usage_out = 0;
+    #[Field(type: 'integer', read: FieldReadLevel::Protected)] public mixed $cost_cents = null;
+    #[Field(type: 'integer', read: FieldReadLevel::Protected)] public int $tool_call_count = 0;
+    #[Field(type: 'datetime', read: FieldReadLevel::Protected)] public mixed $queued_at = null;
+    #[Field(type: 'datetime', read: FieldReadLevel::Protected)] public mixed $started_at = null;
+    #[Field(type: 'datetime', read: FieldReadLevel::Protected)] public mixed $finished_at = null;
+    #[Field(type: 'string', read: FieldReadLevel::Protected)] public mixed $error_code = null;
+    #[Field(type: 'text', read: FieldReadLevel::Protected)] public mixed $error_message = null;
+
     /**
      * @param array<string, mixed> $values Initial storage-canonical values.
      * @param string $entityTypeId Hydration override; default hardcoded.

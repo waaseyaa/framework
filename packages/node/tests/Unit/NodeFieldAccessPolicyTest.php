@@ -183,13 +183,12 @@ final class NodeFieldAccessPolicyTest extends TestCase
     }
 
     #[Test]
-    public function view_of_a_system_field_is_not_restricted(): void
+    public function view_of_a_protected_system_field_is_restricted(): void
     {
-        // The field gate restricts edit only; view of these fields is unaffected.
         $reader = $this->createAccount(7, ['access content']);
 
         $result = $this->policy->fieldAccess($this->node(), 'uid', 'view', $reader);
 
-        $this->assertFalse($result->isForbidden(), 'system fields stay viewable');
+        $this->assertTrue($result->isForbidden(), 'protected system fields stay out of ordinary projections');
     }
 }

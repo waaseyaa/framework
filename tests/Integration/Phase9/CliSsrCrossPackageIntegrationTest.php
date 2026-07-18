@@ -23,8 +23,11 @@ use Waaseyaa\CLI\Provider\EntityTypeServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Config\ConfigManager;
 use Waaseyaa\Config\Storage\MemoryStorage;
+use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\FieldReadLevel;
+use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\SSR\Attribute\Component;
 use Waaseyaa\SSR\ComponentMetadata;
 use Waaseyaa\SSR\ComponentRegistry;
@@ -52,6 +55,12 @@ final class CliSsrCrossPackageIntegrationTest extends TestCase
 
     protected function setUp(): void
     {
+        $fieldRegistry = new FieldDefinitionRegistry();
+        $fieldRegistry->registerCoreFields('article', [
+            'author' => ['type' => 'string', 'read' => FieldReadLevel::Public],
+            'body' => ['type' => 'text', 'read' => FieldReadLevel::Public],
+        ]);
+        ContentEntityBase::setFieldRegistry($fieldRegistry);
         // Entity system.
         $this->articleStorage = new InMemoryEntityStorage('article');
         $this->userStorage = new InMemoryEntityStorage('user');
@@ -87,6 +96,14 @@ final class CliSsrCrossPackageIntegrationTest extends TestCase
                 'uuid' => 'uuid',
                 'label' => 'title',
                 'bundle' => 'type',
+            ],
+            _fieldDefinitions: [
+                'id' => ['type' => 'integer', 'read' => FieldReadLevel::Public],
+                'uuid' => ['type' => 'string', 'read' => FieldReadLevel::Public],
+                'title' => ['type' => 'string', 'read' => FieldReadLevel::Public],
+                'type' => ['type' => 'string', 'read' => FieldReadLevel::Public],
+                'author' => ['type' => 'string', 'read' => FieldReadLevel::Public],
+                'body' => ['type' => 'text', 'read' => FieldReadLevel::Public],
             ],
         ));
 
@@ -125,6 +142,11 @@ final class CliSsrCrossPackageIntegrationTest extends TestCase
             template: 'article-card.html.twig',
             className: ArticleCardComponent::class,
         ));
+    }
+
+    protected function tearDown(): void
+    {
+        ContentEntityBase::setFieldRegistry(null);
     }
 
     #[Test]

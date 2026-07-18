@@ -13,6 +13,7 @@ use Waaseyaa\Api\JsonApiError;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
+use Waaseyaa\Workflows\Read\WorkflowEntitySnapshotReader;
 use Waaseyaa\Workflows\Transition\TransitionDeniedException;
 use Waaseyaa\Workflows\Transition\TransitionService;
 
@@ -33,11 +34,16 @@ use Waaseyaa\Workflows\Transition\TransitionService;
  */
 final class WorkflowTransitionController
 {
+    private readonly WorkflowEntitySnapshotReader $workflowSubjectReader;
+
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly ?EntityAccessHandler $accessHandler,
         private readonly TransitionService $transitionService,
-    ) {}
+        ?WorkflowEntitySnapshotReader $workflowSubjectReader = null,
+    ) {
+        $this->workflowSubjectReader = $workflowSubjectReader ?? new WorkflowEntitySnapshotReader();
+    }
 
     /**
      * GET — the transitions `_account` may fire from the entity's current
@@ -79,8 +85,7 @@ final class WorkflowTransitionController
             ];
         }
 
-        $state = $workingCopy->get('workflow_state');
-        $state = is_string($state) && $state !== '' ? $state : null;
+        $state = $this->workflowSubjectReader->read($workingCopy)->workflowState;
 
         // Field-level view gate on the surfaced state (PR #1956 reviewer
         // finding): the entity-level view check above only gates `data`

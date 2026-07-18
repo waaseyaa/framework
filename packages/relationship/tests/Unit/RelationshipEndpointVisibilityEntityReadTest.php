@@ -8,20 +8,24 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
-use Waaseyaa\AI\Tools\Entity\EntityReadTool;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\FieldReadGuard;
+use Waaseyaa\AI\Tools\Entity\EntityReadTool;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Relationship\Relationship;
 use Waaseyaa\Relationship\RelationshipAccessPolicy;
 use Waaseyaa\Relationship\RelationshipEndpointVisibilityPolicy;
+use Waaseyaa\Relationship\Tests\Fixtures\ArrayAccount;
 use Waaseyaa\Relationship\Tests\Fixtures\EndpointFixtureAccessPolicy;
 use Waaseyaa\Relationship\Tests\Fixtures\EndpointFixtureEntity;
 use Waaseyaa\Relationship\Tests\Fixtures\PresetEntityRepository;
 use Waaseyaa\Relationship\Tests\Fixtures\PresetEntityStorage;
-use Waaseyaa\Relationship\Tests\Fixtures\ArrayAccount;
 
 /**
  * Audit-remediation R5, third read path: the MCP `entity.read` tool
@@ -36,6 +40,8 @@ use Waaseyaa\Relationship\Tests\Fixtures\ArrayAccount;
 #[CoversNothing]
 final class RelationshipEndpointVisibilityEntityReadTest extends TestCase
 {
+    private ?EntityAccessHandler $fieldReadAccessHandler = null;
+
     private function tool(): EntityReadTool
     {
         $endpointStorage = new PresetEntityStorage(
@@ -92,6 +98,7 @@ final class RelationshipEndpointVisibilityEntityReadTest extends TestCase
             new EndpointFixtureAccessPolicy(),
         ]);
         $accessHandler->addPolicy(new RelationshipEndpointVisibilityPolicy($etm, $accessHandler));
+        $this->fieldReadAccessHandler = $accessHandler;
 
         $tool = new EntityReadTool($etm);
         $tool->setAccessHandler($accessHandler);
@@ -112,7 +119,25 @@ final class RelationshipEndpointVisibilityEntityReadTest extends TestCase
     /** @return array<string, mixed> */
     private function readValues(AccountInterface $account): array
     {
-        $result = $this->tool()->execute(['entity_type' => 'relationship', 'id' => 1], $account);
+        if (!$account instanceof AuthorizationPrincipalInterface) {
+            throw new \LogicException('Relationship entity.read tests require an immutable authorization principal.');
+        }
+        $tool = $this->tool();
+        $accessHandler = $this->fieldReadAccessHandler ?? throw new \LogicException('Relationship access handler is unavailable.');
+        $scope = new AccountFieldReadScope();
+        $priorGuard = EntityReadRuntime::guard();
+        EntityReadRuntime::installGuard(new FieldReadGuard(
+            $scope,
+            $accessHandler->checkProtectedFieldRead(...),
+        ));
+        try {
+            $result = $scope->run(
+                $account,
+                static fn() => $tool->execute(['entity_type' => 'relationship', 'id' => 1], $account),
+            );
+        } finally {
+            EntityReadRuntime::installGuard($priorGuard);
+        }
         self::assertFalse($result->isError, 'entity.read should succeed for a viewable relationship.');
         $data = $result->content[0]['data'] ?? [];
         self::assertIsArray($data);

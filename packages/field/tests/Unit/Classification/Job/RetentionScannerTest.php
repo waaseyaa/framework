@@ -11,6 +11,7 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Field\Classification\Job\RetentionScanner;
+use Waaseyaa\Field\Entity\RetentionPolicyMaintenanceReader;
 use Waaseyaa\Field\Tests\Unit\Classification\Job\Support\FakeEntity;
 use Waaseyaa\Field\Tests\Unit\Classification\Job\Support\FakeStorage;
 use Waaseyaa\Field\Tests\Unit\Classification\Job\Support\JobTestEnvironment;
@@ -205,7 +206,7 @@ final class RetentionScannerTest extends TestCase
     public function label_condition_returns_exact_for_single_literal_pattern(): void
     {
         $policy = $this->makePolicy(1, ['action' => 'purge', 'applies_to' => ['internal'], 'trigger_value' => '']);
-        $cond = RetentionScanner::labelCondition($policy);
+        $cond = RetentionScanner::labelCondition(new RetentionPolicyMaintenanceReader()->read($policy));
 
         self::assertSame(['operator' => '=', 'value' => 'internal'], $cond);
     }
@@ -214,7 +215,7 @@ final class RetentionScannerTest extends TestCase
     public function label_condition_returns_starts_with_for_prefix_pattern(): void
     {
         $policy = $this->makePolicy(1, ['action' => 'purge', 'applies_to' => ['nation-*'], 'trigger_value' => '']);
-        $cond = RetentionScanner::labelCondition($policy);
+        $cond = RetentionScanner::labelCondition(new RetentionPolicyMaintenanceReader()->read($policy));
 
         self::assertSame(['operator' => 'STARTS_WITH', 'value' => 'nation-'], $cond);
     }
@@ -224,7 +225,7 @@ final class RetentionScannerTest extends TestCase
     {
         $policy = $this->makePolicy(1, ['action' => 'purge', 'applies_to' => ['*'], 'trigger_value' => '']);
 
-        self::assertNull(RetentionScanner::labelCondition($policy));
+        self::assertNull(RetentionScanner::labelCondition(new RetentionPolicyMaintenanceReader()->read($policy)));
     }
 
     #[Test]
@@ -232,7 +233,7 @@ final class RetentionScannerTest extends TestCase
     {
         $policy = $this->makePolicy(1, ['action' => 'purge', 'applies_to' => ['internal', 'hold-*'], 'trigger_value' => '']);
 
-        self::assertNull(RetentionScanner::labelCondition($policy));
+        self::assertNull(RetentionScanner::labelCondition(new RetentionPolicyMaintenanceReader()->read($policy)));
     }
 
     #[Test]
@@ -240,6 +241,6 @@ final class RetentionScannerTest extends TestCase
     {
         $policy = $this->makePolicy(1, ['action' => 'purge', 'applies_to' => [], 'trigger_value' => '']);
 
-        self::assertNull(RetentionScanner::labelCondition($policy));
+        self::assertNull(RetentionScanner::labelCondition(new RetentionPolicyMaintenanceReader()->read($policy)));
     }
 }

@@ -98,6 +98,12 @@ e.g. `nation-*`), `action` (`purge` | `redact` | `hold-flag`), `trigger_kind`
 `exemptions` (JSON array of `entity_type:uuid`). Sibling of `AuditRetentionPolicy`
 (audit-log retention) — split deliberately.
 
+All retention-rule values are Protected governance configuration. Exact V2
+entity and field policies permit reads to `governance-viewer` and administrator
+principals and mutations only to administrators. Scheduled jobs do not acquire
+an ambient user principal: they consume a closed, fixed-shape
+`RetentionPolicyMaintenanceView` containing only the seven rule values.
+
 ### Scheduled jobs
 
 `ClassificationRetentionScheduleEntries` registers three tasks (auto-discovered):

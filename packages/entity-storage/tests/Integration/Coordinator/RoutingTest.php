@@ -11,14 +11,14 @@ use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Backend\BackendRegistrar;
-use Waaseyaa\EntityStorage\Backend\FieldStorageBackendInterface;
-use Waaseyaa\EntityStorage\Backend\HasFieldStorageBackendsInterface;
-use Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderInterface;
+use Waaseyaa\EntityStorage\Backend\FieldStorageBackendV2Interface;
 use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\BackendResolver;
 use Waaseyaa\EntityStorage\EntityStorageCoordinator;
 use Waaseyaa\EntityStorage\Exception\UnknownBackendException;
 use Waaseyaa\EntityStorage\Query\EntityQuery;
+use Waaseyaa\EntityStorage\Tests\Support\PermissiveFieldStorageGatewayAudit;
+use Waaseyaa\EntityStorage\Tests\Support\V2GatewayTestBackendTrait;
 use Waaseyaa\Field\FieldDefinition;
 
 /**
@@ -61,6 +61,7 @@ final class RoutingTest extends TestCase
         $registrar = new BackendRegistrar(
             [$frameworkProviderFqcn, $thirdPartyProviderFqcn],
             [$frameworkProviderFqcn],
+            new PermissiveFieldStorageGatewayAudit(),
         );
         $registrar->build();
 
@@ -70,7 +71,7 @@ final class RoutingTest extends TestCase
     /**
      * Emit an anonymous provider class on the fly.
      *
-     * @param FieldStorageBackendInterface[] $backends
+     * @param FieldStorageBackendV2Interface[] $backends
      */
     private function makeProviderClass(array $backends, bool $isFramework): string
     {
@@ -82,8 +83,8 @@ final class RoutingTest extends TestCase
         $suffix = $counter;
 
         $interfaceList = $isFramework
-            ? 'HasFieldStorageBackendsInterface, IsFrameworkBackendProviderInterface'
-            : 'HasFieldStorageBackendsInterface';
+            ? 'HasFieldStorageBackendsV2Interface, IsFrameworkBackendProviderV2Interface'
+            : 'HasFieldStorageBackendsV2Interface';
 
         $fqcn = 'RoutingTestProvider' . $suffix;
 
@@ -91,15 +92,15 @@ final class RoutingTest extends TestCase
         RoutingTestProviderRegistry::set($suffix, $backends);
 
         eval(<<<PHP
-            use Waaseyaa\EntityStorage\Backend\HasFieldStorageBackendsInterface;
-            use Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderInterface;
+                use Waaseyaa\EntityStorage\Backend\HasFieldStorageBackendsV2Interface;
+                use Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderV2Interface;
 
-            final class {$fqcn} implements {$interfaceList} {
-                public function fieldStorageBackends(): array {
-                    return \Waaseyaa\EntityStorage\Tests\Integration\Coordinator\RoutingTestProviderRegistry::get({$suffix});
+                final class {$fqcn} implements {$interfaceList} {
+                    public function fieldStorageBackendsV2(): array {
+                        return \Waaseyaa\EntityStorage\Tests\Integration\Coordinator\RoutingTestProviderRegistry::get({$suffix});
+                    }
                 }
-            }
-        PHP);
+            PHP);
 
         return $fqcn;
     }
@@ -113,8 +114,8 @@ final class RoutingTest extends TestCase
             class: RoutingFixtureEntity::class,
             keys: ['id' => 'id'],
             _fieldDefinitions: [
-                'title' => (new FieldDefinition('title', 'string'))->storedIn('backend-a'),
-                'body' => (new FieldDefinition('body', 'text'))->storedIn('backend-b'),
+                'title' => new FieldDefinition('title', 'string')->storedIn('backend-a'),
+                'body' => new FieldDefinition('body', 'text')->storedIn('backend-b'),
                 'summary' => new FieldDefinition('summary', 'string'), // default → sql-blob
             ],
         );
@@ -255,7 +256,7 @@ final class RoutingTest extends TestCase
             class: RoutingFixtureEntity::class,
             keys: ['id' => 'id'],
             _fieldDefinitions: [
-                'ghost' => (new FieldDefinition('ghost', 'string'))->storedIn('no-such-backend'),
+                'ghost' => new FieldDefinition('ghost', 'string')->storedIn('no-such-backend'),
             ],
         );
 
@@ -310,16 +311,16 @@ final class RoutingTest extends TestCase
  */
 final class RoutingTestProviderRegistry
 {
-    /** @var array<int, FieldStorageBackendInterface[]> */
+    /** @var array<int, FieldStorageBackendV2Interface[]> */
     private static array $registry = [];
 
-    /** @param FieldStorageBackendInterface[] $backends */
+    /** @param FieldStorageBackendV2Interface[] $backends */
     public static function set(int $key, array $backends): void
     {
         self::$registry[$key] = $backends;
     }
 
-    /** @return FieldStorageBackendInterface[] */
+    /** @return FieldStorageBackendV2Interface[] */
     public static function get(int $key): array
     {
         return self::$registry[$key] ?? [];
@@ -331,8 +332,10 @@ final class RoutingTestProviderRegistry
  *
  * @internal Test fixture only.
  */
-final class SpyBackend implements FieldStorageBackendInterface
+final class SpyBackend implements FieldStorageBackendV2Interface
 {
+    use V2GatewayTestBackendTrait;
+
     /** @var array<int, array{entity: EntityInterface, field: FieldDefinition}> */
     public array $readCalls = [];
 

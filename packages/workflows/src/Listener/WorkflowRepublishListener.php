@@ -9,6 +9,7 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Entity\RevisionableInterface;
+use Waaseyaa\Workflows\Read\WorkflowEntitySnapshotReader;
 use Waaseyaa\Workflows\Republish\RepublishMarker;
 
 /**
@@ -39,6 +40,7 @@ final class WorkflowRepublishListener
     public function __construct(
         private readonly RepublishMarker $marker,
         private readonly EntityTypeManagerInterface $entityTypeManager,
+        private readonly ?WorkflowEntitySnapshotReader $workflowValues = null,
     ) {}
 
     public function onPostSave(EntityEvent $event): void
@@ -74,7 +76,7 @@ final class WorkflowRepublishListener
         // documented WP-2 gotcha, load-bearing here). This makes the
         // arm/consume pair harmless in EVERY PRE_SAVE listener order.
         $baseRow = $repository->find((string) $id);
-        $livePointer = $baseRow?->get('published_revision_id');
+        $livePointer = $baseRow !== null ? $this->workflowValues()->read($baseRow)->publishedRevisionId : null;
         if ($livePointer !== null && (int) $livePointer === $revisionId) {
             return;
         }
@@ -107,5 +109,10 @@ final class WorkflowRepublishListener
         }
 
         return null;
+    }
+
+    private function workflowValues(): WorkflowEntitySnapshotReader
+    {
+        return $this->workflowValues ?? new WorkflowEntitySnapshotReader();
     }
 }

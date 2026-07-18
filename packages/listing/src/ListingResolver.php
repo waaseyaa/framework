@@ -109,7 +109,7 @@ final class ListingResolver
         if ($cachingEnabled) {
             $cacheKey = $this->safeBuildKey($def, $exposed, $contextValues);
             if ($cacheKey !== null) {
-                $hit = $this->safeCacheGet($cacheKey);
+                $hit = $this->safeCacheGet($cacheKey, $def);
                 if ($hit !== null) {
                     return $hit;
                 }
@@ -282,7 +282,7 @@ final class ListingResolver
         }
     }
 
-    private function safeCacheGet(string $key): ?ListingResult
+    private function safeCacheGet(string $key, ListingDefinition $def): ?ListingResult
     {
         $cache = $this->cache;
         if ($cache === null) {
@@ -307,7 +307,21 @@ final class ListingResolver
         // CacheItem wraps the stored value; unwrap if necessary.
         $value = $this->extractCachedValue($item);
 
-        return $value instanceof ListingResult ? $value : null;
+        if (!$value instanceof ListingCacheProjection) {
+            return null;
+        }
+
+        $repository = $this->repositories->for($def->entityType);
+        $rows = [];
+        foreach ($value->rowIds as $id) {
+            $row = $repository->find((string) $id);
+            if (!$row instanceof EntityInterface) {
+                return null;
+            }
+            $rows[] = $row;
+        }
+
+        return new ListingResult($rows, $value->pagination, $value->cacheTags, $value->cacheContexts);
     }
 
     private function extractCachedValue(mixed $item): mixed
@@ -334,7 +348,19 @@ final class ListingResolver
         }
 
         try {
-            $cache->setWithTags($key, $result, $tags, $ttl);
+            $rowIds = [];
+            foreach ($result->rows as $row) {
+                if (!$row instanceof EntityInterface || $row->id() === null) {
+                    throw new \LogicException('Listing cache projections require persisted entity rows.');
+                }
+                $rowIds[] = $row->id();
+            }
+            $cache->setWithTags(
+                $key,
+                new ListingCacheProjection($rowIds, $result->pagination, $result->cacheTags, $result->cacheContexts),
+                $tags,
+                $ttl,
+            );
         } catch (Throwable $e) {
             $this->logger->warning(
                 'ListingResolver: cache store failed; resolution succeeded but result is uncached.',

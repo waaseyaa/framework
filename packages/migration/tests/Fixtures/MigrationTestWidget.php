@@ -6,7 +6,9 @@ namespace Waaseyaa\Migration\Tests\Fixtures;
 
 use Waaseyaa\Entity\Attribute\ContentEntityKeys;
 use Waaseyaa\Entity\Attribute\ContentEntityType;
+use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\FieldReadLevel;
 
 /**
  * Test-only content entity used by {@see \Waaseyaa\Migration\Tests\Integration\EntityDestinationTest}
@@ -23,6 +25,15 @@ use Waaseyaa\Entity\ContentEntityBase;
 #[ContentEntityKeys(id: 'id', uuid: 'uuid', label: 'title')]
 class MigrationTestWidget extends ContentEntityBase
 {
+    #[Field(type: 'string', read: FieldReadLevel::Public)] public string $title;
+    #[Field(type: 'text', read: FieldReadLevel::Public)] public string $summary;
+    #[Field(type: 'text', read: FieldReadLevel::Public)] public string $body;
+    #[Field(type: 'integer', read: FieldReadLevel::Public)] public int $value_int;
+    #[Field(type: 'boolean', read: FieldReadLevel::Public)] public bool $status;
+    #[Field(type: 'boolean', read: FieldReadLevel::Public)] public bool $archived;
+    #[Field(type: 'boolean', read: FieldReadLevel::Public)] public bool $optional_flag;
+    #[Field(type: 'string', read: FieldReadLevel::Public)] public string $widget_type;
+
     public function __construct(
         array $values = [],
         string $entityTypeId = '',

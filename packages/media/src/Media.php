@@ -55,7 +55,7 @@ final class Media extends ContentEntityBase
     )]
     public ?string $source_uri = null;
 
-    #[Field(type: 'integer', required: false, label: 'Owner', read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(type: 'integer', required: false, label: 'Owner', settings: ['authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public ?int $uid = null;
 
     #[Field(type: 'boolean', required: false, label: 'Published', read: \Waaseyaa\Entity\FieldReadLevel::Public)]

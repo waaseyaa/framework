@@ -16,6 +16,7 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
+use Waaseyaa\User\User;
 
 #[CoversClass(UserRoleHandler::class)]
 final class UserRoleHandlerTest extends TestCase
@@ -55,14 +56,12 @@ final class UserRoleHandlerTest extends TestCase
 
     private function makeMockUser(string $userId, array $roles): EntityInterface
     {
-        $user = $this->createMock(EntityInterface::class);
-        $user->method('get')->willReturnMap([
-            ['roles', $roles],
-            ['permissions', []],
+        return new User([
+            'uid' => (int) $userId,
+            'name' => 'fixture-user-' . $userId,
+            'roles' => $roles,
+            'permissions' => [],
         ]);
-        $user->method('set')->with('roles', $this->anything());
-
-        return $user;
     }
 
     private function makeStorage(?EntityInterface $user): EntityStorageInterface

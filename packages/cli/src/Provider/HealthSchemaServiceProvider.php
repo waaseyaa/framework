@@ -19,9 +19,7 @@ use Waaseyaa\CLI\Handler\SchemaSyncHandler;
 use Waaseyaa\CLI\Security\DatabaseFieldAccessInventoryScanner;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\EntityStorage\Backend\BackendRegistrarFactory;
 use Waaseyaa\Field\Preflight\FieldAccessPreflightScanner;
-use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Queue\Security\SignedQueuePayload;
@@ -34,22 +32,14 @@ final class HealthSchemaServiceProvider extends ServiceProvider implements Provi
             $database = $this->resolve(DatabaseInterface::class);
             $manager = $this->resolve(EntityTypeManager::class);
             $signer = $this->resolveOptional(SignedQueuePayload::class);
-            $manifest = $this->resolveOptional(PackageManifest::class);
             assert($database instanceof DatabaseInterface);
             assert($manager instanceof EntityTypeManager);
-
-            $backendRegistrar = null;
-            if ($manifest instanceof PackageManifest) {
-                $backendRegistrar = new BackendRegistrarFactory($manifest->providers)->create();
-                $backendRegistrar->buildPreflightInventory();
-            }
 
             return new FieldAccessPreflightHandler(
                 new DatabaseFieldAccessInventoryScanner(
                     $database,
                     $manager,
                     $signer instanceof SignedQueuePayload ? $signer : null,
-                    $backendRegistrar,
                 ),
                 $manager,
                 new FieldAccessPreflightScanner(),

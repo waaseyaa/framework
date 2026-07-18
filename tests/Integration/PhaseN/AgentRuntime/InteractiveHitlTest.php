@@ -95,13 +95,16 @@ final class InteractiveHitlTest extends TestCase
         $run = $this->runRepository->find($runId);
         self::assertNotNull($run);
         self::assertSame(RunStatus::Running, $run->getStatus());
-        self::assertNull($run->get('pending_approval_call_id'));
+        $account = $request->attributes->get('_account');
+        self::assertInstanceOf(\Waaseyaa\Access\AccountInterface::class, $account);
+        self::assertNull(new \Waaseyaa\Tests\Support\AgentRunAccountProjectionReaderFixture()->read($run, $account)->pendingApprovalCallId);
 
         $events = $this->channelEvents('agent.run.' . $runId);
         self::assertContains('approval_resolved', $events);
 
         $audits = $this->auditRepository->findByRunId($runId);
-        $eventTypes = \array_map(static fn(AgentAuditLog $row): string => $row->getEventType()->value, $audits);
+        $reader = new \Waaseyaa\Tests\Support\AgentAuditEventTypeReaderFixture();
+        $eventTypes = \array_map(static fn(AgentAuditLog $row): string => $reader->read($row)->value, $audits);
         self::assertContains(EventType::ApprovalGranted->value, $eventTypes);
     }
 
@@ -123,7 +126,7 @@ final class InteractiveHitlTest extends TestCase
         $run = $this->runRepository->find($runId);
         self::assertNotNull($run);
         self::assertSame(RunStatus::Failed, $run->getStatus());
-        self::assertSame('approval_denied', $run->get('error_code'));
+        self::assertSame('approval_denied', new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture()->read($run)->errorCode);
 
         $events = $this->channelEvents('agent.run.' . $runId);
         self::assertContains('approval_resolved', $events);
@@ -165,7 +168,9 @@ final class InteractiveHitlTest extends TestCase
         $run = $this->runRepository->find($runId);
         self::assertNotNull($run);
         self::assertSame(RunStatus::AwaitingApproval, $run->getStatus());
-        self::assertSame($expected, $run->get('pending_approval_call_id'));
+        $account = $request->attributes->get('_account');
+        self::assertInstanceOf(\Waaseyaa\Access\AccountInterface::class, $account);
+        self::assertSame($expected, new \Waaseyaa\Tests\Support\AgentRunAccountProjectionReaderFixture()->read($run, $account)->pendingApprovalCallId);
     }
 
     #[Test]
@@ -222,7 +227,11 @@ final class InteractiveHitlTest extends TestCase
 
         self::assertSame(409, $response->getStatusCode());
         self::assertSame('run_status_changed', \json_decode((string) $response->getContent(), true, 512, \JSON_THROW_ON_ERROR)['error_code']);
-        self::assertSame($replacementCallId, $this->runRepository->find($runId)?->get('pending_approval_call_id'));
+        $account = $request->attributes->get('_account');
+        $fresh = $this->runRepository->find($runId);
+        self::assertInstanceOf(\Waaseyaa\Access\AccountInterface::class, $account);
+        self::assertNotNull($fresh);
+        self::assertSame($replacementCallId, new \Waaseyaa\Tests\Support\AgentRunAccountProjectionReaderFixture()->read($fresh, $account)->pendingApprovalCallId);
         self::assertSame([], $this->auditRepository->findByRunId($runId));
         self::assertNotContains('approval_resolved', $this->channelEvents('agent.run.' . $runId));
     }
@@ -320,6 +329,7 @@ final class InteractiveHitlTest extends TestCase
             broadcaster: $broadcaster,
             accessPolicy: new AgentRunAccessPolicy($this->runRepository),
             validator: new AgentRunRequestValidator(),
+            accountProjectionReader: new \Waaseyaa\Tests\Support\AgentRunAccountProjectionReaderFixture(),
         );
     }
 

@@ -16,6 +16,20 @@ use Waaseyaa\Entity\EntityBase;
 
 final class ProjectionDeprecationDiagnosticTest extends TestCase
 {
+    public function test_default_cache_boundary_rejects_nested_entity_before_write(): void
+    {
+        $backend = new MemoryBackend();
+        $entity = new class ([], 'user') extends EntityBase {};
+
+        try {
+            $backend->set('user:1', ['entity' => $entity]);
+            self::fail('The production cache boundary accepted an entity payload.');
+        } catch (EntityProjectionWriteForbidden) {
+        }
+
+        self::assertFalse($backend->get('user:1'));
+    }
+
     public function test_activation_rejects_nested_entity_before_cache_write(): void
     {
         $diagnostic = ProjectionDeprecationDiagnostic::forEntityPayloads(

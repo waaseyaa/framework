@@ -30,7 +30,7 @@ class ReadOnlyTranslatableTestEntity extends ContentEntityBase implements Transl
             $values['langcode'] = 'en';
         }
 
-        parent::__construct($values, $entityTypeId, $entityKeys, $fieldDefinitions);
+        parent::__construct($values, $entityTypeId, $entityKeys, ApiFixtureFieldDefinitions::mergePublic($values, $fieldDefinitions));
     }
 
     /**

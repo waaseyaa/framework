@@ -10,6 +10,7 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Entity\RevisionableInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Workflows\Read\WorkflowEntitySnapshotReader;
 use Waaseyaa\Workflows\Workflow;
 
 /**
@@ -118,10 +119,15 @@ final class WorkflowsBackfillStateHandler
 {
     private const int SAMPLE_LIMIT = 5;
 
+    private readonly WorkflowEntitySnapshotReader $workflowSubjectReader;
+
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly ?LoggerInterface $logger = null,
-    ) {}
+        ?WorkflowEntitySnapshotReader $workflowSubjectReader = null,
+    ) {
+        $this->workflowSubjectReader = $workflowSubjectReader ?? new WorkflowEntitySnapshotReader();
+    }
 
     public function execute(SymfonyCommandIO $io): int
     {
@@ -194,8 +200,9 @@ final class WorkflowsBackfillStateHandler
             }
             ++$examined;
 
-            $currentState = $entity->get('workflow_state');
-            if (\is_string($currentState) && $currentState !== '') {
+            $workflowSubject = $this->workflowSubjectReader->read($entity);
+            $currentState = $workflowSubject->workflowState;
+            if ($currentState !== null) {
                 ++$skipped;
                 if ($publishedDefaultState !== null && $currentState === $publishedDefaultState) {
                     $publishedCandidateIds[] = $id;
@@ -203,7 +210,7 @@ final class WorkflowsBackfillStateHandler
                 continue;
             }
 
-            $isPublished = (int) $entity->get('status') === 1;
+            $isPublished = $workflowSubject->status === 1;
             $target = $isPublished && $publishedDefaultState !== null ? $publishedDefaultState : $initialState;
             $pending[] = [
                 'id' => $id,

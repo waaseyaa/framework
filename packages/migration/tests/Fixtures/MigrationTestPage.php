@@ -6,7 +6,9 @@ namespace Waaseyaa\Migration\Tests\Fixtures;
 
 use Waaseyaa\Entity\Attribute\ContentEntityKeys;
 use Waaseyaa\Entity\Attribute\ContentEntityType;
+use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\FieldReadLevel;
 
 /**
  * Test-only content entity (analogous to `node`) used by
@@ -25,4 +27,8 @@ use Waaseyaa\Entity\ContentEntityBase;
 #[ContentEntityKeys(id: 'id', uuid: 'uuid', label: 'title', bundle: 'page_type')]
 final class MigrationTestPage extends ContentEntityBase
 {
+    #[Field(type: 'string', read: FieldReadLevel::Public)] public string $title;
+    #[Field(type: 'string', read: FieldReadLevel::Public)] public string $page_type;
+    #[Field(type: 'text', read: FieldReadLevel::Public)] public string $body;
+    #[Field(type: 'text', read: FieldReadLevel::Public)] public string $summary;
 }

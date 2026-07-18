@@ -129,7 +129,8 @@ final class EnqueueAndConsumeTest extends TestCase
 
         self::assertSame(RunStatus::Completed, $async->getStatus());
         self::assertSame(RunStatus::Completed, $inline->getStatus());
-        self::assertSame($async->get('account_id'), $inline->get('account_id'));
+        $workerReader = new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture();
+        self::assertSame($workerReader->read($async)->accountId, $workerReader->read($inline)->accountId);
         self::assertSame($async->get('destructive_approval'), $inline->get('destructive_approval'));
 
         // Both paths route through RunAgentHandler, so the audit-row
@@ -163,8 +164,9 @@ final class EnqueueAndConsumeTest extends TestCase
     {
         $rows = $this->auditRepository->findByRunId($runId);
         $types = [];
+        $reader = new \Waaseyaa\Tests\Support\AgentAuditEventTypeReaderFixture();
         foreach ($rows as $row) {
-            $types[] = $row->getEventType()->value;
+            $types[] = $reader->read($row)->value;
         }
 
         return $types;
@@ -216,6 +218,7 @@ final class EnqueueAndConsumeTest extends TestCase
             broadcaster: $this->broadcaster,
             provider: new NullLlmProvider(),
             accountLoader: new StubInitiatorAccountLoader(),
+            workerReader: new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture(),
         );
 
         $bus = new MessageBus([

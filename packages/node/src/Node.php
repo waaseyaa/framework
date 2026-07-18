@@ -60,7 +60,7 @@ final class Node extends ContentEntityBase implements HydratableFromStorageInter
     #[Field(label: 'Slug', description: 'The URL-friendly identifier for this content.', required: true, settings: ['weight' => 2], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public string $slug = '';
 
-    #[Field(type: 'boolean', label: 'Published', description: 'Whether the content is published.', default: 0, settings: ['weight' => 10], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
+    #[Field(type: 'boolean', label: 'Published', description: 'Whether the content is published.', default: 0, settings: ['weight' => 10, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public bool $status = false;
 
     #[Field(type: 'boolean', label: 'Promoted to front page', description: 'Whether the content is promoted to the front page.', default: 0, settings: ['weight' => 11], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
@@ -78,10 +78,10 @@ final class Node extends ContentEntityBase implements HydratableFromStorageInter
      * it here only makes it visible to SchemaPresenter / JSON:API discovery,
      * it does not change how it is stored (docs/specs/content-workflow.md).
      */
-    #[Field(type: 'string', label: 'Workflow state', description: 'The current editorial workflow state of this node (workflow-bound bundles only).', stored: FieldStorage::Data, settings: ['weight' => 13], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(type: 'string', label: 'Workflow state', description: 'The current editorial workflow state of this node (workflow-bound bundles only).', stored: FieldStorage::Data, settings: ['weight' => 13, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public ?string $workflow_state = null;
 
-    #[Field(type: 'entity_reference', label: 'Author', description: 'The user who authored this content.', settings: ['weight' => 20, 'target_entity_type_id' => 'user'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(type: 'entity_reference', label: 'Author', description: 'The user who authored this content.', settings: ['weight' => 20, 'target_entity_type_id' => 'user', 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public ?int $uid = null;
 
     #[Field(type: 'integer', label: 'Authored on', description: 'The date and time the content was created.', settings: ['weight' => 30, 'subtype' => 'timestamp'], read: \Waaseyaa\Entity\FieldReadLevel::Public)]

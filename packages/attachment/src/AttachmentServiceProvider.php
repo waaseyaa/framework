@@ -4,9 +4,15 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Attachment;
 
+use Waaseyaa\Access\Capability\CapabilityRegistryInterface;
+use Waaseyaa\Attachment\Http\AttachmentDownloadMetadataReaderInterface;
 use Waaseyaa\Attachment\Http\AttachmentDownloadRouter;
+use Waaseyaa\Attachment\Http\AuditedAttachmentDownloadMetadataReader;
+use Waaseyaa\Attachment\Maintenance\AttachmentMaintenanceFieldReader;
 use Waaseyaa\Attachment\Schema\AttachmentSchema;
 use Waaseyaa\Attachment\Storage\PrivateFileStore;
+use Waaseyaa\Audit\AuditedFieldRead;
+use Waaseyaa\Audit\Contract\StrictPrivilegedReadLedgerInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\Event\EntityEvents;
@@ -57,7 +63,21 @@ final class AttachmentServiceProvider extends ServiceProvider implements HasHttp
             $this->resolve(EntityRepositoryInterface::class),
             $this->resolve(DatabaseInterface::class),
             $this->resolveLoggerOrNull(),
+            new AttachmentMaintenanceFieldReader(),
         ));
+
+        $this->singleton(AttachmentDownloadMetadataReaderInterface::class, function (): AttachmentDownloadMetadataReaderInterface {
+            $capabilities = $this->resolve(CapabilityRegistryInterface::class);
+            $ledger = $this->resolve(StrictPrivilegedReadLedgerInterface::class);
+            assert($capabilities instanceof CapabilityRegistryInterface);
+            assert($ledger instanceof StrictPrivilegedReadLedgerInterface);
+            return new AuditedAttachmentDownloadMetadataReader(
+                new AuditedFieldRead($capabilities, $ledger),
+                $capabilities,
+                'field-read-active',
+                'field-read-active',
+            );
+        });
     }
 
     /**
@@ -128,6 +148,7 @@ final class AttachmentServiceProvider extends ServiceProvider implements HasHttp
             $httpKernel->getEntityTypeManager(),
             $httpKernel->getAccessHandler(),
             new PrivateFileStore($this->resolvePrivateFilesRoot($httpKernel)),
+            $this->resolve(AttachmentDownloadMetadataReaderInterface::class),
         );
     }
 

@@ -7,18 +7,22 @@ namespace Waaseyaa\Genealogy\Access;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Access\Gate\PolicyAttribute;
+use Waaseyaa\Access\PolicySubjectViewInterface;
+use Waaseyaa\Access\ProtectedEntityReadPolicyInterface;
+use Waaseyaa\Access\ProtectedFieldReadPolicyInterface;
+use Waaseyaa\Access\ProtectedReadPolicyProviderInterface;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
-use Waaseyaa\Entity\EntityValues;
+use Waaseyaa\Entity\EntityStructure;
 use Waaseyaa\Genealogy\Entity\GenealogyTree;
 use Waaseyaa\Genealogy\GenealogyBootstrap;
-use Waaseyaa\Genealogy\GenealogyLivingSemantics;
 use Waaseyaa\User\DevAdminAccount;
-use Waaseyaa\Workflows\WorkflowVisibility;
 
 #[PolicyAttribute(entityType: ['genealogy_person', 'genealogy_family', 'genealogy_event', 'genealogy_tree'])]
-final class GenealogyContentAccessPolicy implements AccessPolicyInterface, FieldAccessPolicyInterface
+final class GenealogyContentAccessPolicy implements AccessPolicyInterface, FieldAccessPolicyInterface, ProtectedReadPolicyProviderInterface
 {
     private const array ENTITY_TYPES = ['genealogy_person', 'genealogy_family', 'genealogy_event', 'genealogy_tree'];
 
@@ -29,11 +33,16 @@ final class GenealogyContentAccessPolicy implements AccessPolicyInterface, Field
      */
     private const string LIVING_PRIVACY_REASON = 'Living persons are not visible without an explicit grant.';
 
-    private readonly WorkflowVisibility $workflowVisibility;
+    /** @var \Closure(EntityBase): PolicySubjectViewInterface */
+    private readonly \Closure $policySubjectAuthority;
 
-    public function __construct(?WorkflowVisibility $workflowVisibility = null)
+    public function __construct(private readonly ?GenealogyInternalFieldReaderInterface $internalReader = null)
     {
-        $this->workflowVisibility = $workflowVisibility ?? new WorkflowVisibility();
+        $this->policySubjectAuthority = \Closure::bind(
+            static fn(EntityBase $entity): PolicySubjectViewInterface => $entity->valueContainer->entityPolicySubjectView(),
+            null,
+            EntityBase::class,
+        );
     }
 
     public function appliesTo(string $entityTypeId): bool
@@ -41,9 +50,32 @@ final class GenealogyContentAccessPolicy implements AccessPolicyInterface, Field
         return in_array($entityTypeId, self::ENTITY_TYPES, true);
     }
 
+    public function protectedEntityReadPolicy(): ProtectedEntityReadPolicyInterface
+    {
+        return new GenealogyProtectedEntityReadPolicy($this);
+    }
+
+    public function protectedFieldReadPolicy(): ProtectedFieldReadPolicyInterface
+    {
+        return new GenealogyProtectedFieldReadPolicy($this);
+    }
+
+    /** @internal V2 decision over compiled inputs only. */
+    public function protectedViewAccess(
+        AuthorizationPrincipalInterface $principal,
+        EntityStructure $structure,
+        PolicySubjectViewInterface $subject,
+    ): AccessResult {
+        return $this->viewAccess($structure->entityTypeId, $subject, $principal);
+    }
+
     public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
     {
-        if (self::isTombstoned($entity)) {
+        $subject = $this->policySubject($entity);
+        if ($subject === null) {
+            return AccessResult::forbidden('Genealogy access requires compiled policy inputs.');
+        }
+        if ($this->internalReader?->isTombstoned($entity) === true) {
             return match ($operation) {
                 'view' => AccessResult::forbidden('Soft-deleted genealogy entity is not visible.'),
                 default => AccessResult::neutral('Tombstone blocks default mutation grants.'),
@@ -51,8 +83,8 @@ final class GenealogyContentAccessPolicy implements AccessPolicyInterface, Field
         }
 
         return match ($operation) {
-            'view' => $this->viewAccess($entity, $account),
-            'update', 'delete' => $this->mutateAccess($entity, $operation, $account),
+            'view' => $this->viewAccess($entity->getEntityTypeId(), $subject, $account),
+            'update', 'delete' => $this->mutateAccess($entity, $subject, $operation, $account),
             default => AccessResult::neutral(),
         };
     }
@@ -79,38 +111,41 @@ final class GenealogyContentAccessPolicy implements AccessPolicyInterface, Field
         return AccessResult::neutral();
     }
 
-    private function viewAccess(EntityInterface $entity, AccountInterface $account): AccessResult
+    private function viewAccess(string $entityTypeId, PolicySubjectViewInterface $subject, AccountInterface $account): AccessResult
     {
         if ($account instanceof DevAdminAccount) {
             return AccessResult::allowed('Dev fallback account may view genealogy content under the built-in server.');
         }
 
         if (!$account->isAuthenticated()) {
-            return $this->anonymousPublishedViewAccess($entity);
+            return $this->anonymousPublishedViewAccess($entityTypeId, $subject);
         }
 
-        if ($entity instanceof GenealogyTree) {
-            return $this->treeView($entity, $account);
+        if ($entityTypeId === 'genealogy_tree') {
+            return $this->treeView($subject, $account);
         }
 
-        $tree = $this->treeForContent($entity);
+        $tree = $this->treeForContent($subject);
         if ($tree === null) {
             return AccessResult::forbidden('Genealogy row is not attached to a viewable tree.');
         }
 
-        if (!$this->accountOwnsTree($account, $tree)) {
-            $published = $this->workflowVisibility->isEntityPublic($entity->getEntityTypeId(), EntityValues::toCastAwareMap($entity))
-                && $this->workflowVisibility->isEntityPublic('genealogy_tree', EntityValues::toCastAwareMap($tree));
+        $treeSubject = $this->policySubject($tree);
+        if ($treeSubject === null) {
+            return AccessResult::forbidden('Genealogy tree requires compiled policy inputs.');
+        }
+        if (!$this->accountOwnsTree($account, $treeSubject)) {
+            $published = $this->isPublished($subject) && $this->isPublished($treeSubject);
             if (!$published) {
                 return AccessResult::forbidden('Genealogy content is private outside the owning account.');
             }
         }
 
-        if (!$this->accountOwnsTree($account, $tree) && $this->concealsForLivingPrivacy($entity)) {
+        if (!$this->accountOwnsTree($account, $treeSubject) && $this->concealsForLivingPrivacy($entityTypeId, $subject)) {
             return AccessResult::forbidden(self::LIVING_PRIVACY_REASON);
         }
 
-        if ($this->accountOwnsTree($account, $tree)) {
+        if ($this->accountOwnsTree($account, $treeSubject)) {
             return AccessResult::allowed('Tree owner may view genealogy workspace content.');
         }
 
@@ -125,29 +160,27 @@ final class GenealogyContentAccessPolicy implements AccessPolicyInterface, Field
      * Anonymous visitors may only load published genealogy metadata and published
      * rows under a published tree; living persons remain redacted.
      */
-    private function anonymousPublishedViewAccess(EntityInterface $entity): AccessResult
+    private function anonymousPublishedViewAccess(string $entityTypeId, PolicySubjectViewInterface $subject): AccessResult
     {
-        if ($entity instanceof GenealogyTree) {
-            return $this->workflowVisibility->isEntityPublic('genealogy_tree', EntityValues::toCastAwareMap($entity))
+        if ($entityTypeId === 'genealogy_tree') {
+            return $this->isPublished($subject)
                 ? AccessResult::allowed('Published tree metadata is viewable.')
                 : AccessResult::forbidden('Tree is not published.');
         }
 
-        $tree = $this->treeForContent($entity);
+        $tree = $this->treeForContent($subject);
         if ($tree === null) {
             return AccessResult::forbidden('Genealogy row is not attached to a viewable tree.');
         }
 
-        $entityPublic = $this->workflowVisibility->isEntityPublic(
-            $entity->getEntityTypeId(),
-            EntityValues::toCastAwareMap($entity),
-        );
-        $treePublic = $this->workflowVisibility->isEntityPublic('genealogy_tree', EntityValues::toCastAwareMap($tree));
+        $treeSubject = $this->policySubject($tree);
+        $entityPublic = $this->isPublished($subject);
+        $treePublic = $treeSubject !== null && $this->isPublished($treeSubject);
         if (!$entityPublic || !$treePublic) {
             return AccessResult::forbidden('Genealogy content is not published for anonymous viewing.');
         }
 
-        if ($this->concealsForLivingPrivacy($entity)) {
+        if ($this->concealsForLivingPrivacy($entityTypeId, $subject)) {
             return AccessResult::forbidden(self::LIVING_PRIVACY_REASON);
         }
 
@@ -174,65 +207,67 @@ final class GenealogyContentAccessPolicy implements AccessPolicyInterface, Field
      *   {@see anonymousPublishedViewAccess()} before this method is reached, so
      *   the default is a no-op.
      */
-    private function concealsForLivingPrivacy(EntityInterface $entity): bool
+    private function concealsForLivingPrivacy(string $entityTypeId, PolicySubjectViewInterface $subject): bool
     {
-        return match ($entity->getEntityTypeId()) {
-            'genealogy_person' => GenealogyLivingSemantics::effectiveIsLiving($entity),
+        return match ($entityTypeId) {
+            'genealogy_person' => $this->subjectIsLiving($subject),
             'genealogy_family', 'genealogy_event' => true,
             default => false,
         };
     }
 
-    private function mutateAccess(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
+    private function mutateAccess(EntityInterface $entity, PolicySubjectViewInterface $subject, string $operation, AccountInterface $account): AccessResult
     {
         if (!$account->isAuthenticated()) {
             return AccessResult::forbidden('Genealogy mutations require authentication.');
         }
 
         if ($entity instanceof GenealogyTree) {
-            return $this->accountOwnsTree($account, $entity)
+            return $this->accountOwnsTree($account, $subject)
                 ? AccessResult::allowed("Tree owner may {$operation} this tree.")
                 : AccessResult::forbidden('Only the tree owner may change this tree.');
         }
 
-        $tree = $this->treeForContent($entity);
+        $tree = $this->treeForContent($subject);
         if ($tree === null) {
             return AccessResult::forbidden('Cannot mutate genealogy row without a tree attach point.');
         }
 
-        return $this->accountOwnsTree($account, $tree)
+        $treeSubject = $this->policySubject($tree);
+
+        return $treeSubject !== null && $this->accountOwnsTree($account, $treeSubject)
             ? AccessResult::allowed("Tree owner may {$operation} this record.")
             : AccessResult::forbidden('Only the tree owner may change this genealogy record.');
     }
 
-    private function treeView(GenealogyTree $tree, AccountInterface $account): AccessResult
+    private function treeView(PolicySubjectViewInterface $subject, AccountInterface $account): AccessResult
     {
-        if ($this->accountOwnsTree($account, $tree)) {
+        if ($this->accountOwnsTree($account, $subject)) {
             return AccessResult::allowed('Tree owner may view their tree.');
         }
 
-        if ($this->workflowVisibility->isEntityPublic('genealogy_tree', EntityValues::toCastAwareMap($tree))) {
+        if ($this->isPublished($subject)) {
             return AccessResult::allowed('Published tree metadata is viewable.');
         }
 
         return AccessResult::forbidden('Tree is private to non-owners.');
     }
 
-    private function accountOwnsTree(AccountInterface $account, GenealogyTree $tree): bool
+    private function accountOwnsTree(AccountInterface $account, PolicySubjectViewInterface $subject): bool
     {
-        $owner = $tree->get('owner_uid');
+        $owner = $subject->get('owner_uid');
 
         return (string) $owner === (string) $account->id();
     }
 
-    private function treeForContent(EntityInterface $entity): ?GenealogyTree
+    private function treeForContent(PolicySubjectViewInterface $subject): ?GenealogyTree
     {
         $etm = GenealogyBootstrap::entityTypeManager();
         if ($etm === null) {
             return null;
         }
 
-        $treeId = $entity->get('tree_id');
+        $treeId = $subject->get('tree_id');
         if ($treeId === null || $treeId === '' || $treeId === 0 || $treeId === '0') {
             return null;
         }
@@ -246,10 +281,55 @@ final class GenealogyContentAccessPolicy implements AccessPolicyInterface, Field
         return $loaded;
     }
 
-    private static function isTombstoned(EntityInterface $entity): bool
+    private function policySubject(EntityInterface $entity): ?PolicySubjectViewInterface
     {
-        $v = $entity->get('deleted_at');
+        return $entity instanceof EntityBase ? ($this->policySubjectAuthority)($entity) : null;
+    }
 
-        return is_string($v) && trim($v) !== '';
+    private function isPublished(PolicySubjectViewInterface $subject): bool
+    {
+        return in_array($subject->get('status'), [true, 1, '1'], true);
+    }
+
+    private function subjectIsLiving(PolicySubjectViewInterface $subject): bool
+    {
+        if (in_array('is_living', $subject->fields(), true)) {
+            return in_array($subject->get('is_living'), [true, 1, '1'], true);
+        }
+
+        return !in_array('death_date', $subject->fields(), true)
+            || trim((string) $subject->get('death_date')) === '';
+    }
+}
+
+/** Immutable-principal genealogy entity visibility over exact compiled inputs. @api */
+final readonly class GenealogyProtectedEntityReadPolicy implements ProtectedEntityReadPolicyInterface
+{
+    public function __construct(private GenealogyContentAccessPolicy $policy) {}
+
+    public function access(
+        AuthorizationPrincipalInterface $principal,
+        EntityStructure $structure,
+        PolicySubjectViewInterface $subject,
+        string $operation,
+    ): AccessResult {
+        return $operation === 'view'
+            ? $this->policy->protectedViewAccess($principal, $structure, $subject)
+            : AccessResult::neutral();
+    }
+}
+
+/** Releases Protected genealogy fields only when the containing entity is viewable. @api */
+final readonly class GenealogyProtectedFieldReadPolicy implements ProtectedFieldReadPolicyInterface
+{
+    public function __construct(private GenealogyContentAccessPolicy $policy) {}
+
+    public function access(
+        AuthorizationPrincipalInterface $principal,
+        EntityStructure $structure,
+        PolicySubjectViewInterface $subject,
+        string $fieldName,
+    ): AccessResult {
+        return $this->policy->protectedViewAccess($principal, $structure, $subject);
     }
 }

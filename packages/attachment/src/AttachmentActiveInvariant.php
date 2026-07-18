@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Attachment;
 
+use Waaseyaa\Attachment\Maintenance\AttachmentMaintenanceFieldReader;
 use Waaseyaa\Database\DatabaseInterface;
 
 /**
@@ -37,9 +38,9 @@ final class AttachmentActiveInvariant
      * and demote every sibling on a malformed value; the allow-list makes
      * garbage inert instead.
      */
-    public static function isActive(Attachment $attachment): bool
+    public static function isActive(Attachment $attachment, AttachmentMaintenanceFieldReader $reader): bool
     {
-        return \in_array($attachment->get('is_active'), [true, 1, '1'], true);
+        return \in_array($reader->read($attachment)->active, [true, 1, '1'], true);
     }
 
     /**

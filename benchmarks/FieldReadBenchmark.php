@@ -80,7 +80,7 @@ final class FieldReadBenchmark
             $candidate->hasPermission('view protected benchmark fields') && $candidateStructure->hasField($field)
                 ? AccessResult::allowed('benchmark fixture')
                 : AccessResult::forbidden('benchmark fixture');
-        $activeGuard = new FieldReadGuard($scope, $decision, activationEnabled: true);
+        $activeGuard = new FieldReadGuard($scope, $decision);
         $publicRule = $resolver->compile($publicDefinition);
         $classPublicRule = $resolver->compile($classDefinition);
         $protectedRule = $resolver->compile($protectedDefinition);

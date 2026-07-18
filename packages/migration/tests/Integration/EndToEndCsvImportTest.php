@@ -336,8 +336,7 @@ final class EndToEndCsvImportTest extends TestCase
         $this->dispatcher->addListener(
             BeforeDeleteEvent::class,
             static function (BeforeDeleteEvent $e) use (&$deleteOrder): void {
-                $uuid = $e->entity()->get('uuid');
-                \assert(\is_string($uuid));
+                $uuid = $e->entity()->uuid();
                 $deleteOrder[] = $uuid;
             },
         );

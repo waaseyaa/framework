@@ -9,11 +9,11 @@ use Waaseyaa\EntityStorage\Exception\BackendIdCollisionException;
 /**
  * @api
  *
- * Discovers and indexes all registered {@see FieldStorageBackendInterface} instances.
+ * Discovers and indexes registrar-owned V2 field-storage gateways.
  *
  * Discovery uses the Composer-resolved provider list (passed in as a list of
- * FQCNs). Providers implementing {@see HasFieldStorageBackendsInterface} are
- * instantiated and their backends are indexed by {@see FieldStorageBackendInterface::id()}.
+ * FQCNs). Providers implementing {@see HasFieldStorageBackendsV2Interface} are
+ * instantiated and their backends are exposed only through opaque gateways.
  *
  * Registration order: Composer installed.json order by default. Providers may
  * declare a `public const BACKEND_PRIORITY = int` constant to influence
@@ -29,14 +29,7 @@ use Waaseyaa\EntityStorage\Exception\BackendIdCollisionException;
 final class BackendRegistrar
 {
     /** @internal String FQN avoids an upward layer import from entity-storage (L1) into foundation (L0). */
-    private const CAPABILITY_INTERFACE = 'Waaseyaa\\EntityStorage\\Backend\\HasFieldStorageBackendsInterface';
     private const CAPABILITY_V2_INTERFACE = 'Waaseyaa\\EntityStorage\\Backend\\HasFieldStorageBackendsV2Interface';
-
-    /** @var array<string, FieldStorageBackendInterface> */
-    private array $backends = [];
-
-    /** @var array<string, string> id => provider FQCN that registered it */
-    private array $registeredBy = [];
 
     /** @var array<string, FieldStorageBackendGateway> */
     private array $gateways = [];
@@ -47,8 +40,6 @@ final class BackendRegistrar
     /** @var array<string, string> id => provider */
     private array $v2RegisteredBy = [];
 
-    /** @var list<string> */
-    private array $v1BackendBlockers = [];
 
     /**
      * @param string[] $providerFqcns Ordered list of service-provider class names (Composer installed.json order).
@@ -72,10 +63,7 @@ final class BackendRegistrar
         $this->buildInternal(activateGateways: true);
     }
 
-    /**
-     * Discover and validate exact V1/V2 identities without activating a gateway.
-     * Used only by dormant WP3 preflight; WP4 activation requires build().
-     */
+    /** Discover and validate V2 identities without issuing gateway authority. */
     public function buildPreflightInventory(): void
     {
         $this->buildInternal(activateGateways: false);
@@ -83,12 +71,9 @@ final class BackendRegistrar
 
     private function buildInternal(bool $activateGateways): void
     {
-        $this->backends = [];
-        $this->registeredBy = [];
         $this->gateways = [];
         $this->gatewayFingerprints = [];
         $this->v2RegisteredBy = [];
-        $this->v1BackendBlockers = [];
 
         $sorted = $this->sortByPriority($this->providerFqcns);
 
@@ -103,13 +88,6 @@ final class BackendRegistrar
             }
 
             $provider = new $providerFqcn();
-            if (isset($implements[self::CAPABILITY_INTERFACE])) {
-                $backends = $provider->fieldStorageBackends();
-                foreach ($backends as $backend) {
-                    $this->register($backend, $providerFqcn);
-                    $this->v1BackendBlockers[] = $providerFqcn . ':' . $backend->id() . ':' . $backend::class;
-                }
-            }
             if (isset($implements[self::CAPABILITY_V2_INTERFACE])) {
                 if ($activateGateways && $this->gatewayAudit === null) {
                     throw new \LogicException('V2 field-storage backend registration requires a strict gateway audit.');
@@ -120,15 +98,6 @@ final class BackendRegistrar
             }
         }
 
-        sort($this->v1BackendBlockers);
-    }
-
-    /**
-     * Return a backend by id, or null if not registered.
-     */
-    public function get(string $id): ?FieldStorageBackendInterface
-    {
-        return $this->backends[$id] ?? null;
     }
 
     /** Return the registrar-owned V2 facade; raw V2 implementations are never exposed. */
@@ -146,28 +115,12 @@ final class BackendRegistrar
         return $inventory;
     }
 
-    /** @return list<string> exact provider:id:implementation blockers for WP4 V1 removal */
-    public function v1BackendBlockers(): array
-    {
-        return $this->v1BackendBlockers;
-    }
-
-    /**
-     * Return all registered backends, keyed by id.
-     *
-     * @return array<string, FieldStorageBackendInterface>
-     */
-    public function all(): array
-    {
-        return $this->backends;
-    }
-
     /**
      * Return whether a backend id is registered.
      */
     public function has(string $id): bool
     {
-        return isset($this->backends[$id]);
+        return isset($this->gatewayFingerprints[$id]);
     }
 
     /**
@@ -185,40 +138,11 @@ final class BackendRegistrar
                         'Field references unknown backend id "%s". '
                         . 'Registered backends: [%s].',
                         $id,
-                        implode(', ', array_keys($this->backends)),
+                        implode(', ', array_keys($this->gatewayFingerprints)),
                     ),
                 );
             }
         }
-    }
-
-    private function register(FieldStorageBackendInterface $backend, string $providerFqcn): void
-    {
-        $id = $backend->id();
-        $isReserved = in_array($id, ReservedBackendIds::all(), true);
-        $isFramework = in_array($providerFqcn, $this->frameworkProviderFqcns, true);
-
-        if ($isReserved && !$isFramework) {
-            // Third-party provider trying to claim a reserved id.
-            // Pass null for $firstFqcn — the reserved-id message path in
-            // BackendIdCollisionException produces the clearer operator message.
-            throw new BackendIdCollisionException(
-                $id,
-                null,
-                $providerFqcn,
-            );
-        }
-
-        if (isset($this->registeredBy[$id])) {
-            throw new BackendIdCollisionException(
-                $id,
-                $this->registeredBy[$id],
-                $providerFqcn,
-            );
-        }
-
-        $this->backends[$id] = $backend;
-        $this->registeredBy[$id] = $providerFqcn;
     }
 
     private function registerV2(

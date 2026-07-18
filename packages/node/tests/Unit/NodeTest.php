@@ -4,14 +4,37 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Node\Tests\Unit;
 
-use Waaseyaa\Entity\ContentEntityBase;
-use Waaseyaa\Node\Node;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Access\AuthorizationPrincipal;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
+use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\FieldReadGuard;
+use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\EntityReadRuntime;
+use Waaseyaa\Node\Node;
+use Waaseyaa\Node\NodeAccessPolicy;
 
 #[CoversClass(Node::class)]
 final class NodeTest extends TestCase
 {
+    private AccountFieldReadScope $fieldReadScope;
+
+    protected function setUp(): void
+    {
+        $this->fieldReadScope = new AccountFieldReadScope();
+        $handler = new EntityAccessHandler([new NodeAccessPolicy()]);
+        EntityReadRuntime::installGuard(new FieldReadGuard($this->fieldReadScope, $handler->checkProtectedFieldRead(...)));
+    }
+
+    private function readProtected(callable $callback): mixed
+    {
+        return $this->fieldReadScope->run(
+            new AuthorizationPrincipal(1, true, [], ['administer nodes'], 'node-test'),
+            $callback,
+        );
+    }
+
     // -----------------------------------------------------------------
     // Construction and entity basics
     // -----------------------------------------------------------------
@@ -140,14 +163,14 @@ final class NodeTest extends TestCase
     public function testGetAuthorIdViaConstructor(): void
     {
         $node = new Node(['uid' => 7]);
-        $this->assertSame(7, $node->getAuthorId());
+        $this->assertSame(7, $this->readProtected($node->getAuthorId(...)));
     }
 
     public function testSetAuthorId(): void
     {
         $node = new Node();
         $node->setAuthorId(42);
-        $this->assertSame(42, $node->getAuthorId());
+        $this->assertSame(42, $this->readProtected($node->getAuthorId(...)));
     }
 
     public function testSetAuthorIdReturnsSelf(): void
@@ -163,23 +186,23 @@ final class NodeTest extends TestCase
     public function testNewNodeDefaultsToUnpublished(): void
     {
         $node = new Node();
-        $this->assertFalse($node->isPublished());
+        $this->assertFalse($this->readProtected($node->isPublished(...)));
     }
 
     public function testIsPublishedViaConstructor(): void
     {
         $node = new Node(['status' => 0]);
-        $this->assertFalse($node->isPublished());
+        $this->assertFalse($this->readProtected($node->isPublished(...)));
     }
 
     public function testSetPublished(): void
     {
         $node = new Node();
         $node->setPublished(false);
-        $this->assertFalse($node->isPublished());
+        $this->assertFalse($this->readProtected($node->isPublished(...)));
 
         $node->setPublished(true);
-        $this->assertTrue($node->isPublished());
+        $this->assertTrue($this->readProtected($node->isPublished(...)));
     }
 
     public function testSetPublishedReturnsSelf(): void
@@ -324,7 +347,7 @@ final class NodeTest extends TestCase
             'changed' => 1700000050,
         ]);
 
-        $array = $node->toArray();
+        $array = $this->readProtected($node->toArray(...));
         $this->assertSame(10, $array['nid']);
         $this->assertSame('article', $array['type']);
         $this->assertSame('Test Article', $array['title']);
@@ -358,8 +381,8 @@ final class NodeTest extends TestCase
         $this->assertSame(1, $node->id());
         $this->assertSame('page', $node->getType());
         $this->assertSame('About Us', $node->getTitle());
-        $this->assertSame(5, $node->getAuthorId());
-        $this->assertTrue($node->isPublished());
+        $this->assertSame(5, $this->readProtected($node->getAuthorId(...)));
+        $this->assertTrue($this->readProtected($node->isPublished(...)));
         $this->assertFalse($node->isPromoted());
         $this->assertTrue($node->isSticky());
         $this->assertSame(1600000000, $node->getCreatedTime());

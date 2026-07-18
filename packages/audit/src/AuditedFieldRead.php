@@ -33,7 +33,7 @@ final readonly class AuditedFieldRead
     ) {
         $this->firstPartyObtain = \Closure::bind(
             static function (EntityBase $source, string $name): mixed {
-                $values = $source->rawValuesForClosedAuthority();
+                $values = $source->valueContainer->rawValues();
                 $raw = array_key_exists($name, $values) ? $values[$name] : null;
                 if (isset($source->casts[$name])) {
                     return $source->valueCaster()->castIn($name, $raw, $source->casts[$name]);

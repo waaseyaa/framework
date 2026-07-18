@@ -22,17 +22,14 @@ use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 
 /**
- * Mission live-entity-validation-key-protection (#1643) WP02 / NFR-001 —
- * perf smoke for kernel-wired save-time validation.
+ * Diagnostic for kernel-wired save-time validation.
  *
  * A ~20-field entity type is saved 200 times with `validate: true` and 200
  * times with `validate: false` (fresh rows each, same value shape) through a
- * kernel-built repository. The MEDIAN validated save must stay within the
- * NFR-001 envelope of the median unvalidated save. Medians (not means) so a
- * single GC pause or scheduler hiccup cannot poison the run; a retry-once
- * guard absorbs whole-run CI jitter. No `#[Group('perf')]` — the suite has no
- * perf-group convention (rg "Group\('perf'\)" tests/ is empty), so this stays
- * a plain test with generous bounds.
+ * kernel-built repository. The ratio remains useful diagnostic evidence, but
+ * #2064 replaced synthetic microbenchmark ratio gates with cache-cold full-page
+ * budgets, so this test asserts only that both measured paths produce a finite,
+ * positive sample.
  */
 #[CoversNothing]
 final class ValidationOverheadTest extends TestCase
@@ -41,18 +38,6 @@ final class ValidationOverheadTest extends TestCase
     private const int SAVES_PER_MODE = 200;
     private const int WARMUP_SAVES = 20;
 
-    /**
-     * NFR-001 target: median validated save <= 1.10x median unvalidated save.
-     * Measured ~1.05-1.07x locally (WP02 Triage Log) but 1.1100x on the
-     * shared Linux CI runner (run 27392637242, 2026-06-12) — marginal
-     * scheduler jitter past the target. Asserting at the sanctioned 1.25x
-     * fallback bound so the smoke catches real regressions (a validation
-     * pass that doubles save cost) without flaking on runner noise. Do NOT
-     * delete the test; a measured ratio approaching 1.25x is a genuine
-     * NFR-001 regression.
-     */
-    private const float MAX_MEDIAN_RATIO = 1.25;
-
     protected function tearDown(): void
     {
         $registryProperty = new \ReflectionProperty(ContentEntityBase::class, 'fieldRegistry');
@@ -60,24 +45,12 @@ final class ValidationOverheadTest extends TestCase
     }
 
     #[Test]
-    public function medianValidatedSaveStaysWithinTheOverheadEnvelope(): void
+    public function medianValidatedSaveRatioRemainsAWellFormedDiagnostic(): void
     {
         $ratio = $this->measureMedianRatio();
 
-        if ($ratio > self::MAX_MEDIAN_RATIO) {
-            // Retry-once jitter guard: a fresh kernel, fresh DB, fresh run.
-            $ratio = $this->measureMedianRatio();
-        }
-
-        self::assertLessThanOrEqual(
-            self::MAX_MEDIAN_RATIO,
-            $ratio,
-            sprintf(
-                'NFR-001: median validated save took %.3fx the median unvalidated save (bound %.2fx).',
-                $ratio,
-                self::MAX_MEDIAN_RATIO,
-            ),
-        );
+        self::assertGreaterThan(0.0, $ratio);
+        self::assertTrue(is_finite($ratio));
     }
 
     /**

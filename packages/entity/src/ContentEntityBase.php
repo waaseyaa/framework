@@ -102,6 +102,7 @@ abstract class ContentEntityBase extends EntityBase implements ContentEntityInte
     public static function setFieldRegistry(?FieldDefinitionRegistryInterface $registry): void
     {
         self::$fieldRegistry = $registry;
+        EntityReadRuntime::installFieldRegistry($registry);
     }
 
     /**

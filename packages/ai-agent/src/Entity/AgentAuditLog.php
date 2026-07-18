@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace Waaseyaa\AI\Agent\Entity;
 
 use Waaseyaa\AI\Agent\Enum\EventType;
+use Waaseyaa\Entity\Attribute\ContentEntityKeys;
+use Waaseyaa\Entity\Attribute\ContentEntityType;
+use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\FieldReadLevel;
 
 /**
  * One audit-log row per executor event (`agent_audit_log`).
@@ -31,8 +35,21 @@ use Waaseyaa\Entity\ContentEntityBase;
  *
  * @api
  */
+#[ContentEntityType(id: 'agent_audit_log')]
+#[ContentEntityKeys(id: 'id', uuid: 'id', label: 'event_type')]
 final class AgentAuditLog extends ContentEntityBase
 {
+    #[Field(type: 'string', read: FieldReadLevel::Public)] public string $id = '';
+    #[Field(type: 'string', settings: ['authorizationInput' => true], read: FieldReadLevel::Protected)] public string $run_id = '';
+    #[Field(type: 'integer', read: FieldReadLevel::Internal)] public int $iteration = 0;
+    #[Field(type: 'string', read: FieldReadLevel::Internal)] public string $event_type = '';
+    #[Field(type: 'string', read: FieldReadLevel::Internal)] public mixed $tool_name = null;
+    #[Field(type: 'text', read: FieldReadLevel::Internal)] public mixed $tool_arguments_json = null;
+    #[Field(type: 'text', read: FieldReadLevel::Internal)] public mixed $tool_result_summary = null;
+    #[Field(type: 'boolean', read: FieldReadLevel::Internal)] public bool $success = false;
+    #[Field(type: 'integer', read: FieldReadLevel::Internal)] public mixed $duration_ms = null;
+    #[Field(type: 'datetime', read: FieldReadLevel::Internal)] public mixed $occurred_at = null;
+
     /**
      * @param array<string, mixed> $values Initial storage-canonical values.
      * @param string $entityTypeId Hydration override; default hardcoded.

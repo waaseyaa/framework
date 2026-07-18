@@ -6,11 +6,19 @@ namespace Waaseyaa\User\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 use Waaseyaa\User\User;
 
 #[CoversClass(User::class)]
 final class UserTwoFactorFieldsTest extends TestCase
 {
+    private UserInternalFieldReaderFixture $internal;
+
+    protected function setUp(): void
+    {
+        $this->internal = new UserInternalFieldReaderFixture();
+    }
+
     public function testTwoFactorSecretDefaultsToNull(): void
     {
         $user = new User();
@@ -31,7 +39,7 @@ final class UserTwoFactorFieldsTest extends TestCase
 
         $user->setTwoFactorSecret('JBSWY3DPEHPK3PXP');
 
-        $this->assertSame('JBSWY3DPEHPK3PXP', $user->getTwoFactorSecret());
+        $this->assertSame('JBSWY3DPEHPK3PXP', $this->internal->twoFactor($user)->secret);
     }
 
     public function testSetTwoFactorSecretAcceptsNull(): void
@@ -41,7 +49,7 @@ final class UserTwoFactorFieldsTest extends TestCase
 
         $user->setTwoFactorSecret(null);
 
-        $this->assertNull($user->getTwoFactorSecret());
+        $this->assertNull($this->internal->twoFactor($user)->secret);
     }
 
     public function testSetTwoFactorRecoveryCodesRoundTrips(): void
@@ -51,7 +59,7 @@ final class UserTwoFactorFieldsTest extends TestCase
 
         $user->setTwoFactorRecoveryCodesHash($hashes);
 
-        $this->assertSame($hashes, $user->getTwoFactorRecoveryCodesHash());
+        $this->assertSame($hashes, $this->internal->twoFactor($user)->recoveryCodeHashes);
     }
 
     public function testSetTwoFactorRecoveryCodesAcceptsNull(): void
@@ -61,7 +69,7 @@ final class UserTwoFactorFieldsTest extends TestCase
 
         $user->setTwoFactorRecoveryCodesHash(null);
 
-        $this->assertNull($user->getTwoFactorRecoveryCodesHash());
+        $this->assertSame([], $this->internal->twoFactor($user)->recoveryCodeHashes);
     }
 
     public function testRecoveryCodesGetterFiltersNonStringEntries(): void
@@ -71,7 +79,7 @@ final class UserTwoFactorFieldsTest extends TestCase
         // Set via the entity API directly to simulate corrupted/legacy data.
         $user->set('two_factor_recovery_codes_hash', ['valid', 123, null, 'also-valid']);
 
-        $this->assertSame(['valid', 'also-valid'], $user->getTwoFactorRecoveryCodesHash());
+        $this->assertSame(['valid', 'also-valid'], $this->internal->twoFactor($user)->recoveryCodeHashes);
     }
 
     public function testTwoFactorFieldsCoexistWithExistingUserFields(): void
@@ -80,12 +88,12 @@ final class UserTwoFactorFieldsTest extends TestCase
         $user->setTwoFactorSecret('JBSWY3DPEHPK3PXP');
         $user->setTwoFactorRecoveryCodesHash(['hash1']);
 
-        // Existing fields still work.
-        $this->assertSame('alice', $user->getName());
-        $this->assertSame('alice@example.com', $user->getEmail());
+        $mail = $this->internal->mailDelivery($user);
+        $this->assertSame('alice', $mail->name);
+        $this->assertSame('alice@example.com', $mail->mail);
 
-        // New fields also work.
-        $this->assertSame('JBSWY3DPEHPK3PXP', $user->getTwoFactorSecret());
-        $this->assertSame(['hash1'], $user->getTwoFactorRecoveryCodesHash());
+        $twoFactor = $this->internal->twoFactor($user);
+        $this->assertSame('JBSWY3DPEHPK3PXP', $twoFactor->secret);
+        $this->assertSame(['hash1'], $twoFactor->recoveryCodeHashes);
     }
 }

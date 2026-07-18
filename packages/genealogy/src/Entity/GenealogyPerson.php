@@ -25,18 +25,18 @@ final class GenealogyPerson extends ContentEntityBase
     #[Field(label: 'Birth date', settings: ['weight' => 3], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public ?string $birth_date = null;
 
-    #[Field(label: 'Death date', settings: ['weight' => 4], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(label: 'Death date', settings: ['weight' => 4, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public ?string $death_date = null;
 
-    #[Field(type: 'boolean', label: 'Living (manual)', description: 'When true, stricter visibility applies for non-owners. Default true (conservative) when dates are unknown.', default: true, settings: ['weight' => 5], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(type: 'boolean', label: 'Living (manual)', description: 'When true, stricter visibility applies for non-owners. Default true (conservative) when dates are unknown.', default: true, settings: ['weight' => 5, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public bool $is_living = true;
 
-    #[Field(type: 'integer', label: 'Tree', description: 'Owning genealogy_tree entity id.', settings: ['weight' => 6, 'not_null' => false], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(type: 'integer', label: 'Tree', description: 'Owning genealogy_tree entity id.', settings: ['weight' => 6, 'not_null' => false, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public ?int $tree_id = null;
 
     #[Field(label: 'Deleted at', description: 'Non-empty ISO-ish tombstone timestamp when soft-deleted.', default: '', settings: ['weight' => 9, 'length' => 32], read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
     public string $deleted_at = '';
 
-    #[Field(type: 'boolean', label: 'Published', default: false, settings: ['weight' => 10], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(type: 'boolean', label: 'Published', default: false, settings: ['weight' => 10, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public bool $status = false;
 }

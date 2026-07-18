@@ -261,6 +261,7 @@ final class AsyncHttpRunTest extends TestCase
             broadcaster: $broadcaster,
             provider: new NullLlmProvider(),
             accountLoader: new StubInitiatorAccountLoader(),
+            workerReader: new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture(),
         );
 
         $bus = new MessageBus([
@@ -283,6 +284,7 @@ final class AsyncHttpRunTest extends TestCase
             broadcaster: $broadcaster,
             accessPolicy: new AgentRunAccessPolicy($this->runRepository),
             validator: new AgentRunRequestValidator(),
+            accountProjectionReader: new \Waaseyaa\Tests\Support\AgentRunAccountProjectionReaderFixture(),
         );
     }
 

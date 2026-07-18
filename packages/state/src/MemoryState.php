@@ -9,7 +9,15 @@ namespace Waaseyaa\State;
  */
 final class MemoryState implements StateInterface
 {
-    public function __construct(private readonly ?ProjectionDeprecationDiagnostic $projectionDiagnostic = null) {}
+    private readonly ProjectionDeprecationDiagnostic $projectionDiagnostic;
+
+    public function __construct(?ProjectionDeprecationDiagnostic $projectionDiagnostic = null)
+    {
+        $this->projectionDiagnostic = $projectionDiagnostic ?? ProjectionDeprecationDiagnostic::forEntityPayloads(
+            static function (): void {},
+            EntityPayloadBoundaryConfig::enforced(),
+        );
+    }
 
     /** @var array<string, mixed> */
     private array $data = [];
@@ -38,7 +46,7 @@ final class MemoryState implements StateInterface
 
     public function set(string $key, mixed $value): void
     {
-        $value = $this->projectionDiagnostic?->inspect($key, $value) ?? $value;
+        $value = $this->projectionDiagnostic->inspect($key, $value);
         $this->data[$key] = $value;
     }
 

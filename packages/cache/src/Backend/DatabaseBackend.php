@@ -6,6 +6,7 @@ namespace Waaseyaa\Cache\Backend;
 
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Cache\CacheItem;
+use Waaseyaa\Cache\EntityPayloadBoundaryConfig;
 use Waaseyaa\Cache\ProjectionDeprecationDiagnostic;
 use Waaseyaa\Cache\TagAwareCacheInterface;
 use Waaseyaa\Foundation\Security\SensitiveKey;
@@ -32,16 +33,21 @@ final class DatabaseBackend implements TagAwareCacheInterface
 
     private bool $tableInitialized = false;
     private readonly ?SensitiveKey $hmacKey;
+    private readonly ProjectionDeprecationDiagnostic $projectionDiagnostic;
 
     public function __construct(
         private readonly \PDO $pdo,
         private readonly string $bin = 'cache_default',
         #[\SensitiveParameter]
         ?string $hmacKey = null,
-        private readonly ?ProjectionDeprecationDiagnostic $projectionDiagnostic = null,
+        ?ProjectionDeprecationDiagnostic $projectionDiagnostic = null,
     ) {
         $this->pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
         $this->hmacKey = ($hmacKey === '' || $hmacKey === null ? null : new SensitiveKey($hmacKey));
+        $this->projectionDiagnostic = $projectionDiagnostic ?? ProjectionDeprecationDiagnostic::forEntityPayloads(
+            static function (): void {},
+            EntityPayloadBoundaryConfig::enforced(),
+        );
     }
 
     public function get(string $cid): CacheItem|false
@@ -94,7 +100,7 @@ final class DatabaseBackend implements TagAwareCacheInterface
     {
         $this->ensureTable();
 
-        $data = $this->projectionDiagnostic?->inspect($cid, $data) ?? $data;
+        $data = $this->projectionDiagnostic->inspect($cid, $data);
         $serialized = serialize($data);
         $tagsString = implode(',', $tags);
         $now = time();

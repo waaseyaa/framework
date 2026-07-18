@@ -115,8 +115,8 @@ final class GuardWiringTest extends TestCase
 
         $stored = $repository->find((string) $entity->id());
         $this->assertNotNull($stored);
-        $this->assertSame('draft', $stored->get('workflow_state'));
-        $this->assertSame(0, $stored->get('status'));
+        $this->assertSame('draft', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($stored));
+        $this->assertSame(0, \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($stored));
     }
 
     /**
@@ -501,6 +501,7 @@ final class GuardWiringSpyLogger implements LoggerInterface
 final class GuardWiringSubject extends ContentEntityBase implements RevisionableInterface, RevisionableEntityInterface
 {
     use RevisionableEntityTrait;
+    use \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectFields;
 
     public function __construct(
         array $values = [],

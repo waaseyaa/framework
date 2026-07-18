@@ -10,6 +10,10 @@
         },
         {
             "type": "path",
+            "url": "../audit"
+        },
+        {
+            "type": "path",
             "url": "../database-legacy"
         },
         {
@@ -29,6 +33,7 @@
         "php": "^8.5",
         "symfony/http-foundation": "^7.0",
         "waaseyaa/access": "^0.1.0-alpha.267",
+        "waaseyaa/audit": "^0.1.0-alpha.267",
         "waaseyaa/database-legacy": "^0.1.0-alpha.267",
         "waaseyaa/entity": "^0.1.0-alpha.267",
         "waaseyaa/foundation": "^0.1.0-alpha.267"

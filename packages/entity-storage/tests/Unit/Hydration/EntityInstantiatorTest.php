@@ -19,13 +19,57 @@ use Waaseyaa\Entity\Hydration\HydrationContext;
 use Waaseyaa\EntityStorage\Hydration\EntityInstantiator;
 use Waaseyaa\EntityStorage\Tests\Fixtures\HydratableFromStorageTestEntity;
 use Waaseyaa\EntityStorage\Tests\Fixtures\NonHydratableEntity;
+use Waaseyaa\EntityStorage\Tests\Fixtures\TestConfigEntity;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
+use Waaseyaa\Field\FieldDefinition;
 
 #[CoversClass(EntityInstantiator::class)]
 final class EntityInstantiatorTest extends TestCase
 {
     #[Test]
-    public function instantiateUsesFromStorageWhenImplemented(): void
+    public function imperative_entity_type_public_field_remains_readable_after_sealed_hydration(): void
+    {
+        $entityType = new EntityType(
+            id: 'test_config',
+            label: 'Configuration',
+            class: TestConfigEntity::class,
+            keys: ['id' => 'type', 'label' => 'name'],
+            _fieldDefinitions: [
+                'name' => new FieldDefinition('name', 'string', read: FieldReadLevel::Public),
+            ],
+        );
+
+        $entity = new EntityInstantiator($entityType)->instantiate(TestConfigEntity::class, [
+            'type' => 'article',
+            'name' => 'Article',
+        ]);
+
+        self::assertSame('Article', $entity->label());
+    }
+
+    #[Test]
+    public function imperative_and_attribute_read_classifications_cannot_disagree(): void
+    {
+        $entityType = new EntityType(
+            id: 'hydratable_test_entity',
+            label: 'Hydratable Test',
+            class: HydratableFromStorageTestEntity::class,
+            keys: ['id' => 'id', 'label' => 'label'],
+            _fieldDefinitions: [
+                'label' => new FieldDefinition('label', 'string', read: FieldReadLevel::Internal),
+            ],
+        );
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('Conflicting field-read definitions for hydratable_test_entity.label.');
+        new EntityInstantiator($entityType)->instantiate(HydratableFromStorageTestEntity::class, [
+            'id' => '1',
+            'label' => 'Article',
+        ]);
+    }
+
+    #[Test]
+    public function instantiateBypassesFrameworkFromStorageCallbacks(): void
     {
         $entityType = new EntityType(
             id: 'hydratable_test_entity',
@@ -49,8 +93,8 @@ final class EntityInstantiatorTest extends TestCase
         ]);
 
         $this->assertInstanceOf(HydratableFromStorageTestEntity::class, $entity);
-        $this->assertTrue($entity->get('_rehydrated_via_storage'));
-        $this->assertSame('hydratable_test_entity', $entity->get('_context_type'));
+        $this->assertNotContains('_rehydrated_via_storage', $entity->fieldNames());
+        $this->assertNotContains('_context_type', $entity->fieldNames());
         $structure = $entity->entityStructure();
         $this->assertSame('hydratable_test_entity', $structure->entityTypeId);
         $this->assertSame('b', $structure->bundleId);
@@ -64,7 +108,7 @@ final class EntityInstantiatorTest extends TestCase
     }
 
     #[Test]
-    public function instantiateThrowsWhenEntityIsNotHydratableFromStorage(): void
+    public function instantiateDoesNotRequireLegacyHydrationForEntityBase(): void
     {
         $entityType = new EntityType(
             id: 'test_entity',
@@ -80,14 +124,36 @@ final class EntityInstantiatorTest extends TestCase
         );
 
         $instantiator = new EntityInstantiator($entityType);
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('must implement');
-        $instantiator->instantiate(NonHydratableEntity::class, [
+        $entity = $instantiator->instantiate(NonHydratableEntity::class, [
             'id' => '1',
             'label' => 'Legacy',
             'bundle' => 'article',
             'langcode' => 'en',
         ]);
+
+        self::assertInstanceOf(NonHydratableEntity::class, $entity);
+        self::assertSame('1', $entity->id());
+    }
+
+    #[Test]
+    public function sealed_creation_generates_a_missing_uuid_and_preserves_a_hydrated_uuid(): void
+    {
+        $entityType = new EntityType(
+            id: 'test_entity',
+            label: 'Test',
+            class: NonHydratableEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid'],
+        );
+        $instantiator = new EntityInstantiator($entityType);
+
+        $created = $instantiator->instantiate(NonHydratableEntity::class, []);
+        self::assertNotSame('', $created->uuid());
+        self::assertSame($created->uuid(), $created->get('uuid'));
+
+        $storedUuid = '018f5f20-0000-7000-8000-000000000001';
+        $hydrated = $instantiator->instantiate(NonHydratableEntity::class, ['uuid' => $storedUuid]);
+        self::assertSame($storedUuid, $hydrated->uuid());
+        self::assertSame($storedUuid, $hydrated->get('uuid'));
     }
 
     #[Test]
@@ -132,6 +198,30 @@ final class EntityInstantiatorTest extends TestCase
         self::assertSame(0, SealedHydrationFixture::$fromStorageCalls);
         self::assertSame(7, $entity->id());
         self::assertSame(['id', 'mail', 'name'], $entity->fieldNames());
+        $this->expectException(FieldReadDenied::class);
+        $entity->get('mail');
+    }
+
+    #[Test]
+    public function ordinary_framework_hydration_uses_the_atomic_sealed_path(): void
+    {
+        SealedHydrationFixture::$constructorCalls = 0;
+        SealedHydrationFixture::$fromStorageCalls = 0;
+        $entityType = new EntityType(
+            id: 'sealed_hydration',
+            label: 'Sealed hydration',
+            class: SealedHydrationFixture::class,
+            keys: ['id' => 'id', 'label' => 'name'],
+        );
+
+        $entity = new EntityInstantiator($entityType)->instantiate(
+            SealedHydrationFixture::class,
+            ['id' => 7, 'name' => 'Member', 'mail' => 'member@example.test'],
+        );
+
+        self::assertSame(0, SealedHydrationFixture::$constructorCalls);
+        self::assertSame(0, SealedHydrationFixture::$fromStorageCalls);
+        self::assertSame(7, $entity->id());
         $this->expectException(FieldReadDenied::class);
         $entity->get('mail');
     }

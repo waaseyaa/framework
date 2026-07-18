@@ -12,6 +12,7 @@ use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Note\Ingestion\IngestionEnvelope;
 use Waaseyaa\Note\Ingestion\NoteIngester;
+use Waaseyaa\Note\Ingestion\NoteIngestionMetadataReader;
 use Waaseyaa\Note\Note;
 
 #[CoversClass(NoteIngester::class)]
@@ -74,8 +75,9 @@ final class NoteIngesterTest extends TestCase
 
         $note = $this->ingester->ingest($envelope);
 
-        $this->assertSame('api:import-script', $note->get('ingestion_source'));
-        $this->assertSame('2026-03-07T12:00:00Z', $note->get('ingested_at'));
+        $metadata = new NoteIngestionMetadataReader()->read($note);
+        $this->assertSame('api:import-script', $metadata->source);
+        $this->assertSame('2026-03-07T12:00:00Z', $metadata->ingestedAt);
     }
 
     #[Test]

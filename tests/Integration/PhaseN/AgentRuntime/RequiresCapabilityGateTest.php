@@ -129,7 +129,7 @@ final class RequiresCapabilityGateTest extends TestCase
             $run->getStatus(),
             'A run whose initiator lacks the required capability must land Failed, not Completed.',
         );
-        self::assertSame('missing_capability', $run->get('error_code'));
+        self::assertSame('missing_capability', new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture()->read($run)->errorCode);
 
         // Prove the executor/agent loop never ran: IterationStart is the
         // first audit row AgentExecutor::doExecuteRun() writes.
@@ -324,6 +324,7 @@ final class RequiresCapabilityGateTest extends TestCase
             broadcaster: $this->broadcaster,
             provider: $provider ?? new NullLlmProvider(),
             accountLoader: new CapabilityTestAccountLoader(),
+            workerReader: new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture(),
         );
 
         $bus = new MessageBus([

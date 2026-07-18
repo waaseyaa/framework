@@ -22,12 +22,12 @@ final class GenealogyEvent extends ContentEntityBase
     #[Field(label: 'Event date', settings: ['weight' => 2], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public ?string $event_date = null;
 
-    #[Field(type: 'integer', label: 'Tree', settings: ['weight' => 3, 'not_null' => false], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(type: 'integer', label: 'Tree', settings: ['weight' => 3, 'not_null' => false, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public ?int $tree_id = null;
 
     #[Field(label: 'Deleted at', default: '', settings: ['weight' => 9, 'length' => 32], read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
     public string $deleted_at = '';
 
-    #[Field(type: 'boolean', label: 'Published', default: false, settings: ['weight' => 10], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(type: 'boolean', label: 'Published', default: false, settings: ['weight' => 10, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public bool $status = false;
 }

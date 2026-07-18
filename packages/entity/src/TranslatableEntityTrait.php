@@ -227,7 +227,6 @@ trait TranslatableEntityTrait
     public function _setTranslationData(array $data, string $defaultLc): void
     {
         $this->replaceTranslationValues($data);
-        parent::set('default_langcode', $defaultLc);
         $this->activeLangcode = null;
         $known = array_keys($data);
         if (!in_array($defaultLc, $known, true)) {

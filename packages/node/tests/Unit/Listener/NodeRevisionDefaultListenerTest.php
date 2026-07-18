@@ -8,9 +8,12 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\Event\EntityEvent;
+use Waaseyaa\EntityStorage\Hydration\EntityInstantiator;
+use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\Node\Listener\NodeRevisionDefaultListener;
 use Waaseyaa\Node\Node;
 use Waaseyaa\Node\NodeType;
+use Waaseyaa\Node\NodeServiceProvider;
 use Waaseyaa\Node\Tests\Unit\Fixtures\StubNodeTypeEntityTypeManager;
 
 /**
@@ -35,6 +38,31 @@ final class NodeRevisionDefaultListenerTest extends TestCase
         $listener(new EntityEvent($node));
 
         $this->assertFalse($node->isNewRevision());
+    }
+
+    #[Test]
+    public function forwards_the_default_from_a_production_sealed_node_type(): void
+    {
+        $provider = new NodeServiceProvider();
+        $provider->register();
+        $definition = $provider->getEntityTypes()[1];
+        $registry = new FieldDefinitionRegistry();
+        $registry->registerCoreFields('node_type', $definition->getFieldDefinitions());
+        $nodeType = new EntityInstantiator($definition, $registry)->instantiate(NodeType::class, [
+            'type' => 'note',
+            'name' => 'Note',
+            'description' => '',
+            'new_revision' => false,
+            'display_submitted' => true,
+            'status' => true,
+        ]);
+        self::assertInstanceOf(NodeType::class, $nodeType);
+        $node = new Node(['type' => 'note', 'title' => 'T', 'slug' => 't']);
+        $listener = new NodeRevisionDefaultListener(new StubNodeTypeEntityTypeManager(['note' => $nodeType]));
+
+        $listener(new EntityEvent($node));
+
+        self::assertFalse($node->isNewRevision());
     }
 
     #[Test]

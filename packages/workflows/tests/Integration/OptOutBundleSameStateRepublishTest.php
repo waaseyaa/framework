@@ -174,7 +174,7 @@ final class OptOutBundleSameStateRepublishTest extends TestCase
 
         $workingCopy = $nodeRepository->loadWorkingCopy($entityId);
         $this->assertNotNull($workingCopy);
-        $this->assertSame('draft', $workingCopy->get('workflow_state'));
+        $this->assertSame('draft', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($workingCopy));
         $this->assertSame('Forward draft after abort', $workingCopy->get('title'));
     }
 

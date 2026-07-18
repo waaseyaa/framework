@@ -57,6 +57,8 @@ final class RelationshipEndpointVisibilityPolicy implements AccessPolicyInterfac
     private const array TO_FIELDS = ['to_entity_type', 'to_entity_id'];
     private const array FROM_FIELDS = ['from_entity_type', 'from_entity_id'];
 
+    private readonly RelationshipTopologyReader $topologyReader;
+
     /**
      * Deliberately NOT memoized across calls: this policy is constructed once
      * at kernel boot and registered on the long-lived {@see EntityAccessHandler}.
@@ -71,7 +73,10 @@ final class RelationshipEndpointVisibilityPolicy implements AccessPolicyInterfac
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly EntityAccessHandler $accessHandler,
-    ) {}
+        ?RelationshipTopologyReader $topologyReader = null,
+    ) {
+        $this->topologyReader = $topologyReader ?? new RelationshipTopologyReader();
+    }
 
     public function appliesTo(string $entityTypeId): bool
     {
@@ -81,14 +86,15 @@ final class RelationshipEndpointVisibilityPolicy implements AccessPolicyInterfac
     public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
     {
         if ($operation === 'view' && $entity instanceof Relationship) {
+            $topology = $this->topologyReader->read($entity);
             $fromViewable = $this->isEndpointViewable(
-                (string) ($entity->get('from_entity_type') ?? ''),
-                (string) ($entity->get('from_entity_id') ?? ''),
+                $topology->fromType,
+                $topology->fromId,
                 $account,
             );
             $toViewable = $this->isEndpointViewable(
-                (string) ($entity->get('to_entity_type') ?? ''),
-                (string) ($entity->get('to_entity_id') ?? ''),
+                $topology->toType,
+                $topology->toId,
                 $account,
             );
 
@@ -116,11 +122,11 @@ final class RelationshipEndpointVisibilityPolicy implements AccessPolicyInterfac
         }
 
         if (in_array($fieldName, self::TO_FIELDS, true)) {
-            return $this->redactIfEndpointHidden($entity, 'to_entity_type', 'to_entity_id', $account);
+            return $this->redactIfEndpointHidden($entity, 'to_entity_type', $account);
         }
 
         if (in_array($fieldName, self::FROM_FIELDS, true)) {
-            return $this->redactIfEndpointHidden($entity, 'from_entity_type', 'from_entity_id', $account);
+            return $this->redactIfEndpointHidden($entity, 'from_entity_type', $account);
         }
 
         return AccessResult::neutral();
@@ -129,11 +135,12 @@ final class RelationshipEndpointVisibilityPolicy implements AccessPolicyInterfac
     private function redactIfEndpointHidden(
         Relationship $edge,
         string $typeField,
-        string $idField,
         AccountInterface $account,
     ): AccessResult {
-        $endpointType = (string) ($edge->get($typeField) ?? '');
-        $endpointId = (string) ($edge->get($idField) ?? '');
+        $topology = $this->topologyReader->read($edge);
+        [$endpointType, $endpointId] = $typeField === 'to_entity_type'
+            ? [$topology->toType, $topology->toId]
+            : [$topology->fromType, $topology->fromId];
 
         return $this->isEndpointViewable($endpointType, $endpointId, $account)
             ? AccessResult::neutral('Endpoint entity is viewable.')

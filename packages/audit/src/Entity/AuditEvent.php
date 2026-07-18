@@ -36,19 +36,6 @@ final class AuditEvent extends ContentEntityBase
         parent::__construct($values, $entityTypeId, $entityKeys, $fieldDefinitions);
     }
 
-    /**
-     * Flat value accessor for the append-only audit read model.
-     *
-     * audit_event is not a registered entity type, so bypass
-     * TranslatableEntityTrait::get() — which resolves getEntityType() and would
-     * throw for an unregistered type — and read the value bag directly. Audit
-     * rows are never translatable and carry no field casts.
-     */
-    public function get(string $name): mixed
-    {
-        return parent::get($name);
-    }
-
     public function getEventKind(): string
     {
         return (string) ($this->get('event_kind') ?? '');

@@ -7,9 +7,16 @@ namespace Waaseyaa\Messaging;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Access\Gate\PolicyAttribute;
+use Waaseyaa\Access\PolicySubjectViewInterface;
+use Waaseyaa\Access\ProtectedEntityReadPolicyInterface;
+use Waaseyaa\Access\ProtectedFieldReadPolicyInterface;
+use Waaseyaa\Access\ProtectedReadPolicyProviderInterface;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityStructure;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 
 /**
@@ -39,14 +46,48 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
  * in which case participation cannot be proven and access fails closed.
  */
 #[PolicyAttribute(entityType: ['message_thread', 'thread_message', 'thread_participant'])]
-final class MessagingAccessPolicy implements AccessPolicyInterface, FieldAccessPolicyInterface
+final class MessagingAccessPolicy implements AccessPolicyInterface, FieldAccessPolicyInterface, ProtectedReadPolicyProviderInterface
 {
     /** @var list<string> */
     private const TYPES = ['message_thread', 'thread_message', 'thread_participant'];
 
+    /** @var \Closure(EntityBase): PolicySubjectViewInterface */
+    private readonly \Closure $policySubjectAuthority;
+
     public function __construct(
         private readonly ?EntityTypeManagerInterface $entityTypeManager = null,
-    ) {}
+    ) {
+        $this->policySubjectAuthority = \Closure::bind(
+            static fn(EntityBase $entity): PolicySubjectViewInterface => $entity->valueContainer->entityPolicySubjectView(),
+            null,
+            EntityBase::class,
+        );
+    }
+
+    public function protectedEntityReadPolicy(): ProtectedEntityReadPolicyInterface
+    {
+        return new MessagingProtectedEntityReadPolicy($this);
+    }
+
+    public function protectedFieldReadPolicy(): ProtectedFieldReadPolicyInterface
+    {
+        return new MessagingProtectedFieldReadPolicy($this);
+    }
+
+    /** @internal Immutable-principal view decision over exact structural and compiled inputs. */
+    public function protectedViewAccess(
+        AuthorizationPrincipalInterface $principal,
+        EntityStructure $structure,
+        PolicySubjectViewInterface $subject,
+    ): AccessResult {
+        if ($principal->hasPermission('administer content')) {
+            return AccessResult::allowed('Admin permission.');
+        }
+
+        return $this->isParticipant($this->threadIdForSubject($structure, $subject), $principal)
+            ? AccessResult::allowed('Thread participant.')
+            : AccessResult::forbidden('Not a thread participant.');
+    }
 
     public function appliesTo(string $entityTypeId): bool
     {
@@ -123,7 +164,18 @@ final class MessagingAccessPolicy implements AccessPolicyInterface, FieldAccessP
             return (int) $entity->id();
         }
 
+        if ($entity instanceof EntityBase) {
+            return (int) (($this->policySubjectAuthority)($entity)->get('thread_id') ?? 0);
+        }
+
         return (int) ($entity->get('thread_id') ?? 0);
+    }
+
+    private function threadIdForSubject(EntityStructure $structure, PolicySubjectViewInterface $subject): int
+    {
+        return $structure->entityTypeId === 'message_thread'
+            ? (int) ($structure->id ?? 0)
+            : (int) ($subject->get('thread_id') ?? 0);
     }
 
     private function isParticipant(int $threadId, AccountInterface $account): bool
@@ -147,5 +199,37 @@ final class MessagingAccessPolicy implements AccessPolicyInterface, FieldAccessP
         } catch (\Throwable) {
             return false;
         }
+    }
+}
+
+/** Participant-only Protected entity visibility. @api */
+final readonly class MessagingProtectedEntityReadPolicy implements ProtectedEntityReadPolicyInterface
+{
+    public function __construct(private MessagingAccessPolicy $policy) {}
+
+    public function access(
+        AuthorizationPrincipalInterface $principal,
+        EntityStructure $structure,
+        PolicySubjectViewInterface $subject,
+        string $operation,
+    ): AccessResult {
+        return $operation === 'view'
+            ? $this->policy->protectedViewAccess($principal, $structure, $subject)
+            : AccessResult::neutral();
+    }
+}
+
+/** Releases messaging fields only to a participant of their containing thread. @api */
+final readonly class MessagingProtectedFieldReadPolicy implements ProtectedFieldReadPolicyInterface
+{
+    public function __construct(private MessagingAccessPolicy $policy) {}
+
+    public function access(
+        AuthorizationPrincipalInterface $principal,
+        EntityStructure $structure,
+        PolicySubjectViewInterface $subject,
+        string $fieldName,
+    ): AccessResult {
+        return $this->policy->protectedViewAccess($principal, $structure, $subject);
     }
 }

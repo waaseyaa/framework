@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Workflows;
 
-use Waaseyaa\Relationship\VisibilityFilterInterface;
+use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Relationship\EntityVisibilityFilterInterface;
 
-final class WorkflowVisibilityFilter implements VisibilityFilterInterface
+final class WorkflowVisibilityFilter implements EntityVisibilityFilterInterface
 {
     public function __construct(
         private readonly WorkflowVisibility $workflowVisibility = new WorkflowVisibility(),
@@ -15,5 +16,10 @@ final class WorkflowVisibilityFilter implements VisibilityFilterInterface
     public function isEntityPublic(string $entityType, array $values): bool
     {
         return $this->workflowVisibility->isEntityPublic($entityType, $values);
+    }
+
+    public function isEntityPublicForEntity(EntityInterface $entity): bool
+    {
+        return $this->workflowVisibility->isEntityPublicForEntity($entity);
     }
 }

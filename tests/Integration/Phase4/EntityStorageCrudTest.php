@@ -7,11 +7,13 @@ namespace Waaseyaa\Tests\Integration\Phase4;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityConstants;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
@@ -481,6 +483,10 @@ final class EntityStorageCrudTest extends TestCase
  */
 class TestArticleEntity extends ContentEntityBase
 {
+    #[Field(type: 'string', read: FieldReadLevel::Public)] public string $title;
+    #[Field(type: 'text', read: FieldReadLevel::Public)] public string $body;
+    #[Field(type: 'integer', read: FieldReadLevel::Public)] public int $status;
+
     public function __construct(
         array $values = [],
         string $entityTypeId = 'article',

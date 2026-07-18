@@ -20,6 +20,8 @@ use Waaseyaa\Entity\ContentEntityBase;
 #[ContentEntityKeys(id: 'id', uuid: 'uuid', label: 'title', bundle: 'type', langcode: 'langcode', default_langcode: 'default_langcode')]
 class TranslatableTestEntity extends ContentEntityBase implements MutableTranslatableInterface
 {
+    use ApiPublicContentFields;
+
     /**
      * Translation storage: langcode => TranslatableTestEntity.
      *
@@ -38,7 +40,7 @@ class TranslatableTestEntity extends ContentEntityBase implements MutableTransla
             $values['langcode'] = 'en';
         }
 
-        parent::__construct($values, $entityTypeId, $entityKeys, $fieldDefinitions);
+        parent::__construct($values, $entityTypeId, $entityKeys, ApiFixtureFieldDefinitions::mergePublic($values, $fieldDefinitions));
     }
 
     /**
@@ -112,16 +114,6 @@ class TranslatableTestEntity extends ContentEntityBase implements MutableTransla
             $this->entityKeys,
             $this->fieldDefinitions,
         );
-
-        // Share the same ID and UUID as the source entity.
-        $idKey = $this->entityKeys['id'] ?? 'id';
-        $id = $this->get($idKey);
-        if ($id !== null) {
-            $translation->set($idKey, $id);
-        }
-
-        $uuidKey = $this->entityKeys['uuid'] ?? 'uuid';
-        $translation->set($uuidKey, $this->get($uuidKey));
 
         // Register the new translation so hasTranslation() and getTranslation()
         // return it from now on.

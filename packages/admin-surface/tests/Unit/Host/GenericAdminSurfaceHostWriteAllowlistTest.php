@@ -17,8 +17,10 @@ use Waaseyaa\Api\Schema\SchemaPresenter;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionRegistry;
 
@@ -35,9 +37,15 @@ use Waaseyaa\Field\FieldDefinitionRegistry;
 #[CoversClass(GenericAdminSurfaceHost::class)]
 final class GenericAdminSurfaceHostWriteAllowlistTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        EntityReadRuntime::installFieldRegistry(null);
+    }
+
     private function bundledHost(AccessResult $createAccess): GenericAdminSurfaceHost
     {
         $registry = new FieldDefinitionRegistry();
+        EntityReadRuntime::installFieldRegistry($registry);
         $storage = new InMemoryEntityStorage('article');
         $entityTypeManager = new EntityTypeManager(
             new EventDispatcher(),
@@ -57,6 +65,7 @@ final class GenericAdminSurfaceHostWriteAllowlistTest extends TestCase
                 type: 'text',
                 targetEntityTypeId: 'article',
                 targetBundle: 'page',
+                read: FieldReadLevel::Public,
             ),
         ]);
 

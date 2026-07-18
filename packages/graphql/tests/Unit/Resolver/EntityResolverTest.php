@@ -500,7 +500,11 @@ final class EntityResolverTest extends TestCase
         $result = $resolver->resolveUpdate('article', $entity->id(), ['title' => 'New', 'published_revision_id' => 99]);
 
         self::assertSame('New', $result['title']);
-        self::assertSame(99, $this->storage->load($entity->id())->get('published_revision_id'));
+        self::assertArrayNotHasKey(
+            'published_revision_id',
+            $result,
+            'The accepted Internal pointer echo is stripped from both the mutation payload and the ordinary response.',
+        );
     }
 
     #[Test]

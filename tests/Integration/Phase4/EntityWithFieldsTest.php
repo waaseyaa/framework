@@ -7,9 +7,11 @@ namespace Waaseyaa\Tests\Integration\Phase4;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityConstants;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
@@ -467,6 +469,13 @@ final class EntityWithFieldsTest extends TestCase
  */
 class TestProductEntity extends ContentEntityBase
 {
+    #[Field(type: 'string', read: FieldReadLevel::Public)] public string $label;
+    #[Field(type: 'float', read: FieldReadLevel::Public)] public float $price;
+    #[Field(type: 'string', read: FieldReadLevel::Public)] public string $sku;
+    #[Field(type: 'integer', read: FieldReadLevel::Public)] public int $stock_count;
+    #[Field(type: 'text', read: FieldReadLevel::Public)] public string $description;
+    #[Field(type: 'integer', read: FieldReadLevel::Public)] public int $is_active;
+
     public function __construct(
         array $values = [],
         string $entityTypeId = 'product',

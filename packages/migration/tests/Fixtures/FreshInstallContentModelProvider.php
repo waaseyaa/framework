@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Migration\Tests\Fixtures;
 
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Migration\ContentModel\ContentModel;
@@ -48,6 +49,7 @@ final class FreshInstallContentModelProvider extends ServiceProvider implements 
                         type: 'text_long',
                         targetEntityTypeId: self::ENTITY_TYPE,
                         targetBundle: self::BUNDLE,
+                        read: FieldReadLevel::Public,
                     ),
                 ],
             ),

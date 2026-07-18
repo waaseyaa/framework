@@ -9,14 +9,18 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\Context\AccountContextInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\Context\RequestAccountContext;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\FieldReadGuard;
 use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
 use Waaseyaa\Config\ConfigFactory;
 use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\Storage\MemoryStorage;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
@@ -80,21 +84,44 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
         $request->attributes->set('_account', $admin);
         self::assertNotNull($host->resolveSession($request), 'sanity: the admin account must pass session resolution');
 
+        $scope = new AccountFieldReadScope();
+        EntityReadRuntime::installGuard(new FieldReadGuard(
+            $scope,
+            static fn(...$args): \Waaseyaa\Access\AccessResult => \Waaseyaa\Access\AccessResult::allowed(
+                'The explicit admin edit-surface principal may read Protected node fields.',
+            ),
+        ));
+        $principal = new AuthorizationPrincipal(
+            41,
+            true,
+            ['administrator'],
+            ['administer nodes', 'administer content', 'use editorial transition publish'],
+            'admin-surface-write-flow-test',
+        );
+
         // The "load for editing" a real SchemaForm.vue performs.
-        $getResult = $host->get('node', $entityId);
+        $getResult = $scope->run($principal, fn() => $host->get('node', $entityId));
         self::assertTrue($getResult->ok, 'sanity: get() must succeed: ' . json_encode($getResult->error));
         $loadedAttributes = $getResult->data['attributes'];
-        self::assertArrayHasKey('published_revision_id', $loadedAttributes);
+        self::assertArrayNotHasKey(
+            'published_revision_id',
+            $loadedAttributes,
+            'The internal publication pointer must be concealed from the generic edit surface.',
+        );
 
         // SchemaForm.vue's exact shape: `formData.value = { ...entityResult.value.attributes }`,
         // one field edited, then `update(props.entityType, props.entityId, formData.value)`.
         $patchAttributes = $loadedAttributes;
         $patchAttributes['title'] = 'Edited via the admin surface round trip';
 
-        $updateResult = $host->action('node', 'update', [
-            'id' => $entityId,
-            'attributes' => $patchAttributes,
-        ]);
+        try {
+            $updateResult = $scope->run($principal, fn() => $host->action('node', 'update', [
+                'id' => $entityId,
+                'attributes' => $patchAttributes,
+            ]));
+        } finally {
+            EntityReadRuntime::installGuard(null);
+        }
 
         self::assertTrue($updateResult->ok, 'a full-attribute echo PATCH through the host must not fail: ' . json_encode($updateResult->error));
         self::assertSame('Edited via the admin surface round trip', $updateResult->data['attributes']['title']);
@@ -139,10 +166,22 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
     {
         return new class ($id, $permissions) implements AccountInterface {
             public function __construct(private readonly int $accountId, private readonly array $permissions) {}
-            public function id(): int|string { return $this->accountId; }
-            public function hasPermission(string $permission): bool { return \in_array($permission, $this->permissions, true); }
-            public function getRoles(): array { return []; }
-            public function isAuthenticated(): bool { return true; }
+            public function id(): int|string
+            {
+                return $this->accountId;
+            }
+            public function hasPermission(string $permission): bool
+            {
+                return \in_array($permission, $this->permissions, true);
+            }
+            public function getRoles(): array
+            {
+                return [];
+            }
+            public function isAuthenticated(): bool
+            {
+                return true;
+            }
         };
     }
 

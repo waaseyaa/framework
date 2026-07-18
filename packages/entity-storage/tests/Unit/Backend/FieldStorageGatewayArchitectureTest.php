@@ -13,6 +13,8 @@ use Waaseyaa\EntityStorage\Backend\FieldStorageBackendV2Interface;
 use Waaseyaa\EntityStorage\Backend\FieldStorageGatewayInput;
 use Waaseyaa\EntityStorage\Backend\FieldStorageGatewayOutput;
 use Waaseyaa\EntityStorage\Backend\FieldStorageGatewayRole;
+use Waaseyaa\EntityStorage\Backend\SqlBlobBackend;
+use Waaseyaa\EntityStorage\Backend\SqlColumnBackend;
 
 #[CoversNothing]
 final class FieldStorageGatewayArchitectureTest extends TestCase
@@ -81,6 +83,60 @@ final class FieldStorageGatewayArchitectureTest extends TestCase
             ['Backend/FieldStorageGatewayAuthority.php'],
             $this->filesContaining($sourceRoot, 'FieldStorageGatewayRole::forAuthority('),
         );
+    }
+
+    #[Test]
+    public function wp4_removes_the_v1_spi_and_raw_registrar_exposure_without_fallback(): void
+    {
+        $packageRoot = dirname(__DIR__, 3);
+        foreach ([
+            'src/Backend/FieldStorageBackendInterface.php',
+            'src/Backend/HasFieldStorageBackendsInterface.php',
+            'src/Backend/IsFrameworkBackendProviderInterface.php',
+            'testing/Contract/FieldStorageBackendContractTestCase.php',
+        ] as $relative) {
+            self::assertFileDoesNotExist($packageRoot . '/' . $relative, $relative);
+        }
+
+        $publicMethods = array_map(
+            static fn(\ReflectionMethod $method): string => $method->getName(),
+            new \ReflectionClass(BackendRegistrar::class)->getMethods(\ReflectionMethod::IS_PUBLIC),
+        );
+        self::assertNotContains('get', $publicMethods);
+        self::assertNotContains('all', $publicMethods);
+        self::assertNotContains('v1BackendBlockers', $publicMethods);
+
+        self::assertTrue(is_subclass_of(SqlBlobBackend::class, FieldStorageBackendV2Interface::class));
+        self::assertTrue(is_subclass_of(SqlColumnBackend::class, FieldStorageBackendV2Interface::class));
+    }
+
+    #[Test]
+    public function production_storage_consumers_reference_only_registrar_owned_gateways(): void
+    {
+        $sourceRoot = dirname(__DIR__, 3) . '/src';
+
+        self::assertSame([], $this->filesContaining($sourceRoot, 'FieldStorageBackendInterface'));
+        self::assertSame([], $this->filesContaining($sourceRoot, 'HasFieldStorageBackendsInterface'));
+        self::assertSame([], $this->filesContaining($sourceRoot, 'IsFrameworkBackendProviderInterface'));
+        self::assertSame(
+            [
+                'BackendResolver.php',
+                'CoordinatorLifecycleDispatcher.php',
+                'EntityStorageCoordinator.php',
+            ],
+            $this->filesContaining($sourceRoot, 'use Waaseyaa\\EntityStorage\\Backend\\FieldStorageBackendGateway;'),
+        );
+    }
+
+    #[Test]
+    public function coordinator_persistence_values_cross_only_the_private_closed_authority(): void
+    {
+        $source = (string) file_get_contents(dirname(__DIR__, 3) . '/src/CoordinatorLifecycleDispatcher.php');
+
+        self::assertStringContainsString('private readonly \\Closure $persistenceValueAuthority;', $source);
+        self::assertStringContainsString('EntityBase::class', $source);
+        self::assertStringContainsString('$source->valueContainer->rawValues()', $source);
+        self::assertStringNotContainsString('$entity->get($field->getName())', $source);
     }
 
     /** @return list<string> */

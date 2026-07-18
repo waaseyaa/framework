@@ -6,12 +6,13 @@ namespace Waaseyaa\EntityStorage;
 
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface as SymfonyEventDispatcherInterface;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Entity\Event\TranslationEvent;
 use Waaseyaa\EntityStorage\Backend\BackendRegistrar;
-use Waaseyaa\EntityStorage\Backend\FieldStorageBackendInterface;
+use Waaseyaa\EntityStorage\Backend\FieldStorageBackendGateway;
 use Waaseyaa\EntityStorage\Event\AbortOperationException;
 use Waaseyaa\EntityStorage\Event\AfterDeleteEvent;
 use Waaseyaa\EntityStorage\Event\AfterSaveEvent;
@@ -51,12 +52,21 @@ final class CoordinatorLifecycleDispatcher
 {
     private readonly LoggerInterface $logger;
 
+    /** @var \Closure(EntityBase): array<string, mixed> */
+    private readonly \Closure $persistenceValueAuthority;
+
     public function __construct(
         private readonly BackendRegistrar $registrar,
         private readonly ?EventDispatcherInterface $dispatcher,
         ?LoggerInterface $logger = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
+        $authority = \Closure::bind(
+            static fn(EntityBase $source): array => $source->valueContainer->rawValues(),
+            null,
+            EntityBase::class,
+        );
+        $this->persistenceValueAuthority = $authority;
     }
 
     /**
@@ -106,6 +116,13 @@ final class CoordinatorLifecycleDispatcher
         // can observe per-language pre-state alongside the entity-level pre-save.
         $this->dispatchTranslationsPre($entity, $translationOps);
 
+        // Materialize the exact post-callback persistence values once through a
+        // closed authority. They never enter an event, extension, or backend as
+        // a value bag; each gateway receives only its declared field value.
+        $persistenceValues = $entity instanceof EntityBase
+            ? ($this->persistenceValueAuthority)($entity)
+            : $entity->toArray();
+
         /** @var string[] $committed */
         $committed = [];
         // Build an ordered list: primary first, then alternates in registration order.
@@ -117,7 +134,7 @@ final class CoordinatorLifecycleDispatcher
                 $fields = $groups[$backendId] ?? [];
 
                 foreach ($fields as $field) {
-                    $backend->write($entity, $field, $entity->get($field->getName()));
+                    $backend->write($entity, $field, $persistenceValues[$field->getName()] ?? null);
                 }
 
                 $committed[] = $backendId;
@@ -448,9 +465,9 @@ final class CoordinatorLifecycleDispatcher
     /**
      * @throws UnknownBackendException
      */
-    private function requireBackend(string $backendId, EntityTypeInterface $entityType): FieldStorageBackendInterface
+    private function requireBackend(string $backendId, EntityTypeInterface $entityType): FieldStorageBackendGateway
     {
-        $backend = $this->registrar->get($backendId);
+        $backend = $this->registrar->gateway($backendId);
 
         if ($backend === null) {
             throw new UnknownBackendException(

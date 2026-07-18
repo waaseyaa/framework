@@ -10,6 +10,7 @@
   ],
   "rationales": {
     "packages/access/src/Middleware/FieldReadContextMiddleware.php": "Implements the established HTTP middleware contract, whose request and response types are Symfony HttpFoundation objects.",
+    "packages/entity-storage/src/Hydration/EntityInstantiator.php": "Sealed repository hydration generates missing UUID values with the framework's established Symfony Uid implementation.",
     "packages/entity/src/Validation/ValidationFieldReader.php": "Implements the closed restricted-field validation boundary using Symfony Validator constraints and violation result types."
   },
   "legacy_files": [
@@ -71,6 +72,7 @@
     "packages/debug/src/functions.php",
     "packages/entity-storage/src/CoordinatorLifecycleDispatcher.php",
     "packages/entity-storage/src/Event/BeforeRevisionPointerMoveEvent.php",
+    "packages/entity-storage/src/Hydration/EntityInstantiator.php",
     "packages/entity-storage/src/UnitOfWork.php",
     "packages/entity/src/Audit/EntityWriteAuditListener.php",
     "packages/entity/src/EntityBase.php",

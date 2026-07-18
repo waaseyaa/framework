@@ -98,7 +98,7 @@ final class SsrHttpKernelIntegrationTest extends TestCase
         $this->assertStringNotContainsString('data-template="package-node-full"', $response['body']);
         $this->assertStringContainsString('Water Is Life', $response['body']);
         $this->assertStringContainsString('2025-01-01', $response['body']);
-        $this->assertStringContainsString('<a href="/user/7">Author</a>', $response['body']);
+        $this->assertStringNotContainsString('/user/7', $response['body']);
     }
 
     #[Test]
@@ -152,7 +152,7 @@ final class SsrHttpKernelIntegrationTest extends TestCase
 
         $this->assertStringContainsString('data-template="app-node-full"', $full['body']);
         $this->assertStringContainsString('2025-01-01', $full['body']);
-        $this->assertStringContainsString('/user/7', $full['body']);
+        $this->assertStringNotContainsString('/user/7', $full['body']);
 
         $this->assertStringContainsString('data-template="app-node-teaser"', $teaser['body']);
         $this->assertStringNotContainsString('/user/7', $teaser['body']);
@@ -165,7 +165,7 @@ final class SsrHttpKernelIntegrationTest extends TestCase
         $response = $this->request('/does-not-exist');
 
         $this->assertSame(404, $response['status']);
-        $this->assertStringContainsString('<h1>Not Found</h1>', $response['body']);
+        $this->assertStringContainsString('/does-not-exist', $response['body']);
         $this->assertStringNotContainsString('"jsonapi"', $response['body']);
     }
 

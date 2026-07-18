@@ -277,7 +277,8 @@ final class ExecutorHitlTest extends TestCase
         self::assertSame('approval_timeout', $result->data['error_code']);
         $fresh = $this->runRepository->find((string) $run->get('id'));
         self::assertSame(RunStatus::Failed, $fresh?->getStatus());
-        self::assertSame('approval_timeout', $fresh?->get('error_code'));
+        self::assertNotNull($fresh);
+        self::assertSame('approval_timeout', new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture()->read($fresh)->errorCode);
 
         // Audit trail: ApprovalRequired present, ApprovalDenied (timeout
         // marker) present, no spurious ApprovalGranted row.
@@ -450,7 +451,8 @@ final class ExecutorHitlTest extends TestCase
 
         self::assertFalse($result->success);
         $fresh = $this->runRepository->find((string) $run->get('id'));
-        self::assertSame('provider_rate_limited', $fresh?->get('error_code'));
+        self::assertNotNull($fresh);
+        self::assertSame('provider_rate_limited', new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture()->read($fresh)->errorCode);
     }
 
     // ------------------------------------------------------------------

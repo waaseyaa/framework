@@ -15,6 +15,8 @@ use Waaseyaa\Engagement\Comment;
 #[CoversClass(Comment::class)]
 final class CommentTest extends TestCase
 {
+    use EngagementFieldReadTestTrait;
+
     #[Test]
     public function creates_with_required_fields(): void
     {
@@ -25,9 +27,11 @@ final class CommentTest extends TestCase
             'body' => 'Great post!',
         ]);
 
-        $this->assertSame('Great post!', $comment->get('body'));
-        $this->assertSame(1, (int) $comment->get('status'));
-        $this->assertNotNull($comment->get('created_at'));
+        $this->readEngagement(function () use ($comment): void {
+            $this->assertSame('Great post!', $comment->get('body'));
+            $this->assertSame(1, (int) $comment->get('status'));
+            $this->assertNotNull($comment->get('created_at'));
+        });
     }
 
     #[Test]

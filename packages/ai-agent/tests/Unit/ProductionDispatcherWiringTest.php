@@ -55,6 +55,7 @@ final class ProductionDispatcherWiringTest extends TestCase
             AgentRunBroadcasterInterface::class => $this->createStub(AgentRunBroadcasterInterface::class),
             ProviderInterface::class => $this->createStub(ProviderInterface::class),
             InitiatorAccountLoaderInterface::class => $this->createStub(InitiatorAccountLoaderInterface::class),
+            \Waaseyaa\AI\Agent\Security\AgentRunWorkerReaderInterface::class => $this->createStub(\Waaseyaa\AI\Agent\Security\AgentRunWorkerReaderInterface::class),
             \Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class => $dispatcher,
         ]));
         $provider->register();

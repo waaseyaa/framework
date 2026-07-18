@@ -16,7 +16,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
-/** Semantic inventory gates for the dormant field-read boundary. */
+/** Semantic inventory gates for the active field-read boundary. */
 #[CoversNothing]
 final class FieldReadBoundaryArchitectureTest extends TestCase
 {
@@ -156,90 +156,73 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
         'packages/ai-tools/src/Entity/EntityRevisionRestoreGuard.php' => 'Third-party EntityInterface compatibility fallback only; framework revisions use the closed name-only comparator.',
         'packages/ai-tools/src/Entity/EntitySearchTool.php' => 'Third-party EntityInterface compatibility fallback only; framework search selects names before guarded get().',
         'packages/ai-tools/src/Relationship/RelationshipTraverseTool.php' => 'Third-party EntityInterface compatibility fallback only; framework edge projection uses selected guarded reads.',
+        'packages/entity-storage/src/CoordinatorLifecycleDispatcher.php' => 'Third-party EntityInterface persistence fallback only; framework fan-out uses the private closed persistence authority.',
         'packages/entity-storage/src/EntityRepository.php' => 'Private diagnosed legacy third-party persistence fallback only.',
         'packages/entity/src/ConfigEntityBase.php' => 'Explicit public config export; sealed Internal fields intentionally make the whole export fail atomically.',
         'packages/entity/src/DateTime/TimestampFieldConvention.php' => 'Third-party EntityInterface compatibility fallback only; framework entities enumerate and use guarded get().',
         'packages/entity/src/EntityValues.php' => 'Third-party EntityInterface compatibility fallback only; framework entities use non-value fieldNames() enumeration.',
-        'packages/entity/src/Snapshot/EntityValuesSnapshot.php' => 'Third-party compatibility fallback; framework snapshots preflight Public-only before exporting and remain scheduled for WP4 removal.',
+        'packages/entity/src/Snapshot/EntityValuesSnapshot.php' => 'Public-only snapshot boundary; framework entities are classification-preflighted before export and third-party implementations retain their declared array contract.',
         'packages/entity/src/Write/EntityWritePayloadGuard.php' => 'Third-party EntityInterface bookkeeping-echo compatibility only; framework echoes use the closed name-only comparator.',
     ];
 
     /** @var array<string, non-empty-string> */
     private const array ENTITY_ACCESSOR_ALLOWLIST = [
-        'packages/access/src/EntityAccessHandler.php' => 'Existing entity-label access decision input pending WP3 convergence.',
-        'packages/access/src/Policy/PublishedContentAccessPolicy.php' => 'Existing policy input pending WP3 guarded accessor convergence.',
-        'packages/ai-agent/src/AgentExecutor.php' => 'AI agent entity input pending WP3 guarded accessor convergence.',
-        'packages/ai-agent/src/Controller/AgentRunController.php' => 'AI agent controller input pending WP3 guarded accessor convergence.',
-        'packages/ai-agent/src/Entity/AgentAuditLog.php' => 'Entity domain helper pending WP3 guarded accessor convergence.',
-        'packages/ai-agent/src/Entity/AgentRun.php' => 'Entity domain helper pending WP3 guarded accessor convergence.',
-        'packages/ai-agent/src/Message/RunAgentHandler.php' => 'Queue handler entity input pending WP3 guarded accessor convergence.',
-        'packages/ai-agent/src/Service/AgentRunService.php' => 'AI agent service input pending WP3 guarded accessor convergence.',
-        'packages/ai-tools/src/AbstractAgentTool.php' => 'AI tool label projection pending WP3 guarded accessor convergence.',
-        'packages/ai-vector/src/EntityEmbedder.php' => 'Embedding label projection pending WP3 guarded accessor convergence.',
-        'packages/ai-vector/src/EntityEmbeddingListener.php' => 'Embedding listener label projection pending WP3 guarded accessor convergence.',
-        'packages/api/src/Audit/ApiAuditQueryAdapter.php' => 'Audit query adapter input pending WP3 guarded accessor convergence.',
-        'packages/api/src/Workflow/WorkflowDefinitionsController.php' => 'Workflow label projection pending WP3 guarded accessor convergence.',
-        'packages/attachment/src/AttachmentActiveInvariant.php' => 'Attachment invariant input pending WP3 guarded accessor convergence.',
-        'packages/attachment/src/AttachmentRepository.php' => 'Attachment repository input pending WP3 guarded accessor convergence.',
-        'packages/attachment/src/Policy/ParentDelegatedAccessPolicy.php' => 'Attachment policy input pending WP3 guarded accessor convergence.',
+        'packages/access/src/EntityAccessHandler.php' => 'Reviewed sealed label decision input; activation-compatible through the canonical guarded label accessor.',
+        'packages/access/src/Policy/PublishedContentStatusReader.php' => 'Closed publication-status reader retains only a third-party EntityInterface guarded-accessor fallback.',
+        'packages/ai-agent/src/AgentExecutor.php' => 'AI agent entity input is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/ai-agent/src/Entity/AgentAuditLog.php' => 'Entity domain helper is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/ai-agent/src/Entity/AgentRun.php' => 'Entity domain helper is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/ai-agent/src/Message/RunAgentHandler.php' => 'Queue handler entity input is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/ai-agent/src/Security/AccountScopedAgentRunProjectionReader.php' => 'Closed account-scoped agent-run projection retains only a third-party EntityInterface guarded-accessor fallback.',
+        'packages/ai-agent/src/Service/AgentRunService.php' => 'AI agent service input is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/ai-tools/src/AbstractAgentTool.php' => 'AI tool label projection is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/ai-vector/src/EntityEmbedder.php' => 'Embedding label projection is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/ai-vector/src/EntityEmbeddingListener.php' => 'Embedding listener label projection is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/api/src/Audit/ApiAuditQueryAdapter.php' => 'Audit query adapter input is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/api/src/Workflow/WorkflowDefinitionsController.php' => 'Workflow label projection is reviewed activation-compatible through the canonical guarded accessor.',
         'packages/audit/src/AuditedFieldRead.php' => 'Reserved strict-audit fallback for third-party entity implementations.',
-        'packages/audit/src/Entity/AuditCheckpoint.php' => 'Legacy flat audit row accessor pending read-model convergence.',
-        'packages/audit/src/Entity/AuditEvent.php' => 'Legacy flat audit row accessor pending read-model convergence.',
-        'packages/audit/src/Entity/AuditRetentionPolicy.php' => 'Legacy flat audit row accessor pending read-model convergence.',
-        'packages/cli/src/Command/Ai/AiRunCommand.php' => 'CLI entity input pending WP3 guarded accessor convergence.',
-        'packages/engagement/src/EngagementAccessPolicy.php' => 'Engagement policy input pending WP3 guarded accessor convergence.',
-        'packages/entity-storage/src/CoordinatorLifecycleDispatcher.php' => 'Persistence lifecycle input pending activation convergence.',
-        'packages/entity/src/Audit/EntityWriteAuditListener.php' => 'Write-audit input pending WP3 guarded accessor convergence.',
+        'packages/audit/src/Entity/AuditCheckpoint.php' => 'Audit-checkpoint domain helpers use the canonical guarded accessor for explicitly classified fields.',
+        'packages/audit/src/Entity/AuditEvent.php' => 'Audit-event domain helpers use the canonical guarded accessor for explicitly classified fields.',
+        'packages/audit/src/Entity/AuditRetentionPolicy.php' => 'Audit-retention domain helpers use the canonical guarded accessor for explicitly classified fields.',
+        'packages/cli/src/Command/Ai/AiRunCommand.php' => 'CLI entity input is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/engagement/src/EngagementAccessPolicy.php' => 'Engagement policy input is reviewed activation-compatible through the canonical guarded accessor.',
         'packages/entity/src/EntityBase.php' => 'Canonical guarded accessor and structural helper implementation.',
         'packages/entity/src/DateTime/TimestampFieldConvention.php' => 'Framework timestamp inspection uses fieldNames() plus the canonical guarded accessor.',
         'packages/entity/src/EntityValues.php' => 'Selected cast-aware projections enumerate field names without first exporting a value bag.',
         'packages/entity/src/RevisionableEntityTrait.php' => 'Revision helpers route through the canonical guarded accessor when structural metadata is unavailable.',
-        'packages/entity/src/Validation/EntityValidator.php' => 'Entity validation input pending activation convergence.',
+        'packages/entity/src/Validation/EntityValidator.php' => 'Reviewed validation input; activation uses the one-shot closed validation reader for non-Public fields.',
         'packages/entity/testing/StorageBackedStubRepository.php' => 'Testing-package entity repository helper retained for consumer fixtures.',
-        'packages/field/src/Classification/EntityLifecycleSubscriber.php' => 'Classification lifecycle input pending WP3 guarded accessor convergence.',
-        'packages/field/src/Classification/LabelInheritanceResolver.php' => 'Classification inheritance input pending WP3 guarded accessor convergence.',
-        'packages/field/src/Classification/Policy/ClassificationFieldAccessPolicy.php' => 'Classification policy subject input pending WP3 guarded accessor convergence.',
-        'packages/field/src/Entity/ClassificationLabelDefinition.php' => 'Classification entity domain helper pending WP3 convergence.',
-        'packages/field/src/Entity/RetentionPolicy.php' => 'Retention entity domain helper pending WP3 convergence.',
-        'packages/field/src/Form/FormDescriptorBuilder.php' => 'Form projection input pending WP3 guarded accessor convergence.',
-        'packages/genealogy/src/Access/GenealogyContentAccessPolicy.php' => 'Genealogy policy input pending WP3 guarded accessor convergence.',
-        'packages/genealogy/src/Access/GenealogyRelationshipAccessPolicy.php' => 'Genealogy policy input pending WP3 guarded accessor convergence.',
-        'packages/genealogy/src/GenealogyLivingSemantics.php' => 'Genealogy semantic input pending WP3 guarded accessor convergence.',
-        'packages/genealogy/src/Service/GenealogyPedigreeService.php' => 'Genealogy service input pending WP3 guarded accessor convergence.',
-        'packages/groups/src/Group.php' => 'Group label helper pending WP3 guarded accessor convergence.',
-        'packages/groups/src/GroupType.php' => 'Group-type label helper pending WP3 guarded accessor convergence.',
-        'packages/listing/src/ListingResolver.php' => 'Listing projection input pending WP3 guarded accessor convergence.',
-        'packages/media/src/Media.php' => 'Media entity domain helper pending WP3 convergence.',
+        'packages/field/src/Classification/ClassificationSubjectReader.php' => 'Closed classification policy/lifecycle subject retains only a third-party EntityInterface guarded-accessor fallback.',
+        'packages/field/src/Entity/ClassificationLabelDefinition.php' => 'Classification entity domain helper is reviewed activation-compatible through its classified canonical accessor.',
+        'packages/field/src/Entity/RetentionPolicy.php' => 'Retention entity domain helper is reviewed activation-compatible through its classified canonical accessor.',
+        'packages/field/src/Form/FormDescriptorBuilder.php' => 'Form projection input is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/genealogy/src/Access/GenealogyRelationshipAccessPolicy.php' => 'Genealogy policy input is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/genealogy/src/GenealogyLivingSemantics.php' => 'Genealogy semantic input is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/groups/src/Group.php' => 'Group label helper is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/groups/src/GroupType.php' => 'Group-type label helper is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/listing/src/ListingResolver.php' => 'Listing projection input is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/media/src/Media.php' => 'Media entity domain helper is reviewed activation-compatible through its classified canonical accessor.',
         'packages/media/src/Version/MediaVersion.php' => 'Media-version domain helpers route through the canonical guarded accessor.',
-        'packages/menu/src/MenuLink.php' => 'Menu-link entity input pending WP3 guarded accessor convergence.',
-        'packages/messaging/src/MessagingAccessPolicy.php' => 'Messaging policy input pending WP3 guarded accessor convergence.',
-        'packages/migration/src/Plugin/Destination/EntityDestination.php' => 'Migration structural key reads pending WP3 convergence.',
-        'packages/node/src/Node.php' => 'Node entity domain helper pending WP3 convergence.',
-        'packages/node/src/NodeType.php' => 'Node-type label helper pending WP3 guarded accessor convergence.',
-        'packages/note/src/Note.php' => 'Note entity domain helper pending WP3 convergence.',
-        'packages/oidc/src/Entity/OidcClient.php' => 'OIDC entity domain helper pending WP3 convergence.',
-        'packages/path/src/PathAlias.php' => 'Path entity domain helper pending WP3 convergence.',
-        'packages/relationship/src/RelationshipAccessPolicy.php' => 'Relationship policy input pending WP3 guarded accessor convergence.',
-        'packages/relationship/src/RelationshipEndpointVisibilityPolicy.php' => 'Relationship endpoint policy input pending WP3 convergence.',
-        'packages/relationship/src/RelationshipTraversalService.php' => 'Relationship traversal input pending WP3 guarded accessor convergence.',
-        'packages/seo/src/SchemaOrg/EntitySchemaOrgMapper.php' => 'SEO label projection pending WP3 guarded accessor convergence.',
-        'packages/taxonomy/src/Term.php' => 'Taxonomy entity domain helper pending WP3 convergence.',
-        'packages/taxonomy/src/TermAccessPolicy.php' => 'Taxonomy policy input pending WP3 guarded accessor convergence.',
-        'packages/taxonomy/src/Vocabulary.php' => 'Vocabulary label helper pending WP3 guarded accessor convergence.',
-        'packages/user/src/User.php' => 'Identity and PII helper convergence is explicitly staged for WP3.',
-        'packages/user/src/UserBlockAccessPolicy.php' => 'User-block policy input pending WP3 guarded accessor convergence.',
-        'packages/wayfinding/src/Access/TrailAccessPolicy.php' => 'Trail policy input pending WP3 guarded accessor convergence.',
-        'packages/wayfinding/src/Trail/TrailStore.php' => 'Trail storage structural input pending WP3 convergence.',
-        'packages/workflows/src/EditorialVisibilityResolver.php' => 'Editorial visibility input pending WP3 guarded accessor convergence.',
-        'packages/workflows/src/Listener/WorkflowStateGuard.php' => 'Workflow guard input pending WP3 guarded accessor convergence.',
-        'packages/workflows/src/Transition/TransitionService.php' => 'Workflow transition input pending WP3 guarded accessor convergence.',
+        'packages/menu/src/MenuLink.php' => 'Menu-link entity input is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/messaging/src/MessagingAccessPolicy.php' => 'Messaging policy input is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/node/src/Node.php' => 'Node entity domain helper is reviewed activation-compatible through its classified canonical accessor.',
+        'packages/node/src/NodeType.php' => 'Node-type label helper is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/note/src/Note.php' => 'Note entity domain helper is reviewed activation-compatible through its classified canonical accessor.',
+        'packages/oidc/src/Entity/OidcClient.php' => 'OIDC entity domain helper is reviewed activation-compatible through its classified canonical accessor.',
+        'packages/path/src/PathAlias.php' => 'Path entity domain helper is reviewed activation-compatible through its classified canonical accessor.',
+        'packages/relationship/src/RelationshipAccessPolicy.php' => 'Relationship policy input is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/seo/src/SchemaOrg/EntitySchemaOrgMapper.php' => 'SEO label projection is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/taxonomy/src/Term.php' => 'Taxonomy entity domain helper is reviewed activation-compatible through its classified canonical accessor.',
+        'packages/taxonomy/src/TermAccessPolicy.php' => 'Taxonomy policy input is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/taxonomy/src/Vocabulary.php' => 'Vocabulary label helper is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/user/src/User.php' => 'Entity helpers use the canonical guard: Protected reads require an immutable principal context, Internal reads deny, and first-party identity/PII consumers use exact audited snapshots.',
+        'packages/user/src/UserBlockAccessPolicy.php' => 'Framework UserBlock records use the compiled V2 blocker subject; the direct accessor is restricted to third-party EntityInterface compatibility.',
+        'packages/workflows/src/Read/EditorialPreviewSubjectReader.php' => 'Closed preview subject reader retains only a third-party EntityInterface guarded-accessor fallback.',
+        'packages/workflows/src/Read/WorkflowEntitySnapshotReader.php' => 'Closed workflow snapshot reader retains only a third-party EntityInterface guarded-accessor fallback.',
     ];
 
     /** @var array<string, array{methods: non-empty-list<string>, rationale: non-empty-string}> */
     private const array ENTITY_OVERRIDE_ALLOWLIST = [
-        'packages/audit/src/Entity/AuditCheckpoint.php' => ['methods' => ['get'], 'rationale' => 'Legacy flat audit read-model entity override pending convergence.'],
-        'packages/audit/src/Entity/AuditEvent.php' => ['methods' => ['get'], 'rationale' => 'Legacy flat audit read-model entity override pending convergence.'],
-        'packages/audit/src/Entity/AuditRetentionPolicy.php' => ['methods' => ['get'], 'rationale' => 'Legacy flat audit read-model entity override pending convergence.'],
         'packages/entity/src/TranslatableEntityTrait.php' => ['methods' => ['get'], 'rationale' => 'Translation and fallback dispatch use sealed related-view containers and converge into EntityBase get().'],
     ];
 
@@ -284,9 +267,12 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
         }
 
         self::assertSame(
-            ['packages/entity-storage/src/EntityRepository.php'],
+            [
+                'packages/entity-storage/src/CoordinatorLifecycleDispatcher.php',
+                'packages/entity-storage/src/EntityRepository.php',
+            ],
             $actual,
-            'The diagnosed legacy third-party fallback must remain private and greppable.',
+            'Diagnosed third-party persistence fallbacks must remain confined to reviewed private authorities.',
         );
     }
 
@@ -334,17 +320,12 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
     }
 
     #[Test]
-    public function structural_bootstrap_does_not_extract_the_full_value_bag_before_callbacks(): void
+    public function legacy_post_construction_structural_bootstrap_is_absent(): void
     {
-        $method = new \ReflectionMethod(\Waaseyaa\EntityStorage\EntityRepository::class, 'attachStructureForLegacyConstruction');
-        $node = $this->methodAst($method);
-        $forbidden = new NodeFinder()->findFirst($node, static fn(Node $candidate): bool =>
-            ($candidate instanceof Expr\MethodCall && $candidate->name instanceof Node\Identifier
-                && in_array($candidate->name->toString(), ['extractCanonicalValues', 'toArray'], true))
-            || ($candidate instanceof Expr\PropertyFetch && $candidate->name instanceof Node\Identifier
-                && 'values' === $candidate->name->toString()));
-
-        self::assertNull($forbidden);
+        self::assertFalse(method_exists(
+            \Waaseyaa\EntityStorage\EntityRepository::class,
+            'attachStructureForLegacyConstruction',
+        ));
     }
 
     #[Test]
@@ -507,16 +488,67 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
         }
 
         self::assertSame([
+            'packages/access/src/EntityAccessHandler.php',
+            'packages/access/src/FieldReadGuard.php',
+            'packages/access/src/Policy/PublishedContentStatusReader.php',
+            'packages/ai-agent/src/Access/AgentRunAccessPolicy.php',
+            'packages/attachment/src/Maintenance/AttachmentMaintenanceFieldReader.php',
+            'packages/attachment/src/Policy/ParentDelegatedAccessPolicy.php',
             'packages/audit/src/AuditedFieldRead.php',
+            'packages/engagement/src/EngagementAccessPolicy.php',
+            'packages/entity-storage/src/CoordinatorLifecycleDispatcher.php',
             'packages/entity-storage/src/EntityRepository.php',
+            'packages/entity/src/Audit/EntityWriteAuditSubjectReader.php',
             'packages/entity/src/EntityValueComparator.php',
             'packages/entity/src/Validation/ValidationFieldReader.php',
+            'packages/field/src/Classification/ClassificationSubjectReader.php',
+            'packages/field/src/Entity/RetentionPolicyMaintenanceReader.php',
+            'packages/genealogy/src/Access/GenealogyContentAccessPolicy.php',
+            'packages/media/src/MediaAccessPolicy.php',
+            'packages/messaging/src/MessagingAccessPolicy.php',
+            'packages/node/src/NodeAuthorizationSnapshotReader.php',
+            'packages/note/src/Ingestion/NoteIngestionMetadataReader.php',
+            'packages/oidc/src/ClientRegistry/OidcClientSystemReader.php',
+            'packages/relationship/src/RelationshipMaintenanceReader.php',
+            'packages/relationship/src/RelationshipTopologyReader.php',
+            'packages/wayfinding/src/Access/TrailAccessPolicy.php',
+            'packages/wayfinding/src/Trail/TrailStore.php',
+            'packages/workflows/src/Read/EditorialPreviewSubjectReader.php',
+            'packages/workflows/src/Read/EditorialWorkflowLegacySubjectReader.php',
+            'packages/workflows/src/Read/WorkflowEntitySnapshotReader.php',
+            'packages/workflows/src/Workflow.php',
         ], $actual);
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Access\EntityAccessHandler::class, 'entityPolicySubjectAuthority')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Access\FieldReadGuard::class, 'policySubject')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Access\Policy\PublishedContentStatusReader::class, 'values')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\AI\Agent\Access\AgentRunAccessPolicy::class, 'policySubjectAuthority')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\AI\Agent\Access\AgentRunOwnerEntityReadPolicy::class, 'policySubjectAuthority')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Attachment\Maintenance\AttachmentMaintenanceFieldReader::class, 'obtain')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Attachment\Policy\ParentDelegatedAccessPolicy::class, 'policySubjectAuthority')->isPrivate());
         self::assertTrue(new \ReflectionMethod(\Waaseyaa\Audit\AuditedFieldRead::class, 'obtainReservedValue')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Engagement\EngagementAccessPolicy::class, 'policySubjectAuthority')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\EntityStorage\CoordinatorLifecycleDispatcher::class, 'persistenceValueAuthority')->isPrivate());
         self::assertTrue(new \ReflectionMethod(\Waaseyaa\EntityStorage\EntityRepository::class, 'extractPersistenceValues')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Entity\Audit\EntityWriteAuditSubjectReader::class, 'values')->isPrivate());
         self::assertTrue(new \ReflectionProperty(\Waaseyaa\Entity\EntityValueComparator::class, 'changedFields')->isPrivate());
         self::assertTrue(new \ReflectionProperty(\Waaseyaa\Entity\EntityValueComparator::class, 'matchingSubmittedFields')->isPrivate());
         self::assertTrue(new \ReflectionProperty(\Waaseyaa\Entity\Validation\ValidationFieldReader::class, 'obtain')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Field\Classification\ClassificationSubjectReader::class, 'values')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Field\Entity\RetentionPolicyMaintenanceReader::class, 'valueAuthority')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Genealogy\Access\GenealogyContentAccessPolicy::class, 'policySubjectAuthority')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Media\MediaAccessPolicy::class, 'ownerSubject')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Messaging\MessagingAccessPolicy::class, 'policySubjectAuthority')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Node\NodeAuthorizationSnapshotReader::class, 'values')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Note\Ingestion\NoteIngestionMetadataReader::class, 'obtain')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Oidc\ClientRegistry\OidcClientSystemReader::class, 'valueAuthority')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Relationship\RelationshipMaintenanceReader::class, 'valueAuthority')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Relationship\RelationshipTopologyReader::class, 'valueAuthority')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Wayfinding\Access\TrailAccessPolicy::class, 'ownerSubjectAuthority')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Wayfinding\Trail\TrailStore::class, 'trailValuesAuthority')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Workflows\Read\EditorialPreviewSubjectReader::class, 'values')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Workflows\Read\EditorialWorkflowLegacySubjectReader::class, 'values')->isPrivate());
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Workflows\Read\WorkflowEntitySnapshotReader::class, 'valueAuthority')->isPrivate());
+        self::assertTrue(new \ReflectionMethod(\Waaseyaa\Workflows\Workflow::class, 'ensureDefinitionHydrated')->isPrivate());
     }
 
     private function hasBoundEntityBaseClosure(string $source): bool

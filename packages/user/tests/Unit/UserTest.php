@@ -5,17 +5,46 @@ declare(strict_types=1);
 namespace Waaseyaa\User\Tests\Unit;
 
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
+use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\FieldReadGuard;
 use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\Exception\InternalFieldArrayExportDenied;
 use Waaseyaa\Entity\Validation\EntityTypeValidationConstraints;
 use Waaseyaa\Entity\Validation\EntityValidator;
+use Waaseyaa\Entity\Validation\ValidationFieldReader;
+use Waaseyaa\Entity\Validation\ValidationReadLedgerInterface;
+use Waaseyaa\Entity\Validation\ValidationReadReservationInterface;
 use Waaseyaa\User\User;
+use Waaseyaa\User\UserAccessPolicy;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
+use Symfony\Component\Validator\Validation;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
 #[CoversClass(User::class)]
 final class UserTest extends TestCase
 {
+    private AccountFieldReadScope $scope;
+
+    private UserInternalFieldReaderFixture $internal;
+
+    protected function setUp(): void
+    {
+        $this->scope = new AccountFieldReadScope();
+        $handler = new EntityAccessHandler([new UserAccessPolicy()]);
+        EntityReadRuntime::installGuard(new FieldReadGuard($this->scope, $handler->checkProtectedFieldRead(...)));
+        $this->internal = new UserInternalFieldReaderFixture();
+    }
+
+    protected function tearDown(): void
+    {
+        EntityReadRuntime::installGuard(null);
+    }
+
     // -----------------------------------------------------------------
     // Construction and entity basics
     // -----------------------------------------------------------------
@@ -80,7 +109,7 @@ final class UserTest extends TestCase
     public function testLabelReturnsName(): void
     {
         $user = new User(['name' => 'alice']);
-        $this->assertSame('alice', $user->label());
+        $this->assertSame('alice', $this->asAdmin(static fn(): string => $user->label()));
     }
 
     // -----------------------------------------------------------------
@@ -93,13 +122,13 @@ final class UserTest extends TestCase
         $this->assertSame('', $user->getName());
 
         $user->setName('bob');
-        $this->assertSame('bob', $user->getName());
+        $this->assertSame('bob', $this->asAdmin(static fn(): string => $user->getName()));
     }
 
     public function testNameViaConstructor(): void
     {
         $user = new User(['name' => 'charlie']);
-        $this->assertSame('charlie', $user->getName());
+        $this->assertSame('charlie', $this->asAdmin(static fn(): string => $user->getName()));
     }
 
     // -----------------------------------------------------------------
@@ -112,13 +141,13 @@ final class UserTest extends TestCase
         $this->assertSame('', $user->getEmail());
 
         $user->setEmail('alice@example.com');
-        $this->assertSame('alice@example.com', $user->getEmail());
+        $this->assertSame('alice@example.com', $this->internal->mailDelivery($user)->mail);
     }
 
     public function testEmailViaConstructor(): void
     {
         $user = new User(['mail' => 'bob@example.com']);
-        $this->assertSame('bob@example.com', $user->getEmail());
+        $this->assertSame('bob@example.com', $this->internal->mailDelivery($user)->mail);
     }
 
     // -----------------------------------------------------------------
@@ -130,27 +159,27 @@ final class UserTest extends TestCase
         $user = new User();
         $user->setRawPassword('secret123');
 
-        $hash = $user->getPassword();
+        $hash = $this->internal->credentials($user)->passwordHash;
         $this->assertNotEmpty($hash);
         $this->assertNotSame('secret123', $hash);
         // The hash should be verifiable.
         $this->assertTrue(password_verify('secret123', $hash));
     }
 
-    public function testCheckPasswordReturnsTrueForCorrect(): void
+    public function testAuditedCredentialSnapshotVerifiesCorrectPassword(): void
     {
         $user = new User();
         $user->setRawPassword('p@ssw0rd');
 
-        $this->assertTrue($user->checkPassword('p@ssw0rd'));
+        $this->assertTrue(password_verify('p@ssw0rd', $this->internal->credentials($user)->passwordHash));
     }
 
-    public function testCheckPasswordReturnsFalseForWrong(): void
+    public function testAuditedCredentialSnapshotRejectsWrongPassword(): void
     {
         $user = new User();
         $user->setRawPassword('correct-horse');
 
-        $this->assertFalse($user->checkPassword('wrong-battery'));
+        $this->assertFalse(password_verify('wrong-battery', $this->internal->credentials($user)->passwordHash));
     }
 
     public function testCheckPasswordReturnsFalseWhenNoPasswordSet(): void
@@ -165,8 +194,8 @@ final class UserTest extends TestCase
         $user = new User();
         $user->setPassword($hash);
 
-        $this->assertSame($hash, $user->getPassword());
-        $this->assertTrue($user->checkPassword('manual'));
+        $this->assertSame($hash, $this->internal->credentials($user)->passwordHash);
+        $this->assertTrue(password_verify('manual', $this->internal->credentials($user)->passwordHash));
     }
 
     // -----------------------------------------------------------------
@@ -176,48 +205,60 @@ final class UserTest extends TestCase
     public function testDefaultRolesAreEmpty(): void
     {
         $user = new User();
-        $this->assertSame([], $user->getRoles());
+        $this->assertSame([], $this->internal->maintenanceAuthorization($user)->roles);
     }
 
     public function testSetRoles(): void
     {
         $user = new User();
         $user->setRoles(['editor', 'admin']);
-        $this->assertSame(['editor', 'admin'], $user->getRoles());
+        $this->assertSame(['editor', 'admin'], $this->internal->maintenanceAuthorization($user)->roles);
     }
 
     public function testRolesViaConstructor(): void
     {
         $user = new User(['roles' => ['authenticated', 'editor']]);
-        $this->assertSame(['authenticated', 'editor'], $user->getRoles());
+        $this->assertSame(['authenticated', 'editor'], $this->internal->maintenanceAuthorization($user)->roles);
     }
 
     public function testAddRole(): void
     {
         $user = new User(['roles' => ['authenticated']]);
-        $user->addRole('editor');
-        $this->assertSame(['authenticated', 'editor'], $user->getRoles());
+        $roles = $this->internal->maintenanceAuthorization($user)->roles;
+        $roles[] = 'editor';
+        $user->setRoles(array_values(array_unique($roles)));
+        $this->assertSame(['authenticated', 'editor'], $this->internal->maintenanceAuthorization($user)->roles);
     }
 
     public function testAddRoleDoesNotDuplicate(): void
     {
         $user = new User(['roles' => ['authenticated']]);
-        $user->addRole('authenticated');
-        $this->assertSame(['authenticated'], $user->getRoles());
+        $roles = $this->internal->maintenanceAuthorization($user)->roles;
+        $roles[] = 'authenticated';
+        $user->setRoles(array_values(array_unique($roles)));
+        $this->assertSame(['authenticated'], $this->internal->maintenanceAuthorization($user)->roles);
     }
 
     public function testRemoveRole(): void
     {
         $user = new User(['roles' => ['authenticated', 'editor', 'admin']]);
-        $user->removeRole('editor');
-        $this->assertSame(['authenticated', 'admin'], $user->getRoles());
+        $roles = array_values(array_filter(
+            $this->internal->maintenanceAuthorization($user)->roles,
+            static fn(string $role): bool => $role !== 'editor',
+        ));
+        $user->setRoles($roles);
+        $this->assertSame(['authenticated', 'admin'], $this->internal->maintenanceAuthorization($user)->roles);
     }
 
     public function testRemoveNonExistentRoleIsNoOp(): void
     {
         $user = new User(['roles' => ['authenticated']]);
-        $user->removeRole('nonexistent');
-        $this->assertSame(['authenticated'], $user->getRoles());
+        $roles = array_values(array_filter(
+            $this->internal->maintenanceAuthorization($user)->roles,
+            static fn(string $role): bool => $role !== 'nonexistent',
+        ));
+        $user->setRoles($roles);
+        $this->assertSame(['authenticated'], $this->internal->maintenanceAuthorization($user)->roles);
     }
 
     // -----------------------------------------------------------------
@@ -227,37 +268,43 @@ final class UserTest extends TestCase
     public function testDefaultPermissionsAreEmpty(): void
     {
         $user = new User();
-        $this->assertFalse($user->hasPermission('anything'));
+        $snapshot = $this->internal->maintenanceAuthorization($user);
+        $this->assertFalse($this->principalFrom($user, $snapshot->roles, $snapshot->permissions)->hasPermission('anything'));
     }
 
     public function testHasPermission(): void
     {
         $user = new User(['permissions' => ['edit content', 'view content']]);
-        $this->assertTrue($user->hasPermission('edit content'));
-        $this->assertTrue($user->hasPermission('view content'));
-        $this->assertFalse($user->hasPermission('delete content'));
+        $snapshot = $this->internal->maintenanceAuthorization($user);
+        $principal = $this->principalFrom($user, $snapshot->roles, $snapshot->permissions);
+        $this->assertTrue($principal->hasPermission('edit content'));
+        $this->assertTrue($principal->hasPermission('view content'));
+        $this->assertFalse($principal->hasPermission('delete content'));
     }
 
     public function testSetPermissions(): void
     {
         $user = new User();
         $user->setPermissions(['administer site']);
-        $this->assertTrue($user->hasPermission('administer site'));
+        $snapshot = $this->internal->maintenanceAuthorization($user);
+        $this->assertTrue($this->principalFrom($user, $snapshot->roles, $snapshot->permissions)->hasPermission('administer site'));
     }
 
     public function testAdministratorRoleGrantsAllPermissions(): void
     {
         $user = new User(['roles' => ['administrator']]);
-        // Should have any permission even without explicit grants.
-        $this->assertTrue($user->hasPermission('edit content'));
-        $this->assertTrue($user->hasPermission('delete users'));
-        $this->assertTrue($user->hasPermission('any arbitrary permission'));
+        $snapshot = $this->internal->maintenanceAuthorization($user);
+        $principal = $this->principalFrom($user, $snapshot->roles, $snapshot->permissions);
+        $this->assertTrue($principal->hasPermission('edit content'));
+        $this->assertTrue($principal->hasPermission('delete users'));
+        $this->assertTrue($principal->hasPermission('any arbitrary permission'));
     }
 
     public function testNonAdministratorDoesNotGetImplicitPermissions(): void
     {
         $user = new User(['roles' => ['editor']]);
-        $this->assertFalse($user->hasPermission('delete users'));
+        $snapshot = $this->internal->maintenanceAuthorization($user);
+        $this->assertFalse($this->principalFrom($user, $snapshot->roles, $snapshot->permissions)->hasPermission('delete users'));
     }
 
     // -----------------------------------------------------------------
@@ -313,23 +360,23 @@ final class UserTest extends TestCase
     public function testIsActiveByDefault(): void
     {
         $user = new User();
-        $this->assertTrue($user->isActive());
+        $this->assertTrue($this->asAdmin(static fn(): bool => $user->isActive()));
     }
 
     public function testSetActiveToFalse(): void
     {
         $user = new User();
         $user->setActive(false);
-        $this->assertFalse($user->isActive());
+        $this->assertFalse($this->asAdmin(static fn(): bool => $user->isActive()));
     }
 
     public function testSetActiveToTrue(): void
     {
         $user = new User(['status' => 0]);
-        $this->assertFalse($user->isActive());
+        $this->assertFalse($this->asAdmin(static fn(): bool => $user->isActive()));
 
         $user->setActive(true);
-        $this->assertTrue($user->isActive());
+        $this->assertTrue($this->asAdmin(static fn(): bool => $user->isActive()));
     }
 
     public function testSetActiveResultValidatesUnderDerivedBooleanConstraints(): void
@@ -340,7 +387,15 @@ final class UserTest extends TestCase
         // what the framework's own accessor produces; alpha.204's Type('bool')
         // rejected it and broke every save after setActive().
         $constraints = EntityTypeValidationConstraints::forEntityType(EntityType::fromClass(User::class));
-        $validator = EntityValidator::createDefault();
+        $ledger = new class implements ValidationReadLedgerInterface {
+            public function reserve(\Waaseyaa\Entity\EntityStructure $subject, string $field): ValidationReadReservationInterface
+            {
+                return new class implements ValidationReadReservationInterface {
+                    public function finalize(bool $success): void {}
+                };
+            }
+        };
+        $validator = new EntityValidator(Validation::createValidator(), new ValidationFieldReader($ledger));
 
         $user = User::make(['name' => 'pat', 'mail' => 'pat@example.com']);
 
@@ -357,16 +412,16 @@ final class UserTest extends TestCase
     {
         $user = new User();
         $user->setActive(true);
-        $this->assertTrue($user->isActive());
-        $this->assertSame(1, $user->get('status'));
+        $this->assertTrue($this->asAdmin(static fn(): bool => $user->isActive()));
+        $this->assertSame(1, $this->asAdmin(static fn(): mixed => $user->get('status')));
     }
 
     public function testSetActiveFalseStoresIntZero(): void
     {
         $user = new User();
         $user->setActive(false);
-        $this->assertFalse($user->isActive());
-        $this->assertSame(0, $user->get('status'));
+        $this->assertFalse($this->asAdmin(static fn(): bool => $user->isActive()));
+        $this->assertSame(0, $this->asAdmin(static fn(): mixed => $user->get('status')));
     }
 
     // -----------------------------------------------------------------
@@ -377,14 +432,14 @@ final class UserTest extends TestCase
     {
         $user = new User();
         $user->setEmailVerified(true);
-        $this->assertTrue($user->isEmailVerified());
+        $this->assertTrue($this->internal->verification($user)->emailVerified);
     }
 
     public function testSetEmailVerifiedFalseRoundTrips(): void
     {
         $user = new User();
         $user->setEmailVerified(false);
-        $this->assertFalse($user->isEmailVerified());
+        $this->assertFalse($this->internal->verification($user)->emailVerified);
     }
 
     // W3-5 contract: email_verified setter stores a real bool (cast + property + setter agree).
@@ -395,14 +450,14 @@ final class UserTest extends TestCase
         // must be a native bool, not int 1.
         $user = new User();
         $user->setEmailVerified(true);
-        $this->assertSame(true, $user->get('email_verified'));
+        $this->assertTrue($this->internal->verification($user)->emailVerified);
     }
 
     // -----------------------------------------------------------------
     // toArray
     // -----------------------------------------------------------------
 
-    public function testToArrayContainsAllValues(): void
+    public function testToArrayFailsAtomicallyWhenInternalValuesArePresent(): void
     {
         $user = new User([
             'uid' => 5,
@@ -413,12 +468,8 @@ final class UserTest extends TestCase
             'status' => 1,
         ]);
 
-        $array = $user->toArray();
-        $this->assertSame(5, $array['uid']);
-        $this->assertSame('dave', $array['name']);
-        $this->assertSame('dave@example.com', $array['mail']);
-        $this->assertSame(['admin'], $array['roles']);
-        $this->assertArrayHasKey('uuid', $array);
+        $this->expectException(InternalFieldArrayExportDenied::class);
+        $user->toArray();
     }
 
     // -----------------------------------------------------------------
@@ -434,8 +485,6 @@ final class UserTest extends TestCase
         $this->assertSame($user, $user->setRawPassword('pw'));
         $this->assertSame($user, $user->setPassword('hash'));
         $this->assertSame($user, $user->setRoles([]));
-        $this->assertSame($user, $user->addRole('r'));
-        $this->assertSame($user, $user->removeRole('r'));
         $this->assertSame($user, $user->setPermissions([]));
         $this->assertSame($user, $user->setActive(true));
     }
@@ -448,5 +497,19 @@ final class UserTest extends TestCase
     {
         $reflection = new \ReflectionClass(User::class);
         $this->assertTrue($reflection->isFinal());
+    }
+
+    private function asAdmin(callable $callback): mixed
+    {
+        return $this->scope->run(
+            new AuthorizationPrincipal(1, true, ['member'], ['administer users'], 'user-test-admin'),
+            $callback,
+        );
+    }
+
+    /** @param list<string> $roles @param list<string> $permissions */
+    private function principalFrom(User $user, array $roles, array $permissions): AuthorizationPrincipal
+    {
+        return new AuthorizationPrincipal($user->id(), $user->isAuthenticated(), $roles, $permissions, 'user-test-snapshot');
     }
 }

@@ -53,7 +53,7 @@ final class FieldReadContractsTest extends TestCase
     }
 
     #[Test]
-    public function wp1_keeps_existing_reads_arrays_and_php_serialization_dormant(): void
+    public function ordinary_entities_are_sealed_against_php_serialization(): void
     {
         $entity = new TestEntity(
             ['id' => 7, 'mail' => 'member@example.test'],
@@ -63,6 +63,8 @@ final class FieldReadContractsTest extends TestCase
 
         self::assertSame('member@example.test', $entity->get('mail'));
         self::assertSame(['id' => 7, 'mail' => 'member@example.test'], $entity->toArray());
-        self::assertIsString(serialize($entity));
+
+        $this->expectException(EntitySerializationForbidden::class);
+        serialize($entity);
     }
 }

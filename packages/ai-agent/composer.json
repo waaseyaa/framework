@@ -26,6 +26,10 @@
         },
         {
             "type": "path",
+            "url": "../audit"
+        },
+        {
+            "type": "path",
             "url": "../bimaaji"
         },
         {
@@ -71,6 +75,7 @@
         "waaseyaa/ai-tools": "^0.1.0-alpha.267",
         "waaseyaa/api": "^0.1.0-alpha.267",
         "waaseyaa/bimaaji": "^0.1.0-alpha.267",
+        "waaseyaa/audit": "^0.1.0-alpha.267",
         "waaseyaa/database-legacy": "^0.1.0-alpha.267",
         "waaseyaa/entity": "^0.1.0-alpha.267",
         "waaseyaa/entity-storage": "^0.1.0-alpha.267",

@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Relationship\Relationship;
+use Waaseyaa\Relationship\RelationshipMaintenanceReader;
 use Waaseyaa\Relationship\RelationshipPreSaveListener;
 use Waaseyaa\Relationship\RelationshipValidator;
 use Waaseyaa\Relationship\Tests\Fixtures\StubEntityTypeManager;
@@ -92,8 +93,9 @@ final class RelationshipPreSaveListenerTest extends TestCase
         $listener(new EntityEvent($entity));
 
         $this->assertSame('references', $entity->get('relationship_type'));
-        $this->assertSame(1, $entity->get('status'));
-        $this->assertSame(3.5, $entity->get('weight'));
+        $snapshot = new RelationshipMaintenanceReader()->read($entity);
+        $this->assertSame(1, $snapshot->status);
+        $this->assertSame(3.5, $snapshot->weight);
     }
 
     #[Test]
@@ -119,10 +121,11 @@ final class RelationshipPreSaveListenerTest extends TestCase
 
         $listener(new EntityEvent($entity));
 
-        $this->assertNull($entity->get('weight'));
-        $this->assertNull($entity->get('confidence'));
-        $this->assertNull($entity->get('start_date'));
-        $this->assertNull($entity->get('end_date'));
+        $snapshot = new RelationshipMaintenanceReader()->read($entity);
+        $this->assertNull($snapshot->weight);
+        $this->assertNull($snapshot->confidence);
+        $this->assertNull($snapshot->startDate);
+        $this->assertNull($snapshot->endDate);
     }
 
     #[Test]
@@ -145,7 +148,7 @@ final class RelationshipPreSaveListenerTest extends TestCase
 
         $listener(new EntityEvent($entity));
 
-        $this->assertSame(0.0, $entity->get('confidence'));
+        $this->assertSame(0.0, new RelationshipMaintenanceReader()->read($entity)->confidence);
     }
 
     #[Test]
@@ -168,8 +171,9 @@ final class RelationshipPreSaveListenerTest extends TestCase
 
         $listener(new EntityEvent($entity));
 
-        $this->assertIsInt($entity->get('start_date'));
-        $this->assertGreaterThan(0, $entity->get('start_date'));
+        $startDate = new RelationshipMaintenanceReader()->read($entity)->startDate;
+        $this->assertIsInt($startDate);
+        $this->assertGreaterThan(0, $startDate);
     }
 
     #[Test]

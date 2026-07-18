@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Relationship\Tests\Fixtures;
 
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 
 /**
  * Minimal {@see AccountInterface} with a fixed id and permission set.
@@ -16,7 +17,7 @@ use Waaseyaa\Access\AccountInterface;
  *
  * @internal Test double for Relationship package tests.
  */
-final class ArrayAccount implements AccountInterface
+final class ArrayAccount implements AccountInterface, AuthorizationPrincipalInterface
 {
     /** @param list<string> $permissions */
     public function __construct(
@@ -43,5 +44,20 @@ final class ArrayAccount implements AccountInterface
     public function isAuthenticated(): bool
     {
         return $this->id !== 0;
+    }
+
+    public function claimsGeneration(): string
+    {
+        return 'relationship-test';
+    }
+
+    public function tenantId(): ?string
+    {
+        return null;
+    }
+
+    public function communityId(): ?string
+    {
+        return null;
     }
 }

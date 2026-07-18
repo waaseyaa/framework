@@ -6,6 +6,7 @@ namespace Waaseyaa\Foundation\Kernel\Bootstrap;
 
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -47,6 +48,7 @@ final class ProviderRegistry
         ?AccountContextInterface $accountContext = null,
         ?\Closure $accessHandlerAccessor = null,
         ?ApplicationSecret $applicationSecret = null,
+        ?AccountFieldReadScopeInterface $fieldReadScope = null,
     ): array {
         $this->providers = [];
 
@@ -60,6 +62,7 @@ final class ProviderRegistry
             accessHandlerAccessor: $accessHandlerAccessor,
             manifest: $manifest,
             applicationSecret: $applicationSecret,
+            fieldReadScope: $fieldReadScope,
         );
 
         foreach ($manifest->providers as $providerClass) {

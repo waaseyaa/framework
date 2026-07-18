@@ -510,6 +510,10 @@ final class InertiaMultipartCsrfIntegrationTest extends TestCase
                 copy($vendorComposerSrc . '/' . $file, $vendorComposerDst . '/' . $file);
             }
         }
+        mkdir($this->projectRoot . '/vendor/waaseyaa', 0o755, true);
+        foreach (glob($worktreeRoot . '/packages/*', GLOB_ONLYDIR) ?: [] as $packageRoot) {
+            symlink($packageRoot, $this->projectRoot . '/vendor/waaseyaa/' . basename($packageRoot));
+        }
 
         // Build a PSR-4 map from the worktree's packages.
         // Each packages/<name>/src/ maps to Waaseyaa\<PascalName>\.

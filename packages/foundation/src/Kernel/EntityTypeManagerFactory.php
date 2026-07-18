@@ -21,6 +21,7 @@ use Waaseyaa\EntityStorage\Driver\StorageBoundary;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Schema\TranslationSchemaHandler;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
+use Waaseyaa\EntityStorage\Validation\DatabaseValidationReadLedger;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 
@@ -67,7 +68,9 @@ final class EntityTypeManagerFactory
         $raw = getenv('WAASEYAA_ENTITY_VALIDATION');
         $validationEnabled = !\is_string($raw)
             || !\in_array(strtolower($raw), ['0', 'false', 'off'], true);
-        $validator = $validationEnabled ? EntityValidator::createDefault() : null;
+        $validator = $validationEnabled
+            ? EntityValidator::createDefault(new DatabaseValidationReadLedger($database))
+            : null;
 
         return new EntityTypeManager(
             $dispatcher,

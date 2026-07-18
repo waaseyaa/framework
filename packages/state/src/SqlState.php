@@ -15,14 +15,19 @@ final class SqlState implements StateInterface
     /** @var bool Whether the state table has been verified/created. */
     private bool $tableEnsured = false;
     private readonly SignedStatePayload $payloadSigner;
+    private readonly ProjectionDeprecationDiagnostic $projectionDiagnostic;
 
     public function __construct(
         private readonly DatabaseInterface $database,
         #[\SensitiveParameter]
         string $hmacKey,
-        private readonly ?ProjectionDeprecationDiagnostic $projectionDiagnostic = null,
+        ?ProjectionDeprecationDiagnostic $projectionDiagnostic = null,
     ) {
         $this->payloadSigner = new SignedStatePayload($hmacKey);
+        $this->projectionDiagnostic = $projectionDiagnostic ?? ProjectionDeprecationDiagnostic::forEntityPayloads(
+            static function (): void {},
+            EntityPayloadBoundaryConfig::enforced(),
+        );
     }
 
     public function get(string $key, mixed $default = null): mixed
@@ -66,7 +71,7 @@ final class SqlState implements StateInterface
     {
         $this->ensureTable();
 
-        $value = $this->projectionDiagnostic?->inspect($key, $value) ?? $value;
+        $value = $this->projectionDiagnostic->inspect($key, $value);
         $serialized = $this->payloadSigner->seal(serialize($value));
 
         // Fast path: update an existing key.

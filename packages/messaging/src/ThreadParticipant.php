@@ -13,7 +13,7 @@ use Waaseyaa\Entity\ContentEntityBase;
 #[ContentEntityKeys(id: 'tpid', uuid: 'uuid', label: 'role')]
 final class ThreadParticipant extends ContentEntityBase
 {
-    #[Field(label: 'Thread ID', settings: ['weight' => 0], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(label: 'Thread ID', settings: ['weight' => 0, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public int $thread_id = 0;
 
     #[Field(label: 'User ID', settings: ['weight' => 1], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
@@ -22,7 +22,7 @@ final class ThreadParticipant extends ContentEntityBase
     #[Field(label: 'Thread Creator ID', settings: ['weight' => 2], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public int $thread_creator_id = 0;
 
-    #[Field(label: 'Role', default: 'member', settings: ['weight' => 3], read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
+    #[Field(label: 'Role', default: 'member', settings: ['weight' => 3], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $role = 'member';
 
     #[Field(type: 'integer', label: 'Joined', settings: ['weight' => 10, 'subtype' => 'timestamp'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]

@@ -11,6 +11,8 @@ use Waaseyaa\Entity\EntityInterface;
  *
  * Stored {@see GenealogyPerson} `is_living` is authoritative; callers may still use
  * death-date heuristics when seeding or normalizing before save.
+ *
+ * @api
  */
 final class GenealogyLivingSemantics
 {

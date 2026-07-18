@@ -6,9 +6,11 @@ namespace Waaseyaa\AI\Vector;
 
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\EntityValues;
+use Waaseyaa\Entity\FieldReadLevel;
 
 /**
  * Service that generates and manages embeddings for entities.
@@ -103,7 +105,18 @@ final class EntityEmbedder
     private function buildEntityText(EntityInterface $entity): string
     {
         $label = $entity->label();
-        $data = json_encode(EntityValues::toJsonReadyMap($entity), JSON_THROW_ON_ERROR);
+        $fieldNames = EntityValues::ordinaryFieldNames($entity);
+        if ($entity instanceof EntityBase) {
+            $fieldNames = array_values(array_filter(
+                $fieldNames,
+                static fn(string $field): bool => $entity->fieldReadLevel($field) === FieldReadLevel::Public,
+            ));
+        }
+        $values = [];
+        foreach (EntityValues::toCastAwareMap($entity, $fieldNames) as $field => $value) {
+            $values[$field] = EntityValues::normalizeValueForJson($value);
+        }
+        $data = json_encode($values, JSON_THROW_ON_ERROR);
 
         return $label . ' ' . $data;
     }

@@ -16,13 +16,15 @@ use Waaseyaa\Entity\ContentEntityBase;
 #[ContentEntityKeys(id: 'id', uuid: 'uuid', label: 'title', bundle: 'type', langcode: 'langcode')]
 class TestEntity extends ContentEntityBase
 {
+    use ApiPublicContentFields;
+
     public function __construct(
         array $values = [],
         string $entityTypeId = '',
         array $entityKeys = [],
         array $fieldDefinitions = [],
     ) {
-        parent::__construct($values, $entityTypeId, $entityKeys, $fieldDefinitions);
+        parent::__construct($values, $entityTypeId, $entityKeys, ApiFixtureFieldDefinitions::mergePublic($values, $fieldDefinitions));
     }
 
     /**

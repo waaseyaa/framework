@@ -12,6 +12,7 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Genealogy\GenealogyRelationshipType;
 use Waaseyaa\Relationship\Relationship;
+use Waaseyaa\Relationship\RelationshipTopologyReader;
 
 /**
  * Genealogy graph edges inherit endpoint visibility. Registered from
@@ -23,6 +24,7 @@ final class GenealogyRelationshipAccessPolicy implements AccessPolicyInterface
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly EntityAccessHandler $accessHandler,
+        private readonly RelationshipTopologyReader $topologyReader = new RelationshipTopologyReader(),
     ) {}
 
     public function appliesTo(string $entityTypeId): bool
@@ -54,8 +56,9 @@ final class GenealogyRelationshipAccessPolicy implements AccessPolicyInterface
 
     private function viewEdge(Relationship $edge, AccountInterface $account): AccessResult
     {
-        $from = $this->loadEndpoint((string) $edge->get('from_entity_type'), (string) $edge->get('from_entity_id'));
-        $to = $this->loadEndpoint((string) $edge->get('to_entity_type'), (string) $edge->get('to_entity_id'));
+        $topology = $this->topologyReader->read($edge);
+        $from = $this->loadEndpoint($topology->fromType, $topology->fromId);
+        $to = $this->loadEndpoint($topology->toType, $topology->toId);
 
         if ($from === null || $to === null) {
             return AccessResult::forbidden('Genealogy edge endpoint is missing or unloadable.');

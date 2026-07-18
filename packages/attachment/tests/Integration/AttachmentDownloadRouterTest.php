@@ -14,6 +14,8 @@ use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Attachment\Attachment;
+use Waaseyaa\Attachment\Http\AttachmentDownloadMetadata;
+use Waaseyaa\Attachment\Http\AttachmentDownloadMetadataReaderInterface;
 use Waaseyaa\Attachment\Http\AttachmentDownloadRouter;
 use Waaseyaa\Attachment\Policy\ParentDelegatedAccessPolicy;
 use Waaseyaa\Attachment\Storage\PrivateFileStore;
@@ -278,7 +280,16 @@ final class AttachmentDownloadRouterTest extends TestCase
         $handler = new EntityAccessHandler([$this->parentPolicy($parentViewableByAccountId)]);
         $handler->addPolicy(new ParentDelegatedAccessPolicy($manager, $handler));
 
-        return new AttachmentDownloadRouter($manager, $handler, new PrivateFileStore($this->privateRoot));
+        $metadataReader = new class ($storageUri, $filename) implements AttachmentDownloadMetadataReaderInterface {
+            public function __construct(private string $storageUri, private string $filename) {}
+
+            public function read(Attachment $attachment, AccountInterface $account): AttachmentDownloadMetadata
+            {
+                return new AttachmentDownloadMetadata($this->storageUri, 'text/plain', $this->filename);
+            }
+        };
+
+        return new AttachmentDownloadRouter($manager, $handler, new PrivateFileStore($this->privateRoot), $metadataReader);
     }
 
     private function parentPolicy(int $allowedAccountId): AccessPolicyInterface

@@ -19,12 +19,11 @@ use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
-use Waaseyaa\Oidc\Keys\SigningKey;
 use Waaseyaa\Oidc\Token\AccessTokenIssuer;
 use Waaseyaa\Oidc\Token\AccessTokenPair;
-use Waaseyaa\Oidc\Token\KeyMaterialProviderInterface;
 use Waaseyaa\Oidc\Userinfo\UserinfoClaimResolver;
 use Waaseyaa\Oidc\Userinfo\UserinfoController;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 use Waaseyaa\User\User;
 
 /**
@@ -173,6 +172,7 @@ final class UserinfoControllerTest extends TestCase
             entityTypeManager: $entityTypeManager,
             entityAccessHandler: new EntityAccessHandler(),
             claimResolver: new UserinfoClaimResolver(),
+            userInternalFields: new UserInternalFieldReaderFixture(),
         );
     }
 

@@ -11,6 +11,7 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\EntityStorage\Event\BeforeRevisionPointerMoveEvent;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 use Waaseyaa\Workflows\Group\GroupConstraintChecker;
+use Waaseyaa\Workflows\Read\WorkflowEntitySnapshotReader;
 use Waaseyaa\Workflows\Transition\TransitionDeniedException;
 use Waaseyaa\Workflows\Workflow;
 use Waaseyaa\Workflows\WorkflowTransition;
@@ -82,6 +83,7 @@ final class WorkflowPointerMoveGuard
         // only when an acting account context exists (a null context stays
         // edge-legality only, unchanged).
         private readonly ?GroupConstraintChecker $groupConstraintChecker = null,
+        private readonly ?WorkflowEntitySnapshotReader $workflowValues = null,
     ) {}
 
     /**
@@ -432,8 +434,15 @@ final class WorkflowPointerMoveGuard
      */
     private function explicitState(array|EntityInterface $source): ?string
     {
-        $state = $source instanceof EntityInterface ? $source->get('workflow_state') : ($source['workflow_state'] ?? null);
+        $state = $source instanceof EntityInterface
+            ? $this->workflowValues()->read($source)->workflowState
+            : ($source['workflow_state'] ?? null);
 
         return \is_string($state) && $state !== '' ? $state : null;
+    }
+
+    private function workflowValues(): WorkflowEntitySnapshotReader
+    {
+        return $this->workflowValues ?? new WorkflowEntitySnapshotReader();
     }
 }

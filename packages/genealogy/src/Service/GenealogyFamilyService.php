@@ -9,6 +9,7 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Genealogy\GenealogyRelationshipType;
 use Waaseyaa\Relationship\Relationship;
+use Waaseyaa\Relationship\RelationshipTopologyReader;
 
 /**
  * Household membership via `genealogy_member_of_family` edges.
@@ -17,6 +18,7 @@ final class GenealogyFamilyService
 {
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
+        private readonly RelationshipTopologyReader $topologyReader = new RelationshipTopologyReader(),
     ) {}
 
     /**
@@ -46,7 +48,8 @@ final class GenealogyFamilyService
         $people = [];
         foreach ($repository->findMany($ids) as $entity) {
             if ($entity instanceof Relationship) {
-                $people[] = (string) $entity->get('from_entity_id');
+                $topology = $this->topologyReader->read($entity);
+                $people[] = $topology->fromId;
             }
         }
 

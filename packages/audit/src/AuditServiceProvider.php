@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Audit;
 
 use Waaseyaa\Access\AccountPrincipalFactory;
+use Waaseyaa\Access\AccountPrincipalFactoryInterface;
 use Waaseyaa\Access\Capability\CapabilityActorSemantics;
 use Waaseyaa\Access\Capability\CapabilityDeclaration;
 use Waaseyaa\Access\Capability\CapabilityReason;
@@ -40,9 +41,11 @@ use Waaseyaa\Audit\Schedule\AuditCheckpointScheduleEntries;
 use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
 use Waaseyaa\Audit\Storage\AppendOnlyAuditDatabase;
 use Waaseyaa\Audit\Writer\AuditEventWriter;
+use Waaseyaa\Audit\Writer\DatabaseStrictFieldStorageGatewayAudit;
 use Waaseyaa\Audit\Writer\DatabaseStrictPrivilegedReadLedger;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\EntityStorage\Backend\StrictFieldStorageGatewayAuditInterface;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
@@ -124,10 +127,18 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
             return $registry;
         });
 
-        $this->singleton(AccountFieldReadScopeInterface::class, static fn(): AccountFieldReadScopeInterface => new AccountFieldReadScope());
+        $this->singleton(AccountFieldReadScopeInterface::class, function (): AccountFieldReadScopeInterface {
+            $kernelScope = $this->kernelServices?->get(AccountFieldReadScopeInterface::class);
+
+            return $kernelScope instanceof AccountFieldReadScopeInterface ? $kernelScope : new AccountFieldReadScope();
+        });
 
         $this->singleton(StrictPrivilegedReadLedgerInterface::class, function (): StrictPrivilegedReadLedgerInterface {
             return new DatabaseStrictPrivilegedReadLedger($this->resolve(DatabaseInterface::class));
+        });
+
+        $this->singleton(StrictFieldStorageGatewayAuditInterface::class, function (): StrictFieldStorageGatewayAuditInterface {
+            return new DatabaseStrictFieldStorageGatewayAudit($this->resolve(DatabaseInterface::class));
         });
 
         $this->singleton(UserInternalFieldReaderInterface::class, function (): UserInternalFieldReaderInterface {
@@ -146,6 +157,19 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
             assert($ledger instanceof StrictPrivilegedReadLedgerInterface);
 
             return new AuditedUserIdentityLookup(new AuditedQueryFieldRead($capabilities, $ledger), $capabilities);
+        });
+
+        $this->singleton(AccountPrincipalFactoryInterface::class, function (): AccountPrincipalFactoryInterface {
+            $capabilities = $this->resolve(CapabilityRegistryInterface::class);
+            $ledger = $this->resolve(StrictPrivilegedReadLedgerInterface::class);
+            assert($capabilities instanceof CapabilityRegistryInterface);
+            assert($ledger instanceof StrictPrivilegedReadLedgerInterface);
+
+            return new AccountPrincipalFactory(new IdentityBootstrapReader(
+                new SessionBootstrapReader(new AuditedFieldRead($capabilities, $ledger)),
+                $capabilities,
+                'http.identity-bootstrap',
+            ));
         });
 
         $this->singleton(AuditWriterInterface::class, function (): AuditWriterInterface {
@@ -263,21 +287,14 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
         $logger = $this->resolveOptional(LoggerInterface::class);
         $resolvedLogger = $logger instanceof LoggerInterface ? $logger : null;
 
-        $capabilities = $this->resolve(CapabilityRegistryInterface::class);
-        $ledger = $this->resolve(StrictPrivilegedReadLedgerInterface::class);
         $scope = $this->resolve(AccountFieldReadScopeInterface::class);
-        assert($capabilities instanceof CapabilityRegistryInterface);
-        assert($ledger instanceof StrictPrivilegedReadLedgerInterface);
         assert($scope instanceof AccountFieldReadScopeInterface);
-        $identityReader = new IdentityBootstrapReader(
-            new SessionBootstrapReader(new AuditedFieldRead($capabilities, $ledger)),
-            $capabilities,
-            'http.identity-bootstrap',
-        );
+        $principalFactory = $this->resolve(AccountPrincipalFactoryInterface::class);
+        assert($principalFactory instanceof AccountPrincipalFactoryInterface);
 
         return [
             new FieldReadContextMiddleware(
-                new AccountPrincipalFactory($identityReader),
+                $principalFactory,
                 $scope,
             ),
             new ApiRequestAuditListener($writer, $resolvedLogger),

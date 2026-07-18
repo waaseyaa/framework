@@ -195,6 +195,7 @@ final class EntityWritePayloadGuard
         array $currentValues,
     ): EntityWritePayloadGuardResult {
         [$identitySet, $writableKeys, $fieldDefinitions] = self::resolveSets($definition, $bundle, $entityTypeManager);
+        $identitySet = self::updateIdentitySet($definition, $identitySet);
 
         $refused = [];
         $echoed = [];
@@ -237,6 +238,7 @@ final class EntityWritePayloadGuard
         }
 
         [$identitySet, $writableKeys, $fieldDefinitions] = self::resolveSets($definition, $bundle, $entityTypeManager);
+        $identitySet = self::updateIdentitySet($definition, $identitySet);
         $echoed = new EntityValueComparator()->matchingSubmittedFieldNames($current, $attributes, $identitySet);
         $echoedSet = array_fill_keys($echoed, true);
         $refused = [];
@@ -332,5 +334,23 @@ final class EntityWritePayloadGuard
         sort($keys);
 
         return $keys;
+    }
+
+    /**
+     * Bundle is writable structure on create, but immutable after construction.
+     * Update therefore treats an unchanged bundle value like other structural
+     * echoes: accept it for read-modify-write clients, then strip it before set().
+     *
+     * @param list<string> $identitySet
+     * @return list<string>
+     */
+    private static function updateIdentitySet(EntityTypeInterface $definition, array $identitySet): array
+    {
+        $bundleKey = $definition->getKeys()['bundle'] ?? '';
+        if ($bundleKey !== '') {
+            $identitySet[] = $bundleKey;
+        }
+
+        return array_values(array_unique($identitySet));
     }
 }

@@ -29,16 +29,6 @@ final class AuditRetentionPolicy extends ContentEntityBase
     }
 
     /**
-     * Flat value accessor — audit_retention_policy is not a registered entity
-     * type, so bypass TranslatableEntityTrait::get() (which resolves
-     * getEntityType()) and read the value bag directly.
-     */
-    public function get(string $name): mixed
-    {
-        return parent::get($name);
-    }
-
-    /**
      * Glob-style pattern matched against AuditEventKind values (e.g. `entity.*`, `*`).
      */
     public function getKindPattern(): string

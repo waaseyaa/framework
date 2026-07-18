@@ -7,9 +7,11 @@ namespace Waaseyaa\Tests\Integration\DBAL;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityConstants;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
@@ -401,6 +403,13 @@ final class DBALRegressionTest extends TestCase
  */
 class RegressionTestEntity extends ContentEntityBase
 {
+    #[Field(type: 'string', read: FieldReadLevel::Public)] public string $title;
+    #[Field(type: 'json', read: FieldReadLevel::Public)] public array $metadata;
+    #[Field(type: 'json', read: FieldReadLevel::Public)] public array $i18n;
+    #[Field(type: 'json', read: FieldReadLevel::Public)] public array $history;
+    #[Field(type: 'json', read: FieldReadLevel::Public)] public array $settings;
+    #[Field(type: 'integer', read: FieldReadLevel::Public)] public int $counter;
+
     public function __construct(
         array $values = [],
         string $entityTypeId = 'regression_test',

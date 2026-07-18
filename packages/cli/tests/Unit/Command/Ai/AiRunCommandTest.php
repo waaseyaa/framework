@@ -156,6 +156,7 @@ final class AiRunCommandTest extends TestCase
         $command = new AiRunCommand(
             runService: $service,
             definitionRegistry: $registry,
+            workerReader: new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture(),
             aiConfig: $aiConfig,
         );
 
@@ -206,6 +207,7 @@ final class AiRunCommandTest extends TestCase
             broadcaster: new InertBroadcasterForAiRunTest(),
             provider: new NullLlmProvider(),
             accountLoader: new StubInitiatorAccountLoader(),
+            workerReader: new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture(),
         );
 
         $bus = new MessageBus([

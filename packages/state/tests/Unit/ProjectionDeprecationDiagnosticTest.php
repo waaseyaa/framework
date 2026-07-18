@@ -16,6 +16,15 @@ use Waaseyaa\State\SqlState;
 
 final class ProjectionDeprecationDiagnosticTest extends TestCase
 {
+    public function test_default_state_boundary_rejects_nested_entity_before_write(): void
+    {
+        $state = new MemoryState();
+        $entity = new class ([], 'user') extends EntityBase {};
+
+        $this->expectException(EntityProjectionWriteForbidden::class);
+        $state->set('current-user', ['entity' => $entity]);
+    }
+
     public function test_activation_rejects_nested_entity_before_state_write(): void
     {
         $diagnostic = ProjectionDeprecationDiagnostic::forEntityPayloads(

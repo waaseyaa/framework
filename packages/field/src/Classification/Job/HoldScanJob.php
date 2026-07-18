@@ -9,7 +9,9 @@ use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Field\Classification\ClassificationSubjectReader;
 use Waaseyaa\Field\Entity\RetentionPolicy;
+use Waaseyaa\Field\Entity\RetentionPolicyMaintenanceReader;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 
@@ -41,15 +43,21 @@ final class HoldScanJob
 
     private readonly LoggerInterface $logger;
     private readonly RetentionScanner $scanner;
+    private readonly RetentionPolicyMaintenanceReader $policyReader;
+    private readonly ClassificationSubjectReader $subjectReader;
 
     public function __construct(
         private readonly EntityTypeManager $entityTypeManager,
         private readonly AuditWriterInterface $auditWriter,
         ?LoggerInterface $logger = null,
         ?RetentionScanner $scanner = null,
+        ?RetentionPolicyMaintenanceReader $policyReader = null,
+        ?ClassificationSubjectReader $subjectReader = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
         $this->scanner = $scanner ?? new RetentionScanner($entityTypeManager);
+        $this->policyReader = $policyReader ?? new RetentionPolicyMaintenanceReader();
+        $this->subjectReader = $subjectReader ?? new ClassificationSubjectReader();
     }
 
     public function run(): void
@@ -88,7 +96,7 @@ final class HoldScanJob
             }
 
             foreach ($this->scanner->scan($entityTypeId, null, null) as $entity) {
-                $labelId = (string) ($entity->get('classification_label') ?? '');
+                $labelId = $this->subjectReader->read($entity)->label ?? '';
                 if ($labelId === '') {
                     continue;
                 }
@@ -114,7 +122,7 @@ final class HoldScanJob
     private function firstMatch(array $policies, string $labelId): ?RetentionPolicy
     {
         foreach ($policies as $policy) {
-            if ($policy->matchesLabel($labelId)) {
+            if ($this->policyReader->read($policy)->matchesLabel($labelId)) {
                 return $policy;
             }
         }
