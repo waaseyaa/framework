@@ -1,5 +1,7 @@
 # Waaseyaa Stability Charter
 
+<!-- Spec reviewed 2026-07-17 - #2064 WP1 follows §4 by adding the V2 storage SPI and dormant compatibility adapter before the approved alpha no-shim activation. The stable FieldDefinitionInterface and all existing read/serialization/V1 behavior remain unchanged in WP1. Activation owns the breaking-change guide, checklist, release-note heading, V1 removal, guarded toArray(), and serialization break. -->
+
 **Status:** In force (solo-developer project — no ratification ceremony; see §12). Strategic decisions complete (ADRs 010–018 accepted, 012 superseded by 012a); §11 operational questions resolved (2026-05-11); CI enforcement live — `surface-parity` is a real blocking AST gate and the full `composer verify` gate set runs in CI (`ci/verify-gates`).
 **Owner:** `@jonesrussell` (sole maintainer and release authority)
 **Authoritative on:** API stability, deprecation process, breaking-change procedure

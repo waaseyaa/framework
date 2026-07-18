@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Dormant entity field-read boundary contracts (#2064).** Field definitions can carry additive Public/Protected/Internal metadata without changing the stable legacy definition interface; immutable structural metadata, account-principal and protected-policy seams, fiber-local account scopes, exact tenant/community- and actor-bound opaque capability declarations, a value/query strict-ledger contract, role-separated opaque V2 ordinary/revision storage rows and snapshots with a deprecated V1 adapter shape, exact activation-blocker inventories, the future serialization exception type, and a benchmark harness establish the staged migration surface. WP1 does not change existing reads, `toArray()`, PHP serialization, boot, cache/state/queue behavior, or V1 storage-driver behavior.
+
 ## [0.1.0-alpha.267] - 2026-07-17
 
 ### Added

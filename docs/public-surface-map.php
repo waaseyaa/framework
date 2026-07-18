@@ -150,6 +150,7 @@ return [
 
     // Layer 1: Core Data — public
     'Waaseyaa\Entity\EntityInterface' => 'public',
+    'Waaseyaa\Entity\FieldReadLevel' => 'public',
     'Waaseyaa\Entity\EntityBase' => 'public',
     'Waaseyaa\Entity\ContentEntityBase' => 'public',
     'Waaseyaa\Entity\ContentEntityInterface' => 'public',
@@ -185,6 +186,8 @@ return [
     'Waaseyaa\Entity\DateTime\FixedEntityClock' => 'public',
     'Waaseyaa\Entity\DateTime\TimestampFieldConvention' => 'public',
     'Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface' => 'public',
+    'Waaseyaa\EntityStorage\Driver\EntityStorageDriverV2Interface' => 'public',
+    'Waaseyaa\EntityStorage\Driver\RevisionableStorageDriverV2Interface' => 'public',
     'Waaseyaa\EntityStorage\Connection\ConnectionResolverInterface' => 'public',
     'Waaseyaa\EntityStorage\Exception\UnknownFieldException' => 'public',
     'Waaseyaa\EntityStorage\Exception\BundleAmbiguousFieldException' => 'public',
@@ -263,6 +266,15 @@ return [
     // Acting-account context (mission #1644/#1645): request-scoped holder read
     // by entity-storage (revision author) and audit (actor attribution).
     'Waaseyaa\Access\Context\AccountContextInterface' => 'public',
+    'Waaseyaa\Access\Context\AccountFieldReadScopeInterface' => 'public',
+    'Waaseyaa\Access\AuthorizationPrincipalInterface' => 'public',
+    'Waaseyaa\Access\AccountPrincipalFactoryInterface' => 'public',
+    'Waaseyaa\Access\PolicySubjectViewInterface' => 'public',
+    'Waaseyaa\Access\ProtectedFieldReadPolicyInterface' => 'public',
+    'Waaseyaa\Access\Capability\CapabilityRegistryInterface' => 'public',
+    'Waaseyaa\Access\Capability\CapabilityReason' => 'public',
+    'Waaseyaa\Access\Capability\CapabilityActorSemantics' => 'public',
+    'Waaseyaa\Access\Capability\QueryFieldOperation' => 'public',
     'Waaseyaa\Access\AccessPolicyInterface' => 'public',
     'Waaseyaa\Access\ContextAwareAccessPolicyInterface' => 'public',
     'Waaseyaa\Access\FieldAccessPolicyInterface' => 'public',
@@ -323,6 +335,8 @@ return [
     'Waaseyaa\CLI\Command\Config\ConfigValidateCommand' => 'public',
     'Waaseyaa\CLI\Command\Config\ConfigResetCommand' => 'public',
     'Waaseyaa\Field\FieldDefinitionInterface' => 'public',
+    'Waaseyaa\Field\FieldReadDefinitionInterface' => 'public',
+    'Waaseyaa\Field\FieldReadMetadataSource' => 'public',
     'Waaseyaa\Field\FieldStorage' => 'public',
     'Waaseyaa\Field\FieldTypeInterface' => 'public',
     'Waaseyaa\Field\FieldFormatterInterface' => 'public',
@@ -503,6 +517,9 @@ return [
     // Audit log: query/write contracts and event-kind enum.
     'Waaseyaa\Audit\Contract\AuditQueryInterface' => 'public',
     'Waaseyaa\Audit\Contract\AuditWriterInterface' => 'public',
+    'Waaseyaa\Audit\Contract\StrictPrivilegedReadLedgerInterface' => 'public',
+    'Waaseyaa\Audit\Contract\PrivilegedReadOutcome' => 'public',
+    'Waaseyaa\Audit\Contract\PrivilegedReadKind' => 'public',
     'Waaseyaa\Audit\Enum\AuditEventKind' => 'public',
     // CW-v1 WP-1 (#1920): workflow-transition lifecycle event names.
     'Waaseyaa\Workflows\Event\WorkflowEvents' => 'public',

@@ -132,12 +132,15 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `EntityStorageInterface` | interface | Lower-level storage operations: load, save, delete, query |
 | `RevisionableStorageInterface` | interface | Extends entity storage with load, delete, and list operations for specific revisions |
 | `EntityQueryInterface` | interface | Fluent query builder for filtering and loading entities by field conditions |
+| `FieldReadLevel` | enum | Additive `public` / `protected` / `internal` definition metadata; dormant until the no-shim activation work package |
 
 ### entity-storage
 
 | Element | Type | Purpose |
 |---------|------|---------|
 | `EntityStorageDriverInterface` | interface | Low-level persistence SPI: raw row I/O without hydration or event dispatch. Adds `findTranslations(EntityInterface): array<string, EntityInterface>` (M-006, WP10) |
+| `EntityStorageDriverV2Interface` | interface | Additive boundary-bound opaque-row storage SPI: reads return `StorageRow`/`StorageRowSet` and writes accept `StorageSnapshot`; unrelated boundary tokens cannot unwrap them, and V1 remains behavior-compatible during dormant stages |
+| `RevisionableStorageDriverV2Interface` | interface | Additive opaque revision SPI mirroring current revision and langcode operations while replacing raw read/write arrays with boundary-bound rows and snapshots |
 | `ConnectionResolverInterface` | interface | Resolves named database connections; multi-tenancy seam for entity storage |
 | `FieldStorageBackendInterface` | interface | Contract for pluggable field storage backends (M-001, WP01) |
 | `HasFieldStorageBackendsInterface` | interface | Mix-in for packages that provide custom field storage backends (M-001, WP01) |
@@ -187,6 +190,15 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `ContextAwareAccessPolicyInterface` | interface | Companion to `AccessPolicyInterface` accepting a `$context` array (carries `langcode` for the `'translate'` operation and read-time langcode for `view`/`update`) (M-006, WP09) |
 | `'translate'` access-policy operation | operation literal | Used by translation writes; resolves via `ContextAwareAccessPolicyInterface::access($operation, $entity, $account, ['langcode' => $lc])` (M-006, WP09) |
 | `FieldAccessPolicyInterface` | interface | Checks field-level access on an entity; open-by-default (Forbidden restricts, Neutral allows) |
+| `AuthorizationPrincipalInterface` | interface | Immutable account-facing claims used by protected field-read policies without reading an acting User entity |
+| `AccountPrincipalFactoryInterface` | interface | Closed bootstrap seam for snapshotting an account into an authorization principal |
+| `AccountFieldReadScopeInterface` | interface | Fiber-local, nested account principal scope restored in `finally`; it carries no privileged authority |
+| `PolicySubjectViewInterface` | interface | Closed view limited to compiled `authorizationInput` subject fields |
+| `ProtectedFieldReadPolicyInterface` | interface | Dedicated fail-closed Protected read policy; only explicit Allowed will release a value after activation |
+| `CapabilityRegistryInterface` | interface | Kernel registry for reviewed, exact value-read and query-read capability declarations and one-boundary handles |
+| `CapabilityReason` | enum | Closed reason vocabulary for privileged field reads |
+| `CapabilityActorSemantics` | enum | Explicit account, anonymous, system-service, or no-acting-context attribution for capability issuance and ledger reservations |
+| `QueryFieldOperation` | enum | Closed non-public query operation vocabulary: predicate, sort, aggregate, count, exists |
 | `PermissionHandlerInterface` | interface | Manages the registry of available permissions and their metadata |
 | `GateInterface` | interface | Resolves the policy for a subject and checks whether a user has a given ability |
 
@@ -247,6 +259,8 @@ Configuration Management v1 — active/sync store split, six `config:*` CLI comm
 | `FieldItemInterface` | interface | A single typed value within a field list, with property accessors and emptiness check |
 | `FieldItemListInterface` | interface | An ordered list of `FieldItemInterface` values for one field on one entity |
 | `FieldDefinitionInterface` | interface | Describes a field: type, label, cardinality, settings, and constraints |
+| `FieldReadDefinitionInterface` | interface | Additive companion exposing nullable read classification without changing third-party `FieldDefinitionInterface` implementations |
+| `FieldReadMetadataSource` | enum | Records whether classification came from a definition, legacy internal setting, site artifact, or remains unclassified |
 | `FieldDefinition::translatable(bool $translatable = true): self` | builder method | Marks a field as translatable (per-langcode value). Calling on a non-translatable `EntityType`'s field fails at boot (M-006, WP03) |
 | `FieldDefinition::isTranslatable(): bool` | reader | Returns whether the field carries per-language values (M-006, WP03) |
 | `FieldTypeInterface` | interface | Plugin interface for field type implementations providing column and property schemas |
@@ -254,6 +268,14 @@ Configuration Management v1 — active/sync store split, six `config:*` CLI comm
 | `FieldTypeManagerInterface` | interface | Discovers field type plugins and provides their default settings and column definitions |
 | `FieldItemBase` | abstract class | Base field item implementation combining plugin and typed-data behavior |
 | `ViewModeConfigInterface` | interface | Configures which fields and formatters are active for a given view mode |
+
+### audit
+
+| Element | Type | Purpose |
+|---------|------|---------|
+| `StrictPrivilegedReadLedgerInterface` | interface | Synchronously reserves non-value metadata before a privileged read and finalizes its outcome afterward |
+| `PrivilegedReadOutcome` | enum | Strict-ledger final outcomes: succeeded or failed; interrupted reservations remain unfinished and visible |
+| `PrivilegedReadKind` | enum | Distinguishes explicit value-read reservations from query-field reservations |
 
 ### oauth-provider
 
