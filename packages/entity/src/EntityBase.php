@@ -19,6 +19,8 @@ use Waaseyaa\Entity\Cast\ValueCaster;
  */
 abstract class EntityBase implements EntityInterface
 {
+    /** Immutable non-content selectors attached by the closed hydrator. */
+    private ?EntityStructure $entityStructure = null;
     /**
      * The entity type ID (e.g. 'node', 'user').
      *
@@ -105,6 +107,95 @@ abstract class EntityBase implements EntityInterface
         return $this->entityTypeId;
     }
 
+    /**
+     * Return structural selectors without obtaining a field value.
+     *
+     * @api
+     */
+    final public function entityStructure(): EntityStructure
+    {
+        return $this->entityStructure ?? throw new \LogicException('Entity structure has not been attached.');
+    }
+
+    /** @internal bootstrap probe; reports metadata attachment only. */
+    final public function _hasEntityStructure(): bool
+    {
+        return $this->entityStructure !== null;
+    }
+
+    /**
+     * Repository hydration hook. Application code must not call this method.
+     * A structure is write-once so a returned entity cannot be retargeted.
+     *
+     * @internal EntityInstantiator only.
+     */
+    final public function _attachEntityStructure(EntityStructure $structure): void
+    {
+        if ($this->entityStructure !== null) {
+            throw new \LogicException('Entity structure is immutable after hydration.');
+        }
+        $this->entityStructure = $structure;
+    }
+
+    /** @internal repository identity backfill only. */
+    final public function _hydrateStructuralId(int|string $id): void
+    {
+        $current = $this->entityStructure();
+        $this->entityStructure = new EntityStructure(
+            $current->entityTypeId,
+            $current->bundleId,
+            $id,
+            $current->uuid,
+            $current->activeLanguageId,
+            $current->defaultLanguageId,
+            $current->knownTranslationIds,
+            $current->revisionId,
+            $current->revisionTip,
+            $current->defaultRevision,
+            $current->fieldNames,
+        );
+    }
+
+    /** @internal repository revision hydration only. */
+    final public function _hydrateStructuralRevision(int|string $revisionId, bool $tip = true, bool $default = true): void
+    {
+        $current = $this->entityStructure();
+        $this->entityStructure = new EntityStructure(
+            $current->entityTypeId,
+            $current->bundleId,
+            $current->id,
+            $current->uuid,
+            $current->activeLanguageId,
+            $current->defaultLanguageId,
+            $current->knownTranslationIds,
+            $revisionId,
+            $tip,
+            $default,
+            $current->fieldNames,
+        );
+    }
+
+    /** @internal repository/translation hydrator structural selectors only. @param list<string> $known */
+    final public function _hydrateStructuralLanguages(string $active, string $default, array $known): void
+    {
+        $current = $this->entityStructure();
+        $known = array_values(array_unique($known));
+        sort($known);
+        $this->entityStructure = new EntityStructure(
+            $current->entityTypeId,
+            $current->bundleId,
+            $current->id,
+            $current->uuid,
+            $active,
+            $default,
+            $known,
+            $current->revisionId,
+            $current->revisionTip,
+            $current->defaultRevision,
+            $current->fieldNames,
+        );
+    }
+
     public function bundle(): string
     {
         $bundleKey = $this->entityKeys['bundle'] ?? 'bundle';
@@ -188,6 +279,9 @@ abstract class EntityBase implements EntityInterface
 
         $copy = $this->duplicateInstance($shallowValues);
         $copy->enforceIsNew($this->enforceIsNew);
+        if ($this->entityStructure !== null) {
+            $copy->_attachEntityStructure($this->entityStructure);
+        }
 
         return $copy;
     }

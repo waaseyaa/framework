@@ -172,6 +172,11 @@ final class SqlColumnTranslationHydrator
         if ($entity instanceof TranslatableInterface && \method_exists($entity, '_setTranslationData')) {
             $entity->_setTranslationData($translationData, $defaultLc);
         }
+        if ($entity instanceof \Waaseyaa\Entity\EntityBase) {
+            $known = array_keys($translationData);
+            sort($known);
+            $entity->_hydrateStructuralLanguages($defaultLc, $defaultLc, $known);
+        }
 
         if (\method_exists($entity, 'enforceIsNew')) {
             $entity->enforceIsNew(false);

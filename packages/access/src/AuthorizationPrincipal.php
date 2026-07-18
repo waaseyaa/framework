@@ -32,7 +32,8 @@ final readonly class AuthorizationPrincipal implements AuthorizationPrincipalInt
 
     public function hasPermission(string $permission): bool
     {
-        return in_array($permission, $this->permissions, true);
+        return in_array('administrator', $this->roles, true)
+            || in_array($permission, $this->permissions, true);
     }
 
     public function getRoles(): array

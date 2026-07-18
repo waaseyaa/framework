@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Waaseyaa\EntityStorage\Hydration;
 
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityStructure;
 use Waaseyaa\Entity\EntityTypeInterface;
+use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Entity\Hydration\HydratableFromStorageInterface;
 use Waaseyaa\Entity\Hydration\HydrationContext;
 
@@ -22,6 +25,7 @@ final class EntityInstantiator
 {
     public function __construct(
         private readonly EntityTypeInterface $entityType,
+        private readonly ?FieldDefinitionRegistryInterface $fieldRegistry = null,
     ) {}
 
     /**
@@ -51,7 +55,42 @@ final class EntityInstantiator
             entityKeys: $this->entityType->getKeys(),
         );
 
-        return $class::fromStorage($values, $context);
+        $entity = $class::fromStorage($values, $context);
+        if ($entity instanceof EntityBase) {
+            $keys = $this->entityType->getKeys();
+            $bundleKey = $keys['bundle'] ?? null;
+            $idKey = $keys['id'] ?? 'id';
+            $uuidKey = $keys['uuid'] ?? 'uuid';
+            $langcodeKey = $keys['langcode'] ?? 'langcode';
+            $revisionKey = $keys['revision'] ?? 'revision_id';
+            $langcode = (string) ($values[$langcodeKey] ?? 'en');
+            $defaultLangcode = (string) ($values['default_langcode'] ?? $langcode);
+            $knownTranslationIds = array_values(array_unique([$defaultLangcode, $langcode]));
+            sort($knownTranslationIds);
+            $bundle = $bundleKey === null ? '' : (string) ($values[$bundleKey] ?? '');
+            $fieldNames = array_values(array_unique(array_merge(
+                array_values($keys),
+                array_keys($this->entityType->getFieldDefinitions()),
+                array_keys($this->fieldRegistry?->coreFieldsFor($this->entityType->id()) ?? []),
+                array_keys($this->fieldRegistry?->bundleFieldsFor($this->entityType->id(), $bundle !== '' ? $bundle : $this->entityType->id()) ?? []),
+            )));
+            sort($fieldNames);
+            $entity->_attachEntityStructure(new EntityStructure(
+                entityTypeId: $this->entityType->id(),
+                bundleId: $bundle !== '' ? $bundle : $this->entityType->id(),
+                id: $values[$idKey] ?? null,
+                uuid: isset($values[$uuidKey]) ? (string) $values[$uuidKey] : null,
+                activeLanguageId: $langcode,
+                defaultLanguageId: $defaultLangcode,
+                knownTranslationIds: $knownTranslationIds,
+                revisionId: $values[$revisionKey] ?? null,
+                revisionTip: (bool) ($values['is_latest_revision'] ?? true),
+                defaultRevision: (bool) ($values['is_default_revision'] ?? true),
+                fieldNames: $fieldNames,
+            ));
+        }
+
+        return $entity;
     }
 
     /**

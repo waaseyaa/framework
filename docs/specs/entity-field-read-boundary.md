@@ -1,6 +1,6 @@
 # Entity Field-Read Boundary
 
-**Status:** WP1 additive contracts; dormant until the single no-shim activation PR.
+**Status:** WP1 contracts plus WP2 closed primitives and propagation; field-read enforcement remains dormant until the single no-shim activation PR.
 **Anchor:** GitHub #2064, with Design Revisions 2 and 3 controlling.
 
 ## WP1 contract
@@ -48,9 +48,13 @@ empty, opaque, non-serializable object identities. `CapabilityIssueContext`
 binds issuance to an execution boundary, explicit account/anonymous/system/no-
 acting-context attribution, tenant/community, expiry, and classification/policy
 generations. `CapabilityRegistryInterface` is the kernel-owned issuance and
-execution-boundary revocation contract. Authority exists only as registry-owned
-`WeakMap` membership; a caller may construct a handle but cannot reconstruct or
-forge membership.
+execution-boundary revocation contract. Issuance and every authorization use
+require the same live `CapabilityExecutionBoundary` proof; its correlation id
+is metadata, while registry-owned object identity is the non-forgeable
+credential. Revoking the proof invalidates the boundary and every capability
+issued into it. Authority exists only as registry-owned `WeakMap` membership; a
+caller may construct a handle or boundary-shaped object but cannot reconstruct
+or forge membership.
 
 `StrictPrivilegedReadLedgerInterface::reserve()` synchronously records a
 `PrivilegedReadDescriptor` before a future closed reader obtains a value, then
@@ -116,3 +120,115 @@ per fixture.
 WP2 supplies closed primitives and propagation. WP3 completes first-party
 classification/convergence, live preflight, consumer fixtures, and performance
 gates while still dormant. WP4 is the single no-shim activation PR.
+
+## WP2 closed primitive tranche
+
+The repository composition root now gives ordinary and revision/langcode
+storage one opaque V2 boundary. First-party SQL, in-memory, and revision
+backends cross that boundary only through role-bound rows and snapshots; a
+consumer-extension V2 fixture proves the additive SPI, while legacy ordinary
+V1 drivers remain repository-adapted with a deduplicated deprecation signal
+until WP4 removes V1 and the adapter together.
+
+`EntityStructure` is attached to framework entities during creation/hydration
+and direct-constructor bootstrap. Persisted id and revision backfills replace
+only their immutable structural snapshot through repository-owned hydration
+hooks; duplication retains the same immutable selectors. Persistence obtains
+the storage-canonical bag after lifecycle callbacks only through a private,
+non-exported closure identity retained by `EntityRepository`. Framework
+entities expose no companion raw-bag method; legacy third-party entities retain
+a deduplicated `toArray()` compatibility fallback inside the same private
+repository method. Repository base, bundle, translation, revision, and
+backfill writes then cross driver SPIs as opaque snapshots. A semantic
+architecture gate keeps persistence authority private, rejects public
+raw-extractor companions, and inventories
+every remaining direct value-bag and entity-array reader with a non-empty
+rationale.
+
+Structural hydration covers active/default/known translation ids and revision
+id/tip/default flags. Repository translation/revision loads and translation
+mutations replace only those immutable selectors; historical revisions cannot
+retain the tip/default flags from a base-row prototype. A disciplined
+revision-only save stamps its in-memory forward draft with `revisionTip=true`
+because it is the latest revision, and `defaultRevision=false` because the
+served base/default pointer did not move; ordinary and initial revision saves
+stamp both flags true explicitly.
+
+`AuditedFieldRead` validates an exact registered declaration and reserves one
+strict-ledger descriptor before obtaining any value in an explicit related
+field set, finalizing either success or failure. After reservation, first-party
+values are obtained through a reader-private, non-exported `EntityBase` closure
+that remains valid when the ordinary accessor guard activates; a forged handle
+or ordinary accessor call never reaches that closure. Closed credential, session,
+and identity readers constrain this primitive to their declared reasons. The
+identity reader issues and revokes a fresh capability around every immutable
+principal snapshot; HTTP installs that principal after bearer/session identity
+resolution and before route authorization, restores the fiber-local scope in
+`finally`, and reinstalls it only while a deferred streamed response executes.
+Tenant/community values resolved by the request are bound through explicit
+declaration flags; a declaration with fixed scope cannot also request dynamic
+binding.
+
+`DatabaseStrictPrivilegedReadLedger` stores reservation and finalization as
+immutable events. Reservation is synchronous; finalization validates and
+appends inside a database transaction, and a unique receipt/event invariant
+prevents conflicting outcomes. A caller's enclosing persistence transaction
+therefore includes both events, while an unfinished pure-read reservation stays
+visible. Descriptor JSON contains only names and scope metadata, never values.
+
+`QueryFieldReadRequest` and `AuditedQueryFieldRead` provide the dormant compiler
+boundary for exact non-public query fields/operations. They validate the
+distinct query capability and reserve a fingerprint-only descriptor before a
+future executor runs; enforcement is not connected to entity queries until
+activation. `AuditReadModelDefinitionRegistry` exactly classifies every column
+of the deliberately unregistered flat audit tables.
+
+`QueueEnvelopeV1` represents exactly one actor authority (actor id plus claims
+generation) or one system authority (closed reason plus service identity), with
+tenant/community and correlation dimensions. Persistent dispatch signs that
+envelope only when the composition root supplies an explicit reviewed factory;
+generic dispatch cannot acquire system authority by omission. The dormant
+compatibility default retains the signed legacy message, installs no authority,
+and emits a deduplicated diagnostic. The worker exposes a resolver-owned,
+closeable authority scope for the handler only and guarantees cleanup before
+acknowledgement, release, failure persistence, or the next job. CLI and API
+persistent retry preserve the exact signed envelope and queue.
+
+`QueueServiceProvider` obtains both the envelope factory and authority runtime
+only from the kernel-services bus. A host may supply a reviewed
+`QueueEnvelopeFactoryInterface` and `QueueAuthorityRuntimeInterface`; no
+first-party actor/system resolver is inferred from session state or message
+contents. The actor envelope intentionally carries no roles or permissions and
+the system envelope carries no field-capability declaration, while the queue
+package has no authoritative account-generation resolver; those inputs are
+therefore insufficient for a first-party runtime to install fresh field-read
+authority without inventing it. In their absence dispatch stays
+legacy/non-authorizing and workers use `NoAuthorityQueueRuntime`. Provider-level
+tests pin both the injectable production seam and this closed default. Generic
+dispatch rejects a caller-created `QueueEnvelopeV1` before serialization or
+transport access, so only the reviewed factory can create a newly persisted
+authority envelope; exact signed-payload replay remains the retry-only
+preservation path.
+
+CLI declarations carry a closed CLI-valid reason (`MaintenanceCli`,
+`AdminTooling`, `CredentialVerification`, or `StrictAuditProjection`), while
+migration declarations compile to `MigrationImport`; all use `NoActingContext`
+semantics and a null audit actor. `MigrationAuditedFieldReader` contains the explicit
+`AuditedFieldRead::read(...)` call site; imports gain no read authority merely by
+writing. `ProtectedCacheDimensions` includes principal/claims, tenant/community,
+classification/policy generations, bundle, language, and revision.
+`PublicStateProjection` explicitly carries Public values only. Queue/cache/state
+write-boundary diagnostics are deduplicated and preserve dormant behavior.
+HTTP cache bins and `CacheFactory` receive the cache diagnostic in production;
+the repository has no state composition root, so `MemoryState`/`SqlState`
+accept the state diagnostic at their real constructor/write boundary without
+inventing a host binding. Hard rejection remains WP4.
+
+WP2 does not convert all credential and identity call sites. The production
+HTTP principal bootstrap uses `IdentityBootstrapReader`, but direct reads in
+`User` helpers, mail delivery, authentication controllers/services,
+notifications, and CLI handlers remain an explicit WP3 convergence inventory;
+`CredentialBootstrapReader` is not yet a production authentication call site.
+WP3 must convert and preflight those consumers before WP4 activation.
+Accessor/query enforcement and hard cache/state/entity-serialization rejection
+also remain later work.

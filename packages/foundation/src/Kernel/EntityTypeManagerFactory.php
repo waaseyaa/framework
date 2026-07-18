@@ -14,7 +14,10 @@ use Waaseyaa\Entity\Validation\EntityValidator;
 use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
+use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriverV2;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriverV2;
+use Waaseyaa\EntityStorage\Driver\StorageBoundary;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Schema\TranslationSchemaHandler;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
@@ -101,14 +104,24 @@ final class EntityTypeManagerFactory
                 $idKey = $keys['id'] ?? 'id';
 
                 $resolver = new SingleConnectionResolver($database);
-                $driver = new SqlStorageDriver(
+                $storageBoundary = new StorageBoundary();
+                $rawDriver = new SqlStorageDriver(
                     $resolver,
                     $idKey,
                     $communityScoreResolver($definition),
                     $fieldRegistry,
                 );
+                $driver = new SqlStorageDriverV2(
+                    $rawDriver,
+                    $storageBoundary->driverRowFactory(),
+                    $storageBoundary->driverSnapshotReader(),
+                );
                 $revisionDriver = $definition->isRevisionable()
-                    ? new RevisionableStorageDriver($resolver, $definition)
+                    ? new RevisionableStorageDriverV2(
+                        new RevisionableStorageDriver($resolver, $definition),
+                        $storageBoundary->driverRowFactory(),
+                        $storageBoundary->driverSnapshotReader(),
+                    )
                     : null;
 
                 $repository = new EntityRepository(
@@ -127,6 +140,7 @@ final class EntityTypeManagerFactory
                     // C-22: thread the lazy access-handler resolver so
                     // EntityRepository::getQuery() is fail-closed.
                     accessHandlerResolver: $accessHandlerResolver,
+                    storageBoundary: $storageBoundary,
                 );
                 // revision-audit-provenance-01KTWY5V WP01: forward seam — the
                 // kernel's shared acting-account context is attached once

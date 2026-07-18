@@ -48,6 +48,8 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `ContextResolver` | service | Resolves a context name against a `RequestContext` into a deterministic short string |
 | `ContextNames` | constants class | Canonical context-name constants (`USER_ROLES`, `USER_ID`, `LANGUAGE_CONTENT`, `LANGUAGE_INTERFACE`, `URL_QUERY_PREFIX`) |
 | `Exception\InvalidCacheTagException` | exception | Thrown by `setWithTags()` on malformed tag strings (no silent normalisation) |
+| `ProtectedCacheDimensions` | final class | Complete protected-cache authority, bundle, language, revision, and generation key dimensions |
+| `ProjectionDeprecationDiagnostic` | final class | Deduplicated dormant entity-payload diagnostic wired into first-party cache writes |
 
 ### database-legacy
 
@@ -91,6 +93,24 @@ Machine-readable source: `docs/public-surface-map.php`.
 | Element | Type | Purpose |
 |---------|------|---------|
 | `QueueInterface` | interface | Dispatches messages to the queue for asynchronous processing |
+| `QueueEnvelopeV1` | final class | Dormant versioned authority envelope carrying exactly one actor or system authority plus tenant/community and correlation dimensions |
+| `QueueSystemReason` | enum | Closed reason vocabulary for system-owned queue authority |
+| `QueueEnvelopeFactoryInterface` | interface | Dispatch-bound factory for an explicit actor/system authority envelope |
+| `QueueAuthorityRuntimeInterface` | interface | Confines envelope authority resolution and installation to one handler invocation |
+| `QueueAuthorityScopeInterface` | interface | Closeable handler-only authority installation used by queue runtimes |
+| `PersistentPayloadReplayInterface` | interface | Replays the exact authenticated persistent payload without replacing its envelope metadata |
+| `SystemQueueEnvelopeFactory` | final class | Explicit reviewed system-authority envelope factory; never the generic dispatch default |
+| `ScopedQueueAuthorityRuntime` | final class | Resolves and closes one handler-only authority scope in `finally` |
+| `NoAuthorityQueueRuntime` | final class | Dormant runtime that installs no account or capability authority |
+| `QueuePayloadDeprecationDiagnostic` | final class | Bounded nested entity-payload diagnostic for persistent dispatch |
+| `Exception\InvalidPersistentPayload` | exception | Exact replay payload failed authentication |
+
+### state
+
+| Element | Type | Purpose |
+|---------|------|---------|
+| `PublicStateProjection` | final class | Identifier plus explicitly Public scalar/array values; grants no protected/internal authority |
+| `ProjectionDeprecationDiagnostic` | final class | Deduplicated dormant entity-payload diagnostic wired into memory/SQL state writes |
 
 ### testing
 
@@ -141,6 +161,9 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `EntityStorageDriverInterface` | interface | Low-level persistence SPI: raw row I/O without hydration or event dispatch. Adds `findTranslations(EntityInterface): array<string, EntityInterface>` (M-006, WP10) |
 | `EntityStorageDriverV2Interface` | interface | Additive boundary-bound opaque-row storage SPI: reads return `StorageRow`/`StorageRowSet` and writes accept `StorageSnapshot`; unrelated boundary tokens cannot unwrap them, and V1 remains behavior-compatible during dormant stages |
 | `RevisionableStorageDriverV2Interface` | interface | Additive opaque revision SPI mirroring current revision and langcode operations while replacing raw read/write arrays with boundary-bound rows and snapshots |
+| `InMemoryStorageDriverV2` | final class | Opaque V2 adapter over the first-party in-memory ordinary storage backend |
+| `SqlStorageDriverV2` | final class | Opaque V2 adapter over the first-party SQL ordinary storage backend |
+| `RevisionableStorageDriverV2` | final class | Opaque V2 adapter used by the repository for the first-party revision/langcode storage backend |
 | `ConnectionResolverInterface` | interface | Resolves named database connections; multi-tenancy seam for entity storage |
 | `FieldStorageBackendInterface` | interface | Contract for pluggable field storage backends (M-001, WP01) |
 | `HasFieldStorageBackendsInterface` | interface | Mix-in for packages that provide custom field storage backends (M-001, WP01) |
@@ -192,13 +215,19 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `FieldAccessPolicyInterface` | interface | Checks field-level access on an entity; open-by-default (Forbidden restricts, Neutral allows) |
 | `AuthorizationPrincipalInterface` | interface | Immutable account-facing claims used by protected field-read policies without reading an acting User entity |
 | `AccountPrincipalFactoryInterface` | interface | Closed bootstrap seam for snapshotting an account into an authorization principal |
+| `AccountPrincipalFactory` | final class | Generic account snapshotter that preserves id/authentication/roles and deliberately invents no permission claims |
+| `ContextualAccountPrincipalFactoryInterface` | interface | HTTP companion that binds resolved tenant/community dimensions to the immutable principal snapshot |
+| `AuthorizationPrincipalBootstrapReaderInterface` | interface | Closed bridge for strictly audited immutable principal construction from an entity-backed account |
+| `FieldReadContextMiddleware` | final class | Priority-15 HTTP seam that installs/restores the immutable principal after identity resolution and wraps deferred streams |
 | `AccountFieldReadScopeInterface` | interface | Fiber-local, nested account principal scope restored in `finally`; it carries no privileged authority |
 | `PolicySubjectViewInterface` | interface | Closed view limited to compiled `authorizationInput` subject fields |
 | `ProtectedFieldReadPolicyInterface` | interface | Dedicated fail-closed Protected read policy; only explicit Allowed will release a value after activation |
 | `CapabilityRegistryInterface` | interface | Kernel registry for reviewed, exact value-read and query-read capability declarations and one-boundary handles |
+| `CapabilityExecutionBoundary` | final class | Opaque, non-serializable proof whose registry-owned identity must be live and match at capability issuance and use |
 | `CapabilityReason` | enum | Closed reason vocabulary for privileged field reads |
 | `CapabilityActorSemantics` | enum | Explicit account, anonymous, system-service, or no-acting-context attribution for capability issuance and ledger reservations |
 | `QueryFieldOperation` | enum | Closed non-public query operation vocabulary: predicate, sort, aggregate, count, exists |
+| `QueryFieldReadRequest` | final class | Metadata-only query compiler input retaining exact fields/operations and an irreversible normalized-shape fingerprint |
 | `PermissionHandlerInterface` | interface | Manages the registry of available permissions and their metadata |
 | `GateInterface` | interface | Resolves the policy for a subject and checks whether a user has a given ability |
 
@@ -273,6 +302,14 @@ Configuration Management v1 — active/sync store split, six `config:*` CLI comm
 
 | Element | Type | Purpose |
 |---------|------|---------|
+| `AuditedFieldRead` | final class | Exact-declaration privileged reader that reserves strict-ledger metadata before accessor evaluation and finalizes its outcome |
+| `AuditedQueryFieldRead` | final class | Dormant exact-capability compiler boundary that reserves non-public query metadata before execution |
+| `AuditedQueryReservation` | final class | One-shot explicit success/failure finalizer for a reserved query operation |
+| `CredentialBootstrapReader` | final class | Reason-constrained strictly audited credential verification reader |
+| `SessionBootstrapReader` | final class | Reason-constrained strictly audited session and authorization-claims reader |
+| `IdentityBootstrapReader` | final class | Per-snapshot capability issuer that builds immutable principals and revokes bootstrap authority in `finally` |
+| `AuditReadModelDefinitionRegistry` | final class | Exact read classifications for every column of the deliberately unregistered flat audit tables |
+| `DatabaseStrictPrivilegedReadLedger` | final class | Durable immutable-event ledger with atomic single-finalization and caller-transaction composition |
 | `StrictPrivilegedReadLedgerInterface` | interface | Synchronously reserves non-value metadata before a privileged read and finalizes its outcome afterward |
 | `PrivilegedReadOutcome` | enum | Strict-ledger final outcomes: succeeded or failed; interrupted reservations remain unfinished and visible |
 | `PrivilegedReadKind` | enum | Distinguishes explicit value-read reservations from query-field reservations |
@@ -337,6 +374,9 @@ Mission `migration-platform-v1-01KRCDE9` (M-002). All entries below are intentio
 | `DestinationPluginInterface` | interface | Destination plugin SPI: `write`, `rollback`, `lookup` per source id (FR-006, WP01) |
 | `HasMigrationsInterface` | interface | Marker for service providers contributing migration manifests (FR-003, WP02) |
 | `MigrationDefinition` | final class | Immutable migration definition: id, source, processors, destination, dependencies, stability (WP02) |
+| `Security\MigrationFieldReadManifest` | final class | Exact privileged field reads reviewed for one migration id |
+| `Security\MigrationFieldReadCapabilityIssuer` | final class | Issues NoActingContext MigrationImport capabilities from manifests |
+| `Security\MigrationAuditedFieldReader` | final class | Explicit `AuditedFieldRead::read` call site supplied to migration code |
 | `SourceId` | final class | Stable composite key identifying a source record across re-runs (WP01) |
 | `SourceRecord` | final class | DTO carrying a raw row from a source plugin: `sourceType`, `fields` (WP01) |
 | `DestinationRecord` | final class | DTO carrying processed fields to a destination plugin: `entityType`, `bundle`, `fields`, `sourceId`, `sourceRecordHash` (WP01) |
@@ -432,6 +472,8 @@ Charter §5.6 — listing-pipeline-v1 (M-007). Namespace `Waaseyaa\Listing\`.
 
 | Element | Type | Purpose |
 |---------|------|---------|
+| `Security\CliFieldReadCapabilityDeclaration` | final class | Exact command scope and closed CLI-valid privileged-read reason |
+| `Security\CliFieldReadCapabilityIssuer` | final class | Issues null-actor NoActingContext capabilities from command metadata |
 
 ### admin-surface
 

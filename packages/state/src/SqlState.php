@@ -20,6 +20,7 @@ final class SqlState implements StateInterface
         private readonly DatabaseInterface $database,
         #[\SensitiveParameter]
         string $hmacKey,
+        private readonly ?ProjectionDeprecationDiagnostic $projectionDiagnostic = null,
     ) {
         $this->payloadSigner = new SignedStatePayload($hmacKey);
     }
@@ -65,6 +66,7 @@ final class SqlState implements StateInterface
     {
         $this->ensureTable();
 
+        $value = $this->projectionDiagnostic?->inspect($key, $value) ?? $value;
         $serialized = $this->payloadSigner->seal(serialize($value));
 
         // Fast path: update an existing key.

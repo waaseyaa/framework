@@ -92,6 +92,15 @@ final class EntityRepositoryTranslationAxisTest extends TestCase
         $this->assertNotNull($oj);
         $this->assertSame('en v4', $en->label());
         $this->assertSame('oj v3', $oj->label());
+        self::assertSame('en', $en->entityStructure()->activeLanguageId);
+        self::assertSame('oj', $oj->entityStructure()->activeLanguageId);
+        self::assertSame('en', $en->entityStructure()->defaultLanguageId);
+        self::assertSame('en', $oj->entityStructure()->defaultLanguageId);
+        self::assertSame(['en', 'oj'], $en->entityStructure()->knownTranslationIds);
+        self::assertSame(['en', 'oj'], $oj->entityStructure()->knownTranslationIds);
+        self::assertSame(4, $en->entityStructure()->revisionId);
+        self::assertTrue($en->entityStructure()->revisionTip);
+        self::assertFalse($en->entityStructure()->defaultRevision);
 
         // History counts independent.
         $this->assertCount(4, $this->repo->listTranslationRevisions('1', 'en'));
@@ -104,6 +113,9 @@ final class EntityRepositoryTranslationAxisTest extends TestCase
         $enFirst = $this->repo->loadTranslationRevision('1', 'en', 1);
         $this->assertNotNull($enFirst);
         $this->assertSame('Teaching about turtles', $enFirst->label());
+        self::assertSame(1, $enFirst->entityStructure()->revisionId);
+        self::assertFalse($enFirst->entityStructure()->revisionTip);
+        self::assertFalse($enFirst->entityStructure()->defaultRevision);
     }
 
     #[Test]

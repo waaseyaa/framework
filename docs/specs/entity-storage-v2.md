@@ -1,6 +1,7 @@
 # Entity Storage v2 — Multi-Backend Storage with Revisions
 
 <!-- Spec reviewed 2026-07-17 - #2064 WP1 adds additive ordinary and revision V2 opaque-row/snapshot SPIs, role-separated driver/repository boundary collaborators, and a dormant repository-only V1 adapter that receives driver roles and requires entity.deprecation emission. Existing V1 drivers and repositories remain byte-compatible; activation removes V1/adapter under the charter no-shim path. Canonical contract: entity-field-read-boundary.md. -->
+<!-- Spec reviewed 2026-07-17 - #2064 WP2 routes ordinary plus revision/langcode repository paths through one opaque V2 boundary, retains first-party persistence authority as a private non-exported EntityRepository closure used only after lifecycle callbacks for base/bundle/translation/revision/backfill writes, attaches immutable structural metadata during creation/hydration/bootstrap, and proves the additive SPI with a consumer-extension fixture. No public raw-bag companion or extractor exists; legacy third-party toArray compatibility remains diagnosed until WP4 removes it. Canonical contract: entity-field-read-boundary.md. -->
 
 > **Two-axis cross-reference.** Revisionable + translatable
 > entities (e.g. Minoo `teaching`) compose this spec's revision model with the

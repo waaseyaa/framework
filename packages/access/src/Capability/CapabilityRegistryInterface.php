@@ -13,11 +13,13 @@ interface CapabilityRegistryInterface
 {
     public function register(CapabilityDeclaration $declaration): void;
 
-    public function issueValueRead(string $issuer, CapabilityIssueContext $context): PrivilegedFieldReadCapability;
+    public function openBoundary(string $correlationId): CapabilityExecutionBoundary;
 
-    public function issueQueryRead(string $issuer, CapabilityIssueContext $context): QueryFieldReadCapability;
+    public function issueValueRead(string $issuer, CapabilityIssueContext $context, CapabilityExecutionBoundary $boundary): PrivilegedFieldReadCapability;
 
-    public function authorizationFor(PrivilegedFieldReadCapability|QueryFieldReadCapability $capability): ?CapabilityAuthorization;
+    public function issueQueryRead(string $issuer, CapabilityIssueContext $context, CapabilityExecutionBoundary $boundary): QueryFieldReadCapability;
 
-    public function revokeBoundary(string $executionBoundary): void;
+    public function authorizationFor(PrivilegedFieldReadCapability|QueryFieldReadCapability $capability, CapabilityExecutionBoundary $boundary): ?CapabilityAuthorization;
+
+    public function revokeBoundary(CapabilityExecutionBoundary $boundary): void;
 }

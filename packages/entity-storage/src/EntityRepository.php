@@ -12,6 +12,7 @@ use Waaseyaa\Entity\ContentEntityInterface;
 use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityConstants;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityStructure;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\Event\DefaultEntityEventFactory;
 use Waaseyaa\Entity\Event\EntityEventFactoryInterface;
@@ -28,7 +29,14 @@ use Waaseyaa\Entity\Validation\EntityValidationException;
 use Waaseyaa\Entity\Validation\EntityValidator;
 use Waaseyaa\EntityStorage\Bundle\BundleSubtableGateway;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
+use Waaseyaa\EntityStorage\Driver\EntityStorageDriverV2Interface;
+use Waaseyaa\EntityStorage\Driver\LegacyStorageDriverAdapter;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
+use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriverV2;
+use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriverV2Interface;
+use Waaseyaa\EntityStorage\Driver\StorageBoundary;
+use Waaseyaa\EntityStorage\Driver\StorageRowReader;
+use Waaseyaa\EntityStorage\Driver\StorageSnapshotFactory;
 use Waaseyaa\EntityStorage\Event\AbortOperationException;
 use Waaseyaa\EntityStorage\Event\AfterSaveEvent;
 use Waaseyaa\EntityStorage\Event\BeforeRevisionPointerMoveEvent;
@@ -47,6 +55,20 @@ use Waaseyaa\I18n\LanguageManagerInterface;
  */
 final class EntityRepository implements EntityRepositoryInterface
 {
+    private readonly EntityStorageDriverV2Interface $driver;
+
+    private readonly StorageRowReader $storageRowReader;
+
+    private readonly StorageSnapshotFactory $storageSnapshotFactory;
+
+    /** @var \Closure(EntityBase): array<string, mixed> */
+    private readonly \Closure $persistenceValueAuthority;
+
+    /** @var array<class-string, true> */
+    private array $legacyPersistenceDiagnosticEmitted = [];
+
+    private readonly RevisionableStorageDriverV2Interface|null $revisionDriver;
+
     /** @var string[] Default language fallback chain. */
     private array $fallbackChain = ['en'];
 
@@ -67,9 +89,9 @@ final class EntityRepository implements EntityRepositoryInterface
 
     public function __construct(
         private readonly EntityTypeInterface $entityType,
-        private readonly EntityStorageDriverInterface $driver,
+        EntityStorageDriverInterface|EntityStorageDriverV2Interface $driver,
         private readonly EventDispatcherInterface $eventDispatcher,
-        private readonly ?RevisionableStorageDriver $revisionDriver = null,
+        RevisionableStorageDriver|RevisionableStorageDriverV2Interface|null $revisionDriver = null,
         private readonly ?DatabaseInterface $database = null,
         ?EntityEventFactoryInterface $eventFactory = null,
         private readonly ?EntityValidator $validator = null,
@@ -101,9 +123,156 @@ final class EntityRepository implements EntityRepositoryInterface
         private readonly ?EntityAccessHandler $accessHandler = null,
         // @var ?\Closure(): ?EntityAccessHandler
         private readonly ?\Closure $accessHandlerResolver = null,
+        ?StorageBoundary $storageBoundary = null,
     ) {
         $this->eventFactory = $eventFactory ?? new DefaultEntityEventFactory();
         $this->logger = $logger ?? new \Waaseyaa\Foundation\Log\NullLogger();
+        $storageBoundary ??= new StorageBoundary();
+        $this->storageRowReader = $storageBoundary->repositoryRowReader();
+        $this->storageSnapshotFactory = $storageBoundary->repositorySnapshotFactory();
+        $persistenceValueAuthority = \Closure::bind(
+            static fn(EntityBase $source): array => $source->values,
+            null,
+            EntityBase::class,
+        );
+        $this->persistenceValueAuthority = $persistenceValueAuthority;
+        $this->revisionDriver = $revisionDriver instanceof RevisionableStorageDriver
+            ? new RevisionableStorageDriverV2(
+                $revisionDriver,
+                $storageBoundary->driverRowFactory(),
+                $storageBoundary->driverSnapshotReader(),
+            )
+            : $revisionDriver;
+        $this->driver = $driver instanceof EntityStorageDriverV2Interface
+            ? $driver
+            : new LegacyStorageDriverAdapter(
+                $driver,
+                $storageBoundary->driverRowFactory(),
+                $storageBoundary->driverSnapshotReader(),
+                function (string $channel, array $context): void {
+                    $this->logger->notice($channel, $context);
+                },
+            );
+    }
+
+    /** @return array<string, mixed>|null */
+    private function readDriverRow(string $entityType, string $id, ?string $langcode = null): ?array
+    {
+        $row = $this->driver->read($entityType, $id, $langcode);
+
+        return $row === null ? null : $this->storageRowReader->read($row);
+    }
+
+    /**
+     * @param list<int|string> $ids
+     * @return array<int|string, array<string, mixed>>
+     */
+    private function readDriverRows(string $entityType, array $ids, ?string $langcode = null): array
+    {
+        return $this->storageRowReader->readSet($this->driver->readMultiple($entityType, $ids, $langcode));
+    }
+
+    /** @param array<string, mixed> $values */
+    private function writeDriverRow(string $entityType, string $id, array $values): string
+    {
+        return $this->driver->write($entityType, $id, $this->storageSnapshotFactory->create($values));
+    }
+
+    /**
+     * Repository-owned, non-exported persistence authority. First-party raw
+     * values are reachable only through the private closure identity retained
+     * by this repository; legacy third-party entities keep the diagnosed WP2
+     * compatibility path until activation removes it.
+     *
+     * @return array<string, mixed>
+     */
+    private function extractPersistenceValues(EntityInterface $entity): array
+    {
+        if ($entity instanceof EntityBase) {
+            return ($this->persistenceValueAuthority)($entity);
+        }
+
+        $class = $entity::class;
+        if (!isset($this->legacyPersistenceDiagnosticEmitted[$class])) {
+            $this->legacyPersistenceDiagnosticEmitted[$class] = true;
+            $this->logger->notice('entity.deprecation', [
+                'event' => 'legacy_persistence_to_array',
+                'entity_class' => $class,
+            ]);
+        }
+
+        return $entity->toArray();
+    }
+
+    /** @return array<string, mixed>|null */
+    private function readRevisionRow(string $entityId, int $revisionId): ?array
+    {
+        $row = $this->revisionDriver?->readRevision($entityId, $revisionId);
+
+        return $row === null ? null : $this->storageRowReader->read($row);
+    }
+
+    /** @return array<string, mixed>|null */
+    private function readLangcodeRevisionRow(string $entityId, string $langcode, int $revisionId): ?array
+    {
+        $row = $this->revisionDriver?->readLangcodeRevision($entityId, $langcode, $revisionId);
+
+        return $row === null ? null : $this->storageRowReader->read($row);
+    }
+
+    /** @param array<string, mixed> $values */
+    private function writeRevisionRow(
+        string $entityId,
+        array $values,
+        ?string $log,
+        ?string $langcode = null,
+        ?int $author = null,
+    ): int {
+        if ($this->revisionDriver === null) {
+            throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
+        }
+
+        return $this->revisionDriver->writeRevision(
+            $entityId,
+            $this->storageSnapshotFactory->create($values),
+            $log,
+            $langcode,
+            $author,
+        );
+    }
+
+    /** @param array<string, mixed> $values */
+    private function updateRevisionRow(string $entityId, int $revisionId, array $values): void
+    {
+        if ($this->revisionDriver === null) {
+            throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
+        }
+
+        $this->revisionDriver->updateRevision(
+            $entityId,
+            $revisionId,
+            $this->storageSnapshotFactory->create($values),
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $criteria
+     * @param array<string, string>|null $orderBy
+     * @return array<int|string, array<string, mixed>>
+     */
+    private function findDriverRows(
+        string $entityType,
+        array $criteria = [],
+        ?array $orderBy = null,
+        ?int $limit = null,
+    ): array {
+        return $this->storageRowReader->readSet($this->driver->findBy($entityType, $criteria, $orderBy, $limit));
+    }
+
+    /** @return array<int|string, array<string, mixed>> */
+    private function findDriverTranslations(string $entityType, string $id, ?string $defaultLangcode = null): array
+    {
+        return $this->storageRowReader->readSet($this->driver->findTranslations($entityType, $id, $defaultLangcode));
     }
 
     /**
@@ -233,7 +402,7 @@ final class EntityRepository implements EntityRepositoryInterface
     {
         // Shared with SqlEntityStorage::create() via EntityInstantiator so a
         // fresh entity gets the same field defaults regardless of engine.
-        $instantiator = new Hydration\EntityInstantiator($this->entityType);
+        $instantiator = new Hydration\EntityInstantiator($this->entityType, $this->fieldRegistry);
         $values = $instantiator->applyFieldDefinitionDefaults($values);
 
         $class = $this->entityType->getClass();
@@ -255,18 +424,18 @@ final class EntityRepository implements EntityRepositoryInterface
             $languagesToTry = array_unique(array_merge([$langcode], $this->fallbackChain));
 
             foreach ($languagesToTry as $tryLang) {
-                $row = $this->driver->read($entityTypeId, $id, $tryLang);
+                $row = $this->readDriverRow($entityTypeId, $id, $tryLang);
                 if ($row !== null) {
                     return $this->hydrate($row);
                 }
             }
 
             // Final fallback: try without language.
-            $row = $this->driver->read($entityTypeId, $id);
+            $row = $this->readDriverRow($entityTypeId, $id);
             return $row !== null ? $this->hydrate($row) : null;
         }
 
-        $row = $this->driver->read($entityTypeId, $id, $langcode);
+        $row = $this->readDriverRow($entityTypeId, $id, $langcode);
 
         if ($row === null) {
             return null;
@@ -338,7 +507,7 @@ final class EntityRepository implements EntityRepositoryInterface
             return $entities;
         }
 
-        $rowsById = $this->driver->readMultiple($entityTypeId, $orderedKeys, $langcode);
+        $rowsById = $this->readDriverRows($entityTypeId, $orderedKeys, $langcode);
         $entities = [];
         foreach ($orderedKeys as $id) {
             $row = $rowsById[$id] ?? null;
@@ -353,7 +522,7 @@ final class EntityRepository implements EntityRepositoryInterface
     public function findBy(array $criteria, ?array $orderBy = null, ?int $limit = null): array
     {
         $entityTypeId = $this->entityType->id();
-        $rows = $this->driver->findBy($entityTypeId, $criteria, $orderBy, $limit);
+        $rows = $this->findDriverRows($entityTypeId, $criteria, $orderBy, $limit);
 
         $entities = [];
         foreach ($rows as $row) {
@@ -602,7 +771,7 @@ final class EntityRepository implements EntityRepositoryInterface
         $bundleKey = $this->entityType->getKeys()['bundle'] ?? null;
         $bundle = $bundleKey !== null ? (string) ($values[$bundleKey] ?? '') : '';
         if ($bundle === '' && $bundleKey !== null && $entityId !== null) {
-            $baseRow = $this->driver->read($entityTypeId, $entityId);
+            $baseRow = $this->readDriverRow($entityTypeId, $entityId);
             $bundle = (string) ($baseRow[$bundleKey] ?? '');
         }
 
@@ -637,6 +806,7 @@ final class EntityRepository implements EntityRepositoryInterface
     ): int {
         $isNew = $entity->isNew();
         $entityTypeId = $this->entityType->id();
+        $this->attachStructureForLegacyConstruction($entity);
         $resolvedContext = $saveContext ?? SaveContext::default();
         // Optimistic-locking expectation (mission optimistic-locking-01KTXCHY).
         // Null = no expectation: every conflict-detection branch below is
@@ -843,7 +1013,10 @@ final class EntityRepository implements EntityRepositoryInterface
             BeforeSaveEvent::class,
         );
 
-        $values = $this->normalizeBooleanStorageValues($entity->toArray(), $entity);
+        $values = $this->normalizeBooleanStorageValues(
+            $this->extractPersistenceValues($entity),
+            $entity,
+        );
         // C-22 WP4 fix: read the id key from the entity's raw value bag
         // (toArray()), not the $entity->id() accessor. Some entity classes
         // (e.g. Waaseyaa\User\User::id(), which implements AccountInterface's
@@ -871,6 +1044,9 @@ final class EntityRepository implements EntityRepositoryInterface
             $values[$idKey] = $nextId;
             if ($entity instanceof ContentEntityInterface) {
                 $entity->set($idKey, $nextId);
+                if ($entity instanceof EntityBase) {
+                    $entity->_hydrateStructuralId($nextId);
+                }
             }
         }
 
@@ -894,7 +1070,7 @@ final class EntityRepository implements EntityRepositoryInterface
         $writeBase = true;
         $originalPublishedRevisionId = null;
         if ($disciplined && $originalEntity !== null) {
-            $rawOriginal = $originalEntity->toArray();
+            $rawOriginal = $this->extractPersistenceValues($originalEntity);
             $originalPublishedRevisionId = isset($rawOriginal['published_revision_id'])
                 ? (int) $rawOriginal['published_revision_id']
                 : null;
@@ -903,7 +1079,7 @@ final class EntityRepository implements EntityRepositoryInterface
         try {
             if ($createRevision && $this->revisionDriver !== null && !$deferRevision) {
                 $log = ($entity instanceof RevisionableInterface) ? $entity->getRevisionLog() : null;
-                $revisionId = $this->revisionDriver->writeRevision($id, $values, $log, author: $actor);
+                $revisionId = $this->writeRevisionRow($id, $values, $log, author: $actor);
 
                 if ($expectedRevisionId !== null) {
                     // Authoritative guarded pointer claim (FR-004, contract
@@ -944,7 +1120,7 @@ final class EntityRepository implements EntityRepositoryInterface
                         $transaction = null;
                         $claimTransaction?->rollBack();
 
-                        $currentRow = $this->driver->read($entityTypeId, $id);
+                        $currentRow = $this->readDriverRow($entityTypeId, $id);
                         $currentHead = null;
                         if ($currentRow !== null && (int) ($currentRow[$revisionKey] ?? 0) > 0) {
                             $currentHead = (int) $currentRow[$revisionKey];
@@ -967,11 +1143,18 @@ final class EntityRepository implements EntityRepositoryInterface
                 if ($entity instanceof ContentEntityInterface) {
                     $revisionKey = $this->entityType->getKeys()['revision'] ?? 'revision_id';
                     $entity->set($revisionKey, $revisionId);
+                    if ($entity instanceof EntityBase) {
+                        $entity->_hydrateStructuralRevision(
+                            $revisionId,
+                            tip: true,
+                            default: !$disciplined,
+                        );
+                    }
                 }
             } elseif (!$createRevision && !$isNew && $this->revisionDriver !== null && $entity instanceof RevisionableInterface) {
                 $currentRevisionId = $entity->getRevisionId();
                 if ($currentRevisionId !== null) {
-                    $this->revisionDriver->updateRevision($id, $currentRevisionId, $values);
+                    $this->updateRevisionRow($id, $currentRevisionId, $values);
                 }
                 if ($disciplined) {
                     // In-place edit under discipline (§2.1): reaches the base
@@ -1030,7 +1213,7 @@ final class EntityRepository implements EntityRepositoryInterface
                     }
                 }
 
-                $writtenId = $this->driver->write($entityTypeId, $id, $baseValues);
+                $writtenId = $this->writeDriverRow($entityTypeId, $id, $baseValues);
 
                 if ($gateway !== null && $bundleValues !== [] && $bundleName !== null) {
                     $persistId = ($id !== '') ? $id : $writtenId;
@@ -1043,7 +1226,7 @@ final class EntityRepository implements EntityRepositoryInterface
                 // on it, then point the base row at it by updating only the
                 // revision-pointer column (leaving the _data blob untouched).
                 $log = ($entity instanceof RevisionableInterface) ? $entity->getRevisionLog() : null;
-                $revisionId = $this->revisionDriver->writeRevision($writtenId, $values, $log, author: $actor);
+                $revisionId = $this->writeRevisionRow($writtenId, $values, $log, author: $actor);
                 $revisionKey = $this->entityType->getKeys()['revision'] ?? 'revision_id';
                 $idKeyName = $this->entityType->getKeys()['id'] ?? 'id';
                 $this->database?->update($entityTypeId)
@@ -1052,6 +1235,9 @@ final class EntityRepository implements EntityRepositoryInterface
                     ->execute();
                 if ($entity instanceof ContentEntityInterface) {
                     $entity->set($revisionKey, $revisionId);
+                    if ($entity instanceof EntityBase) {
+                        $entity->_hydrateStructuralRevision($revisionId, tip: true, default: true);
+                    }
                 }
             }
 
@@ -1065,6 +1251,9 @@ final class EntityRepository implements EntityRepositoryInterface
         if ($isNew && $id === '' && $writtenId !== '') {
             $idKey = $this->entityType->getKeys()['id'] ?? 'id';
             $entity->set($idKey, $writtenId);
+            if ($entity instanceof EntityBase) {
+                $entity->_hydrateStructuralId(is_numeric($writtenId) ? (int) $writtenId : $writtenId);
+            }
         }
 
         if ($isNew && method_exists($entity, 'enforceIsNew')) {
@@ -1102,6 +1291,68 @@ final class EntityRepository implements EntityRepositoryInterface
         }
 
         return $result;
+    }
+
+    /**
+     * Bootstrap direct legacy constructors into the same immutable structural
+     * metadata used by repository-created and hydrated entities.
+     */
+    private function attachStructureForLegacyConstruction(EntityInterface $entity): void
+    {
+        if (!$entity instanceof EntityBase || $entity->_hasEntityStructure()) {
+            return;
+        }
+
+        $keys = $this->entityType->getKeys();
+        $langcode = $entity->language();
+        $resolvedBundle = $entity->bundle();
+        $revisionId = null;
+        $revisionTip = true;
+        $defaultRevision = true;
+        if (method_exists($entity, 'getRevisionId')) {
+            $candidate = $entity->getRevisionId();
+            $revisionId = is_int($candidate) || is_string($candidate) ? $candidate : null;
+        }
+        if (method_exists($entity, 'isCurrentRevision')) {
+            $revisionTip = (bool) $entity->isCurrentRevision();
+        }
+        if (method_exists($entity, 'isDefaultRevision')) {
+            $defaultRevision = (bool) $entity->isDefaultRevision();
+        }
+        $knownTranslationIds = [];
+        $defaultLangcode = $langcode;
+        if ($this->entityType->isTranslatable() && $entity instanceof TranslatableInterface) {
+            try {
+                $knownTranslationIds = $entity->getTranslationLanguages();
+                $defaultLangcode = $entity->defaultLangcode();
+            } catch (\Waaseyaa\Entity\Exception\EntityTranslationException) {
+                // A direct constructor may precede the static entity-type
+                // registry. The repository definition remains authoritative;
+                // hydration fills the complete translation set later.
+                $knownTranslationIds = [$langcode];
+            }
+            sort($knownTranslationIds);
+        }
+        $fieldNames = array_values(array_unique(array_merge(
+            array_values($keys),
+            array_keys($this->entityType->getFieldDefinitions()),
+            array_keys($this->fieldRegistry?->coreFieldsFor($this->entityType->id()) ?? []),
+            array_keys($this->fieldRegistry?->bundleFieldsFor($this->entityType->id(), $resolvedBundle) ?? []),
+        )));
+        sort($fieldNames);
+        $entity->_attachEntityStructure(new EntityStructure(
+            entityTypeId: $this->entityType->id(),
+            bundleId: $resolvedBundle,
+            id: $entity->id(),
+            uuid: $entity->uuid() !== '' ? $entity->uuid() : null,
+            activeLanguageId: $langcode,
+            defaultLanguageId: $defaultLangcode,
+            knownTranslationIds: $knownTranslationIds,
+            revisionId: $revisionId,
+            revisionTip: $revisionTip,
+            defaultRevision: $defaultRevision,
+            fieldNames: $fieldNames,
+        ));
     }
 
     private function doDelete(EntityInterface $entity, ?UnitOfWork $unitOfWork = null): void
@@ -1178,7 +1429,7 @@ final class EntityRepository implements EntityRepositoryInterface
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
         }
 
-        $row = $this->revisionDriver->readRevision($entityId, $revisionId);
+        $row = $this->readRevisionRow($entityId, $revisionId);
         if ($row === null) {
             return null;
         }
@@ -1189,7 +1440,7 @@ final class EntityRepository implements EntityRepositoryInterface
         $row[$idKey] = $row['entity_id'];
 
         // Determine if this revision is the current default.
-        $baseRow = $this->driver->read($this->entityType->id(), $entityId);
+        $baseRow = $this->readDriverRow($this->entityType->id(), $entityId);
         $currentRevId = $baseRow !== null ? (int) ($baseRow['revision_id'] ?? 0) : 0;
         $latestRevId = $this->revisionDriver->getLatestRevisionId($entityId);
         $row['is_default_revision'] = ($revisionId === $currentRevId);
@@ -1233,7 +1484,7 @@ final class EntityRepository implements EntityRepositoryInterface
             return $this->find($id);
         }
 
-        $baseRow = $this->driver->read($this->entityType->id(), $id);
+        $baseRow = $this->readDriverRow($this->entityType->id(), $id);
         $baseRevisionId = $baseRow !== null ? (int) ($baseRow['revision_id'] ?? 0) : 0;
 
         if ($latestRevisionId > $baseRevisionId) {
@@ -1255,7 +1506,7 @@ final class EntityRepository implements EntityRepositoryInterface
         $actor = $this->resolveActor(null);
 
         // Load the target revision.
-        $targetRow = $this->revisionDriver->readRevision($entityId, $targetRevisionId);
+        $targetRow = $this->readRevisionRow($entityId, $targetRevisionId);
         if ($targetRow === null) {
             throw new \InvalidArgumentException(
                 "Revision {$targetRevisionId} does not exist for entity {$entityId}.",
@@ -1267,7 +1518,7 @@ final class EntityRepository implements EntityRepositoryInterface
         // pointer-move guard, task 2.5) leaves storage completely untouched.
         // $toRevisionId is null: the new revision's id is assigned by
         // writeRevision() below, not knowable yet.
-        $priorBaseRow = $this->driver->read($this->entityType->id(), $entityId);
+        $priorBaseRow = $this->readDriverRow($this->entityType->id(), $entityId);
         $fromRevisionId = null;
         if ($priorBaseRow !== null && (int) ($priorBaseRow['revision_id'] ?? 0) > 0) {
             $fromRevisionId = (int) $priorBaseRow['revision_id'];
@@ -1307,7 +1558,7 @@ final class EntityRepository implements EntityRepositoryInterface
         $transaction = $this->database?->transaction();
         try {
             $log = "Reverted to revision {$targetRevisionId}";
-            $newRevisionId = $this->revisionDriver->writeRevision($entityId, $targetRow, $log, author: $actor);
+            $newRevisionId = $this->writeRevisionRow($entityId, $targetRow, $log, author: $actor);
 
             if (!$beforeEvent->defaultRevisionSemantics()) {
                 // Update the base table pointer. Skipped under
@@ -1321,7 +1572,7 @@ final class EntityRepository implements EntityRepositoryInterface
                 $idKey = $keys['id'] ?? 'id';
                 $targetRow[$idKey] = $entityId;
                 $targetRow['revision_id'] = $newRevisionId;
-                $this->driver->write($this->entityType->id(), $entityId, $targetRow);
+                $this->writeDriverRow($this->entityType->id(), $entityId, $targetRow);
             }
 
             $transaction?->commit();
@@ -1387,7 +1638,7 @@ final class EntityRepository implements EntityRepositoryInterface
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
         }
 
-        $row = $this->revisionDriver->readRevision($entityId, $revisionId);
+        $row = $this->readRevisionRow($entityId, $revisionId);
         if ($row === null) {
             throw new \InvalidArgumentException(
                 "Revision {$revisionId} does not exist for entity {$entityId}.",
@@ -1396,7 +1647,7 @@ final class EntityRepository implements EntityRepositoryInterface
 
         // Pointer-move actor + prior pointer for the transition event (FR-006).
         $actor = $this->resolveActor(null);
-        $priorBaseRow = $this->driver->read($this->entityType->id(), $entityId);
+        $priorBaseRow = $this->readDriverRow($this->entityType->id(), $entityId);
         $fromRevisionId = null;
         if ($priorBaseRow !== null && (int) ($priorBaseRow['revision_id'] ?? 0) > 0) {
             $fromRevisionId = (int) $priorBaseRow['revision_id'];
@@ -1445,7 +1696,7 @@ final class EntityRepository implements EntityRepositoryInterface
 
         $transaction = $this->database?->transaction();
         try {
-            $this->driver->write($this->entityType->id(), $entityId, $row);
+            $this->writeDriverRow($this->entityType->id(), $entityId, $row);
             $transaction?->commit();
         } catch (\Throwable $e) {
             $transaction?->rollBack();
@@ -1493,7 +1744,7 @@ final class EntityRepository implements EntityRepositoryInterface
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
         }
 
-        $baseRow = $this->driver->read($this->entityType->id(), $entityId);
+        $baseRow = $this->readDriverRow($this->entityType->id(), $entityId);
         if ($baseRow === null) {
             return null;
         }
@@ -1520,7 +1771,7 @@ final class EntityRepository implements EntityRepositoryInterface
         }
 
         // Validate the target revision exists for this entity.
-        $targetRow = $this->revisionDriver->readRevision($entityId, $revisionId);
+        $targetRow = $this->readRevisionRow($entityId, $revisionId);
         if ($targetRow === null) {
             throw new \InvalidArgumentException(
                 "Revision {$revisionId} does not exist for entity {$entityId}.",
@@ -1540,7 +1791,7 @@ final class EntityRepository implements EntityRepositoryInterface
         // pre-event; the transaction below still re-reads the prior pointer
         // fresh (unchanged) so the POST RevisionPointerMovedEvent's reported
         // transition matches exactly what this call committed.
-        $earlyBaseRow = $this->driver->read($this->entityType->id(), $entityId);
+        $earlyBaseRow = $this->readDriverRow($this->entityType->id(), $entityId);
         $earlyFromRevisionId = null;
         if ($earlyBaseRow !== null && (int) ($earlyBaseRow['published_revision_id'] ?? 0) > 0) {
             $earlyFromRevisionId = (int) $earlyBaseRow['published_revision_id'];
@@ -1562,7 +1813,7 @@ final class EntityRepository implements EntityRepositoryInterface
         try {
             // Read the prior pointer inside the transaction so the from→to
             // transition the event reports is the one this move performed.
-            $priorBaseRow = $this->driver->read($this->entityType->id(), $entityId);
+            $priorBaseRow = $this->readDriverRow($this->entityType->id(), $entityId);
             if ($priorBaseRow !== null && (int) ($priorBaseRow['published_revision_id'] ?? 0) > 0) {
                 $fromRevisionId = (int) $priorBaseRow['published_revision_id'];
             }
@@ -1607,7 +1858,7 @@ final class EntityRepository implements EntityRepositoryInterface
                 $outgoingRow[$idKey] = $entityId;
                 $outgoingRow['revision_id'] = $revisionId;
                 $outgoingRow['published_revision_id'] = $revisionId;
-                $this->driver->write($this->entityType->id(), $entityId, $outgoingRow);
+                $this->writeDriverRow($this->entityType->id(), $entityId, $outgoingRow);
                 if ($gateway !== null && $bundleValues !== [] && $bundleName !== null) {
                     $gateway->upsert($bundleName, $entityId, $bundleValues);
                 }
@@ -1626,7 +1877,7 @@ final class EntityRepository implements EntityRepositoryInterface
                 $baseRow = $priorBaseRow;
                 $baseRow['published_revision_id'] = $revisionId;
                 $baseRow = $this->normalizeBooleanStorageValues($baseRow, entityId: $entityId);
-                $this->driver->write($this->entityType->id(), $entityId, $baseRow);
+                $this->writeDriverRow($this->entityType->id(), $entityId, $baseRow);
             }
             $transaction?->commit();
         } catch (\Throwable $e) {
@@ -1705,7 +1956,7 @@ final class EntityRepository implements EntityRepositoryInterface
         );
 
         $values = $this->normalizeBooleanStorageValues($values, entityId: $entityId);
-        $revisionId = $driver->writeRevision($entityId, $values, $log, $langcode, $actor);
+        $revisionId = $this->writeRevisionRow($entityId, $values, $log, $langcode, $actor);
 
         $entity = $this->loadTranslationRevision($entityId, $langcode, $revisionId);
         if ($entity !== null) {
@@ -1757,7 +2008,7 @@ final class EntityRepository implements EntityRepositoryInterface
                 );
 
                 $values = $this->normalizeBooleanStorageValues($values, entityId: $entityId);
-                $created[$langcode] = $driver->writeRevision($entityId, $values, $log, $langcode, $actor);
+                $created[$langcode] = $this->writeRevisionRow($entityId, $values, $log, $langcode, $actor);
             }
             $transaction?->commit();
         } catch (\Throwable $e) {
@@ -1782,7 +2033,7 @@ final class EntityRepository implements EntityRepositoryInterface
     {
         $driver = $this->assertTwoAxis(__FUNCTION__);
 
-        $row = $driver->readLangcodeRevision($entityId, $langcode, $revisionId);
+        $row = $this->readLangcodeRevisionRow($entityId, $langcode, $revisionId);
         if ($row === null) {
             return null;
         }
@@ -1889,7 +2140,7 @@ final class EntityRepository implements EntityRepositoryInterface
 
             $values = $this->normalizeBooleanStorageValues($values, entityId: $entityId);
             $this->upsertLangcodePeerRow($entityId, $langcode, $values);
-            $revisionId = $driver->writeRevision($entityId, $values, $log, $langcode, $actor);
+            $revisionId = $this->writeRevisionRow($entityId, $values, $log, $langcode, $actor);
             $transaction->commit();
         } catch (\Throwable $e) {
             $transaction->rollBack();
@@ -1912,7 +2163,7 @@ final class EntityRepository implements EntityRepositoryInterface
     {
         $this->assertTwoAxis(__FUNCTION__);
 
-        $row = $this->driver->read($this->entityType->id(), $entityId, $langcode);
+        $row = $this->readDriverRow($this->entityType->id(), $entityId, $langcode);
         if ($row === null) {
             return null;
         }
@@ -1926,7 +2177,27 @@ final class EntityRepository implements EntityRepositoryInterface
             return null;
         }
 
-        return $this->hydrate($row);
+        $entity = $this->hydrate($row);
+        if ($entity instanceof EntityBase) {
+            $driver = $this->assertTwoAxis(__FUNCTION__);
+            $known = $driver->getLangcodesWithRevisions($entityId);
+            if (!in_array($langcode, $known, true)) {
+                $known[] = $langcode;
+            }
+            sort($known);
+            $default = isset($row['default_langcode']) && (string) $row['default_langcode'] !== ''
+                ? (string) $row['default_langcode']
+                : $known[0];
+            $entity->_hydrateStructuralLanguages($langcode, $default, $known);
+            $revisionKey = $this->entityType->getKeys()['revision'] ?? 'revision_id';
+            $revisionId = $row[$revisionKey] ?? null;
+            if (is_int($revisionId) || is_string($revisionId)) {
+                $latest = $driver->getLatestLangcodeRevisionId($entityId, $langcode);
+                $entity->_hydrateStructuralRevision($revisionId, (int) $revisionId === $latest, true);
+            }
+        }
+
+        return $entity;
     }
 
     /**
@@ -1994,7 +2265,7 @@ final class EntityRepository implements EntityRepositoryInterface
         $row[$idKey] = $entityId;
         $row[$langKey] = $langcode;
         if (isset($keys['uuid'])) {
-            $defaultRow = $this->driver->read($table, $entityId);
+            $defaultRow = $this->readDriverRow($table, $entityId);
             if ($defaultRow !== null && isset($defaultRow[$keys['uuid']])) {
                 $row[$keys['uuid']] = $defaultRow[$keys['uuid']];
             }
@@ -2010,7 +2281,7 @@ final class EntityRepository implements EntityRepositoryInterface
      * @param array<string, mixed> $row
      */
     private function hydrateTranslationRow(
-        RevisionableStorageDriver $driver,
+        RevisionableStorageDriverV2Interface $driver,
         string $entityId,
         string $langcode,
         int $revisionId,
@@ -2025,8 +2296,24 @@ final class EntityRepository implements EntityRepositoryInterface
         $row['revision_id'] = $revisionId;
         $latest = $driver->getLatestLangcodeRevisionId($entityId, $langcode);
         $row['is_latest_revision'] = ($revisionId === $latest);
+        $baseRow = $this->readDriverRow($this->entityType->id(), $entityId, $langcode);
+        $baseRevisionId = $baseRow === null ? null : (int) ($baseRow['revision_id'] ?? 0);
+        $row['is_default_revision'] = ($baseRevisionId !== null && $baseRevisionId > 0 && $revisionId === $baseRevisionId);
 
         $entity = $this->hydrate($row);
+        if ($entity instanceof EntityBase) {
+            $known = $driver->getLangcodesWithRevisions($entityId);
+            sort($known);
+            $default = isset($row['default_langcode']) && (string) $row['default_langcode'] !== ''
+                ? (string) $row['default_langcode']
+                : ($known[0] ?? $langcode);
+            $entity->_hydrateStructuralLanguages($langcode, $default, $known);
+            $entity->_hydrateStructuralRevision(
+                $revisionId,
+                $revisionId === $latest,
+                $row['is_default_revision'],
+            );
+        }
 
         if ($entity instanceof RevisionableEntityInterface) {
             if (method_exists($entity, 'setRevisionId')) {
@@ -2044,7 +2331,7 @@ final class EntityRepository implements EntityRepositoryInterface
         return $entity;
     }
 
-    private function assertTwoAxis(string $method): RevisionableStorageDriver
+    private function assertTwoAxis(string $method): RevisionableStorageDriverV2Interface
     {
         if ($this->revisionDriver === null) {
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
@@ -2119,7 +2406,7 @@ final class EntityRepository implements EntityRepositoryInterface
         $total = count($revisionIds);
 
         // The current (default) revision is immortal regardless of policy.
-        $baseRow = $this->driver->read($this->entityType->id(), $entityId);
+        $baseRow = $this->readDriverRow($this->entityType->id(), $entityId);
         $currentRevisionId = $baseRow !== null ? (int) ($baseRow['revision_id'] ?? 0) : 0;
 
         // The published revision is immortal too (FR-038 extension, #1920 task
@@ -2215,12 +2502,15 @@ final class EntityRepository implements EntityRepositoryInterface
                 continue; // already has revision history
             }
 
-            $values = $this->normalizeBooleanStorageValues($entity->toArray(), $entity);
+            $values = $this->normalizeBooleanStorageValues(
+                $this->extractPersistenceValues($entity),
+                $entity,
+            );
             $transaction = $this->database?->transaction();
             try {
-                $revisionId = $this->revisionDriver->writeRevision($id, $values, $log, author: $actor);
+                $revisionId = $this->writeRevisionRow($id, $values, $log, author: $actor);
                 $values['revision_id'] = $revisionId;
-                $this->driver->write($this->entityType->id(), $id, $values);
+                $this->writeDriverRow($this->entityType->id(), $id, $values);
                 $transaction?->commit();
             } catch (\Throwable $e) {
                 $transaction?->rollBack();
@@ -2291,7 +2581,7 @@ final class EntityRepository implements EntityRepositoryInterface
         }
 
         $defaultLc = $entity->defaultLangcode();
-        $rows = $this->driver->findTranslations($this->entityType->id(), $id, $defaultLc);
+        $rows = $this->findDriverTranslations($this->entityType->id(), $id, $defaultLc);
 
         if ($rows === []) {
             return [];
@@ -2315,6 +2605,11 @@ final class EntityRepository implements EntityRepositoryInterface
                 if ($lc !== $defaultLc && $instance->hasTranslation($lc)) {
                     $instance = $instance->getTranslation($lc);
                 }
+            }
+            if ($instance instanceof EntityBase) {
+                $known = array_keys($rows);
+                sort($known);
+                $instance->_hydrateStructuralLanguages($lc, $defaultLc, $known);
             }
             $result[$lc] = $instance;
         }
@@ -2384,6 +2679,6 @@ final class EntityRepository implements EntityRepositoryInterface
      */
     private function instantiateEntity(string $class, array $values): EntityInterface
     {
-        return new Hydration\EntityInstantiator($this->entityType)->instantiate($class, $values);
+        return new Hydration\EntityInstantiator($this->entityType, $this->fieldRegistry)->instantiate($class, $values);
     }
 }

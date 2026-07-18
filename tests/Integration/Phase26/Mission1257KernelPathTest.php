@@ -19,6 +19,7 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Exception\EntityTypeRegistrationCollisionException;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriverV2;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
@@ -659,7 +660,8 @@ final class Mission1257KernelPathTest extends TestCase
      *
      * The C1 wiring contract (mission #1257 §C1 / WP10) is internal: the
      * kernel's repository factory builds an `EntityRepository` whose driver
-     * is a `SqlStorageDriver` carrying — or lacking — a `CommunityScope`.
+     * is a `SqlStorageDriverV2` whose SQL backend carries — or lacks — a
+     * `CommunityScope`.
      * No public accessor exists, by design (the driver is an implementation
      * detail). Reflection here is the cost of locking the wiring decision
      * at the kernel boundary without leaking accessors into production.
@@ -668,8 +670,13 @@ final class Mission1257KernelPathTest extends TestCase
     {
         $property = new \ReflectionProperty($repository, 'driver');
         $driver = $property->getValue($repository);
-        self::assertInstanceOf(SqlStorageDriver::class, $driver);
-        return $driver;
+        self::assertInstanceOf(SqlStorageDriverV2::class, $driver);
+
+        $backend = new \ReflectionProperty($driver, 'backend');
+        $value = $backend->getValue($driver);
+        self::assertInstanceOf(SqlStorageDriver::class, $value);
+
+        return $value;
     }
 
     private static function extractCommunityScope(SqlStorageDriver $driver): ?CommunityScope

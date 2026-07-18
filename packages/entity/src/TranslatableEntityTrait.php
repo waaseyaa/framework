@@ -141,6 +141,7 @@ trait TranslatableEntityTrait
 
         $clone = clone $this;
         $clone->activeLangcode = $langcode;
+        $clone->syncStructuralLanguages($langcode, $clone->defaultLangcode(), $clone->getTranslationLanguages());
 
         return $clone;
     }
@@ -157,6 +158,7 @@ trait TranslatableEntityTrait
 
         $clone = clone $this;
         $clone->activeLangcode = $langcode;
+        $clone->syncStructuralLanguages($langcode, $clone->defaultLangcode(), $clone->getTranslationLanguages());
 
         return $clone;
     }
@@ -172,6 +174,7 @@ trait TranslatableEntityTrait
         if ($this->hasTranslation($langcode)) {
             unset($this->translationData[$langcode]);
             $this->pendingTranslationDeletions[] = $langcode;
+            $this->syncStructuralLanguages($this->activeLangcode(), $this->defaultLangcode(), $this->getTranslationLanguages());
         }
     }
 
@@ -224,6 +227,17 @@ trait TranslatableEntityTrait
         $this->translationData = $data;
         $this->values['default_langcode'] = $defaultLc;
         $this->activeLangcode = null;
+        $known = array_keys($data);
+        if (!in_array($defaultLc, $known, true)) {
+            $known[] = $defaultLc;
+        }
+        $this->syncStructuralLanguages($defaultLc, $defaultLc, $known);
+    }
+
+    /** @param list<string> $known */
+    private function syncStructuralLanguages(string $active, string $default, array $known): void
+    {
+        EntityStructureSynchronizer::languages($this, $active, $default, $known);
     }
 
     /**

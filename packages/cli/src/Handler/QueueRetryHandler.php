@@ -6,6 +6,7 @@ namespace Waaseyaa\CLI\Handler;
 
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Queue\FailedJobRepositoryInterface;
+use Waaseyaa\Queue\PersistentPayloadReplayInterface;
 use Waaseyaa\Queue\QueueInterface;
 use Waaseyaa\Queue\Security\SignedQueuePayload;
 
@@ -54,7 +55,7 @@ final class QueueRetryHandler
         }
 
         try {
-            $this->queue->dispatch($message);
+            $this->redispatch($record, $message);
         } catch (\Throwable $e) {
             $this->failedJobRepository->releaseRetryClaim($id);
             $io->writeln("Failed to retry job [{$id}]: {$e->getMessage()}");
@@ -98,7 +99,7 @@ final class QueueRetryHandler
             }
 
             try {
-                $this->queue->dispatch($message);
+                $this->redispatch($record, $message);
             } catch (\Throwable $e) {
                 $this->failedJobRepository->releaseRetryClaim($record['id']);
                 $io->writeln("Failed to retry job [{$record['id']}]: {$e->getMessage()}");
@@ -116,5 +117,17 @@ final class QueueRetryHandler
         }
 
         return $failed > 0 ? 1 : 0;
+    }
+
+    /** @param array{id: string, queue: string, payload: string, exception: string, failed_at: string} $record */
+    private function redispatch(array $record, object $message): void
+    {
+        if ($this->queue instanceof PersistentPayloadReplayInterface) {
+            $this->queue->replaySignedPayload($record['queue'], $record['payload']);
+
+            return;
+        }
+
+        $this->queue->dispatch($message);
     }
 }

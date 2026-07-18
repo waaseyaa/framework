@@ -16,6 +16,8 @@ use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriver;
+use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriverV2;
+use Waaseyaa\EntityStorage\Driver\StorageBoundary;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
@@ -26,6 +28,7 @@ use Waaseyaa\EntityStorage\Tests\Fixtures\LifecycleTrackingEntity;
 use Waaseyaa\EntityStorage\Tests\Fixtures\SpyEntityEventFactory;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestEnumCastStorageEntity;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
+use Waaseyaa\EntityStorage\Tests\Fixtures\ThirdPartyOpaqueStorageDriver;
 
 require_once __DIR__ . '/../Fixtures/AttributeFirstEntities/RequiredLabelFixture.php';
 
@@ -74,6 +77,58 @@ final class EntityRepositoryTest extends TestCase
 
         $this->assertSame(EntityConstants::SAVED_NEW, $result);
         $this->assertFalse($entity->isNew());
+    }
+
+    #[Test]
+    public function repository_hydrates_and_persists_through_the_opaque_v2_boundary(): void
+    {
+        $boundary = new StorageBoundary();
+        $driver = new InMemoryStorageDriverV2(
+            new InMemoryStorageDriver(),
+            $boundary->driverRowFactory(),
+            $boundary->driverSnapshotReader(),
+        );
+        $repository = new EntityRepository(
+            $this->entityType,
+            $driver,
+            $this->eventDispatcher,
+            storageBoundary: $boundary,
+        );
+        $entity = new TestStorageEntity(
+            values: ['id' => '9', 'label' => 'Opaque', 'bundle' => 'article', 'langcode' => 'en'],
+            entityTypeId: 'test_entity',
+            entityKeys: ['id' => 'id', 'uuid' => 'uuid', 'bundle' => 'bundle', 'label' => 'label', 'langcode' => 'langcode'],
+        );
+        $entity->enforceIsNew(true);
+
+        self::assertSame(EntityConstants::SAVED_NEW, $repository->save($entity));
+        self::assertSame('Opaque', $repository->find('9')?->label());
+    }
+
+    #[Test]
+    public function third_party_v2_driver_never_exchanges_raw_rows_with_the_repository(): void
+    {
+        $boundary = new StorageBoundary();
+        $driver = new ThirdPartyOpaqueStorageDriver(
+            $boundary->driverRowFactory(),
+            $boundary->driverSnapshotReader(),
+        );
+        $repository = new EntityRepository(
+            $this->entityType,
+            $driver,
+            $this->eventDispatcher,
+            storageBoundary: $boundary,
+        );
+        $entity = $repository->create([
+            'id' => '41',
+            'label' => 'Extension row',
+            'bundle' => 'article',
+            'langcode' => 'en',
+        ]);
+
+        self::assertSame(EntityConstants::SAVED_NEW, $repository->save($entity));
+        self::assertSame('Extension row', $repository->find('41')?->label());
+        self::assertSame(['write', 'read'], array_values(array_unique($driver->operations)));
     }
 
     #[Test]
@@ -703,6 +758,29 @@ final class EntityRepositoryTest extends TestCase
         $repository->save($entity);
 
         $this->assertSame(['preSave:new', 'postSave:new'], $entity->hookLog);
+    }
+
+    #[Test]
+    public function persistence_extraction_occurs_after_pre_save_mutation(): void
+    {
+        $lifecycleType = new EntityType(
+            id: 'test_entity',
+            label: 'Test Entity',
+            class: LifecycleTrackingEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'bundle' => 'bundle', 'label' => 'label', 'langcode' => 'langcode'],
+        );
+        $repository = new EntityRepository($lifecycleType, $this->driver, $this->eventDispatcher);
+        $entity = new LifecycleTrackingEntity(
+            values: ['id' => '88', 'label' => 'Before', 'bundle' => 'article', 'langcode' => 'en'],
+            entityTypeId: 'test_entity',
+            entityKeys: ['id' => 'id', 'uuid' => 'uuid', 'bundle' => 'bundle', 'label' => 'label', 'langcode' => 'langcode'],
+        );
+        $entity->labelDuringPreSave = 'After preSave';
+        $entity->enforceIsNew(true);
+
+        $repository->save($entity);
+
+        self::assertSame('After preSave', $repository->find('88')?->label());
     }
 
     #[Test]

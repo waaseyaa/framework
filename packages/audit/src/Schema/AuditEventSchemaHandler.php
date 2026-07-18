@@ -101,6 +101,23 @@ final class AuditEventSchemaHandler
         $conn->executeStatement(
             'CREATE UNIQUE INDEX IF NOT EXISTS audit_event_uuid ON audit_event (uuid)',
         );
+
+        $conn->executeStatement(
+            'CREATE TABLE IF NOT EXISTS privileged_read_ledger (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                receipt_id VARCHAR(128) NOT NULL,
+                event_type VARCHAR(16) NOT NULL,
+                outcome VARCHAR(16) NULL,
+                descriptor TEXT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )',
+        );
+        $conn->executeStatement(
+            'CREATE INDEX IF NOT EXISTS privileged_read_ledger_receipt ON privileged_read_ledger (receipt_id, id)',
+        );
+        $conn->executeStatement(
+            'CREATE UNIQUE INDEX IF NOT EXISTS privileged_read_ledger_once ON privileged_read_ledger (receipt_id, event_type)',
+        );
         $conn->executeStatement(
             'CREATE INDEX IF NOT EXISTS audit_event_account_uid ON audit_event (account_uid)',
         );

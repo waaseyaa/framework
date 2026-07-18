@@ -12,7 +12,9 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
+use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriverV2;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\Driver\StorageBoundary;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Revision\RevisionPruningPolicy;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
@@ -51,7 +53,12 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
 
         $resolver = new SingleConnectionResolver($this->db);
         $driver = new SqlStorageDriver($resolver);
-        $revisionDriver = new RevisionableStorageDriver($resolver, $this->entityType);
+        $storageBoundary = new StorageBoundary();
+        $revisionDriver = new RevisionableStorageDriverV2(
+            new RevisionableStorageDriver($resolver, $this->entityType),
+            $storageBoundary->driverRowFactory(),
+            $storageBoundary->driverSnapshotReader(),
+        );
 
         $dispatcher = $this->createMock(EventDispatcherInterface::class);
         $dispatcher->method('dispatch')->willReturnArgument(0);
@@ -62,6 +69,7 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
             $dispatcher,
             $revisionDriver,
             $this->db,
+            storageBoundary: $storageBoundary,
         );
     }
 

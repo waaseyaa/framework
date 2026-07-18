@@ -8,6 +8,10 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Queue\Envelope\QueueAuthorityRuntimeInterface;
+use Waaseyaa\Queue\Envelope\QueueEnvelopeV1;
+use Waaseyaa\Queue\Envelope\QueueSystemReason;
+use Waaseyaa\Queue\Handler\HandlerInterface;
 use Waaseyaa\Queue\Handler\JobHandler;
 use Waaseyaa\Queue\Security\SignedQueuePayload;
 use Waaseyaa\Queue\Storage\InMemoryFailedJobRepository;
@@ -160,5 +164,49 @@ final class WorkerTest extends TestCase
         $worker->runNextJob('default', new WorkerOptions());
 
         self::assertCount(1, $this->failedRepo->all());
+    }
+
+    #[Test]
+    public function envelopeAuthorityExistsOnlyDuringHandlerExecution(): void
+    {
+        $active = false;
+        $runtime = new class ($active) implements QueueAuthorityRuntimeInterface {
+            public function __construct(private bool &$active) {}
+            public function run(QueueEnvelopeV1 $envelope, \Closure $handler): mixed
+            {
+                $this->active = true;
+                try {
+                    return $handler();
+                } finally {
+                    $this->active = false;
+                }
+            }
+        };
+        $handler = new class ($active) implements HandlerInterface {
+            public function __construct(private bool &$active) {}
+            public function supports(object $message): bool
+            {
+                return $message instanceof SuccessfulJob;
+            }
+            public function handle(object $message): void
+            {
+                TestCase::assertTrue($this->active);
+            }
+        };
+        $worker = new Worker($this->transport, $this->failedRepo, [$handler], $this->signer, authorityRuntime: $runtime);
+        $envelope = QueueEnvelopeV1::forSystem(
+            serialize(new SuccessfulJob()),
+            QueueSystemReason::SystemJob,
+            'worker-test',
+            null,
+            null,
+            'job-17',
+        );
+        $this->transport->push('default', $this->signer->seal(serialize($envelope)));
+
+        $worker->runNextJob('default', new WorkerOptions());
+
+        self::assertFalse($active);
+        self::assertSame(0, $this->transport->size('default'));
     }
 }

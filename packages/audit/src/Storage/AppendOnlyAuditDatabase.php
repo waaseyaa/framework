@@ -75,7 +75,7 @@ final class AppendOnlyAuditDatabase implements DatabaseInterface
      *
      * @var list<string>
      */
-    private const APPEND_ONLY_TABLES = ['audit_event', 'audit_checkpoint'];
+    private const APPEND_ONLY_TABLES = ['audit_event', 'audit_checkpoint', 'privileged_read_ledger'];
 
     /**
      * SQL verbs that mutate rows or schema — forbidden against append-only

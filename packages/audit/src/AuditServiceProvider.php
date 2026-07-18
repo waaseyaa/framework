@@ -4,10 +4,22 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Audit;
 
+use Waaseyaa\Access\AccountPrincipalFactory;
+use Waaseyaa\Access\Capability\CapabilityActorSemantics;
+use Waaseyaa\Access\Capability\CapabilityDeclaration;
+use Waaseyaa\Access\Capability\CapabilityReason;
+use Waaseyaa\Access\Capability\CapabilityRegistryInterface;
+use Waaseyaa\Access\Capability\InMemoryCapabilityRegistry;
 use Waaseyaa\Access\Context\AccountContextInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
+use Waaseyaa\Access\Middleware\FieldReadContextMiddleware;
+use Waaseyaa\Audit\Bootstrap\IdentityBootstrapReader;
+use Waaseyaa\Audit\Bootstrap\SessionBootstrapReader;
 use Waaseyaa\Audit\Contract\AuditQueryInterface;
 use Waaseyaa\Audit\Contract\AuditWriteFailureObserver;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
+use Waaseyaa\Audit\Contract\StrictPrivilegedReadLedgerInterface;
 use Waaseyaa\Audit\Integrity\AuditCheckpointBuilder;
 use Waaseyaa\Audit\Integrity\CheckpointSink;
 use Waaseyaa\Audit\Integrity\FileCheckpointSink;
@@ -23,6 +35,7 @@ use Waaseyaa\Audit\Schedule\AuditCheckpointScheduleEntries;
 use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
 use Waaseyaa\Audit\Storage\AppendOnlyAuditDatabase;
 use Waaseyaa\Audit\Writer\AuditEventWriter;
+use Waaseyaa\Audit\Writer\DatabaseStrictPrivilegedReadLedger;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
@@ -58,6 +71,29 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
         // entities produced 8 permanent schema:check false-positives (the lean
         // log tables lack the content-entity column set) and falsely implied an
         // entity CRUD/update path for an append-only log. See ocap-audit-log.md.
+
+        $this->singleton(CapabilityRegistryInterface::class, static function (): CapabilityRegistryInterface {
+            $registry = new InMemoryCapabilityRegistry();
+            $registry->register(new CapabilityDeclaration(
+                issuer: 'http.identity-bootstrap',
+                reason: CapabilityReason::SessionBootstrap,
+                entityTypes: ['user'],
+                bundles: ['user'],
+                fields: ['roles', 'permissions', 'status'],
+                actorSemantics: [CapabilityActorSemantics::NoActingContext],
+                maxTtlSeconds: 60,
+                justification: 'Build the immutable HTTP authorization principal after identity resolution.',
+                bindTenantFromContext: true,
+                bindCommunityFromContext: true,
+            ));
+            return $registry;
+        });
+
+        $this->singleton(AccountFieldReadScopeInterface::class, static fn(): AccountFieldReadScopeInterface => new AccountFieldReadScope());
+
+        $this->singleton(StrictPrivilegedReadLedgerInterface::class, function (): StrictPrivilegedReadLedgerInterface {
+            return new DatabaseStrictPrivilegedReadLedger($this->resolve(DatabaseInterface::class));
+        });
 
         $this->singleton(AuditWriterInterface::class, function (): AuditWriterInterface {
             $database = $this->resolve(DatabaseInterface::class);
@@ -174,6 +210,24 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
         $logger = $this->resolveOptional(LoggerInterface::class);
         $resolvedLogger = $logger instanceof LoggerInterface ? $logger : null;
 
-        return [new ApiRequestAuditListener($writer, $resolvedLogger)];
+        $capabilities = $this->resolve(CapabilityRegistryInterface::class);
+        $ledger = $this->resolve(StrictPrivilegedReadLedgerInterface::class);
+        $scope = $this->resolve(AccountFieldReadScopeInterface::class);
+        assert($capabilities instanceof CapabilityRegistryInterface);
+        assert($ledger instanceof StrictPrivilegedReadLedgerInterface);
+        assert($scope instanceof AccountFieldReadScopeInterface);
+        $identityReader = new IdentityBootstrapReader(
+            new SessionBootstrapReader(new AuditedFieldRead($capabilities, $ledger)),
+            $capabilities,
+            'http.identity-bootstrap',
+        );
+
+        return [
+            new FieldReadContextMiddleware(
+                new AccountPrincipalFactory($identityReader),
+                $scope,
+            ),
+            new ApiRequestAuditListener($writer, $resolvedLogger),
+        ];
     }
 }

@@ -5,6 +5,7 @@
     "license": "GPL-2.0-or-later",
     "require": {
         "waaseyaa/access": "^0.1.0-alpha.267",
+        "waaseyaa/audit": "^0.1.0-alpha.267",
         "waaseyaa/cache": "^0.1.0-alpha.267",
         "waaseyaa/config": "^0.1.0-alpha.267",
         "waaseyaa/database-legacy": "^0.1.0-alpha.267",
@@ -42,6 +43,10 @@
         {
             "type": "path",
             "url": "../access"
+        },
+        {
+            "type": "path",
+            "url": "../audit"
         },
         {
             "type": "path",

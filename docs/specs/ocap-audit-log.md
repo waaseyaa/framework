@@ -1,6 +1,7 @@
 # OCAP Audit Log Substrate
 
 <!-- Spec reviewed 2026-07-17 - #2064 WP1 adds the StrictPrivilegedReadLedgerInterface reservation/finalization contract and metadata-only descriptor/receipt/outcome values. It is separate from and does not alter the existing best-effort AuditWriterInterface; no implementation is wired in WP1. Canonical contract: entity-field-read-boundary.md. -->
+<!-- Spec reviewed 2026-07-17 - #2064 WP2 adds durable strict privileged-read persistence as immutable reservation/finalization events, atomic single-finalization, explicit interrupted reservations, exact multi-field/bootstrap and dormant query readers, and complete classifications for every flat audit table column. This remains separate from best-effort AuditWriterInterface telemetry. -->
 
 **Package:** `waaseyaa/audit` (L1 — Core Data)
 **Mission:** `ocap-audit-log-substrate-01KSEFTF`

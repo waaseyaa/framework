@@ -3,6 +3,7 @@
 <!-- Spec reviewed 2026-07-13 - #1982 restores import-derived field definitions on later process boots; full registration remains import-time only (§9.5). -->
 <!-- Spec reviewed 2026-07-13 - #1981 fixed-bundle source and split id-map composition (§3.1, §3.5, §6.1, §16) -->
 <!-- Spec reviewed 2026-07-17 - #2064 WP1 adds capability/preflight data contracts only. Migration plugins and runners are unchanged; exact migration manifests and AuditedFieldRead use begin in WP2. Canonical contract: entity-field-read-boundary.md. -->
+<!-- Spec reviewed 2026-07-17 - #2064 WP2 adds exact MigrationFieldReadManifest metadata and NoActingContext MigrationImport capability issuance bound to an explicit live execution-boundary proof. Privileged migration reads remain explicit at MigrationAuditedFieldReader -> AuditedFieldRead::read; import writes do not imply read authority. -->
 
 # Migration Platform
 
