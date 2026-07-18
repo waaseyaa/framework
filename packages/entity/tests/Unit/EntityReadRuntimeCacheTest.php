@@ -16,10 +16,115 @@ use Waaseyaa\Entity\Exception\StaleEntityReadLayout;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Field\FieldDefinition;
+use Waaseyaa\Field\FieldDefinitionInterface;
 use Waaseyaa\Field\FieldDefinitionRegistry;
 
 final class EntityReadRuntimeCacheTest extends TestCase
 {
+    #[Test]
+    public function immutable_semantic_templates_are_shared_without_sharing_registry_generation_authority(): void
+    {
+        $before = $this->immutableSemanticTemplateCount();
+        $firstRegistry = new FieldDefinitionRegistry();
+        $secondRegistry = new FieldDefinitionRegistry();
+        foreach ([$firstRegistry, $secondRegistry] as $registry) {
+            $registry->registerCoreFields('template_cache_entity', [
+                'name' => new FieldDefinition(
+                    name: 'name',
+                    type: 'string',
+                    targetEntityTypeId: 'template_cache_entity',
+                    read: FieldReadLevel::Public,
+                ),
+                'private_note' => new FieldDefinition(
+                    name: 'private_note',
+                    type: 'string',
+                    targetEntityTypeId: 'template_cache_entity',
+                    read: FieldReadLevel::Protected,
+                ),
+            ]);
+        }
+
+        $first = EntityReadRuntime::layoutFor(
+            RuntimeTemplateCacheEntity::class,
+            ['id' => 1, 'name' => 'First', 'private_note' => 'restricted'],
+            'template_cache_entity',
+            ['id' => 'id'],
+            $firstRegistry,
+            true,
+        );
+        self::assertSame($before + 1, $this->immutableSemanticTemplateCount());
+        self::assertSame(1, $this->resolvedLayoutCacheCountFor($firstRegistry));
+
+        $second = EntityReadRuntime::layoutFor(
+            RuntimeTemplateCacheEntity::class,
+            ['id' => 2, 'name' => 'Second', 'private_note' => 'restricted'],
+            'template_cache_entity',
+            ['id' => 'id'],
+            $secondRegistry,
+            true,
+        );
+        self::assertSame($before + 1, $this->immutableSemanticTemplateCount());
+        self::assertSame(0, $this->resolvedLayoutCacheCountFor($secondRegistry));
+        self::assertNotSame($first, $second);
+        self::assertSame($first->fingerprint(), $second->fingerprint());
+
+        $firstRegistry->registerCoreFields('template_cache_entity', [
+            'private_note' => new FieldDefinition(
+                name: 'private_note',
+                type: 'string',
+                targetEntityTypeId: 'template_cache_entity',
+                read: FieldReadLevel::Internal,
+            ),
+        ]);
+        $second->assertCurrent();
+        try {
+            $first->assertCurrent();
+            self::fail('A cross-registry template detached the first layout from its registry generation.');
+        } catch (StaleEntityReadLayout) {
+            self::assertTrue(true);
+        }
+
+        $changed = EntityReadRuntime::layoutFor(
+            RuntimeTemplateCacheEntity::class,
+            ['id' => 1, 'name' => 'First', 'private_note' => 'internal'],
+            'template_cache_entity',
+            ['id' => 'id'],
+            $firstRegistry,
+            true,
+        );
+        self::assertSame(FieldReadLevel::Internal, $changed->level('private_note'));
+        self::assertSame($before + 2, $this->immutableSemanticTemplateCount());
+    }
+
+    #[Test]
+    public function custom_field_definitions_never_enter_the_cross_registry_template_cache(): void
+    {
+        $before = $this->immutableSemanticTemplateCount();
+        foreach ([1, 2] as $id) {
+            $definition = $this->createStub(FieldDefinitionInterface::class);
+            $definition->method('getName')->willReturn('name');
+            $definition->method('getTargetEntityTypeId')->willReturn('custom_template_cache_entity');
+            $definition->method('getTargetBundle')->willReturn(null);
+            $definition->method('getSetting')->willReturnCallback(
+                static fn(string $setting): mixed => $setting === 'internal' ? false : null,
+            );
+            $registry = new FieldDefinitionRegistry();
+            $registry->registerCoreFields('custom_template_cache_entity', ['name' => $definition]);
+
+            $layout = EntityReadRuntime::layoutFor(
+                RuntimeCustomTemplateCacheEntity::class,
+                ['id' => $id, 'name' => 'Custom'],
+                'custom_template_cache_entity',
+                ['id' => 'id'],
+                $registry,
+                true,
+            );
+            self::assertSame(FieldReadLevel::Internal, $layout->level('name'));
+        }
+
+        self::assertSame($before, $this->immutableSemanticTemplateCount());
+    }
+
     #[Test]
     public function registry_mutation_invalidates_an_already_compiled_layout(): void
     {
@@ -415,6 +520,30 @@ final class EntityReadRuntimeCacheTest extends TestCase
         $this->expectException(StaleEntityReadLayout::class);
         $public->assertCurrent();
     }
+
+    private function immutableSemanticTemplateCount(): int
+    {
+        $properties = (new \ReflectionClass(EntityReadRuntime::class))->getStaticProperties();
+
+        return count($properties['immutableSemanticTemplates']);
+    }
+
+    private function resolvedLayoutCacheCountFor(FieldDefinitionRegistryInterface $registry): int
+    {
+        $runtimeProperties = (new \ReflectionClass(EntityReadRuntime::class))->getStaticProperties();
+        /** @var \WeakMap<FieldDefinitionRegistryInterface, object> $scopes */
+        $scopes = $runtimeProperties['registryCacheScopes'];
+        $scopeProperty = (new \ReflectionObject($scopes[$registry]))->getProperty('sources');
+        /** @var array<string, object> $sources */
+        $sources = $scopeProperty->getValue($scopes[$registry]);
+        self::assertCount(1, $sources);
+        $source = reset($sources);
+        $layoutsProperty = (new \ReflectionObject($source))->getProperty('layouts');
+        /** @var array<string, object> $layouts */
+        $layouts = $layoutsProperty->getValue($source);
+
+        return count($layouts);
+    }
 }
 
 #[ContentEntityType(id: 'cache_entity')]
@@ -433,3 +562,9 @@ final class RuntimeInternalCacheEntity extends ContentEntityBase
     #[Field(read: FieldReadLevel::Internal)]
     public string $name = '';
 }
+
+#[ContentEntityType(id: 'template_cache_entity')]
+final class RuntimeTemplateCacheEntity extends ContentEntityBase {}
+
+#[ContentEntityType(id: 'custom_template_cache_entity')]
+final class RuntimeCustomTemplateCacheEntity extends ContentEntityBase {}

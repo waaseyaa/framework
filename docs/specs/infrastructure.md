@@ -1,5 +1,7 @@
 # Infrastructure
 
+<!-- Spec reviewed 2026-07-18 - #2064 WP4 persistent-worker optimization retains only bounded immutable entity-layout blueprints and bounded JSON:API structural route templates. Every layout blueprint is rebound to current registry generations; every route template is cloned into a fresh router. Their complete isolation dimensions and cache exclusions are canonical in entity-field-read-boundary.md and api-layer.md; no request/security/runtime objects are retained. -->
+
 <!-- Spec reviewed 2026-07-17 - #2064 WP2 persistent dispatch signs QueueEnvelopeV1 only with an explicit reviewed factory; default dispatch retains a non-authorizing legacy payload plus deduplicated diagnostics. QueueServiceProvider accepts reviewed envelope-factory and scoped-authority-runtime implementations only through the kernel-services bus and otherwise uses NoAuthority. Workers confine resolved authority to the handler callback and clear it before queue side effects; CLI/API persistent retry preserves the original signed envelope and queue. Queue/cache diagnostics are production-wired at first-party write boundaries; state has no repository composition root, so MemoryState/SqlState expose the diagnostic at their constructor/write boundary. ProtectedCacheDimensions covers bundle/language/revision, and PublicStateProjection is Public-only; hard rejection remains WP4. -->
 
 <!-- Spec reviewed 2026-07-14 - R21 WP7 (#2010/#2000): request-reachable mutable process statics are blocked unless tools/access-hardening-baseline.php carries a reviewed, non-empty lifetime/isolation rationale. Safe alternatives are instance state, per-request execution context, or a structural cache keyed by every isolation dimension; unsafe fixture coverage runs in composer verify and blocking CI. -->
@@ -335,6 +337,22 @@ Real-time SSE delivery to the admin SPA is handled by the durable-log path: `Eve
 Event listeners for non-critical operations (broadcasting, logging, cache invalidation) must wrap in try-catch and log via `LoggerInterface` to avoid crashing the primary request. The project does not use `psr/log`; use `Waaseyaa\Foundation\Log\LoggerInterface` with `NullLogger` as the default fallback. Reserve `error_log()` only for last-resort fallbacks inside the logging infrastructure itself.
 
 ## Cache System
+
+### Process-lifetime structural cache boundary
+
+Request-reachable process statics remain deny-by-default under
+`tools/access-hardening-baseline.php`. A reviewed structural cache must be
+bounded, keyed by every input that can change its result, and hold only immutable
+construction data. A cache hit must rebind or clone that data into the current
+kernel/registry generation; a changed key must miss, and a stale generation must
+fail closed rather than fall back to older authority.
+
+The retained #2064 caches satisfy that rule narrowly: entity classification
+blueprints are rebound to fresh generation seals, and JSON:API structural route
+templates are cloned into fresh routers. Neither cache may retain requests,
+accounts/principals, entities or values, access decisions, capabilities, audit
+records, providers, services, runtime-bound controllers, routers, matchers,
+generators, or mutable route collections.
 
 ### CacheBackendInterface
 

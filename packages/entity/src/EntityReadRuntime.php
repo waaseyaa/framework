@@ -15,6 +15,8 @@ use Waaseyaa\Field\FieldReadMetadataResolver;
 /** Process-wide compiled field-read layout and late-bound guard runtime. @internal */
 final class EntityReadRuntime
 {
+    private const int IMMUTABLE_SEMANTIC_TEMPLATE_LIMIT = 256;
+
     private static ?EntityReadLayoutGeneration $generation = null;
 
     private static ?FieldReadMetadataResolver $metadataResolver = null;
@@ -27,6 +29,9 @@ final class EntityReadRuntime
     private static ?\WeakMap $registryCacheScopes = null;
 
     private static ?EntityReadLayoutRegistryCacheScope $noRegistryCacheScope = null;
+
+    /** @var array<string, EntityReadLayoutTemplate> */
+    private static array $immutableSemanticTemplates = [];
 
     private function __construct() {}
 
@@ -125,6 +130,15 @@ final class EntityReadRuntime
             if (isset($sourceCache->identityLayouts[$identityCacheKey])) {
                 return $sourceCache->identityLayouts[$identityCacheKey];
             }
+
+            $templateCacheKey = $sourceScopeKey . "\0" . $identityCacheKey;
+            $template = self::$immutableSemanticTemplates[$templateCacheKey] ?? null;
+            if ($template !== null) {
+                return $sourceCache->identityLayouts[$identityCacheKey] = $template->bind(
+                    self::generation(),
+                    $sourceCache->generation,
+                );
+            }
         }
 
         $definitions = self::mergeReadDefinitions($entityTypeId, ...$definitionSources);
@@ -176,15 +190,12 @@ final class EntityReadRuntime
         ksort($levels);
         sort($authorizationInputs);
 
-        $layout = $sourceCache->layouts[$cacheKey] = new EntityReadLayout(
-            self::generation(),
-            $levels,
-            $authorizationInputs,
-            $registeredEntityType ? FieldReadLevel::Internal : FieldReadLevel::Public,
-            [$sourceCache->generation],
-        );
+        $undeclaredLevel = $registeredEntityType ? FieldReadLevel::Internal : FieldReadLevel::Public;
+        $template = new EntityReadLayoutTemplate($levels, $authorizationInputs, $undeclaredLevel);
+        $layout = $sourceCache->layouts[$cacheKey] = $template->bind(self::generation(), $sourceCache->generation);
         if ($identityCacheKey !== null) {
             $sourceCache->identityLayouts[$identityCacheKey] = $layout;
+            self::rememberImmutableSemanticTemplate($sourceScopeKey . "\0" . $identityCacheKey, $template);
         }
 
         return $layout;
@@ -375,6 +386,44 @@ final class EntityReadRuntime
     private static function metadataResolver(): FieldReadMetadataResolver
     {
         return self::$metadataResolver ??= new FieldReadMetadataResolver();
+    }
+
+    private static function rememberImmutableSemanticTemplate(string $key, EntityReadLayoutTemplate $template): void
+    {
+        if (isset(self::$immutableSemanticTemplates[$key])) {
+            return;
+        }
+        if (count(self::$immutableSemanticTemplates) >= self::IMMUTABLE_SEMANTIC_TEMPLATE_LIMIT) {
+            array_shift(self::$immutableSemanticTemplates);
+        }
+        self::$immutableSemanticTemplates[$key] = $template;
+    }
+}
+
+/** @internal Immutable classification recipe without registry-generation authority. */
+final readonly class EntityReadLayoutTemplate
+{
+    /**
+     * @param array<string, FieldReadLevel> $levels
+     * @param list<string> $authorizationInputs
+     */
+    public function __construct(
+        private array $levels,
+        private array $authorizationInputs,
+        private FieldReadLevel $undeclaredLevel,
+    ) {}
+
+    public function bind(
+        EntityReadLayoutGeneration $processGeneration,
+        EntityReadLayoutGeneration $registryGeneration,
+    ): EntityReadLayout {
+        return new EntityReadLayout(
+            $processGeneration,
+            $this->levels,
+            $this->authorizationInputs,
+            $this->undeclaredLevel,
+            [$registryGeneration],
+        );
     }
 }
 

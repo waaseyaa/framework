@@ -338,6 +338,20 @@ those seals. A value compiled under obsolete classification/policy metadata is
 therefore rejected and must be reloaded/recompiled rather than read under stale
 semantics.
 
+Equivalent built-in immutable definitions may reuse a bounded process-lifetime
+classification blueprint containing only field levels, authorization-input
+names, and the undeclared-field level. A blueprint carries no registry authority:
+each hit creates a fresh `EntityReadLayout` bound to the current process and the
+requesting registry's current generation. Its key includes the exact semantic
+definition identity and structural source shape, so a semantic definition
+change misses instead of reusing stale classification. A registry-generation
+change may reuse the immutable recipe, but only by binding a new layout to that
+fresh generation; the already-bound layout still throws as obsolete. Custom
+definition implementations never enter this cross-registry cache and retain
+full metadata resolution. The cache is capped at 256 blueprints and excludes
+entities, field values, views, principals, account scopes, policy decisions,
+capabilities, ledger records, registries, and mutable runtime services.
+
 V2 creation and hydration use an opaque `EntityInitialization` issued by one
 `EntityInitializationBoundary`. The factory seals values and immutable
 `EntityStructure` before an entity object exists; the paired installer creates

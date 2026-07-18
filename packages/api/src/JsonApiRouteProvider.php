@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Api;
 
+use Symfony\Component\Routing\Route;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Routing\RouteBuilder;
 use Waaseyaa\Routing\WaaseyaaRouter;
@@ -23,6 +24,11 @@ use Waaseyaa\Routing\WaaseyaaRouter;
  */
 final class JsonApiRouteProvider
 {
+    private const int STRUCTURAL_ROUTE_CACHE_LIMIT = 2;
+
+    /** @var array<string, list<array{name: string, route: Route}>> */
+    private static array $structuralRouteCache = [];
+
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly string $basePath = '/api',
@@ -32,6 +38,48 @@ final class JsonApiRouteProvider
      * Register JSON:API routes for all entity types on the given router.
      */
     public function registerRoutes(WaaseyaaRouter $router): void
+    {
+        $this->replayTemplates($router, $this->routeTemplates(workflow: false));
+    }
+
+    /** @return list<array{name: string, route: Route}> */
+    private function routeTemplates(bool $workflow): array
+    {
+        $definitions = $this->entityTypeManager->getDefinitions();
+        $exposure = [];
+        foreach ($definitions as $entityTypeId => $definition) {
+            $exposure[$entityTypeId] = EntityTypeApiExposure::isExposed($definition);
+        }
+        ksort($exposure);
+        $key = $this->basePath . "\0" . ($workflow ? 'workflow' : 'base') . "\0"
+            . json_encode($exposure, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+        if (isset(self::$structuralRouteCache[$key])) {
+            return self::$structuralRouteCache[$key];
+        }
+
+        $templateRouter = new WaaseyaaRouter();
+        if ($workflow) {
+            foreach ($exposure as $entityTypeId => $exposed) {
+                if ($exposed) {
+                    $this->registerWorkflowTransitionRoutesForType($templateRouter, $entityTypeId);
+                }
+            }
+        } else {
+            $this->buildBaseRoutes($templateRouter, $exposure);
+        }
+
+        $templates = [];
+        foreach ($templateRouter->getRouteCollection()->all() as $name => $route) {
+            $templates[] = ['name' => $name, 'route' => clone $route];
+        }
+        if (count(self::$structuralRouteCache) >= self::STRUCTURAL_ROUTE_CACHE_LIMIT) {
+            array_shift(self::$structuralRouteCache);
+        }
+        return self::$structuralRouteCache[$key] = $templates;
+    }
+
+    /** @param array<string, bool> $exposure */
+    private function buildBaseRoutes(WaaseyaaRouter $router, array $exposure): void
     {
         // Discovery endpoint: GET /api
         $router->addRoute(
@@ -43,14 +91,22 @@ final class JsonApiRouteProvider
                 ->build(),
         );
 
-        foreach ($this->entityTypeManager->getDefinitions() as $entityTypeId => $definition) {
-            if (!EntityTypeApiExposure::isExposed($definition)) {
+        foreach ($exposure as $entityTypeId => $exposed) {
+            if (!$exposed) {
                 $this->registerNotExposedRoutes($router, $entityTypeId);
                 continue;
             }
             $this->registerEntityTypeRoutes($router, $entityTypeId);
             $this->registerFieldAutoSave($router, $entityTypeId);
             $this->registerTranslationRoutes($router, $entityTypeId);
+        }
+    }
+
+    /** @param list<array{name: string, route: Route}> $templates */
+    private function replayTemplates(WaaseyaaRouter $router, array $templates): void
+    {
+        foreach ($templates as $template) {
+            $router->addRoute($template['name'], clone $template['route']);
         }
     }
 
@@ -260,12 +316,7 @@ final class JsonApiRouteProvider
      */
     public function registerWorkflowTransitionRoutes(WaaseyaaRouter $router): void
     {
-        foreach ($this->entityTypeManager->getDefinitions() as $entityTypeId => $definition) {
-            if (!EntityTypeApiExposure::isExposed($definition)) {
-                continue;
-            }
-            $this->registerWorkflowTransitionRoutesForType($router, $entityTypeId);
-        }
+        $this->replayTemplates($router, $this->routeTemplates(workflow: true));
     }
 
     private function registerWorkflowTransitionRoutesForType(WaaseyaaRouter $router, string $entityTypeId): void

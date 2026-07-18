@@ -1,5 +1,7 @@
 # API Layer
 
+<!-- Spec reviewed 2026-07-18 - #2064 WP4 retains only bounded structural route templates and stable priority buckets as route-build optimizations. JsonApiRouteProvider keys templates by base path, exact entity-type exposure shape, and base/workflow mode, then clones every Route into a fresh WaaseyaaRouter. No request, account, entity, authorization decision, provider/service instance, runtime controller capture, or mutable RouteCollection is cached. WaaseyaaRouter preserves descending priority and registration-order ties while reading each priority once. -->
+
 <!-- Spec reviewed 2026-07-15 - #2050: SchemaPresenter maps authoritative field type date to JSON Schema string/format date/x-widget date and projects date settings min/max as x-min/x-max presentation bounds; timestamp/datetime and ordinary strings remain distinct. -->
 <!-- Spec reviewed 2026-07-15 - #2047: SchemaPresenter exposes its sorted registry-backed bundle roster to mounted generic admin callers; null means no registry, [] means registry present/no registered bundles. SchemaController rejects a non-empty explicit bundle outside that authoritative roster with 422 instead of silently returning the base schema. -->
 <!-- Spec reviewed 2026-07-14 - #2018 authoring spine: EntityValidationException is mapped to 422 on store(), plain update(), and expectation-stated update(); repository validation can no longer escape as an admin/API HTTP 500. -->
@@ -194,6 +196,12 @@ Both controller deps are nullable (`?ToolRegistryReadModelInterface = null`, `?S
 ### Route precedence and the SSR `render.page` fallback (#1632)
 
 Route resolution order is governed by `WaaseyaaRouter::sortRoutesByPriority()`, **not** by registration order. The router sorts the whole collection by `RouteBuilder::priority()` (the `_waaseyaa_priority` option, **default 0**) descending, using each route's original registration index only as a tiebreaker among equal priorities. The first matching route (by `Symfony\Component\Routing\Matcher\UrlMatcher` order) wins.
+
+The implementation groups routes into descending numeric priority buckets and
+replays each bucket in original registration order. This is behaviorally
+identical to the stable comparison contract above, while reading each route's
+priority exactly once; negative priorities and duplicate priorities retain the
+same ordering semantics.
 
 `BuiltinRouteRegistrar` registers the SSR fallback `public.page` (`/{path}` → `render.page`, with `path` constrained to exclude `api/…`) at **default priority 0**, after the provider route loop. Consequently:
 
@@ -1250,6 +1258,20 @@ receive diagnostic-only routes that return `entity_type_not_api_exposed` and
 name the required flag; they receive no CRUD, field auto-save, translation, or
 workflow routes. Discovery and OpenAPI apply the same predicate. The discovery
 route is always registered, even when no entity types are exposed.
+
+Route construction may reuse a bounded process-lifetime structural template.
+The key contains the configured base path, the sorted exact map of entity type
+ids to API-exposure decisions, and whether base or workflow routes were
+requested. A changed id, exposure decision, base path, or route family is a
+cache miss. The cache retains at most two template sets and every registration
+clones each `Route` into a fresh `WaaseyaaRouter` and fresh mutable route
+collection, so one kernel cannot mutate another kernel's routes. Templates may
+contain controller strings and diagnostic closures whose only capture is the
+entity type id; they contain no request, account, entity, authorization
+decision, provider/service instance, runtime-bound controller, router, matcher,
+generator, or mutable route collection. Route access options are cloned
+unchanged, so template reuse does not weaken route authorization or turn a
+missing/changed structural key into a permissive fallback.
 
 | Route Name | Method | Path | Controller Method | Access |
 |-----------|--------|------|-------------------|--------|
