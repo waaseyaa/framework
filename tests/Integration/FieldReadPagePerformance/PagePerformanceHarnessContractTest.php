@@ -135,12 +135,14 @@ final class PagePerformanceHarnessContractTest extends TestCase
             'controller' => 'MembersDirectoryController::index',
             'rendered_rows' => 100,
             'rendered_fields' => 200,
+            'hydrated_entity_count' => 101,
         ]);
         $withoutHydratedRows = $this->block('members_cold', 1_000_000, 'same-body', [
             'route' => 'performance.members',
             'controller' => 'MembersDirectoryController::index',
             'rendered_rows' => 0,
             'rendered_fields' => 0,
+            'hydrated_entity_count' => 101,
         ]);
 
         $this->expectException(\RuntimeException::class);
@@ -172,15 +174,79 @@ final class PagePerformanceHarnessContractTest extends TestCase
     {
         $baseline = [];
         $ratioFailure = [];
+        $absoluteBaseline = [];
         $absoluteFailure = [];
         for ($i = 0; $i < 9; ++$i) {
             $baseline[] = $this->block('content', 1_000_000, 'same', ['sql' => 5, 'rows' => 1, 'fields' => 32]);
             $ratioFailure[] = $this->block('content', 1_040_000, 'same', ['sql' => 5, 'rows' => 1, 'fields' => 32]);
-            $absoluteFailure[] = $this->block('content', 1_600_000, 'same', ['sql' => 5, 'rows' => 1, 'fields' => 32]);
+            $absoluteBaseline[] = $this->block('content', 100_000_000, 'same', ['sql' => 5, 'rows' => 1, 'fields' => 32]);
+            $absoluteFailure[] = $this->block('content', 100_600_000, 'same', ['sql' => 5, 'rows' => 1, 'fields' => 32]);
         }
 
         self::assertFalse(PagePerformanceOrchestrator::comparePage($baseline, $ratioFailure)['passed']);
-        self::assertFalse(PagePerformanceOrchestrator::comparePage($baseline, $absoluteFailure)['passed']);
+        self::assertFalse(PagePerformanceOrchestrator::comparePage($absoluteBaseline, $absoluteFailure)['passed']);
+    }
+
+    #[Test]
+    public function the_absolute_budget_scales_with_the_frozen_hydrated_entity_count(): void
+    {
+        $baseline = [];
+        $candidate = [];
+        for ($i = 0; $i < 9; ++$i) {
+            $trace = [
+                'sql' => 5,
+                'rows' => 100,
+                'fields' => 200,
+                'hydrated_entity_count' => 100,
+            ];
+            $baseline[] = $this->block('members_cold', 100_000_000, 'same', $trace);
+            $candidate[] = $this->block('members_cold', 102_000_000, 'same', $trace);
+        }
+
+        $comparison = PagePerformanceOrchestrator::comparePage($baseline, $candidate);
+
+        self::assertSame(100, $comparison['hydrated_entity_count']);
+        self::assertSame(5_000_000, $comparison['absolute_limit_ns']);
+        self::assertTrue($comparison['passed']);
+    }
+
+    #[Test]
+    public function it_rejects_a_page_without_a_frozen_hydrated_entity_count(): void
+    {
+        $baseline = $this->block(
+            'content_cold',
+            1_000_000,
+            'same',
+            ['sql' => 5, 'rows' => 1, 'fields' => 32],
+            includeHydratedEntityCount: false,
+        );
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('hydrated entity count');
+
+        PagePerformanceOrchestrator::assertComparableBlock($baseline, $baseline);
+    }
+
+    #[Test]
+    public function it_rejects_a_hydrated_entity_count_that_differs_between_trees(): void
+    {
+        $baseline = $this->block('members_cold', 1_000_000, 'same', [
+            'sql' => 5,
+            'rows' => 100,
+            'fields' => 200,
+            'hydrated_entity_count' => 101,
+        ]);
+        $candidate = $this->block('members_cold', 1_000_000, 'same', [
+            'sql' => 5,
+            'rows' => 100,
+            'fields' => 200,
+            'hydrated_entity_count' => 100,
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('hydrated entity count mismatch');
+
+        PagePerformanceOrchestrator::assertComparableBlock($baseline, $candidate);
     }
 
     #[Test]
@@ -196,8 +262,17 @@ final class PagePerformanceHarnessContractTest extends TestCase
     }
 
     /** @param array<string, int|string> $trace */
-    private function block(string $page, int $medianNs, string $bodyHash, array $trace): array
-    {
+    private function block(
+        string $page,
+        int $medianNs,
+        string $bodyHash,
+        array $trace,
+        bool $includeHydratedEntityCount = true,
+    ): array {
+        if ($includeHydratedEntityCount && !array_key_exists('hydrated_entity_count', $trace)) {
+            $trace['hydrated_entity_count'] = $trace['rendered_rows'] ?? $trace['rows'] ?? 1;
+        }
+
         return [
             'page' => $page,
             'samples_ns' => array_fill(0, 200, $medianNs),

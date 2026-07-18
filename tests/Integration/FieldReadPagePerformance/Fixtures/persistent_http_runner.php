@@ -304,11 +304,14 @@ function buildPageResult(string $page, array $samples, array $last, string $init
                 json_encode(substr($body, 0, 240), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
             ));
         }
+        // The frozen workload hydrates the authenticated session User once,
+        // plus the repository entities rendered by the directory.
         $trace = [
             'route' => 'performance.members',
             'controller' => 'Waaseyaa\\Tests\\Integration\\FieldReadPagePerformance\\Fixtures\\MembersDirectoryController::index',
             'rendered_rows' => $rows,
             'rendered_fields' => $rows * 2,
+            'hydrated_entity_count' => $rows + 1,
             'ordered_member_ids_sha256' => hash('sha256', implode(',', $memberIds)),
             'cache_before' => $last['cache_before'],
             'cache_after' => $last['cache_after'],
@@ -337,6 +340,7 @@ function buildPageResult(string $page, array $samples, array $last, string $init
             'handler' => 'Waaseyaa\\SSR\\SsrPageHandler',
             'rendered_rows' => 1,
             'rendered_fields' => FieldReadPageCorpus::CONTENT_RENDERED_FIELDS,
+            'hydrated_entity_count' => 1,
             'unique_sentinels' => $sentinels,
             'cache_before' => $last['cache_before'],
             'cache_after' => $last['cache_after'],

@@ -110,7 +110,7 @@ final class FieldReadGuard implements EntityValueReadGuardInterface
     {
         $this->assertCompiled(
             $entity,
-            new CompiledFieldReadRule($field, $entity->fieldReadLevel($field)),
+            $entity->compiledFieldReadRule($field),
             ($this->policySubject)($entity, $field, $viewIdentity),
         );
     }

@@ -14,6 +14,8 @@ use Waaseyaa\Entity\EntityReadLayoutGeneration;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityValueReadGuardInterface;
 use Waaseyaa\Entity\Exception\FieldReadDenied;
+use Waaseyaa\Entity\Exception\MissingFieldReadContext;
+use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Entity\Hydration\HydratableFromStorageInterface;
 use Waaseyaa\Entity\Hydration\HydrationContext;
@@ -23,6 +25,7 @@ use Waaseyaa\EntityStorage\Tests\Fixtures\NonHydratableEntity;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestConfigEntity;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 use Waaseyaa\Field\FieldDefinition;
+use Waaseyaa\Field\FieldDefinitionRegistry;
 
 #[CoversClass(EntityInstantiator::class)]
 final class EntityInstantiatorTest extends TestCase
@@ -289,6 +292,174 @@ final class EntityInstantiatorTest extends TestCase
         self::assertCount(2, array_unique($guard->viewIds));
     }
 
+    #[Test]
+    public function reused_instantiator_rejects_a_cached_layout_after_registry_mutation(): void
+    {
+        $entityType = new EntityType(
+            id: 'layout_cache_entity',
+            label: 'Layout cache entity',
+            class: SealedHydrationFixture::class,
+            keys: ['id' => 'id'],
+        );
+        $registry = new FieldDefinitionRegistry();
+        $registry->registerCoreFields('layout_cache_entity', [
+            'title' => new FieldDefinition(
+                name: 'title',
+                type: 'string',
+                targetEntityTypeId: 'layout_cache_entity',
+                read: FieldReadLevel::Public,
+            ),
+        ]);
+        $instantiator = new EntityInstantiator($entityType, $registry);
+        $first = $instantiator->instantiate(SealedHydrationFixture::class, ['id' => 1, 'title' => 'Public']);
+        $second = $instantiator->instantiate(SealedHydrationFixture::class, ['id' => 2, 'title' => 'Also public']);
+
+        self::assertSame('Public', $first->get('title'));
+        self::assertSame('Also public', $second->get('title'));
+
+        $registry->registerCoreFields('layout_cache_entity', [
+            'title' => new FieldDefinition(
+                name: 'title',
+                type: 'string',
+                targetEntityTypeId: 'layout_cache_entity',
+                read: FieldReadLevel::Protected,
+            ),
+        ]);
+        $replacement = $instantiator->instantiate(
+            SealedHydrationFixture::class,
+            ['id' => 3, 'title' => 'Now protected'],
+        );
+
+        $this->expectException(MissingFieldReadContext::class);
+        $replacement->get('title');
+    }
+
+    #[Test]
+    public function entity_structure_uses_the_compiled_layout_without_repeating_registry_reads(): void
+    {
+        $entityType = new EntityType(
+            id: 'structure_cache_entity',
+            label: 'Structure cache entity',
+            class: SealedHydrationFixture::class,
+            keys: ['id' => 'id', 'bundle' => 'bundle', 'langcode' => 'langcode'],
+        );
+        $layout = new EntityReadLayout(new EntityReadLayoutGeneration(), [
+            'bundle' => FieldReadLevel::Public,
+            'bundle_field' => FieldReadLevel::Public,
+            'core_field' => FieldReadLevel::Public,
+            'default_langcode' => FieldReadLevel::Public,
+            'id' => FieldReadLevel::Public,
+            'is_default_revision' => FieldReadLevel::Public,
+            'is_latest_revision' => FieldReadLevel::Public,
+            'langcode' => FieldReadLevel::Public,
+            'row_only' => FieldReadLevel::Internal,
+        ]);
+        $instantiator = new EntityInstantiator($entityType, new RegistryReadsForbiddenFixture());
+
+        $first = $instantiator->instantiateSealed(
+            SealedHydrationFixture::class,
+            ['id' => 1, 'bundle' => 'article', 'langcode' => 'en', 'row_only' => 'first'],
+            $layout,
+        );
+        $second = $instantiator->instantiateSealed(
+            SealedHydrationFixture::class,
+            ['id' => 2, 'bundle' => 'article', 'langcode' => 'cr', 'row_only' => 'second'],
+            $layout,
+        );
+
+        $expected = array_keys($layout->levels());
+        self::assertSame($expected, $first->entityStructure()->fieldNames);
+        self::assertSame($expected, $second->entityStructure()->fieldNames);
+    }
+
+    #[Test]
+    public function cached_layout_structure_keeps_all_definition_row_and_structural_fields(): void
+    {
+        $entityType = new EntityType(
+            id: 'structure_cache_entity',
+            label: 'Structure cache entity',
+            class: SealedHydrationFixture::class,
+            keys: ['id' => 'id', 'bundle' => 'bundle', 'langcode' => 'langcode'],
+            _fieldDefinitions: [
+                'imperative_field' => new FieldDefinition(
+                    'imperative_field',
+                    'string',
+                    read: FieldReadLevel::Public,
+                ),
+            ],
+        );
+        $registry = new FieldDefinitionRegistry();
+        $registry->registerCoreFields('structure_cache_entity', [
+            'core_field' => new FieldDefinition(
+                name: 'core_field',
+                type: 'string',
+                targetEntityTypeId: 'structure_cache_entity',
+                read: FieldReadLevel::Public,
+            ),
+        ]);
+        $registry->registerBundleFields('structure_cache_entity', 'article', [
+            'bundle_field' => new FieldDefinition(
+                name: 'bundle_field',
+                type: 'string',
+                targetEntityTypeId: 'structure_cache_entity',
+                targetBundle: 'article',
+                read: FieldReadLevel::Public,
+            ),
+        ]);
+        $instantiator = new EntityInstantiator($entityType, $registry);
+
+        $first = $instantiator->instantiate(SealedHydrationFixture::class, [
+            'id' => 1,
+            'bundle' => 'article',
+            'langcode' => 'en',
+            'row_only' => 'first',
+        ]);
+        $second = $instantiator->instantiate(SealedHydrationFixture::class, [
+            'id' => 2,
+            'bundle' => 'article',
+            'langcode' => 'cr',
+            'row_only' => 'second',
+        ]);
+
+        $expected = [
+            'bundle',
+            'bundle_field',
+            'core_field',
+            'default_langcode',
+            'id',
+            'imperative_field',
+            'is_default_revision',
+            'is_latest_revision',
+            'langcode',
+            'row_only',
+        ];
+        self::assertSame($expected, $first->entityStructure()->fieldNames);
+        self::assertSame($expected, $second->entityStructure()->fieldNames);
+    }
+
+}
+
+final class RegistryReadsForbiddenFixture implements FieldDefinitionRegistryInterface
+{
+    public function registerCoreFields(string $entityTypeId, array $fields): void {}
+    public function mergeCoreFields(string $entityTypeId, array $fields): void {}
+    public function registerBundleFields(string $entityTypeId, string $bundle, array $fields): void {}
+    public function coreFieldsFor(string $entityTypeId): array
+    {
+        throw new \LogicException('A compiled layout must be the structure field-name source.');
+    }
+    public function bundleFieldsFor(string $entityTypeId, string $bundle): array
+    {
+        throw new \LogicException('A compiled layout must be the structure field-name source.');
+    }
+    public function bundleNamesFor(string $entityTypeId): array
+    {
+        return [];
+    }
+    public function bundlesDefiningField(string $entityTypeId, string $fieldName): array
+    {
+        return [];
+    }
 }
 
 final class RevisionViewRecordingGuard implements EntityValueReadGuardInterface
@@ -334,14 +505,44 @@ final class RawHydrationObservingFixture implements HydratableFromStorageInterfa
         return new self();
     }
 
-    public function id(): int|string|null { return 7; }
-    public function uuid(): string { return ''; }
-    public function label(): string { return ''; }
-    public function getEntityTypeId(): string { return 'raw_hydration_observer'; }
-    public function bundle(): string { return 'raw_hydration_observer'; }
-    public function isNew(): bool { return false; }
-    public function get(string $name): mixed { return null; }
-    public function set(string $name, mixed $value): static { return $this; }
-    public function toArray(): array { return []; }
-    public function language(): string { return 'en'; }
+    public function id(): int|string|null
+    {
+        return 7;
+    }
+    public function uuid(): string
+    {
+        return '';
+    }
+    public function label(): string
+    {
+        return '';
+    }
+    public function getEntityTypeId(): string
+    {
+        return 'raw_hydration_observer';
+    }
+    public function bundle(): string
+    {
+        return 'raw_hydration_observer';
+    }
+    public function isNew(): bool
+    {
+        return false;
+    }
+    public function get(string $name): mixed
+    {
+        return null;
+    }
+    public function set(string $name, mixed $value): static
+    {
+        return $this;
+    }
+    public function toArray(): array
+    {
+        return [];
+    }
+    public function language(): string
+    {
+        return 'en';
+    }
 }

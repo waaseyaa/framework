@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Entity;
 
 use Symfony\Component\Uid\Uuid;
+use Waaseyaa\Access\CompiledFieldReadRule;
 use Waaseyaa\Entity\Cast\ValueCaster;
 
 /**
@@ -332,6 +333,12 @@ abstract class EntityBase implements EntityInterface
     final public function fieldReadLevel(string $field): FieldReadLevel
     {
         return $this->valueContainer->level($field);
+    }
+
+    /** @internal Guard hot path over the layout's stable compiled rule. */
+    final public function compiledFieldReadRule(string $field): CompiledFieldReadRule
+    {
+        return $this->valueContainer->rule($field);
     }
 
     /**

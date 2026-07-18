@@ -16,7 +16,8 @@ final class PagePerformanceOrchestrator
     public const int WARMUPS = 30;
     public const int SAMPLES = 200;
     public const float RATIO_LIMIT = 1.03;
-    public const int ABSOLUTE_LIMIT_NS = 500_000;
+    public const int ABSOLUTE_FLOOR_NS = 500_000;
+    public const int PER_HYDRATED_ENTITY_NS = 50_000;
 
     public static function validateSourceTrees(string $baseline, string $candidate): void
     {
@@ -48,6 +49,12 @@ final class PagePerformanceOrchestrator
     /** @param array<string, mixed> $baseline @param array<string, mixed> $candidate */
     public static function assertComparableBlock(array $baseline, array $candidate): void
     {
+        $baselineHydratedEntities = self::hydratedEntityCount($baseline);
+        $candidateHydratedEntities = self::hydratedEntityCount($candidate);
+        if ($baselineHydratedEntities !== $candidateHydratedEntities) {
+            throw new \RuntimeException('Frozen hydrated entity count mismatch between source trees.');
+        }
+
         $keys = ['page', 'response', 'trace', 'workload_sha256'];
         foreach ($keys as $key) {
             if (($baseline[$key] ?? null) !== ($candidate[$key] ?? null)) {
@@ -79,9 +86,11 @@ final class PagePerformanceOrchestrator
         $deltas = [];
         $baselineMedians = [];
         $candidateMedians = [];
+        $hydratedEntityCounts = [];
         foreach ($baselineBlocks as $index => $baseline) {
             $candidate = $candidateBlocks[$index];
             self::assertComparableBlock($baseline, $candidate);
+            $hydratedEntityCounts[] = self::hydratedEntityCount($baseline);
             $baselineSamples = self::samples($baseline);
             $candidateSamples = self::samples($candidate);
             $baselineMedian = self::median($baselineSamples);
@@ -99,6 +108,15 @@ final class PagePerformanceOrchestrator
         sort($deltas, SORT_NUMERIC);
         $ratioUpper95 = self::nearestRank($ratios, 0.95);
         $deltaUpper95 = self::nearestRank($deltas, 0.95);
+        $hydratedEntityCounts = array_values(array_unique($hydratedEntityCounts));
+        if (count($hydratedEntityCounts) !== 1) {
+            throw new \RuntimeException('Frozen hydrated entity count changed between process blocks.');
+        }
+        $hydratedEntityCount = $hydratedEntityCounts[0];
+        $absoluteLimit = max(
+            self::ABSOLUTE_FLOOR_NS,
+            self::PER_HYDRATED_ENTITY_NS * $hydratedEntityCount,
+        );
 
         return [
             'baseline_median_ns' => self::median($baselineMedians),
@@ -108,8 +126,11 @@ final class PagePerformanceOrchestrator
             'ratio_upper_95' => $ratioUpper95,
             'delta_upper_95_ns' => $deltaUpper95,
             'ratio_limit' => self::RATIO_LIMIT,
-            'absolute_limit_ns' => self::ABSOLUTE_LIMIT_NS,
-            'passed' => $ratioUpper95 <= self::RATIO_LIMIT && $deltaUpper95 <= self::ABSOLUTE_LIMIT_NS,
+            'hydrated_entity_count' => $hydratedEntityCount,
+            'absolute_floor_ns' => self::ABSOLUTE_FLOOR_NS,
+            'per_hydrated_entity_ns' => self::PER_HYDRATED_ENTITY_NS,
+            'absolute_limit_ns' => $absoluteLimit,
+            'passed' => $ratioUpper95 <= self::RATIO_LIMIT && $deltaUpper95 <= $absoluteLimit,
         ];
     }
 
@@ -134,6 +155,18 @@ final class PagePerformanceOrchestrator
         }
 
         return array_values($samples);
+    }
+
+    /** @param array<string, mixed> $block */
+    private static function hydratedEntityCount(array $block): int
+    {
+        $trace = $block['trace'] ?? null;
+        $count = is_array($trace) ? ($trace['hydrated_entity_count'] ?? null) : null;
+        if (!is_int($count) || $count < 1) {
+            throw new \RuntimeException('Every page trace must declare a positive frozen hydrated entity count.');
+        }
+
+        return $count;
     }
 
     /** @param list<int|float> $values */

@@ -6,17 +6,25 @@ namespace Waaseyaa\EntityStorage;
 
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
+use Waaseyaa\Access\CompiledPolicySubjectView;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\ProtectedEntityReadPlan;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityReadLayout;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
+use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\Exception\BundleAmbiguousFieldException;
 use Waaseyaa\EntityStorage\Exception\MissingQueryAccountException;
+use Waaseyaa\EntityStorage\Exception\ProtectedEntityReadProjectionException;
 use Waaseyaa\EntityStorage\Exception\QueryAccountPrincipalMismatchException;
 use Waaseyaa\EntityStorage\Exception\UnknownFieldException;
+use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionInterface;
 use Waaseyaa\Field\FieldStorage;
 
@@ -35,8 +43,9 @@ use Waaseyaa\Field\FieldStorage;
  * identifies the bundle).
  *
  * Access checking is enabled by default (see {@see accessCheck()}). When
- * enabled, `execute()` hydrates each candidate row, runs
- * `EntityAccessHandler::check($entity, 'view', $account)`, and keeps only rows
+ * enabled, `execute()` evaluates a complete closed Protected-policy projection
+ * when one is available; otherwise it hydrates each candidate row and runs
+ * `EntityAccessHandler::check($entity, 'view', $account)`. It keeps only rows
  * whose result is Allowed (deny-by-default — a Neutral "no policy opined"
  * result drops the row, matching the entity gate and every serializing
  * consumer; audit C-6). Callers MUST bind an account via {@see setAccount()}
@@ -80,9 +89,9 @@ final class SqlEntityQuery implements EntityQueryInterface
     private ?AccountInterface $account = null;
 
     /**
-     * When true (the default), {@see execute()} runs an
-     * `EntityAccessHandler::check($entity, 'view', $account)` per candidate row
-     * and keeps only rows whose result is Allowed (deny-by-default; audit C-6).
+     * When true (the default), {@see execute()} runs the complete closed policy
+     * projection when available, otherwise the legacy entity check per row, and
+     * keeps only explicitly Allowed rows (deny-by-default; audit C-6).
      * When false, the candidate IDs are returned without hydration — a fast
      * bypass path reserved for system contexts (background jobs, index warmers)
      * per FR-004 / C-004.
@@ -111,11 +120,10 @@ final class SqlEntityQuery implements EntityQueryInterface
      * where the input is the list of candidate IDs and the output is an
      * id-keyed map of hydrated entities. Injected by
      * {@see withEntityLoader()}; the natural production binding is
-     * `$storage->loadMultiple(...)` (wired in WP03). When the loader is null
-     * and access checking is enabled, the query returns the candidate IDs
-     * unfiltered — the access handler cannot run without entities to inspect.
-     * This null-loader path is the pre-WP03 transitional behaviour; once WP03
-     * wires every consumer, the loader is always set when the handler is set.
+     * `$storage->loadMultiple(...)` (wired in WP03). It is not called when a
+     * complete closed Protected entity-read projection is available. When the
+     * fallback needs it but it is absent (or returns no entities), candidate
+     * rows are denied rather than returned unfiltered.
      *
      * @var (callable(array<int, int|string>): array<int|string, EntityInterface>)|null
      */
@@ -460,6 +468,293 @@ final class SqlEntityQuery implements EntityQueryInterface
     }
 
     /**
+     * Compile a closed policy projection for an exact non-bundled entity type.
+     *
+     * A non-null plan means the handler has a complete V2 Protected entity-read
+     * evaluator and every authorization input is backed by reviewed field
+     * metadata. Legacy policies deliberately return null and retain the entity
+     * loader path.
+     *
+     * @return array{
+     *   policy: ProtectedEntityReadPlan,
+     *   bundle: string,
+     *   fields: array<string, array{alias: string, resolved: ResolvedField}>,
+     *   structure: array<string, string>,
+     *   layout: EntityReadLayout,
+     *   requiredJoins: list<string>
+     * }|null
+     */
+    private function compileProtectedEntityReadProjection(EntityAccessHandler $handler): ?array
+    {
+        // Bundle-scoped types need an exact bundle narrowing before a policy
+        // projection can be complete. Their existing loader path remains until
+        // that richer projection is compiled; User, the activation hot path,
+        // is structurally non-bundled.
+        if ($this->bundleKey !== null) {
+            return null;
+        }
+
+        $entityTypeId = $this->entityType->id();
+        $bundle = $entityTypeId;
+        $policy = $handler->protectedEntityReadProjectionPlan($entityTypeId, $bundle);
+        if ($policy === null) {
+            return null;
+        }
+
+        $layout = EntityReadRuntime::layoutFor(
+            $this->entityType->getClass(),
+            [],
+            $entityTypeId,
+            $this->entityType->getKeys(),
+            $this->fieldRegistry,
+            true,
+            $this->entityType->getFieldDefinitions(),
+        );
+        $layoutInputs = $layout->authorizationInputsFor('');
+        if ($layoutInputs !== $policy->authorizationInputs) {
+            throw ProtectedEntityReadProjectionException::cannotCompile(
+                $entityTypeId,
+                'the reviewed policy input set does not match the compiled entity-read layout',
+            );
+        }
+
+        $definitions = ($this->fieldRegistry?->coreFieldsFor($entityTypeId) ?? [])
+            + $this->entityType->getFieldDefinitions();
+
+        $fields = [];
+        foreach ($definitions as $name => $definition) {
+            if (!$definition instanceof FieldDefinitionInterface) {
+                throw ProtectedEntityReadProjectionException::cannotCompile(
+                    $entityTypeId,
+                    sprintf('field "%s" has no typed definition', $name),
+                );
+            }
+            if (!in_array($name, $policy->authorizationInputs, true)) {
+                continue;
+            }
+            if (!$definition instanceof FieldDefinition) {
+                throw ProtectedEntityReadProjectionException::cannotCompile(
+                    $entityTypeId,
+                    sprintf('authorization input "%s" is not a closed framework definition', $name),
+                );
+            }
+            if ($definition->getSetting('authorizationInput') !== true) {
+                throw ProtectedEntityReadProjectionException::cannotCompile(
+                    $entityTypeId,
+                    sprintf('policy input "%s" is not declared as an authorization input', $name),
+                );
+            }
+            if ($layout->level($name) !== FieldReadLevel::Protected) {
+                throw ProtectedEntityReadProjectionException::cannotCompile(
+                    $entityTypeId,
+                    sprintf('authorization input "%s" is not Protected', $name),
+                );
+            }
+            if ($definition->getBackendId() !== null
+                && !in_array($definition->getBackendId(), [ReservedBackendIds::SQL_BLOB, ReservedBackendIds::SQL_COLUMN], true)
+            ) {
+                throw ProtectedEntityReadProjectionException::cannotCompile(
+                    $entityTypeId,
+                    sprintf('authorization input "%s" is owned by an unsupported storage backend', $name),
+                );
+            }
+
+            $fields[$name] = [
+                'alias' => '__waaseyaa_policy_' . count($fields),
+                'resolved' => $this->resolveField($name, [$name => null]),
+            ];
+        }
+        ksort($fields);
+        if (array_keys($fields) !== $policy->authorizationInputs) {
+            throw ProtectedEntityReadProjectionException::cannotCompile(
+                $entityTypeId,
+                'the reviewed policy input set cannot be resolved exactly',
+            );
+        }
+
+        // Structural selectors are immutable policy inputs rather than field
+        // values. Select the available base columns under opaque aliases so a
+        // policy sees the same structure it would receive from V2 hydration.
+        $structure = [];
+        $keys = $this->entityType->getKeys();
+        $structureColumns = [
+            'uuid' => $keys['uuid'] ?? null,
+            'langcode' => $keys['langcode'] ?? null,
+            'revision' => $keys['revision'] ?? null,
+            'default_langcode' => 'default_langcode',
+            'is_default_revision' => 'is_default_revision',
+            'is_latest_revision' => 'is_latest_revision',
+        ];
+        foreach ($structureColumns as $role => $column) {
+            if ($column === null || $column === '') {
+                continue;
+            }
+            if (!$this->database->schema()->fieldExists($this->tableName, $column)) {
+                if (isset($keys[$role])) {
+                    throw ProtectedEntityReadProjectionException::cannotCompile(
+                        $entityTypeId,
+                        sprintf('structural selector "%s" is unavailable', $role),
+                    );
+                }
+                continue;
+            }
+            $structure[$role] = $column;
+        }
+
+        return [
+            'policy' => $policy,
+            'bundle' => $bundle,
+            'fields' => $fields,
+            'structure' => $structure,
+            'layout' => $layout,
+            'requiredJoins' => [],
+        ];
+    }
+
+    /**
+     * Select only the exact compiled authorization inputs for candidate IDs.
+     *
+     * SQL fragments come exclusively from trusted schema identifiers and the
+     * same ResolvedField compiler used by conditions/sorts. Candidate IDs are
+     * bound values. Opaque aliases prevent field names from entering the row
+     * surface, and the rows remain private to policy evaluation.
+     *
+     * @param list<int|string> $candidateIds
+     * @param array{
+     *   policy: ProtectedEntityReadPlan,
+     *   bundle: string,
+     *   fields: array<string, array{alias: string, resolved: ResolvedField}>,
+     *   structure: array<string, string>,
+     *   layout: EntityReadLayout,
+     *   requiredJoins: list<string>
+     * } $projection
+     * @return list<array<string, mixed>>
+     */
+    private function selectProtectedEntityReadProjection(array $candidateIds, array $projection): array
+    {
+        if ($candidateIds === []) {
+            return [];
+        }
+
+        $quotedTable = $this->database->quoteIdentifier($this->tableName);
+        $quotedId = $this->database->quoteIdentifier($this->idKey);
+        $selects = [$quotedTable . '.' . $quotedId . ' AS ' . $quotedId];
+        foreach ($projection['fields'] as $compiled) {
+            $selects[] = $compiled['resolved']->sql()
+                . ' AS ' . $this->database->quoteIdentifier($compiled['alias']);
+        }
+        foreach ($projection['structure'] as $role => $column) {
+            $selects[] = $quotedTable . '.' . $this->database->quoteIdentifier($column)
+                . ' AS ' . $this->database->quoteIdentifier('__waaseyaa_structure_' . $role);
+        }
+
+        $byId = [];
+        foreach (array_chunk($candidateIds, 500) as $chunk) {
+            $placeholders = implode(', ', array_fill(0, count($chunk), '?'));
+            $sql = 'SELECT ' . implode(', ', $selects)
+                . ' FROM ' . $quotedTable
+                . ' WHERE ' . $quotedTable . '.' . $quotedId . ' IN (' . $placeholders . ')';
+
+            foreach ($this->database->query($sql, $chunk) as $resultRow) {
+                $row = (array) $resultRow;
+                if (!array_key_exists($this->idKey, $row)) {
+                    throw ProtectedEntityReadProjectionException::incompleteRow($this->entityType->id());
+                }
+                $key = (string) $row[$this->idKey];
+                if (array_key_exists($key, $byId)) {
+                    throw ProtectedEntityReadProjectionException::incompleteRow($this->entityType->id());
+                }
+                $byId[$key] = $row;
+            }
+        }
+
+        $ordered = [];
+        foreach ($candidateIds as $id) {
+            $key = (string) $id;
+            if (!array_key_exists($key, $byId)) {
+                throw ProtectedEntityReadProjectionException::incompleteRow($this->entityType->id());
+            }
+            $ordered[] = $byId[$key];
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * Evaluate candidate rows through a complete immutable policy projection.
+     *
+     * @param list<array<string, mixed>> $rows
+     * @param array{
+     *   policy: ProtectedEntityReadPlan,
+     *   bundle: string,
+     *   fields: array<string, array{alias: string, resolved: ResolvedField}>,
+     *   structure: array<string, string>,
+     *   layout: EntityReadLayout,
+     *   requiredJoins: list<string>
+     * } $projection
+     * @return list<int|string>
+     */
+    private function filterProjectedCandidates(
+        array $rows,
+        AuthorizationPrincipalInterface $principal,
+        array $projection,
+    ): array {
+        // Registry/classification mutation after compilation invalidates this
+        // exact projection before any candidate decision can be returned.
+        $projection['layout']->assertCurrent();
+
+        $survivors = [];
+        foreach ($rows as $row) {
+            if (!array_key_exists($this->idKey, $row)) {
+                throw ProtectedEntityReadProjectionException::incompleteRow($this->entityType->id());
+            }
+            $id = $row[$this->idKey];
+            if (is_string($id) && preg_match('/^(0|[1-9][0-9]*)$/D', $id) === 1) {
+                $id = (int) $id;
+            }
+
+            $values = [];
+            foreach ($projection['fields'] as $fieldName => $compiled) {
+                if (!array_key_exists($compiled['alias'], $row)) {
+                    throw ProtectedEntityReadProjectionException::incompleteRow($this->entityType->id());
+                }
+                $values[$fieldName] = $row[$compiled['alias']];
+            }
+
+            $selectors = [];
+            foreach ($projection['structure'] as $role => $_column) {
+                $alias = '__waaseyaa_structure_' . $role;
+                if (!array_key_exists($alias, $row)) {
+                    throw ProtectedEntityReadProjectionException::incompleteRow($this->entityType->id());
+                }
+                $selectors[$role] = $row[$alias];
+            }
+
+            $structureValues = [$this->idKey => $id];
+            foreach ($projection['structure'] as $role => $column) {
+                $structureValues[$column] = $selectors[$role];
+            }
+            $structure = EntityReadRuntime::structureFor(
+                $structureValues,
+                $this->entityType->id(),
+                $this->entityType->getKeys(),
+                $projection['layout'],
+            );
+
+            if ($projection['policy']->access(
+                $principal,
+                $structure,
+                new CompiledPolicySubjectView($values),
+                'view',
+            )->isAllowed()) {
+                $survivors[] = $id;
+            }
+        }
+
+        return $this->isCount ? [count($survivors)] : $survivors;
+    }
+
+    /**
      * Coerce a condition value to its declared FieldDefinition type so that
      * comparisons against `_data` JSON storage commute regardless of how
      * the caller typed the bound parameter (mission #1257 WP05, K3).
@@ -798,13 +1093,18 @@ final class SqlEntityQuery implements EntityQueryInterface
         $routed = $this->routeFields();
         $routing = $routed['routing'];
         $requiredJoins = $routed['requiredJoins'];
+        $protectedPrincipal = $authorizationAccount instanceof AuthorizationPrincipalInterface
+            ? $authorizationAccount
+            : null;
+        $protectedProjection = $protectedPrincipal !== null
+            ? $this->compileProtectedEntityReadProjection($this->resolveAccessHandler())
+            : null;
 
         $select = $this->database->select($this->tableName);
 
-        // When access checking is enabled we always materialize candidate IDs
-        // (so the filter can run on hydrated rows) and compute count() in PHP
-        // from the survivor list. When bypassed, the existing SQL COUNT(*)
-        // fast path is preserved.
+        // Access-checked queries materialize candidate IDs for either the
+        // closed projection or legacy hydration filter and compute count() from
+        // survivors. Bypassed queries preserve the SQL COUNT(*) fast path.
         $useSqlCount = $this->isCount && !$this->accessCheckEnabled;
 
         if ($useSqlCount) {
@@ -945,11 +1245,19 @@ final class SqlEntityQuery implements EntityQueryInterface
             return $ids;
         }
 
-        // Slow path: hydrate the candidate window, run per-row
-        // EntityAccessHandler::check(), and retain only explicitly Allowed rows. count() reuses
-        // this machinery — no duplicated SQL count branch (FR-006).
-        \assert($authorizationAccount instanceof AccountInterface);
-        $filtered = $this->filterCandidates($ids, $authorizationAccount);
+        if ($protectedProjection !== null) {
+            $projectedRows = $this->selectProtectedEntityReadProjection($ids, $protectedProjection);
+            $filtered = $this->filterProjectedCandidates(
+                $projectedRows,
+                $protectedPrincipal,
+                $protectedProjection,
+            );
+        } else {
+            // Legacy/non-V2 policy fallback: hydrate the candidate window, run
+            // per-row EntityAccessHandler::check(), and retain only explicitly
+            // Allowed rows. count() reuses this machinery (FR-006).
+            $filtered = $this->filterCandidates($ids, $authorizationAccount);
+        }
 
         if ($fingerprint !== null) {
             $this->resultCache->set($entityTypeId, $fingerprint, $filtered);

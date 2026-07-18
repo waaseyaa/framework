@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Entity;
 
+use Waaseyaa\Access\CompiledFieldReadRule;
 use Waaseyaa\Access\CompiledPolicySubjectView;
 use Waaseyaa\Access\PolicySubjectViewInterface;
 use Waaseyaa\Entity\Exception\EntitySerializationForbidden;
@@ -20,6 +21,9 @@ final class EntityValueContainer
     private object $viewIdentity;
 
     private int $valueGeneration = 1;
+
+    /** @var array<string, PolicySubjectViewInterface> */
+    private array $policySubjectViews = [];
 
     /**
      * @param array<string, mixed|RestrictedEntityValue> $values
@@ -78,6 +82,7 @@ final class EntityValueContainer
     {
         $this->layout->assertCurrent();
         ++$this->valueGeneration;
+        $this->policySubjectViews = [];
         $level = $this->layout->level($field);
         $this->values[$field] = $level === FieldReadLevel::Public
             ? $value
@@ -102,6 +107,11 @@ final class EntityValueContainer
     public function level(string $field): FieldReadLevel
     {
         return $this->layout->level($field);
+    }
+
+    public function rule(string $field): CompiledFieldReadRule
+    {
+        return $this->layout->rule($field);
     }
 
     /**
@@ -178,6 +188,9 @@ final class EntityValueContainer
         if ($viewIdentity !== $this->viewIdentity) {
             throw new \LogicException('A matching sealed entity view is required for policy evaluation.');
         }
+        if (isset($this->policySubjectViews[$releasedField])) {
+            return $this->policySubjectViews[$releasedField];
+        }
 
         $values = [];
         foreach ($this->layout->authorizationInputsFor($releasedField) as $field) {
@@ -187,21 +200,13 @@ final class EntityValueContainer
             $values[$field] = $this->comparableValue($field);
         }
 
-        return new CompiledPolicySubjectView($values);
+        return $this->policySubjectViews[$releasedField] = new CompiledPolicySubjectView($values);
     }
 
     /** @internal Closed entity-policy evaluation only; reachable through a bound EntityBase authority. */
     public function entityPolicySubjectView(): PolicySubjectViewInterface
     {
-        $this->layout->assertCurrent();
-        $values = [];
-        foreach ($this->layout->authorizationInputsFor('') as $field) {
-            if (array_key_exists($field, $this->values)) {
-                $values[$field] = $this->comparableValue($field);
-            }
-        }
-
-        return new CompiledPolicySubjectView($values);
+        return $this->policySubjectView('', $this->viewIdentity);
     }
 
     /** @return array<string, mixed> */

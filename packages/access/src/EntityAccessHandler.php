@@ -174,6 +174,51 @@ class EntityAccessHandler
     }
 
     /**
+     * Resolve every V2 Protected entity-read policy for one exact type/bundle.
+     *
+     * A non-null result is complete for the same policy set used by
+     * checkProtectedEntityRead(); callers may therefore evaluate an immutable
+     * compiled subject without constructing an Entity object.
+     *
+     * @internal
+     */
+    public function protectedEntityReadProjectionPlan(string $entityTypeId, string $bundle): ?ProtectedEntityReadPlan
+    {
+        $policies = [];
+        $inputs = [];
+        $foundProtectedPolicy = false;
+        foreach ($this->policies as $index => $policy) {
+            if (!$policy->appliesTo($entityTypeId)
+                || !$this->matchesBundle($this->bundleFilters[$index] ?? [], $bundle)
+                || !$policy instanceof ProtectedReadPolicyProviderInterface
+            ) {
+                continue;
+            }
+            $entityPolicy = $policy->protectedEntityReadPolicy();
+            if ($entityPolicy === null) {
+                continue;
+            }
+            $foundProtectedPolicy = true;
+            if (!$entityPolicy instanceof ProjectedProtectedEntityReadPolicyInterface) {
+                return null;
+            }
+            $policies[] = $entityPolicy;
+            foreach ($entityPolicy->authorizationInputs() as $fieldName) {
+                $inputs[$fieldName] = true;
+            }
+        }
+
+        if (!$foundProtectedPolicy) {
+            return null;
+        }
+
+        $inputNames = array_keys($inputs);
+        sort($inputNames);
+
+        return new ProtectedEntityReadPlan($entityTypeId, $bundle, $inputNames, $policies);
+    }
+
+    /**
      * Check access for creating a new entity.
      *
      * @param string           $entityTypeId The entity type ID.

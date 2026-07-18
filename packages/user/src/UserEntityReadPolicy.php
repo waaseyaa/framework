@@ -7,7 +7,7 @@ namespace Waaseyaa\User;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\PolicySubjectViewInterface;
-use Waaseyaa\Access\ProtectedEntityReadPolicyInterface;
+use Waaseyaa\Access\ProjectedProtectedEntityReadPolicyInterface;
 use Waaseyaa\Entity\EntityStructure;
 
 /**
@@ -15,8 +15,13 @@ use Waaseyaa\Entity\EntityStructure;
  *
  * @api
  */
-final class UserEntityReadPolicy implements ProtectedEntityReadPolicyInterface
+final class UserEntityReadPolicy implements ProjectedProtectedEntityReadPolicyInterface
 {
+    public function authorizationInputs(): array
+    {
+        return ['status'];
+    }
+
     public function access(
         AuthorizationPrincipalInterface $principal,
         EntityStructure $structure,

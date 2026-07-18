@@ -74,6 +74,8 @@ final class EntityRepository implements EntityRepositoryInterface
 
     private readonly \Waaseyaa\Foundation\Log\LoggerInterface $logger;
 
+    private readonly Hydration\EntityInstantiator $entityInstantiator;
+
     /** Lazily-resolved bundle subtable gateway; false until first resolution. */
     private BundleSubtableGateway|false|null $bundleGatewayInstance = false;
 
@@ -143,6 +145,7 @@ final class EntityRepository implements EntityRepositoryInterface
             )
             : $revisionDriver;
         $this->driver = $driver;
+        $this->entityInstantiator = new Hydration\EntityInstantiator($this->entityType, $this->fieldRegistry);
     }
 
     /** @return array<string, mixed>|null */
@@ -392,11 +395,10 @@ final class EntityRepository implements EntityRepositoryInterface
     {
         // Shared with SqlEntityStorage::create() via EntityInstantiator so a
         // fresh entity gets the same field defaults regardless of engine.
-        $instantiator = new Hydration\EntityInstantiator($this->entityType, $this->fieldRegistry);
-        $values = $instantiator->applyFieldDefinitionDefaults($values);
+        $values = $this->entityInstantiator->applyFieldDefinitionDefaults($values);
 
         $class = $this->entityType->getClass();
-        $entity = $instantiator->instantiate($class, $values);
+        $entity = $this->entityInstantiator->instantiate($class, $values);
 
         if (method_exists($entity, 'enforceIsNew')) {
             $entity->enforceIsNew();
@@ -2614,6 +2616,6 @@ final class EntityRepository implements EntityRepositoryInterface
      */
     private function instantiateEntity(string $class, array $values): EntityInterface
     {
-        return new Hydration\EntityInstantiator($this->entityType, $this->fieldRegistry)->instantiate($class, $values);
+        return $this->entityInstantiator->instantiate($class, $values);
     }
 }

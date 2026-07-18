@@ -158,6 +158,9 @@ return [
     // Layer 1: Core Data — public
     'Waaseyaa\Entity\EntityInterface' => 'public',
     'Waaseyaa\Entity\FieldReadLevel' => 'public',
+    // Closed registry-generation seam used only to invalidate compiled entity
+    // read layouts; consumers neither implement nor resolve this contract.
+    'Waaseyaa\Entity\Field\FieldReadLayoutGenerationSourceInterface' => 'internal',
     'Waaseyaa\Entity\EntityValueReadGuardInterface' => 'internal',
     'Waaseyaa\Entity\Validation\RedactedInvalidValue' => 'internal',
     'Waaseyaa\Entity\Validation\ValidationReadLedgerInterface' => 'internal',
@@ -299,6 +302,9 @@ return [
     'Waaseyaa\Access\Middleware\FieldReadContextMiddleware' => 'public',
     'Waaseyaa\Access\PolicySubjectViewInterface' => 'public',
     'Waaseyaa\Access\ProtectedEntityReadPolicyInterface' => 'public',
+    // Closed query-optimization declaration for reviewed framework policies;
+    // it is not a consumer policy extension surface.
+    'Waaseyaa\Access\ProjectedProtectedEntityReadPolicyInterface' => 'internal',
     'Waaseyaa\Access\ProtectedFieldReadPolicyInterface' => 'public',
     'Waaseyaa\Access\ProtectedReadPolicyProviderInterface' => 'public',
     'Waaseyaa\Access\User\UserInternalFieldReaderInterface' => 'public',

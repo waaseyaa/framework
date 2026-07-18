@@ -110,11 +110,18 @@ Activation performance is decided only by the frozen real-page harness. It
 compares the WP2 baseline tree with the activation candidate across nine fresh
 process blocks per tree, after 30 warmups and with 200 timed samples per block.
 Both the cache-cold content page and the cache-cold members-directory page must
-have a paired upper-95 ratio no greater than 1.03 **and** a paired upper-95
-absolute delta no greater than 500,000 ns (0.50 ms). Response bodies, execution
+have a paired upper-95 ratio no greater than 1.03 **and** stay within the paired
+upper-95 absolute sanity budget `max(0.50 ms, 0.05 ms × hydrated entity count)`
+for that page. The content-scaled absolute budget prevents a large entity page
+from failing on an immaterial fixed per-entity cost while the independent ratio
+gate still bounds total-page impact. The hydrated-entity count is a frozen
+workload attribute in each page trace (one entity for content; the authenticated
+session User plus the rendered Users for the directory), not a candidate-side
+observation. A missing, non-positive, cross-tree-mismatched, or cross-block-
+changing count makes the result non-comparable. Response bodies, execution
 traces, workload hashes, fixture manifests, PHP binaries/configuration, and
-extensions must match before timings are comparable. The cache-hit content page
-and the synthetic field-read microbenchmarks are diagnostic only and cannot
+extensions must also match before timings are comparable. The cache-hit content
+page and the synthetic field-read microbenchmarks are diagnostic only and cannot
 rescue a cache-cold failure.
 
 ## Explicit non-effects in WP1
@@ -307,10 +314,18 @@ do not install it in this tranche; WP4 performs that single no-shim activation.
 protected or public raw value bag for subclasses. Public fields remain stored as
 raw scalars/arrays in that container, while Protected and Internal fields are
 stored as restricted cells bound to the exact entity-view identity and compiled
-`EntityReadLayout`. The layout is sealed to a process generation. Every sealed
-read checks that generation before field lookup, so an entity compiled under an
-obsolete classification/policy generation must be reloaded rather than read
-under stale semantics.
+`EntityReadLayout`. Layout compilation is cached only under the exact entity
+class/type/bundle source, immutable definition identities and semantic
+fingerprint, structural key map, field-name shape, and registry-owned
+type/bundle generation. Registry mutation advances that source generation and
+clears its compiled identity/layout entries; a changed immutable-definition
+fingerprint does the same, while custom definition implementations retain the
+full metadata-resolution path rather than claiming the immutable fast path.
+Every retained layout is sealed to both the process generation and its exact
+registry generation, and every sealed entity or projected query decision checks
+those seals. A value compiled under obsolete classification/policy metadata is
+therefore rejected and must be reloaded/recompiled rather than read under stale
+semantics.
 
 V2 creation and hydration use an opaque `EntityInitialization` issued by one
 `EntityInitializationBoundary`. The factory seals values and immutable
@@ -455,7 +470,28 @@ account id and authentication state match; a different active identity fails
 before cache or SQL work. An explicitly bound principal remains valid outside an
 ambient scope. Access-filtered query cache identities include claims generation,
 tenant, and community so a changed authorization snapshot cannot reuse prior
-survivors.
+survivors. A framework Protected entity-read policy may opt into the closed
+candidate projection only through `ProjectedProtectedEntityReadPolicyInterface`,
+whose authorization-input list is a complete declaration for one exact
+type/bundle plan. The handler returns a plan only when every matching Protected
+entity-read policy has that contract; its declared input set must exactly equal
+the generation-bound `EntityReadLayout` authorization inputs. The SQL query then
+selects only those reviewed inputs and required structural selectors under
+opaque aliases, builds `EntityStructure` through the canonical runtime compiler,
+and evaluates a `CompiledPolicySubjectView` without constructing an entity or
+returning subject values. SQL fragments come only from trusted resolved field
+metadata and candidate IDs remain bound parameters. Legacy policies,
+non-opted-in V2 policies, and unresolved bundle plans retain the existing
+full-entity loader evaluation.
+
+The projected path is fail-closed at both compilation and execution. An
+unclassified or non-Protected declared input, a non-framework definition, an
+unsupported storage backend, a policy/layout input mismatch, an obsolete layout
+generation, or an incomplete, duplicate, or disappeared candidate row raises an
+error before any survivor set is returned. Projection reads are chunked within
+driver parameter limits and restored to the original candidate order. Missing
+account context and an insufficient principal remain distinct from these
+projection-integrity failures; neither becomes a null or empty-value success.
 
 Production-equivalent normal boot consumes
 `.waaseyaa/field-access-preflight.json`, recomputes framework,

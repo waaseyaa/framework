@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Field;
 
+use Waaseyaa\Entity\EntityReadLayoutGeneration;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
+use Waaseyaa\Entity\Field\FieldReadLayoutGenerationSourceInterface;
 
 /**
  * Default FieldDefinitionRegistry implementation.
@@ -14,8 +16,11 @@ use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
  * transition; they are normalized to FieldDefinition objects at registration.
  * @api
  */
-final class FieldDefinitionRegistry implements FieldDefinitionRegistryInterface
+final class FieldDefinitionRegistry implements FieldDefinitionRegistryInterface, FieldReadLayoutGenerationSourceInterface
 {
+    /** @var array<string, array<string, EntityReadLayoutGeneration>> */
+    private array $fieldReadLayoutGenerations = [];
+
     /** @var array<string, array<string, FieldDefinitionInterface>> [entityTypeId][fieldName]. */
     private array $coreFields = [];
 
@@ -48,6 +53,9 @@ final class FieldDefinitionRegistry implements FieldDefinitionRegistryInterface
             $byName[$field->getName()] = $field;
         }
         $this->coreFields[$entityTypeId] = $byName;
+        foreach ($this->fieldReadLayoutGenerations[$entityTypeId] ?? [] as $generation) {
+            $generation->advance();
+        }
     }
 
     /**
@@ -186,6 +194,12 @@ final class FieldDefinitionRegistry implements FieldDefinitionRegistryInterface
         foreach ($byName as $name => $field) {
             $this->bundleFields[$entityTypeId][$bundle][$name] = $field;
         }
+        $this->fieldReadLayoutGeneration($entityTypeId, $bundle)->advance();
+    }
+
+    public function fieldReadLayoutGeneration(string $entityTypeId, string $bundle): EntityReadLayoutGeneration
+    {
+        return $this->fieldReadLayoutGenerations[$entityTypeId][$bundle] ??= new EntityReadLayoutGeneration();
     }
 
     public function coreFieldsFor(string $entityTypeId): array

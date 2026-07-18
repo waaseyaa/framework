@@ -7,6 +7,8 @@ namespace Waaseyaa\Entity;
 use Waaseyaa\Entity\Attribute\EntityMetadataReader;
 use Waaseyaa\Entity\Exception\EntityMetadataException;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
+use Waaseyaa\Entity\Field\FieldReadLayoutGenerationSourceInterface;
+use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionInterface;
 use Waaseyaa\Field\FieldReadMetadataResolver;
 
@@ -21,8 +23,10 @@ final class EntityReadRuntime
 
     private static ?EntityValueReadGuardInterface $guard = null;
 
-    /** @var array<string, EntityReadLayout> */
-    private static array $layouts = [];
+    /** @var \WeakMap<FieldDefinitionRegistryInterface, EntityReadLayoutRegistryCacheScope>|null */
+    private static ?\WeakMap $registryCacheScopes = null;
+
+    private static ?EntityReadLayoutRegistryCacheScope $noRegistryCacheScope = null;
 
     private function __construct() {}
 
@@ -48,7 +52,12 @@ final class EntityReadRuntime
     public static function invalidateLayouts(): void
     {
         self::generation()->advance();
-        self::$layouts = [];
+        self::$noRegistryCacheScope?->clear();
+        if (self::$registryCacheScopes !== null) {
+            foreach (self::$registryCacheScopes as $scope) {
+                $scope->clear();
+            }
+        }
     }
 
     /**
@@ -70,20 +79,55 @@ final class EntityReadRuntime
         $bundle = (string) ($values[$bundleKey] ?? $entityTypeId);
         $bundle = $bundle !== '' ? $bundle : $entityTypeId;
         $registry = $fieldRegistry ?? self::$fieldRegistry;
+        $cacheScope = self::cacheScopeFor($registry);
         [$definitions, $classIsRegistered] = self::classDefinitions($class);
         $registeredEntityType = $registeredEntityType || $classIsRegistered;
-        $definitions = self::mergeReadDefinitions($entityTypeId, $definitions, $entityTypeDefinitions);
-        if ($registry !== null) {
-            $definitions = self::mergeReadDefinitions(
-                $entityTypeId,
-                $definitions,
-                $registry->coreFieldsFor($entityTypeId),
-                $registry->bundleFieldsFor($entityTypeId, $bundle),
-            );
+        $registryCoreDefinitions = $registry?->coreFieldsFor($entityTypeId) ?? [];
+        $registryBundleDefinitions = $registry?->bundleFieldsFor($entityTypeId, $bundle) ?? [];
+        $definitionSources = [
+            $definitions,
+            $entityTypeDefinitions,
+            $registryCoreDefinitions,
+            $registryBundleDefinitions,
+        ];
+        $fieldNames = array_values(array_unique(array_merge(
+            array_keys($values),
+            ...array_map(array_keys(...), $definitionSources),
+        )));
+        sort($fieldNames);
+
+        $sourceScopeKey = implode("\0", [
+            $class,
+            $entityTypeId,
+            $bundle,
+            $registeredEntityType ? 'registered' : 'fixture',
+        ]);
+        $sourceGeneration = $registry instanceof FieldReadLayoutGenerationSourceInterface
+            ? $registry->fieldReadLayoutGeneration($entityTypeId, $bundle)
+            : null;
+        $sourceCache = $cacheScope->source($sourceScopeKey, $sourceGeneration);
+        $sourceCache->synchronizeGeneration();
+        $identityFingerprint = self::immutableDefinitionSemanticFingerprint($definitionSources);
+        $identityCacheKey = null;
+        if ($identityFingerprint !== null) {
+            $previousFingerprint = $sourceCache->definitionFingerprint;
+            if ($previousFingerprint !== null && $previousFingerprint !== $identityFingerprint) {
+                $sourceCache->invalidate();
+            }
+            $sourceCache->definitionFingerprint = $identityFingerprint;
+            $entityKeysForCache = $entityKeys;
+            ksort($entityKeysForCache);
+            $identityCacheKey = implode("\0", [
+                hash('xxh128', implode("\0", $fieldNames)),
+                hash('xxh128', json_encode($entityKeysForCache, JSON_THROW_ON_ERROR)),
+                $identityFingerprint,
+            ]);
+            if (isset($sourceCache->identityLayouts[$identityCacheKey])) {
+                return $sourceCache->identityLayouts[$identityCacheKey];
+            }
         }
 
-        $fieldNames = array_values(array_unique(array_merge(array_keys($values), array_keys($definitions))));
-        sort($fieldNames);
+        $definitions = self::mergeReadDefinitions($entityTypeId, ...$definitionSources);
         $classificationInputs = [];
         foreach ($definitions as $name => $definition) {
             $level = self::metadataResolver()->resolve($definition)->level ?? FieldReadLevel::Internal;
@@ -91,17 +135,20 @@ final class EntityReadRuntime
                 . ($definition->getSetting('authorizationInput') === true ? 'auth' : 'ordinary');
         }
         sort($classificationInputs);
+        $resolvedFingerprint = hash('xxh128', implode("\0", $classificationInputs));
+        if ($identityFingerprint === null) {
+            $previousFingerprint = $sourceCache->definitionFingerprint;
+            if ($previousFingerprint !== null && $previousFingerprint !== $resolvedFingerprint) {
+                $sourceCache->invalidate();
+            }
+            $sourceCache->definitionFingerprint = $resolvedFingerprint;
+        }
         $cacheKey = implode("\0", [
-            $class,
-            $entityTypeId,
-            $bundle,
-            $registeredEntityType ? 'registered' : 'fixture',
-            (string) self::generation()->current(),
             hash('xxh128', implode("\0", $fieldNames)),
-            hash('xxh128', implode("\0", $classificationInputs)),
+            $resolvedFingerprint,
         ]);
-        if (isset(self::$layouts[$cacheKey])) {
-            return self::$layouts[$cacheKey];
+        if (isset($sourceCache->layouts[$cacheKey])) {
+            return $sourceCache->layouts[$cacheKey];
         }
 
         $levels = array_fill_keys(
@@ -129,12 +176,18 @@ final class EntityReadRuntime
         ksort($levels);
         sort($authorizationInputs);
 
-        return self::$layouts[$cacheKey] = new EntityReadLayout(
+        $layout = $sourceCache->layouts[$cacheKey] = new EntityReadLayout(
             self::generation(),
             $levels,
             $authorizationInputs,
             $registeredEntityType ? FieldReadLevel::Internal : FieldReadLevel::Public,
+            [$sourceCache->generation],
         );
+        if ($identityCacheKey !== null) {
+            $sourceCache->identityLayouts[$identityCacheKey] = $layout;
+        }
+
+        return $layout;
     }
 
     /**
@@ -174,6 +227,64 @@ final class EntityReadRuntime
         }
 
         return $merged;
+    }
+
+    /**
+     * The direct classification settings are a complete semantic fingerprint
+     * only for the framework's final readonly definition value object. Custom
+     * definitions retain the full metadata-resolution path on every lookup.
+     *
+     * @param array<string, FieldDefinitionInterface>[] $sources
+     */
+    private static function immutableDefinitionSemanticFingerprint(array $sources): ?string
+    {
+        /** @var array<string, array{level: ?FieldReadLevel, authorizationInput: bool, conflict: string}> $semantics */
+        $semantics = [];
+        foreach ($sources as $source) {
+            ksort($source);
+            foreach ($source as $name => $definition) {
+                if (!$definition instanceof FieldDefinition) {
+                    return null;
+                }
+                $declaredLevel = $definition->getReadLevel();
+                $legacyInternal = $definition->getSetting('internal') === true;
+                $readLevel = $declaredLevel ?? ($legacyInternal ? FieldReadLevel::Internal : null);
+                $selfConflict = $declaredLevel !== null && $legacyInternal && $declaredLevel !== FieldReadLevel::Internal;
+                $incoming = [
+                    'level' => $readLevel,
+                    'authorizationInput' => $definition->getSetting('authorizationInput') === true,
+                    'conflict' => $selfConflict ? 'metadata' : '',
+                ];
+                $existing = $semantics[$name] ?? null;
+                if ($existing === null || $existing['level'] === null) {
+                    $semantics[$name] = $incoming;
+                    continue;
+                }
+                if ($incoming['level'] !== null
+                    && ($incoming['level'] !== $existing['level']
+                        || $incoming['authorizationInput'] !== $existing['authorizationInput'])) {
+                    $semantics[$name]['conflict'] = implode('-', [
+                        $existing['level']->value,
+                        $existing['authorizationInput'] ? 'auth' : 'ordinary',
+                        $incoming['level']->value,
+                        $incoming['authorizationInput'] ? 'auth' : 'ordinary',
+                    ]);
+                }
+            }
+        }
+
+        ksort($semantics);
+        $identities = [];
+        foreach ($semantics as $name => $semantic) {
+            $identities[] = implode(':', [
+                $name,
+                $semantic['level'] === null ? 'unclassified' : $semantic['level']->value,
+                $semantic['authorizationInput'] ? 'auth' : 'ordinary',
+                $semantic['conflict'],
+            ]);
+        }
+
+        return hash('xxh128', implode("\0", $identities));
     }
 
     /**
@@ -246,8 +357,83 @@ final class EntityReadRuntime
         return self::$generation ??= new EntityReadLayoutGeneration();
     }
 
+    private static function cacheScopeFor(?FieldDefinitionRegistryInterface $registry): EntityReadLayoutRegistryCacheScope
+    {
+        if ($registry === null) {
+            return self::$noRegistryCacheScope ??= new EntityReadLayoutRegistryCacheScope();
+        }
+
+        self::$registryCacheScopes ??= new \WeakMap();
+        $scope = self::$registryCacheScopes[$registry] ?? null;
+        if ($scope === null) {
+            $scope = self::$registryCacheScopes[$registry] = new EntityReadLayoutRegistryCacheScope();
+        }
+
+        return $scope;
+    }
+
     private static function metadataResolver(): FieldReadMetadataResolver
     {
         return self::$metadataResolver ??= new FieldReadMetadataResolver();
+    }
+}
+
+/** @internal Mutable cache state isolated to one registry identity. */
+final class EntityReadLayoutRegistryCacheScope
+{
+    /** @var array<string, EntityReadLayoutSourceCache> */
+    private array $sources = [];
+
+    public function source(string $key, ?EntityReadLayoutGeneration $generation = null): EntityReadLayoutSourceCache
+    {
+        return $this->sources[$key] ??= new EntityReadLayoutSourceCache($generation);
+    }
+
+    public function clear(): void
+    {
+        $this->sources = [];
+    }
+}
+
+/** @internal Mutable cache state isolated to one definition source. */
+final class EntityReadLayoutSourceCache
+{
+    public readonly EntityReadLayoutGeneration $generation;
+
+    private int $observedGeneration;
+
+    /** @var array<string, EntityReadLayout> */
+    public array $layouts = [];
+
+    /** @var array<string, EntityReadLayout> */
+    public array $identityLayouts = [];
+
+    public ?string $definitionFingerprint = null;
+
+    public function __construct(?EntityReadLayoutGeneration $generation = null)
+    {
+        $this->generation = $generation ?? new EntityReadLayoutGeneration();
+        $this->observedGeneration = $this->generation->current();
+    }
+
+    public function synchronizeGeneration(): void
+    {
+        $current = $this->generation->current();
+        if ($current === $this->observedGeneration) {
+            return;
+        }
+        $this->layouts = [];
+        $this->identityLayouts = [];
+        $this->definitionFingerprint = null;
+        $this->observedGeneration = $current;
+    }
+
+    public function invalidate(): void
+    {
+        $this->generation->advance();
+        $this->layouts = [];
+        $this->identityLayouts = [];
+        $this->definitionFingerprint = null;
+        $this->observedGeneration = $this->generation->current();
     }
 }

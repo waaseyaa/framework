@@ -1,0 +1,435 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Waaseyaa\Entity\Tests\Unit;
+
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
+use Waaseyaa\Entity\Attribute\ContentEntityType;
+use Waaseyaa\Entity\Attribute\Field;
+use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\EntityInitializationBoundary;
+use Waaseyaa\Entity\EntityReadRuntime;
+use Waaseyaa\Entity\EntityStructure;
+use Waaseyaa\Entity\Exception\StaleEntityReadLayout;
+use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
+use Waaseyaa\Entity\FieldReadLevel;
+use Waaseyaa\Field\FieldDefinition;
+use Waaseyaa\Field\FieldDefinitionRegistry;
+
+final class EntityReadRuntimeCacheTest extends TestCase
+{
+    #[Test]
+    public function registry_mutation_invalidates_an_already_compiled_layout(): void
+    {
+        $registry = new FieldDefinitionRegistry();
+        $registry->registerBundleFields('cache_entity', 'business', [
+            new FieldDefinition(
+                name: 'name',
+                type: 'string',
+                targetEntityTypeId: 'cache_entity',
+                targetBundle: 'business',
+                read: FieldReadLevel::Public,
+            ),
+        ]);
+        $layout = EntityReadRuntime::layoutFor(
+            RuntimeRegistryCacheEntity::class,
+            ['id' => 1, 'bundle' => 'business', 'name' => 'Before'],
+            'cache_entity',
+            ['id' => 'id', 'bundle' => 'bundle'],
+            $registry,
+            true,
+        );
+
+        $registry->registerBundleFields('cache_entity', 'business', [
+            new FieldDefinition(
+                name: 'private_note',
+                type: 'string',
+                targetEntityTypeId: 'cache_entity',
+                targetBundle: 'business',
+                read: FieldReadLevel::Protected,
+            ),
+        ]);
+
+        $replacement = EntityReadRuntime::layoutFor(
+            RuntimeRegistryCacheEntity::class,
+            ['id' => 1, 'bundle' => 'business', 'name' => 'After', 'private_note' => 'restricted'],
+            'cache_entity',
+            ['id' => 'id', 'bundle' => 'bundle'],
+            $registry,
+            true,
+        );
+        self::assertSame(FieldReadLevel::Protected, $replacement->level('private_note'));
+        $this->expectException(StaleEntityReadLayout::class);
+        $layout->assertCurrent();
+    }
+
+    #[Test]
+    public function concrete_registry_mutation_immediately_stales_only_layouts_from_that_registry(): void
+    {
+        $changedRegistry = new FieldDefinitionRegistry();
+        $unrelatedRegistry = new FieldDefinitionRegistry();
+        foreach ([$changedRegistry, $unrelatedRegistry] as $registry) {
+            $registry->registerCoreFields('cache_entity', [
+                'name' => new FieldDefinition(
+                    name: 'name',
+                    type: 'string',
+                    targetEntityTypeId: 'cache_entity',
+                    read: FieldReadLevel::Public,
+                ),
+            ]);
+        }
+        $changed = EntityReadRuntime::layoutFor(
+            RuntimeRegistryCacheEntity::class,
+            ['id' => 1, 'name' => 'Changed'],
+            'cache_entity',
+            ['id' => 'id'],
+            $changedRegistry,
+            true,
+        );
+        $unrelated = EntityReadRuntime::layoutFor(
+            RuntimeRegistryCacheEntity::class,
+            ['id' => 2, 'name' => 'Unrelated'],
+            'cache_entity',
+            ['id' => 'id'],
+            $unrelatedRegistry,
+            true,
+        );
+
+        $changedRegistry->registerCoreFields('cache_entity', [
+            'name' => new FieldDefinition(
+                name: 'name',
+                type: 'string',
+                targetEntityTypeId: 'cache_entity',
+                read: FieldReadLevel::Protected,
+            ),
+        ]);
+
+        $unrelated->assertCurrent();
+        try {
+            $changed->assertCurrent();
+            self::fail('A layout compiled from the mutated registry remained current.');
+        } catch (StaleEntityReadLayout) {
+            self::assertTrue(true);
+        }
+        $unrelated->assertCurrent();
+    }
+
+    #[Test]
+    public function registry_generation_change_blocks_an_actual_read_from_the_previously_cached_layout(): void
+    {
+        $registry = new FieldDefinitionRegistry();
+        $registry->registerCoreFields('cache_entity', [
+            'name' => new FieldDefinition(
+                name: 'name',
+                type: 'string',
+                targetEntityTypeId: 'cache_entity',
+                read: FieldReadLevel::Public,
+            ),
+        ]);
+        $layout = EntityReadRuntime::layoutFor(
+            RuntimeRegistryCacheEntity::class,
+            ['id' => 1, 'name' => 'Previously public'],
+            'cache_entity',
+            ['id' => 'id'],
+            $registry,
+            true,
+        );
+        $boundary = new EntityInitializationBoundary();
+        $payload = $boundary->factory()->seal(
+            values: ['id' => 1, 'name' => 'Previously public'],
+            layout: $layout,
+            structure: new EntityStructure('cache_entity', 'cache_entity', 1, fieldNames: ['id', 'name']),
+            entityTypeId: 'cache_entity',
+            entityKeys: ['id' => 'id'],
+        );
+        $entity = $boundary->installer()->instantiate(RuntimeRegistryCacheEntity::class, $payload);
+        self::assertSame('Previously public', $entity->get('name'));
+
+        $registry->registerCoreFields('cache_entity', [
+            'name' => new FieldDefinition(
+                name: 'name',
+                type: 'string',
+                targetEntityTypeId: 'cache_entity',
+                read: FieldReadLevel::Protected,
+            ),
+        ]);
+
+        $this->expectException(StaleEntityReadLayout::class);
+        $entity->get('name');
+    }
+
+    #[Test]
+    public function bundle_registry_mutation_stales_only_the_exact_bundle_source(): void
+    {
+        $registry = new FieldDefinitionRegistry();
+        foreach (['business', 'private'] as $bundle) {
+            $registry->registerBundleFields('cache_entity', $bundle, [
+                new FieldDefinition(
+                    name: 'name',
+                    type: 'string',
+                    targetEntityTypeId: 'cache_entity',
+                    targetBundle: $bundle,
+                    read: FieldReadLevel::Public,
+                ),
+            ]);
+        }
+        $business = EntityReadRuntime::layoutFor(
+            RuntimeRegistryCacheEntity::class,
+            ['id' => 1, 'bundle' => 'business', 'name' => 'Business'],
+            'cache_entity',
+            ['id' => 'id', 'bundle' => 'bundle'],
+            $registry,
+            true,
+        );
+        $private = EntityReadRuntime::layoutFor(
+            RuntimeRegistryCacheEntity::class,
+            ['id' => 2, 'bundle' => 'private', 'name' => 'Private'],
+            'cache_entity',
+            ['id' => 'id', 'bundle' => 'bundle'],
+            $registry,
+            true,
+        );
+
+        $registry->registerBundleFields('cache_entity', 'business', [
+            new FieldDefinition(
+                name: 'private_note',
+                type: 'string',
+                targetEntityTypeId: 'cache_entity',
+                targetBundle: 'business',
+                read: FieldReadLevel::Protected,
+            ),
+        ]);
+
+        $private->assertCurrent();
+        self::assertSame(FieldReadLevel::Public, $private->level('name'));
+        $this->expectException(StaleEntityReadLayout::class);
+        $business->assertCurrent();
+    }
+
+    #[Test]
+    public function anonymous_registry_replacement_does_not_stale_an_unrelated_layout(): void
+    {
+        $unrelated = EntityReadRuntime::layoutFor(
+            RuntimePublicCacheEntity::class,
+            ['id' => 10, 'name' => 'Unrelated'],
+            'cache_entity',
+            ['id' => 'id'],
+            null,
+            true,
+        );
+        $registry = new class implements FieldDefinitionRegistryInterface {
+            /** @var array<string, object> */
+            public array $fields = [];
+
+            public function registerCoreFields(string $entityTypeId, array $fields): void
+            {
+                $this->fields = $fields;
+            }
+
+            public function mergeCoreFields(string $entityTypeId, array $fields): void {}
+
+            public function registerBundleFields(string $entityTypeId, string $bundle, array $fields): void {}
+
+            public function coreFieldsFor(string $entityTypeId): array
+            {
+                return $this->fields;
+            }
+
+            public function bundleFieldsFor(string $entityTypeId, string $bundle): array
+            {
+                return [];
+            }
+
+            public function bundleNamesFor(string $entityTypeId): array
+            {
+                return [];
+            }
+
+            public function bundlesDefiningField(string $entityTypeId, string $fieldName): array
+            {
+                return [];
+            }
+        };
+        $registry->registerCoreFields('cache_entity', [
+            'name' => new FieldDefinition(
+                name: 'name',
+                type: 'string',
+                targetEntityTypeId: 'cache_entity',
+                read: FieldReadLevel::Public,
+            ),
+        ]);
+        EntityReadRuntime::layoutFor(
+            RuntimeRegistryCacheEntity::class,
+            ['id' => 1, 'name' => 'Before'],
+            'cache_entity',
+            ['id' => 'id'],
+            $registry,
+            true,
+        );
+        $registry->registerCoreFields('cache_entity', [
+            'name' => new FieldDefinition(
+                name: 'name',
+                type: 'string',
+                targetEntityTypeId: 'cache_entity',
+                read: FieldReadLevel::Protected,
+            ),
+        ]);
+        EntityReadRuntime::layoutFor(
+            RuntimeRegistryCacheEntity::class,
+            ['id' => 2, 'name' => 'After'],
+            'cache_entity',
+            ['id' => 'id'],
+            $registry,
+            true,
+        );
+
+        $unrelated->assertCurrent();
+        self::assertSame(FieldReadLevel::Public, $unrelated->level('name'));
+    }
+
+    #[Test]
+    public function compiled_layouts_do_not_cross_bundle_or_class_boundaries(): void
+    {
+        $registry = new FieldDefinitionRegistry();
+        foreach (['business' => FieldReadLevel::Public, 'private' => FieldReadLevel::Protected] as $bundle => $level) {
+            $registry->registerBundleFields('cache_entity', $bundle, [
+                new FieldDefinition(
+                    name: 'name',
+                    type: 'string',
+                    targetEntityTypeId: 'cache_entity',
+                    targetBundle: $bundle,
+                    read: $level,
+                ),
+            ]);
+        }
+
+        $business = EntityReadRuntime::layoutFor(
+            RuntimeRegistryCacheEntity::class,
+            ['id' => 1, 'bundle' => 'business', 'name' => 'Visible'],
+            'cache_entity',
+            ['id' => 'id', 'bundle' => 'bundle'],
+            $registry,
+            true,
+        );
+        $private = EntityReadRuntime::layoutFor(
+            RuntimeRegistryCacheEntity::class,
+            ['id' => 2, 'bundle' => 'private', 'name' => 'Restricted'],
+            'cache_entity',
+            ['id' => 'id', 'bundle' => 'bundle'],
+            $registry,
+            true,
+        );
+        $internalClass = EntityReadRuntime::layoutFor(
+            RuntimeInternalCacheEntity::class,
+            ['id' => 3, 'bundle' => 'internal', 'name' => 'Internal'],
+            'cache_entity',
+            ['id' => 'id', 'bundle' => 'bundle'],
+            null,
+            true,
+        );
+
+        self::assertSame(FieldReadLevel::Public, $business->level('name'));
+        self::assertSame(FieldReadLevel::Protected, $private->level('name'));
+        self::assertSame(FieldReadLevel::Internal, $internalClass->level('name'));
+        self::assertNotSame($business, $private);
+        self::assertNotSame($business, $internalClass);
+    }
+
+    #[Test]
+    public function replacement_in_an_anonymous_registry_cannot_reuse_an_identity_cached_layout(): void
+    {
+        $registry = new class implements FieldDefinitionRegistryInterface {
+            /** @var array<string, array<string, object>> */
+            private array $core = [];
+
+            public function registerCoreFields(string $entityTypeId, array $fields): void
+            {
+                $this->core[$entityTypeId] = $fields;
+            }
+
+            public function mergeCoreFields(string $entityTypeId, array $fields): void
+            {
+                $this->core[$entityTypeId] = ($this->core[$entityTypeId] ?? []) + $fields;
+            }
+
+            public function registerBundleFields(string $entityTypeId, string $bundle, array $fields): void {}
+
+            public function coreFieldsFor(string $entityTypeId): array
+            {
+                return $this->core[$entityTypeId] ?? [];
+            }
+
+            public function bundleFieldsFor(string $entityTypeId, string $bundle): array
+            {
+                return [];
+            }
+
+            public function bundleNamesFor(string $entityTypeId): array
+            {
+                return [];
+            }
+
+            public function bundlesDefiningField(string $entityTypeId, string $fieldName): array
+            {
+                return [];
+            }
+        };
+        $registry->registerCoreFields('cache_entity', [
+            'name' => new FieldDefinition(
+                name: 'name',
+                type: 'string',
+                targetEntityTypeId: 'cache_entity',
+                read: FieldReadLevel::Public,
+            ),
+        ]);
+        $public = EntityReadRuntime::layoutFor(
+            RuntimeRegistryCacheEntity::class,
+            ['id' => 1, 'name' => 'Before'],
+            'cache_entity',
+            ['id' => 'id'],
+            $registry,
+            true,
+        );
+
+        $registry->registerCoreFields('cache_entity', [
+            'name' => new FieldDefinition(
+                name: 'name',
+                type: 'string',
+                targetEntityTypeId: 'cache_entity',
+                read: FieldReadLevel::Protected,
+            ),
+        ]);
+        $protected = EntityReadRuntime::layoutFor(
+            RuntimeRegistryCacheEntity::class,
+            ['id' => 1, 'name' => 'After'],
+            'cache_entity',
+            ['id' => 'id'],
+            $registry,
+            true,
+        );
+
+        self::assertSame(FieldReadLevel::Public, $public->level('name'));
+        self::assertSame(FieldReadLevel::Protected, $protected->level('name'));
+        $this->expectException(StaleEntityReadLayout::class);
+        $public->assertCurrent();
+    }
+}
+
+#[ContentEntityType(id: 'cache_entity')]
+final class RuntimeRegistryCacheEntity extends ContentEntityBase {}
+
+#[ContentEntityType(id: 'cache_entity')]
+final class RuntimePublicCacheEntity extends ContentEntityBase
+{
+    #[Field(read: FieldReadLevel::Public)]
+    public string $name = '';
+}
+
+#[ContentEntityType(id: 'cache_entity')]
+final class RuntimeInternalCacheEntity extends ContentEntityBase
+{
+    #[Field(read: FieldReadLevel::Internal)]
+    public string $name = '';
+}
