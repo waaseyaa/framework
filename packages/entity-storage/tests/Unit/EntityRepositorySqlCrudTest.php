@@ -81,7 +81,7 @@ final class EntityRepositorySqlCrudTest extends TestCase
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver, $entityType->getKeys()['id'] ?? 'id');
 
-        return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             $driver,
             $this->eventDispatcher,

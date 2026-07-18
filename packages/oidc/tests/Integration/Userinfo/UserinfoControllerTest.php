@@ -72,7 +72,7 @@ final class UserinfoControllerTest extends TestCase
             'created' => ['type' => 'int', 'not null' => false],
         ]);
         // C-22 WP4: the sole persistence engine — no separate storage read path.
-        $this->userRepository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $this->userRepository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $userEntityType,
             new SqlStorageDriver(new SingleConnectionResolver($userDb), 'uid'),
             new EventDispatcher(),

@@ -211,7 +211,7 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
 
             $resolver = new SingleConnectionResolver($db);
 
-            return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+            return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                 $definition,
                 new SqlStorageDriver($resolver, $definition->getKeys()['id']),
                 $dispatcher,

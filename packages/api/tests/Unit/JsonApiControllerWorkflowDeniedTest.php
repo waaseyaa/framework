@@ -74,7 +74,7 @@ final class JsonApiControllerWorkflowDeniedTest extends TestCase
             $dispatcher,
             null,
             function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $resolver): EntityRepository {
-                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                     $definition,
                     new SqlStorageDriver($resolver),
                     $dispatcher,

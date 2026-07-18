@@ -6,6 +6,7 @@ namespace Waaseyaa\EntityStorage;
 
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\ContentEntityInterface;
@@ -121,6 +122,7 @@ final class EntityRepository implements EntityRepositoryInterface
         // @var ?\Closure(): ?EntityAccessHandler
         private readonly ?\Closure $accessHandlerResolver = null,
         ?StorageBoundary $storageBoundary = null,
+        private readonly ?AccountFieldReadScopeInterface $fieldReadScope = null,
     ) {
         $this->eventFactory = $eventFactory ?? new DefaultEntityEventFactory();
         $this->logger = $logger ?? new \Waaseyaa\Foundation\Log\NullLogger();
@@ -544,6 +546,7 @@ final class EntityRepository implements EntityRepositoryInterface
             $this->database,
             null,
             $this->fieldRegistry,
+            $this->fieldReadScope,
         );
 
         // Resolve the handler lazily (not at construction) — see the constructor

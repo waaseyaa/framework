@@ -62,7 +62,7 @@ final class AttachmentSchemaSelfHealTest extends TestCase
         $entityType = EntityType::fromClass(Attachment::class);
         new SqlSchemaHandler($entityType, $database)->ensureTable();
 
-        $entityRepository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $entityRepository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             entityType: $entityType,
             driver: new SqlStorageDriver(new SingleConnectionResolver($database), 'id'),
             eventDispatcher: new EventDispatcher(),

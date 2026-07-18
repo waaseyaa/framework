@@ -54,7 +54,7 @@ final class GenericEntityApiActiveGuardTest extends TestCase
             new AttachmentActiveGuardListener($database),
         );
 
-        $entityRepository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $entityRepository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             entityType: $entityType,
             driver: $driver,
             eventDispatcher: $dispatcher,
@@ -122,7 +122,7 @@ final class GenericEntityApiActiveGuardTest extends TestCase
         // No listener registered — simulates a boot() that failed to wire.
         $dispatcher = new SymfonyEventDispatcherAdapter();
 
-        $entityRepository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $entityRepository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             entityType: $entityType,
             driver: $driver,
             eventDispatcher: $dispatcher,
@@ -173,7 +173,7 @@ final class GenericEntityApiActiveGuardTest extends TestCase
         // No listener registered — simulates a boot() that failed to wire.
         $dispatcher = new SymfonyEventDispatcherAdapter();
 
-        $entityRepository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $entityRepository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             entityType: $entityType,
             driver: $driver,
             eventDispatcher: $dispatcher,
@@ -268,7 +268,7 @@ final class GenericEntityApiActiveGuardTest extends TestCase
             new AttachmentActiveGuardListener($database),
         );
 
-        return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             entityType: EntityType::fromClass(Attachment::class),
             driver: new SqlStorageDriver(new SingleConnectionResolver($database), 'id'),
             eventDispatcher: $dispatcher,

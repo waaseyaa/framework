@@ -54,7 +54,7 @@ final class EntityRepositoryRevisionTest extends TestCase
             return $event;
         });
 
-        $this->repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $this->repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             $driver,
             $dispatcher,

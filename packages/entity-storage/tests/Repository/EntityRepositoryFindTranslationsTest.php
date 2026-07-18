@@ -279,7 +279,7 @@ final class EntityRepositoryFindTranslationsTest extends TestCase
             // findTranslations query path.
             $counting = new CountingDatabaseProxy($database);
             $driver = new SqlStorageDriver(new SingleConnectionResolver($counting));
-            $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+            $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                 entityType: $entityType,
                 driver: $driver,
                 eventDispatcher: new EventDispatcher(),
@@ -374,7 +374,7 @@ final class EntityRepositoryFindTranslationsTest extends TestCase
 
             $counting = new CountingDatabaseProxy($database);
             $driver = new SqlStorageDriver(new SingleConnectionResolver($counting));
-            $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+            $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                 entityType: $entityType,
                 driver: $driver,
                 eventDispatcher: new EventDispatcher(),

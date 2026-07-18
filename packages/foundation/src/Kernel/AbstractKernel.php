@@ -236,6 +236,7 @@ abstract class AbstractKernel
             accountContextAttacher: function (object $repository): void {
                 $this->attachAccountContext($repository);
             },
+            fieldReadScope: $this->fieldReadScope(),
         );
     }
 

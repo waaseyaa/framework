@@ -39,7 +39,7 @@ final class SqlEntityQueryLikeTest extends TestCase
         $dispatcher = new EventDispatcher();
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver);
-        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             $driver,
             $dispatcher,

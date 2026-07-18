@@ -17,6 +17,7 @@ use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
 use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriver;
 use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriverV2;
 use Waaseyaa\EntityStorage\Driver\StorageBoundary;
@@ -149,6 +150,59 @@ final class EntityRepositoryTest extends TestCase
             'The V1 raw-array adapter received an Internal-classified value.',
         );
         self::assertTrue($rejected, 'Activation accepted a V1 entity-storage driver.');
+    }
+
+    #[Test]
+    public function activation_rejects_an_arbitrary_v1_driver_hidden_behind_the_public_v2_factory(): void
+    {
+        ContentEntityBase::setFieldRegistry(null);
+        $driver = new class implements EntityStorageDriverInterface {
+            /** @var array<string, mixed> */
+            public array $written = [];
+
+            public function read(string $entityType, string $id, ?string $langcode = null): ?array { return null; }
+            public function readMultiple(string $entityType, array $ids, ?string $langcode = null): array { return []; }
+            public function write(string $entityType, string $id, array $values): string { $this->written = $values; return $id; }
+            public function remove(string $entityType, string $id): void {}
+            public function exists(string $entityType, string $id): bool { return false; }
+            public function count(string $entityType, array $criteria = []): int { return 0; }
+            public function findBy(string $entityType, array $criteria = [], ?array $orderBy = null, ?int $limit = null): array { return []; }
+            public function findTranslations(string $entityType, string $id, ?string $defaultLangcode = null): array { return []; }
+        };
+        $entityType = new EntityType(
+            id: 'hidden_legacy_driver_observer',
+            label: 'Hidden legacy driver observer',
+            class: TestStorageEntity::class,
+            keys: ['id' => 'id', 'label' => 'label'],
+            _fieldDefinitions: [
+                'label' => new FieldDefinition('label', 'string', read: FieldReadLevel::Public),
+                'secret_marker' => new FieldDefinition('secret_marker', 'string', read: FieldReadLevel::Internal),
+            ],
+        );
+
+        $rejected = false;
+        try {
+            $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+                $entityType,
+                $driver,
+                new EventDispatcher(),
+            );
+            $entity = $repository->create([
+                'id' => '7',
+                'label' => 'Member',
+                'secret_marker' => 'restricted-value',
+            ]);
+            $repository->save($entity);
+        } catch (\TypeError) {
+            $rejected = true;
+        }
+
+        self::assertArrayNotHasKey(
+            'secret_marker',
+            $driver->written,
+            'The public V2 factory delivered an Internal-classified value to an arbitrary V1 driver.',
+        );
+        self::assertTrue($rejected, 'Activation accepted an arbitrary V1 driver through the public V2 factory.');
     }
 
     #[Test]
@@ -558,7 +612,7 @@ final class EntityRepositoryTest extends TestCase
         $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
         new SqlSchemaHandler($this->entityType, $db)->ensureTable();
 
-        return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $this->entityType,
             $driver,
             $this->eventDispatcher,
@@ -655,7 +709,7 @@ final class EntityRepositoryTest extends TestCase
         $db = DBALDatabase::createSqlite();
         $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
         new SqlSchemaHandler($this->entityType, $db)->ensureTable();
-        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $this->entityType,
             $driver,
             $this->eventDispatcher,
@@ -712,7 +766,7 @@ final class EntityRepositoryTest extends TestCase
         $db = DBALDatabase::createSqlite();
         $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
         new SqlSchemaHandler($this->entityType, $db)->ensureTable();
-        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $this->entityType,
             $driver,
             $this->eventDispatcher,
@@ -787,7 +841,7 @@ final class EntityRepositoryTest extends TestCase
         $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
         new SqlSchemaHandler($lifecycleType, $db)->ensureTable();
 
-        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $lifecycleType,
             $driver,
             $this->eventDispatcher,
@@ -843,7 +897,7 @@ final class EntityRepositoryTest extends TestCase
         $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
         new SqlSchemaHandler($lifecycleType, $db)->ensureTable();
 
-        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $lifecycleType,
             $driver,
             $this->eventDispatcher,
@@ -878,7 +932,7 @@ final class EntityRepositoryTest extends TestCase
         $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
         new SqlSchemaHandler($lifecycleType, $db)->ensureTable();
 
-        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $lifecycleType,
             $driver,
             $this->eventDispatcher,
@@ -960,7 +1014,7 @@ final class EntityRepositoryTest extends TestCase
             \Symfony\Component\Validator\Validation::createValidator(),
         );
 
-        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $constrainedType,
             $driver,
             $this->eventDispatcher,
@@ -1000,7 +1054,7 @@ final class EntityRepositoryTest extends TestCase
             \Symfony\Component\Validator\Validation::createValidator(),
         );
 
-        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $constrainedType,
             $driver,
             $this->eventDispatcher,
@@ -1033,7 +1087,7 @@ final class EntityRepositoryTest extends TestCase
             \Symfony\Component\Validator\Validation::createValidator(),
         );
 
-        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $type,
             $driver,
             $this->eventDispatcher,
@@ -1067,7 +1121,7 @@ final class EntityRepositoryTest extends TestCase
             \Symfony\Component\Validator\Validation::createValidator(),
         );
 
-        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $type,
             $driver,
             $this->eventDispatcher,

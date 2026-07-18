@@ -126,19 +126,7 @@ function installAutoload(string $sourceRoot, string $fixtureRoot, string $projec
 function buildConfig(string $projectRoot): string
 {
     $database = var_export($projectRoot . '/storage/waaseyaa.sqlite', true);
-    $display = [
-        'title' => ['formatter' => 'string', 'weight' => 0],
-        'type' => ['formatter' => 'string', 'weight' => 1],
-        'slug' => ['formatter' => 'string', 'weight' => 2],
-        'status' => ['formatter' => 'boolean', 'weight' => 3],
-        'promote' => ['formatter' => 'boolean', 'weight' => 4],
-        'sticky' => ['formatter' => 'boolean', 'weight' => 5],
-        'created' => ['formatter' => 'datetime', 'settings' => ['format' => 'Y-m-d'], 'weight' => 6],
-        'changed' => ['formatter' => 'datetime', 'settings' => ['format' => 'Y-m-d'], 'weight' => 7],
-    ];
-    foreach (FieldReadPageCorpus::contentFieldNames() as $index => $field) {
-        $display[$field] = ['formatter' => 'text', 'weight' => 8 + $index];
-    }
+    $display = FieldReadPageCorpus::contentDisplay();
     $displayExport = var_export($display, true);
 
     return <<<PHP
@@ -348,7 +336,7 @@ function buildPageResult(string $page, array $samples, array $last, string $init
             'controller' => 'render.page',
             'handler' => 'Waaseyaa\\SSR\\SsrPageHandler',
             'rendered_rows' => 1,
-            'rendered_fields' => 32,
+            'rendered_fields' => FieldReadPageCorpus::CONTENT_RENDERED_FIELDS,
             'unique_sentinels' => $sentinels,
             'cache_before' => $last['cache_before'],
             'cache_after' => $last['cache_after'],

@@ -80,8 +80,8 @@ final class AgentRunObservabilityTest extends TestCase
             keys: ['id' => 'id', 'uuid' => 'id', 'label' => 'event_type'],
         );
 
-        $runEntityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create($runType, $driver, $this->symfonyDispatcher);
-        $logEntityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create($logType, $driver, $this->symfonyDispatcher);
+        $runEntityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver($runType, $driver, $this->symfonyDispatcher);
+        $logEntityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver($logType, $driver, $this->symfonyDispatcher);
 
         $this->runRepository = new AgentRunRepository($runEntityRepo, $this->database);
         $this->auditRepository = new AgentAuditLogRepository($logEntityRepo, $this->database);

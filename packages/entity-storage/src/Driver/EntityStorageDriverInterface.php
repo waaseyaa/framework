@@ -11,6 +11,8 @@ namespace Waaseyaa\EntityStorage\Driver;
  * The EntityRepository layer handles those concerns on top.
  *
  * Implementations: SqlStorageDriver, InMemoryStorageDriver, etc.
+ *
+ * @api
  */
 interface EntityStorageDriverInterface
 {

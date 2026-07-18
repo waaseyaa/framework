@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Foundation\Kernel;
 
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface as SymfonyContractEventDispatcherInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -57,6 +58,7 @@ final class EntityTypeManagerFactory
         callable $accessHandlerResolver,
         callable $communityScoreResolver,
         callable $accountContextAttacher,
+        AccountFieldReadScopeInterface $fieldReadScope,
     ): EntityTypeManager {
         // Issue #1643: save-time entity validation is ON by default for every
         // kernel-built repository. One shared stateless EntityValidator is
@@ -79,7 +81,7 @@ final class EntityTypeManagerFactory
             // it remains a "bring your own EntityStorageInterface" extension seam
             // for entity types that explicitly declare a storageClass.
             null,
-            function (string $_entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry, $logger, $validator, $communityScoreResolver, $accountContextAttacher, $accessHandlerResolver): EntityRepositoryInterface {
+            function (string $_entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry, $logger, $validator, $communityScoreResolver, $accountContextAttacher, $accessHandlerResolver, $fieldReadScope): EntityRepositoryInterface {
                 $schemaHandler = new SqlSchemaHandler($definition, $database, $fieldRegistry, null, $logger);
                 $schemaHandler->ensureTable();
                 if ($definition->isRevisionable()) {
@@ -144,6 +146,7 @@ final class EntityTypeManagerFactory
                     // EntityRepository::getQuery() is fail-closed.
                     accessHandlerResolver: $accessHandlerResolver,
                     storageBoundary: $storageBoundary,
+                    fieldReadScope: $fieldReadScope,
                 );
                 // revision-audit-provenance-01KTWY5V WP01: forward seam — the
                 // kernel's shared acting-account context is attached once

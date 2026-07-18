@@ -79,7 +79,7 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
                 new SqlSchemaHandler($definition, $this->database)->ensureTable();
                 $idKey = $definition->getKeys()['id'] ?? 'id';
 
-                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                     $definition,
                     new SqlStorageDriver($resolver, $idKey),
                     $dispatcher,

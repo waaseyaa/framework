@@ -72,8 +72,8 @@ final class AgentExecutorRetryTest extends TestCase
             keys: ['id' => 'id', 'uuid' => 'id', 'label' => 'event_type'],
         );
 
-        $runEntityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create($runType, $driver, $dispatcher);
-        $logEntityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create($logType, $driver, $dispatcher);
+        $runEntityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver($runType, $driver, $dispatcher);
+        $logEntityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver($logType, $driver, $dispatcher);
 
         $this->runRepository = new AgentRunRepository($runEntityRepo, $this->database);
         $this->auditRepository = new AgentAuditLogRepository($logEntityRepo, $this->database);

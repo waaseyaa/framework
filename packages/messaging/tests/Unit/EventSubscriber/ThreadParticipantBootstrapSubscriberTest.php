@@ -180,7 +180,7 @@ final class ThreadParticipantBootstrapSubscriberTest extends TestCase
 
                 $idKey = $definition->getKeys()['id'] ?? 'id';
 
-                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                     $definition,
                     new SqlStorageDriver($resolver, $idKey),
                     $dispatcher,

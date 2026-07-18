@@ -107,7 +107,7 @@ final class FullStackIntegrationTest extends TestCase
         $dispatcher = $this->eventDispatcher;
         $idKey = $articleType->getKeys()['id'] ?? 'id';
         $resolver = new SingleConnectionResolver($this->database);
-        $this->articleStorage = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $this->articleStorage = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $articleType,
             new SqlStorageDriver($resolver, $idKey),
             $this->eventDispatcher,

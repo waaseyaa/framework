@@ -6,17 +6,22 @@ namespace Waaseyaa\EntityStorage\Tests\Unit\Driver;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\EntityType;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverV2Interface;
 use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriver;
 use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriverV2;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriverV2Interface;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriverV2;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriverV2;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\Driver\StorageRow;
 use Waaseyaa\EntityStorage\Driver\StorageRowSet;
 use Waaseyaa\EntityStorage\Driver\StorageSnapshot;
 use Waaseyaa\EntityStorage\Driver\StorageBoundary;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\EntityStorage\SqlSchemaHandler;
 
 final class EntityStorageDriverV2ContractTest extends TestCase
 {
@@ -88,6 +93,37 @@ final class EntityStorageDriverV2ContractTest extends TestCase
         self::assertInstanceOf(StorageRow::class, $row);
         self::assertSame(
             ['id' => '7', 'title' => 'Tansi'],
+            $boundary->repositoryRowReader()->read($row),
+        );
+    }
+
+    #[Test]
+    public function first_party_sql_driver_crosses_the_repository_boundary_only_as_opaque_objects(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $entityType = new EntityType(
+            id: 'v2_sql_contract',
+            label: 'V2 SQL contract',
+            class: EntityInterface::class,
+            keys: ['id' => 'id', 'label' => 'title'],
+        );
+        new SqlSchemaHandler($entityType, $database)->ensureTable();
+        $boundary = new StorageBoundary();
+        $driver = new SqlStorageDriverV2(
+            new SqlStorageDriver(new SingleConnectionResolver($database)),
+            $boundary->driverRowFactory(),
+            $boundary->driverSnapshotReader(),
+        );
+        $snapshot = $boundary->repositorySnapshotFactory()->create([
+            'id' => '7',
+            'title' => 'Tansi',
+        ]);
+
+        self::assertSame('7', $driver->write('v2_sql_contract', '7', $snapshot));
+        $row = $driver->read('v2_sql_contract', '7');
+        self::assertInstanceOf(StorageRow::class, $row);
+        self::assertSame(
+            ['id' => '7', 'bundle' => '', 'title' => 'Tansi', 'langcode' => 'en'],
             $boundary->repositoryRowReader()->read($row),
         );
     }

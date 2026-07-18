@@ -58,7 +58,7 @@ final class ContentModelTestKit
                 $resolver = new SingleConnectionResolver($database);
                 $driver = new SqlStorageDriver($resolver, $idKey, null, $fieldRegistry);
 
-                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                     entityType: $definition,
                     driver: $driver,
                     eventDispatcher: $dispatcher,

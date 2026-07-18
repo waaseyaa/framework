@@ -130,7 +130,7 @@ final class SsrEntityViewGateAllTypesTest extends TestCase
     {
         new SqlSchemaHandler($entityType, $this->db)->ensureTable();
         $resolver = new SingleConnectionResolver($this->db);
-        $this->repositories[$entityType->id()] = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $this->repositories[$entityType->id()] = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             new SqlStorageDriver($resolver),
             new EventDispatcher(),

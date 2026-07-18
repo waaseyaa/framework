@@ -81,8 +81,8 @@ final class AgentExecutorEventDispatchTest extends TestCase
             keys: ['id' => 'id', 'uuid' => 'id', 'label' => 'event_type'],
         );
 
-        $runEntityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create($runType, $driver, $symdispatcher);
-        $logEntityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create($logType, $driver, $symdispatcher);
+        $runEntityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver($runType, $driver, $symdispatcher);
+        $logEntityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver($logType, $driver, $symdispatcher);
 
         $this->runRepository = new AgentRunRepository($runEntityRepo, $this->database);
         $this->auditRepository = new AgentAuditLogRepository($logEntityRepo, $this->database);

@@ -104,7 +104,7 @@ final class EntityRepositoryBundleQueryRoutingTest extends TestCase
 
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver, 'wid', fieldRegistry: $this->registry);
-        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $this->entityType,
             $driver,
             new EventDispatcher(),

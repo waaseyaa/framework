@@ -75,7 +75,7 @@ final class GenericAdminSurfaceHostFieldAccessPaginationTest extends TestCase
         new SqlSchemaHandler($entityType, $database)->ensureTable();
 
         $accessHandler = new EntityAccessHandler([new AccessOracleDocumentPolicy()]);
-        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             new SqlStorageDriver(new SingleConnectionResolver($database)),
             new EventDispatcher(),

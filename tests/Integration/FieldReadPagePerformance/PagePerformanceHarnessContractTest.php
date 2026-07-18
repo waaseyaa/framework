@@ -12,6 +12,27 @@ use PHPUnit\Framework\TestCase;
 final class PagePerformanceHarnessContractTest extends TestCase
 {
     #[Test]
+    public function authenticated_fixture_users_declare_the_canonical_bundle_across_framework_versions(): void
+    {
+        require_once __DIR__ . '/Fixtures/FieldReadPageCorpus.php';
+
+        foreach (Fixtures\FieldReadPageCorpus::users() as $user) {
+            self::assertSame('user', $user['bundle'] ?? null);
+        }
+    }
+
+    #[Test]
+    public function content_fixture_display_contains_only_the_frozen_public_field_set(): void
+    {
+        require_once __DIR__ . '/Fixtures/FieldReadPageCorpus.php';
+
+        $display = Fixtures\FieldReadPageCorpus::contentDisplay();
+
+        self::assertArrayNotHasKey('status', $display);
+        self::assertSame(Fixtures\FieldReadPageCorpus::CONTENT_RENDERED_FIELDS, count($display));
+    }
+
+    #[Test]
     public function checked_in_frozen_fixture_manifest_matches_the_harness_files(): void
     {
         $root = dirname(__DIR__, 3);

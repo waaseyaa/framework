@@ -449,6 +449,14 @@ through `EntityAccessHandler::checkProtectedFieldRead()` with an
 entity-view-bound authorization-input subject. Internal values remain available
 only through the audited capability readers.
 
+Access-checked repository queries receive that same scope. A live account bound
+with `setAccount()` is evaluated as the current immutable principal only when
+account id and authentication state match; a different active identity fails
+before cache or SQL work. An explicitly bound principal remains valid outside an
+ambient scope. Access-filtered query cache identities include claims generation,
+tenant, and community so a changed authorization snapshot cannot reuse prior
+survivors.
+
 Production-equivalent normal boot consumes
 `.waaseyaa/field-access-preflight.json`, recomputes framework,
 classification-artifact, package-lock, and database-schema identities, verifies

@@ -55,7 +55,7 @@ final class EntityTypeManagerRepositoryIntegrationTest extends TestCase
                     ? new RevisionableStorageDriver($resolver, $definition)
                     : null;
 
-                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                     $definition,
                     $driver,
                     $dispatcher,

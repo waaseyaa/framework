@@ -7,6 +7,7 @@ namespace Waaseyaa\Foundation\Tests\Unit\Kernel;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Field\FieldDefinitionRegistry;
@@ -22,6 +23,7 @@ final class EntityTypeManagerFactoryTest extends TestCase
     private SymfonyEventDispatcherAdapter $dispatcher;
     private FieldDefinitionRegistry $fieldRegistry;
     private LogManager $logger;
+    private AccountFieldReadScope $fieldReadScope;
 
     protected function setUp(): void
     {
@@ -29,6 +31,7 @@ final class EntityTypeManagerFactoryTest extends TestCase
         $this->dispatcher   = new SymfonyEventDispatcherAdapter();
         $this->fieldRegistry = new FieldDefinitionRegistry();
         $this->logger       = new LogManager(new ErrorLogHandler());
+        $this->fieldReadScope = new AccountFieldReadScope();
     }
 
     #[Test]
@@ -44,6 +47,7 @@ final class EntityTypeManagerFactoryTest extends TestCase
             accessHandlerResolver: static fn() => null,
             communityScoreResolver: static fn($def) => null,
             accountContextAttacher: static function (object $repo): void {},
+            fieldReadScope: $this->fieldReadScope,
         );
 
         $this->assertInstanceOf(EntityTypeManager::class, $manager);
@@ -62,6 +66,7 @@ final class EntityTypeManagerFactoryTest extends TestCase
             accessHandlerResolver: static fn() => null,
             communityScoreResolver: static fn($def) => null,
             accountContextAttacher: static function (object $repo): void {},
+            fieldReadScope: $this->fieldReadScope,
         );
 
         // The manager exposes the field registry it was given.
@@ -84,6 +89,7 @@ final class EntityTypeManagerFactoryTest extends TestCase
             accountContextAttacher: static function (object $repo) use (&$attached): void {
                 $attached[] = $repo;
             },
+            fieldReadScope: $this->fieldReadScope,
         );
 
         // Register and retrieve a repository to trigger the factory closure.
@@ -116,6 +122,7 @@ final class EntityTypeManagerFactoryTest extends TestCase
                 return null;
             },
             accountContextAttacher: static function (object $repo): void {},
+            fieldReadScope: $this->fieldReadScope,
         );
 
         $manager->registerEntityType(new \Waaseyaa\Entity\EntityType(

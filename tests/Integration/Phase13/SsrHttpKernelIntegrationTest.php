@@ -13,6 +13,8 @@ use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\DbInitHandler;
 use Waaseyaa\CLI\Testing\CliTester;
+use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Tests\Support\ComposerProjectFixture;
 
 #[CoversNothing]
@@ -80,6 +82,9 @@ final class SsrHttpKernelIntegrationTest extends TestCase
 
     protected function tearDown(): void
     {
+        ContentEntityBase::setFieldRegistry(null);
+        EntityReadRuntime::installFieldRegistry(null);
+
         if (!is_dir($this->projectRoot)) {
             return;
         }

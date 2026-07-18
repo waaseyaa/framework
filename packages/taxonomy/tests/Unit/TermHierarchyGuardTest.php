@@ -67,7 +67,7 @@ final class TermHierarchyGuardTest extends TestCase
             function (string $_entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher, $registry, $resolver): EntityRepository {
                 (new SqlSchemaHandler($definition, $database, $registry))->ensureTable();
 
-                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                     $definition,
                     new SqlStorageDriver($resolver, $definition->getKeys()['id'] ?? 'id'),
                     $dispatcher,

@@ -87,7 +87,7 @@ final class EntityWithFieldsTest extends TestCase
 
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver, $this->entityType->getKeys()['id'] ?? 'id');
-        $this->storage = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $this->storage = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $this->entityType,
             $driver,
             $this->eventDispatcher,

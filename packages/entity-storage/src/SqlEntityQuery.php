@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Waaseyaa\EntityStorage;
 
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityInterface;
@@ -13,6 +15,7 @@ use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\EntityStorage\Exception\BundleAmbiguousFieldException;
 use Waaseyaa\EntityStorage\Exception\MissingQueryAccountException;
+use Waaseyaa\EntityStorage\Exception\QueryAccountPrincipalMismatchException;
 use Waaseyaa\EntityStorage\Exception\UnknownFieldException;
 use Waaseyaa\Field\FieldDefinitionInterface;
 use Waaseyaa\Field\FieldStorage;
@@ -123,6 +126,7 @@ final class SqlEntityQuery implements EntityQueryInterface
         private readonly DatabaseInterface $database,
         private readonly ?SqlEntityQueryResultCache $resultCache = null,
         private readonly ?FieldDefinitionRegistryInterface $fieldRegistry = null,
+        private readonly ?AccountFieldReadScopeInterface $fieldReadScope = null,
     ) {
         $this->tableName = $this->entityType->id();
         $keys = $this->entityType->getKeys();
@@ -404,7 +408,7 @@ final class SqlEntityQuery implements EntityQueryInterface
      * @param array<int, int|string> $candidateIds
      * @return array<int, int|string>
      */
-    private function filterCandidates(array $candidateIds): array
+    private function filterCandidates(array $candidateIds, AccountInterface $authorizationAccount): array
     {
         if ($candidateIds === []) {
             return $this->isCount ? [0] : [];
@@ -430,9 +434,6 @@ final class SqlEntityQuery implements EntityQueryInterface
         }
 
         $handler = $this->resolveAccessHandler();
-        $account = $this->account;
-        \assert($account !== null, 'Account must be bound; checked in execute() before filterCandidates() is called.');
-
         $survivors = [];
         // Preserve the SQL-side ordering — iterate candidate IDs, not the
         // hydrator's return order (which may be id-keyed and lose order).
@@ -446,7 +447,7 @@ final class SqlEntityQuery implements EntityQueryInterface
                 continue;
             }
 
-            if ($handler->check($entity, 'view', $account)->isAllowed()) {
+            if ($handler->check($entity, 'view', $authorizationAccount)->isAllowed()) {
                 $survivors[] = $id;
             }
         }
@@ -684,18 +685,19 @@ final class SqlEntityQuery implements EntityQueryInterface
      *
      * Security (C-010): the cached result of a query is a function of the
      * access dimension as well as the SQL shape. An access-filtered list is
-     * account-specific, so the account MUST discriminate the key when access
+     * principal-specific, so the immutable claim/scope generation MUST discriminate the key when access
      * checking is on — otherwise account B can be served account A's filtered
      * survivors, or a system-context accessCheck(false) unfiltered list can be
      * served to an access-checked caller (cross-account / filter-bypass leak).
      * We always fold in accessCheckEnabled; we fold in a per-account
-     * discriminator only when access checking is on. When it is off the result
+     * discriminator only when access checking is on. Legacy non-principal
+     * accounts retain the id/class discriminator. When checking is off the result
      * is account-independent, so every accessCheck(false) caller emits the same
      * `account => null` and legitimately shares one cache key. The throw at the
      * top of execute() guarantees accessCheckEnabled is never true with a null
      * account, so the discriminator is always present when it matters.
      */
-    private function buildCacheFingerprint(): string
+    private function buildCacheFingerprint(?AccountInterface $authorizationAccount): string
     {
         $payload = [
             'conditions' => $this->conditions,
@@ -704,12 +706,56 @@ final class SqlEntityQuery implements EntityQueryInterface
             'rangeLimit' => $this->rangeLimit,
             'isCount' => $this->isCount,
             'accessCheck' => $this->accessCheckEnabled,
-            'account' => $this->accessCheckEnabled && $this->account !== null
-                ? [$this->account->id(), $this->account::class]
+            'account' => $this->accessCheckEnabled && $authorizationAccount !== null
+                ? $this->accountCacheDimension($authorizationAccount)
                 : null,
         ];
 
         return hash('xxh128', json_encode($payload, JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * Resolve the explicitly bound account to the immutable principal already
+     * established for this execution scope. The scope never supplies authority
+     * to an unbound query, and a different acting identity fails before SQL.
+     */
+    private function authorizationAccount(): AccountInterface
+    {
+        $account = $this->account;
+        \assert($account instanceof AccountInterface);
+        $principal = $this->fieldReadScope?->current();
+        if ($principal === null) {
+            return $account;
+        }
+
+        if ($account === $principal) {
+            return $principal;
+        }
+
+        if ($account instanceof AuthorizationPrincipalInterface
+            || (string) $account->id() !== (string) $principal->id()
+            || $account->isAuthenticated() !== $principal->isAuthenticated()
+        ) {
+            throw QueryAccountPrincipalMismatchException::forBoundAccount();
+        }
+
+        return $principal;
+    }
+
+    /** @return array<int, int|string|null> */
+    private function accountCacheDimension(AccountInterface $account): array
+    {
+        if ($account instanceof AuthorizationPrincipalInterface) {
+            return [
+                $account->id(),
+                $account::class,
+                $account->claimsGeneration(),
+                $account->tenantId(),
+                $account->communityId(),
+            ];
+        }
+
+        return [$account->id(), $account::class];
     }
 
     /**
@@ -735,8 +781,12 @@ final class SqlEntityQuery implements EntityQueryInterface
             throw MissingQueryAccountException::forQuery($this->entityType);
         }
 
+        $authorizationAccount = $this->accessCheckEnabled
+            ? $this->authorizationAccount()
+            : null;
+
         $entityTypeId = $this->entityType->id();
-        $fingerprint = $this->resultCache !== null ? $this->buildCacheFingerprint() : null;
+        $fingerprint = $this->resultCache !== null ? $this->buildCacheFingerprint($authorizationAccount) : null;
 
         if ($fingerprint !== null) {
             $cached = $this->resultCache->get($entityTypeId, $fingerprint);
@@ -896,9 +946,10 @@ final class SqlEntityQuery implements EntityQueryInterface
         }
 
         // Slow path: hydrate the candidate window, run per-row
-        // EntityAccessHandler::check(), drop Forbidden rows. count() reuses
+        // EntityAccessHandler::check(), and retain only explicitly Allowed rows. count() reuses
         // this machinery — no duplicated SQL count branch (FR-006).
-        $filtered = $this->filterCandidates($ids);
+        \assert($authorizationAccount instanceof AccountInterface);
+        $filtered = $this->filterCandidates($ids, $authorizationAccount);
 
         if ($fingerprint !== null) {
             $this->resultCache->set($entityTypeId, $fingerprint, $filtered);

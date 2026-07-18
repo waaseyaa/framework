@@ -77,7 +77,7 @@ final class ConcurrentSaveConflictTest extends TestCase
             }
         };
 
-        $this->repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $this->repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             new SqlStorageDriver($resolver),
             $this->dispatcher,

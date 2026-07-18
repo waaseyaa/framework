@@ -64,7 +64,7 @@ final class JsonApiControllerConflictTest extends TestCase
             null,
             // The kernel's getRepository() shape: the revision-aware pipeline.
             function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $resolver): EntityRepository {
-                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                     $definition,
                     new SqlStorageDriver($resolver),
                     $dispatcher,

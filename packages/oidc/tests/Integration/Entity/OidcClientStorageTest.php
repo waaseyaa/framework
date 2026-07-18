@@ -52,7 +52,7 @@ final class OidcClientStorageTest extends TestCase
             'client_secret_hash' => ['type' => 'varchar', 'length' => 255, 'not null' => false],
         ]);
 
-        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             new SqlStorageDriver(new SingleConnectionResolver($this->database)),
             new EventDispatcher(),
@@ -214,7 +214,7 @@ final class OidcClientStorageTest extends TestCase
         $this->repository->save($client);
         $id = $client->id();
 
-        $fresh = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $fresh = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             new EntityType(
                 id: 'oidc_client',
                 label: 'OIDC Client',

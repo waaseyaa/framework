@@ -77,7 +77,7 @@ final class SingleEntityWorkSurfaceTest extends TestCase
         $driver = new SqlStorageDriver($resolver, 'id');
         $dispatcher = new EventDispatcher();
 
-        $attachmentEntityRepository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $attachmentEntityRepository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             entityType: $attachmentEntityType,
             driver: $driver,
             eventDispatcher: $dispatcher,

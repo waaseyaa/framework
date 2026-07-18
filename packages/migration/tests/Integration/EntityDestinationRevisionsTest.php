@@ -82,7 +82,7 @@ final class EntityDestinationRevisionsTest extends TestCase
         $driver = new SqlStorageDriver($resolver, 'id');
         $revisionDriver = new RevisionableStorageDriver($resolver, $entityType);
 
-        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             entityType: $entityType,
             driver: $driver,
             eventDispatcher: $this->dispatcher,

@@ -99,7 +99,7 @@ final class InstallHandlerCredentialTest extends TestCase
             'created' => ['type' => 'int', 'not null' => false],
         ]);
 
-        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $userEntityType,
             new SqlStorageDriver(new SingleConnectionResolver($userDb), 'uid'),
             new EventDispatcher(),

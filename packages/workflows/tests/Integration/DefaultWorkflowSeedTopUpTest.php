@@ -411,7 +411,7 @@ final class DefaultWorkflowSeedTopUpTest extends TestCase
             $schemaHandler = new SqlSchemaHandler($definition, $db);
             $schemaHandler->ensureTable();
 
-            return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+            return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                 $definition,
                 new SqlStorageDriver(new SingleConnectionResolver($db)),
                 $dispatcher,

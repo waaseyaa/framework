@@ -62,7 +62,7 @@ final class EntityRollbackToolFieldAccessTest extends TestCase
         $handler->ensureRevisionTable();
 
         $resolver = new SingleConnectionResolver($this->db);
-        $this->repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $this->repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $this->entityType,
             new SqlStorageDriver($resolver),
             new EventDispatcher(),

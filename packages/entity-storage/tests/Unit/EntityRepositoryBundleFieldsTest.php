@@ -383,7 +383,7 @@ final class EntityRepositoryBundleFieldsTest extends TestCase
         (new SqlSchemaHandler($singleBundle, $this->database))->ensureTable();
 
         $resolver = new SingleConnectionResolver($this->database);
-        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $singleBundle,
             new SqlStorageDriver($resolver),
             $this->dispatcher,
@@ -457,7 +457,7 @@ final class EntityRepositoryBundleFieldsTest extends TestCase
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver, 'gid');
 
-        return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+        return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $this->groupType,
             $driver,
             $this->dispatcher,
