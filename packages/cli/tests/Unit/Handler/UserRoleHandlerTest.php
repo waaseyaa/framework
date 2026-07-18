@@ -15,6 +15,7 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 
 #[CoversClass(UserRoleHandler::class)]
 final class UserRoleHandlerTest extends TestCase
@@ -39,7 +40,7 @@ final class UserRoleHandlerTest extends TestCase
             public function get(string $id): mixed
             {
                 if ($id === UserRoleHandler::class) {
-                    return new UserRoleHandler($this->manager);
+                    return new UserRoleHandler($this->manager, new UserInternalFieldReaderFixture());
                 }
 
                 throw new \RuntimeException(sprintf('Container::get(%s) called unexpectedly', $id));
@@ -55,7 +56,10 @@ final class UserRoleHandlerTest extends TestCase
     private function makeMockUser(string $userId, array $roles): EntityInterface
     {
         $user = $this->createMock(EntityInterface::class);
-        $user->method('get')->with('roles')->willReturn($roles);
+        $user->method('get')->willReturnMap([
+            ['roles', $roles],
+            ['permissions', []],
+        ]);
         $user->method('set')->with('roles', $this->anything());
 
         return $user;

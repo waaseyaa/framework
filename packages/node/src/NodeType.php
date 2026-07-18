@@ -74,7 +74,7 @@ final class NodeType extends ConfigEntityBase
      */
     public function setName(string $name): static
     {
-        $this->values['name'] = $name;
+        $this->set('name', $name);
 
         return $this;
     }
@@ -84,7 +84,7 @@ final class NodeType extends ConfigEntityBase
      */
     public function getDescription(): string
     {
-        return (string) ($this->values['description'] ?? '');
+        return (string) ($this->get('description') ?? '');
     }
 
     /**
@@ -92,7 +92,7 @@ final class NodeType extends ConfigEntityBase
      */
     public function setDescription(string $description): static
     {
-        $this->values['description'] = $description;
+        $this->set('description', $description);
 
         return $this;
     }
@@ -106,7 +106,7 @@ final class NodeType extends ConfigEntityBase
      */
     public function isNewRevision(): bool
     {
-        return (bool) ($this->values['new_revision'] ?? true);
+        return (bool) ($this->get('new_revision') ?? true);
     }
 
     /**
@@ -114,7 +114,7 @@ final class NodeType extends ConfigEntityBase
      */
     public function setNewRevision(bool $newRevision): static
     {
-        $this->values['new_revision'] = $newRevision;
+        $this->set('new_revision', $newRevision);
 
         return $this;
     }
@@ -124,7 +124,7 @@ final class NodeType extends ConfigEntityBase
      */
     public function getDisplaySubmitted(): bool
     {
-        return (bool) ($this->values['display_submitted'] ?? true);
+        return (bool) ($this->get('display_submitted') ?? true);
     }
 
     /**
@@ -132,7 +132,7 @@ final class NodeType extends ConfigEntityBase
      */
     public function setDisplaySubmitted(bool $displaySubmitted): static
     {
-        $this->values['display_submitted'] = $displaySubmitted;
+        $this->set('display_submitted', $displaySubmitted);
 
         return $this;
     }

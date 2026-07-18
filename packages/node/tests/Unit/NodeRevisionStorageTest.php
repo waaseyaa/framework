@@ -105,7 +105,7 @@ final class NodeRevisionStorageTest extends TestCase
         $node->enforceIsNew();
         $this->repo->save($node);
 
-        $loaded = $this->repo->find($node->id());
+        $loaded = $this->repo->find((string) $node->id());
         \assert($loaded instanceof Node);
         $loaded->setTitle('Hello, updated');
         $this->repo->save($loaded);

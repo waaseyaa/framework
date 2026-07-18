@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Waaseyaa\User;
 
 use Twig\Environment;
-use Waaseyaa\Entity\FieldableInterface;
+use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
+use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Mail\Envelope;
 use Waaseyaa\Mail\MailerInterface;
 
@@ -25,6 +26,7 @@ class AuthMailer
         private readonly ?Environment $twig,
         private readonly string $baseUrl,
         private readonly string $appName,
+        private readonly UserInternalFieldReaderInterface $internalFields,
     ) {}
 
     public function isConfigured(): bool
@@ -32,14 +34,15 @@ class AuthMailer
         return $this->authEmailConfigured && $this->twig !== null;
     }
 
-    public function sendPasswordReset(FieldableInterface $user, string $token): void
+    public function sendPasswordReset(EntityInterface $user, string $token): void
     {
         if (!$this->authEmailConfigured || $this->twig === null) {
             return;
         }
 
+        $identity = $this->internalFields->mailDelivery($user);
         $vars = [
-            'user_name' => $user->get('name'),
+            'user_name' => $identity->name,
             'reset_url' => $this->baseUrl . '/reset-password?token=' . rawurlencode($token),
         ];
 
@@ -47,7 +50,7 @@ class AuthMailer
         $text = $this->twig->render('email/password-reset.txt.twig', $vars);
 
         $this->mailer->send(new Envelope(
-            to: $this->recipientList($user->get('mail')),
+            to: $this->recipientList($identity->mail),
             from: '',
             subject: "Reset your {$this->appName} password",
             textBody: $text,
@@ -55,14 +58,15 @@ class AuthMailer
         ));
     }
 
-    public function sendEmailVerification(FieldableInterface $user, string $token): void
+    public function sendEmailVerification(EntityInterface $user, string $token): void
     {
         if (!$this->authEmailConfigured || $this->twig === null) {
             return;
         }
 
+        $identity = $this->internalFields->mailDelivery($user);
         $vars = [
-            'user_name' => $user->get('name'),
+            'user_name' => $identity->name,
             'verify_url' => $this->baseUrl . '/verify-email?token=' . rawurlencode($token),
         ];
 
@@ -70,7 +74,7 @@ class AuthMailer
         $text = $this->twig->render('email/email-verification.txt.twig', $vars);
 
         $this->mailer->send(new Envelope(
-            to: $this->recipientList($user->get('mail')),
+            to: $this->recipientList($identity->mail),
             from: '',
             subject: "Verify your email for {$this->appName}",
             textBody: $text,
@@ -78,14 +82,15 @@ class AuthMailer
         ));
     }
 
-    public function sendWelcome(FieldableInterface $user): void
+    public function sendWelcome(EntityInterface $user): void
     {
         if (!$this->authEmailConfigured || $this->twig === null) {
             return;
         }
 
+        $identity = $this->internalFields->mailDelivery($user);
         $vars = [
-            'user_name' => $user->get('name'),
+            'user_name' => $identity->name,
             'home_url' => $this->baseUrl,
         ];
 
@@ -93,7 +98,7 @@ class AuthMailer
         $text = $this->twig->render('email/welcome.txt.twig', $vars);
 
         $this->mailer->send(new Envelope(
-            to: $this->recipientList($user->get('mail')),
+            to: $this->recipientList($identity->mail),
             from: '',
             subject: "Welcome to {$this->appName}",
             textBody: $text,

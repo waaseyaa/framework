@@ -29,14 +29,18 @@ final class SyncQueue implements QueueInterface
      * @param AttributeGuard|null $guard
      *   Attribute enforcement guard. A default instance is created when null.
      */
-    public function __construct(array $handlers = [], ?AttributeGuard $guard = null)
-    {
+    public function __construct(
+        array $handlers = [],
+        ?AttributeGuard $guard = null,
+        private readonly ?QueuePayloadDeprecationDiagnostic $payloadDiagnostic = null,
+    ) {
         $this->handlers = [new JobHandler(), ...$handlers];
         $this->guard = $guard ?? new AttributeGuard();
     }
 
     public function dispatch(object $message): void
     {
+        $this->payloadDiagnostic?->inspect($message);
         if (!$this->guard->allows($message)) {
             return;
         }

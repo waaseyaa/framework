@@ -8,8 +8,10 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\EntityValues;
 
 /**
  * Full-text search across entities of a given type.
@@ -111,6 +113,13 @@ final class EntitySearchTool extends AbstractAgentTool
 
     private function matches(EntityInterface $entity, string $needle, AccountInterface $account): bool
     {
+        if ($entity instanceof EntityBase) {
+            $names = EntityFieldRedaction::ordinaryFieldNames($this->entityTypeManager, $entity);
+            $allowed = $this->applyFieldAccessFilter($entity, array_fill_keys($names, true), $account);
+
+            return $this->haystackMatches(EntityValues::toCastAwareMap($entity, array_keys($allowed)), $needle);
+        }
+
         // Use a curated getValues() when present, else the guaranteed toArray(),
         // so search works for every entity type, not only those defining
         // getValues(). Recurse into nested arrays (e.g. _data blobs).

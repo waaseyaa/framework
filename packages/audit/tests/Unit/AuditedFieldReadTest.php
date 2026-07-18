@@ -18,10 +18,44 @@ use Waaseyaa\Audit\Contract\StrictPrivilegedReadLedgerInterface;
 use Waaseyaa\Audit\AuditedFieldRead;
 use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityStructure;
 use Waaseyaa\Entity\Exception\FieldReadDenied;
 
 final class AuditedFieldReadTest extends TestCase
 {
+    public function test_attached_structure_bundle_is_authoritative_for_audited_reads(): void
+    {
+        $registry = new InMemoryCapabilityRegistry();
+        $registry->register(new CapabilityDeclaration(
+            issuer: 'test.structure-bundle',
+            reason: CapabilityReason::CredentialVerification,
+            entityTypes: ['user'],
+            bundles: ['user'],
+            fields: ['pass'],
+            actorSemantics: [CapabilityActorSemantics::NoActingContext],
+            justification: 'Regression for hydrated empty bundle values.',
+        ));
+        $boundary = $registry->openBoundary('structure-bundle');
+        $capability = $registry->issueValueRead('test.structure-bundle', new CapabilityIssueContext(
+            executionBoundary: $boundary->correlationId,
+            actorSemantics: CapabilityActorSemantics::NoActingContext,
+            actorId: null,
+            tenantId: null,
+            communityId: null,
+            expiresAt: new \DateTimeImmutable('+30 seconds'),
+            classificationGeneration: 'class-1',
+            policyGeneration: 'policy-1',
+        ), $boundary);
+        $entity = new class(['bundle' => '', 'pass' => 'hash'], 'user') extends EntityBase {
+            public function bundle(): string { return (string) $this->get('bundle'); }
+        };
+        $entity->_attachEntityStructure(new EntityStructure('user', 'user', 7, fieldNames: ['bundle', 'pass']));
+        $ledger = $this->createMock(StrictPrivilegedReadLedgerInterface::class);
+        $ledger->method('reserve')->willReturn(new PrivilegedReadReceipt('structure-bundle'));
+
+        self::assertSame('hash', (new AuditedFieldRead($registry, $ledger))->read($capability, $boundary, $entity, 'pass'));
+    }
+
     #[Test]
     public function guarded_first_party_value_is_obtained_only_by_the_audited_reader_after_reservation(): void
     {

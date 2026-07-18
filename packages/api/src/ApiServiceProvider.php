@@ -138,7 +138,10 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
         $notificationDispatcher = $this->resolveOptional(NotificationDispatcher::class);
         if ($notificationDispatcher instanceof NotificationDispatcher) {
             $routers[] = new NotificationAdminApiRouter(
-                new NotificationController($notificationDispatcher),
+                new NotificationController(
+                    $notificationDispatcher,
+                    $this->resolve(\Waaseyaa\Access\User\UserInternalFieldReaderInterface::class),
+                ),
             );
         }
 

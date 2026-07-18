@@ -30,10 +30,10 @@ final class Media extends ContentEntityBase
         'changed' => ['type' => 'datetime_immutable', 'storage' => 'unix'],
     ];
 
-    #[Field(label: 'Name', description: 'The display name of this media item.', required: true, settings: ['weight' => 0])]
+    #[Field(label: 'Name', description: 'The display name of this media item.', required: true, settings: ['weight' => 0], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public string $name = '';
 
-    #[Field(label: 'Media type', description: 'The bundle (media type) of this item.', required: true, readOnly: true, settings: ['weight' => 1])]
+    #[Field(label: 'Media type', description: 'The bundle (media type) of this item.', required: true, readOnly: true, settings: ['weight' => 1], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public string $bundle = '';
 
     /**
@@ -51,8 +51,21 @@ final class Media extends ContentEntityBase
         description: 'The uploaded file for this media item.',
         settings: ['widget' => 'file', 'weight' => 5],
         stored: FieldStorage::Data,
+        read: \Waaseyaa\Entity\FieldReadLevel::Protected,
     )]
     public ?string $source_uri = null;
+
+    #[Field(type: 'integer', required: false, label: 'Owner', read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    public ?int $uid = null;
+
+    #[Field(type: 'boolean', required: false, label: 'Published', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
+    public bool $status = true;
+
+    #[Field(type: 'integer', required: false, label: 'Created', settings: ['subtype' => 'timestamp'], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
+    public ?int $created = null;
+
+    #[Field(type: 'integer', required: false, label: 'Changed', settings: ['subtype' => 'timestamp'], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
+    public ?int $changed = null;
 
     /**
      * @param array<string, string> $entityKeys Explicit keys when reconstructing via {@see ContentEntityBase::duplicateInstance()}.

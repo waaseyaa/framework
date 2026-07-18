@@ -15,19 +15,57 @@ use Waaseyaa\Entity\Cast\FromArrayEntityValueInterface;
 final class EntityValues
 {
     /**
-     * All keys from {@see EntityInterface::toArray()} with values from {@see EntityInterface::get()}.
+     * Selected stored fields with values from the guarded {@see EntityInterface::get()} path.
      *
+     * Framework entities enumerate without exporting a value bag. The `toArray()` fallback exists
+     * only for third-party EntityInterface implementations that do not expose fieldNames().
+     *
+     * @param list<string>|null $fieldNames Null selects every ordinary-readable stored field name.
      * @return array<string, mixed>
      */
-    public static function toCastAwareMap(EntityInterface $entity): array
+    public static function toCastAwareMap(EntityInterface $entity, ?array $fieldNames = null): array
     {
         $map = [];
-        foreach (array_keys($entity->toArray()) as $name) {
-            $key = (string) $name;
-            $map[$key] = $entity->get($key);
+        foreach ($fieldNames ?? self::ordinaryFieldNames($entity) as $fieldName) {
+            $map[$fieldName] = $entity->get($fieldName);
         }
 
         return $map;
+    }
+
+    /**
+     * Non-value-bearing field enumeration for framework entities.
+     *
+     * @return list<string>
+     */
+    public static function fieldNames(EntityInterface $entity): array
+    {
+        if ($entity instanceof EntityBase) {
+            return $entity->fieldNames();
+        }
+
+        $names = array_map('strval', array_keys($entity->toArray()));
+        sort($names);
+
+        return $names;
+    }
+
+    /**
+     * Field names eligible for ordinary guarded projection. Internal values require an audited reader.
+     *
+     * @return list<string>
+     */
+    public static function ordinaryFieldNames(EntityInterface $entity): array
+    {
+        $names = self::fieldNames($entity);
+        if (!$entity instanceof EntityBase) {
+            return $names;
+        }
+
+        return array_values(array_filter(
+            $names,
+            static fn(string $field): bool => $entity->fieldReadLevel($field) !== FieldReadLevel::Internal,
+        ));
     }
 
     /**

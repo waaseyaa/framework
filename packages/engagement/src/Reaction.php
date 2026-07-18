@@ -13,19 +13,19 @@ use Waaseyaa\Entity\ContentEntityBase;
 #[ContentEntityKeys(id: 'rid', uuid: 'uuid', label: 'reaction_type')]
 final class Reaction extends ContentEntityBase
 {
-    #[Field(label: 'Reaction Type', settings: ['weight' => 0])]
+    #[Field(label: 'Reaction Type', settings: ['weight' => 0], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $reaction_type = '';
 
-    #[Field(label: 'User ID', settings: ['weight' => 1])]
+    #[Field(label: 'User ID', settings: ['weight' => 1], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public int $user_id = 0;
 
-    #[Field(label: 'Target Entity Type', settings: ['weight' => 2])]
+    #[Field(label: 'Target Entity Type', settings: ['weight' => 2], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $target_type = '';
 
-    #[Field(label: 'Target Entity ID', settings: ['weight' => 3])]
+    #[Field(label: 'Target Entity ID', settings: ['weight' => 3], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public int $target_id = 0;
 
-    #[Field(type: 'integer', label: 'Created', settings: ['weight' => 10, 'subtype' => 'timestamp'])]
+    #[Field(type: 'integer', label: 'Created', settings: ['weight' => 10, 'subtype' => 'timestamp'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public ?int $created_at = null;
 
     /**

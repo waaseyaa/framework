@@ -8,8 +8,10 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\EntityValues;
 
 /**
  * Read a single entity by type + id.
@@ -126,16 +128,21 @@ final class EntityReadTool extends AbstractAgentTool
         // Prefer a curated getValues() when an entity provides one; otherwise use
         // the EntityInterface-guaranteed toArray(), so field values are exposed
         // for every entity, not only those that happen to define getValues().
-        $values = [];
-        if (method_exists($entity, 'getValues')) {
-            $curated = $entity->getValues();
-            $values = is_array($curated) ? $curated : [];
+        if ($entity instanceof EntityBase) {
+            $names = EntityFieldRedaction::ordinaryFieldNames($this->entityTypeManager, $entity);
+            $allowed = $this->applyFieldAccessFilter($entity, array_fill_keys($names, true), $account);
+            $values = EntityValues::toCastAwareMap($entity, array_keys($allowed));
+        } else {
+            $values = [];
+            if (method_exists($entity, 'getValues')) {
+                $curated = $entity->getValues();
+                $values = is_array($curated) ? $curated : [];
+            }
+            if ($values === []) {
+                $values = $entity->toArray();
+            }
+            $values = $this->filterReadableValues($entity, $values, $account);
         }
-        if ($values === []) {
-            $values = $entity->toArray();
-        }
-
-        $values = $this->filterReadableValues($entity, $values, $account);
         if ($values !== []) {
             $data['values'] = $values;
         }

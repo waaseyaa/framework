@@ -80,6 +80,9 @@ trait RevisionableEntityTrait
      */
     public function revisionId(): int|string|null
     {
+        if ($this instanceof EntityBase && $this->_hasEntityStructure()) {
+            return $this->entityStructure()->revisionId;
+        }
         return $this->revisionId;
     }
 
@@ -88,6 +91,9 @@ trait RevisionableEntityTrait
      */
     public function isCurrentRevision(): bool
     {
+        if ($this instanceof EntityBase && $this->_hasEntityStructure()) {
+            return $this->entityStructure()->revisionTip;
+        }
         return $this->isCurrentRevision;
     }
 
@@ -187,8 +193,13 @@ trait RevisionableEntityTrait
 
     public function getRevisionId(): ?int
     {
+        if ($this instanceof EntityBase && $this->_hasEntityStructure()) {
+            $revisionId = $this->entityStructure()->revisionId;
+
+            return $revisionId === null ? null : (int) $revisionId;
+        }
         $revisionKey = $this->entityKeys['revision'] ?? 'revision_id';
-        $value = $this->values[$revisionKey] ?? null;
+        $value = $this->get($revisionKey);
 
         if ($value === null) {
             return null;
@@ -199,12 +210,18 @@ trait RevisionableEntityTrait
 
     public function isDefaultRevision(): bool
     {
-        return (bool) ($this->values['is_default_revision'] ?? true);
+        if ($this instanceof EntityBase && $this->_hasEntityStructure()) {
+            return $this->entityStructure()->defaultRevision;
+        }
+        return (bool) ($this->get('is_default_revision') ?? true);
     }
 
     public function isLatestRevision(): bool
     {
-        return (bool) ($this->values['is_latest_revision'] ?? true);
+        if ($this instanceof EntityBase && $this->_hasEntityStructure()) {
+            return $this->entityStructure()->revisionTip;
+        }
+        return (bool) ($this->get('is_latest_revision') ?? true);
     }
 
     public function setNewRevision(bool $value): void
@@ -219,13 +236,13 @@ trait RevisionableEntityTrait
 
     public function setRevisionLog(?string $log): void
     {
-        $this->values['revision_log'] = $log;
+        $this->set('revision_log', $log);
     }
 
     public function getRevisionLog(): ?string
     {
-        return isset($this->values['revision_log'])
-            ? (string) $this->values['revision_log']
-            : null;
+        $value = $this->get('revision_log');
+
+        return $value === null ? null : (string) $value;
     }
 }

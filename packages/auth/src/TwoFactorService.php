@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Auth;
 
+use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\User\User;
 
@@ -24,6 +25,7 @@ final class TwoFactorService
     public function __construct(
         private readonly TwoFactorManager $manager,
         private readonly EntityTypeManagerInterface $entityTypeManager,
+        private readonly UserInternalFieldReaderInterface $internalFields,
     ) {}
 
     /**
@@ -41,9 +43,10 @@ final class TwoFactorService
 
         $secret = $this->manager->generateSecret();
         $recoveryCodes = $this->manager->generateRecoveryCodes();
+        $identity = $this->internalFields->twoFactor($user);
         $qrCodeUri = $this->manager->getQrCodeUri(
             $secret,
-            $user->getEmail() !== '' ? $user->getEmail() : $user->getName(),
+            $identity->mail !== '' ? $identity->mail : $user->getName(),
             self::ISSUER,
         );
 
@@ -94,14 +97,15 @@ final class TwoFactorService
      */
     public function verify(User $user, string $code): bool
     {
-        $secret = $user->getTwoFactorSecret();
+        $snapshot = $this->internalFields->twoFactor($user);
+        $secret = $snapshot->secret;
         if ($secret === null || $code === '') {
             return false;
         }
 
         $matchedStep = $this->manager->verifyCodeStep($secret, $code);
         if ($matchedStep !== null) {
-            $lastUsedStep = $user->getTwoFactorLastUsedStep();
+            $lastUsedStep = $snapshot->lastUsedStep;
             if ($lastUsedStep !== null && $matchedStep <= $lastUsedStep) {
                 // Replay of a code from an already-consumed time step.
                 return false;
@@ -113,7 +117,7 @@ final class TwoFactorService
             return true;
         }
 
-        $hashes = $user->getTwoFactorRecoveryCodesHash() ?? [];
+        $hashes = $snapshot->recoveryCodeHashes;
         foreach ($hashes as $index => $hash) {
             if (password_verify($code, $hash)) {
                 unset($hashes[$index]);
@@ -141,6 +145,6 @@ final class TwoFactorService
 
     public function isEnabled(User $user): bool
     {
-        return $user->getTwoFactorSecret() !== null;
+        return $this->internalFields->twoFactor($user)->secret !== null;
     }
 }

@@ -6,6 +6,7 @@ namespace Waaseyaa\Auth\Controller;
 
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Waaseyaa\Access\User\UserIdentityLookupInterface;
 use Waaseyaa\Auth\Config\AuthConfig;
 use Waaseyaa\Auth\Config\MailMissingPolicy;
 use Waaseyaa\Auth\RateLimiterInterface;
@@ -25,6 +26,7 @@ final class ForgotPasswordController
         private readonly AuthTokenRepositoryInterface $tokenRepo,
         private readonly AuthMailer $authMailer,
         private readonly RateLimiterInterface $rateLimiter,
+        private readonly UserIdentityLookupInterface $identityLookup,
         ?LoggerInterface $logger = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
@@ -64,12 +66,7 @@ final class ForgotPasswordController
         // 5. Look up user by email (C-22 WP3: canonical repository; loadByKey()
         // has no repository equivalent, so the lookup is a bounded query + find()).
         $repository = $this->entityTypeManager->getRepository('user');
-        $ids = $repository->getQuery()
-            ->accessCheck(false)
-            ->condition('mail', $email)
-            ->range(0, 1)
-            ->execute();
-        $entity = $ids === [] ? null : $repository->find((string) $ids[0]);
+        $entity = $this->identityLookup->findActiveByLogin($repository, $email);
 
         /** @var \Waaseyaa\User\User|null $user */
         $user = $entity;

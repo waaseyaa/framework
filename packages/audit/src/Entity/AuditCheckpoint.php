@@ -38,7 +38,7 @@ final class AuditCheckpoint extends ContentEntityBase
      */
     public function get(string $name): mixed
     {
-        return $this->values[$name] ?? null;
+        return parent::get($name);
     }
 
     public function getUuid(): string

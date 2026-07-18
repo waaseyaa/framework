@@ -13,16 +13,16 @@ use Waaseyaa\Entity\ContentEntityBase;
 #[ContentEntityKeys(id: 'fid', uuid: 'uuid', label: 'target_type')]
 final class Follow extends ContentEntityBase
 {
-    #[Field(label: 'User ID', settings: ['weight' => 0])]
+    #[Field(label: 'User ID', settings: ['weight' => 0], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public int $user_id = 0;
 
-    #[Field(label: 'Target Entity Type', settings: ['weight' => 1])]
+    #[Field(label: 'Target Entity Type', settings: ['weight' => 1], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $target_type = '';
 
-    #[Field(label: 'Target Entity ID', settings: ['weight' => 2])]
+    #[Field(label: 'Target Entity ID', settings: ['weight' => 2], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public int $target_id = 0;
 
-    #[Field(type: 'integer', label: 'Created', settings: ['weight' => 10, 'subtype' => 'timestamp'])]
+    #[Field(type: 'integer', label: 'Created', settings: ['weight' => 10, 'subtype' => 'timestamp'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public ?int $created_at = null;
 
     /**

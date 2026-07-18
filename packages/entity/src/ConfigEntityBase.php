@@ -62,7 +62,7 @@ abstract class ConfigEntityBase extends EntityBase implements ConfigEntityInterf
     public function enable(): static
     {
         $this->status = true;
-        $this->values['status'] = true;
+        $this->set('status', true);
 
         return $this;
     }
@@ -70,7 +70,7 @@ abstract class ConfigEntityBase extends EntityBase implements ConfigEntityInterf
     public function disable(): static
     {
         $this->status = false;
-        $this->values['status'] = false;
+        $this->set('status', false);
 
         return $this;
     }
@@ -91,7 +91,7 @@ abstract class ConfigEntityBase extends EntityBase implements ConfigEntityInterf
     public function setDependencies(array $dependencies): static
     {
         $this->dependencies = $dependencies;
-        $this->values['dependencies'] = $dependencies;
+        $this->set('dependencies', $dependencies);
 
         return $this;
     }

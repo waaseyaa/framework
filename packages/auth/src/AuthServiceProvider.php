@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Auth;
 
+use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface;
@@ -13,7 +14,9 @@ final class AuthServiceProvider extends ServiceProvider implements HasMiddleware
 {
     public function register(): void
     {
-        $this->singleton(AuthManager::class, fn() => new AuthManager());
+        $this->singleton(AuthManager::class, fn() => new AuthManager(
+            $this->resolve(UserInternalFieldReaderInterface::class),
+        ));
 
         $this->singleton(RateLimiterInterface::class, function () {
             $db = $this->resolve(\Waaseyaa\Database\DatabaseInterface::class);
@@ -57,6 +60,7 @@ final class AuthServiceProvider extends ServiceProvider implements HasMiddleware
         $this->singleton(TwoFactorService::class, fn() => new TwoFactorService(
             $this->resolve(TwoFactorManager::class),
             $this->resolve(EntityTypeManager::class),
+            $this->resolve(UserInternalFieldReaderInterface::class),
         ));
     }
 

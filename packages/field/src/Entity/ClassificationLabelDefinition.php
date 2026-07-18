@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Field\Entity;
 
 use Waaseyaa\Entity\Attribute\ContentEntityType;
+use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
 
 /**
@@ -32,6 +33,15 @@ use Waaseyaa\Entity\ContentEntityBase;
 )]
 final class ClassificationLabelDefinition extends ContentEntityBase
 {
+    #[Field(required: false, label: 'Label ID', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
+    public string $label_id = '';
+
+    #[Field(required: false, label: 'Display name', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
+    public string $display_name = '';
+
+    #[Field(type: 'integer', required: false, label: 'Confidentiality level', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
+    public int $confidentiality_level = 0;
+
     /**
      * @param array<string, mixed> $values
      * @param array<string, string> $entityKeys

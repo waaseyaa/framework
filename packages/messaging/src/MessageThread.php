@@ -13,22 +13,22 @@ use Waaseyaa\Entity\ContentEntityBase;
 #[ContentEntityKeys(id: 'mtid', uuid: 'uuid', label: 'title')]
 final class MessageThread extends ContentEntityBase
 {
-    #[Field(label: 'Title', settings: ['weight' => 0])]
+    #[Field(label: 'Title', settings: ['weight' => 0], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $title = '';
 
-    #[Field(label: 'Created By', settings: ['weight' => 1])]
+    #[Field(label: 'Created By', settings: ['weight' => 1], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public int $created_by = 0;
 
-    #[Field(label: 'Thread Type', default: 'direct', settings: ['weight' => 2])]
+    #[Field(label: 'Thread Type', default: 'direct', settings: ['weight' => 2], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $thread_type = 'direct';
 
-    #[Field(type: 'integer', label: 'Created', settings: ['weight' => 10, 'subtype' => 'timestamp'])]
+    #[Field(type: 'integer', label: 'Created', settings: ['weight' => 10, 'subtype' => 'timestamp'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public ?int $created_at = null;
 
-    #[Field(type: 'integer', label: 'Updated', settings: ['weight' => 11, 'subtype' => 'timestamp'])]
+    #[Field(type: 'integer', label: 'Updated', settings: ['weight' => 11, 'subtype' => 'timestamp'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public ?int $updated_at = null;
 
-    #[Field(type: 'integer', label: 'Last Message At', default: 0, settings: ['weight' => 12, 'subtype' => 'timestamp'])]
+    #[Field(type: 'integer', label: 'Last Message At', default: 0, settings: ['weight' => 12, 'subtype' => 'timestamp'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public ?int $last_message_at = 0;
 
     /**

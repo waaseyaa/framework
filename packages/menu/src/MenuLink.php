@@ -6,6 +6,7 @@ namespace Waaseyaa\Menu;
 
 use Waaseyaa\Entity\Attribute\ContentEntityKeys;
 use Waaseyaa\Entity\Attribute\ContentEntityType;
+use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
 
 /**
@@ -18,6 +19,27 @@ use Waaseyaa\Entity\ContentEntityBase;
 #[ContentEntityKeys(label: 'title', bundle: 'menu_name')]
 final class MenuLink extends ContentEntityBase
 {
+    #[Field(required: false, label: 'Title', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
+    public string $title = '';
+
+    #[Field(required: false, label: 'URL', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
+    public string $url = '';
+
+    #[Field(required: false, label: 'Menu', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
+    public string $menu_name = '';
+
+    #[Field(type: 'string', required: false, label: 'Parent', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
+    public int|string|null $parent_id = null;
+
+    #[Field(type: 'integer', required: false, label: 'Weight', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
+    public int $weight = 0;
+
+    #[Field(type: 'boolean', required: false, label: 'Enabled', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
+    public bool $enabled = true;
+
+    #[Field(type: 'boolean', required: false, label: 'Expanded', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
+    public bool $expanded = false;
+
     /**
      * @param array<string, mixed> $values Initial entity values.
      * @param array<string, string> $entityKeys Explicit keys when reconstructing via {@see ContentEntityBase::duplicateInstance()}.

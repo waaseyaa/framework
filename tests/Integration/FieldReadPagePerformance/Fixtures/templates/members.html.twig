@@ -1,0 +1,7 @@
+{% extends "layouts/base.html.twig" %}
+{% block title %}Members{% endblock %}
+{% block body %}
+<main id="frozen-members-directory"><ol>
+{% for member in members %}<li data-member-id="{{ member.id }}"><a href="/user/{{ member.id }}">{{ member.name }}</a></li>{% endfor %}
+</ol></main>
+{% endblock %}

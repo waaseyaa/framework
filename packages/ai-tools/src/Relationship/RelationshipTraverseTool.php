@@ -8,8 +8,11 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
+use Waaseyaa\AI\Tools\Entity\EntityFieldRedaction;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\EntityValues;
 
 /**
  * Traverse the relationship graph starting from a source entity.
@@ -135,7 +138,7 @@ final class RelationshipTraverseTool extends AbstractAgentTool
                 continue;
             }
 
-            $values = $this->extractValues($row);
+            $values = $this->extractValues($row, $account);
 
             // Endpoint-identity gate: the edge record's own AccessPolicy says
             // nothing about whether the account may view the ENDPOINT entity
@@ -176,8 +179,18 @@ final class RelationshipTraverseTool extends AbstractAgentTool
      *
      * @return array<string, mixed>
      */
-    private function extractValues(EntityInterface $row): array
+    private function extractValues(EntityInterface $row, AccountInterface $account): array
     {
+        if ($row instanceof EntityBase) {
+            $names = EntityFieldRedaction::ordinaryFieldNames($this->entityTypeManager, $row);
+            $allowed = $this->applyFieldAccessFilter($row, array_fill_keys($names, true), $account);
+
+            return EntityValues::toCastAwareMap(
+                $row,
+                array_keys($allowed),
+            );
+        }
+
         $values = [];
         if (method_exists($row, 'getValues')) {
             $curated = $row->getValues();

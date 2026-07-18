@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Auth\Tests\Unit\Controller;
 
+use Waaseyaa\Tests\Support\UserIdentityLookupFixture;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
+
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -101,6 +104,8 @@ final class RegisterControllerTest extends TestCase
             tokenRepo: $tokenRepo ?? $this->makeTokenRepo(),
             authMailer: $authMailer ?? $this->makeAuthMailer(),
             rateLimiter: $rateLimiter ?? new RateLimiter(),
+            identityLookup: new UserIdentityLookupFixture(),
+            internalFields: new UserInternalFieldReaderFixture(),
         );
     }
 

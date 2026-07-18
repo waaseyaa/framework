@@ -58,7 +58,7 @@ final class SqlEntityQueryResultCacheTest extends TestCase
     }
 
     #[Test]
-    public function execute_returns_cached_ids_until_invalidated(): void
+    public function execute_returns_cached_ids_until_a_new_request_cache_is_used(): void
     {
         $cache = new SqlEntityQueryResultCache();
         $query = new SqlEntityQuery($this->entityType, $this->database, $cache);
@@ -77,9 +77,7 @@ final class SqlEntityQueryResultCacheTest extends TestCase
         $idsStale = $query2->condition('bundle', 'article')->execute();
         $this->assertSame([1], $idsStale);
 
-        $cache->invalidate('cache_test_entity');
-
-        $query3 = new SqlEntityQuery($this->entityType, $this->database, $cache);
+        $query3 = new SqlEntityQuery($this->entityType, $this->database, new SqlEntityQueryResultCache());
         $query3->accessCheck(false);
         $idsFresh = $query3->condition('bundle', 'article')->execute();
         $this->assertCount(2, $idsFresh);
@@ -88,16 +86,15 @@ final class SqlEntityQueryResultCacheTest extends TestCase
     }
 
     /**
-     * C-22 WP4 note: the retired SqlEntityStorage owned a single shared
-     * {@see SqlEntityQueryResultCache} and invalidated it internally inside
-     * save()/delete(). EntityRepository — the sole surviving engine — does
+     * C-22 WP4 note: the retired SqlEntityStorage owned a shared
+     * {@see SqlEntityQueryResultCache}. EntityRepository — the sole surviving engine — does
      * not carry that wiring forward: its getQuery() always builds a fresh,
      * uncached SqlEntityQuery (no resultCache argument is ever passed), so
      * there is no shared-cache staleness to invalidate on save through the
      * public API. This test pinned SqlEntityStorage's own internal
      * invalidation call, which has no equivalent surface on EntityRepository
      * to exercise, so it is not ported (see
-     * execute_returns_cached_ids_until_invalidated above for the still-live
+     * execute_returns_cached_ids_until_a_new_request_cache_is_used above for the still-live
      * SqlEntityQuery + SqlEntityQueryResultCache contract this file covers).
      */
     #[Test]

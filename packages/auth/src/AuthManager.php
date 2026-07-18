@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Auth;
 
+use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\User\User;
 
 /**
@@ -11,16 +12,19 @@ use Waaseyaa\User\User;
  */
 final class AuthManager
 {
+    public function __construct(private readonly UserInternalFieldReaderInterface $internalFields) {}
+
     /**
      * Validate user credentials.
      */
     public function authenticate(User $user, string $password): bool
     {
-        if (!$user->isActive()) {
+        $credentials = $this->internalFields->credentials($user);
+        if (!$credentials->active) {
             return false;
         }
 
-        return $user->checkPassword($password);
+        return $credentials->passwordHash !== '' && password_verify($password, $credentials->passwordHash);
     }
 
     /**

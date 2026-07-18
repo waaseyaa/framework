@@ -57,14 +57,21 @@ final class FieldReadAccessContractsTest extends TestCase
 
         $scope->run($outer, function () use ($scope, $outer, $inner): void {
             self::assertSame($outer, $scope->current());
+            $outerContext = $scope->currentContext();
+            self::assertNotNull($outerContext);
             try {
-                $scope->run($inner, static fn () => throw new \RuntimeException('stop'));
+                $scope->run($inner, function () use ($scope, $outerContext): void {
+                    self::assertNotSame($outerContext, $scope->currentContext());
+                    throw new \RuntimeException('stop');
+                });
             } catch (\RuntimeException) {
             }
             self::assertSame($outer, $scope->current());
+            self::assertSame($outerContext, $scope->currentContext());
         });
 
         self::assertNull($scope->current());
+        self::assertNull($scope->currentContext());
     }
 
     #[Test]

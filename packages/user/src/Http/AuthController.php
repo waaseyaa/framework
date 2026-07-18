@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\User\Http;
 
 use Waaseyaa\Access\AccountInterface;
-use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
+use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\User\User;
@@ -17,8 +17,10 @@ final class AuthController
 {
     private readonly LoggerInterface $logger;
 
-    public function __construct(?LoggerInterface $logger = null)
-    {
+    public function __construct(
+        private readonly UserInternalFieldReaderInterface $internalFields,
+        ?LoggerInterface $logger = null,
+    ) {
         $this->logger = $logger ?? new NullLogger();
     }
 
@@ -40,53 +42,13 @@ final class AuthController
             ];
         }
 
-        $data = [
-            'id' => $account->id(),
-            'name' => $account instanceof User ? $account->getName() : '',
-            'email' => $account instanceof User ? $account->getEmail() : '',
-            'roles' => $account->getRoles(),
-        ];
+        if ($account instanceof User) {
+            $identity = $this->internalFields->sessionIdentity($account);
+            $data = ['id' => $account->id(), 'name' => $identity->name, 'email' => $identity->mail, 'roles' => $identity->roles];
+        } else {
+            $data = ['id' => $account->id(), 'name' => '', 'email' => '', 'roles' => $account->getRoles()];
+        }
 
         return ['statusCode' => 200, 'data' => $data];
-    }
-
-    /**
-     * Looks up a user by name or email in storage. Returns null if not found.
-     *
-     * Pre-authentication identity resolution: there is no bound account on the
-     * request, so the SqlEntityQuery fail-closed guard (mission
-     * sql-entity-query-access-checking-01KRYP15, C-006) would throw at
-     * execute(). The two lookups below opt out with accessCheck(false), mirroring
-     * the documented system-context pattern in SqlEntityStorage::loadByKey
-     * (C-004). The status=1 condition still excludes blocked users.
-     */
-    public function findUserByName(EntityRepositoryInterface $repository, string $name): ?User
-    {
-        // Try by name first. C-22 WP2/WP3: both the query surface and the read path
-        // now live on the repository.
-        $ids = $repository->getQuery()
-            ->accessCheck(false)
-            ->condition('name', $name)
-            ->condition('status', 1)
-            ->range(0, 1)
-            ->execute();
-
-        // If not found, try by mail field (stored in _data JSON blob).
-        if ($ids === []) {
-            $ids = $repository->getQuery()
-                ->accessCheck(false)
-                ->condition('mail', $name)
-                ->condition('status', 1)
-                ->range(0, 1)
-                ->execute();
-        }
-
-        if ($ids === []) {
-            return null;
-        }
-
-        $user = $repository->find((string) reset($ids));
-
-        return $user instanceof User ? $user : null;
     }
 }

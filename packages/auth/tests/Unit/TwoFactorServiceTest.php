@@ -16,6 +16,7 @@ use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 use Waaseyaa\User\User;
 
 #[CoversClass(TwoFactorService::class)]
@@ -123,7 +124,7 @@ final class TwoFactorServiceTest extends TestCase
             }
         };
 
-        $this->service = new TwoFactorService($this->manager, $typeManager);
+        $this->service = new TwoFactorService($this->manager, $typeManager, new UserInternalFieldReaderFixture());
     }
 
     public function testSetupReturnsResultWithAllFields(): void

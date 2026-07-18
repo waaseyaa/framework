@@ -9,9 +9,11 @@ use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Queue\Envelope\NoAuthorityQueueRuntime;
 use Waaseyaa\Queue\Envelope\QueueAuthorityRuntimeInterface;
 use Waaseyaa\Queue\Envelope\QueueEnvelopeV1;
+use Waaseyaa\Queue\Exception\InvalidPersistentPayload;
 use Waaseyaa\Queue\FailedJobRepositoryInterface;
 use Waaseyaa\Queue\Handler\HandlerInterface;
 use Waaseyaa\Queue\Job;
+use Waaseyaa\Queue\PersistentQueueBoundaryConfig;
 use Waaseyaa\Queue\Security\SignedQueuePayload;
 use Waaseyaa\Queue\Transport\TransportInterface;
 
@@ -31,6 +33,7 @@ final class Worker
     private readonly QueueAuthorityRuntimeInterface $authorityRuntime;
 
     private bool $legacyPayloadDiagnosticEmitted = false;
+    private readonly PersistentQueueBoundaryConfig $boundaryConfig;
 
     /**
      * @param list<HandlerInterface> $handlers
@@ -42,10 +45,15 @@ final class Worker
         private readonly SignedQueuePayload $payloadSigner,
         ?LoggerInterface $logger = null,
         ?QueueAuthorityRuntimeInterface $authorityRuntime = null,
+        ?PersistentQueueBoundaryConfig $boundaryConfig = null,
     ) {
         $this->handlers = $handlers;
         $this->logger = $logger ?? new NullLogger();
         $this->authorityRuntime = $authorityRuntime ?? new NoAuthorityQueueRuntime();
+        $this->boundaryConfig = $boundaryConfig ?? PersistentQueueBoundaryConfig::dormant();
+        if ($this->boundaryConfig->requireAuthorityEnvelope && $this->authorityRuntime instanceof NoAuthorityQueueRuntime) {
+            throw new \InvalidArgumentException('Activated queue workers require an authority-restoring runtime.');
+        }
     }
 
     /**
@@ -149,6 +157,16 @@ final class Worker
                 return;
             }
         } else {
+            if ($this->boundaryConfig->requireAuthorityEnvelope) {
+                $this->failedJobRepository->record(
+                    $queue,
+                    $raw['payload'],
+                    new InvalidPersistentPayload('Activated queue workers reject legacy payloads without a versioned authority envelope.'),
+                );
+                $this->transport->reject($raw['id']);
+
+                return;
+            }
             // Dormant compatibility path. It installs no authority; activation
             // preflight requires these payloads to be drained or requeued.
             $message = $decoded;

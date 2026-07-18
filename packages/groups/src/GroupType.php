@@ -47,12 +47,12 @@ final class GroupType extends ConfigEntityBase
 
     public function getDescription(): string
     {
-        return (string) ($this->values['description'] ?? '');
+        return (string) ($this->get('description') ?? '');
     }
 
     public function setDescription(string $description): static
     {
-        $this->values['description'] = $description;
+        $this->set('description', $description);
 
         return $this;
     }

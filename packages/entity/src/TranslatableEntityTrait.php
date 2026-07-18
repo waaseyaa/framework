@@ -48,13 +48,6 @@ trait TranslatableEntityTrait
     protected ?string $activeLangcode = null;
 
     /**
-     * Langcode → field-values map. Populated by storage backends during hydration (WP04/WP05).
-     *
-     * @var array<string, array<string, mixed>>
-     */
-    protected array $translationData = [];
-
-    /**
      * Field-name → resolved-langcode (null when fallback exhausted). Populated by FallbackChainResolver (WP06).
      *
      * @var array<string, ?string>
@@ -83,7 +76,10 @@ trait TranslatableEntityTrait
 
     public function defaultLangcode(): string
     {
-        $defaultLc = $this->values['default_langcode'] ?? null;
+        if ($this->_hasEntityStructure()) {
+            return $this->entityStructure()->defaultLanguageId;
+        }
+        $defaultLc = parent::get('default_langcode');
 
         if ($defaultLc === null || $defaultLc === '') {
             throw EntityTranslationException::langcodeRequired();
@@ -94,6 +90,9 @@ trait TranslatableEntityTrait
 
     public function activeLangcode(): string
     {
+        if ($this->_hasEntityStructure()) {
+            return $this->entityStructure()->activeLanguageId;
+        }
         return $this->activeLangcode ?? $this->defaultLangcode();
     }
 
@@ -110,11 +109,14 @@ trait TranslatableEntityTrait
      */
     public function language(): string
     {
-        $defaultLc = $this->values['default_langcode'] ?? null;
+        if ($this->_hasEntityStructure()) {
+            return $this->entityStructure()->activeLanguageId;
+        }
+        $defaultLc = parent::get('default_langcode');
         if ($defaultLc === null || $defaultLc === '') {
             $langcodeKey = $this->entityKeys['langcode'] ?? 'langcode';
 
-            return (string) ($this->values[$langcodeKey] ?? $this->values['langcode'] ?? 'en');
+            return (string) (parent::get($langcodeKey) ?? parent::get('langcode') ?? 'en');
         }
 
         return $this->activeLangcode();
@@ -124,7 +126,7 @@ trait TranslatableEntityTrait
     {
         $this->assertTranslatable();
 
-        return \array_key_exists($langcode, $this->translationData);
+        return $this->hasTranslationValues($langcode);
     }
 
     public function getTranslation(string $langcode): static
@@ -154,7 +156,7 @@ trait TranslatableEntityTrait
             throw EntityTranslationException::translationAlreadyExists($langcode);
         }
 
-        $this->translationData[$langcode] = [];
+        $this->addTranslationValues($langcode);
 
         $clone = clone $this;
         $clone->activeLangcode = $langcode;
@@ -172,7 +174,7 @@ trait TranslatableEntityTrait
         }
 
         if ($this->hasTranslation($langcode)) {
-            unset($this->translationData[$langcode]);
+            $this->removeTranslationValues($langcode);
             $this->pendingTranslationDeletions[] = $langcode;
             $this->syncStructuralLanguages($this->activeLangcode(), $this->defaultLangcode(), $this->getTranslationLanguages());
         }
@@ -188,7 +190,7 @@ trait TranslatableEntityTrait
         $this->assertTranslatable();
 
         $defaultLc = $this->defaultLangcode();
-        $others = \array_keys($this->translationData);
+        $others = $this->translationValueLanguages();
         \sort($others);
 
         yield $defaultLc;
@@ -224,8 +226,8 @@ trait TranslatableEntityTrait
      */
     public function _setTranslationData(array $data, string $defaultLc): void
     {
-        $this->translationData = $data;
-        $this->values['default_langcode'] = $defaultLc;
+        $this->replaceTranslationValues($data);
+        parent::set('default_langcode', $defaultLc);
         $this->activeLangcode = null;
         $known = array_keys($data);
         if (!in_array($defaultLc, $known, true)) {
@@ -351,8 +353,8 @@ trait TranslatableEntityTrait
      */
     private function loadFieldValue(string $fieldName, string $langcode): mixed
     {
-        if (isset($this->translationData[$langcode]) && \array_key_exists($fieldName, $this->translationData[$langcode])) {
-            return $this->translationData[$langcode][$fieldName];
+        if ($this->translationValueHasField($langcode, $fieldName)) {
+            return $this->readTranslationValue($langcode, $fieldName);
         }
 
         if ($langcode === $this->defaultLangcode()) {

@@ -12,6 +12,7 @@ use Waaseyaa\CLI\Command\Config\ConfigImportCommand;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\ConfigExportHandler;
 use Waaseyaa\CLI\Handler\ConfigImportHandler;
+use Waaseyaa\CLI\Provider\HealthSchemaServiceProvider;
 use Waaseyaa\Config\Exception\ConfigCommandCollisionException;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -32,6 +33,22 @@ final class ConsoleApplicationFactory
     ) {}
 
     public function create(): WaaseyaaConsoleApplication
+    {
+        return $this->createFiltered(null);
+    }
+
+    public function createFieldAccessPreflightOnly(): WaaseyaaConsoleApplication
+    {
+        $logger = $this->logger ?? new NullLogger();
+        $versionResolver = $this->versionResolver ?? new VersionResolver($this->kernel->getProjectRoot());
+        $application = new WaaseyaaConsoleApplication($versionResolver->resolve(), $logger);
+        $application->addCommand(HealthSchemaServiceProvider::fieldAccessPreflightCommand()->withContainer($this->container));
+
+        return $application;
+    }
+
+    /** @param list<string>|null $allowedCommands */
+    private function createFiltered(?array $allowedCommands): WaaseyaaConsoleApplication
     {
         $logger = $this->logger ?? new NullLogger();
         $versionResolver = $this->versionResolver ?? new VersionResolver($this->kernel->getProjectRoot());
@@ -57,6 +74,9 @@ final class ConsoleApplicationFactory
                     $name = $command->getName();
                     if ($name === null || $name === '') {
                         $logger->warning(sprintf('Console command from "%s" has no name; skipped.', $provider::class));
+                        continue;
+                    }
+                    if ($allowedCommands !== null && !in_array($name, $allowedCommands, true)) {
                         continue;
                     }
 

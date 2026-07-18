@@ -10,10 +10,15 @@ use Waaseyaa\Access\Capability\CapabilityDeclaration;
 use Waaseyaa\Access\Capability\CapabilityReason;
 use Waaseyaa\Access\Capability\CapabilityRegistryInterface;
 use Waaseyaa\Access\Capability\InMemoryCapabilityRegistry;
+use Waaseyaa\Access\Capability\QueryFieldOperation;
 use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\Middleware\FieldReadContextMiddleware;
+use Waaseyaa\Access\User\UserIdentityLookupInterface;
+use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
+use Waaseyaa\Audit\Bootstrap\AuditedUserIdentityLookup;
+use Waaseyaa\Audit\Bootstrap\AuditedUserInternalFieldReader;
 use Waaseyaa\Audit\Bootstrap\IdentityBootstrapReader;
 use Waaseyaa\Audit\Bootstrap\SessionBootstrapReader;
 use Waaseyaa\Audit\Contract\AuditQueryInterface;
@@ -86,6 +91,36 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
                 bindTenantFromContext: true,
                 bindCommunityFromContext: true,
             ));
+            foreach ([
+                ['user.credentials', CapabilityReason::CredentialVerification, ['status', 'pass']],
+                ['user.two-factor', CapabilityReason::CredentialVerification, ['mail', 'two_factor_secret', 'two_factor_recovery_codes_hash', 'two_factor_last_used_step']],
+                ['user.mail-delivery', CapabilityReason::MailDelivery, ['name', 'mail']],
+                ['user.verification', CapabilityReason::CredentialVerification, ['mail', 'email_verified']],
+                ['user.session-identity', CapabilityReason::SessionBootstrap, ['name', 'mail', 'roles']],
+                ['user.maintenance-authorization', CapabilityReason::MaintenanceCli, ['roles', 'permissions']],
+            ] as [$issuer, $reason, $fields]) {
+                $registry->register(new CapabilityDeclaration(
+                    issuer: $issuer,
+                    reason: $reason,
+                    entityTypes: ['user'],
+                    bundles: ['user'],
+                    fields: $fields,
+                    actorSemantics: [CapabilityActorSemantics::NoActingContext],
+                    maxTtlSeconds: 60,
+                    justification: 'Exact framework-owned User internal field operation.',
+                ));
+            }
+            $registry->register(new CapabilityDeclaration(
+                issuer: 'user.identity-lookup',
+                reason: CapabilityReason::CredentialVerification,
+                entityTypes: ['user'],
+                bundles: ['user'],
+                queryFields: ['name', 'mail', 'status'],
+                queryOperations: [QueryFieldOperation::Predicate, QueryFieldOperation::Exists],
+                actorSemantics: [CapabilityActorSemantics::NoActingContext],
+                maxTtlSeconds: 60,
+                justification: 'Resolve an active login identity without exposing query authority.',
+            ));
             return $registry;
         });
 
@@ -93,6 +128,24 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
 
         $this->singleton(StrictPrivilegedReadLedgerInterface::class, function (): StrictPrivilegedReadLedgerInterface {
             return new DatabaseStrictPrivilegedReadLedger($this->resolve(DatabaseInterface::class));
+        });
+
+        $this->singleton(UserInternalFieldReaderInterface::class, function (): UserInternalFieldReaderInterface {
+            $capabilities = $this->resolve(CapabilityRegistryInterface::class);
+            $ledger = $this->resolve(StrictPrivilegedReadLedgerInterface::class);
+            assert($capabilities instanceof CapabilityRegistryInterface);
+            assert($ledger instanceof StrictPrivilegedReadLedgerInterface);
+
+            return new AuditedUserInternalFieldReader(new AuditedFieldRead($capabilities, $ledger), $capabilities);
+        });
+
+        $this->singleton(UserIdentityLookupInterface::class, function (): UserIdentityLookupInterface {
+            $capabilities = $this->resolve(CapabilityRegistryInterface::class);
+            $ledger = $this->resolve(StrictPrivilegedReadLedgerInterface::class);
+            assert($capabilities instanceof CapabilityRegistryInterface);
+            assert($ledger instanceof StrictPrivilegedReadLedgerInterface);
+
+            return new AuditedUserIdentityLookup(new AuditedQueryFieldRead($capabilities, $ledger), $capabilities);
         });
 
         $this->singleton(AuditWriterInterface::class, function (): AuditWriterInterface {

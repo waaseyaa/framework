@@ -29,6 +29,26 @@ final class ConsoleKernel extends AbstractKernel
             return $application->run($input, $output);
         }
 
+        if ($input->getFirstArgument() === 'field-access:preflight') {
+            try {
+                $this->bootForFieldAccessPreflight();
+            } catch (\Throwable $e) {
+                $application = new WaaseyaaConsoleApplication(
+                    version: new VersionResolver($this->projectRoot)->resolve(),
+                    logger: $this->logger,
+                );
+
+                return $application->renderWaaseyaaThrowable($e, $output);
+            }
+
+            return new ConsoleApplicationFactory(
+                kernel: $this,
+                container: $this->buildHandlerContainer(),
+                providers: $this->getProviders(),
+                logger: $this->logger,
+            )->createFieldAccessPreflightOnly()->run($input, $output);
+        }
+
         try {
             $this->bootForCli();
         } catch (\Throwable $e) {

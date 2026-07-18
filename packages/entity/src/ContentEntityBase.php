@@ -139,7 +139,7 @@ abstract class ContentEntityBase extends EntityBase implements ContentEntityInte
 
     public function hasField(string $name): bool
     {
-        return \array_key_exists($name, $this->values)
+        return \in_array($name, $this->fieldNames(), true)
             || \array_key_exists($name, $this->getFieldDefinitions());
     }
 

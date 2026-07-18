@@ -6,6 +6,7 @@ namespace Waaseyaa\Entity\Tests\Unit\Preflight;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Entity\Exception\FieldAccessActivationBlocked;
 use Waaseyaa\Entity\Preflight\FieldAccessPreflightData;
 use Waaseyaa\Entity\Preflight\FieldAccessPreflightResult;
 
@@ -59,5 +60,23 @@ final class FieldAccessPreflightDataTest extends TestCase
         $arguments[$inventory] = $entries;
 
         self::assertFalse(FieldAccessPreflightResult::fromData(new FieldAccessPreflightData(...$arguments))->ready);
+    }
+
+    public function test_legacy_queue_payload_is_a_hard_activation_blocker(): void
+    {
+        $result = FieldAccessPreflightResult::fromData(new FieldAccessPreflightData(
+            frameworkVersion: 'candidate-sha',
+            schemaFingerprint: 'schema-1',
+            scannerVersion: 1,
+            fields: ['user.mail' => 'internal'],
+            conflicts: [],
+            unclassifiedEntries: [],
+            v1Drivers: [],
+            serializedEntities: [],
+            legacyPayloads: ['queue:42'],
+        ));
+
+        $this->expectException(FieldAccessActivationBlocked::class);
+        $result->assertReadyForActivation();
     }
 }

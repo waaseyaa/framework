@@ -13,6 +13,7 @@ use Waaseyaa\Queue\Envelope\QueueEnvelopeV1;
 use Waaseyaa\Queue\Envelope\QueueSystemReason;
 use Waaseyaa\Queue\Handler\HandlerInterface;
 use Waaseyaa\Queue\Handler\JobHandler;
+use Waaseyaa\Queue\PersistentQueueBoundaryConfig;
 use Waaseyaa\Queue\Security\SignedQueuePayload;
 use Waaseyaa\Queue\Storage\InMemoryFailedJobRepository;
 use Waaseyaa\Queue\Tests\Unit\Fixtures\FailingJob;
@@ -26,6 +27,55 @@ use Waaseyaa\Queue\Worker\WorkerOptions;
 #[CoversClass(WorkerOptions::class)]
 final class WorkerTest extends TestCase
 {
+    public function test_activation_refuses_no_authority_runtime(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        new Worker(
+            $this->transport,
+            $this->failedRepo,
+            [],
+            $this->signer,
+            boundaryConfig: PersistentQueueBoundaryConfig::enforced(),
+        );
+    }
+
+    public function test_activation_rejects_legacy_payload_before_handler_execution(): void
+    {
+        $handled = false;
+        $runtime = new class implements QueueAuthorityRuntimeInterface {
+            public function run(QueueEnvelopeV1 $envelope, \Closure $handler): mixed
+            {
+                return $handler();
+            }
+        };
+        $handler = new class ($handled) implements HandlerInterface {
+            public function __construct(private bool &$handled) {}
+            public function supports(object $message): bool
+            {
+                return true;
+            }
+            public function handle(object $message): void
+            {
+                $this->handled = true;
+            }
+        };
+        $worker = new Worker(
+            $this->transport,
+            $this->failedRepo,
+            [$handler],
+            $this->signer,
+            authorityRuntime: $runtime,
+            boundaryConfig: PersistentQueueBoundaryConfig::enforced(),
+        );
+        $this->transport->push('default', $this->signer->seal(serialize(new SuccessfulJob())));
+
+        $worker->runNextJob('default', new WorkerOptions());
+
+        self::assertFalse($handled);
+        self::assertCount(1, $this->failedRepo->all());
+        self::assertSame(0, $this->transport->size('default'));
+    }
+
     private InMemoryTransport $transport;
     private InMemoryFailedJobRepository $failedRepo;
     private Worker $worker;

@@ -79,6 +79,7 @@ abstract class AbstractKernel
 
     private ?KnowledgeToolingExtensionRunner $knowledgeExtensionRunner = null;
     private bool $booted = false;
+    private bool $fieldAccessPreflightOnly = false;
     protected LoggerInterface $logger;
 
     /**
@@ -180,14 +181,18 @@ abstract class AbstractKernel
         $this->injectContentModelProviders();
         $this->loadAppEntityTypes();
         $this->validateContentTypes();
-        $this->bootProviders();
-        $this->discoverAccessPolicies();
-        $this->bootScheduleEntries();
-        $this->validateQueryDefinitions();
-        $this->validateEntitySchemas();
-        $this->bootKnowledgeExtensionRunner();
+        if (!$this->fieldAccessPreflightOnly) {
+            $this->bootProviders();
+            $this->discoverAccessPolicies();
+            $this->bootScheduleEntries();
+            $this->validateQueryDefinitions();
+            $this->validateEntitySchemas();
+            $this->bootKnowledgeExtensionRunner();
+        }
 
-        $this->finalizeBoot();
+        if (!$this->fieldAccessPreflightOnly) {
+            $this->finalizeBoot();
+        }
 
         $this->booted = true;
     }
@@ -751,6 +756,25 @@ abstract class AbstractKernel
     public function bootForCli(): void
     {
         $this->boot();
+    }
+
+    /**
+     * Restricted names-only bootstrap for the exact field-access preflight.
+     * Provider registration and model discovery run; provider boot hooks,
+     * policies/capability execution, schedulers, query execution, HTTP, and
+     * knowledge extensions do not.
+     *
+     * @internal
+     */
+    public function bootForFieldAccessPreflight(): void
+    {
+        $previous = $this->fieldAccessPreflightOnly;
+        $this->fieldAccessPreflightOnly = true;
+        try {
+            $this->boot();
+        } finally {
+            $this->fieldAccessPreflightOnly = $previous;
+        }
     }
 
     public function getEntityTypeManager(): EntityTypeManager

@@ -20,19 +20,19 @@ use Waaseyaa\Entity\ContentEntityBase;
 #[ContentEntityKeys(id: 'tid', uuid: 'uuid', label: 'name', bundle: 'vid')]
 final class Term extends ContentEntityBase
 {
-    #[Field(type: 'text', label: 'Description', description: 'A description of the term.', settings: ['weight' => 5])]
+    #[Field(type: 'text', label: 'Description', description: 'A description of the term.', settings: ['weight' => 5], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public ?string $description = null;
 
-    #[Field(type: 'string', label: 'Slug', description: 'URL-safe machine name for the term (e.g. imported from an external system\'s term slug).', settings: ['weight' => 6])]
+    #[Field(type: 'string', label: 'Slug', description: 'URL-safe machine name for the term (e.g. imported from an external system\'s term slug).', settings: ['weight' => 6], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public ?string $slug = null;
 
-    #[Field(type: 'integer', label: 'Weight', description: 'The weight of this term for ordering.', settings: ['weight' => 10])]
+    #[Field(type: 'integer', label: 'Weight', description: 'The weight of this term for ordering.', settings: ['weight' => 10], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public int $weight = 0;
 
-    #[Field(type: 'entity_reference', label: 'Parent term', description: 'The parent term for hierarchical vocabularies.', settings: ['weight' => 15, 'target_entity_type_id' => 'taxonomy_term'])]
+    #[Field(type: 'entity_reference', label: 'Parent term', description: 'The parent term for hierarchical vocabularies.', settings: ['weight' => 15, 'target_entity_type_id' => 'taxonomy_term'], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public ?int $parent_id = null;
 
-    #[Field(type: 'boolean', label: 'Published', description: 'Whether the term is published.', settings: ['weight' => 20])]
+    #[Field(type: 'boolean', label: 'Published', description: 'Whether the term is published.', settings: ['weight' => 20], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public bool $status = true;
     /**
      * @param array<string, mixed> $values Initial entity values.

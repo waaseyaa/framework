@@ -13,22 +13,22 @@ use Waaseyaa\Entity\ContentEntityBase;
 #[ContentEntityKeys(id: 'tpid', uuid: 'uuid', label: 'role')]
 final class ThreadParticipant extends ContentEntityBase
 {
-    #[Field(label: 'Thread ID', settings: ['weight' => 0])]
+    #[Field(label: 'Thread ID', settings: ['weight' => 0], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public int $thread_id = 0;
 
-    #[Field(label: 'User ID', settings: ['weight' => 1])]
+    #[Field(label: 'User ID', settings: ['weight' => 1], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public int $user_id = 0;
 
-    #[Field(label: 'Thread Creator ID', settings: ['weight' => 2])]
+    #[Field(label: 'Thread Creator ID', settings: ['weight' => 2], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public int $thread_creator_id = 0;
 
-    #[Field(label: 'Role', default: 'member', settings: ['weight' => 3])]
+    #[Field(label: 'Role', default: 'member', settings: ['weight' => 3], read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
     public string $role = 'member';
 
-    #[Field(type: 'integer', label: 'Joined', settings: ['weight' => 10, 'subtype' => 'timestamp'])]
+    #[Field(type: 'integer', label: 'Joined', settings: ['weight' => 10, 'subtype' => 'timestamp'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public ?int $joined_at = null;
 
-    #[Field(type: 'integer', label: 'Last Read', default: 0, settings: ['weight' => 11, 'subtype' => 'timestamp'])]
+    #[Field(type: 'integer', label: 'Last Read', default: 0, settings: ['weight' => 11, 'subtype' => 'timestamp'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public ?int $last_read_at = 0;
 
     /**

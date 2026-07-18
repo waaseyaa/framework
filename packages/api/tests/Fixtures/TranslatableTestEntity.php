@@ -53,7 +53,7 @@ class TranslatableTestEntity extends ContentEntityBase implements MutableTransla
     {
         $langcodeKey = $this->entityKeys['langcode'] ?? 'langcode';
 
-        return (string) ($this->values[$langcodeKey] ?? 'en');
+        return (string) ($this->get($langcodeKey) ?? 'en');
     }
 
     /** @return string[] */
@@ -102,7 +102,7 @@ class TranslatableTestEntity extends ContentEntityBase implements MutableTransla
         }
 
         // Create a new translation object seeded with the base entity's values.
-        $values = $this->values;
+        $values = $this->toArray();
         $langcodeKey = $this->entityKeys['langcode'] ?? 'langcode';
         $values[$langcodeKey] = $langcode;
 
@@ -115,12 +115,13 @@ class TranslatableTestEntity extends ContentEntityBase implements MutableTransla
 
         // Share the same ID and UUID as the source entity.
         $idKey = $this->entityKeys['id'] ?? 'id';
-        if (isset($this->values[$idKey])) {
-            $translation->values[$idKey] = $this->values[$idKey];
+        $id = $this->get($idKey);
+        if ($id !== null) {
+            $translation->set($idKey, $id);
         }
 
         $uuidKey = $this->entityKeys['uuid'] ?? 'uuid';
-        $translation->values[$uuidKey] = $this->values[$uuidKey];
+        $translation->set($uuidKey, $this->get($uuidKey));
 
         // Register the new translation so hasTranslation() and getTranslation()
         // return it from now on.

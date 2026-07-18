@@ -11,6 +11,8 @@ use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\LoggerTrait;
 use Waaseyaa\Foundation\Log\LogLevel;
 use Waaseyaa\Queue\DbalQueue;
+use Waaseyaa\Queue\PersistentQueueBoundaryConfig;
+use Waaseyaa\Queue\Exception\InvalidPersistentPayload;
 use Waaseyaa\Queue\Envelope\QueueEnvelopeV1;
 use Waaseyaa\Queue\Envelope\QueueSystemReason;
 use Waaseyaa\Queue\Envelope\SystemQueueEnvelopeFactory;
@@ -20,6 +22,23 @@ use Waaseyaa\Queue\Transport\InMemoryTransport;
 
 final class DbalQueueEnvelopeTest extends TestCase
 {
+    public function test_activation_requires_reviewed_authority_envelope_before_persistent_dispatch(): void
+    {
+        $transport = new InMemoryTransport();
+        $queue = new DbalQueue(
+            $transport,
+            new SignedQueuePayload(str_repeat('q', 32)),
+            boundaryConfig: PersistentQueueBoundaryConfig::enforced(),
+        );
+
+        $this->expectException(InvalidPersistentPayload::class);
+        try {
+            $queue->dispatch(new GenericMessage('refresh', ['entity_id' => 7]));
+        } finally {
+            self::assertSame(0, $transport->size('default'));
+        }
+    }
+
     #[Test]
     public function persistentDispatchStoresTheVersionedAuthorityEnvelope(): void
     {

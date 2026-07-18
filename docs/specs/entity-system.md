@@ -1826,6 +1826,9 @@ backends are provided:
 
 ### FieldStorageBackendInterface
 
+> WP3 compatibility status: this is the dormant V1 SPI. Its exact registered
+> implementations are preflight blockers and WP4 removes it without an adapter.
+
 Every backend implements `Waaseyaa\EntityStorage\Backend\FieldStorageBackendInterface`:
 
 ```php
@@ -1860,6 +1863,26 @@ built-in backend providers — application code must not implement it.
 `ReservedBackendIds` holds the canonical string constants for the two built-in
 backends: `SQL_BLOB = 'sql-blob'` and `SQL_COLUMN = 'sql-column'`.
 
+#### Fingerprinted V2 privileged gateway (WP3 dormant)
+
+`FieldStorageBackendV2Interface` is the replacement SPI. It contains only
+`id()`, a reviewed 64-character lowercase hexadecimal `fingerprint()`, and
+`invoke(FieldStorageGatewayRole, FieldStorageGatewayInput):
+FieldStorageGatewayOutput`. The registrar binds the implementation to one
+object-identity authority and returns a `FieldStorageBackendGateway`; it has no
+raw-V2 accessor. A constructed but unissued role or input cannot be unwrapped,
+an output from another invocation/boundary cannot be consumed, and all boundary
+handles reject serialization.
+
+Active registration is constrained to providers implementing
+`HasFieldStorageBackendsV2Interface`, retains reserved-id enforcement, rejects
+malformed/duplicate fingerprints, and requires a
+`StrictFieldStorageGatewayAuditInterface`. Preflight uses a separate
+`buildPreflightInventory()` path: it validates and inventories fingerprints but
+does not construct a gateway or issue a role. Retained V1 implementations are
+reported deterministically as `provider:id:implementation` in the existing
+checksum-bearing `v1_drivers` inventory.
+
 ### EntityStorageCoordinator
 
 `EntityStorageCoordinator` is the fan-out engine. On save, it dispatches
@@ -1886,11 +1909,19 @@ The coordinator dispatches four lifecycle events:
 
 All four implement `EntityLifecycleEventInterface`.
 
-`PartialSaveException` is thrown when at least one backend succeeds and at least
-one fails. Its `$errorCode` property (not `$code` — see upgrade guide §1.4 note)
+`PartialSaveException` is thrown on a backend fan-out failure, including a first
+backend failure with an empty committed set. Its `$errorCode` property (not `$code` — see upgrade guide §1.4 note)
 carries a `string` diagnostic code. `SaveContext` is an immutable value object
 passed to save operations; it carries revision flags. `CoordinatorLifecycleDispatcher`
 dispatches these events from the coordinator.
+
+V2 gateway audit is strict and begins before backend invocation: reservation or
+fingerprint failure performs no backend call and begins no write. After
+invocation starts, the coordinator/backends remain nontransactional. A failing
+backend may have performed an internal write, and earlier backends remain in
+the committed set; no automatic rollback is attempted. Failure audit records
+whether invocation began, while `PartialSaveException` remains the caller's
+committed/uncommitted reconciliation contract.
 
 `AbortOperationException` is thrown by event listeners to abort the operation
 before any backend is written.

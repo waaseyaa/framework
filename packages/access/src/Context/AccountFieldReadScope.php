@@ -12,12 +12,14 @@ use Waaseyaa\Access\AuthorizationPrincipalInterface;
  *
  * @api
  */
-final class AccountFieldReadScope implements AccountFieldReadScopeInterface
+final class AccountFieldReadScope implements FastAccountFieldReadScopeInterface
 {
-    /** @var list<AuthorizationPrincipalInterface> */
+    /** @var list<AccountFieldReadContext> */
     private array $mainStack = [];
 
-    /** @var \WeakMap<\Fiber, list<AuthorizationPrincipalInterface>> */
+    private ?AccountFieldReadContext $mainCurrent = null;
+
+    /** @var \WeakMap<\Fiber, list<AccountFieldReadContext>> */
     private \WeakMap $fiberStacks;
 
     public function __construct()
@@ -27,16 +29,39 @@ final class AccountFieldReadScope implements AccountFieldReadScopeInterface
 
     public function current(): ?AuthorizationPrincipalInterface
     {
+        return $this->currentContext()?->principal;
+    }
+
+    public function currentContext(): ?AccountFieldReadContext
+    {
+        if (\Fiber::getCurrent() === null) {
+            return $this->mainCurrent;
+        }
         $stack = $this->stack();
 
         return $stack === [] ? null : $stack[array_key_last($stack)];
     }
 
+    public function isCurrentContext(AccountFieldReadContext $context): bool
+    {
+        return $this->currentContext() === $context;
+    }
+
     public function run(AuthorizationPrincipalInterface $principal, callable $callback): mixed
     {
+        return $this->runWithGenerations($principal, 'unversioned', 'unversioned', $callback);
+    }
+
+    public function runWithGenerations(
+        AuthorizationPrincipalInterface $principal,
+        string $classificationGeneration,
+        string $policyGeneration,
+        callable $callback,
+    ): mixed {
         $fiber = \Fiber::getCurrent();
         $stack = $this->stack();
-        $stack[] = $principal;
+        $context = new AccountFieldReadContext($principal, $classificationGeneration, $policyGeneration);
+        $stack[] = $context;
         $this->replaceStack($fiber, $stack);
 
         try {
@@ -48,7 +73,7 @@ final class AccountFieldReadScope implements AccountFieldReadScopeInterface
         }
     }
 
-    /** @return list<AuthorizationPrincipalInterface> */
+    /** @return list<AccountFieldReadContext> */
     private function stack(): array
     {
         $fiber = \Fiber::getCurrent();
@@ -59,11 +84,12 @@ final class AccountFieldReadScope implements AccountFieldReadScopeInterface
         return $this->fiberStacks[$fiber] ?? [];
     }
 
-    /** @param list<AuthorizationPrincipalInterface> $stack */
+    /** @param list<AccountFieldReadContext> $stack */
     private function replaceStack(?\Fiber $fiber, array $stack): void
     {
         if ($fiber === null) {
             $this->mainStack = $stack;
+            $this->mainCurrent = $stack === [] ? null : $stack[array_key_last($stack)];
 
             return;
         }

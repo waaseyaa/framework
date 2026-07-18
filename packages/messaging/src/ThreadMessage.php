@@ -13,25 +13,25 @@ use Waaseyaa\Entity\ContentEntityBase;
 #[ContentEntityKeys(id: 'tmid', uuid: 'uuid', label: 'body')]
 final class ThreadMessage extends ContentEntityBase
 {
-    #[Field(label: 'Thread ID', settings: ['weight' => 0])]
+    #[Field(label: 'Thread ID', settings: ['weight' => 0], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public int $thread_id = 0;
 
-    #[Field(label: 'Sender ID', settings: ['weight' => 1])]
+    #[Field(label: 'Sender ID', settings: ['weight' => 1], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public int $sender_id = 0;
 
-    #[Field(type: 'text', label: 'Body', settings: ['weight' => 2, 'subtype' => 'text_long'])]
+    #[Field(type: 'text', label: 'Body', settings: ['weight' => 2, 'subtype' => 'text_long'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $body = '';
 
-    #[Field(type: 'boolean', label: 'Status', default: 1, settings: ['weight' => 3])]
+    #[Field(type: 'boolean', label: 'Status', default: 1, settings: ['weight' => 3], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public bool $status = true;
 
-    #[Field(type: 'integer', label: 'Created', settings: ['weight' => 10, 'subtype' => 'timestamp'])]
+    #[Field(type: 'integer', label: 'Created', settings: ['weight' => 10, 'subtype' => 'timestamp'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public ?int $created_at = null;
 
-    #[Field(type: 'integer', label: 'Edited At', default: null, settings: ['weight' => 11, 'subtype' => 'timestamp'])]
+    #[Field(type: 'integer', label: 'Edited At', default: null, settings: ['weight' => 11, 'subtype' => 'timestamp'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public ?int $edited_at = null;
 
-    #[Field(type: 'integer', label: 'Deleted At', default: null, settings: ['weight' => 12, 'subtype' => 'timestamp'])]
+    #[Field(type: 'integer', label: 'Deleted At', default: null, settings: ['weight' => 12, 'subtype' => 'timestamp'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public ?int $deleted_at = null;
 
     /**

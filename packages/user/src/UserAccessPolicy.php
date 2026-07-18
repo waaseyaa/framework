@@ -9,6 +9,9 @@ use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Access\Gate\PolicyAttribute;
+use Waaseyaa\Access\ProtectedEntityReadPolicyInterface;
+use Waaseyaa\Access\ProtectedFieldReadPolicyInterface;
+use Waaseyaa\Access\ProtectedReadPolicyProviderInterface;
 use Waaseyaa\Entity\EntityInterface;
 
 /**
@@ -24,7 +27,7 @@ use Waaseyaa\Entity\EntityInterface;
  *   mass-assignment escalation where a non-admin self-PATCHes `roles: ['administrator']`.
  */
 #[PolicyAttribute(entityType: 'user')]
-final class UserAccessPolicy implements AccessPolicyInterface, FieldAccessPolicyInterface
+final class UserAccessPolicy implements AccessPolicyInterface, FieldAccessPolicyInterface, ProtectedReadPolicyProviderInterface
 {
     /**
      * Privilege-bearing fields a non-administrator must never edit — not even on their
@@ -44,6 +47,16 @@ final class UserAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
      * @var list<string>
      */
     private const array CREDENTIAL_FIELDS = ['pass', 'two_factor_secret', 'two_factor_recovery_codes_hash', 'two_factor_last_used_step'];
+
+    public function protectedEntityReadPolicy(): ProtectedEntityReadPolicyInterface
+    {
+        return new UserEntityReadPolicy();
+    }
+
+    public function protectedFieldReadPolicy(): ProtectedFieldReadPolicyInterface
+    {
+        return new UserProtectedFieldReadPolicy();
+    }
 
     public function appliesTo(string $entityTypeId): bool
     {

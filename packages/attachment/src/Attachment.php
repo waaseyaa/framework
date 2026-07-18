@@ -34,13 +34,34 @@ use Waaseyaa\Entity\ContentEntityBase;
 #[ContentEntityKeys(id: 'id', uuid: 'uuid', label: 'filename')]
 final class Attachment extends ContentEntityBase
 {
-    #[Field(label: 'Parent Entity Type', settings: ['weight' => 1])]
+    #[Field(required: false, label: 'Filename', read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    public string $filename = '';
+
+    #[Field(required: false, label: 'Content type', read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    public string $content_type = '';
+
+    #[Field(type: 'integer', required: false, label: 'Size', read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    public int $size = 0;
+
+    #[Field(required: false, label: 'Storage URI', read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
+    public string $storage_uri = '';
+
+    #[Field(required: false, label: 'Checksum', read: \Waaseyaa\Entity\FieldReadLevel::Internal)]
+    public string $checksum = '';
+
+    #[Field(type: 'integer', required: false, label: 'Created', read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    public ?int $created_at = null;
+
+    #[Field(type: 'integer', required: false, label: 'Updated', read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    public ?int $updated_at = null;
+
+    #[Field(label: 'Parent Entity Type', settings: ['weight' => 1], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $parent_entity_type = '';
 
-    #[Field(label: 'Parent Entity ID', settings: ['weight' => 2])]
+    #[Field(label: 'Parent Entity ID', settings: ['weight' => 2], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $parent_entity_id = '';
 
-    #[Field(type: 'boolean', label: 'Active', default: 0, settings: ['weight' => 3])]
+    #[Field(type: 'boolean', label: 'Active', default: 0, settings: ['weight' => 3], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public bool $is_active = false;
 
     /**

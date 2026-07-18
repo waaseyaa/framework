@@ -328,7 +328,7 @@ final class EntityResolver
         // legitimately echoes back) is stripped from `$input` here, before
         // the apply loop below (belt: an allowed echo must never reach
         // `$target->set()`).
-        $input = $this->assertWritableForUpdate($entityTypeId, $target->bundle(), $input, $target->toArray());
+        $input = $this->assertWritableForUpdate($entityTypeId, $target->bundle(), $input, $target);
 
         try {
             foreach (array_keys($input) as $fieldName) {
@@ -682,17 +682,16 @@ final class EntityResolver
      * value, or an undeclared/unknown field, is still refused (`UserError`).
      *
      * @param array<string, mixed> $input
-     * @param array<string, mixed> $currentValues the target entity's current stored values ({@see \Waaseyaa\Entity\EntityInterface::toArray()})
      * @return array<string, mixed> $input with every allowed-echo key removed
      */
-    private function assertWritableForUpdate(string $entityTypeId, string $bundle, array $input, array $currentValues): array
+    private function assertWritableForUpdate(string $entityTypeId, string $bundle, array $input, EntityInterface $current): array
     {
-        $result = EntityWritePayloadGuard::evaluateForUpdate(
+        $result = EntityWritePayloadGuard::evaluateEntityForUpdate(
             $this->entityTypeManager->getDefinition($entityTypeId),
             $bundle,
             $input,
             $this->entityTypeManager,
-            $currentValues,
+            $current,
         );
         if ($result->refusedKeys !== []) {
             throw new UserError(sprintf(

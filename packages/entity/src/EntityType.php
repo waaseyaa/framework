@@ -367,7 +367,7 @@ final readonly class EntityType implements EntityTypeInterface, ApiExposableEnti
                 $settings = [];
             }
             foreach ($meta as $key => $value) {
-                if (!in_array($key, ['type', 'label', 'description', 'required', 'readOnly', 'read_only', 'cardinality', 'translatable', 'revisionable', 'default', 'defaultValue', 'settings', 'constraints', 'stored'], true)) {
+                if (!in_array($key, ['type', 'label', 'description', 'required', 'readOnly', 'read_only', 'cardinality', 'translatable', 'revisionable', 'default', 'defaultValue', 'settings', 'constraints', 'stored', 'read'], true)) {
                     $settings[$key] = $value;
                 }
             }
@@ -394,6 +394,7 @@ final readonly class EntityType implements EntityTypeInterface, ApiExposableEnti
                 readOnly: (bool) ($meta['readOnly'] ?? $meta['read_only'] ?? false),
                 constraints: is_array($meta['constraints'] ?? null) ? $meta['constraints'] : [],
                 stored: $stored,
+                read: ($meta['read'] ?? null) instanceof FieldReadLevel ? $meta['read'] : null,
             );
             $fieldDef->validate($this);
             $normalized[$name] = $fieldDef;

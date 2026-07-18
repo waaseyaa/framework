@@ -1,6 +1,7 @@
 # CLI Console
 
 <!-- Spec reviewed 2026-07-17 - #2064 WP2 adds optional reason-specific field-read declarations to HandlerCommand metadata. CliFieldReadCapabilityIssuer preserves the exact CLI-valid closed reason, opens an explicit live execution-boundary proof, and binds NoActingContext with a null actor; no CLI account principal or ambient privileged scope is created. -->
+<!-- Spec reviewed 2026-07-17 - #2064 WP3 registers exact `field-access:preflight --format=json` names-only inventory output; it is read-only unless `--write-artifact` is supplied, and the artifact write is atomic. Normal entity accessor activation remains dormant. -->
 
 <!-- Spec reviewed 2026-07-14 - R24 CLI minors (#2020): Composer provenance rejects lockfile dist paths outside the project root; production migration diagnostics redact absolute Unix/Windows files and bare directories; ai:run clears prior SIGINT state and describes the default synchronous Messenger bus honestly; entity:list documents its intentional operator-level access-check opt-out. CLI actor context remains null by design because the console has no authenticated principal; introducing a fabricated system identity is explicitly not part of this sweep. -->
 

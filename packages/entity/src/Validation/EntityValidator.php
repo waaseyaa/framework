@@ -7,7 +7,9 @@ namespace Waaseyaa\Entity\Validation;
 use Symfony\Component\Validator\ConstraintViolationList;
 use Symfony\Component\Validator\ConstraintViolationListInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\FieldReadLevel;
 
 /**
  * Validates entity field values against provided constraints.
@@ -20,6 +22,7 @@ final class EntityValidator
 {
     public function __construct(
         private readonly ValidatorInterface $validator,
+        private readonly ?ValidationFieldReader $closedReader = null,
     ) {}
 
     /**
@@ -57,6 +60,14 @@ final class EntityValidator
             // Normalize single constraint to array.
             if (!is_array($fieldConstraints)) {
                 $fieldConstraints = [$fieldConstraints];
+            }
+
+            if ($entity instanceof EntityBase && $entity->fieldReadLevel($field) !== FieldReadLevel::Public) {
+                if ($this->closedReader === null) {
+                    throw new \LogicException(sprintf('Non-Public field %s requires the closed validation reader.', $field));
+                }
+                $violations->addAll($this->closedReader->validate($entity, $field, $fieldConstraints));
+                continue;
             }
 
             // EntityInterface::get() is the cast-aware boundary (#1181 ST-6); do not use

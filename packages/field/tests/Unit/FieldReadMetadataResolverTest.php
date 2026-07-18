@@ -7,12 +7,24 @@ namespace Waaseyaa\Field\Tests\Unit;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\FieldReadLevel;
+use Waaseyaa\Access\CompiledFieldReadRule;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldReadMetadataResolver;
 use Waaseyaa\Field\FieldReadMetadataSource;
 
 final class FieldReadMetadataResolverTest extends TestCase
 {
+    public function test_compiles_an_access_rule_at_the_field_composition_boundary(): void
+    {
+        $rule = (new FieldReadMetadataResolver())->compile(
+            new FieldDefinition(name: 'title', type: 'string', read: FieldReadLevel::Protected),
+        );
+
+        self::assertInstanceOf(CompiledFieldReadRule::class, $rule);
+        self::assertSame('title', $rule->field);
+        self::assertSame(FieldReadLevel::Protected, $rule->level);
+    }
+
     #[Test]
     public function explicit_companion_metadata_wins_and_is_exposed_without_changing_the_legacy_interface(): void
     {

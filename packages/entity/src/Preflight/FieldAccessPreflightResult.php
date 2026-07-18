@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Entity\Preflight;
 
+use Waaseyaa\Entity\Exception\FieldAccessActivationBlocked;
+
 /** @api */
 final readonly class FieldAccessPreflightResult
 {
@@ -26,6 +28,23 @@ final readonly class FieldAccessPreflightResult
                 && $data->legacyPayloads === [],
             checksum: hash('sha256', $canonical),
         );
+    }
+
+    public function assertReadyForActivation(): void
+    {
+        if ($this->ready) {
+            return;
+        }
+
+        throw new FieldAccessActivationBlocked(sprintf(
+            'Field-read activation blocked: conflicts=%d unclassified=%d v1_drivers=%d serialized_entities=%d legacy_payloads=%d (checksum %s).',
+            count($this->data->conflicts),
+            count($this->data->unclassifiedEntries),
+            count($this->data->v1Drivers),
+            count($this->data->serializedEntities),
+            count($this->data->legacyPayloads),
+            $this->checksum,
+        ));
     }
 
     /** @return array<string, mixed> */

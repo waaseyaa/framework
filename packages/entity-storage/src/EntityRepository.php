@@ -131,7 +131,7 @@ final class EntityRepository implements EntityRepositoryInterface
         $this->storageRowReader = $storageBoundary->repositoryRowReader();
         $this->storageSnapshotFactory = $storageBoundary->repositorySnapshotFactory();
         $persistenceValueAuthority = \Closure::bind(
-            static fn(EntityBase $source): array => $source->values,
+            static fn(EntityBase $source): array => $source->rawValuesForClosedAuthority(),
             null,
             EntityBase::class,
         );

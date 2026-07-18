@@ -12,6 +12,8 @@ use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\Middleware\FieldReadContextMiddleware;
+use Waaseyaa\Access\User\UserIdentityLookupInterface;
+use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Audit\AuditServiceProvider;
 use Waaseyaa\Audit\Contract\StrictPrivilegedReadLedgerInterface;
 use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
@@ -45,6 +47,8 @@ final class AuditServiceProviderFieldReadMiddlewareTest extends TestCase
 
         self::assertInstanceOf(FieldReadContextMiddleware::class, $middleware[0]);
         self::assertInstanceOf(StrictPrivilegedReadLedgerInterface::class, $provider->resolve(StrictPrivilegedReadLedgerInterface::class));
+        self::assertInstanceOf(UserInternalFieldReaderInterface::class, $provider->resolve(UserInternalFieldReaderInterface::class));
+        self::assertInstanceOf(UserIdentityLookupInterface::class, $provider->resolve(UserIdentityLookupInterface::class));
     }
 
     #[Test]

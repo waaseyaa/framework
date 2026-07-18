@@ -746,25 +746,25 @@ final class JsonApiController
         // structural validation, not an access decision, mirroring
         // validateQueryFields() on the read path.
         //
-        // CW-v1 option-1 PR-3 judgment note: `$currentValues` below is
-        // `$target->toArray()` (the WORKING COPY's stored values), not
+        // CW-v1 option-1 PR-3 judgment note: the comparison authority below reads
+        // `$target` (the WORKING COPY), not
         // `$entity`'s (the published pointer's). A client that GETs the
         // working copy (`?workingCopy=1`) and echoes ITS `revision_id` back
         // on PATCH is echoing the TIP's revision id, which differs from the
         // published pointer's `revision_id` whenever a draft is in flight —
-        // comparing against `$entity->toArray()` would misclassify that
+        // comparing against `$entity` would misclassify that
         // legitimate echo as a differing (refused) value. Comparing against
         // the actual PATCH target's own stored values is the only basis that
         // makes the echo tolerance meaningful once the target and the
         // find()-loaded gate entity can diverge. Pinned by test (undisciplined
         // entities: `$target === $entity` in content, so this is a no-op there).
         $attributes = $data['data']['attributes'] ?? [];
-        $guardResult = EntityWritePayloadGuard::evaluateForUpdate(
+        $guardResult = EntityWritePayloadGuard::evaluateEntityForUpdate(
             $this->entityTypeManager->getDefinition($entityTypeId),
             $target->bundle(),
             $attributes,
             $this->entityTypeManager,
-            $target->toArray(),
+            $target,
         );
         if ($guardResult->refusedKeys !== []) {
             return $this->errorDocument($this->writeAllowlistError($guardResult->refusedKeys));

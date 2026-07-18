@@ -99,6 +99,7 @@ final class EntityTypeFixtureValues
                     targetEntityTypeId: '',
                     targetBundle: null,
                     stored: FieldStorage::Column,
+                    read: \Waaseyaa\Entity\FieldReadLevel::Public,
                 );
             $values[$field] = $this->valueFromConstraints($definition, $constraints);
         }

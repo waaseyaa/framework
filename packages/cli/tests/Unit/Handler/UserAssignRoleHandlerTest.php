@@ -16,6 +16,7 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 use Waaseyaa\User\Role;
 use Waaseyaa\User\RoleRepository;
 
@@ -171,7 +172,7 @@ final class UserAssignRoleHandlerTest extends TestCase
             public function get(string $id): mixed
             {
                 if ($id === UserAssignRoleHandler::class) {
-                    return new UserAssignRoleHandler($this->registry, $this->manager);
+                    return new UserAssignRoleHandler($this->registry, $this->manager, new UserInternalFieldReaderFixture());
                 }
 
                 throw new \RuntimeException(sprintf('Container::get(%s) called unexpectedly', $id));

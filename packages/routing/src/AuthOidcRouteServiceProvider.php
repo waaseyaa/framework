@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Routing;
 
+use Waaseyaa\Access\User\UserIdentityLookupInterface;
+use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Auth\Config\AuthConfig;
 use Waaseyaa\Auth\Controller\DisableTwoFactorController;
 use Waaseyaa\Auth\Controller\EnableTwoFactorController;
@@ -29,6 +31,7 @@ use Waaseyaa\Oidc\Revoke\RevocationController;
 use Waaseyaa\Oidc\Token\TokenController;
 use Waaseyaa\Oidc\Userinfo\UserinfoController;
 use Waaseyaa\User\AuthMailer;
+use Waaseyaa\User\Http\AuthController as UserAuthController;
 
 /**
  * Registers auth and OIDC HTTP routes. Layer 4: uses RouteBuilder / WaaseyaaRouter only here,
@@ -51,6 +54,8 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
         $rateLimiter = $this->resolve(RateLimiterInterface::class);
         $authMailer = $this->resolve(AuthMailer::class);
         $twoFactor = $this->resolve(TwoFactorService::class);
+        $identityLookup = $this->resolve(UserIdentityLookupInterface::class);
+        $internalFields = $this->resolve(UserInternalFieldReaderInterface::class);
         $etm = $entityTypeManager;
 
         $router->addRoute(
@@ -62,6 +67,8 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
                     tokenRepo: $tokenRepo,
                     authMailer: $authMailer,
                     rateLimiter: $rateLimiter,
+                    identityLookup: $identityLookup,
+                    internalFields: $internalFields,
                 ))
                 ->allowAll()
                 ->methods('POST')
@@ -77,6 +84,7 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
                     tokenRepo: $tokenRepo,
                     authMailer: $authMailer,
                     rateLimiter: $rateLimiter,
+                    identityLookup: $identityLookup,
                 ))
                 ->allowAll()
                 ->methods('POST')
@@ -129,6 +137,8 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
                     entityTypeManager: $etm,
                     rateLimiter: $rateLimiter,
                     twoFactor: $twoFactor,
+                    identityLookup: $identityLookup,
+                    internalFields: $internalFields,
                 ))
                 ->allowAll()
                 ->methods('POST')
@@ -147,7 +157,7 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
         $router->addRoute(
             'api.user.me',
             RouteBuilder::create('/api/user/me')
-                ->controller(new MeController())
+                ->controller(new MeController(new UserAuthController($internalFields)))
                 ->allowAll()
                 ->methods('GET')
                 // Beat JsonApiRouteProvider's `/api/user/{id}` (priority 0),

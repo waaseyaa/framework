@@ -46,7 +46,7 @@ final class AuditEvent extends ContentEntityBase
      */
     public function get(string $name): mixed
     {
-        return $this->values[$name] ?? null;
+        return parent::get($name);
     }
 
     public function getEventKind(): string

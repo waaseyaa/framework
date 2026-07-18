@@ -31,6 +31,7 @@
             <directory>tests/Integration</directory>
         </testsuite>
         <testsuite name="Architecture">
+            <directory>packages/*/tests/Architecture</directory>
             <directory>tests/Architecture</directory>
         </testsuite>
     </testsuites>

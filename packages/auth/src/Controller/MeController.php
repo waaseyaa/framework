@@ -11,6 +11,8 @@ use Waaseyaa\User\Http\AuthController;
 
 final class MeController
 {
+    public function __construct(private readonly AuthController $authController) {}
+
     public function __invoke(Request $request): JsonResponse
     {
         $account = $request->attributes->get('_account');
@@ -21,8 +23,7 @@ final class MeController
             ], 500);
         }
 
-        $authController = new AuthController();
-        $result = $authController->me($account);
+        $result = $this->authController->me($account);
 
         $statusCode = $result['statusCode'];
         unset($result['statusCode']);
