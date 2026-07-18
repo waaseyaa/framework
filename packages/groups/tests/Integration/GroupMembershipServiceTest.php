@@ -59,7 +59,7 @@ final class GroupMembershipServiceTest extends TestCase
 
                 $idKey = $definition->getKeys()['id'] ?? 'id';
 
-                return new EntityRepository(
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
                     $definition,
                     new SqlStorageDriver($resolver, $idKey),
                     $dispatcher,

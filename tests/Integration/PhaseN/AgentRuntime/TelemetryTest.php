@@ -24,7 +24,6 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
-use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\Foundation\Migration\Migration;
 use Waaseyaa\Foundation\Migration\SchemaBuilder;
 
@@ -69,7 +68,7 @@ final class TelemetryTest extends TestCase
             keys: ['id' => 'id', 'uuid' => 'id', 'label' => 'id'],
         );
         $driver = new SqlStorageDriver(new SingleConnectionResolver($this->database), 'id');
-        $entityRepo = new EntityRepository(
+        $entityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $entityType,
             $driver,
             new EventDispatcher(),

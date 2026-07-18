@@ -389,7 +389,7 @@ final class DBALRegressionTest extends TestCase
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver, $entityType->getKeys()['id'] ?? 'id');
 
-        return new EntityRepository(
+        return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $entityType,
             $driver,
             new EventDispatcher(),

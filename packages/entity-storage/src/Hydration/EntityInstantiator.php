@@ -14,8 +14,6 @@ use Waaseyaa\Entity\EntityStructure;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityValueReadGuardInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
-use Waaseyaa\Entity\Hydration\HydratableFromStorageInterface;
-use Waaseyaa\Entity\Hydration\HydrationContext;
 
 /**
  * Centralizes entity construction from storage-normalized value bags.
@@ -64,20 +62,11 @@ final class EntityInstantiator
             );
         }
 
-        if (!is_subclass_of($class, HydratableFromStorageInterface::class)) {
-            throw new \RuntimeException(sprintf(
-                'Entity class "%s" must implement %s for storage hydration.',
-                $class,
-                HydratableFromStorageInterface::class,
-            ));
-        }
-
-        $context = new HydrationContext(
-            entityTypeId: $this->entityType->id(),
-            entityKeys: $this->entityType->getKeys(),
-        );
-
-        return $class::fromStorage($values, $context);
+        throw new \RuntimeException(sprintf(
+            'Registered entity class "%s" must extend %s for sealed V2 hydration.',
+            $class,
+            EntityBase::class,
+        ));
     }
 
     /**

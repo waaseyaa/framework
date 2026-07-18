@@ -152,7 +152,7 @@ final class Mission1257KernelPathTest extends TestCase
         // assertions below still exercise the same behavioural contract.
         $resolver = new SingleConnectionResolver($this->database);
         $idKey = $this->entityType->getKeys()['id'] ?? 'id';
-        $this->storage = new EntityRepository(
+        $this->storage = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $this->entityType,
             new SqlStorageDriver($resolver, $idKey),
             new EventDispatcher(),

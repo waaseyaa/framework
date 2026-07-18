@@ -21,7 +21,6 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
-use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\Field\BundleTemplateCompiler;
 use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\Field\Form\FormDescriptorBuilder;
@@ -78,7 +77,7 @@ final class SingleEntityWorkSurfaceTest extends TestCase
         $driver = new SqlStorageDriver($resolver, 'id');
         $dispatcher = new EventDispatcher();
 
-        $attachmentEntityRepository = new EntityRepository(
+        $attachmentEntityRepository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             entityType: $attachmentEntityType,
             driver: $driver,
             eventDispatcher: $dispatcher,

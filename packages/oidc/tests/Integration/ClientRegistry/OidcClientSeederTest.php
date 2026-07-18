@@ -43,7 +43,7 @@ final class OidcClientSeederTest extends TestCase
         ]);
 
         $dispatcher = new EventDispatcher();
-        $this->repository = new EntityRepository(
+        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $entityType,
             new SqlStorageDriver(new SingleConnectionResolver($database)),
             $dispatcher,

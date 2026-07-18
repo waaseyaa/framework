@@ -21,7 +21,6 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
-use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\Foundation\Migration\Migration;
 use Waaseyaa\Foundation\Migration\SchemaBuilder;
 
@@ -303,7 +302,7 @@ final class ReaperTest extends TestCase
         );
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver, 'id');
-        $entityRepo = new EntityRepository($entityType, $driver, new EventDispatcher(), null, $this->database);
+        $entityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create($entityType, $driver, new EventDispatcher(), null, $this->database);
 
         return new AgentRunRepository($entityRepo, $this->database);
     }
@@ -318,7 +317,7 @@ final class ReaperTest extends TestCase
         );
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver, 'id');
-        $entityRepo = new EntityRepository($entityType, $driver, new EventDispatcher(), null, $this->database);
+        $entityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create($entityType, $driver, new EventDispatcher(), null, $this->database);
 
         return new AgentAuditLogRepository($entityRepo, $this->database);
     }

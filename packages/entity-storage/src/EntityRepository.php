@@ -27,9 +27,7 @@ use Waaseyaa\Entity\Validation\EntityTypeValidationConstraints;
 use Waaseyaa\Entity\Validation\EntityValidationException;
 use Waaseyaa\Entity\Validation\EntityValidator;
 use Waaseyaa\EntityStorage\Bundle\BundleSubtableGateway;
-use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverV2Interface;
-use Waaseyaa\EntityStorage\Driver\LegacyStorageDriverAdapter;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriverV2;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriverV2Interface;
@@ -88,7 +86,7 @@ final class EntityRepository implements EntityRepositoryInterface
 
     public function __construct(
         private readonly EntityTypeInterface $entityType,
-        EntityStorageDriverInterface|EntityStorageDriverV2Interface $driver,
+        EntityStorageDriverV2Interface $driver,
         private readonly EventDispatcherInterface $eventDispatcher,
         RevisionableStorageDriver|RevisionableStorageDriverV2Interface|null $revisionDriver = null,
         private readonly ?DatabaseInterface $database = null,
@@ -142,16 +140,7 @@ final class EntityRepository implements EntityRepositoryInterface
                 $storageBoundary->driverSnapshotReader(),
             )
             : $revisionDriver;
-        $this->driver = $driver instanceof EntityStorageDriverV2Interface
-            ? $driver
-            : new LegacyStorageDriverAdapter(
-                $driver,
-                $storageBoundary->driverRowFactory(),
-                $storageBoundary->driverSnapshotReader(),
-                function (string $channel, array $context): void {
-                    $this->logger->notice($channel, $context);
-                },
-            );
+        $this->driver = $driver;
     }
 
     /** @return array<string, mixed>|null */

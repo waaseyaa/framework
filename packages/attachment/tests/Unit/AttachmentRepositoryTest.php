@@ -49,7 +49,7 @@ final class AttachmentRepositoryTest extends TestCase
         $driver = new SqlStorageDriver($resolver, 'id');
         $dispatcher = new EventDispatcher();
 
-        $this->entityRepository = new EntityRepository(
+        $this->entityRepository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             entityType: $entityType,
             driver: $driver,
             eventDispatcher: $dispatcher,

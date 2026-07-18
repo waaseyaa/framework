@@ -115,7 +115,7 @@ final class EntityDestinationFactoryBindingTest extends TestCase
 
         $resolver = new SingleConnectionResolver($db);
         $driver = new SqlStorageDriver($resolver, 'id');
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             entityType: $entityType,
             driver: $driver,
             eventDispatcher: $dispatcher,

@@ -461,7 +461,7 @@ final class RevisionAuthorTest extends TestCase
         $handler->ensureRevisionTable();
 
         $resolver = new SingleConnectionResolver($this->db);
-        $repo = new EntityRepository(
+        $repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $entityType,
             new SqlStorageDriver($resolver),
             $this->dispatcher,
@@ -501,7 +501,7 @@ final class RevisionAuthorTest extends TestCase
         $handler->ensureTranslationRevisionTable();
 
         $resolver = new SingleConnectionResolver($this->db);
-        $repo = new EntityRepository(
+        $repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $entityType,
             new SqlStorageDriver($resolver),
             $this->dispatcher,

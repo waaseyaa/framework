@@ -16,6 +16,7 @@ use Waaseyaa\CLI\Provider\HealthSchemaServiceProvider;
 use Waaseyaa\CLI\Security\DatabaseFieldAccessInventoryScanner;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Foundation\Kernel\Preflight\FieldAccessActivationPreflight;
 use Waaseyaa\Field\FieldDefinitionRegistry;
 
 final class FieldAccessPreflightHandlerTest extends TestCase
@@ -75,6 +76,62 @@ final class FieldAccessPreflightHandlerTest extends TestCase
         self::assertSame('unchanged', iterator_to_array($database->query('SELECT value FROM audit_sentinel WHERE id = 1'), false)[0]['value']);
 
         unlink($target);
+        rmdir($root.'/.waaseyaa');
+        unlink($root.'/VERSION');
+        unlink($root.'/composer.lock');
+        rmdir($root);
+    }
+
+    public function test_written_artifact_with_site_classifications_is_accepted_by_production_preflight(): void
+    {
+        $root = sys_get_temp_dir().'/waaseyaa-field-preflight-'.bin2hex(random_bytes(6));
+        self::assertTrue(mkdir($root.'/.waaseyaa', 0775, true));
+        file_put_contents($root.'/VERSION', "0.1.0-test\n");
+        file_put_contents($root.'/composer.lock', '{}');
+        file_put_contents(
+            $root.'/.waaseyaa/field-access-classification.json',
+            json_encode(['fields' => ['application|article|secret' => 'internal']], JSON_THROW_ON_ERROR),
+        );
+
+        $database = DBALDatabase::createSqlite();
+        $manager = new EntityTypeManager(new EventDispatcher(), fieldRegistry: new FieldDefinitionRegistry());
+        $handler = new FieldAccessPreflightHandler(
+            new DatabaseFieldAccessInventoryScanner($database, $manager),
+            $manager,
+            projectRoot: $root,
+        );
+        $definition = new InputDefinition([
+            new InputOption('format', null, InputOption::VALUE_REQUIRED, '', 'json'),
+            new InputOption('write-artifact', null, InputOption::VALUE_NONE),
+        ]);
+
+        self::assertSame(0, $handler->execute(new SymfonyCommandIO(
+            new ArrayInput(['--write-artifact' => true], $definition),
+            new BufferedOutput(),
+        )));
+
+        $classification = json_decode(
+            (string) file_get_contents($root.'/.waaseyaa/field-access-classification.json'),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
+        $artifact = json_decode(
+            (string) file_get_contents($root.'/.waaseyaa/field-access-preflight.json'),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
+        $productionVersion = '0.1.0-test@'.substr(hash_file('sha256', $root.'/composer.lock'), 0, 16)
+            .'@classification-'.substr(hash('sha256', json_encode($classification, JSON_THROW_ON_ERROR)), 0, 16);
+
+        new FieldAccessActivationPreflight()->assertReady(
+            $root,
+            $productionVersion,
+            $artifact['schema_fingerprint'],
+        );
+        self::addToAssertionCount(1);
+
+        unlink($root.'/.waaseyaa/field-access-preflight.json');
+        unlink($root.'/.waaseyaa/field-access-classification.json');
         rmdir($root.'/.waaseyaa');
         unlink($root.'/VERSION');
         unlink($root.'/composer.lock');

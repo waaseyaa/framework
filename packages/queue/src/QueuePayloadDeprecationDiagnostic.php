@@ -7,6 +7,8 @@ namespace Waaseyaa\Queue;
 /** Bounded dormant detector for entity objects embedded in queue messages. @api */
 final class QueuePayloadDeprecationDiagnostic
 {
+    private const string UNINSPECTABLE_PAYLOAD = 'uninspectable-payload';
+
     /** @var \Closure(string, array<string, mixed>): void */
     private readonly \Closure $emit;
     /** @var array<string, true> */
@@ -28,16 +30,19 @@ final class QueuePayloadDeprecationDiagnostic
         $remaining = 1_000;
         $type = $this->entityType($message, 0, $remaining, $seen);
         if ($type !== null && $this->config->rejectEntityPayloads) {
+            $reason = $type === self::UNINSPECTABLE_PAYLOAD
+                ? 'exceeds the bounded payload inspection contract'
+                : 'contains an entity';
             throw new \Waaseyaa\Queue\Exception\InvalidPersistentPayload(
-                sprintf('Queue message %s contains an entity; dispatch identifiers or an explicit public projection.', $message::class),
+                sprintf('Queue message %s %s; dispatch identifiers or an explicit public projection.', $message::class, $reason),
             );
         }
         if ($type !== null && !isset($this->emitted[$type])) {
             $this->emitted[$type] = true;
             ($this->emit)('entity.deprecation', [
                 'boundary' => 'queue.dispatch',
-                'reason' => 'serialized_entity_payload',
-                'value_type' => $type,
+                'reason' => $type === self::UNINSPECTABLE_PAYLOAD ? 'payload_inspection_limit' : 'serialized_entity_payload',
+                'value_type' => $type === self::UNINSPECTABLE_PAYLOAD ? $message::class : $type,
             ]);
         }
 
@@ -47,8 +52,11 @@ final class QueuePayloadDeprecationDiagnostic
     /** @param \WeakMap<object, true> $seen */
     private function entityType(mixed $value, int $depth, int &$remaining, \WeakMap $seen): ?string
     {
-        if ($depth > 16 || --$remaining < 0) {
+        if (!is_array($value) && !is_object($value)) {
             return null;
+        }
+        if ($depth > 16 || --$remaining < 0) {
+            return self::UNINSPECTABLE_PAYLOAD;
         }
         if (is_array($value)) {
             foreach ($value as $child) {
@@ -60,7 +68,7 @@ final class QueuePayloadDeprecationDiagnostic
 
             return null;
         }
-        if (!is_object($value) || isset($seen[$value])) {
+        if (isset($seen[$value])) {
             return null;
         }
         $seen[$value] = true;
@@ -76,7 +84,7 @@ final class QueuePayloadDeprecationDiagnostic
             try {
                 $child = $property->getValue($value);
             } catch (\Throwable) {
-                continue;
+                return self::UNINSPECTABLE_PAYLOAD;
             }
             $found = $this->entityType($child, $depth + 1, $remaining, $seen);
             if ($found !== null) {

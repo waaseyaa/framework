@@ -83,6 +83,27 @@ final class DbalQueueEnvelopeTest extends TestCase
         }
     }
 
+    public function test_activation_rejects_entity_after_a_large_public_message_projection(): void
+    {
+        $transport = new InMemoryTransport();
+        $queue = new DbalQueue(
+            $transport,
+            new SignedQueuePayload(str_repeat('q', 32)),
+            envelopeFactory: new SystemQueueEnvelopeFactory(QueueSystemReason::SystemJob, 'reviewed-service'),
+            boundaryConfig: PersistentQueueBoundaryConfig::enforced(),
+        );
+        $payload = array_fill(0, 1_001, null);
+        $payload[] = new SerializableQueueEntityFixture();
+
+        try {
+            $queue->dispatch(new GenericMessage('large', $payload));
+            self::fail('The activated persistent queue retained an entity-bearing message.');
+        } catch (InvalidPersistentPayload) {
+        }
+
+        self::assertSame(0, $transport->size('default'));
+    }
+
     #[Test]
     public function persistentDispatchStoresTheVersionedAuthorityEnvelope(): void
     {

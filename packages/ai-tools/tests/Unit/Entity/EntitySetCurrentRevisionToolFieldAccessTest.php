@@ -62,7 +62,7 @@ final class EntitySetCurrentRevisionToolFieldAccessTest extends TestCase
         $handler->ensureRevisionTable();
 
         $resolver = new SingleConnectionResolver($this->db);
-        $this->repo = new EntityRepository(
+        $this->repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $this->entityType,
             new SqlStorageDriver($resolver),
             new EventDispatcher(),

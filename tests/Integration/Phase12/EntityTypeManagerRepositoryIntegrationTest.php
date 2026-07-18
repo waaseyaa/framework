@@ -17,7 +17,6 @@ use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
-use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 
@@ -56,7 +55,7 @@ final class EntityTypeManagerRepositoryIntegrationTest extends TestCase
                     ? new RevisionableStorageDriver($resolver, $definition)
                     : null;
 
-                return new EntityRepository(
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
                     $definition,
                     $driver,
                     $dispatcher,

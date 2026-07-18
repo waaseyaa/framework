@@ -99,7 +99,7 @@ abstract class GraphQlIntegrationTestBase extends TestCase
             // $this->accessHandler is built below after seeding. Without this the
             // query layer falls back to an empty handler and — under deny-by-default
             // (audit C-6) — denies every row before the resolver's guard runs.
-            $this->storages[$id] = new EntityRepository(
+            $this->storages[$id] = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
                 $type,
                 new SqlStorageDriver($resolver),
                 $eventDispatcher,
@@ -115,7 +115,7 @@ abstract class GraphQlIntegrationTestBase extends TestCase
             static fn(EntityTypeInterface $type) => $storages[$type->id()],
             // C-22: repository factory mirroring the kernel's getRepository() shape
             // — same lazy accessHandlerResolver the storage factory threads above.
-            fn(string $_id, EntityTypeInterface $type): EntityRepository => new EntityRepository(
+            fn(string $_id, EntityTypeInterface $type): EntityRepository => \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
                 $type,
                 new SqlStorageDriver($resolver),
                 $eventDispatcher,

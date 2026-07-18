@@ -88,7 +88,7 @@ final class BundleThreadingEndToEndTest extends TestCase
         $this->dispatcher = new EventDispatcher();
         $resolver = new SingleConnectionResolver($this->db);
         $driver = new SqlStorageDriver($resolver, 'id');
-        $this->repository = new EntityRepository(
+        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             entityType: $entityType,
             driver: $driver,
             eventDispatcher: $this->dispatcher,

@@ -90,7 +90,7 @@ final class SplitBundleCompositionFreshInstallTest extends TestCase
         $this->typeManager = new EntityTypeManager(new EventDispatcher());
         $this->typeManager->registerEntityType($entityType);
         $this->dispatcher = new EventDispatcher();
-        $this->repository = new EntityRepository(
+        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             entityType: $entityType,
             driver: new SqlStorageDriver(new SingleConnectionResolver($this->db), 'nid'),
             eventDispatcher: $this->dispatcher,

@@ -10,8 +10,10 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\Validator\Constraints\Type;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityConstants;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
@@ -29,6 +31,7 @@ use Waaseyaa\EntityStorage\Tests\Fixtures\SpyEntityEventFactory;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestEnumCastStorageEntity;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
 use Waaseyaa\EntityStorage\Tests\Fixtures\ThirdPartyOpaqueStorageDriver;
+use Waaseyaa\Field\FieldDefinition;
 
 require_once __DIR__ . '/../Fixtures/AttributeFirstEntities/RequiredLabelFixture.php';
 
@@ -56,10 +59,16 @@ final class EntityRepositoryTest extends TestCase
             ],
         );
         $this->eventDispatcher = new EventDispatcher();
-        $this->repository = new EntityRepository(
+        $boundary = new StorageBoundary();
+        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $this->entityType,
-            $this->driver,
+            new InMemoryStorageDriverV2(
+                $this->driver,
+                $boundary->driverRowFactory(),
+                $boundary->driverSnapshotReader(),
+            ),
             $this->eventDispatcher,
+            storageBoundary: $boundary,
         );
     }
 
@@ -88,7 +97,7 @@ final class EntityRepositoryTest extends TestCase
             $boundary->driverRowFactory(),
             $boundary->driverSnapshotReader(),
         );
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $this->entityType,
             $driver,
             $this->eventDispatcher,
@@ -106,6 +115,43 @@ final class EntityRepositoryTest extends TestCase
     }
 
     #[Test]
+    public function activation_rejects_a_v1_driver_before_internal_values_reach_the_raw_adapter(): void
+    {
+        ContentEntityBase::setFieldRegistry(null);
+        $driver = new InMemoryStorageDriver();
+        $entityType = new EntityType(
+            id: 'legacy_driver_observer',
+            label: 'Legacy driver observer',
+            class: TestStorageEntity::class,
+            keys: ['id' => 'id', 'label' => 'label'],
+            _fieldDefinitions: [
+                'label' => new FieldDefinition('label', 'string', read: FieldReadLevel::Public),
+                'secret_marker' => new FieldDefinition('secret_marker', 'string', read: FieldReadLevel::Internal),
+            ],
+        );
+
+        $rejected = false;
+        try {
+            $repository = new EntityRepository($entityType, $driver, new EventDispatcher());
+            $entity = $repository->create([
+                'id' => '7',
+                'label' => 'Member',
+                'secret_marker' => 'restricted-value',
+            ]);
+            $repository->save($entity);
+        } catch (\TypeError) {
+            $rejected = true;
+        }
+
+        self::assertArrayNotHasKey(
+            'secret_marker',
+            $driver->read('legacy_driver_observer', '7') ?? [],
+            'The V1 raw-array adapter received an Internal-classified value.',
+        );
+        self::assertTrue($rejected, 'Activation accepted a V1 entity-storage driver.');
+    }
+
+    #[Test]
     public function third_party_v2_driver_never_exchanges_raw_rows_with_the_repository(): void
     {
         $boundary = new StorageBoundary();
@@ -113,7 +159,7 @@ final class EntityRepositoryTest extends TestCase
             $boundary->driverRowFactory(),
             $boundary->driverSnapshotReader(),
         );
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $this->entityType,
             $driver,
             $this->eventDispatcher,
@@ -186,7 +232,7 @@ final class EntityRepositoryTest extends TestCase
                 'langcode' => 'langcode',
             ],
         );
-        $repository = new EntityRepository($entityType, $driver, new EventDispatcher());
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create($entityType, $driver, new EventDispatcher());
         $driver->write('hydratable_test_entity', '1', [
             'id' => '1',
             'label' => 'From row',
@@ -448,7 +494,7 @@ final class EntityRepositoryTest extends TestCase
     public function saveUsesInjectedEventFactory(): void
     {
         $factory = new SpyEntityEventFactory();
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $this->entityType,
             $this->driver,
             $this->eventDispatcher,
@@ -470,7 +516,7 @@ final class EntityRepositoryTest extends TestCase
     public function preSaveOriginalEntityReflectsStoredRowNotInMemoryDuplicate(): void
     {
         $factory = new SpyEntityEventFactory();
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $this->entityType,
             $this->driver,
             $this->eventDispatcher,
@@ -512,7 +558,7 @@ final class EntityRepositoryTest extends TestCase
         $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
         new SqlSchemaHandler($this->entityType, $db)->ensureTable();
 
-        return new EntityRepository(
+        return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $this->entityType,
             $driver,
             $this->eventDispatcher,
@@ -609,7 +655,7 @@ final class EntityRepositoryTest extends TestCase
         $db = DBALDatabase::createSqlite();
         $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
         new SqlSchemaHandler($this->entityType, $db)->ensureTable();
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $this->entityType,
             $driver,
             $this->eventDispatcher,
@@ -666,7 +712,7 @@ final class EntityRepositoryTest extends TestCase
         $db = DBALDatabase::createSqlite();
         $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
         new SqlSchemaHandler($this->entityType, $db)->ensureTable();
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $this->entityType,
             $driver,
             $this->eventDispatcher,
@@ -741,7 +787,7 @@ final class EntityRepositoryTest extends TestCase
         $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
         new SqlSchemaHandler($lifecycleType, $db)->ensureTable();
 
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $lifecycleType,
             $driver,
             $this->eventDispatcher,
@@ -769,7 +815,7 @@ final class EntityRepositoryTest extends TestCase
             class: LifecycleTrackingEntity::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'bundle' => 'bundle', 'label' => 'label', 'langcode' => 'langcode'],
         );
-        $repository = new EntityRepository($lifecycleType, $this->driver, $this->eventDispatcher);
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create($lifecycleType, $this->driver, $this->eventDispatcher);
         $entity = new LifecycleTrackingEntity(
             values: ['id' => '88', 'label' => 'Before', 'bundle' => 'article', 'langcode' => 'en'],
             entityTypeId: 'test_entity',
@@ -797,7 +843,7 @@ final class EntityRepositoryTest extends TestCase
         $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
         new SqlSchemaHandler($lifecycleType, $db)->ensureTable();
 
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $lifecycleType,
             $driver,
             $this->eventDispatcher,
@@ -832,7 +878,7 @@ final class EntityRepositoryTest extends TestCase
         $driver = new SqlStorageDriver(new SingleConnectionResolver($db));
         new SqlSchemaHandler($lifecycleType, $db)->ensureTable();
 
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $lifecycleType,
             $driver,
             $this->eventDispatcher,
@@ -875,7 +921,7 @@ final class EntityRepositoryTest extends TestCase
             \Symfony\Component\Validator\Validation::createValidator(),
         );
 
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $constrainedType,
             $this->driver,
             $this->eventDispatcher,
@@ -914,7 +960,7 @@ final class EntityRepositoryTest extends TestCase
             \Symfony\Component\Validator\Validation::createValidator(),
         );
 
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $constrainedType,
             $driver,
             $this->eventDispatcher,
@@ -954,7 +1000,7 @@ final class EntityRepositoryTest extends TestCase
             \Symfony\Component\Validator\Validation::createValidator(),
         );
 
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $constrainedType,
             $driver,
             $this->eventDispatcher,
@@ -987,7 +1033,7 @@ final class EntityRepositoryTest extends TestCase
             \Symfony\Component\Validator\Validation::createValidator(),
         );
 
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $type,
             $driver,
             $this->eventDispatcher,
@@ -1021,7 +1067,7 @@ final class EntityRepositoryTest extends TestCase
             \Symfony\Component\Validator\Validation::createValidator(),
         );
 
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $type,
             $driver,
             $this->eventDispatcher,
@@ -1056,7 +1102,7 @@ final class EntityRepositoryTest extends TestCase
             \Symfony\Component\Validator\Validation::createValidator(),
         );
 
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $enumConstrainedType,
             $driver,
             $this->eventDispatcher,
@@ -1098,7 +1144,7 @@ final class EntityRepositoryTest extends TestCase
             \Symfony\Component\Validator\Validation::createValidator(),
         );
 
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $enumConstrainedType,
             $driver,
             $this->eventDispatcher,

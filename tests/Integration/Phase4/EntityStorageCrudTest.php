@@ -70,7 +70,7 @@ final class EntityStorageCrudTest extends TestCase
 
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver, $this->entityType->getKeys()['id'] ?? 'id');
-        $this->storage = new EntityRepository(
+        $this->storage = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $this->entityType,
             $driver,
             $this->eventDispatcher,
@@ -424,7 +424,7 @@ final class EntityStorageCrudTest extends TestCase
         // Load from a fresh storage to avoid any in-memory caching.
         $freshResolver = new SingleConnectionResolver($this->database);
         $freshDriver = new SqlStorageDriver($freshResolver, $this->entityType->getKeys()['id'] ?? 'id');
-        $freshStorage = new EntityRepository(
+        $freshStorage = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $this->entityType,
             $freshDriver,
             $this->eventDispatcher,

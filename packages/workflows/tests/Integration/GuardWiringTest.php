@@ -307,7 +307,7 @@ final class GuardWiringTest extends TestCase
             $schemaHandler = new SqlSchemaHandler($definition, $db);
             $schemaHandler->ensureTable();
 
-            return new EntityRepository(
+            return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
                 $definition,
                 new SqlStorageDriver(new SingleConnectionResolver($db)),
                 $dispatcher,
@@ -413,7 +413,7 @@ final class GuardWiringTest extends TestCase
 
             $resolver = new SingleConnectionResolver($db);
 
-            return new EntityRepository(
+            return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
                 $definition,
                 new SqlStorageDriver($resolver),
                 $dispatcher,

@@ -15,6 +15,7 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityValueReadGuardInterface;
 use Waaseyaa\Entity\Exception\FieldReadDenied;
 use Waaseyaa\Entity\FieldReadLevel;
+use Waaseyaa\Entity\Hydration\HydratableFromStorageInterface;
 use Waaseyaa\Entity\Hydration\HydrationContext;
 use Waaseyaa\EntityStorage\Hydration\EntityInstantiator;
 use Waaseyaa\EntityStorage\Tests\Fixtures\HydratableFromStorageTestEntity;
@@ -227,6 +228,35 @@ final class EntityInstantiatorTest extends TestCase
     }
 
     #[Test]
+    public function activation_rejects_registered_non_v2_hydration_before_the_complete_row_is_delivered(): void
+    {
+        RawHydrationObservingFixture::$receivedInternalValue = false;
+        $entityType = new EntityType(
+            id: 'raw_hydration_observer',
+            label: 'Raw hydration observer',
+            class: RawHydrationObservingFixture::class,
+            keys: ['id' => 'id', 'label' => 'name'],
+        );
+
+        $rejected = false;
+        try {
+            new EntityInstantiator($entityType)->instantiate(RawHydrationObservingFixture::class, [
+                'id' => 7,
+                'name' => 'Member',
+                'mail' => 'member@example.test',
+            ]);
+        } catch (\RuntimeException) {
+            $rejected = true;
+        }
+
+        self::assertFalse(
+            RawHydrationObservingFixture::$receivedInternalValue,
+            'The complete repository row reached a public raw hydration callback.',
+        );
+        self::assertTrue($rejected, 'Activation accepted a registered entity without the sealed V2 construction contract.');
+    }
+
+    #[Test]
     public function separately_hydrated_revision_views_have_distinct_guard_identities(): void
     {
         $entityType = new EntityType(
@@ -291,4 +321,27 @@ final class SealedHydrationFixture extends ContentEntityBase
 
         return parent::fromStorage($values, $context);
     }
+}
+
+final class RawHydrationObservingFixture implements HydratableFromStorageInterface
+{
+    public static bool $receivedInternalValue = false;
+
+    public static function fromStorage(array $values, HydrationContext $context): static
+    {
+        self::$receivedInternalValue = array_key_exists('mail', $values);
+
+        return new self();
+    }
+
+    public function id(): int|string|null { return 7; }
+    public function uuid(): string { return ''; }
+    public function label(): string { return ''; }
+    public function getEntityTypeId(): string { return 'raw_hydration_observer'; }
+    public function bundle(): string { return 'raw_hydration_observer'; }
+    public function isNew(): bool { return false; }
+    public function get(string $name): mixed { return null; }
+    public function set(string $name, mixed $value): static { return $this; }
+    public function toArray(): array { return []; }
+    public function language(): string { return 'en'; }
 }

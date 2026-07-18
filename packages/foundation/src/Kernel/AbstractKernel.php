@@ -22,6 +22,7 @@ use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeLifecycleManager;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\Preflight\FieldAccessClassificationArtifact;
 use Waaseyaa\EntityStorage\Backend\BackendRegistrarFactory;
 use Waaseyaa\EntityStorage\Backend\DatabaseStrictFieldStorageGatewayAudit;
 use Waaseyaa\EntityStorage\Backend\StrictFieldStorageGatewayAuditInterface;
@@ -533,11 +534,7 @@ abstract class AbstractKernel
         if (is_file($this->projectRoot . '/composer.lock')) {
             $version .= '@' . substr(hash_file('sha256', $this->projectRoot . '/composer.lock'), 0, 16);
         }
-        $classificationPath = $this->projectRoot . '/.waaseyaa/field-access-classification.json';
-        $classification = is_file($classificationPath)
-            ? json_decode((string) file_get_contents($classificationPath), true, flags: JSON_THROW_ON_ERROR)
-            : [];
-        $version .= '@classification-' . substr(hash('sha256', json_encode($classification, JSON_THROW_ON_ERROR)), 0, 16);
+        $version = FieldAccessClassificationArtifact::load($this->projectRoot)->bindToFrameworkVersion($version);
 
         if (!$this->database instanceof DBALDatabase) {
             throw new \RuntimeException('Field-read activation preflight requires the portable DBAL schema manager.');

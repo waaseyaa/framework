@@ -57,7 +57,7 @@ final class NodeRevisionStorageTest extends TestCase
         $dispatcher = $this->createMock(EventDispatcherInterface::class);
         $dispatcher->method('dispatch')->willReturnArgument(0);
 
-        $this->repo = new EntityRepository(
+        $this->repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $this->nodeEntityType,
             $driver,
             $dispatcher,

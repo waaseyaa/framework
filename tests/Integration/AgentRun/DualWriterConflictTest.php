@@ -57,7 +57,7 @@ final class DualWriterConflictTest extends TestCase
             null,
             // The kernel's getRepository() shape: revision-aware pipeline over SQLite.
             function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $resolver): EntityRepository {
-                return new EntityRepository(
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
                     $definition,
                     new SqlStorageDriver($resolver),
                     $dispatcher,

@@ -114,7 +114,7 @@ final class PipelineInvariantTest extends TestCase
         $resolver = new BackendResolver($registrar);
         $coordinator = new EntityStorageCoordinator($resolver, $registrar);
 
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             entityType: $entityType,
             driver: $driver,
             eventDispatcher: $dispatcher,
@@ -145,7 +145,7 @@ final class PipelineInvariantTest extends TestCase
             new SingleConnectionResolver($db),
         );
 
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             entityType: $entityType,
             driver: $driver,
             eventDispatcher: $dispatcher,

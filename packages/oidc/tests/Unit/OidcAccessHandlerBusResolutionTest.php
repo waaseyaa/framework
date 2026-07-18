@@ -8,6 +8,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Waaseyaa\Access\AccountPrincipalFactory;
+use Waaseyaa\Access\AccountPrincipalFactoryInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Database\DBALDatabase;
@@ -133,6 +135,9 @@ final class OidcAccessHandlerBusResolutionTest extends TestCase
             {
                 if ($abstract === UserInternalFieldReaderInterface::class) {
                     return new UserInternalFieldReaderFixture();
+                }
+                if ($abstract === AccountPrincipalFactoryInterface::class) {
+                    return new AccountPrincipalFactory();
                 }
 
                 return $this->services->get($abstract);

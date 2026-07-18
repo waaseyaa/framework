@@ -44,7 +44,7 @@ final class CastPersistenceIntegrationTest extends TestCase
             class: CastPersistenceTestEntity::class,
             keys: self::ENTITY_KEYS,
         );
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $entityType,
             $driver,
             new EventDispatcher(),

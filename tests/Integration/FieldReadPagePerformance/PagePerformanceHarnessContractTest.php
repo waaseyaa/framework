@@ -24,8 +24,53 @@ final class PagePerformanceHarnessContractTest extends TestCase
         self::assertIsArray($manifest);
         foreach ($manifest as $relative => $expectedHash) {
             self::assertFileExists($root . '/' . $relative);
-            self::assertSame($expectedHash, hash_file('sha256', $root . '/' . $relative), $relative);
+            self::assertSame($expectedHash, hash_file('sha256', $root . '/' . $relative), (string) $relative);
         }
+    }
+
+    #[Test]
+    public function benchmark_subprocess_drains_large_stdout_and_stderr_without_deadlock(): void
+    {
+        $root = dirname(__DIR__, 3);
+        $bytes = 262_144;
+        $childCode = <<<'PHP'
+            $bytes = (int) $argv[1];
+            fwrite(STDERR, str_repeat('E', $bytes));
+            fwrite(STDOUT, str_repeat('O', $bytes));
+            exit(37);
+            PHP;
+        $probeCode = <<<'PHP'
+            require $argv[1];
+            $result = \Waaseyaa\Benchmark\BenchmarkProcessRunner::run(
+                [PHP_BINARY, '-r', $argv[2], $argv[3]],
+                $argv[4],
+            );
+            echo json_encode([
+                'exit_code' => $result['exit_code'],
+                'stdout_bytes' => strlen($result['stdout']),
+                'stdout_sha256' => hash('sha256', $result['stdout']),
+                'stderr_bytes' => strlen($result['stderr']),
+                'stderr_sha256' => hash('sha256', $result['stderr']),
+            ], JSON_THROW_ON_ERROR);
+            PHP;
+
+        $result = $this->runProbeWithDeadline([
+            PHP_BINARY,
+            '-r',
+            $probeCode,
+            $root . '/benchmarks/BenchmarkProcessRunner.php',
+            $childCode,
+            (string) $bytes,
+            $root,
+        ]);
+
+        self::assertSame(0, $result['exit_code'], $result['stderr']);
+        $payload = json_decode($result['stdout'], true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame(37, $payload['exit_code'] ?? null);
+        self::assertSame($bytes, $payload['stdout_bytes'] ?? null);
+        self::assertSame(hash('sha256', str_repeat('O', $bytes)), $payload['stdout_sha256'] ?? null);
+        self::assertSame($bytes, $payload['stderr_bytes'] ?? null);
+        self::assertSame(hash('sha256', str_repeat('E', $bytes)), $payload['stderr_sha256'] ?? null);
     }
 
     #[Test]
@@ -139,6 +184,51 @@ final class PagePerformanceHarnessContractTest extends TestCase
             'trace' => $trace,
             'environment' => ['php' => PHP_VERSION, 'ini_sha256' => 'same'],
             'workload_sha256' => 'same-workload',
+        ];
+    }
+
+    /** @param list<string> $command @return array{exit_code:int,stdout:string,stderr:string} */
+    private function runProbeWithDeadline(array $command): array
+    {
+        $pipes = [];
+        $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, __DIR__);
+        self::assertIsResource($process);
+        stream_set_blocking($pipes[1], false);
+        stream_set_blocking($pipes[2], false);
+
+        $stdout = '';
+        $stderr = '';
+        $deadline = microtime(true) + 3.0;
+        $status = proc_get_status($process);
+        while ($status['running']) {
+            $stdout .= (string) stream_get_contents($pipes[1]);
+            $stderr .= (string) stream_get_contents($pipes[2]);
+            if (microtime(true) >= $deadline) {
+                proc_terminate($process);
+                usleep(50_000);
+                $terminated = proc_get_status($process);
+                if ($terminated['running']) {
+                    proc_terminate($process, 9);
+                }
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+                proc_close($process);
+                self::fail('Benchmark subprocess collector exceeded the 3 second deadline.');
+            }
+            usleep(10_000);
+            $status = proc_get_status($process);
+        }
+
+        $stdout .= (string) stream_get_contents($pipes[1]);
+        $stderr .= (string) stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $closeExitCode = proc_close($process);
+
+        return [
+            'exit_code' => $status['exitcode'] >= 0 ? $status['exitcode'] : $closeExitCode,
+            'stdout' => $stdout,
+            'stderr' => $stderr,
         ];
     }
 }

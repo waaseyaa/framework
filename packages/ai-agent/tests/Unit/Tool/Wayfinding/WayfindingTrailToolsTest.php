@@ -228,7 +228,7 @@ final class WayfindingTrailToolsTest extends TestCase
         $dispatcher = $this->createMock(EventDispatcherInterface::class);
         $dispatcher->method('dispatch')->willReturnArgument(0);
 
-        return new EntityRepository(
+        return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $entityType,
             new SqlStorageDriver($resolver, $entityType->getKeys()['id']),
             $dispatcher,

@@ -302,7 +302,7 @@ final class TwoBundleCoexistenceTest extends TestCase
         // must be told, or read()/write() key off the wrong column.
         $idKey = $this->groupType->getKeys()['id'] ?? 'id';
 
-        return new EntityRepository(
+        return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $this->groupType,
             new SqlStorageDriver(new SingleConnectionResolver($this->database), $idKey),
             $this->dispatcher,

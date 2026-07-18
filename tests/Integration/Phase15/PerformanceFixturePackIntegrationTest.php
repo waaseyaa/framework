@@ -83,7 +83,7 @@ final class PerformanceFixturePackIntegrationTest extends TestCase
                 $idKey = $definition->getKeys()['id'] ?? 'id';
                 $resolver = new SingleConnectionResolver($database);
 
-                return new EntityRepository($definition, new SqlStorageDriver($resolver, $idKey), $dispatcher, database: $database);
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create($definition, new SqlStorageDriver($resolver, $idKey), $dispatcher, database: $database);
             },
         );
 

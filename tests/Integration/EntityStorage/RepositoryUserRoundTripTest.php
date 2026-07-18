@@ -51,7 +51,7 @@ final class RepositoryUserRoundTripTest extends TestCase
         $resolver = new SingleConnectionResolver($database);
         $driver = new SqlStorageDriver($resolver, idKey: $entityType->getKeys()['id']);
 
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $entityType,
             $driver,
             $dispatcher,

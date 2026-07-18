@@ -12,7 +12,7 @@ namespace Waaseyaa\EntityStorage\Driver;
 final readonly class InMemoryStorageDriverV2 implements EntityStorageDriverV2Interface
 {
     public function __construct(
-        private InMemoryStorageDriver $backend,
+        private EntityStorageDriverInterface $backend,
         private StorageRowFactory $rowFactory,
         private StorageSnapshotReader $snapshotReader,
     ) {}

@@ -76,7 +76,7 @@ final class SeoPublicControllerAccessTest extends TestCase
             ): EntityRepository {
                 new SqlSchemaHandler($definition, $database)->ensureTable();
 
-                return new EntityRepository(
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
                     $definition,
                     new SqlStorageDriver($resolver),
                     $dispatcher,

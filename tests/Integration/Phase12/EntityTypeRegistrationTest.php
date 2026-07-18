@@ -62,7 +62,7 @@ final class EntityTypeRegistrationTest extends TestCase
                 $idKey = $def->getKeys()['id'] ?? 'id';
                 $resolver = new SingleConnectionResolver($this->database);
 
-                return new EntityRepository($def, new SqlStorageDriver($resolver, $idKey), $dispatcher);
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create($def, new SqlStorageDriver($resolver, $idKey), $dispatcher);
             },
         );
 

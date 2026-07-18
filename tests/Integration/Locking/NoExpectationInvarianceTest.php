@@ -79,7 +79,7 @@ final class NoExpectationInvarianceTest extends TestCase
         $dispatcher->method('dispatch')->willReturnArgument(0);
 
         $resolver = new SingleConnectionResolver($this->counting);
-        $this->repo = new EntityRepository(
+        $this->repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $entityType,
             new SqlStorageDriver($resolver),
             $dispatcher,

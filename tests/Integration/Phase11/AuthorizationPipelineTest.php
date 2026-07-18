@@ -55,7 +55,7 @@ final class AuthorizationPipelineTest extends TestCase
                 $schema = new SqlSchemaHandler($def, $this->database);
                 $schema->ensureTable();
 
-                return new EntityRepository($def, new SqlStorageDriver($resolver, $idKey), $dispatcher);
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create($def, new SqlStorageDriver($resolver, $idKey), $dispatcher);
             },
         );
 

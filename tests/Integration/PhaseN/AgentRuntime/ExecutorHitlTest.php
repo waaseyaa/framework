@@ -28,7 +28,6 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
-use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\Foundation\Migration\Migration;
 use Waaseyaa\Foundation\Migration\SchemaBuilder;
 
@@ -75,8 +74,8 @@ final class ExecutorHitlTest extends TestCase
             keys: ['id' => 'id', 'uuid' => 'id', 'label' => 'event_type'],
         );
 
-        $runEntityRepo = new EntityRepository($runType, $driver, $dispatcher);
-        $logEntityRepo = new EntityRepository($logType, $driver, $dispatcher);
+        $runEntityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create($runType, $driver, $dispatcher);
+        $logEntityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create($logType, $driver, $dispatcher);
 
         $this->runRepository = new AgentRunRepository($runEntityRepo, $this->database);
         $this->auditRepository = new AgentAuditLogRepository($logEntityRepo, $this->database);

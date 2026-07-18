@@ -76,7 +76,7 @@ final class SsrEntityLabelAccessTest extends TestCase
         $dispatcher = new EventDispatcher();
         $db = $this->db;
         $resolver = new SingleConnectionResolver($this->db);
-        $this->repository = new EntityRepository(
+        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $entityType,
             new SqlStorageDriver($resolver),
             $dispatcher,

@@ -168,7 +168,7 @@ final class EditorialFlowTest extends TestCase
 
             $resolver = new SingleConnectionResolver($db);
 
-            return new EntityRepository(
+            return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
                 $definition,
                 new SqlStorageDriver($resolver),
                 $dispatcher,

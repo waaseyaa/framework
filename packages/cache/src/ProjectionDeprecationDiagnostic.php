@@ -44,7 +44,7 @@ final class ProjectionDeprecationDiagnostic
     {
         if (($this->detectEntity)($value)) {
             if ($this->config->rejectEntityPayloads) {
-                throw new EntityProjectionWriteForbidden(sprintf('Cache entry "%s" must use identifiers or a public projection, not an entity object.', $cacheId));
+                throw new EntityProjectionWriteForbidden(sprintf('Cache entry "%s" must use identifiers or a fully inspectable public projection, not an entity object.', $cacheId));
             }
             $type = get_debug_type($value);
             if (!isset($this->emitted[$type])) {
@@ -59,8 +59,11 @@ final class ProjectionDeprecationDiagnostic
     /** @param \WeakMap<object, true> $seen */
     private static function containsEntity(mixed $value, int $depth, int &$remaining, \WeakMap $seen): bool
     {
-        if ($depth > 16 || --$remaining < 0) {
+        if (!is_array($value) && !is_object($value)) {
             return false;
+        }
+        if ($depth > 16 || --$remaining < 0) {
+            return true;
         }
         if (is_array($value)) {
             foreach ($value as $child) {
@@ -71,7 +74,7 @@ final class ProjectionDeprecationDiagnostic
 
             return false;
         }
-        if (!is_object($value) || isset($seen[$value])) {
+        if (isset($seen[$value])) {
             return false;
         }
         $seen[$value] = true;
@@ -87,7 +90,7 @@ final class ProjectionDeprecationDiagnostic
             try {
                 $child = $property->getValue($value);
             } catch (\Throwable) {
-                continue;
+                return true;
             }
             if (self::containsEntity($child, $depth + 1, $remaining, $seen)) {
                 return true;

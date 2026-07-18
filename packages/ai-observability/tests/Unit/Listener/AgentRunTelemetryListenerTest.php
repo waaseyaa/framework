@@ -59,7 +59,7 @@ final class AgentRunTelemetryListenerTest extends TestCase
             keys: ['id' => 'id', 'uuid' => 'id', 'label' => 'id'],
         );
         $driver = new SqlStorageDriver(new SingleConnectionResolver($this->database), 'id');
-        $entityRepo = new EntityRepository(
+        $entityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $entityType,
             $driver,
             new EventDispatcher(),

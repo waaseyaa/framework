@@ -3,12 +3,14 @@
 
 declare(strict_types=1);
 
+use Waaseyaa\Benchmark\BenchmarkProcessRunner;
 use Waaseyaa\Tests\Integration\FieldReadPagePerformance\PagePerformanceOrchestrator;
 
 $harnessRoot = dirname(__DIR__);
 $contractRoot = $harnessRoot.'/tests/Integration/FieldReadPagePerformance';
 $fixtureRoot = $contractRoot.'/Fixtures';
 require $contractRoot.'/PagePerformanceOrchestrator.php';
+require $harnessRoot.'/benchmarks/BenchmarkProcessRunner.php';
 
 $options = getopt('', ['baseline-root:', 'candidate-root:', 'output::', 'validate-only']);
 if (!is_string($options['baseline-root'] ?? null) || !is_string($options['candidate-root'] ?? null)) {
@@ -17,8 +19,8 @@ if (!is_string($options['baseline-root'] ?? null) || !is_string($options['candid
 }
 
 try {
-    $baselineRoot = (string) realpath((string) $options['baseline-root']);
-    $candidateRoot = (string) realpath((string) $options['candidate-root']);
+    $baselineRoot = (string) realpath($options['baseline-root']);
+    $candidateRoot = (string) realpath($options['candidate-root']);
     PagePerformanceOrchestrator::validateSourceTrees($baselineRoot, $candidateRoot);
     $frozenManifest = assertFrozenHarness($harnessRoot, $contractRoot.'/fixture-manifest.json');
     $identity = [
@@ -189,7 +191,8 @@ function runWorker(string $mode, string $sourceRoot, string $fixtureRoot, string
     if ($result['exit_code'] !== 0) {
         throw new RuntimeException(sprintf("Worker %s failed for %s:\n%s\n%s", $mode, $sourceRoot, $result['stderr'], $result['stdout']));
     }
-    $lines = array_values(array_filter(preg_split('/\R/', trim($result['stdout'])) ?: [], static fn(string $line): bool => $line !== ''));
+    $splitLines = preg_split('/\R/', trim($result['stdout']));
+    $lines = array_values(array_filter($splitLines === false ? [] : $splitLines, static fn(string $line): bool => $line !== ''));
     $payload = json_decode($lines[array_key_last($lines)] ?? '', true, flags: JSON_THROW_ON_ERROR);
     if (!is_array($payload) || ($payload['ok'] ?? false) !== true) {
         throw new RuntimeException(sprintf('Worker %s returned an invalid result.', $mode));
@@ -216,16 +219,7 @@ function pageBlocks(array $blocks, string $page): array
 /** @param list<string> $command @return array{exit_code:int,stdout:string,stderr:string} */
 function runCommand(array $command, string $cwd): array
 {
-    $pipes = [];
-    $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $cwd);
-    if (!is_resource($process)) {
-        throw new RuntimeException('Could not start benchmark subprocess.');
-    }
-    $stdout = stream_get_contents($pipes[1]);
-    $stderr = stream_get_contents($pipes[2]);
-    fclose($pipes[1]);
-    fclose($pipes[2]);
-    return ['exit_code' => proc_close($process), 'stdout' => (string) $stdout, 'stderr' => (string) $stderr];
+    return BenchmarkProcessRunner::run($command, $cwd);
 }
 
 function makeTemporaryDirectory(string $prefix): string
