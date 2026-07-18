@@ -6,6 +6,9 @@ namespace Waaseyaa\Queue;
 
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Queue\Envelope\QueueEnvelopeFactoryInterface;
+use Waaseyaa\Queue\Envelope\QueueEnvelopeV1;
+use Waaseyaa\Queue\Exception\InvalidPersistentPayload;
 use Waaseyaa\Queue\Security\SignedQueuePayload;
 use Waaseyaa\Queue\Transport\TransportInterface;
 
@@ -26,9 +29,15 @@ use Waaseyaa\Queue\Transport\TransportInterface;
  * is logged once per job class per process so that the no-op is non-silent.
  * The message is still pushed to the transport.
  */
-final class DbalQueue implements QueueInterface
+final class DbalQueue implements QueueInterface, PersistentPayloadReplayInterface
 {
     private readonly LoggerInterface $logger;
+
+    private readonly ?QueueEnvelopeFactoryInterface $envelopeFactory;
+
+    private readonly QueuePayloadDeprecationDiagnostic $payloadDiagnostic;
+
+    private bool $missingAuthorityDiagnosticEmitted = false;
 
     /**
      * Per-process set of job class names already warned about unenforced attributes.
@@ -49,19 +58,57 @@ final class DbalQueue implements QueueInterface
         private readonly SignedQueuePayload $payloadSigner,
         private readonly string $defaultQueue = 'default',
         ?LoggerInterface $logger = null,
+        ?QueueEnvelopeFactoryInterface $envelopeFactory = null,
+        ?QueuePayloadDeprecationDiagnostic $payloadDiagnostic = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
+        $this->envelopeFactory = $envelopeFactory;
+        $this->payloadDiagnostic = $payloadDiagnostic ?? new QueuePayloadDeprecationDiagnostic(
+            function (string $code, array $context): void {
+                $this->logger->notice($code, $context);
+            },
+        );
     }
 
     public function dispatch(object $message): void
     {
+        if ($message instanceof QueueEnvelopeV1) {
+            throw new \InvalidArgumentException(
+                'Queue authority envelopes can only be created by the configured envelope factory.',
+            );
+        }
+
         $this->warnIfAttributeNotEnforced($message);
+        $this->payloadDiagnostic->inspect($message);
 
         $queue = $this->resolveQueue($message);
         $delay = $this->resolveDelay($message);
-        $payload = $this->payloadSigner->seal(serialize($message));
+        $serializedMessage = serialize($message);
+        if ($this->envelopeFactory !== null) {
+            $serializedMessage = serialize($this->envelopeFactory->wrap($message, $serializedMessage));
+        } elseif (!$this->missingAuthorityDiagnosticEmitted) {
+            $this->missingAuthorityDiagnosticEmitted = true;
+            $this->logger->notice('entity.deprecation', [
+                'boundary' => 'queue.dispatch',
+                'reason' => 'persistent_dispatch_without_authority_declaration',
+            ]);
+        }
+        $payload = $this->payloadSigner->seal($serializedMessage);
 
         $this->transport->push($queue, $payload, $delay);
+    }
+
+    public function replaySignedPayload(string $queue, string $signedPayload): void
+    {
+        // Authenticate before storage so an operator retry cannot enqueue an
+        // invalid failed-row payload. The exact bytes, including authority and
+        // correlation metadata, are then preserved for the worker.
+        try {
+            $this->payloadSigner->open($signedPayload);
+        } catch (\Throwable $error) {
+            throw new InvalidPersistentPayload('Persistent queue payload authentication failed.', previous: $error);
+        }
+        $this->transport->push($queue, $signedPayload);
     }
 
     private function resolveQueue(object $message): string

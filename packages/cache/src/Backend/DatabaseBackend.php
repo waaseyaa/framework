@@ -6,6 +6,7 @@ namespace Waaseyaa\Cache\Backend;
 
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Cache\CacheItem;
+use Waaseyaa\Cache\ProjectionDeprecationDiagnostic;
 use Waaseyaa\Cache\TagAwareCacheInterface;
 use Waaseyaa\Foundation\Security\SensitiveKey;
 
@@ -37,6 +38,7 @@ final class DatabaseBackend implements TagAwareCacheInterface
         private readonly string $bin = 'cache_default',
         #[\SensitiveParameter]
         ?string $hmacKey = null,
+        private readonly ?ProjectionDeprecationDiagnostic $projectionDiagnostic = null,
     ) {
         $this->pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
         $this->hmacKey = ($hmacKey === '' || $hmacKey === null ? null : new SensitiveKey($hmacKey));
@@ -92,6 +94,7 @@ final class DatabaseBackend implements TagAwareCacheInterface
     {
         $this->ensureTable();
 
+        $data = $this->projectionDiagnostic?->inspect($cid, $data) ?? $data;
         $serialized = serialize($data);
         $tagsString = implode(',', $tags);
         $now = time();

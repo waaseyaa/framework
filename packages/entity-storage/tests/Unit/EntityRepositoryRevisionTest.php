@@ -123,6 +123,15 @@ final class EntityRepositoryRevisionTest extends TestCase
         $rev1 = $this->repo->loadRevision('1', 1);
         $this->assertNotNull($rev1);
         $this->assertSame('v1', $rev1->label());
+        self::assertSame(1, $rev1->entityStructure()->revisionId);
+        self::assertFalse($rev1->entityStructure()->revisionTip);
+        self::assertFalse($rev1->entityStructure()->defaultRevision);
+
+        $rev2 = $this->repo->loadRevision('1', 2);
+        self::assertNotNull($rev2);
+        self::assertSame(2, $rev2->entityStructure()->revisionId);
+        self::assertTrue($rev2->entityStructure()->revisionTip);
+        self::assertTrue($rev2->entityStructure()->defaultRevision);
     }
 
     #[Test]

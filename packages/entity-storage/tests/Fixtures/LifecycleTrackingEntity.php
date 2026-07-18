@@ -12,9 +12,14 @@ final class LifecycleTrackingEntity extends TestStorageEntity
     /** @var list<string> */
     public array $hookLog = [];
 
+    public ?string $labelDuringPreSave = null;
+
     public function preSave(bool $isNew): void
     {
         $this->hookLog[] = 'preSave:' . ($isNew ? 'new' : 'update');
+        if ($this->labelDuringPreSave !== null) {
+            $this->set('label', $this->labelDuringPreSave);
+        }
     }
 
     public function postSave(bool $isNew): void

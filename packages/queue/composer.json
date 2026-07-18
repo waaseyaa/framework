@@ -10,6 +10,10 @@
         },
         {
             "type": "path",
+            "url": "../entity"
+        },
+        {
+            "type": "path",
             "url": "../database-legacy"
         }
     ],
@@ -20,7 +24,8 @@
         "waaseyaa/database-legacy": "^0.1.0-alpha.267"
     },
     "require-dev": {
-        "phpunit/phpunit": "^10.5"
+        "phpunit/phpunit": "^10.5",
+        "waaseyaa/entity": "^0.1.0-alpha.267"
     },
     "autoload": {
         "psr-4": {

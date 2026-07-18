@@ -33,6 +33,8 @@ final readonly class CapabilityDeclaration
         public int $maxTtlSeconds = 300,
         public string $justification = '',
         public bool $wildcard = false,
+        public bool $bindTenantFromContext = false,
+        public bool $bindCommunityFromContext = false,
     ) {
         if ($issuer === '' || trim($justification) === '') {
             throw new \InvalidArgumentException('Capability declarations require an issuer and justification.');
@@ -45,6 +47,9 @@ final readonly class CapabilityDeclaration
         }
         if ($actorSemantics === [] || $maxTtlSeconds < 1) {
             throw new \InvalidArgumentException('Capability declarations require actor semantics and a positive maximum TTL.');
+        }
+        if (($bindTenantFromContext && $tenantId !== null) || ($bindCommunityFromContext && $communityId !== null)) {
+            throw new \InvalidArgumentException('A capability scope is either fixed or explicitly context-bound, never both.');
         }
     }
 }

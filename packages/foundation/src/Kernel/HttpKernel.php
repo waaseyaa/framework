@@ -19,6 +19,7 @@ use Waaseyaa\Cache\Backend\DatabaseBackend;
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Cache\CacheConfiguration;
 use Waaseyaa\Cache\CacheFactory;
+use Waaseyaa\Cache\ProjectionDeprecationDiagnostic;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Foundation\Http\ControllerDispatcher;
 use Waaseyaa\Foundation\Http\CorsHandler;
@@ -109,22 +110,30 @@ final class HttpKernel extends AbstractKernel
 
         $cacheConfig = new CacheConfiguration();
         $cacheHmacKey = $this->applicationSecret()->derive(ApplicationSecret::PURPOSE_CACHE_PAYLOAD_HMAC);
+        $projectionDiagnostic = ProjectionDeprecationDiagnostic::forEntityPayloads(
+            function (string $channel, array $context): void {
+                $this->logger->notice($channel, $context);
+            },
+        );
         $cacheConfig->setFactoryForBin('render', fn(): DatabaseBackend => new DatabaseBackend(
             $pdo,
             'cache_render',
             hmacKey: $cacheHmacKey,
+            projectionDiagnostic: $projectionDiagnostic,
         ));
         $cacheConfig->setFactoryForBin('discovery', fn(): DatabaseBackend => new DatabaseBackend(
             $pdo,
             'cache_discovery',
             hmacKey: $cacheHmacKey,
+            projectionDiagnostic: $projectionDiagnostic,
         ));
         $cacheConfig->setFactoryForBin('mcp_read', fn(): DatabaseBackend => new DatabaseBackend(
             $pdo,
             'cache_mcp_read',
             hmacKey: $cacheHmacKey,
+            projectionDiagnostic: $projectionDiagnostic,
         ));
-        $cacheFactory = new CacheFactory($cacheConfig);
+        $cacheFactory = new CacheFactory($cacheConfig, $projectionDiagnostic);
         $this->renderCacheBackend = $cacheFactory->get('render');
         $this->discoveryCache = $cacheFactory->get('discovery');
         $this->mcpReadCache = $cacheFactory->get('mcp_read');

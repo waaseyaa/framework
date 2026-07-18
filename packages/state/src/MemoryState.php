@@ -9,6 +9,8 @@ namespace Waaseyaa\State;
  */
 final class MemoryState implements StateInterface
 {
+    public function __construct(private readonly ?ProjectionDeprecationDiagnostic $projectionDiagnostic = null) {}
+
     /** @var array<string, mixed> */
     private array $data = [];
 
@@ -36,13 +38,14 @@ final class MemoryState implements StateInterface
 
     public function set(string $key, mixed $value): void
     {
+        $value = $this->projectionDiagnostic?->inspect($key, $value) ?? $value;
         $this->data[$key] = $value;
     }
 
     public function setMultiple(array $values): void
     {
         foreach ($values as $key => $value) {
-            $this->data[$key] = $value;
+            $this->set($key, $value);
         }
     }
 

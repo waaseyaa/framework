@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\CLI\Handler\QueueRetryHandler;
 use Waaseyaa\CLI\Provider\QueueServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
+use Waaseyaa\Queue\PersistentPayloadReplayInterface;
 use Waaseyaa\Queue\QueueInterface;
 use Waaseyaa\Queue\Security\SignedQueuePayload;
 use Waaseyaa\Queue\Storage\InMemoryFailedJobRepository;
@@ -132,7 +133,10 @@ final class QueueRetryHandlerTest extends TestCase
         self::assertTrue($repo->claimForRetry($jobId));
         $queue = new class implements QueueInterface {
             public int $dispatches = 0;
-            public function dispatch(object $message): void { $this->dispatches++; }
+            public function dispatch(object $message): void
+            {
+                $this->dispatches++;
+            }
         };
         $tester = CliTester::for($this->makeDefinition(), $this->makeContainer($repo, $queue));
 
@@ -214,6 +218,31 @@ final class QueueRetryHandlerTest extends TestCase
 
         self::assertSame(0, $tester->getExitCode());
         self::assertStringContainsString('No failed jobs to retry.', $tester->getStdout());
+    }
+
+    #[Test]
+    public function persistentRetryPreservesTheOriginalSignedEnvelopeAndQueue(): void
+    {
+        $repo = new InMemoryFailedJobRepository();
+        $payload = $this->signed(new SuccessfulJob());
+        $jobId = $repo->record('priority', $payload, new \RuntimeException('Error'));
+        $queue = new class implements QueueInterface, PersistentPayloadReplayInterface {
+            public ?array $replayed = null;
+            public function dispatch(object $message): void
+            {
+                self::fail('Persistent retry must not reconstruct authority.');
+            }
+            public function replaySignedPayload(string $queue, string $signedPayload): void
+            {
+                $this->replayed = [$queue, $signedPayload];
+            }
+        };
+        $tester = CliTester::for($this->makeDefinition(), $this->makeContainer($repo, $queue));
+
+        $tester->executeMap(['id' => $jobId]);
+
+        self::assertSame(['priority', $payload], $queue->replayed);
+        self::assertSame(0, $tester->getExitCode());
     }
 
     private function signed(object $message): string

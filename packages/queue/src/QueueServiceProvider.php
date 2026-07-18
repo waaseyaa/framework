@@ -8,6 +8,9 @@ use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\Queue\Envelope\NoAuthorityQueueRuntime;
+use Waaseyaa\Queue\Envelope\QueueAuthorityRuntimeInterface;
+use Waaseyaa\Queue\Envelope\QueueEnvelopeFactoryInterface;
 use Waaseyaa\Queue\Handler\HandlerInterface;
 use Waaseyaa\Queue\Handler\JobHandler;
 use Waaseyaa\Queue\Security\SignedQueuePayload;
@@ -42,11 +45,16 @@ final class QueueServiceProvider extends ServiceProvider
         });
 
         $this->singleton(QueueInterface::class, match ($driver) {
-            'database' => fn(): DbalQueue => new DbalQueue(
-                $this->resolve(TransportInterface::class),
-                $this->resolve(SignedQueuePayload::class),
-                $this->config['queue']['default'] ?? 'default',
-            ),
+            'database' => function (): DbalQueue {
+                $factory = $this->resolveOptional(QueueEnvelopeFactoryInterface::class);
+
+                return new DbalQueue(
+                    $this->resolve(TransportInterface::class),
+                    $this->resolve(SignedQueuePayload::class),
+                    $this->config['queue']['default'] ?? 'default',
+                    envelopeFactory: $factory instanceof QueueEnvelopeFactoryInterface ? $factory : null,
+                );
+            },
             default => fn(): SyncQueue => new SyncQueue(),
         });
 
@@ -59,6 +67,7 @@ final class QueueServiceProvider extends ServiceProvider
 
         $this->singleton(Worker::class, function (): Worker {
             $logger = $this->resolveOptional(LoggerInterface::class);
+            $authorityRuntime = $this->resolveOptional(QueueAuthorityRuntimeInterface::class);
 
             return new Worker(
                 $this->resolve(TransportInterface::class),
@@ -66,6 +75,9 @@ final class QueueServiceProvider extends ServiceProvider
                 $this->resolveHandlers(),
                 $this->resolve(SignedQueuePayload::class),
                 $logger instanceof LoggerInterface ? $logger : null,
+                $authorityRuntime instanceof QueueAuthorityRuntimeInterface
+                    ? $authorityRuntime
+                    : new NoAuthorityQueueRuntime(),
             );
         });
     }

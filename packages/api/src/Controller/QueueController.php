@@ -7,7 +7,9 @@ namespace Waaseyaa\Api\Controller;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Waaseyaa\Queue\Exception\InvalidPersistentPayload;
 use Waaseyaa\Queue\FailedJobRepositoryInterface;
+use Waaseyaa\Queue\PersistentPayloadReplayInterface;
 use Waaseyaa\Queue\QueueInterface;
 use Waaseyaa\Queue\Transport\TransportInterface;
 
@@ -225,8 +227,11 @@ final class QueueController
             return self::errorResponse(404, 'Not Found', sprintf('Unknown failed job id: %s', $id));
         }
 
-        $message = @unserialize($record['payload']);
-        if ($message === false || !is_object($message)) {
+        $message = null;
+        if (!$this->queue instanceof PersistentPayloadReplayInterface) {
+            $message = @unserialize($record['payload']);
+        }
+        if (!$this->queue instanceof PersistentPayloadReplayInterface && ($message === false || !is_object($message))) {
             // Payload is irrecoverable. Leave the record in the failed table
             // (unlike the pre-#1915-R16 behavior) so the operator can inspect
             // or explicitly discard it rather than losing it silently.
@@ -246,7 +251,20 @@ final class QueueController
         }
 
         try {
-            $this->queue->dispatch($message);
+            if ($this->queue instanceof PersistentPayloadReplayInterface) {
+                $this->queue->replaySignedPayload($record['queue'], $record['payload']);
+            } else {
+                \assert(is_object($message));
+                $this->queue->dispatch($message);
+            }
+        } catch (InvalidPersistentPayload) {
+            $this->failedJobRepository->releaseRetryClaim($id);
+
+            return self::errorResponse(
+                422,
+                'Unprocessable Entity',
+                sprintf('Failed job [%s] has an invalid persistent payload and cannot be re-enqueued.', $id),
+            );
         } catch (\Throwable $e) {
             $this->failedJobRepository->releaseRetryClaim($id);
             // Dispatch failed — leave the record in the failed table so the

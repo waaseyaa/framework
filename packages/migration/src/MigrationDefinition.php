@@ -7,6 +7,7 @@ namespace Waaseyaa\Migration;
 use Waaseyaa\Migration\Plugin\DestinationPluginInterface;
 use Waaseyaa\Migration\Plugin\ProcessPluginInterface;
 use Waaseyaa\Migration\Plugin\SourcePluginInterface;
+use Waaseyaa\Migration\Security\MigrationFieldReadManifest;
 
 /**
  * Canonical manifest value object — the single PHP object every migration
@@ -70,6 +71,7 @@ final readonly class MigrationDefinition
         public float $errorRateWarn = self::DEFAULT_ERROR_RATE_WARN,
         public float $errorRateHalt = self::DEFAULT_ERROR_RATE_HALT,
         public ?string $bundle = null,
+        public ?MigrationFieldReadManifest $fieldReads = null,
     ) {
         $this->validateId($id);
         $this->validateProcessMap($process);
@@ -77,6 +79,9 @@ final readonly class MigrationDefinition
         $this->validateMemoryBudget($memoryBudgetBytes);
         $this->validateErrorRates($errorRateWarn, $errorRateHalt);
         $this->validateBundle($bundle);
+        if ($fieldReads !== null && $fieldReads->migrationId !== $id) {
+            throw new \InvalidArgumentException('Migration field-read manifest id must match the migration definition id.');
+        }
     }
 
     /**

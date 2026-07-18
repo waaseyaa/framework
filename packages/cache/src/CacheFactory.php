@@ -18,6 +18,7 @@ final class CacheFactory implements CacheFactoryInterface
      */
     public function __construct(
         string|CacheConfiguration $defaultBackendClass = MemoryBackend::class,
+        private readonly ?ProjectionDeprecationDiagnostic $projectionDiagnostic = null,
     ) {
         if ($defaultBackendClass instanceof CacheConfiguration) {
             $this->configuration = $defaultBackendClass;
@@ -35,7 +36,9 @@ final class CacheFactory implements CacheFactoryInterface
                 $this->bins[$bin] = $factory();
             } else {
                 $class = $this->configuration->getBackendForBin($bin);
-                $this->bins[$bin] = new $class();
+                $this->bins[$bin] = $class === MemoryBackend::class
+                    ? new MemoryBackend($this->projectionDiagnostic)
+                    : new $class();
             }
         }
 

@@ -43,7 +43,10 @@ final class AuthorizationMiddleware implements HttpMiddlewareInterface
             return $next->handle($request);
         }
 
-        $account = $request->attributes->get('_account');
+        $principal = $request->attributes->get('_authorization_principal');
+        $account = $principal instanceof AccountInterface
+            ? $principal
+            : $request->attributes->get('_account');
         $isRenderRoute = $this->isRenderRoute($route);
 
         if (!$account instanceof AccountInterface) {

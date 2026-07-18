@@ -43,6 +43,16 @@ final class EntityInstantiatorTest extends TestCase
         $this->assertInstanceOf(HydratableFromStorageTestEntity::class, $entity);
         $this->assertTrue($entity->get('_rehydrated_via_storage'));
         $this->assertSame('hydratable_test_entity', $entity->get('_context_type'));
+        $structure = $entity->entityStructure();
+        $this->assertSame('hydratable_test_entity', $structure->entityTypeId);
+        $this->assertSame('b', $structure->bundleId);
+        $this->assertSame('1', $structure->id);
+        $this->assertSame('en', $structure->activeLanguageId);
+        $this->assertSame('en', $structure->defaultLanguageId);
+        $this->assertSame(['en'], $structure->knownTranslationIds);
+        $this->assertTrue($structure->hasField('id'));
+        $this->assertTrue($structure->hasField('bundle'));
+        $this->assertTrue($structure->hasField('label'));
     }
 
     #[Test]

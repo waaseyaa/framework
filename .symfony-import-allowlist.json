@@ -8,7 +8,11 @@
     "packages/cli/",
     "packages/frankenphp/"
   ],
+  "rationales": {
+    "packages/access/src/Middleware/FieldReadContextMiddleware.php": "Implements the established HTTP middleware contract, whose request and response types are Symfony HttpFoundation objects."
+  },
   "legacy_files": [
+    "packages/access/src/Middleware/FieldReadContextMiddleware.php",
     "packages/access/src/AccessChecker.php",
     "packages/access/src/ErrorPageRendererInterface.php",
     "packages/access/src/Middleware/AuthorizationMiddleware.php",

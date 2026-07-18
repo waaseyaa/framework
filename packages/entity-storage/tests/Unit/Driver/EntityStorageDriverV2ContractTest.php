@@ -8,12 +8,17 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverV2Interface;
+use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriver;
+use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriverV2;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriverV2Interface;
+use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriverV2;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriverV2;
 use Waaseyaa\EntityStorage\Driver\LegacyStorageDriverAdapter;
 use Waaseyaa\EntityStorage\Driver\StorageRow;
 use Waaseyaa\EntityStorage\Driver\StorageRowSet;
 use Waaseyaa\EntityStorage\Driver\StorageSnapshot;
 use Waaseyaa\EntityStorage\Driver\StorageBoundary;
+use Waaseyaa\Entity\EntityInterface;
 
 final class EntityStorageDriverV2ContractTest extends TestCase
 {
@@ -100,5 +105,65 @@ final class EntityStorageDriverV2ContractTest extends TestCase
         self::assertSame(StorageSnapshot::class, (string) $interface->getMethod('writeRevision')->getParameters()[1]->getType());
         self::assertSame(StorageSnapshot::class, (string) $interface->getMethod('updateRevision')->getParameters()[2]->getType());
         self::assertSame('int', (string) $interface->getMethod('writeRevision')->getReturnType());
+    }
+
+    #[Test]
+    public function first_party_in_memory_driver_crosses_the_repository_boundary_only_as_opaque_objects(): void
+    {
+        $boundary = new StorageBoundary();
+        $driver = new InMemoryStorageDriverV2(
+            new InMemoryStorageDriver(),
+            $boundary->driverRowFactory(),
+            $boundary->driverSnapshotReader(),
+        );
+        $snapshot = $boundary->repositorySnapshotFactory()->create([
+            'id' => '7',
+            'title' => 'Tansi',
+        ]);
+
+        self::assertSame('7', $driver->write('node', '7', $snapshot));
+        $row = $driver->read('node', '7');
+        self::assertInstanceOf(StorageRow::class, $row);
+        self::assertSame(
+            ['id' => '7', 'title' => 'Tansi'],
+            $boundary->repositoryRowReader()->read($row),
+        );
+    }
+
+    #[Test]
+    public function every_first_party_driver_has_an_opaque_v2_boundary(): void
+    {
+        self::assertTrue(is_subclass_of(SqlStorageDriverV2::class, EntityStorageDriverV2Interface::class));
+        self::assertTrue(is_subclass_of(InMemoryStorageDriverV2::class, EntityStorageDriverV2Interface::class));
+        self::assertTrue(is_subclass_of(RevisionableStorageDriverV2::class, RevisionableStorageDriverV2Interface::class));
+    }
+
+    #[Test]
+    public function repository_persistence_authority_is_private_and_non_exported(): void
+    {
+        $repository = new \ReflectionClass(\Waaseyaa\EntityStorage\EntityRepository::class);
+        self::assertTrue($repository->getMethod('extractPersistenceValues')->isPrivate());
+        self::assertTrue($repository->getProperty('persistenceValueAuthority')->isPrivate());
+        self::assertFalse(method_exists(\Waaseyaa\Entity\EntityBase::class, '_storageValuesForPersistence'));
+    }
+
+    #[Test]
+    public function repository_persistence_never_calls_the_public_entity_array_surface(): void
+    {
+        $source = file_get_contents(__DIR__ . '/../../../src/EntityRepository.php');
+        self::assertIsString($source);
+        $tokens = token_get_all($source);
+        $toArrayCalls = 0;
+        foreach ($tokens as $index => $token) {
+            if (!is_array($token) || $token[0] !== T_OBJECT_OPERATOR) {
+                continue;
+            }
+            $next = $tokens[$index + 1] ?? null;
+            if (is_array($next) && $next[0] === T_STRING && $next[1] === 'toArray') {
+                ++$toArrayCalls;
+            }
+        }
+        self::assertSame(1, $toArrayCalls, 'Only the private diagnosed legacy third-party fallback may call toArray().');
+        self::assertStringContainsString('private function extractPersistenceValues', $source);
     }
 }

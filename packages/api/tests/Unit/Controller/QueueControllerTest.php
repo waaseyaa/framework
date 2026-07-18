@@ -11,7 +11,9 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Api\Controller\QueueController;
+use Waaseyaa\Queue\Exception\InvalidPersistentPayload;
 use Waaseyaa\Queue\FailedJobRepositoryInterface;
+use Waaseyaa\Queue\PersistentPayloadReplayInterface;
 use Waaseyaa\Queue\QueueInterface;
 use Waaseyaa\Queue\Transport\TransportInterface;
 
@@ -170,10 +172,51 @@ final class QueueControllerTest extends TestCase
         self::assertTrue($repo->claimForRetry($id));
         $queue = $this->makeQueue();
 
-        $response = (new QueueController($repo, $queue))->retry($id);
+        $response = new QueueController($repo, $queue)->retry($id);
 
         self::assertSame(409, $response->getStatusCode());
         self::assertCount(0, $queue->dispatched);
+    }
+
+    #[Test]
+    public function persistentRetryPreservesExactPayloadAndQueue(): void
+    {
+        $payload = 'signed-envelope-bytes';
+        $repo = $this->makeRepo([self::record('72', 'priority', $payload)]);
+        $queue = new class implements QueueInterface, PersistentPayloadReplayInterface {
+            public ?array $replayed = null;
+            public function dispatch(object $message): void
+            {
+                self::fail('Persistent replay must preserve the envelope.');
+            }
+            public function replaySignedPayload(string $queue, string $signedPayload): void
+            {
+                $this->replayed = [$queue, $signedPayload];
+            }
+        };
+
+        $response = new QueueController($repo, $queue)->retry('72');
+
+        self::assertSame(204, $response->getStatusCode());
+        self::assertSame(['priority', $payload], $queue->replayed);
+    }
+
+    #[Test]
+    public function persistentRetryMapsInvalidSignedPayloadTo422AndReleasesClaim(): void
+    {
+        $repo = $this->makeRepo([self::record('73', 'priority', 'invalid')]);
+        $queue = new class implements QueueInterface, PersistentPayloadReplayInterface {
+            public function dispatch(object $message): void {}
+            public function replaySignedPayload(string $queue, string $signedPayload): void
+            {
+                throw new InvalidPersistentPayload('Queue payload authentication failed.');
+            }
+        };
+
+        $response = new QueueController($repo, $queue)->retry('73');
+
+        self::assertSame(422, $response->getStatusCode());
+        self::assertNotNull($repo->find('73'));
     }
 
     #[Test]
@@ -367,9 +410,7 @@ final class QueueControllerTest extends TestCase
                 return isset($this->records[$id]);
             }
 
-            public function releaseRetryClaim(string $id): void
-            {
-            }
+            public function releaseRetryClaim(string $id): void {}
         };
     }
 
@@ -476,7 +517,7 @@ final class QueueControllerTest extends TestCase
             {
                 $filtered = array_values(array_filter(
                     $this->rows,
-                    static fn (array $r): bool => $status === null || $r['status'] === $status,
+                    static fn(array $r): bool => $status === null || $r['status'] === $status,
                 ));
                 $total = count($filtered);
                 $window = $limit === 0 ? [] : array_slice($filtered, $offset, $limit);

@@ -142,6 +142,8 @@ final class DefaultRevisionDisciplineTest extends TestCase
         $entity = new TestRevisionableEntity(values: ['title' => 'v1', 'id' => '1', 'uuid' => 'a']);
         $entity->enforceIsNew();
         $repo->save($entity);
+        $this->assertTrue($entity->entityStructure()->revisionTip, 'a new saved revision is current');
+        $this->assertTrue($entity->entityStructure()->defaultRevision, 'a new saved revision is default');
         $repo->setPublishedRevision('1', 1);
 
         $before = $this->rawBaseRow('1');
@@ -158,6 +160,11 @@ final class DefaultRevisionDisciplineTest extends TestCase
         $this->assertSame('v1', $repo->find('1')?->label(), 'find() still serves the published/base content');
         $this->assertSame('v2', $repo->loadWorkingCopy('1')?->label(), 'loadWorkingCopy() serves the tip');
         $this->assertSame(2, $entity->getRevisionId(), 'the in-memory entity carries its new tip revision id');
+        $this->assertSame(2, $entity->entityStructure()->revisionId);
+        $this->assertTrue($entity->entityStructure()->revisionTip, 'a forward draft is still the latest revision tip');
+        $this->assertFalse($entity->entityStructure()->defaultRevision, 'a forward draft is not the default revision');
+        $this->assertSame(1, $after['revision_id'] ?? null, 'the base/default revision remains revision 1');
+        $this->assertSame(1, $after['published_revision_id'] ?? null, 'the published pointer remains revision 1');
     }
 
     // ------------------------------------------------------------------
@@ -184,6 +191,8 @@ final class DefaultRevisionDisciplineTest extends TestCase
         $this->assertSame('v1-edited', $repo->find('1')?->label(), 'in-place edit of the published revision reaches the base row');
         $this->assertSame('v1-edited', $repo->loadRevision('1', 1)?->label(), 'the revision row was updated in place too');
         $this->assertSame(1, $this->rawBaseRow('1')['revision_id'] ?? null, 'base pointer stays put (in-place, no new revision)');
+        $this->assertTrue($entity->entityStructure()->revisionTip);
+        $this->assertTrue($entity->entityStructure()->defaultRevision);
     }
 
     // ------------------------------------------------------------------
@@ -257,6 +266,8 @@ final class DefaultRevisionDisciplineTest extends TestCase
             'an undisciplined pointered save must change exactly the saved content column and the tip pointer — nothing else',
         );
         $this->assertSame(2, $afterOrdinarySave['revision_id'] ?? null, 'base revision_id pointer still tracks the tip');
+        $this->assertTrue($entity->entityStructure()->revisionTip, 'an ordinary new tip is current');
+        $this->assertTrue($entity->entityStructure()->defaultRevision, 'an ordinary new tip is default');
 
         // setPublishedRevision() stays the targeted single-column update:
         // the FULL base row is untouched except the pointer column itself.

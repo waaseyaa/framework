@@ -6,6 +6,9 @@ namespace Waaseyaa\Queue\Worker;
 
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Queue\Envelope\NoAuthorityQueueRuntime;
+use Waaseyaa\Queue\Envelope\QueueAuthorityRuntimeInterface;
+use Waaseyaa\Queue\Envelope\QueueEnvelopeV1;
 use Waaseyaa\Queue\FailedJobRepositoryInterface;
 use Waaseyaa\Queue\Handler\HandlerInterface;
 use Waaseyaa\Queue\Job;
@@ -25,6 +28,10 @@ final class Worker
 
     private readonly LoggerInterface $logger;
 
+    private readonly QueueAuthorityRuntimeInterface $authorityRuntime;
+
+    private bool $legacyPayloadDiagnosticEmitted = false;
+
     /**
      * @param list<HandlerInterface> $handlers
      */
@@ -34,9 +41,11 @@ final class Worker
         array $handlers,
         private readonly SignedQueuePayload $payloadSigner,
         ?LoggerInterface $logger = null,
+        ?QueueAuthorityRuntimeInterface $authorityRuntime = null,
     ) {
         $this->handlers = $handlers;
         $this->logger = $logger ?? new NullLogger();
+        $this->authorityRuntime = $authorityRuntime ?? new NoAuthorityQueueRuntime();
     }
 
     /**
@@ -104,7 +113,7 @@ final class Worker
     {
         try {
             $serialized = $this->payloadSigner->open($raw['payload']);
-            $message = @unserialize($serialized);
+            $decoded = @unserialize($serialized);
         } catch (\Throwable $e) {
             $this->failedJobRepository->record($queue, $raw['payload'], $e);
             $this->transport->reject($raw['id']);
@@ -112,7 +121,7 @@ final class Worker
             return;
         }
 
-        if ($message === false || !is_object($message)) {
+        if ($decoded === false || !is_object($decoded)) {
             $this->failedJobRepository->record(
                 $queue,
                 $raw['payload'],
@@ -121,6 +130,35 @@ final class Worker
             $this->transport->reject($raw['id']);
 
             return;
+        }
+
+        $envelope = $decoded instanceof QueueEnvelopeV1 ? $decoded : null;
+        if ($envelope !== null) {
+            try {
+                $message = @unserialize($envelope->serializedMessage);
+            } catch (\Throwable $e) {
+                $this->failedJobRepository->record($queue, $raw['payload'], $e);
+                $this->transport->reject($raw['id']);
+
+                return;
+            }
+            if ($message === false || !is_object($message)) {
+                $this->failedJobRepository->record($queue, $raw['payload'], new \RuntimeException('Failed to unserialize enveloped job payload'));
+                $this->transport->reject($raw['id']);
+
+                return;
+            }
+        } else {
+            // Dormant compatibility path. It installs no authority; activation
+            // preflight requires these payloads to be drained or requeued.
+            $message = $decoded;
+            if (!$this->legacyPayloadDiagnosticEmitted) {
+                $this->legacyPayloadDiagnosticEmitted = true;
+                $this->logger->notice('entity.deprecation', [
+                    'boundary' => 'queue',
+                    'reason' => 'legacy_payload_without_queue_envelope',
+                ]);
+            }
         }
 
         // Crash-recovery safety net (queue M1). A job whose recorded attempts have
@@ -154,11 +192,14 @@ final class Worker
         }
 
         try {
-            foreach ($this->handlers as $handler) {
-                if ($handler->supports($message)) {
-                    $handler->handle($message);
-                    break;
-                }
+            if ($envelope !== null) {
+                $this->authorityRuntime->run($envelope, function () use ($message): null {
+                    $this->handleMessage($message);
+
+                    return null;
+                });
+            } else {
+                $this->handleMessage($message);
             }
 
             // Check if a Job released itself back to the queue
@@ -172,6 +213,17 @@ final class Worker
             $this->transport->ack($raw['id']);
         } catch (\Throwable $e) {
             $this->handleFailure($raw, $queue, $message, $e, $options);
+        }
+    }
+
+    private function handleMessage(object $message): void
+    {
+        foreach ($this->handlers as $handler) {
+            if ($handler->supports($message)) {
+                $handler->handle($message);
+
+                return;
+            }
         }
     }
 

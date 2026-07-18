@@ -11,6 +11,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Waaseyaa\CLI\Security\CliFieldReadCapabilityDeclaration;
 
 /**
  * @api
@@ -35,6 +36,7 @@ final class HandlerCommand extends Command
         array $arguments = [],
         array $options = [],
         private readonly ?ContainerInterface $container = null,
+        private readonly ?CliFieldReadCapabilityDeclaration $fieldReadCapability = null,
     ) {
         $this->arguments = $arguments;
         $this->options = $options;
@@ -84,7 +86,13 @@ final class HandlerCommand extends Command
             arguments: $this->arguments,
             options: $this->options,
             container: $container,
+            fieldReadCapability: $this->fieldReadCapability,
         );
+    }
+
+    public function fieldReadCapability(): ?CliFieldReadCapabilityDeclaration
+    {
+        return $this->fieldReadCapability;
     }
 
     protected function configure(): void
