@@ -107,6 +107,34 @@ final class SsrHttpKernelIntegrationTest extends TestCase
     }
 
     #[Test]
+    public function consecutive_worker_requests_boot_fresh_kernels_without_retaining_twig_state(): void
+    {
+        $runner = $this->repoRoot . '/tests/Integration/Phase13/Fixtures/consecutive_http_kernel_runner.php';
+        $command = sprintf(
+            '%s %s %s %s %s 2>&1',
+            escapeshellarg(PHP_BINARY),
+            escapeshellarg($runner),
+            escapeshellarg($this->repoRoot),
+            escapeshellarg($this->projectRoot),
+            escapeshellarg('/node/1'),
+        );
+
+        $output = shell_exec($command);
+        $this->assertNotNull($output, 'Consecutive kernel runner produced no output.');
+        $lines = array_values(array_filter(
+            preg_split('/\R/', trim($output)) ?: [],
+            static fn(string $line): bool => trim($line) !== '',
+        ));
+        $responses = json_decode($lines !== [] ? $lines[count($lines) - 1] : '', true);
+
+        $this->assertIsArray($responses, 'Consecutive kernel runner returned invalid JSON: ' . $output);
+        $this->assertCount(2, $responses);
+        $this->assertSame(200, $responses[0]['status'] ?? null);
+        $this->assertSame(200, $responses[1]['status'] ?? null);
+        $this->assertStringContainsString('Water Is Life', (string) ($responses[1]['body'] ?? ''));
+    }
+
+    #[Test]
     public function resolvesPathAliasAndRendersSameEntity(): void
     {
         $response = $this->request('/teaching/water-is-life');

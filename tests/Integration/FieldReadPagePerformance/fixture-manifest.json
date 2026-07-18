@@ -4,10 +4,11 @@
     "tests/Integration/FieldReadPagePerformance/Fixtures/FieldReadPageCorpus.php": "e8c3d1d4ab3baf75fb324740f0979a40577295bdc759059214f3fa311a81855d",
     "tests/Integration/FieldReadPagePerformance/Fixtures/FieldReadPagePerformanceProvider.php": "f0df8114298010f3dfb69fff454a3a73b4d5ca818aaf7d619dc8358db9ca4371",
     "tests/Integration/FieldReadPagePerformance/Fixtures/MembersDirectoryController.php": "49e39613e96b3989d4fba13ece451cddd327471a093e1188be34b7baeb1d5457",
-    "tests/Integration/FieldReadPagePerformance/Fixtures/persistent_http_runner.php": "913cfa5458833423f63221e7a6defebbe98bd9171c2b9f010c0e16ff14e4b54b",
+    "tests/Integration/FieldReadPagePerformance/Fixtures/IsolatedPageSession.php": "9783869e7e58de1ee6a1def91fbb689adae7e28ef9bc3f40ac8588095b0ae2ae",
+    "tests/Integration/FieldReadPagePerformance/Fixtures/persistent_http_runner.php": "eb4dd84a6a7a6f8779768833ddde1a201449771d9a43cae1d019ebaa7ef0ea39",
     "tests/Integration/FieldReadPagePerformance/Fixtures/templates/layouts/base.html.twig": "b45f3f61bd8a326e9fe3ec8c2dbfe645ecaee642d54bddcdf65b866ec8fd0378",
     "tests/Integration/FieldReadPagePerformance/Fixtures/templates/members.html.twig": "35909ca0726876ca2d56b11c229c5ad6ba8e063943234173583b7ffc32b99882",
     "tests/Integration/FieldReadPagePerformance/Fixtures/templates/node.article.full.html.twig": "fe71f33106288bb943bc24dc43a846d8b777b11f8c3f92dd22369e13ccb1edca",
-    "tests/Integration/FieldReadPagePerformance/PagePerformanceHarnessContractTest.php": "dd0d97e5f987c19114c8de21760d3f4fe8608c3ca66c3b80c7e6036219a2af80",
+    "tests/Integration/FieldReadPagePerformance/PagePerformanceHarnessContractTest.php": "5c4eeab0869cc40e556168ead875ecac77c69de057b8a7374e58905cf2276969",
     "tests/Integration/FieldReadPagePerformance/PagePerformanceOrchestrator.php": "dbb600a3df135f1e0b01ae70fef71f9d1c47898c0daef3ee8726b2cd11daf2c4"
 }

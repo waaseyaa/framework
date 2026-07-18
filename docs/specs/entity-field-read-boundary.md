@@ -109,6 +109,13 @@ no pass/fail result.
 Activation performance is decided only by the frozen real-page harness. It
 compares the WP2 baseline tree with the activation candidate across nine fresh
 process blocks per tree, after 30 warmups and with 200 timed samples per block.
+The timed boundary includes fresh `HttpKernel` construction and `handle()` for
+every request, matching the production front controller rather than shifting
+kernel boot cost outside the measurement. If exact WP2 cannot execute that
+lifecycle, the declared baseline is a clean benchmark-only WP2 parity commit
+containing only the identical Twig lifecycle fix present in the candidate; no
+field-read implementation may enter that parity commit. This keeps both trees
+on the same executable lifecycle while isolating the field-read cost.
 Both the cache-cold content page and the cache-cold members-directory page must
 have a paired upper-95 ratio no greater than 1.03 **and** stay within the paired
 upper-95 absolute sanity budget `max(0.50 ms, 0.05 ms × hydrated entity count)`
@@ -120,9 +127,13 @@ session User plus the rendered Users for the directory), not a candidate-side
 observation. A missing, non-positive, cross-tree-mismatched, or cross-block-
 changing count makes the result non-comparable. Response bodies, execution
 traces, workload hashes, fixture manifests, PHP binaries/configuration, and
-extensions must also match before timings are comparable. The cache-hit content
-page and the synthetic field-read microbenchmarks are diagnostic only and cannot
-rescue a cache-cold failure.
+extensions must also match before timings are comparable. Each measured page
+uses a project-and-page-private PHP session namespace. Page traces bind the
+expected authorization mode, per-request kernel lifecycle, and privileged-read
+ledger row count, so retained session/account state, authorization-ledger drift,
+or a warmed framework kernel makes a block non-comparable instead of becoming
+timing noise. The cache-hit content page and the synthetic field-read
+microbenchmarks are diagnostic only and cannot rescue a cache-cold failure.
 
 ## Explicit non-effects in WP1
 

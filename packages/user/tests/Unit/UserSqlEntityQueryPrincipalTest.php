@@ -177,6 +177,40 @@ final class UserSqlEntityQueryPrincipalTest extends TestCase
     }
 
     #[Test]
+    public function user_projection_uses_declared_structure_without_schema_introspection(): void
+    {
+        $principal = $this->profileViewer();
+        $database = new QueryObservingDatabase($this->database, forbidFieldIntrospection: true);
+        $query = new SqlEntityQuery(
+            $this->entityType,
+            $database,
+            fieldRegistry: $this->fieldRegistry,
+            fieldReadScope: $this->scope,
+        )
+            ->withAccessHandler($this->handler)
+            ->withEntityLoader(static function (array $ids): array {
+                self::fail('A complete Protected entity-read projection must not hydrate candidate User entities.');
+            })
+            ->setAccount($principal);
+
+        self::assertSame([1, 2], $this->scope->run($principal, static fn(): array => $query->execute()));
+        self::assertCount(1, $database->queries);
+        self::assertStringContainsString("json_extract(\"user\"._data, '$.status')", $database->queries[0]);
+        self::assertStringContainsString('"user"."uuid" AS "__waaseyaa_structure_uuid"', $database->queries[0]);
+    }
+
+    #[Test]
+    public function user_projection_fails_closed_when_a_declared_structural_column_is_missing(): void
+    {
+        $this->database->schema()->dropField('user', 'uuid');
+        $principal = $this->profileViewer();
+        $query = $this->projectedQuery($this->database, $principal);
+
+        $this->expectException(\Doctrine\DBAL\Exception::class);
+        $this->scope->run($principal, static fn(): array => $query->execute());
+    }
+
+    #[Test]
     public function protected_candidate_projection_fails_closed_when_a_candidate_row_disappears(): void
     {
         $principal = $this->profileViewer();
@@ -508,6 +542,7 @@ final class QueryObservingDatabase implements DatabaseInterface
     public function __construct(
         private readonly DatabaseInterface $inner,
         private readonly ?\Closure $beforeQuery = null,
+        private readonly bool $forbidFieldIntrospection = false,
     ) {}
 
     public function select(string $table, string $alias = ''): \Waaseyaa\Database\SelectInterface
@@ -532,7 +567,58 @@ final class QueryObservingDatabase implements DatabaseInterface
 
     public function schema(): \Waaseyaa\Database\SchemaInterface
     {
-        return $this->inner->schema();
+        $schema = $this->inner->schema();
+        if (!$this->forbidFieldIntrospection) {
+            return $schema;
+        }
+
+        return new class ($schema) implements \Waaseyaa\Database\SchemaInterface {
+            public function __construct(private readonly \Waaseyaa\Database\SchemaInterface $inner) {}
+            public function tableExists(string $table): bool
+            {
+                return $this->inner->tableExists($table);
+            }
+            public function fieldExists(string $table, string $field): bool
+            {
+                throw new \LogicException(sprintf('Unexpected schema introspection for %s.%s.', $table, $field));
+            }
+            public function createTable(string $name, array $spec): void
+            {
+                $this->inner->createTable($name, $spec);
+            }
+            public function dropTable(string $table): void
+            {
+                $this->inner->dropTable($table);
+            }
+            public function addField(string $table, string $field, array $spec): void
+            {
+                $this->inner->addField($table, $field, $spec);
+            }
+            public function dropField(string $table, string $field): void
+            {
+                $this->inner->dropField($table, $field);
+            }
+            public function addIndex(string $table, string $name, array $fields): void
+            {
+                $this->inner->addIndex($table, $name, $fields);
+            }
+            public function dropIndex(string $table, string $name): void
+            {
+                $this->inner->dropIndex($table, $name);
+            }
+            public function addUniqueKey(string $table, string $name, array $fields): void
+            {
+                $this->inner->addUniqueKey($table, $name, $fields);
+            }
+            public function addPrimaryKey(string $table, array $fields): void
+            {
+                $this->inner->addPrimaryKey($table, $fields);
+            }
+            public function listTableNames(): array
+            {
+                return $this->inner->listTableNames();
+            }
+        };
     }
 
     public function transaction(string $name = ''): \Waaseyaa\Database\TransactionInterface

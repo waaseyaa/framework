@@ -12,6 +12,86 @@ use PHPUnit\Framework\TestCase;
 final class PagePerformanceHarnessContractTest extends TestCase
 {
     #[Test]
+    public function every_measured_request_constructs_its_own_http_kernel_inside_the_timed_boundary(): void
+    {
+        $runner = (string) file_get_contents(__DIR__ . '/Fixtures/persistent_http_runner.php');
+
+        self::assertMatchesRegularExpression(
+            '/function requestPage\(string \$projectRoot, PDO \$pdo, string \$page, bool \$timed\).*?'
+                . '\$started = hrtime\(true\);.*?new HttpKernel\(\$projectRoot\).*?->handle\(\).*?'
+                . '\$elapsed = hrtime\(true\) - \$started;/s',
+            $runner,
+        );
+    }
+
+    #[Test]
+    public function benchmark_page_sessions_are_isolated_by_project_and_page(): void
+    {
+        $sessionBoundary = __DIR__ . '/Fixtures/IsolatedPageSession.php';
+        self::assertFileExists($sessionBoundary);
+        require_once $sessionBoundary;
+
+        $root = sys_get_temp_dir() . '/waaseyaa-page-session-' . bin2hex(random_bytes(6));
+        $baseline = $root . '/baseline';
+        $candidate = $root . '/candidate';
+        self::assertTrue(mkdir($baseline, 0o755, true));
+        self::assertTrue(mkdir($candidate, 0o755, true));
+
+        try {
+            Fixtures\IsolatedPageSession::start($baseline, 'content_cold');
+            $_SESSION['waaseyaa_uid'] = 1;
+            Fixtures\IsolatedPageSession::restore();
+
+            Fixtures\IsolatedPageSession::start($candidate, 'content_cold');
+            self::assertArrayNotHasKey('waaseyaa_uid', $_SESSION);
+            Fixtures\IsolatedPageSession::restore();
+
+            Fixtures\IsolatedPageSession::start($baseline, 'members_cold');
+            self::assertArrayNotHasKey('waaseyaa_uid', $_SESSION);
+            Fixtures\IsolatedPageSession::restore();
+        } finally {
+            Fixtures\IsolatedPageSession::restore();
+            $this->removeDirectory($root);
+        }
+    }
+
+    #[Test]
+    public function benchmark_page_session_globals_are_restored_after_the_isolated_lifecycle(): void
+    {
+        $sessionBoundary = __DIR__ . '/Fixtures/IsolatedPageSession.php';
+        require_once $sessionBoundary;
+
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+        $original = [
+            'save_path' => (string) ini_get('session.save_path'),
+            'use_cookies' => (string) ini_get('session.use_cookies'),
+            'cache_limiter' => (string) ini_get('session.cache_limiter'),
+            'name' => session_name(),
+            'id' => session_id(),
+        ];
+        $root = sys_get_temp_dir() . '/waaseyaa-page-session-restore-' . bin2hex(random_bytes(6));
+        self::assertTrue(mkdir($root, 0o755, true));
+
+        try {
+            Fixtures\IsolatedPageSession::start($root, 'content_cold');
+            self::assertNotSame($original['save_path'], (string) ini_get('session.save_path'));
+        } finally {
+            Fixtures\IsolatedPageSession::restore();
+            $this->removeDirectory($root);
+        }
+
+        self::assertSame(PHP_SESSION_NONE, session_status());
+        self::assertSame($original['save_path'], (string) ini_get('session.save_path'));
+        self::assertSame($original['use_cookies'], (string) ini_get('session.use_cookies'));
+        self::assertSame($original['cache_limiter'], (string) ini_get('session.cache_limiter'));
+        self::assertSame($original['name'], session_name());
+        self::assertSame($original['id'], session_id());
+        self::assertStringNotContainsString($root, (string) ini_get('session.save_path'));
+    }
+
+    #[Test]
     public function authenticated_fixture_users_declare_the_canonical_bundle_across_framework_versions(): void
     {
         require_once __DIR__ . '/Fixtures/FieldReadPageCorpus.php';
@@ -120,6 +200,27 @@ final class PagePerformanceHarnessContractTest extends TestCase
     {
         $baseline = $this->block('content', 1_000_000, 'body-a', ['sql' => 5, 'rows' => 1, 'fields' => 32]);
         $candidate = $this->block('content', 1_000_000, 'body-b', ['sql' => 5, 'rows' => 1, 'fields' => 32]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('response/trace drift');
+
+        PagePerformanceOrchestrator::assertComparableBlock($baseline, $candidate);
+    }
+
+    #[Test]
+    public function it_rejects_authorization_or_audit_workload_drift_before_timing_is_compared(): void
+    {
+        $trace = [
+            'rows' => 1,
+            'authorization_mode' => 'anonymous',
+            'privileged_read_ledger_rows' => 0,
+        ];
+        $baseline = $this->block('content_cold', 1_000_000, 'same-body', $trace);
+        $candidate = $this->block('content_cold', 1_000_000, 'same-body', [
+            ...$trace,
+            'authorization_mode' => 'authenticated_uid_1',
+            'privileged_read_ledger_rows' => 460,
+        ]);
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('response/trace drift');
@@ -326,5 +427,20 @@ final class PagePerformanceHarnessContractTest extends TestCase
             'stdout' => $stdout,
             'stderr' => $stderr,
         ];
+    }
+
+    private function removeDirectory(string $path): void
+    {
+        if (!is_dir($path)) {
+            return;
+        }
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST,
+        );
+        foreach ($iterator as $item) {
+            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
+        }
+        rmdir($path);
     }
 }

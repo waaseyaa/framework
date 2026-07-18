@@ -12,6 +12,7 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Tests\Integration\FieldReadPagePerformance\Fixtures\FieldReadPageCorpus;
+use Waaseyaa\Tests\Integration\FieldReadPagePerformance\Fixtures\IsolatedPageSession;
 
 if ($argc < 6) {
     fwrite(STDERR, "Usage: persistent_http_runner.php <prepare|retarget|measure> <source-root> <fixture-root> <project-root> <block>\n");
@@ -24,6 +25,7 @@ $fixtureRoot = requireDirectory((string) $argv[3]);
 $projectRoot = (string) $argv[4];
 $block = (int) $argv[5];
 require_once $fixtureRoot . '/FieldReadPageCorpus.php';
+require_once $fixtureRoot . '/IsolatedPageSession.php';
 
 try {
     if ($mode === 'prepare') {
@@ -195,14 +197,6 @@ function seedDatabase(string $projectRoot): void
 function measureBlock(string $sourceRoot, string $fixtureRoot, string $projectRoot, int $block): array
 {
     $initialDatabaseHash = hash_file('sha256', $projectRoot . '/storage/waaseyaa.sqlite');
-    $kernel = new HttpKernel($projectRoot);
-    $boot = new ReflectionMethod(AbstractKernel::class, 'boot');
-    $boot->invoke($kernel);
-    assertFrozenPolicies($kernel);
-    if (session_status() !== PHP_SESSION_ACTIVE) {
-        session_id('field-read-page-performance-' . $block);
-        session_start();
-    }
     $pdo = new PDO('sqlite:' . $projectRoot . '/storage/waaseyaa.sqlite');
     $pages = ['content_cold', 'members_cold', 'content_hit_diagnostic'];
     $seed = 20_640 + $block;
@@ -210,22 +204,37 @@ function measureBlock(string $sourceRoot, string $fixtureRoot, string $projectRo
     shuffle($pages);
     $results = [];
     foreach ($pages as $page) {
-        for ($i = 0; $i < 30; ++$i) {
-            requestPage($kernel, $pdo, $page, false);
+        IsolatedPageSession::start($projectRoot, $page);
+        try {
+            $auditRowsBefore = privilegedReadLedgerRows($pdo);
+            for ($i = 0; $i < 30; ++$i) {
+                requestPage($projectRoot, $pdo, $page, false);
+            }
+            $samples = [];
+            $last = null;
+            for ($i = 0; $i < 200; ++$i) {
+                [$elapsed, $response] = requestPage($projectRoot, $pdo, $page, true);
+                $samples[] = $elapsed;
+                $last = $response;
+            }
+            if (!is_array($last)) {
+                throw new RuntimeException('Page produced no response.');
+            }
+            $auditRows = privilegedReadLedgerRows($pdo) - $auditRowsBefore;
+            $expectedAuditRows = $page === 'members_cold' ? 2 * (30 + 200) : 0;
+            if ($auditRows !== $expectedAuditRows) {
+                throw new RuntimeException(sprintf(
+                    '%s authorization bootstrap workload drifted (audit rows=%d, expected=%d).',
+                    $page,
+                    $auditRows,
+                    $expectedAuditRows,
+                ));
+            }
+            $results[$page] = buildPageResult($page, $samples, $last, $initialDatabaseHash, $auditRows);
+        } finally {
+            IsolatedPageSession::restore();
         }
-        $samples = [];
-        $last = null;
-        for ($i = 0; $i < 200; ++$i) {
-            [$elapsed, $response] = requestPage($kernel, $pdo, $page, true);
-            $samples[] = $elapsed;
-            $last = $response;
-        }
-        if (!is_array($last)) {
-            throw new RuntimeException('Page produced no response.');
-        }
-        $results[$page] = buildPageResult($page, $samples, $last, $initialDatabaseHash);
     }
-    closeDatabase($kernel);
 
     return [
         'ok' => true,
@@ -238,7 +247,7 @@ function measureBlock(string $sourceRoot, string $fixtureRoot, string $projectRo
 }
 
 /** @return array{int, array{status:int,body:string,cache_before:int,cache_after:int}} */
-function requestPage(HttpKernel $kernel, PDO $pdo, string $page, bool $timed): array
+function requestPage(string $projectRoot, PDO $pdo, string $page, bool $timed): array
 {
     $content = str_starts_with($page, 'content_');
     $cold = $page === 'content_cold';
@@ -255,6 +264,7 @@ function requestPage(HttpKernel $kernel, PDO $pdo, string $page, bool $timed): a
     setGlobals($uri);
     $cacheBefore = cacheRows($pdo);
     $started = hrtime(true);
+    $kernel = new HttpKernel($projectRoot);
     $response = $kernel->handle();
     $elapsed = hrtime(true) - $started;
     $body = (string) $response->getContent();
@@ -264,6 +274,9 @@ function requestPage(HttpKernel $kernel, PDO $pdo, string $page, bool $timed): a
         'cache_before' => $cacheBefore,
         'cache_after' => cacheRows($pdo),
     ];
+    closeDatabase($kernel);
+    unset($kernel);
+    gc_collect_cycles();
     if (!$timed) {
         assert($elapsed > 0);
     }
@@ -272,7 +285,7 @@ function requestPage(HttpKernel $kernel, PDO $pdo, string $page, bool $timed): a
 }
 
 /** @param list<int> $samples @param array{status:int,body:string,cache_before:int,cache_after:int} $last @return array<string,mixed> */
-function buildPageResult(string $page, array $samples, array $last, string $initialDatabaseHash): array
+function buildPageResult(string $page, array $samples, array $last, string $initialDatabaseHash, int $auditRows): array
 {
     $body = $last['body'];
     if ($last['status'] !== 200) {
@@ -312,6 +325,9 @@ function buildPageResult(string $page, array $samples, array $last, string $init
             'rendered_rows' => $rows,
             'rendered_fields' => $rows * 2,
             'hydrated_entity_count' => $rows + 1,
+            'authorization_mode' => 'authenticated_uid_1',
+            'privileged_read_ledger_rows' => $auditRows,
+            'kernel_lifecycle' => 'per_request',
             'ordered_member_ids_sha256' => hash('sha256', implode(',', $memberIds)),
             'cache_before' => $last['cache_before'],
             'cache_after' => $last['cache_after'],
@@ -341,6 +357,9 @@ function buildPageResult(string $page, array $samples, array $last, string $init
             'rendered_rows' => 1,
             'rendered_fields' => FieldReadPageCorpus::CONTENT_RENDERED_FIELDS,
             'hydrated_entity_count' => 1,
+            'authorization_mode' => 'anonymous',
+            'privileged_read_ledger_rows' => $auditRows,
+            'kernel_lifecycle' => 'per_request',
             'unique_sentinels' => $sentinels,
             'cache_before' => $last['cache_before'],
             'cache_after' => $last['cache_after'],
@@ -386,6 +405,13 @@ function cacheRows(PDO $pdo): int
 {
     $exists = (int) $pdo->query("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='cache_render'")->fetchColumn();
     return $exists === 1 ? (int) $pdo->query('SELECT COUNT(*) FROM cache_render')->fetchColumn() : 0;
+}
+
+function privilegedReadLedgerRows(PDO $pdo): int
+{
+    $exists = (int) $pdo->query("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='privileged_read_ledger'")->fetchColumn();
+
+    return $exists === 1 ? (int) $pdo->query('SELECT COUNT(*) FROM privileged_read_ledger')->fetchColumn() : 0;
 }
 
 /** @return array<string,string> */
@@ -467,20 +493,6 @@ function closeDatabase(HttpKernel $kernel): void
     if ($database instanceof DBALDatabase) {
         $database->getConnection()->close();
     }
-}
-
-function assertFrozenPolicies(HttpKernel $kernel): void
-{
-    $expected = 'Waaseyaa\\User\\UserAccessPolicy';
-    $policiesProperty = new ReflectionProperty($kernel->getAccessHandler(), 'policies');
-    $policies = $policiesProperty->getValue($kernel->getAccessHandler());
-    foreach ($policies as $policy) {
-        if ($policy instanceof $expected) {
-            return;
-        }
-    }
-
-    throw new RuntimeException(sprintf('Frozen access policy missing from runtime handler: %s', $expected));
 }
 
 function requireDirectory(string $path): string

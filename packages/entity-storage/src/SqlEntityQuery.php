@@ -550,18 +550,26 @@ final class SqlEntityQuery implements EntityQueryInterface
                     sprintf('authorization input "%s" is not Protected', $name),
                 );
             }
-            if ($definition->getBackendId() !== null
-                && !in_array($definition->getBackendId(), [ReservedBackendIds::SQL_BLOB, ReservedBackendIds::SQL_COLUMN], true)
-            ) {
+            $backendId = $definition->getBackendId()
+                ?? $this->entityType->getPrimaryStorageBackend()
+                ?? ReservedBackendIds::SQL_BLOB;
+            if (!in_array($backendId, [ReservedBackendIds::SQL_BLOB, ReservedBackendIds::SQL_COLUMN], true)) {
                 throw ProtectedEntityReadProjectionException::cannotCompile(
                     $entityTypeId,
                     sprintf('authorization input "%s" is owned by an unsupported storage backend', $name),
                 );
             }
 
+            $this->assertQueryableJsonFieldName($name);
+            $resolved = $backendId === ReservedBackendIds::SQL_COLUMN
+                ? ResolvedField::identifier($this->tableName . '.' . $name)
+                : ResolvedField::expression(
+                    'json_extract(' . $this->database->quoteIdentifier($this->tableName) . '._data, \'$.' . $name . '\')',
+                    isJsonExtract: true,
+                );
             $fields[$name] = [
                 'alias' => '__waaseyaa_policy_' . count($fields),
-                'resolved' => $this->resolveField($name, [$name => null]),
+                'resolved' => $resolved,
             ];
         }
         ksort($fields);
@@ -581,21 +589,12 @@ final class SqlEntityQuery implements EntityQueryInterface
             'uuid' => $keys['uuid'] ?? null,
             'langcode' => $keys['langcode'] ?? null,
             'revision' => $keys['revision'] ?? null,
-            'default_langcode' => 'default_langcode',
-            'is_default_revision' => 'is_default_revision',
-            'is_latest_revision' => 'is_latest_revision',
+            'default_langcode' => $this->entityType->isTranslatable() ? 'default_langcode' : null,
+            'is_default_revision' => $this->entityType->isRevisionable() ? 'is_default_revision' : null,
+            'is_latest_revision' => $this->entityType->isRevisionable() ? 'is_latest_revision' : null,
         ];
         foreach ($structureColumns as $role => $column) {
             if ($column === null || $column === '') {
-                continue;
-            }
-            if (!$this->database->schema()->fieldExists($this->tableName, $column)) {
-                if (isset($keys[$role])) {
-                    throw ProtectedEntityReadProjectionException::cannotCompile(
-                        $entityTypeId,
-                        sprintf('structural selector "%s" is unavailable', $role),
-                    );
-                }
                 continue;
             }
             $structure[$role] = $column;
