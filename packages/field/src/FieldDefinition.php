@@ -6,12 +6,13 @@ namespace Waaseyaa\Field;
 
 use Symfony\Component\Validator\Constraint;
 use Waaseyaa\Entity\EntityTypeInterface;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Field\Exception\InvalidFieldDefinitionException;
 
 /**
  * @api
  */
-final readonly class FieldDefinition implements FieldDefinitionInterface, \ArrayAccess
+final readonly class FieldDefinition implements FieldDefinitionInterface, FieldReadDefinitionInterface, \ArrayAccess
 {
     /**
      * Field names that are shared across all translations and must never be marked translatable.
@@ -45,6 +46,7 @@ final readonly class FieldDefinition implements FieldDefinitionInterface, \Array
         private array $promptAliases = [],
         private ?string $backendId = null,
         private bool $fieldIndexed = false,
+        private ?FieldReadLevel $read = null,
     ) {}
 
     public function getName(): string
@@ -186,6 +188,11 @@ final readonly class FieldDefinition implements FieldDefinitionInterface, \Array
         return $this->stored;
     }
 
+    public function getReadLevel(): ?FieldReadLevel
+    {
+        return $this->read;
+    }
+
     /**
      * Return a new instance pinned to the given storage backend id.
      *
@@ -279,6 +286,7 @@ final readonly class FieldDefinition implements FieldDefinitionInterface, \Array
             promptAliases: $overrides['promptAliases'] ?? $this->promptAliases,
             backendId: array_key_exists('backendId', $overrides) ? $overrides['backendId'] : $this->backendId,
             fieldIndexed: $overrides['fieldIndexed'] ?? $this->fieldIndexed,
+            read: array_key_exists('read', $overrides) ? $overrides['read'] : $this->read,
         );
     }
 
@@ -316,7 +324,7 @@ final readonly class FieldDefinition implements FieldDefinitionInterface, \Array
             'settings' => $this->settings !== [],
             'target_entity_type_id', 'targetEntityTypeId' => isset($this->settings['target_entity_type_id']) || isset($this->settings['targetEntityTypeId']),
             'default', 'defaultValue' => $this->defaultValue !== null,
-            'name', 'type', 'cardinality', 'target_bundle', 'targetBundle', 'translatable', 'revisionable', 'label', 'description', 'required', 'readOnly', 'read_only', 'stored' => true,
+            'name', 'type', 'cardinality', 'target_bundle', 'targetBundle', 'translatable', 'revisionable', 'label', 'description', 'required', 'readOnly', 'read_only', 'stored', 'read' => true,
             default => array_key_exists($offset, $this->settings),
         };
     }
@@ -342,6 +350,7 @@ final readonly class FieldDefinition implements FieldDefinitionInterface, \Array
             'required' => $this->required,
             'readOnly', 'read_only' => $this->readOnly,
             'stored' => $this->stored,
+            'read' => $this->read,
             default => $this->settings[$offset] ?? null,
         };
     }

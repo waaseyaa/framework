@@ -1,5 +1,7 @@
 # Access Control
 
+<!-- Spec reviewed 2026-07-17 - #2064 WP1 adds immutable AuthorizationPrincipal contracts, a fiber-local account-only read scope, fail-closed Protected policy inputs, and exact opaque capability declaration/registry contracts. No account context, middleware, policy evaluator, CLI, or queue behavior changes. Canonical contract: entity-field-read-boundary.md. -->
+
 <!-- Spec reviewed 2026-07-14 - #2020 policy discovery security: packages declare their full access-policy inventory in extra.waaseyaa.policies. PackageManifestCompiler rejects missing/divergent discovery before boot, and AccessPolicyRegistry throws rather than warning-and-skipping if a manifested class disappears. -->
 <!-- Spec reviewed 2026-07-14 - R21 WP7 (#2010): bin/check-access-hardening is the recurring prevention gate for the audit's agent-tool guard, public access-vs-status, filter/sort field-access, and explicit route-posture failure classes. It runs fixture self-tests and the real repository scan through composer verify and the blocking verify-gates CI job. -->
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Entity\Attribute;
 
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Field\FieldStorage;
 
 /**
@@ -50,5 +51,6 @@ final readonly class Field
         public bool $translatable = false,
         public bool $revisionable = false,
         public FieldStorage $stored = FieldStorage::Column,
+        public ?FieldReadLevel $read = null,
     ) {}
 }

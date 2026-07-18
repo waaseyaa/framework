@@ -1,5 +1,7 @@
 # Entity System
 
+<!-- Spec reviewed 2026-07-17 - #2064 WP1 adds dormant FieldReadLevel metadata, immutable EntityStructure, preflight data/result skeletons, and the future EntitySerializationForbidden type. No EntityBase accessor, toArray(), serialization, hydration, query, or boot path is wired or changed. Canonical contract: entity-field-read-boundary.md. -->
+
 <!-- Spec reviewed 2026-07-14 - #2018 authoring spine: integer fields with settings.subtype=timestamp now derive AtLeastOneOf(Type(int), Type(DateTimeInterface)) so unix-backed storage values and cast-aware domain values are both valid while unrelated scalar/container types remain rejected. This corrects the documented cast-aware validation contract; no validation path is disabled. -->
 <!-- Spec reviewed 2026-07-14 - R21 #2010: taxonomy hierarchy is guarded at EntityRepository's PRE_SAVE persistence boundary. TermHierarchyGuard rejects self-parenting, cycles, missing parents, and cross-vocabulary parent edges before any tree walk can consume persisted hierarchy. -->
 

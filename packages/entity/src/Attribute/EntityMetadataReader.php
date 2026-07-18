@@ -121,6 +121,7 @@ final class EntityMetadataReader
                     required: $inferred['required'],
                     readOnly: $field->readOnly,
                     stored: $field->stored,
+                    read: $field->read,
                 );
             }
         }

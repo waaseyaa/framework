@@ -1,5 +1,7 @@
 # Entity Storage v2 — Multi-Backend Storage with Revisions
 
+<!-- Spec reviewed 2026-07-17 - #2064 WP1 adds additive ordinary and revision V2 opaque-row/snapshot SPIs, role-separated driver/repository boundary collaborators, and a dormant repository-only V1 adapter that receives driver roles and requires entity.deprecation emission. Existing V1 drivers and repositories remain byte-compatible; activation removes V1/adapter under the charter no-shim path. Canonical contract: entity-field-read-boundary.md. -->
+
 > **Two-axis cross-reference.** Revisionable + translatable
 > entities (e.g. Minoo `teaching`) compose this spec's revision model with the
 > per-field translation model from M-006. Canonical doctrine for the two-axis
