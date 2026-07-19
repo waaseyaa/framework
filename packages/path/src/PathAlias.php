@@ -29,7 +29,7 @@ final class PathAlias extends ContentEntityBase
     #[Field(label: 'Language', description: 'Alias language code.', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public string $langcode = 'en';
 
-    #[Field(type: 'boolean', label: 'Published', description: 'Whether this alias is active.', default: 1, read: \Waaseyaa\Entity\FieldReadLevel::Public)]
+    #[Field(type: 'boolean', label: 'Published', description: 'Whether this alias is active.', default: true, read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public bool $status = true;
 
     /**

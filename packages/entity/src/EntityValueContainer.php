@@ -45,6 +45,7 @@ final class EntityValueContainer
         $viewIdentity = new \stdClass();
         $sealed = [];
         foreach ($values as $field => $value) {
+            $value = $layout->canonicalize($field, $value);
             $level = $layout->level($field);
             $sealed[$field] = $level === FieldReadLevel::Public
                 ? $value
@@ -81,6 +82,7 @@ final class EntityValueContainer
     public function write(EntityBase $entity, string $field, mixed $value): void
     {
         $this->layout->assertCurrent();
+        $value = $this->layout->canonicalize($field, $value);
         ++$this->valueGeneration;
         $this->policySubjectViews = [];
         $level = $this->layout->level($field);

@@ -18,6 +18,7 @@ use Waaseyaa\Entity\Event\DefaultEntityEventFactory;
 use Waaseyaa\Entity\Event\EntityEventFactoryInterface;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
+use Waaseyaa\Entity\FieldValueCanonicalizer;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Entity\RevisionableInterface;
@@ -700,16 +701,17 @@ final class EntityRepository implements EntityRepositoryInterface
     }
 
     /**
-     * Normalize declared boolean fields to the storage-canonical 0/1 shape.
+     * Canonicalize declared boolean fields to native PHP bool.
      *
-     * This runs after pre-save listeners have finished mutating the entity and
-     * before the shared value snapshot reaches base, bundle, or revision
-     * storage. Null remains null for optional fields.
+     * Entity-backed saves are already canonical through the sealed value
+     * container. This shared pass keeps array-based translation, revision
+     * restore, rollback, and backfill entry points on the same definition-level
+     * contract before their snapshots reach storage.
      *
      * @param array<string, mixed> $values
      * @return array<string, mixed>
      */
-    private function normalizeBooleanStorageValues(
+    private function canonicalizeBooleanFieldValues(
         array $values,
         ?EntityInterface $entity = null,
         ?string $entityId = null,
@@ -726,17 +728,7 @@ final class EntityRepository implements EntityRepositoryInterface
                 continue;
             }
 
-            $value = $values[$name];
-            if ($value instanceof \BackedEnum) {
-                $value = $value->value;
-            }
-
-            $values[$name] = match (true) {
-                $value === true, $value === 1 => 1,
-                $value === false, $value === 0 => 0,
-                \is_string($value) && \in_array(\strtolower(\trim($value)), ['1', 'true', 'yes'], true) => 1,
-                default => 0,
-            };
+            $values[$name] = FieldValueCanonicalizer::forType($definition->getType(), $values[$name]);
         }
 
         return $values;
@@ -1005,7 +997,7 @@ final class EntityRepository implements EntityRepositoryInterface
             BeforeSaveEvent::class,
         );
 
-        $values = $this->normalizeBooleanStorageValues(
+        $values = $this->canonicalizeBooleanFieldValues(
             $this->extractPersistenceValues($entity),
             $entity,
         );
@@ -1489,7 +1481,7 @@ final class EntityRepository implements EntityRepositoryInterface
                 unset($targetRow[$pointerKey]);
             }
         }
-        $targetRow = $this->normalizeBooleanStorageValues($targetRow, entityId: $entityId);
+        $targetRow = $this->canonicalizeBooleanFieldValues($targetRow, entityId: $entityId);
 
         // Wrap in transaction (invariant #4: atomic pointer update).
         $transaction = $this->database?->transaction();
@@ -1624,7 +1616,7 @@ final class EntityRepository implements EntityRepositoryInterface
                 unset($row[$pointerKey]);
             }
         }
-        $row = $this->normalizeBooleanStorageValues($row, entityId: $entityId);
+        $row = $this->canonicalizeBooleanFieldValues($row, entityId: $entityId);
 
         $keys = $this->entityType->getKeys();
         $idKey = $keys['id'] ?? 'id';
@@ -1770,7 +1762,7 @@ final class EntityRepository implements EntityRepositoryInterface
                 // fields are partitioned and upserted from this same target
                 // snapshot in the transaction; otherwise the subtable's old
                 // value would override the promoted `_data` value on read.
-                $targetRow = $this->normalizeBooleanStorageValues($targetRow, entityId: $entityId);
+                $targetRow = $this->canonicalizeBooleanFieldValues($targetRow, entityId: $entityId);
                 $outgoingRow = $targetRow;
                 $bundleValues = [];
                 $bundleName = null;
@@ -1813,7 +1805,7 @@ final class EntityRepository implements EntityRepositoryInterface
                 }
                 $baseRow = $priorBaseRow;
                 $baseRow['published_revision_id'] = $revisionId;
-                $baseRow = $this->normalizeBooleanStorageValues($baseRow, entityId: $entityId);
+                $baseRow = $this->canonicalizeBooleanFieldValues($baseRow, entityId: $entityId);
                 $this->writeDriverRow($this->entityType->id(), $entityId, $baseRow);
             }
             $transaction?->commit();
@@ -1892,7 +1884,7 @@ final class EntityRepository implements EntityRepositoryInterface
             BeforeRevisionPointerMoveEvent::class,
         );
 
-        $values = $this->normalizeBooleanStorageValues($values, entityId: $entityId);
+        $values = $this->canonicalizeBooleanFieldValues($values, entityId: $entityId);
         $revisionId = $this->writeRevisionRow($entityId, $values, $log, $langcode, $actor);
 
         $entity = $this->loadTranslationRevision($entityId, $langcode, $revisionId);
@@ -1944,7 +1936,7 @@ final class EntityRepository implements EntityRepositoryInterface
                     BeforeRevisionPointerMoveEvent::class,
                 );
 
-                $values = $this->normalizeBooleanStorageValues($values, entityId: $entityId);
+                $values = $this->canonicalizeBooleanFieldValues($values, entityId: $entityId);
                 $created[$langcode] = $this->writeRevisionRow($entityId, $values, $log, $langcode, $actor);
             }
             $transaction?->commit();
@@ -2075,7 +2067,7 @@ final class EntityRepository implements EntityRepositoryInterface
                 BeforeRevisionPointerMoveEvent::class,
             );
 
-            $values = $this->normalizeBooleanStorageValues($values, entityId: $entityId);
+            $values = $this->canonicalizeBooleanFieldValues($values, entityId: $entityId);
             $this->upsertLangcodePeerRow($entityId, $langcode, $values);
             $revisionId = $this->writeRevisionRow($entityId, $values, $log, $langcode, $actor);
             $transaction->commit();
@@ -2439,7 +2431,7 @@ final class EntityRepository implements EntityRepositoryInterface
                 continue; // already has revision history
             }
 
-            $values = $this->normalizeBooleanStorageValues(
+            $values = $this->canonicalizeBooleanFieldValues(
                 $this->extractPersistenceValues($entity),
                 $entity,
             );

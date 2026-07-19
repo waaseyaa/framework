@@ -22,7 +22,7 @@ final class ThreadMessage extends ContentEntityBase
     #[Field(type: 'text', label: 'Body', settings: ['weight' => 2, 'subtype' => 'text_long'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $body = '';
 
-    #[Field(type: 'boolean', label: 'Status', default: 1, settings: ['weight' => 3], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(type: 'boolean', label: 'Status', default: true, settings: ['weight' => 3], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public bool $status = true;
 
     #[Field(type: 'integer', label: 'Created', settings: ['weight' => 10, 'subtype' => 'timestamp'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
@@ -57,7 +57,7 @@ final class ThreadMessage extends ContentEntityBase
 
         $values['body'] = $body;
         if (!array_key_exists('status', $values)) {
-            $values['status'] = 1;
+            $values['status'] = true;
         }
         if (!array_key_exists('created_at', $values)) {
             $values['created_at'] = time();

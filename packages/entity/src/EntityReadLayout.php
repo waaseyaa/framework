@@ -29,10 +29,14 @@ final readonly class EntityReadLayout
 
     private string $fingerprint;
 
+    /** @var array<string, true> */
+    private array $booleanFields;
+
     /**
      * @param array<string, FieldReadLevel> $levels
      * @param list<string> $authorizationInputs
      * @param list<EntityReadLayoutGeneration> $additionalGenerations
+     * @param list<string> $booleanFields
      */
     public function __construct(
         private EntityReadLayoutGeneration $generation,
@@ -40,6 +44,7 @@ final readonly class EntityReadLayout
         array $authorizationInputs = [],
         private FieldReadLevel $undeclaredLevel = FieldReadLevel::Internal,
         array $additionalGenerations = [],
+        array $booleanFields = [],
     ) {
         ksort($levels);
         foreach ($levels as $field => $level) {
@@ -62,6 +67,8 @@ final readonly class EntityReadLayout
             ));
         }
         $this->authorizationInputsWithoutSelf = $authorizationInputsWithoutSelf;
+        sort($booleanFields);
+        $this->booleanFields = array_fill_keys(array_values(array_unique($booleanFields)), true);
         $this->sealedGeneration = $generation->current();
         $additionalGenerationSeals = [];
         foreach ($additionalGenerations as $additionalGeneration) {
@@ -76,6 +83,7 @@ final readonly class EntityReadLayout
             $levels,
         );
         $fingerprintLevels["\0undeclared"] = $this->undeclaredLevel->value;
+        $fingerprintLevels["\0boolean"] = implode(',', array_keys($this->booleanFields));
         $this->fingerprint = hash('xxh128', json_encode($fingerprintLevels, JSON_THROW_ON_ERROR));
     }
 
@@ -93,6 +101,18 @@ final readonly class EntityReadLayout
     public function level(string $field): FieldReadLevel
     {
         return $this->levels[$field] ?? $this->undeclaredLevel;
+    }
+
+    public function canonicalize(string $field, mixed $value): mixed
+    {
+        return isset($this->booleanFields[$field])
+            ? FieldValueCanonicalizer::forType('boolean', $value)
+            : $value;
+    }
+
+    public function isBooleanField(string $field): bool
+    {
+        return isset($this->booleanFields[$field]);
     }
 
     /** @return array<string, FieldReadLevel> */

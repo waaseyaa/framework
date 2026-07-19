@@ -286,7 +286,7 @@ final class EngagementAccessPolicy implements AccessPolicyInterface, FieldAccess
 
     private function subjectPublished(PolicySubjectViewInterface $subject): bool
     {
-        return in_array($subject->get('status'), [true, 1, '1', 'true', 'published', 'yes'], true);
+        return $subject->get('status') === true;
     }
 
     /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */

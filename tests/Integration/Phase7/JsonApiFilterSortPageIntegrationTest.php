@@ -100,7 +100,7 @@ final class JsonApiFilterSortPageIntegrationTest extends TestCase
         $this->assertCount(8, $array['data']);
 
         foreach ($array['data'] as $resource) {
-            $this->assertSame(1, $resource['attributes']['status']);
+            $this->assertSame(true, $resource['attributes']['status']);
         }
     }
 
@@ -116,7 +116,7 @@ final class JsonApiFilterSortPageIntegrationTest extends TestCase
         $this->assertCount(4, $array['data']);
 
         foreach ($array['data'] as $resource) {
-            $this->assertSame(0, $resource['attributes']['status']);
+            $this->assertSame(false, $resource['attributes']['status']);
         }
     }
 
@@ -280,7 +280,7 @@ final class JsonApiFilterSortPageIntegrationTest extends TestCase
 
         // All should be published.
         foreach ($array['data'] as $resource) {
-            $this->assertSame(1, $resource['attributes']['status']);
+            $this->assertSame(true, $resource['attributes']['status']);
         }
     }
 
@@ -369,7 +369,7 @@ final class JsonApiFilterSortPageIntegrationTest extends TestCase
         $this->assertCount(5, $array['data']);
 
         foreach ($array['data'] as $resource) {
-            $this->assertSame(1, $resource['attributes']['status']);
+            $this->assertSame(true, $resource['attributes']['status']);
             $this->assertSame('article', $resource['attributes']['type']);
         }
     }

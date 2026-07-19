@@ -288,13 +288,13 @@ final class GenealogyContentAccessPolicy implements AccessPolicyInterface, Field
 
     private function isPublished(PolicySubjectViewInterface $subject): bool
     {
-        return in_array($subject->get('status'), [true, 1, '1'], true);
+        return $subject->get('status') === true;
     }
 
     private function subjectIsLiving(PolicySubjectViewInterface $subject): bool
     {
         if (in_array('is_living', $subject->fields(), true)) {
-            return in_array($subject->get('is_living'), [true, 1, '1'], true);
+            return $subject->get('is_living') === true;
         }
 
         return !in_array('death_date', $subject->fields(), true)

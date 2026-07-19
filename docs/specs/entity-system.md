@@ -162,17 +162,18 @@ flowchart LR
 | Value object (`FromArrayEntityValueInterface`) | **Same as `array` cast:** JSON string in `$values` after `set()` | VO instance | **Storage invariant (#1184):** identical pipeline to `array` — `EntityCastCoercion::castInArray` / `castOutArray` so there is no alternate encoding or schema drift. Hydrate may supply a PHP `array` or JSON string; `get()` returns the VO. **`set()`:** MUST accept a VO instance of the cast class; MAY accept an `array` (via `fromArray` then `toArray` → storage); MUST NOT accept arbitrary scalars. **Immutability:** the framework does not enforce readonly VOs; implementations **SHOULD** be immutable for predictable cast behavior. Cast spec: backed enum class-string **or** VO class-string implementing `FromArrayEntityValueInterface`, or `['type' => 'value_object', 'class' => ClassName::class]`. **Wrong class:** stable error *Value object cast requires class implementing FromArrayEntityValueInterface*. |
 | `datetime_immutable` | ISO string, Unix int, or string digits | `DateTimeImmutable` | `castOut` → ISO-8601 `ATOM` |
 | `array` / `json` | JSON string | `array` | `castOut` re-encodes with `JSON_THROW_ON_ERROR` |
-| `int` / `float` / `bool` / `string` | Normalized scalar | Same PHP scalar (validated) | Empty string → error for numeric casts per `ValueCaster` rules |
+| Definition-classified `boolean` / `bool` | Native PHP `bool` (`null` when nullable) | Same native PHP `bool` | Definition-driven at seal/write; legacy backend `0`/`1` is decoded before the entity is observable |
+| `$casts` `int` / `float` / `bool` / `string` | Normalized scalar | Same PHP scalar (validated) | Empty string → error for numeric casts per `ValueCaster` rules |
 | No `$casts` entry | Any | Same as stored | Pass-through |
 
 ### Invariants
 
-1. **Constructor / hydration:** `$values` assigned in `EntityBase::__construct()` (or `fromStorage()`) are **never** passed through `ValueCaster`; they must already be storage-safe.
+1. **Constructor / hydration:** the resolved definition layout canonicalizes every present, non-null `boolean`/`bool` field to native PHP `bool` while the private value container is atomically sealed. Other values are not passed through `ValueCaster`; they must already be storage-safe.
 2. **`toArray()`:** Returns the internal `$values` array **without** `castIn`; callers MUST NOT treat it as domain-typed if the entity uses `$casts`.
 3. **`get($name)`:** If `$casts[$name]` exists, return `castIn($name, $raw, $spec)`; otherwise return raw (or `null` if key missing).
-4. **`set($name, $value)`:** If `$casts[$name]` exists, store `castOut(...)`; otherwise store the value as-is. After `set()`, `toArray()` must remain JSON- and SQL-driver-safe.
-5. **Save path:** `EntityRepository::doSave()` snapshots `toArray()` — never `get()` — then normalizes fields whose resolved definition is `boolean`/`bool` to integer `0`/`1` before any base, bundle, or revision write. All other cast fields retain the invariant in (4).
-6. **Load path:** `EntityInstantiator` does not invoke `ValueCaster`; casting is lazy on `get()` / presentation helpers.
+4. **`set($name, $value)`:** If `$casts[$name]` exists, first store `castOut(...)`; the sealed container then canonicalizes a definition-classified boolean field to native PHP `bool`. Other uncast values pass through. After `set()`, persistence snapshots remain JSON- and SQL-driver-safe.
+5. **Save path:** `EntityRepository::doSave()` extracts the already-canonical sealed values. Every base, bundle, revision, translation, rollback, and backfill snapshot carries native PHP `bool` for boolean-classified fields; adapters own any physical database encoding.
+6. **Load path:** `EntityInstantiator` does not invoke subclass `$casts`; the definition layout canonicalizes boolean-classified values during atomic sealed hydration, while other casting remains lazy on `get()` / presentation helpers.
 7. **Tests:** Override `protected function valueCaster(): ValueCaster` on an entity subclass to inject fakes; default is `new ValueCaster()`.
 
 ### Rules for `EntityValues`
@@ -310,21 +311,28 @@ Non-backed enums and unknown class-strings (non-enum classes) are rejected (`Cas
 
 **Null tolerance (#1940, G-028):** `castIn(null, ...)` / `castOut(null, ...)` both return `null` unconditionally for every built-in spec, checked before any per-type dispatch — this is the general rule, not specific to `datetime_immutable`. For `datetime_immutable` the null-safety is additionally enforced one layer deeper, inside the private `castOutDateTimeImmutable()` helper itself, so a `null` domain value stays a no-throw no-op even if a future caller reaches that helper without going through `castOut()`'s top-level guard first. This matters for `unix`-storage casts such as Node's `created` / `changed` (`['type' => 'datetime_immutable', 'storage' => 'unix']`): WordPress corpora (Sheguiandah pass-1) commonly have records with no modified date, and prior to this the consuming site had to default the value itself before calling `set()`.
 
-**Storage invariant (#1181):** entity internal `values` remain storage-canonical (constructor and `toArray()` stay raw). Subclasses set `protected array $casts`; `EntityBase::get()` runs `ValueCaster::castIn`, `set()` runs `castOut`. Override `protected function valueCaster(): ValueCaster` to inject a custom caster (e.g. in tests).
+**Storage invariant (#1181, #2064):** entity internal values and persistence
+snapshots remain canonical. A resolved `boolean`/`bool` field is always native
+PHP `bool` (or nullable `null`) regardless of whether a subclass declares a
+cast; this definition-level rule takes precedence over legacy backend `0`/`1`
+shapes. Other subclass `$casts` retain their `ValueCaster` behavior.
 
-**Interaction with hydration (#1188):** rows merged into `$values` at load time stay raw; casting applies when reading through the cast-aware API, not inside `EntityInstantiator`.
+**Interaction with hydration (#1188, #2064):** backend rows remain opaque to
+entity subclasses. The atomic initialization boundary resolves the field
+definitions and canonicalizes boolean-classified values before sealing; no
+consumer can observe the backend's physical boolean representation.
 
 **Persistence (ST-4 / ST-5, #1181):**
 
-- `EntityRepository::hydrate()` and `SqlEntityStorage::mapRowToEntity()` merge `_data` and instantiate entities with **unchanged** storage-shaped rows; no casting at load boundary.
-- `EntityRepository::doSave()` snapshots `$entity->toArray()`; values must remain JSON- and SQL-driver-safe. It then resolves class, registry-core, and bundle field definitions and converts each present, non-null `boolean`/`bool` value to integer `0`/`1`. The normalized snapshot is shared by base, bundle, and revision writes.
+- Repository hydration seals backend rows through the definition layout; boolean-classified `0`/`1` values become native PHP `bool` before validation or ordinary reads.
+- `EntityRepository::doSave()` extracts one already-canonical snapshot shared by base, bundle, and revision writes. Boolean-classified fields remain native PHP `bool`; SQL adapters/schema mappings own physical database encoding.
 - After `set()` on any other cast field, `castOut` keeps scalars / JSON strings (e.g. backed enum value, `array` → JSON string) so the driver does not see live objects in the blob.
 
 Integration coverage: `packages/entity-storage/tests/Unit/CastPersistenceIntegrationTest.php` (in-memory `EntityRepository` + SQLite `SqlEntityStorage`).
 
 **JSON:API serialization (ST-7, #1181):** `Waaseyaa\Api\ResourceSerializer` builds attributes from `EntityValues::toCastAwareMap($entity)` (same keys as `toArray()`, values from `get()`), excluding `id`/`uuid` storage keys, then applies field-definition boolean/timestamp coercions and JSON normalization (enums, `DateTimeInterface`, nested arrays). See `docs/specs/jsonapi.md`. Do not build attributes from `toArray()` alone — that bypasses `$casts`.
 
-**Presentation map (ST-8, #1181):** `Waaseyaa\Entity\EntityValues::toCastAwareMap()` returns all keys from `toArray()` with values from `get()` — use this (or `get()` per field) in GraphQL resolvers, discovery visibility, relationship policies, SSR field bags, MCP tool payloads, embedding text extraction, and workflow visibility helpers. `WorkflowVisibility::isNodePublicForEntity()` wraps the same idea for nodes. `EntityValues::statusToInt()` normalizes boolean/string/numeric status flags to `0|1` for strict published checks. Persistence continues to take its snapshot from raw `toArray()`; the repository's definition-driven boolean normalization is the only type-specific storage adjustment at that boundary.
+**Presentation map (ST-8, #1181):** `Waaseyaa\Entity\EntityValues::toCastAwareMap()` returns all keys from `toArray()` with values from `get()` — use this (or `get()` per field) in GraphQL resolvers, discovery visibility, relationship policies, SSR field bags, MCP tool payloads, embedding text extraction, and workflow visibility helpers. Definition-classified boolean values are already native PHP `bool`; presentation code must not reintroduce a `0`/`1` observable. `EntityValues::statusToInt()` remains a compatibility helper for genuinely boolean-like legacy/non-field inputs, not the canonical entity-field read contract.
 
 ### Branching and snapshots (P3)
 
@@ -1386,7 +1394,7 @@ Maps `EntityType::getFieldDefinitions()` metadata to per-field Symfony `Constrai
 | `type: email` | `Email` | In addition to string typing when applicable. |
 | `allowed_values` / `allowedValues` | `Choice` | Non-empty list only. |
 | `enum_class` / `enumClass` (`BackedEnum`) | `Choice` on backing values | PHP enum class name. |
-| `type` scalar | `Type` | `bool`, `int`, `float`, `string` (incl. `email`/`text`/`slug`), `array`/`json`. Omitted for `entity_reference` and `timestamp` (storage shape varies). Integer fields with `settings.subtype: timestamp` use `AtLeastOneOf(Type(int), Type(DateTimeInterface))`, accepting both unix storage and cast-aware domain representations. |
+| `type` scalar | `Type` | `bool`, `int`, `float`, `string` (incl. `email`/`text`/`slug`), `array`/`json`. Boolean fields accept only the canonical native PHP `bool` after definition-driven ingress normalization. Omitted for `entity_reference` and `timestamp` (storage shape varies). Integer fields with `settings.subtype: timestamp` use `AtLeastOneOf(Type(int), Type(DateTimeInterface))`, accepting both unix storage and cast-aware domain representations. |
 | `min` / `max` settings on `integer` / `int` / `float` / `double` | `Range` | Derived when `min` and/or `max` is numeric — both, either, or neither may be present (mirrors the Length shape). (#1643) |
 
 Per-field declared constraints (`FieldDefinition::getConstraints()`, object-shaped definitions; array-shaped definitions carry `constraints` through `normalizeDefinition()`) are appended after the derived list for the same field.

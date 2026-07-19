@@ -67,7 +67,7 @@ final class Relationship extends ContentEntityBase
         }
         $values += [
             'directionality' => 'directed',
-            'status' => 1,
+            'status' => true,
         ];
 
         parent::__construct($values, $entityTypeId, $entityKeys, $fieldDefinitions);

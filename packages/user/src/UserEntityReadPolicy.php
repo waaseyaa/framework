@@ -40,7 +40,7 @@ final class UserEntityReadPolicy implements ProjectedProtectedEntityReadPolicyIn
             return AccessResult::allowed('User has "administer users" permission.');
         }
 
-        if (!self::isActive($subject->get('status'))) {
+        if ($subject->get('status') !== true) {
             return AccessResult::forbidden('Inactive user profiles are administrator-only.');
         }
 
@@ -51,14 +51,4 @@ final class UserEntityReadPolicy implements ProjectedProtectedEntityReadPolicyIn
         return AccessResult::neutral('User lacks "access user profiles" permission.');
     }
 
-    private static function isActive(mixed $status): bool
-    {
-        // A projected SQL subject reflects the physically stored value, so a
-        // legacy row with no status key supplies null here. A sealed hydrated
-        // subject may instead omit that absent input and fail the exact-shape
-        // check above; direct User construction can apply the active default.
-        // Neither query path may synthesize that permissive default. The only
-        // accepted decision difference is the independent administrator grant.
-        return $status === true || $status === 1 || $status === '1';
-    }
 }

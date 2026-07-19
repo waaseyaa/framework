@@ -25,7 +25,7 @@ final class Comment extends ContentEntityBase
     #[Field(label: 'Target Entity ID', settings: ['weight' => 3, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public int $target_id = 0;
 
-    #[Field(type: 'boolean', label: 'Published', default: 1, settings: ['weight' => 5, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(type: 'boolean', label: 'Published', default: true, settings: ['weight' => 5, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public bool $status = true;
 
     #[Field(type: 'integer', label: 'Created', settings: ['weight' => 10, 'subtype' => 'timestamp'], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
@@ -48,7 +48,7 @@ final class Comment extends ContentEntityBase
         }
 
         if (!array_key_exists('status', $values)) {
-            $values['status'] = 1;
+            $values['status'] = true;
         }
         if (!array_key_exists('created_at', $values)) {
             $values['created_at'] = time();

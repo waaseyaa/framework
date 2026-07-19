@@ -66,8 +66,7 @@ final class UserProtectedFieldReadPolicy implements ProtectedFieldReadPolicyInte
             return AccessResult::allowed('User has "administer users" permission.');
         }
 
-        $status = $subject->get('status');
-        if ($status !== true && $status !== 1 && $status !== '1') {
+        if ($subject->get('status') !== true) {
             return AccessResult::forbidden('Inactive user names are administrator-only.');
         }
 

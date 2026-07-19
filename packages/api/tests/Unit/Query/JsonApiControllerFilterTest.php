@@ -69,7 +69,7 @@ final class JsonApiControllerFilterTest extends TestCase
 
         $this->assertCount(3, $array['data']);
         foreach ($array['data'] as $resource) {
-            $this->assertSame(1, $resource['attributes']['status']);
+            $this->assertSame(true, $resource['attributes']['status']);
         }
     }
 

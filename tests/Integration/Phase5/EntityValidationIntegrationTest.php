@@ -110,10 +110,10 @@ final class EntityValidationIntegrationTest extends TestCase
         ]);
 
         $violations = $this->entityValidator->validate($user, [
-            'status' => [new AllowedValues(values: [0, 1])],
+            'status' => [new AllowedValues(values: [false, true])],
         ]);
 
-        $this->assertCount(0, $violations, 'Status value 1 should be valid (0 or 1).');
+        $this->assertCount(0, $violations, 'Canonical true status should be valid.');
     }
 
     public function testAllowedValuesPassesWithBlockedStatus(): void
@@ -125,10 +125,10 @@ final class EntityValidationIntegrationTest extends TestCase
         ]);
 
         $violations = $this->entityValidator->validate($user, [
-            'status' => [new AllowedValues(values: [0, 1])],
+            'status' => [new AllowedValues(values: [false, true])],
         ]);
 
-        $this->assertCount(0, $violations, 'Status value 0 should be valid (0 or 1).');
+        $this->assertCount(0, $violations, 'Canonical false status should be valid.');
     }
 
     public function testAllowedValuesFailsWithInvalidStatus(): void
@@ -140,7 +140,7 @@ final class EntityValidationIntegrationTest extends TestCase
         ]);
 
         $violations = $this->entityValidator->validate($user, [
-            'status' => [new AllowedValues(values: [0, 1])],
+            'status' => [new AllowedValues(values: [false, true])],
         ]);
 
         $this->assertCount(1, $violations, 'Status value 99 should be invalid.');
@@ -239,7 +239,7 @@ final class EntityValidationIntegrationTest extends TestCase
 
         $violations = $this->entityValidator->validate($user, [
             'name' => [new NotEmpty()],
-            'status' => [new AllowedValues(values: [0, 1])],
+            'status' => [new AllowedValues(values: [false, true])],
         ]);
 
         $this->assertCount(2, $violations, 'Both name and status violations should be collected.');
@@ -322,7 +322,7 @@ final class EntityValidationIntegrationTest extends TestCase
         $violations = $this->entityValidator->validate($user, [
             'name' => [new NotEmpty(), new SafeMarkup()],
             'mail' => [new NotEmpty()],
-            'status' => [new AllowedValues(values: [0, 1])],
+            'status' => [new AllowedValues(values: [false, true])],
         ]);
 
         $this->assertCount(0, $violations, 'A valid user should produce no violations.');

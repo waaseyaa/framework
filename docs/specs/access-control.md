@@ -115,7 +115,16 @@ interface AccountInterface
 
 **`User::isAuthenticated()` requires a persisted identity.** Because `User::id()` coerces a null uid to `0`, a freshly-constructed unsaved `User` would otherwise report the same `id() === 0` signal as the anonymous user. The predicate is `!$this->isNew() && $this->id() > 0` — authenticated only when the user is a persisted record (not `isNew()`) with a non-zero uid; an unsaved or uid-0 user is not authenticated.
 
-**`status` vs `email_verified` representation.** Both are boolean *fields* (the framework's `FieldTypeInferrer` enforces that a `#[Field(type: 'boolean')]` / bool property and the field-type id agree, so the PHP property type is `bool` for both). They differ deliberately at the value layer: `email_verified` carries a `'bool'` cast, so `get('email_verified')` and its setter both round-trip a native `bool`; `status` has **no** cast and is stored as an integer `0`/`1` (a documented, validator-compatible convention — read it via `isActive()`, not as a bool from `get('status')`).
+**Canonical boolean-field representation (#2064, alpha.270).** Every entity
+field whose resolved definition type is `boolean` or `bool` has one value
+representation: native PHP `bool` (or `null` when nullable). The compiled
+definition layout canonicalizes legacy/input `0`/`1` values while atomically
+sealing construction and hydration, and canonicalizes every later `set()`.
+`User.status` and `User.email_verified` therefore have the same value contract;
+`isActive()` remains the convenience/access-controlled liveness predicate, not
+an alternate type adapter. Physical SQL boolean encoding is a backend detail and
+must not be observable through entity reads, validation, or persistence
+snapshots.
 
 **Accepted same-layer cycle (`access` ↔ `entity`):** `access` depends on `entity` for the core contracts it authorizes over (`EntityInterface` and siblings — 8 files / 11 imports). `entity` depends back on `access` for exactly **one** reverse symbol: `Waaseyaa\Access\AccountInterface`, imported only by `EntityQueryInterface::setAccount(?AccountInterface)` so a query can carry the requesting account for access-aware filtering. This 2-cycle is **accepted and deliberately not broken**: extracting `AccountInterface` to a Layer-0 package would be the textbook fix, but `AccountInterface` is public surface (`docs/public-surface-map.php`), so a namespace move is semver-breaking across ~250 callsites — net-negative against a one-symbol, query-time binding. The pair is one of five reviewed entries in `tools/package-layers-cycle-baseline.txt`; `bin/check-package-layers` emits a warning for those exact historical pairs and hard-fails **`PL006`** for every new same-layer cycle.
 

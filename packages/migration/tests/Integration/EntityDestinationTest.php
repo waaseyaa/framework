@@ -178,13 +178,13 @@ final class EntityDestinationTest extends TestCase
 
         self::assertNotNull($authoredRow);
         self::assertCount(1, $importedRows);
-        self::assertSame(1, $authoredRow->toArray()['status']);
+        self::assertSame(true, $authoredRow->toArray()['status']);
         self::assertSame(
             $authoredRow->toArray()['status'],
             $importedRows[0]->toArray()['status'],
         );
-        self::assertSame(0, $authoredRow->toArray()['archived']);
-        self::assertSame(0, $importedRows[0]->toArray()['archived']);
+        self::assertSame(false, $authoredRow->toArray()['archived']);
+        self::assertSame(false, $importedRows[0]->toArray()['archived']);
         self::assertNull($authoredRow->toArray()['optional_flag']);
         self::assertNull($importedRows[0]->toArray()['optional_flag']);
     }
