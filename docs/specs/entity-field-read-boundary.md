@@ -536,6 +536,19 @@ driver parameter limits and restored to the original candidate order. Missing
 account context and an insufficient principal remain distinct from these
 projection-integrity failures; neither becomes a null or empty-value success.
 
+One reviewed User-specific difference is intentional. A legacy row with no
+physical `status` key projects an exact `status => null` subject, which the User
+policy treats as inactive and therefore denies to an ordinary profile viewer.
+The hydrated subject omits a physically absent authorization input and fails
+the policy's exact-subject-shape check. Those paths therefore agree on ordinary
+denial and neither may synthesize User's permissive constructor default. An
+administrator is the sole decision difference: projection permits through the
+independent `administer users` grant after receiving the exact null-bearing
+shape, while hydrated evaluation denies the incomplete shape. This accepted
+discrepancy grants no authority to an ordinary principal and must not be
+"fixed" by defaulting absent status to active; the private projection never
+releases the null value or any entity field.
+
 Production-equivalent normal boot consumes
 `.waaseyaa/field-access-preflight.json`, recomputes framework,
 classification-artifact, package-lock, and database-schema identities, verifies

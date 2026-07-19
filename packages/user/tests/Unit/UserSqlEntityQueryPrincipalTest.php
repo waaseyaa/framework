@@ -320,6 +320,52 @@ final class UserSqlEntityQueryPrincipalTest extends TestCase
     }
 
     #[Test]
+    public function physically_absent_status_remains_fail_closed_and_admin_only_path_difference_is_explicit(): void
+    {
+        $this->database->insert('user')
+            ->fields(['uuid', 'bundle', 'name', 'langcode', '_data'])
+            ->values(['user-without-status', 'user', 'legacy-member', 'en', '{}'])
+            ->execute();
+
+        $profileViewer = $this->profileViewer();
+        $projected = $this->queryWithHandler($this->handler, $profileViewer, false);
+        $hydrated = $this->queryWithHandler(
+            new EntityAccessHandler([new HydratedOnlyUserAccessPolicy()]),
+            $profileViewer,
+            true,
+        );
+
+        self::assertSame(
+            [1, 2],
+            $this->scope->run($profileViewer, static fn(): array => $projected->execute()),
+            'The projected path must not replace a physically absent status with the hydrated active default.',
+        );
+        self::assertSame(
+            [1, 2],
+            $this->scope->run($profileViewer, static fn(): array => $hydrated->execute()),
+            'A missing hydrated authorization input also denies an ordinary profile viewer.',
+        );
+
+        $administrator = new AuthorizationPrincipal(9, true, ['administrator'], ['administer users'], 'admin-v1');
+        $adminProjection = $this->queryWithHandler($this->handler, $administrator, false);
+        $adminHydrated = $this->queryWithHandler(
+            new EntityAccessHandler([new HydratedOnlyUserAccessPolicy()]),
+            $administrator,
+            true,
+        );
+        self::assertSame(
+            [1, 2, 3, 4],
+            $this->scope->run($administrator, static fn(): array => $adminProjection->execute()),
+            'The projected subject has the exact status key, and administrator access is permission-driven.',
+        );
+        self::assertSame(
+            [1, 2, 3],
+            $this->scope->run($administrator, static fn(): array => $adminHydrated->execute()),
+            'The hydrated subject omits a physically absent input and therefore fails its exact-shape check.',
+        );
+    }
+
+    #[Test]
     public function incomplete_projected_policy_metadata_stops_without_hydrated_fallback(): void
     {
         $principal = $this->profileViewer();

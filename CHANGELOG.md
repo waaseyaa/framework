@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **The accepted User status-projection edge is now an explicit contract (#2064).** A physically absent stored `status` remains `null` in the closed query projection and denies ordinary profile visibility instead of inheriting User's active constructor default; the canonical boundary spec, policy rationale, and regression test pin both paths against a permissive fallback. Only administrators differ: their independent permission admits the exact null-bearing projection while the incomplete hydrated subject remains denied, and the private projection releases no field value.
+
 ### Changed
 
 - **The frozen field-read page benchmark now uses the approved variance-aware release estimator (#2064).** Cache-cold pages run in 20 randomized paired process blocks; a deterministic 100,000-resample one-sided 95% percentile bootstrap bounds the paired median ratio and delta against the unchanged `1.03` and `max(0.50 ms, 0.05 ms × hydrated entities)` budgets. Reports retain raw paired p95/max and pooled request p95/max diagnostics, and explicitly warn when request maxima show a budget-sized regression in at least 15 of 20 blocks even if the bootstrap bound passes.
