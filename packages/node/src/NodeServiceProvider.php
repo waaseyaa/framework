@@ -8,6 +8,7 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Event\EntityEvents;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Node\Listener\NodeRevisionDefaultListener;
@@ -34,6 +35,15 @@ final class NodeServiceProvider extends ServiceProvider
             keys: ['id' => 'type', 'label' => 'name'],
             group: 'content',
             api: true,
+            _fieldDefinitions: [
+                'type' => ['type' => 'string', 'read' => FieldReadLevel::Public],
+                'name' => ['type' => 'string', 'read' => FieldReadLevel::Public],
+                'description' => ['type' => 'string', 'read' => FieldReadLevel::Public],
+                'new_revision' => ['type' => 'boolean', 'read' => FieldReadLevel::Public],
+                'display_submitted' => ['type' => 'boolean', 'read' => FieldReadLevel::Public],
+                'status' => ['type' => 'boolean', 'read' => FieldReadLevel::Public],
+                'dependencies' => ['type' => 'map', 'read' => FieldReadLevel::Public],
+            ],
         ));
     }
 

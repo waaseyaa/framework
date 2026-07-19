@@ -285,7 +285,9 @@ final class OidcServiceProvider extends ServiceProvider
                 accessTokenIssuer: $this->resolve(AccessTokenIssuer::class),
                 entityTypeManager: $this->resolve(EntityTypeManager::class),
                 entityAccessHandler: $this->resolve(EntityAccessHandler::class),
+                principalFactory: $this->resolve(\Waaseyaa\Access\AccountPrincipalFactoryInterface::class),
                 claimResolver: $this->resolve(UserinfoClaimResolver::class),
+                userInternalFields: $this->resolve(\Waaseyaa\Access\User\UserInternalFieldReaderInterface::class),
             ),
         );
     }

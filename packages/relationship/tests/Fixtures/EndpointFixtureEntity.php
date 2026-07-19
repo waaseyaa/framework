@@ -6,7 +6,9 @@ namespace Waaseyaa\Relationship\Tests\Fixtures;
 
 use Waaseyaa\Entity\Attribute\ContentEntityKeys;
 use Waaseyaa\Entity\Attribute\ContentEntityType;
+use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\FieldReadLevel;
 
 /**
  * Minimal content entity standing in for a "real" endpoint entity type (e.g.
@@ -21,4 +23,6 @@ use Waaseyaa\Entity\ContentEntityBase;
 #[ContentEntityKeys(id: 'id', uuid: 'uuid', label: 'title')]
 final class EndpointFixtureEntity extends ContentEntityBase
 {
+    #[Field(settings: ['authorizationInput' => true], read: FieldReadLevel::Protected)]
+    public bool $published = false;
 }

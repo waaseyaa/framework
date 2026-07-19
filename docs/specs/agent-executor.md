@@ -409,6 +409,23 @@ with no persisted deadline retain the former `started_at` age fallback.
 
 Indexes: `(status, queued_at)`, `(account_id, queued_at DESC)`.
 
+### Field-read boundary
+
+`AgentRun.account_id` is a Protected authorization input. The frozen bundle is
+Internal; prompt, response, transcript, accounting, approval, lifecycle, and
+error fields are Protected; structural identifiers and state-machine selectors
+are Public. Account-facing HTTP reads use one fixed projection inside an
+explicit immutable principal scope, while queue workers and the sessionless
+`ai:run` CLI use a fixed-shape system-job capability whose exact field set is
+durably reserved before any value is obtained. Neither boundary accepts caller-
+selected field names, and an ordinary protected read with no account context
+fails closed.
+
+`AgentAuditLog.run_id` is the exact Protected parent authorization input; event
+payload fields are Internal and remain available only to closed audited readers.
+Owner decisions for both entities consume compiled immutable subject views, so
+authorization never performs an ordinary protected field read.
+
 ### `AgentAuditLog`
 
 Replaces the in-memory list inside the current `AgentExecutor`.

@@ -68,26 +68,18 @@ final class WaaseyaaRouter
     public function sortRoutesByPriority(): void
     {
         $named = $this->routes->all();
-        $indexed = [];
-        $i = 0;
+        /** @var array<int, list<array{name: string, route: Route}>> $buckets */
+        $buckets = [];
         foreach ($named as $name => $route) {
-            $indexed[] = ['name' => $name, 'route' => $route, 'idx' => $i++];
+            $priority = (int) ($route->getOption('_waaseyaa_priority') ?? 0);
+            $buckets[$priority][] = ['name' => $name, 'route' => $route];
         }
-        usort(
-            $indexed,
-            static function (array $x, array $y): int {
-                $pa = (int) ($x['route']->getOption('_waaseyaa_priority') ?? 0);
-                $pb = (int) ($y['route']->getOption('_waaseyaa_priority') ?? 0);
-                if ($pb !== $pa) {
-                    return $pb <=> $pa;
-                }
-
-                return $x['idx'] <=> $y['idx'];
-            },
-        );
+        krsort($buckets, SORT_NUMERIC);
         $this->routes = new RouteCollection();
-        foreach ($indexed as $row) {
-            $this->routes->add($row['name'], $row['route']);
+        foreach ($buckets as $routes) {
+            foreach ($routes as $route) {
+                $this->routes->add($route['name'], $route['route']);
+            }
         }
         $this->matcher = null;
         $this->generator = null;

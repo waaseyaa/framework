@@ -28,7 +28,6 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
-use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\Foundation\Migration\Migration;
 use Waaseyaa\Foundation\Migration\SchemaBuilder;
 
@@ -75,8 +74,8 @@ final class ExecutorHitlTest extends TestCase
             keys: ['id' => 'id', 'uuid' => 'id', 'label' => 'event_type'],
         );
 
-        $runEntityRepo = new EntityRepository($runType, $driver, $dispatcher);
-        $logEntityRepo = new EntityRepository($logType, $driver, $dispatcher);
+        $runEntityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver($runType, $driver, $dispatcher);
+        $logEntityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver($logType, $driver, $dispatcher);
 
         $this->runRepository = new AgentRunRepository($runEntityRepo, $this->database);
         $this->auditRepository = new AgentAuditLogRepository($logEntityRepo, $this->database);
@@ -277,7 +276,8 @@ final class ExecutorHitlTest extends TestCase
         self::assertSame('approval_timeout', $result->data['error_code']);
         $fresh = $this->runRepository->find((string) $run->get('id'));
         self::assertSame(RunStatus::Failed, $fresh?->getStatus());
-        self::assertSame('approval_timeout', $fresh?->get('error_code'));
+        self::assertNotNull($fresh);
+        self::assertSame('approval_timeout', new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture()->read($fresh)->errorCode);
 
         // Audit trail: ApprovalRequired present, ApprovalDenied (timeout
         // marker) present, no spurious ApprovalGranted row.
@@ -450,7 +450,8 @@ final class ExecutorHitlTest extends TestCase
 
         self::assertFalse($result->success);
         $fresh = $this->runRepository->find((string) $run->get('id'));
-        self::assertSame('provider_rate_limited', $fresh?->get('error_code'));
+        self::assertNotNull($fresh);
+        self::assertSame('provider_rate_limited', new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture()->read($fresh)->errorCode);
     }
 
     // ------------------------------------------------------------------

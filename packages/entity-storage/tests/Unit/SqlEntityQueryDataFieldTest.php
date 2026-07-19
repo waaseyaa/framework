@@ -38,7 +38,7 @@ final class SqlEntityQueryDataFieldTest extends TestCase
         $dispatcher = new EventDispatcher();
         $resolver = new SingleConnectionResolver($database);
         $driver = new SqlStorageDriver($resolver);
-        $this->repository = new EntityRepository(
+        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             $driver,
             $dispatcher,

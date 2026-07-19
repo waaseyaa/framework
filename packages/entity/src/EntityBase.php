@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Entity;
 
 use Symfony\Component\Uid\Uuid;
+use Waaseyaa\Access\CompiledFieldReadRule;
 use Waaseyaa\Entity\Cast\ValueCaster;
 
 /**
@@ -71,16 +72,19 @@ abstract class EntityBase implements EntityInterface
             $this->entityKeys = $entityKeys;
         }
 
-        $this->valueContainer = EntityValueContainer::compatibility($values);
-        $this->valueContainerInitialized = true;
-
-        // Auto-generate UUID only when the entity type defines a uuid key.
+        // UUID generation happens before sealing so construction never needs a
+        // privileged read or a mutable compatibility bag.
         if (isset($this->entityKeys['uuid'])) {
             $uuidKey = $this->entityKeys['uuid'];
-            if (!$this->valueContainer->has($uuidKey) || $this->valueContainer->read($this, $uuidKey) === '') {
-                $this->valueContainer->write($this, $uuidKey, Uuid::v4()->toRfc4122());
+            if (!isset($values[$uuidKey]) || $values[$uuidKey] === '') {
+                $values[$uuidKey] = Uuid::v4()->toRfc4122();
             }
         }
+
+        $layout = EntityReadRuntime::layoutFor(static::class, $values, $this->entityTypeId, $this->entityKeys);
+        $this->valueContainer = EntityValueContainer::seal($values, $layout, null);
+        $this->valueContainerInitialized = true;
+        $this->entityStructure = EntityReadRuntime::structureFor($values, $this->entityTypeId, $this->entityKeys, $layout);
     }
 
     /**
@@ -159,24 +163,11 @@ abstract class EntityBase implements EntityInterface
         return $this->entityStructure !== null;
     }
 
-    /**
-     * Repository hydration hook. Application code must not call this method.
-     * A structure is write-once so a returned entity cannot be retargeted.
-     *
-     * @internal EntityInstantiator only.
-     */
-    final public function _attachEntityStructure(EntityStructure $structure): void
-    {
-        if ($this->entityStructure !== null) {
-            throw new \LogicException('Entity structure is immutable after hydration.');
-        }
-        $this->entityStructure = $structure;
-    }
-
     /** @internal repository identity backfill only. */
     final public function _hydrateStructuralId(int|string $id): void
     {
         $current = $this->entityStructure();
+        $this->valueContainer->write($this, $this->entityKeys['id'] ?? 'id', $id);
         $this->entityStructure = new EntityStructure(
             $current->entityTypeId,
             $current->bundleId,
@@ -196,6 +187,7 @@ abstract class EntityBase implements EntityInterface
     final public function _hydrateStructuralRevision(int|string $revisionId, bool $tip = true, bool $default = true): void
     {
         $current = $this->entityStructure();
+        $this->valueContainer->write($this, $this->entityKeys['revision'] ?? 'revision_id', $revisionId);
         $this->entityStructure = new EntityStructure(
             $current->entityTypeId,
             $current->bundleId,
@@ -215,6 +207,8 @@ abstract class EntityBase implements EntityInterface
     final public function _hydrateStructuralLanguages(string $active, string $default, array $known): void
     {
         $current = $this->entityStructure();
+        $this->valueContainer->write($this, $this->entityKeys['langcode'] ?? 'langcode', $active);
+        $this->valueContainer->write($this, $this->entityKeys['default_langcode'] ?? 'default_langcode', $default);
         $known = array_values(array_unique($known));
         sort($known);
         $this->entityStructure = new EntityStructure(
@@ -289,12 +283,39 @@ abstract class EntityBase implements EntityInterface
 
     public function set(string $name, mixed $value): static
     {
+        if ($this->entityStructure !== null && in_array($name, $this->structuralFieldNames(), true)) {
+            $idField = $this->entityKeys['id'] ?? 'id';
+            if ($name === $idField && $this->entityStructure->id === null && (is_int($value) || is_string($value))) {
+                $this->_hydrateStructuralId($value);
+
+                return $this;
+            }
+            throw new \LogicException(sprintf('Structural field %s.%s is immutable after construction.', $this->entityTypeId, $name));
+        }
         $stored = isset($this->casts[$name])
             ? $this->valueCaster()->castOut($name, $value, $this->casts[$name])
             : $value;
         $this->valueContainer->write($this, $name, $stored);
 
         return $this;
+    }
+
+    /** @return list<string> */
+    private function structuralFieldNames(): array
+    {
+        $fields = [
+            $this->entityKeys['id'] ?? 'id',
+            $this->entityKeys['bundle'] ?? 'bundle',
+            $this->entityKeys['langcode'] ?? 'langcode',
+            $this->entityKeys['default_langcode'] ?? 'default_langcode',
+        ];
+        foreach (['uuid', 'revision'] as $kind) {
+            if (isset($this->entityKeys[$kind])) {
+                $fields[] = $this->entityKeys[$kind];
+            }
+        }
+
+        return array_values(array_unique($fields));
     }
 
     public function toArray(): array
@@ -314,10 +335,10 @@ abstract class EntityBase implements EntityInterface
         return $this->valueContainer->level($field);
     }
 
-    /** @internal Closed reader authority; callers are private bound closures only. @return array<string, mixed> */
-    private function rawValuesForClosedAuthority(): array
+    /** @internal Guard hot path over the layout's stable compiled rule. */
+    final public function compiledFieldReadRule(string $field): CompiledFieldReadRule
     {
-        return $this->valueContainer->rawValues();
+        return $this->valueContainer->rule($field);
     }
 
     /**
@@ -381,28 +402,12 @@ abstract class EntityBase implements EntityInterface
     /**
      * Shallow copy with the same identity keys and {@see $enforceIsNew} flag.
      *
-     * Sealed entities clone their opaque container so raw values never cross a virtual reconstruction
-     * hook. Compatibility entities retain constructor re-entry through {@see duplicateInstance()}.
+     * Sealed entities clone their opaque container so raw values never cross a virtual reconstruction hook.
      */
     public function duplicate(): static
     {
-        if ($this->valueContainer->isSealed()) {
-            $copy = clone $this;
-            $copy->enforceIsNew($this->enforceIsNew);
-
-            return $copy;
-        }
-
-        $shallowValues = [];
-        foreach ($this->rawValuesForClosedAuthority() as $key => $value) {
-            $shallowValues[$key] = $value;
-        }
-
-        $copy = $this->duplicateInstance($shallowValues);
+        $copy = clone $this;
         $copy->enforceIsNew($this->enforceIsNew);
-        if ($this->entityStructure !== null) {
-            $copy->_attachEntityStructure($this->entityStructure);
-        }
 
         return $copy;
     }

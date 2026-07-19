@@ -7,25 +7,49 @@ namespace Waaseyaa\User\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Access\AuthorizationPrincipal;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
+use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\FieldReadGuard;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\User\UserBlock;
+use Waaseyaa\User\UserBlockAccessPolicy;
 
 #[CoversClass(UserBlock::class)]
 final class UserBlockTest extends TestCase
 {
+    private AccountFieldReadScope $scope;
+
+    protected function setUp(): void
+    {
+        $this->scope = new AccountFieldReadScope();
+        $handler = new EntityAccessHandler([new UserBlockAccessPolicy()]);
+        EntityReadRuntime::installGuard(new FieldReadGuard($this->scope, $handler->checkProtectedFieldRead(...)));
+    }
+
+    protected function tearDown(): void
+    {
+        EntityReadRuntime::installGuard(null);
+    }
+
     #[Test]
     public function creates_with_required_fields(): void
     {
         $block = new UserBlock(['blocker_id' => 1, 'blocked_id' => 2]);
-        $this->assertSame(1, (int) $block->get('blocker_id'));
-        $this->assertSame(2, (int) $block->get('blocked_id'));
-        $this->assertNotNull($block->get('created_at'));
+        $admin = new AuthorizationPrincipal(9, true, ['member'], ['administer content'], 'admin-claims');
+        $this->scope->run($admin, static function () use ($block): void {
+            self::assertSame(1, (int) $block->get('blocker_id'));
+            self::assertSame(2, (int) $block->get('blocked_id'));
+            self::assertNotNull($block->get('created_at'));
+        });
     }
 
     #[Test]
     public function uses_provided_created_at(): void
     {
         $block = new UserBlock(['blocker_id' => 1, 'blocked_id' => 2, 'created_at' => 1000]);
-        $this->assertSame(1000, (int) $block->get('created_at'));
+        $admin = new AuthorizationPrincipal(9, true, ['member'], ['administer content'], 'admin-claims');
+        self::assertSame(1000, (int) $this->scope->run($admin, static fn(): mixed => $block->get('created_at')));
     }
 
     #[Test]

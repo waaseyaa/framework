@@ -118,7 +118,7 @@ final class ForwardDraftIntegrationTest extends TestCase
         $this->assertNotNull($publishedPointer);
         $this->assertSame($publishedRevisionId, (int) $publishedPointer->get('revision_id'));
         $this->assertSame('Original title', $publishedPointer->get('title'));
-        $this->assertSame(1, $publishedPointer->get('status'));
+        $this->assertSame(1, \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($publishedPointer));
 
         // --- 2. Raw-save forward draft (NOT through TransitionService): ---
         // edit the current tip with new content, moving ITS OWN
@@ -144,7 +144,7 @@ final class ForwardDraftIntegrationTest extends TestCase
         $this->assertNotNull($stillLive);
         $this->assertSame($publishedRevisionId, (int) $stillLive->get('revision_id'));
         $this->assertSame('Original title', $stillLive->get('title'));
-        $this->assertSame(1, $stillLive->get('status'));
+        $this->assertSame(1, \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($stillLive));
 
         // CW-v1 option-1 (#1920 PR-2): find() itself must stay
         // byte-stable — it keeps serving the PUBLISHED base row, not the
@@ -152,9 +152,9 @@ final class ForwardDraftIntegrationTest extends TestCase
         // published pointer).
         $servedRow = $repository->find($entityId);
         $this->assertNotNull($servedRow);
-        $this->assertSame('published', $servedRow->get('workflow_state'));
+        $this->assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($servedRow));
         $this->assertSame('Original title', $servedRow->get('title'));
-        $this->assertSame(1, $servedRow->get('status'));
+        $this->assertSame(1, \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($servedRow));
 
         // The current/tip row (what an editor sees) — loadWorkingCopy(),
         // NOT find() — is the new draft, and its own `status` was
@@ -162,9 +162,9 @@ final class ForwardDraftIntegrationTest extends TestCase
         // the 'draft' state's published flag (0).
         $currentTip = $repository->loadWorkingCopy($entityId);
         $this->assertNotNull($currentTip);
-        $this->assertSame('draft', $currentTip->get('workflow_state'));
+        $this->assertSame('draft', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($currentTip));
         $this->assertSame('Forward draft title', $currentTip->get('title'));
-        $this->assertSame(1, $currentTip->get('status'));
+        $this->assertSame(1, \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($currentTip));
 
         // --- 4. Publish the draft revision through TransitionService: ---
         // the pointer must move and the new content becomes live. The wired
@@ -177,7 +177,7 @@ final class ForwardDraftIntegrationTest extends TestCase
         $newlyLive = $repository->loadPublishedRevision($entityId);
         $this->assertNotNull($newlyLive);
         $this->assertSame('Forward draft title', $newlyLive->get('title'));
-        $this->assertSame(1, $newlyLive->get('status'));
+        $this->assertSame(1, \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($newlyLive));
         $newLiveRevisionId = (int) $newlyLive->get('revision_id');
         $this->assertNotSame($publishedRevisionId, $newLiveRevisionId);
 
@@ -204,7 +204,7 @@ final class ForwardDraftIntegrationTest extends TestCase
         $this->assertSame('Forward draft title', $afterDenial->get('title'));
         $baseRow = $repository->find($entityId);
         $this->assertNotNull($baseRow);
-        $this->assertSame(1, $baseRow->get('status'), 'Denied pointer move must leave the persisted status unchanged.');
+        $this->assertSame(1, \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($baseRow), 'Denied pointer move must leave the persisted status unchanged.');
     }
 
     #[Test]
@@ -259,16 +259,16 @@ final class ForwardDraftIntegrationTest extends TestCase
 
         $archivedPointer = $repository->loadPublishedRevision($entityId);
         $this->assertNotNull($archivedPointer);
-        $this->assertSame('archived', $archivedPointer->get('workflow_state'));
-        $this->assertSame(0, $repository->find($entityId)?->get('status'));
+        $this->assertSame('archived', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($archivedPointer));
+        $this->assertSame(0, \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($repository->find($entityId)));
 
         // Restore: a forward draft — the pointer stays on the archived
         // revision, status stays 0 (copied from the archived pointer).
         $transitionService->transition($entity, 'restore', $editor);
         $stillArchived = $repository->loadPublishedRevision($entityId);
         $this->assertNotNull($stillArchived);
-        $this->assertSame('archived', $stillArchived->get('workflow_state'));
-        $this->assertSame(0, $repository->find($entityId)?->get('status'));
+        $this->assertSame('archived', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($stillArchived));
+        $this->assertSame(0, \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($repository->find($entityId)));
 
         // Edit the restored draft, then publish it. The transition itself
         // validates draft -> published ('publish'); the pointer move the
@@ -280,7 +280,7 @@ final class ForwardDraftIntegrationTest extends TestCase
         // restored draft.
         $tip = $repository->loadWorkingCopy($entityId);
         $this->assertNotNull($tip);
-        $this->assertSame('draft', $tip->get('workflow_state'));
+        $this->assertSame('draft', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($tip));
         $tip->setNewRevision(true);
         $tip->set('title', 'Live again');
         $repository->save($tip);
@@ -291,10 +291,10 @@ final class ForwardDraftIntegrationTest extends TestCase
         // status back to 1.
         $republished = $repository->loadPublishedRevision($entityId);
         $this->assertNotNull($republished);
-        $this->assertSame('published', $republished->get('workflow_state'));
+        $this->assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($republished));
         $this->assertSame('Live again', $republished->get('title'));
-        $this->assertSame(1, $republished->get('status'));
-        $this->assertSame(1, $repository->find($entityId)?->get('status'));
+        $this->assertSame(1, \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($republished));
+        $this->assertSame(1, \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($repository->find($entityId)));
     }
 
     #[Test]
@@ -348,7 +348,7 @@ final class ForwardDraftIntegrationTest extends TestCase
         $archivedPointer = $repository->loadPublishedRevision($entityId);
         $this->assertNotNull($archivedPointer);
         $archivedRevisionId = (int) $archivedPointer->get('revision_id');
-        $this->assertSame(0, $repository->find($entityId)?->get('status'));
+        $this->assertSame(0, \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($repository->find($entityId)));
 
         // The restored draft tip; publishing it needs restore_to_published
         // for the pointer move, which this account lacks.
@@ -376,12 +376,12 @@ final class ForwardDraftIntegrationTest extends TestCase
         // published pointer unchanged (still the archived revision).
         $freshBase = $repository->find($entityId);
         $this->assertNotNull($freshBase);
-        $this->assertSame(0, $freshBase->get('status'), 'Denied pointer move must not leave status flipped in the base row.');
+        $this->assertSame(0, \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($freshBase), 'Denied pointer move must not leave status flipped in the base row.');
 
         $freshPointer = $repository->loadPublishedRevision($entityId);
         $this->assertNotNull($freshPointer);
         $this->assertSame($archivedRevisionId, (int) $freshPointer->get('revision_id'), 'Denied pointer move must leave published_revision_id unchanged.');
-        $this->assertSame('archived', $freshPointer->get('workflow_state'));
+        $this->assertSame('archived', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($freshPointer));
     }
 
     #[Test]
@@ -429,22 +429,22 @@ final class ForwardDraftIntegrationTest extends TestCase
         $publishedRow = $repository->loadRevision($entityId, $publishedRevisionId);
         $this->assertNotNull($publishedRow);
         $this->assertSame('Original title', $publishedRow->get('title'));
-        $this->assertSame('published', $publishedRow->get('workflow_state'));
+        $this->assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($publishedRow));
 
         // Pointer + status unchanged; the new tip carries the draft.
         $pointer = $repository->loadPublishedRevision($entityId);
         $this->assertNotNull($pointer);
         $this->assertSame($publishedRevisionId, (int) $pointer->get('revision_id'));
-        $this->assertSame(1, $repository->find($entityId)?->get('status'));
+        $this->assertSame(1, \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($repository->find($entityId)));
         // CW-v1 option-1 (#1920 PR-2): find() serves the PUBLISHED base
         // row (byte-stable — still 'Original title') here; loadWorkingCopy()
         // is what serves the draft tip.
         $this->assertSame('Original title', $repository->find($entityId)?->get('title'));
-        $this->assertSame('published', $repository->find($entityId)?->get('workflow_state'));
+        $this->assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($repository->find($entityId)));
         $freshTip = $repository->loadWorkingCopy($entityId);
         $this->assertNotNull($freshTip);
         $this->assertSame('Draft title', $freshTip->get('title'));
-        $this->assertSame('draft', $freshTip->get('workflow_state'));
+        $this->assertSame('draft', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($freshTip));
 
         // Opt-out preserved for NON-state-changing edits: an ordinary edit
         // of the draft tip (workflow_state unchanged) updates in place — no
@@ -500,7 +500,7 @@ final class ForwardDraftIntegrationTest extends TestCase
         $publishedRow = $repository->loadRevision($entityId, $publishedRevisionId);
         $this->assertNotNull($publishedRow);
         $this->assertSame('Live title', $publishedRow->get('title'));
-        $this->assertSame('published', $publishedRow->get('workflow_state'));
+        $this->assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($publishedRow));
 
         // Pointer unchanged; base status still 1 (rides the pointer, which
         // still serves the published revision); the archived state lives
@@ -518,13 +518,13 @@ final class ForwardDraftIntegrationTest extends TestCase
         $this->assertSame($publishedRevisionId, (int) $pointer->get('revision_id'));
         $freshBase = $repository->find($entityId);
         $this->assertNotNull($freshBase);
-        $this->assertSame(1, $freshBase->get('status'));
-        $this->assertSame('published', $freshBase->get('workflow_state'), 'The base row is byte-unchanged under discipline — the archived state lives only on the unpromoted tip.');
+        $this->assertSame(1, \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($freshBase));
+        $this->assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($freshBase), 'The base row is byte-unchanged under discipline — the archived state lives only on the unpromoted tip.');
         $this->assertSame('Live title', $freshBase->get('title'));
 
         $unpromotedTip = $repository->loadWorkingCopy($entityId);
         $this->assertNotNull($unpromotedTip);
-        $this->assertSame('archived', $unpromotedTip->get('workflow_state'));
+        $this->assertSame('archived', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($unpromotedTip));
         $this->assertSame((string) $archivedTipRevisionId, (string) $unpromotedTip->get('revision_id'));
     }
 
@@ -563,7 +563,7 @@ final class ForwardDraftIntegrationTest extends TestCase
         $publishedRow = $repository->loadRevision($entityId, $publishedRevisionId);
         $this->assertNotNull($publishedRow);
         $this->assertSame('Live title', $publishedRow->get('title'));
-        $this->assertSame('published', $publishedRow->get('workflow_state'));
+        $this->assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($publishedRow));
 
         $pointer = $repository->loadPublishedRevision($entityId);
         $this->assertNotNull($pointer);
@@ -574,13 +574,13 @@ final class ForwardDraftIntegrationTest extends TestCase
         // loadWorkingCopy() serves the unpromoted archived tip.
         $freshBase = $repository->find($entityId);
         $this->assertNotNull($freshBase);
-        $this->assertSame(1, $freshBase->get('status'));
-        $this->assertSame('published', $freshBase->get('workflow_state'));
+        $this->assertSame(1, \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($freshBase));
+        $this->assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($freshBase));
         $this->assertSame('Live title', $freshBase->get('title'));
 
         $unpromotedTip = $repository->loadWorkingCopy($entityId);
         $this->assertNotNull($unpromotedTip);
-        $this->assertSame('archived', $unpromotedTip->get('workflow_state'));
+        $this->assertSame('archived', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($unpromotedTip));
     }
 
     /**
@@ -626,7 +626,7 @@ final class ForwardDraftIntegrationTest extends TestCase
 
             $resolver = new SingleConnectionResolver($db);
 
-            return new EntityRepository(
+            return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                 $definition,
                 new SqlStorageDriver($resolver),
                 $dispatcher,
@@ -749,6 +749,7 @@ final class ForwardDraftIntegrationTest extends TestCase
 final class ForwardDraftSubject extends ContentEntityBase implements RevisionableInterface, RevisionableEntityInterface
 {
     use RevisionableEntityTrait;
+    use \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectFields;
 
     public function __construct(
         array $values = [],

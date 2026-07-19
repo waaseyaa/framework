@@ -18,15 +18,17 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\Policy\PublishedContentAccessPolicy;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\Attribute\Field;
+use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
-use Waaseyaa\Node\Node;
 use Waaseyaa\Path\PathAlias;
 use Waaseyaa\Routing\CacheConfigResolver;
 use Waaseyaa\SSR\SsrPageHandler;
@@ -85,7 +87,7 @@ final class SsrEntityViewGateAllTypesTest extends TestCase
         $this->registerEntityType(new EntityType(
             id: 'restricted_widget',
             label: 'Restricted Widget',
-            class: Node::class,
+            class: GenericSsrContentEntity::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title'],
             group: 'widgets',
         ));
@@ -95,7 +97,7 @@ final class SsrEntityViewGateAllTypesTest extends TestCase
         $this->registerEntityType(new EntityType(
             id: 'story',
             label: 'Story',
-            class: Node::class,
+            class: GenericSsrContentEntity::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title'],
             group: 'content',
         ));
@@ -107,7 +109,7 @@ final class SsrEntityViewGateAllTypesTest extends TestCase
         $this->registerEntityType(new EntityType(
             id: 'taxonomy_term',
             label: 'Taxonomy term',
-            class: Node::class,
+            class: GenericSsrContentEntity::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title'],
             group: 'taxonomy',
         ));
@@ -128,7 +130,7 @@ final class SsrEntityViewGateAllTypesTest extends TestCase
     {
         new SqlSchemaHandler($entityType, $this->db)->ensureTable();
         $resolver = new SingleConnectionResolver($this->db);
-        $this->repositories[$entityType->id()] = new EntityRepository(
+        $this->repositories[$entityType->id()] = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             new SqlStorageDriver($resolver),
             new EventDispatcher(),
@@ -323,4 +325,14 @@ final class SsrEntityViewGateAllTypesTest extends TestCase
         self::assertSame(200, $result['status'], 'a published content-group entity must still render 200 for a bare anonymous account via the real PublishedContentAccessPolicy');
         self::assertStringContainsString(self::STORY_TITLE, (string) $result['content']);
     }
+}
+
+/** Explicit public fields for the generic non-Node SSR surface fixture. */
+final class GenericSsrContentEntity extends ContentEntityBase
+{
+    #[Field(required: false, read: FieldReadLevel::Public)]
+    public string $title = '';
+
+    #[Field(type: 'boolean', required: false, read: FieldReadLevel::Public)]
+    public bool $status = false;
 }

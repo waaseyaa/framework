@@ -4,15 +4,19 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Workflows;
 
+use Waaseyaa\Access\AccountPrincipalFactoryInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Event\EntityEvents;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\EntityStorage\Event\BeforeRevisionPointerMoveEvent;
+use Waaseyaa\Field\FieldStorage;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
@@ -39,6 +43,13 @@ final class WorkflowServiceProvider extends ServiceProvider
             keys: ['id' => 'id', 'label' => 'label'],
             group: 'workflows',
             api: true,
+            _fieldDefinitions: [
+                'id' => ['type' => 'string', 'read' => FieldReadLevel::Public],
+                'label' => ['type' => 'string', 'read' => FieldReadLevel::Public],
+                'initial_state' => ['type' => 'string', 'stored' => FieldStorage::Data, 'read' => FieldReadLevel::Public],
+                'states' => ['type' => 'json', 'stored' => FieldStorage::Data, 'read' => FieldReadLevel::Public],
+                'transitions' => ['type' => 'json', 'stored' => FieldStorage::Data, 'read' => FieldReadLevel::Public],
+            ],
         ));
 
         // CW-v1 WP-1 (#1920, docs/specs/content-workflow.md): engine core
@@ -68,6 +79,8 @@ final class WorkflowServiceProvider extends ServiceProvider
             $auditWriter = $this->resolveOptional(AuditWriterInterface::class);
             $logger = $this->resolveOptional(LoggerInterface::class);
             $groupConstraintChecker = $this->resolveOptional(GroupConstraintChecker::class);
+            $fieldReadScope = $this->resolveOptional(AccountFieldReadScopeInterface::class);
+            $principalFactory = $this->resolveOptional(AccountPrincipalFactoryInterface::class);
 
             return new TransitionService(
                 bindings: $this->resolve(WorkflowBindingResolver::class),
@@ -76,6 +89,9 @@ final class WorkflowServiceProvider extends ServiceProvider
                 auditWriter: $auditWriter instanceof AuditWriterInterface ? $auditWriter : null,
                 logger: $logger instanceof LoggerInterface ? $logger : null,
                 groupConstraintChecker: $groupConstraintChecker instanceof GroupConstraintChecker ? $groupConstraintChecker : null,
+                workflowValues: new \Waaseyaa\Workflows\Read\WorkflowEntitySnapshotReader(),
+                fieldReadScope: $fieldReadScope instanceof AccountFieldReadScopeInterface ? $fieldReadScope : null,
+                principalFactory: $principalFactory instanceof AccountPrincipalFactoryInterface ? $principalFactory : null,
             );
         });
 
@@ -107,6 +123,7 @@ final class WorkflowServiceProvider extends ServiceProvider
                 // above for the shared rationale.
                 groupConstraintChecker: $groupConstraintChecker instanceof GroupConstraintChecker ? $groupConstraintChecker : null,
                 republishMarker: $republishMarker instanceof RepublishMarker ? $republishMarker : null,
+                workflowValues: new \Waaseyaa\Workflows\Read\WorkflowEntitySnapshotReader(),
             );
         });
 
@@ -117,6 +134,7 @@ final class WorkflowServiceProvider extends ServiceProvider
             return new WorkflowRepublishListener(
                 marker: $this->resolve(RepublishMarker::class),
                 entityTypeManager: $this->resolve(EntityTypeManagerInterface::class),
+                workflowValues: new \Waaseyaa\Workflows\Read\WorkflowEntitySnapshotReader(),
             );
         });
 
@@ -134,6 +152,7 @@ final class WorkflowServiceProvider extends ServiceProvider
                 // pointer-move guard — see TransitionService's own binding
                 // above for the shared rationale.
                 groupConstraintChecker: $groupConstraintChecker instanceof GroupConstraintChecker ? $groupConstraintChecker : null,
+                workflowValues: new \Waaseyaa\Workflows\Read\WorkflowEntitySnapshotReader(),
             );
         });
     }

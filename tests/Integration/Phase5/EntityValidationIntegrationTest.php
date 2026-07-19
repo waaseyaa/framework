@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Validator\Validation;
 use Waaseyaa\Entity\Validation\EntityValidator;
+use Waaseyaa\Tests\Support\ClosedEntityValidatorFactory;
 use Waaseyaa\User\User;
 use Waaseyaa\Validation\Constraint\AllowedValues;
 use Waaseyaa\Validation\Constraint\NotEmpty;
@@ -31,7 +32,7 @@ final class EntityValidationIntegrationTest extends TestCase
         $validator = Validation::createValidatorBuilder()
             ->getValidator();
 
-        $this->entityValidator = new EntityValidator($validator);
+        $this->entityValidator = ClosedEntityValidatorFactory::create($validator);
     }
 
     // ---- NotEmpty constraint tests ----
@@ -65,7 +66,7 @@ final class EntityValidationIntegrationTest extends TestCase
 
         $this->assertCount(1, $violations, 'Empty user name should produce one violation.');
         $this->assertSame('name', $violations->get(0)->getPropertyPath());
-        $this->assertSame('This value must not be empty.', $violations->get(0)->getMessage());
+        $this->assertSame('The non-Public field value is invalid.', $violations->get(0)->getMessage());
     }
 
     public function testNotEmptyFailsWithNullUserName(): void
@@ -177,7 +178,7 @@ final class EntityValidationIntegrationTest extends TestCase
 
         $this->assertCount(1, $violations, 'Script tag in user name should be flagged as dangerous.');
         $this->assertSame('name', $violations->get(0)->getPropertyPath());
-        $this->assertSame('The text contains potentially dangerous markup.', $violations->get(0)->getMessage());
+        $this->assertSame('The non-Public field value is invalid.', $violations->get(0)->getMessage());
     }
 
     public function testSafeMarkupFailsWithEventHandler(): void
@@ -342,6 +343,6 @@ final class EntityValidationIntegrationTest extends TestCase
         ]);
 
         $this->assertCount(1, $violations);
-        $this->assertSame('Username is required.', $violations->get(0)->getMessage());
+        $this->assertSame('The non-Public field value is invalid.', $violations->get(0)->getMessage());
     }
 }

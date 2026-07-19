@@ -6,7 +6,9 @@ namespace Waaseyaa\EntityStorage\Tests\Fixtures;
 
 use Waaseyaa\Entity\Attribute\ContentEntityKeys;
 use Waaseyaa\Entity\Attribute\ContentEntityType;
+use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Entity\Hydration\HydratableFromStorageInterface;
 use Waaseyaa\Entity\Hydration\HydrationContext;
 
@@ -17,6 +19,9 @@ use Waaseyaa\Entity\Hydration\HydrationContext;
 #[ContentEntityKeys(id: 'id', uuid: 'uuid', label: 'label', bundle: 'bundle', langcode: 'langcode')]
 final class HydratableFromStorageTestEntity extends ContentEntityBase implements HydratableFromStorageInterface
 {
+    #[Field(type: 'string', read: FieldReadLevel::Public)]
+    public string $label;
+
     public function __construct(
         array $values = [],
         string $entityTypeId = '',

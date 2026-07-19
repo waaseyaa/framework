@@ -9,20 +9,24 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\FieldReadGuard;
 use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\ResourceSerializer;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Relationship\Relationship;
 use Waaseyaa\Relationship\RelationshipAccessPolicy;
 use Waaseyaa\Relationship\RelationshipEndpointVisibilityPolicy;
+use Waaseyaa\Relationship\Tests\Fixtures\ArrayAccount;
 use Waaseyaa\Relationship\Tests\Fixtures\EndpointFixtureAccessPolicy;
 use Waaseyaa\Relationship\Tests\Fixtures\EndpointFixtureEntity;
 use Waaseyaa\Relationship\Tests\Fixtures\PresetEntityRepository;
 use Waaseyaa\Relationship\Tests\Fixtures\PresetEntityStorage;
-use Waaseyaa\Relationship\Tests\Fixtures\ArrayAccount;
 
 /**
  * Audit-remediation R5: `GET /api/relationship` (collection AND single)
@@ -44,6 +48,8 @@ use Waaseyaa\Relationship\Tests\Fixtures\ArrayAccount;
 #[CoversNothing]
 final class RelationshipEndpointVisibilityRestTest extends TestCase
 {
+    private ?EntityAccessHandler $fieldReadAccessHandler = null;
+
     private function endpoint(int $id, string $title, bool $published): EndpointFixtureEntity
     {
         return new EndpointFixtureEntity([
@@ -120,6 +126,7 @@ final class RelationshipEndpointVisibilityRestTest extends TestCase
             new EndpointFixtureAccessPolicy(),
         ]);
         $accessHandler->addPolicy(new RelationshipEndpointVisibilityPolicy($etm, $accessHandler));
+        $this->fieldReadAccessHandler = $accessHandler;
 
         return new JsonApiController(
             $etm,
@@ -142,6 +149,27 @@ final class RelationshipEndpointVisibilityRestTest extends TestCase
         return new ArrayAccount(0, ['access content', 'administer nodes']);
     }
 
+    private function request(AccountInterface $account, callable $callback): mixed
+    {
+        if (!$account instanceof AuthorizationPrincipalInterface) {
+            throw new \LogicException('Relationship surface tests require an immutable authorization principal.');
+        }
+        $controller = $this->controller($account);
+        $accessHandler = $this->fieldReadAccessHandler ?? throw new \LogicException('Relationship access handler is unavailable.');
+        $scope = new AccountFieldReadScope();
+        $priorGuard = EntityReadRuntime::guard();
+        EntityReadRuntime::installGuard(new FieldReadGuard(
+            $scope,
+            $accessHandler->checkProtectedFieldRead(...),
+        ));
+
+        try {
+            return $scope->run($account, static fn(): mixed => $callback($controller));
+        } finally {
+            EntityReadRuntime::installGuard($priorGuard);
+        }
+    }
+
     // -----------------------------------------------------------------------
     // GET /api/relationship (collection)
     // -----------------------------------------------------------------------
@@ -149,7 +177,8 @@ final class RelationshipEndpointVisibilityRestTest extends TestCase
     #[Test]
     public function collection_redacts_hidden_to_endpoint_for_baseline_account(): void
     {
-        $doc = $this->controller($this->baselineAccount())->index('relationship');
+        $account = $this->baselineAccount();
+        $doc = $this->request($account, static fn(JsonApiController $controller) => $controller->index('relationship'));
         $array = $doc->toArray();
 
         $edge1 = $this->findResource($array, 'edge-uuid-1');
@@ -173,7 +202,8 @@ final class RelationshipEndpointVisibilityRestTest extends TestCase
     #[Test]
     public function collection_includes_both_endpoints_when_both_are_viewable(): void
     {
-        $doc = $this->controller($this->baselineAccount())->index('relationship');
+        $account = $this->baselineAccount();
+        $doc = $this->request($account, static fn(JsonApiController $controller) => $controller->index('relationship'));
         $array = $doc->toArray();
 
         $edge2 = $this->findResource($array, 'edge-uuid-2');
@@ -187,7 +217,8 @@ final class RelationshipEndpointVisibilityRestTest extends TestCase
     #[Test]
     public function collection_includes_hidden_endpoint_for_privileged_account(): void
     {
-        $doc = $this->controller($this->adminAccount())->index('relationship');
+        $account = $this->adminAccount();
+        $doc = $this->request($account, static fn(JsonApiController $controller) => $controller->index('relationship'));
         $array = $doc->toArray();
 
         $edge1 = $this->findResource($array, 'edge-uuid-1');
@@ -207,7 +238,8 @@ final class RelationshipEndpointVisibilityRestTest extends TestCase
     #[Test]
     public function show_redacts_hidden_to_endpoint_for_baseline_account(): void
     {
-        $doc = $this->controller($this->baselineAccount())->show('relationship', 1);
+        $account = $this->baselineAccount();
+        $doc = $this->request($account, static fn(JsonApiController $controller) => $controller->show('relationship', 1));
         $array = $doc->toArray();
 
         self::assertSame(200, $doc->statusCode);
@@ -219,7 +251,8 @@ final class RelationshipEndpointVisibilityRestTest extends TestCase
     #[Test]
     public function show_includes_both_endpoints_for_the_fully_public_edge(): void
     {
-        $doc = $this->controller($this->baselineAccount())->show('relationship', 2);
+        $account = $this->baselineAccount();
+        $doc = $this->request($account, static fn(JsonApiController $controller) => $controller->show('relationship', 2));
         $array = $doc->toArray();
 
         self::assertSame(200, $doc->statusCode);
@@ -230,7 +263,8 @@ final class RelationshipEndpointVisibilityRestTest extends TestCase
     #[Test]
     public function show_includes_hidden_endpoint_for_privileged_account(): void
     {
-        $doc = $this->controller($this->adminAccount())->show('relationship', 1);
+        $account = $this->adminAccount();
+        $doc = $this->request($account, static fn(JsonApiController $controller) => $controller->show('relationship', 1));
         $array = $doc->toArray();
 
         self::assertSame(200, $doc->statusCode);

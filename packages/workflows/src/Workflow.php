@@ -29,20 +29,22 @@ final class Workflow extends ConfigEntityBase
      *
      * @var array<string, WorkflowState>
      */
-    private array $states = [];
+    private array $stateDefinitions = [];
 
     /**
      * Workflow transitions keyed by transition ID.
      *
      * @var array<string, WorkflowTransition>
      */
-    private array $transitions = [];
+    private array $transitionDefinitions = [];
 
     /**
      * Explicit `initial_state` from config, or null to fall back to the
      * first-declared state (see {@see getInitialState()}).
      */
     private ?string $initialState = null;
+
+    private bool $definitionHydrated = false;
 
     /**
      * @param array<string, mixed> $values Initial entity values. May include
@@ -54,16 +56,16 @@ final class Workflow extends ConfigEntityBase
         string $entityTypeId = '',
         array $entityKeys = [],
     ) {
-        $this->states = [];
-        $this->transitions = [];
+        $this->stateDefinitions = [];
+        $this->transitionDefinitions = [];
 
         // Extract and hydrate states from values before passing to parent.
         if (isset($values['states']) && \is_array($values['states'])) {
             foreach ($values['states'] as $stateId => $stateData) {
                 if ($stateData instanceof WorkflowState) {
-                    $this->states[$stateData->id] = $stateData;
+                    $this->stateDefinitions[$stateData->id] = $stateData;
                 } elseif (\is_array($stateData)) {
-                    $this->states[$stateId] = new WorkflowState(
+                    $this->stateDefinitions[$stateId] = new WorkflowState(
                         id: (string) $stateId,
                         label: (string) ($stateData['label'] ?? $stateId),
                         weight: (int) ($stateData['weight'] ?? 0),
@@ -79,9 +81,9 @@ final class Workflow extends ConfigEntityBase
         if (isset($values['transitions']) && \is_array($values['transitions'])) {
             foreach ($values['transitions'] as $transitionId => $transitionData) {
                 if ($transitionData instanceof WorkflowTransition) {
-                    $this->transitions[$transitionData->id] = $transitionData;
+                    $this->transitionDefinitions[$transitionData->id] = $transitionData;
                 } elseif (\is_array($transitionData)) {
-                    $this->transitions[$transitionId] = new WorkflowTransition(
+                    $this->transitionDefinitions[$transitionId] = new WorkflowTransition(
                         id: (string) $transitionId,
                         label: (string) ($transitionData['label'] ?? $transitionId),
                         from: (array) ($transitionData['from'] ?? []),
@@ -104,6 +106,7 @@ final class Workflow extends ConfigEntityBase
         $entityKeys = $entityKeys !== [] ? $entityKeys : $this->entityKeys;
 
         parent::__construct($values, $entityTypeId, $entityKeys);
+        $this->definitionHydrated = true;
     }
 
     /**
@@ -111,7 +114,8 @@ final class Workflow extends ConfigEntityBase
      */
     public function addState(WorkflowState $state): static
     {
-        $this->states[$state->id] = $state;
+        $this->ensureDefinitionHydrated();
+        $this->stateDefinitions[$state->id] = $state;
         $this->syncStatesToValues();
 
         return $this;
@@ -122,7 +126,8 @@ final class Workflow extends ConfigEntityBase
      */
     public function getState(string $id): ?WorkflowState
     {
-        return $this->states[$id] ?? null;
+        $this->ensureDefinitionHydrated();
+        return $this->stateDefinitions[$id] ?? null;
     }
 
     /**
@@ -132,7 +137,8 @@ final class Workflow extends ConfigEntityBase
      */
     public function getStates(): array
     {
-        return $this->states;
+        $this->ensureDefinitionHydrated();
+        return $this->stateDefinitions;
     }
 
     /**
@@ -140,7 +146,8 @@ final class Workflow extends ConfigEntityBase
      */
     public function hasState(string $id): bool
     {
-        return isset($this->states[$id]);
+        $this->ensureDefinitionHydrated();
+        return isset($this->stateDefinitions[$id]);
     }
 
     /**
@@ -148,13 +155,14 @@ final class Workflow extends ConfigEntityBase
      */
     public function removeState(string $id): static
     {
-        unset($this->states[$id]);
+        $this->ensureDefinitionHydrated();
+        unset($this->stateDefinitions[$id]);
 
         // Remove any transitions that reference the removed state.
-        foreach ($this->transitions as $transitionId => $transition) {
+        foreach ($this->transitionDefinitions as $transitionId => $transition) {
             // Remove if the target state matches.
             if ($transition->to === $id) {
-                unset($this->transitions[$transitionId]);
+                unset($this->transitionDefinitions[$transitionId]);
                 continue;
             }
 
@@ -166,7 +174,7 @@ final class Workflow extends ConfigEntityBase
 
             // If no source states remain, remove the entire transition.
             if ($filteredFrom === []) {
-                unset($this->transitions[$transitionId]);
+                unset($this->transitionDefinitions[$transitionId]);
                 continue;
             }
 
@@ -176,7 +184,7 @@ final class Workflow extends ConfigEntityBase
             // of either is exactly the misconfiguration the fail-closed
             // design invariant exists to prevent.
             if (\count($filteredFrom) !== \count($transition->from)) {
-                $this->transitions[$transitionId] = new WorkflowTransition(
+                $this->transitionDefinitions[$transitionId] = new WorkflowTransition(
                     id: $transition->id,
                     label: $transition->label,
                     from: $filteredFrom,
@@ -199,7 +207,8 @@ final class Workflow extends ConfigEntityBase
      */
     public function addTransition(WorkflowTransition $transition): static
     {
-        $this->transitions[$transition->id] = $transition;
+        $this->ensureDefinitionHydrated();
+        $this->transitionDefinitions[$transition->id] = $transition;
         $this->syncTransitionsToValues();
 
         return $this;
@@ -210,7 +219,8 @@ final class Workflow extends ConfigEntityBase
      */
     public function getTransition(string $id): ?WorkflowTransition
     {
-        return $this->transitions[$id] ?? null;
+        $this->ensureDefinitionHydrated();
+        return $this->transitionDefinitions[$id] ?? null;
     }
 
     /**
@@ -220,7 +230,8 @@ final class Workflow extends ConfigEntityBase
      */
     public function getTransitions(): array
     {
-        return $this->transitions;
+        $this->ensureDefinitionHydrated();
+        return $this->transitionDefinitions;
     }
 
     /**
@@ -228,7 +239,8 @@ final class Workflow extends ConfigEntityBase
      */
     public function hasTransition(string $id): bool
     {
-        return isset($this->transitions[$id]);
+        $this->ensureDefinitionHydrated();
+        return isset($this->transitionDefinitions[$id]);
     }
 
     /**
@@ -236,7 +248,8 @@ final class Workflow extends ConfigEntityBase
      */
     public function removeTransition(string $id): static
     {
-        unset($this->transitions[$id]);
+        $this->ensureDefinitionHydrated();
+        unset($this->transitionDefinitions[$id]);
         $this->syncTransitionsToValues();
 
         return $this;
@@ -249,9 +262,10 @@ final class Workflow extends ConfigEntityBase
      */
     public function getValidTransitions(string $fromStateId): array
     {
+        $this->ensureDefinitionHydrated();
         $valid = [];
 
-        foreach ($this->transitions as $id => $transition) {
+        foreach ($this->transitionDefinitions as $id => $transition) {
             if (\in_array($fromStateId, $transition->from, true)) {
                 $valid[$id] = $transition;
             }
@@ -265,7 +279,8 @@ final class Workflow extends ConfigEntityBase
      */
     public function isTransitionAllowed(string $fromStateId, string $toStateId): bool
     {
-        foreach ($this->transitions as $transition) {
+        $this->ensureDefinitionHydrated();
+        foreach ($this->transitionDefinitions as $transition) {
             if ($transition->to === $toStateId && \in_array($fromStateId, $transition->from, true)) {
                 return true;
             }
@@ -283,11 +298,12 @@ final class Workflow extends ConfigEntityBase
      */
     public function getInitialState(): string
     {
+        $this->ensureDefinitionHydrated();
         if ($this->initialState !== null) {
             return $this->initialState;
         }
 
-        $firstStateId = \array_key_first($this->states);
+        $firstStateId = \array_key_first($this->stateDefinitions);
 
         return $firstStateId ?? '';
     }
@@ -307,7 +323,7 @@ final class Workflow extends ConfigEntityBase
     private function syncStatesToValues(): void
     {
         $states = [];
-        foreach ($this->states as $state) {
+        foreach ($this->stateDefinitions as $state) {
             $entry = [
                 'label' => $state->label,
                 'weight' => $state->weight,
@@ -325,7 +341,7 @@ final class Workflow extends ConfigEntityBase
     private function syncTransitionsToValues(): void
     {
         $transitions = [];
-        foreach ($this->transitions as $transition) {
+        foreach ($this->transitionDefinitions as $transition) {
             $entry = [
                 'label' => $transition->label,
                 'from' => $transition->from,
@@ -351,11 +367,12 @@ final class Workflow extends ConfigEntityBase
      */
     public function toConfig(): array
     {
+        $this->ensureDefinitionHydrated();
         $config = parent::toConfig();
 
         // Serialize states to plain arrays.
         $states = [];
-        foreach ($this->states as $state) {
+        foreach ($this->stateDefinitions as $state) {
             $entry = [
                 'label' => $state->label,
                 'weight' => $state->weight,
@@ -371,7 +388,7 @@ final class Workflow extends ConfigEntityBase
 
         // Serialize transitions to plain arrays.
         $transitions = [];
-        foreach ($this->transitions as $transition) {
+        foreach ($this->transitionDefinitions as $transition) {
             $entry = [
                 'label' => $transition->label,
                 'from' => $transition->from,
@@ -393,5 +410,35 @@ final class Workflow extends ConfigEntityBase
         }
 
         return $config;
+    }
+
+    /** Rebuild constructor-derived value objects after sealed storage hydration. */
+    private function ensureDefinitionHydrated(): void
+    {
+        if ($this->definitionHydrated) {
+            return;
+        }
+
+        // Sealed storage hydration bypasses constructors. Rebuild only this
+        // public config entity's exact definition fields from its retained
+        // values; no general value bag escapes this class.
+        $obtain = \Closure::bind(
+            static fn(\Waaseyaa\Entity\EntityBase $entity): array => $entity->valueContainer->rawValues(),
+            null,
+            \Waaseyaa\Entity\EntityBase::class,
+        );
+        $values = $obtain($this);
+        $states = $values['states'] ?? null;
+        $transitions = $values['transitions'] ?? null;
+        $initialState = $values['initial_state'] ?? null;
+        $hydrated = new self([
+            'states' => is_array($states) ? $states : [],
+            'transitions' => is_array($transitions) ? $transitions : [],
+            'initial_state' => is_string($initialState) ? $initialState : '',
+        ]);
+        $this->stateDefinitions = $hydrated->stateDefinitions;
+        $this->transitionDefinitions = $hydrated->transitionDefinitions;
+        $this->initialState = $hydrated->initialState;
+        $this->definitionHydrated = true;
     }
 }

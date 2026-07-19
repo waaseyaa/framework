@@ -75,7 +75,7 @@ final class GroupConstraintTransitionTest extends TestCase
 
         $this->assertSame('published', $result->toState);
         $stored = $manager->getRepository(self::ENTITY_TYPE_ID)->find((string) $entity->id());
-        $this->assertSame('published', $stored?->get('workflow_state'));
+        $this->assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($stored));
     }
 
     #[Test]
@@ -99,7 +99,7 @@ final class GroupConstraintTransitionTest extends TestCase
         $this->assertSame(TransitionDeniedException::REASON_GROUP_CONSTRAINT, $denied->reason);
 
         $stored = $manager->getRepository(self::ENTITY_TYPE_ID)->find((string) $entity->id());
-        $this->assertSame('review', $stored?->get('workflow_state'), 'A denied transition must not mutate persisted state.');
+        $this->assertSame('review', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($stored), 'A denied transition must not mutate persisted state.');
     }
 
     #[Test]
@@ -228,7 +228,7 @@ final class GroupConstraintTransitionTest extends TestCase
 
             $idKey = $definition->getKeys()['id'] ?? 'id';
 
-            return new EntityRepository(
+            return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                 $definition,
                 new SqlStorageDriver($resolver, $idKey),
                 $dispatcher,
@@ -361,6 +361,7 @@ final class GroupConstraintTransitionTest extends TestCase
 final class GroupConstraintFlowSubject extends ContentEntityBase implements RevisionableInterface, RevisionableEntityInterface
 {
     use RevisionableEntityTrait;
+    use \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectFields;
 
     public function __construct(
         array $values = [],

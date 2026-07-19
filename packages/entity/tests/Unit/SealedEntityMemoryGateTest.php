@@ -38,6 +38,10 @@ final class SealedEntityMemoryGateTest extends TestCase
         $levels['uid'] = FieldReadLevel::Public;
         $levels['name'] = FieldReadLevel::Protected;
         $layout = new EntityReadLayout(new EntityReadLayoutGeneration(), $levels);
+        $publicLayout = new EntityReadLayout(
+            new EntityReadLayoutGeneration(),
+            array_fill_keys($fields, FieldReadLevel::Public),
+        );
 
         gc_collect_cycles();
         $before = memory_get_usage(false);
@@ -45,12 +49,18 @@ final class SealedEntityMemoryGateTest extends TestCase
         for ($i = 0; $i < $count; ++$i) {
             $row = $values;
             $row['uid'] = $i;
-            $entity = new MemoryGateEntity($row, 'user', ['id' => 'uid']);
-            $entity->_attachEntityStructure($this->structure($i, $fields));
-            $baseline[] = $entity;
+            $boundary = new EntityInitializationBoundary();
+            $payload = $boundary->factory()->seal(
+                $row,
+                $publicLayout,
+                $this->structure($i, $fields),
+                'user',
+                ['id' => 'uid'],
+            );
+            $baseline[] = $boundary->installer()->instantiate(MemoryGateEntity::class, $payload);
         }
         $baselineBytes = memory_get_usage(false) - $before;
-        unset($baseline, $entity);
+        unset($baseline, $payload, $boundary);
         gc_collect_cycles();
 
         $before = memory_get_usage(false);

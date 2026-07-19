@@ -12,6 +12,7 @@ use Waaseyaa\Access\Gate\PolicyAttribute;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Field\Classification\ClassificationClearanceCheckerInterface;
 use Waaseyaa\Field\Classification\ClassificationLabelRegistryInterface;
+use Waaseyaa\Field\Classification\ClassificationSubjectReader;
 use Waaseyaa\Field\Classification\Permissions;
 
 /**
@@ -50,6 +51,8 @@ final class ClassificationFieldAccessPolicy implements AccessPolicyInterface, Fi
     /** @var list<string> */
     private readonly array $entityTypes;
 
+    private readonly ClassificationSubjectReader $subjectReader;
+
     /**
      * @param ClassificationLabelRegistryInterface     $labels
      * @param ClassificationClearanceCheckerInterface  $clearance
@@ -64,7 +67,9 @@ final class ClassificationFieldAccessPolicy implements AccessPolicyInterface, Fi
         private readonly ClassificationLabelRegistryInterface $labels,
         private readonly ClassificationClearanceCheckerInterface $clearance,
         array $entityTypes = ['*'],
+        ?ClassificationSubjectReader $subjectReader = null,
     ) {
+        $this->subjectReader = $subjectReader ?? new ClassificationSubjectReader();
         $normalized = [];
         foreach ($entityTypes as $type) {
             if (!is_string($type) || $type === '') {
@@ -161,11 +166,6 @@ final class ClassificationFieldAccessPolicy implements AccessPolicyInterface, Fi
      */
     private function resolveLabelId(EntityInterface $entity): ?string
     {
-        $raw = $entity->get('classification_label');
-        if ($raw === null || $raw === '') {
-            return null;
-        }
-
-        return (string) $raw;
+        return $this->subjectReader->read($entity)->label;
     }
 }

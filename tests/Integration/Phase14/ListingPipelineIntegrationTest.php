@@ -78,7 +78,7 @@ final class ListingPipelineIntegrationTest extends TestCase
         // listing; a passing run is the FR-052 / FR-053 acceptance proof.
         new ListingDefinitionValidator($this->entityTypeManager)->validate($registry);
 
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $this->entityTypeManager->getDefinition('event'),
             $this->driver,
             new EventDispatcher(),
@@ -312,7 +312,7 @@ final class ListingPipelineIntegrationTest extends TestCase
      */
     private function resolverRepository(): EntityRepository
     {
-        return new EntityRepository(
+        return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $this->entityTypeManager->getDefinition('event'),
             $this->driver,
             new EventDispatcher(),

@@ -351,7 +351,7 @@ final class CliCommandIntegrationTest extends TestCase
         $user = $this->userStorage->load(1);
         $this->assertNotNull($user);
         $this->assertSame('testuser', $user->get('name'));
-        $this->assertSame('test@example.com', $user->get('mail'));
+        $this->assertSame('test@example.com', new UserInternalFieldReaderFixture()->sessionIdentity($user)->mail);
     }
 
     #[Test]
@@ -400,8 +400,9 @@ final class CliCommandIntegrationTest extends TestCase
         $this->assertSame('admin', $admin->get('name'));
         // F1 (audit A7): the admin email must land in the `mail` entity key,
         // not `email` (an unrecognized key that routes into the `_data` blob).
-        $this->assertSame('admin@example.com', $admin->get('mail'));
-        $this->assertSame(['administrator'], $admin->get('roles'));
+        $sessionIdentity = new UserInternalFieldReaderFixture()->sessionIdentity($admin);
+        $this->assertSame('admin@example.com', $sessionIdentity->mail);
+        $this->assertSame(['administrator'], $sessionIdentity->roles);
     }
 
     #[Test]
@@ -457,7 +458,7 @@ final class CliCommandIntegrationTest extends TestCase
         // Verify role is present.
         $user = $this->userStorage->load(1);
         $this->assertNotNull($user);
-        $roles = $user->get('roles');
+        $roles = new UserInternalFieldReaderFixture()->maintenanceAuthorization($user)->roles;
         $this->assertContains('editor', $roles);
 
         // Remove the role.
@@ -473,7 +474,7 @@ final class CliCommandIntegrationTest extends TestCase
         // Verify role is gone.
         $user = $this->userStorage->load(1);
         $this->assertNotNull($user);
-        $roles = $user->get('roles');
+        $roles = new UserInternalFieldReaderFixture()->maintenanceAuthorization($user)->roles;
         $this->assertNotContains('editor', $roles);
     }
 }

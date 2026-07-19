@@ -91,7 +91,7 @@ final class EntityDestinationBundleAwareCreateAccessTest extends TestCase
         $resolver = new SingleConnectionResolver($this->db);
         $driver = new SqlStorageDriver($resolver, 'nid');
 
-        $this->repository = new EntityRepository(
+        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             entityType: $entityType,
             driver: $driver,
             eventDispatcher: $this->dispatcher,

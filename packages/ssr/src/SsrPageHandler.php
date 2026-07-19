@@ -9,6 +9,8 @@ use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Symfony\Component\Routing\Route;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AccountPrincipalFactoryInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\Api\Markdown\EntityMarkdownPresenter;
 use Waaseyaa\Api\ResourceSerializer;
@@ -70,6 +72,8 @@ final class SsrPageHandler
         private readonly array $appControllerArgumentResolvers = [],
         ?AppControllerMethodInvoker $appControllerMethodInvoker = null,
         private readonly ?\Waaseyaa\Access\EntityAccessHandler $accessHandler = null,
+        private readonly ?AccountFieldReadScopeInterface $fieldReadScope = null,
+        private readonly ?AccountPrincipalFactoryInterface $principalFactory = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
         $this->languageResolver = $languageResolver ?? new LanguageResolver(serviceResolver: $this->serviceResolver);
@@ -92,6 +96,30 @@ final class SsrPageHandler
         AccountInterface $account,
         HttpRequest $httpRequest,
         string $requestedViewMode = 'full',
+    ): array {
+        if ($this->fieldReadScope !== null
+            && $this->principalFactory !== null
+            && $this->fieldReadScope->current() === null
+        ) {
+            $principal = $this->principalFactory->fromAccount($account);
+
+            return $this->fieldReadScope->run(
+                $principal,
+                fn(): array => $this->renderPage($path, $account, $httpRequest, $requestedViewMode),
+            );
+        }
+
+        return $this->renderPage($path, $account, $httpRequest, $requestedViewMode);
+    }
+
+    /**
+     * @return array{type: string, status: int, content: string|array, headers: array<string, string>}
+     */
+    private function renderPage(
+        string $path,
+        AccountInterface $account,
+        HttpRequest $httpRequest,
+        string $requestedViewMode,
     ): array {
         $twig = SsrServiceProvider::getTwigEnvironment();
         if ($twig === null) {
@@ -1009,8 +1037,10 @@ final class SsrPageHandler
      */
     private function shouldDenyEntityRender(string $entityTypeId, EntityInterface $entity, AccountInterface $account): bool
     {
+        $authorizationAccount = $this->fieldReadScope?->current() ?? $account;
+
         return $this->accessHandler === null
-            || !$this->accessHandler->check($entity, 'view', $account)->isAllowed();
+            || !$this->accessHandler->check($entity, 'view', $authorizationAccount)->isAllowed();
     }
 
     /**

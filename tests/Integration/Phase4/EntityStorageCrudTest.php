@@ -7,11 +7,13 @@ namespace Waaseyaa\Tests\Integration\Phase4;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityConstants;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
@@ -68,7 +70,7 @@ final class EntityStorageCrudTest extends TestCase
 
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver, $this->entityType->getKeys()['id'] ?? 'id');
-        $this->storage = new EntityRepository(
+        $this->storage = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $this->entityType,
             $driver,
             $this->eventDispatcher,
@@ -422,7 +424,7 @@ final class EntityStorageCrudTest extends TestCase
         // Load from a fresh storage to avoid any in-memory caching.
         $freshResolver = new SingleConnectionResolver($this->database);
         $freshDriver = new SqlStorageDriver($freshResolver, $this->entityType->getKeys()['id'] ?? 'id');
-        $freshStorage = new EntityRepository(
+        $freshStorage = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $this->entityType,
             $freshDriver,
             $this->eventDispatcher,
@@ -481,6 +483,10 @@ final class EntityStorageCrudTest extends TestCase
  */
 class TestArticleEntity extends ContentEntityBase
 {
+    #[Field(type: 'string', read: FieldReadLevel::Public)] public string $title;
+    #[Field(type: 'text', read: FieldReadLevel::Public)] public string $body;
+    #[Field(type: 'integer', read: FieldReadLevel::Public)] public int $status;
+
     public function __construct(
         array $values = [],
         string $entityTypeId = 'article',

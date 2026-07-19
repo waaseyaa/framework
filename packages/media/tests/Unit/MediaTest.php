@@ -5,6 +5,14 @@ declare(strict_types=1);
 namespace Waaseyaa\Media\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Access\AccessResult;
+use Waaseyaa\Access\AuthorizationPrincipal;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
+use Waaseyaa\Access\FieldReadGuard;
+use Waaseyaa\Access\PolicySubjectViewInterface;
+use Waaseyaa\Entity\EntityReadRuntime;
+use Waaseyaa\Entity\EntityStructure;
 use Waaseyaa\Media\Media;
 
 /**
@@ -12,6 +20,27 @@ use Waaseyaa\Media\Media;
  */
 final class MediaTest extends TestCase
 {
+    private AccountFieldReadScope $fieldReadScope;
+
+    protected function setUp(): void
+    {
+        $this->fieldReadScope = new AccountFieldReadScope();
+        EntityReadRuntime::installGuard(new FieldReadGuard(
+            $this->fieldReadScope,
+            static fn(
+                AuthorizationPrincipalInterface $principal,
+                EntityStructure $structure,
+                PolicySubjectViewInterface $subject,
+                string $field,
+            ): AccessResult => AccessResult::allowed(),
+        ));
+    }
+
+    protected function tearDown(): void
+    {
+        EntityReadRuntime::installGuard(null);
+    }
+
     public function testEntityTypeId(): void
     {
         $media = new Media(['mid' => 1, 'name' => 'Test', 'bundle' => 'image']);
@@ -77,21 +106,23 @@ final class MediaTest extends TestCase
 
     public function testGetAndSetOwnerId(): void
     {
-        $media = new Media(['mid' => 1, 'bundle' => 'image']);
+        $this->asAccount(5, function (): void {
+            $media = new Media(['mid' => 1, 'bundle' => 'image']);
 
-        $this->assertNull($media->getOwnerId());
+            $this->assertNull($media->getOwnerId());
 
-        $result = $media->setOwnerId(5);
+            $result = $media->setOwnerId(5);
 
-        $this->assertSame($media, $result);
-        $this->assertSame(5, $media->getOwnerId());
+            $this->assertSame($media, $result);
+            $this->assertSame(5, $media->getOwnerId());
+        });
     }
 
     public function testOwnerIdFromConstructor(): void
     {
         $media = new Media(['mid' => 1, 'bundle' => 'image', 'uid' => 10]);
 
-        $this->assertSame(10, $media->getOwnerId());
+        $this->asAccount(10, fn() => $this->assertSame(10, $media->getOwnerId()));
     }
 
     public function testIsPublishedDefault(): void
@@ -191,7 +222,7 @@ final class MediaTest extends TestCase
             'status' => true,
         ]);
 
-        $array = $media->toArray();
+        $array = $this->asAccount(5, fn(): array => $media->toArray());
 
         $this->assertSame(1, $array['mid']);
         $this->assertSame('Test Image', $array['name']);
@@ -213,18 +244,31 @@ final class MediaTest extends TestCase
 
     public function testFluentApi(): void
     {
-        $media = new Media(['mid' => 1, 'bundle' => 'image']);
+        $this->asAccount(3, function (): void {
+            $media = new Media(['mid' => 1, 'bundle' => 'image']);
 
-        $media->setName('Fluent Image')
-            ->setOwnerId(3)
-            ->setPublished(true)
-            ->setCreatedTime(1700000000)
-            ->setChangedTime(1700001000);
+            $media->setName('Fluent Image')
+                ->setOwnerId(3)
+                ->setPublished(true)
+                ->setCreatedTime(1700000000)
+                ->setChangedTime(1700001000);
 
-        $this->assertSame('Fluent Image', $media->getName());
-        $this->assertSame(3, $media->getOwnerId());
-        $this->assertTrue($media->isPublished());
-        $this->assertSame(1700000000, $media->getCreatedTime());
-        $this->assertSame(1700001000, $media->getChangedTime());
+            $this->assertSame('Fluent Image', $media->getName());
+            $this->assertSame(3, $media->getOwnerId());
+            $this->assertTrue($media->isPublished());
+            $this->assertSame(1700000000, $media->getCreatedTime());
+            $this->assertSame(1700001000, $media->getChangedTime());
+        });
+    }
+
+    private function asAccount(int $accountId, callable $callback): mixed
+    {
+        return $this->fieldReadScope->run(new AuthorizationPrincipal(
+            $accountId,
+            true,
+            ['authenticated'],
+            [],
+            'media-entity-test',
+        ), $callback);
     }
 }

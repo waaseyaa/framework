@@ -53,6 +53,7 @@ final class AiServiceProvider extends ServiceProvider implements ProvidesConsole
                 return new AiRunCommand(
                     runService: $this->resolve(AgentRunService::class),
                     definitionRegistry: $this->resolve(AgentDefinitionRegistry::class),
+                    workerReader: $this->resolve(\Waaseyaa\AI\Agent\Security\AgentRunWorkerReaderInterface::class),
                     aiConfig: \is_array($this->config['ai'] ?? null) ? $this->config['ai'] : [],
                     serviceAccountId: $this->config['ai']['service_account_id'] ?? 0,
                     sseClient: new PhpStreamSseClient(),

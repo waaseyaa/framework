@@ -31,16 +31,6 @@ final class AuditCheckpoint extends ContentEntityBase
         parent::__construct($values, $entityTypeId, $entityKeys, $fieldDefinitions);
     }
 
-    /**
-     * Flat value accessor — audit_checkpoint is not a registered entity type,
-     * so bypass TranslatableEntityTrait::get() (which resolves getEntityType())
-     * and read the value bag directly.
-     */
-    public function get(string $name): mixed
-    {
-        return parent::get($name);
-    }
-
     public function getUuid(): string
     {
         return (string) ($this->get('uuid') ?? '');

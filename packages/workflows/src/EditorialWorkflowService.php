@@ -6,6 +6,7 @@ namespace Waaseyaa\Workflows;
 
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Entity\FieldableInterface;
+use Waaseyaa\Workflows\Read\EditorialWorkflowLegacySubjectReader;
 
 /**
  * @api
@@ -14,6 +15,7 @@ final class EditorialWorkflowService
 {
     private readonly Workflow $workflow;
     private readonly EditorialTransitionAccessResolver $transitionAccessResolver;
+    private readonly EditorialWorkflowLegacySubjectReader $subjectReader;
 
     /**
      * @param list<string> $coreBundles
@@ -23,9 +25,11 @@ final class EditorialWorkflowService
         ?Workflow $workflow = null,
         ?EditorialTransitionAccessResolver $transitionAccessResolver = null,
         private readonly ?\Closure $clock = null,
+        ?EditorialWorkflowLegacySubjectReader $subjectReader = null,
     ) {
         $this->workflow = $workflow ?? EditorialWorkflowPreset::create();
         $this->transitionAccessResolver = $transitionAccessResolver ?? new EditorialTransitionAccessResolver($this->workflow);
+        $this->subjectReader = $subjectReader ?? new EditorialWorkflowLegacySubjectReader();
     }
 
     /**
@@ -64,10 +68,7 @@ final class EditorialWorkflowService
             'required_permission' => $requiredPermission,
         ]);
 
-        $audit = $node->get('workflow_audit');
-        if (!\is_array($audit)) {
-            $audit = [];
-        }
+        $audit = $this->subject($node)->audit;
         $audit[] = [
             'transition' => $transition['id'],
             'from' => $from,
@@ -110,10 +111,17 @@ final class EditorialWorkflowService
 
     private function stateFromNode(FieldableInterface $node): string
     {
+        $subject = $this->subject($node);
+
         return EditorialWorkflowPreset::normalizeState(
-            workflowState: $node->get('workflow_state'),
-            status: $node->get('status'),
+            workflowState: $subject->workflowState,
+            status: $subject->status,
         );
+    }
+
+    private function subject(FieldableInterface $node): \Waaseyaa\Workflows\Read\EditorialWorkflowLegacySubject
+    {
+        return $this->subjectReader->read($node);
     }
 
     private function timestamp(): int

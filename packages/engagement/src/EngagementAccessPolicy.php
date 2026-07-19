@@ -7,10 +7,17 @@ namespace Waaseyaa\Engagement;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Access\Gate\PolicyAttribute;
+use Waaseyaa\Access\PolicySubjectViewInterface;
+use Waaseyaa\Access\ProtectedEntityReadPolicyInterface;
+use Waaseyaa\Access\ProtectedFieldReadPolicyInterface;
+use Waaseyaa\Access\ProtectedReadPolicyProviderInterface;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityStructure;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 
 /**
@@ -43,10 +50,13 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
  * mirroring `NodeAccessPolicy::access()`'s `$isOwner` guard.
  */
 #[PolicyAttribute(entityType: ['reaction', 'comment', 'follow'])]
-final class EngagementAccessPolicy implements AccessPolicyInterface, FieldAccessPolicyInterface
+final class EngagementAccessPolicy implements AccessPolicyInterface, FieldAccessPolicyInterface, ProtectedReadPolicyProviderInterface
 {
     /** @var list<string> */
     private const TYPES = ['reaction', 'comment', 'follow'];
+
+    /** @var \Closure(EntityBase): PolicySubjectViewInterface */
+    private readonly \Closure $policySubjectAuthority;
 
     /**
      * The parent-cascade and comment-moderation checks need to load the parent
@@ -59,7 +69,46 @@ final class EngagementAccessPolicy implements AccessPolicyInterface, FieldAccess
     public function __construct(
         private readonly ?EntityTypeManagerInterface $entityTypeManager = null,
         private readonly ?EntityAccessHandler $accessHandler = null,
-    ) {}
+    ) {
+        $this->policySubjectAuthority = \Closure::bind(
+            static fn(EntityBase $entity): PolicySubjectViewInterface => $entity->valueContainer->entityPolicySubjectView(),
+            null,
+            EntityBase::class,
+        );
+    }
+
+    public function protectedEntityReadPolicy(): ProtectedEntityReadPolicyInterface
+    {
+        return new EngagementProtectedEntityReadPolicy($this);
+    }
+
+    public function protectedFieldReadPolicy(): ProtectedFieldReadPolicyInterface
+    {
+        return new EngagementProtectedFieldReadPolicy($this);
+    }
+
+    /** @internal */
+    public function protectedAccess(AuthorizationPrincipalInterface $principal, EntityStructure $structure, PolicySubjectViewInterface $subject, string $operation): AccessResult
+    {
+        if ($principal->hasPermission('administer content')) {
+            return AccessResult::allowed('Admin permission.');
+        }
+        if ($operation === 'delete') {
+            return $this->subjectOwner($subject, $principal)
+                ? AccessResult::allowed('Owner may delete own engagement entity.')
+                : AccessResult::forbidden('Non-owner cannot delete engagement entity.');
+        }
+        if ($operation !== 'view') {
+            return AccessResult::neutral();
+        }
+        if ($structure->entityTypeId === 'comment' && !$this->subjectPublished($subject)) {
+            return $this->subjectOwner($subject, $principal)
+                ? AccessResult::allowed('Owner may view own unpublished comment.')
+                : AccessResult::forbidden('Unpublished comment is hidden from non-owners.');
+        }
+
+        return $this->parentViewAccessForSubject($subject, $principal);
+    }
 
     public function appliesTo(string $entityTypeId): bool
     {
@@ -123,8 +172,9 @@ final class EngagementAccessPolicy implements AccessPolicyInterface, FieldAccess
             return AccessResult::neutral('Parent visibility cannot be evaluated.');
         }
 
-        $targetType = (string) ($entity->get('target_type') ?? '');
-        $targetId = (int) ($entity->get('target_id') ?? 0);
+        $subject = $this->policySubject($entity);
+        $targetType = (string) ($subject?->get('target_type') ?? $entity->get('target_type') ?? '');
+        $targetId = (int) ($subject?->get('target_id') ?? $entity->get('target_id') ?? 0);
 
         if ($targetType === '' || $targetId <= 0 || !$this->entityTypeManager->hasDefinition($targetType)) {
             return AccessResult::neutral('Engagement has no resolvable parent.');
@@ -143,7 +193,8 @@ final class EngagementAccessPolicy implements AccessPolicyInterface, FieldAccess
 
     private function isPublished(EntityInterface $entity): bool
     {
-        $status = $entity->get('status');
+        $subject = $this->policySubject($entity);
+        $status = $subject?->get('status') ?? $entity->get('status');
 
         if (is_bool($status)) {
             return $status;
@@ -161,7 +212,8 @@ final class EngagementAccessPolicy implements AccessPolicyInterface, FieldAccess
 
     private function isOwner(EntityInterface $entity, AccountInterface $account): bool
     {
-        $userId = $entity->get('user_id');
+        $subject = $this->policySubject($entity);
+        $userId = $subject?->get('user_id') ?? $entity->get('user_id');
 
         // An unauthenticated account is never an owner: the anonymous
         // account's id() is 0, which would otherwise equal a row's
@@ -200,7 +252,8 @@ final class EngagementAccessPolicy implements AccessPolicyInterface, FieldAccess
             // rejects user_id: 0 (anonymous) and user_id: <other account>
             // regardless of who the authenticated caller is, while still
             // allowing the only legitimate case (self-owned creation).
-            if ((int) $entity->get('user_id') !== (int) $account->id()) {
+            $subject = $this->policySubject($entity);
+            if ((int) ($subject?->get('user_id') ?? $entity->get('user_id')) !== (int) $account->id()) {
                 return AccessResult::forbidden('A non-admin may only create engagement entities owned by themselves (user_id must equal your own account id).');
             }
         }
@@ -215,5 +268,59 @@ final class EngagementAccessPolicy implements AccessPolicyInterface, FieldAccess
         }
 
         return AccessResult::neutral('Non-owner cannot delete engagement entity.');
+    }
+
+    private function policySubject(EntityInterface $entity): ?PolicySubjectViewInterface
+    {
+        return $entity instanceof EntityBase ? ($this->policySubjectAuthority)($entity) : null;
+    }
+
+    private function subjectOwner(PolicySubjectViewInterface $subject, AccountInterface $account): bool
+    {
+        return $account->isAuthenticated() && (int) ($subject->get('user_id') ?? 0) === (int) $account->id();
+    }
+
+    private function subjectPublished(PolicySubjectViewInterface $subject): bool
+    {
+        return in_array($subject->get('status'), [true, 1, '1', 'true', 'published', 'yes'], true);
+    }
+
+    private function parentViewAccessForSubject(PolicySubjectViewInterface $subject, AccountInterface $account): AccessResult
+    {
+        if ($this->entityTypeManager === null || $this->accessHandler === null) {
+            return AccessResult::forbidden('Parent visibility cannot be evaluated.');
+        }
+        $targetType = (string) ($subject->get('target_type') ?? '');
+        $targetId = (int) ($subject->get('target_id') ?? 0);
+        if ($targetType === '' || $targetId <= 0 || !$this->entityTypeManager->hasDefinition($targetType)) {
+            return AccessResult::forbidden('Engagement has no resolvable parent.');
+        }
+        $parent = $this->entityTypeManager->getRepository($targetType)->find((string) $targetId);
+
+        return $parent !== null && $this->accessHandler->check($parent, 'view', $account)->isAllowed()
+            ? AccessResult::allowed('Parent content is viewable by the caller.')
+            : AccessResult::forbidden('Parent content is not viewable by the caller.');
+    }
+}
+
+/** Immutable-principal engagement entity policy. @api */
+final readonly class EngagementProtectedEntityReadPolicy implements ProtectedEntityReadPolicyInterface
+{
+    public function __construct(private EngagementAccessPolicy $policy) {}
+
+    public function access(AuthorizationPrincipalInterface $principal, EntityStructure $structure, PolicySubjectViewInterface $subject, string $operation): AccessResult
+    {
+        return $this->policy->protectedAccess($principal, $structure, $subject, $operation);
+    }
+}
+
+/** Releases Protected engagement fields only when the containing row is viewable. @api */
+final readonly class EngagementProtectedFieldReadPolicy implements ProtectedFieldReadPolicyInterface
+{
+    public function __construct(private EngagementAccessPolicy $policy) {}
+
+    public function access(AuthorizationPrincipalInterface $principal, EntityStructure $structure, PolicySubjectViewInterface $subject, string $fieldName): AccessResult
+    {
+        return $this->policy->protectedAccess($principal, $structure, $subject, 'view');
     }
 }

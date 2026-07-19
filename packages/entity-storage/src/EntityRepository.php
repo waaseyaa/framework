@@ -6,13 +6,13 @@ namespace Waaseyaa\EntityStorage;
 
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\ContentEntityInterface;
 use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityConstants;
 use Waaseyaa\Entity\EntityInterface;
-use Waaseyaa\Entity\EntityStructure;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\Event\DefaultEntityEventFactory;
 use Waaseyaa\Entity\Event\EntityEventFactoryInterface;
@@ -28,9 +28,7 @@ use Waaseyaa\Entity\Validation\EntityTypeValidationConstraints;
 use Waaseyaa\Entity\Validation\EntityValidationException;
 use Waaseyaa\Entity\Validation\EntityValidator;
 use Waaseyaa\EntityStorage\Bundle\BundleSubtableGateway;
-use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverV2Interface;
-use Waaseyaa\EntityStorage\Driver\LegacyStorageDriverAdapter;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriverV2;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriverV2Interface;
@@ -76,6 +74,8 @@ final class EntityRepository implements EntityRepositoryInterface
 
     private readonly \Waaseyaa\Foundation\Log\LoggerInterface $logger;
 
+    private readonly Hydration\EntityInstantiator $entityInstantiator;
+
     /** Lazily-resolved bundle subtable gateway; false until first resolution. */
     private BundleSubtableGateway|false|null $bundleGatewayInstance = false;
 
@@ -89,7 +89,7 @@ final class EntityRepository implements EntityRepositoryInterface
 
     public function __construct(
         private readonly EntityTypeInterface $entityType,
-        EntityStorageDriverInterface|EntityStorageDriverV2Interface $driver,
+        EntityStorageDriverV2Interface $driver,
         private readonly EventDispatcherInterface $eventDispatcher,
         RevisionableStorageDriver|RevisionableStorageDriverV2Interface|null $revisionDriver = null,
         private readonly ?DatabaseInterface $database = null,
@@ -124,6 +124,7 @@ final class EntityRepository implements EntityRepositoryInterface
         // @var ?\Closure(): ?EntityAccessHandler
         private readonly ?\Closure $accessHandlerResolver = null,
         ?StorageBoundary $storageBoundary = null,
+        private readonly ?AccountFieldReadScopeInterface $fieldReadScope = null,
     ) {
         $this->eventFactory = $eventFactory ?? new DefaultEntityEventFactory();
         $this->logger = $logger ?? new \Waaseyaa\Foundation\Log\NullLogger();
@@ -131,7 +132,7 @@ final class EntityRepository implements EntityRepositoryInterface
         $this->storageRowReader = $storageBoundary->repositoryRowReader();
         $this->storageSnapshotFactory = $storageBoundary->repositorySnapshotFactory();
         $persistenceValueAuthority = \Closure::bind(
-            static fn(EntityBase $source): array => $source->rawValuesForClosedAuthority(),
+            static fn(EntityBase $source): array => $source->valueContainer->rawValues(),
             null,
             EntityBase::class,
         );
@@ -143,16 +144,8 @@ final class EntityRepository implements EntityRepositoryInterface
                 $storageBoundary->driverSnapshotReader(),
             )
             : $revisionDriver;
-        $this->driver = $driver instanceof EntityStorageDriverV2Interface
-            ? $driver
-            : new LegacyStorageDriverAdapter(
-                $driver,
-                $storageBoundary->driverRowFactory(),
-                $storageBoundary->driverSnapshotReader(),
-                function (string $channel, array $context): void {
-                    $this->logger->notice($channel, $context);
-                },
-            );
+        $this->driver = $driver;
+        $this->entityInstantiator = new Hydration\EntityInstantiator($this->entityType, $this->fieldRegistry);
     }
 
     /** @return array<string, mixed>|null */
@@ -402,11 +395,10 @@ final class EntityRepository implements EntityRepositoryInterface
     {
         // Shared with SqlEntityStorage::create() via EntityInstantiator so a
         // fresh entity gets the same field defaults regardless of engine.
-        $instantiator = new Hydration\EntityInstantiator($this->entityType, $this->fieldRegistry);
-        $values = $instantiator->applyFieldDefinitionDefaults($values);
+        $values = $this->entityInstantiator->applyFieldDefinitionDefaults($values);
 
         $class = $this->entityType->getClass();
-        $entity = $instantiator->instantiate($class, $values);
+        $entity = $this->entityInstantiator->instantiate($class, $values);
 
         if (method_exists($entity, 'enforceIsNew')) {
             $entity->enforceIsNew();
@@ -556,6 +548,7 @@ final class EntityRepository implements EntityRepositoryInterface
             $this->database,
             null,
             $this->fieldRegistry,
+            $this->fieldReadScope,
         );
 
         // Resolve the handler lazily (not at construction) — see the constructor
@@ -806,7 +799,6 @@ final class EntityRepository implements EntityRepositoryInterface
     ): int {
         $isNew = $entity->isNew();
         $entityTypeId = $this->entityType->id();
-        $this->attachStructureForLegacyConstruction($entity);
         $resolvedContext = $saveContext ?? SaveContext::default();
         // Optimistic-locking expectation (mission optimistic-locking-01KTXCHY).
         // Null = no expectation: every conflict-detection branch below is
@@ -1043,9 +1035,10 @@ final class EntityRepository implements EntityRepositoryInterface
             $id = (string) $nextId;
             $values[$idKey] = $nextId;
             if ($entity instanceof ContentEntityInterface) {
-                $entity->set($idKey, $nextId);
                 if ($entity instanceof EntityBase) {
                     $entity->_hydrateStructuralId($nextId);
+                } else {
+                    $entity->set($idKey, $nextId);
                 }
             }
         }
@@ -1078,7 +1071,9 @@ final class EntityRepository implements EntityRepositoryInterface
 
         try {
             if ($createRevision && $this->revisionDriver !== null && !$deferRevision) {
-                $log = ($entity instanceof RevisionableInterface) ? $entity->getRevisionLog() : null;
+                $log = $entity instanceof RevisionableInterface && isset($values['revision_log'])
+                    ? (string) $values['revision_log']
+                    : null;
                 $revisionId = $this->writeRevisionRow($id, $values, $log, author: $actor);
 
                 if ($expectedRevisionId !== null) {
@@ -1142,13 +1137,14 @@ final class EntityRepository implements EntityRepositoryInterface
                 }
                 if ($entity instanceof ContentEntityInterface) {
                     $revisionKey = $this->entityType->getKeys()['revision'] ?? 'revision_id';
-                    $entity->set($revisionKey, $revisionId);
                     if ($entity instanceof EntityBase) {
                         $entity->_hydrateStructuralRevision(
                             $revisionId,
                             tip: true,
                             default: !$disciplined,
                         );
+                    } else {
+                        $entity->set($revisionKey, $revisionId);
                     }
                 }
             } elseif (!$createRevision && !$isNew && $this->revisionDriver !== null && $entity instanceof RevisionableInterface) {
@@ -1225,7 +1221,9 @@ final class EntityRepository implements EntityRepositoryInterface
                 // The base row now exists with a real id. Write revision 1 keyed
                 // on it, then point the base row at it by updating only the
                 // revision-pointer column (leaving the _data blob untouched).
-                $log = ($entity instanceof RevisionableInterface) ? $entity->getRevisionLog() : null;
+                $log = $entity instanceof RevisionableInterface && isset($values['revision_log'])
+                    ? (string) $values['revision_log']
+                    : null;
                 $revisionId = $this->writeRevisionRow($writtenId, $values, $log, author: $actor);
                 $revisionKey = $this->entityType->getKeys()['revision'] ?? 'revision_id';
                 $idKeyName = $this->entityType->getKeys()['id'] ?? 'id';
@@ -1234,9 +1232,10 @@ final class EntityRepository implements EntityRepositoryInterface
                     ->condition($idKeyName, $writtenId)
                     ->execute();
                 if ($entity instanceof ContentEntityInterface) {
-                    $entity->set($revisionKey, $revisionId);
                     if ($entity instanceof EntityBase) {
                         $entity->_hydrateStructuralRevision($revisionId, tip: true, default: true);
+                    } else {
+                        $entity->set($revisionKey, $revisionId);
                     }
                 }
             }
@@ -1291,68 +1290,6 @@ final class EntityRepository implements EntityRepositoryInterface
         }
 
         return $result;
-    }
-
-    /**
-     * Bootstrap direct legacy constructors into the same immutable structural
-     * metadata used by repository-created and hydrated entities.
-     */
-    private function attachStructureForLegacyConstruction(EntityInterface $entity): void
-    {
-        if (!$entity instanceof EntityBase || $entity->_hasEntityStructure()) {
-            return;
-        }
-
-        $keys = $this->entityType->getKeys();
-        $langcode = $entity->language();
-        $resolvedBundle = $entity->bundle();
-        $revisionId = null;
-        $revisionTip = true;
-        $defaultRevision = true;
-        if (method_exists($entity, 'getRevisionId')) {
-            $candidate = $entity->getRevisionId();
-            $revisionId = is_int($candidate) || is_string($candidate) ? $candidate : null;
-        }
-        if (method_exists($entity, 'isCurrentRevision')) {
-            $revisionTip = (bool) $entity->isCurrentRevision();
-        }
-        if (method_exists($entity, 'isDefaultRevision')) {
-            $defaultRevision = (bool) $entity->isDefaultRevision();
-        }
-        $knownTranslationIds = [];
-        $defaultLangcode = $langcode;
-        if ($this->entityType->isTranslatable() && $entity instanceof TranslatableInterface) {
-            try {
-                $knownTranslationIds = $entity->getTranslationLanguages();
-                $defaultLangcode = $entity->defaultLangcode();
-            } catch (\Waaseyaa\Entity\Exception\EntityTranslationException) {
-                // A direct constructor may precede the static entity-type
-                // registry. The repository definition remains authoritative;
-                // hydration fills the complete translation set later.
-                $knownTranslationIds = [$langcode];
-            }
-            sort($knownTranslationIds);
-        }
-        $fieldNames = array_values(array_unique(array_merge(
-            array_values($keys),
-            array_keys($this->entityType->getFieldDefinitions()),
-            array_keys($this->fieldRegistry?->coreFieldsFor($this->entityType->id()) ?? []),
-            array_keys($this->fieldRegistry?->bundleFieldsFor($this->entityType->id(), $resolvedBundle) ?? []),
-        )));
-        sort($fieldNames);
-        $entity->_attachEntityStructure(new EntityStructure(
-            entityTypeId: $this->entityType->id(),
-            bundleId: $resolvedBundle,
-            id: $entity->id(),
-            uuid: $entity->uuid() !== '' ? $entity->uuid() : null,
-            activeLanguageId: $langcode,
-            defaultLanguageId: $defaultLangcode,
-            knownTranslationIds: $knownTranslationIds,
-            revisionId: $revisionId,
-            revisionTip: $revisionTip,
-            defaultRevision: $defaultRevision,
-            fieldNames: $fieldNames,
-        ));
     }
 
     private function doDelete(EntityInterface $entity, ?UnitOfWork $unitOfWork = null): void
@@ -2679,6 +2616,6 @@ final class EntityRepository implements EntityRepositoryInterface
      */
     private function instantiateEntity(string $class, array $values): EntityInterface
     {
-        return new Hydration\EntityInstantiator($this->entityType, $this->fieldRegistry)->instantiate($class, $values);
+        return $this->entityInstantiator->instantiate($class, $values);
     }
 }

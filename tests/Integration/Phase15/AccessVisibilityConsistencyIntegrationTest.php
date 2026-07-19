@@ -54,7 +54,7 @@ final class AccessVisibilityConsistencyIntegrationTest extends TestCase
                 new SqlSchemaHandler($definition, $database)->ensureTable();
                 $idKey = $definition->getKeys()['id'] ?? 'id';
 
-                return new EntityRepository($definition, new SqlStorageDriver($resolver, $idKey), $dispatcher, database: $database);
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver($definition, new SqlStorageDriver($resolver, $idKey), $dispatcher, database: $database);
             },
         );
 

@@ -13,9 +13,7 @@ use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Backend\BackendRegistrar;
-use Waaseyaa\EntityStorage\Backend\FieldStorageBackendInterface;
-use Waaseyaa\EntityStorage\Backend\HasFieldStorageBackendsInterface;
-use Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderInterface;
+use Waaseyaa\EntityStorage\Backend\FieldStorageBackendV2Interface;
 use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\BackendResolver;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
@@ -23,6 +21,8 @@ use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\EntityStorageCoordinator;
 use Waaseyaa\EntityStorage\Query\EntityQuery;
+use Waaseyaa\EntityStorage\Tests\Support\PermissiveFieldStorageGatewayAudit;
+use Waaseyaa\EntityStorage\Tests\Support\V2GatewayTestBackendTrait;
 use Waaseyaa\Field\FieldDefinition;
 
 /**
@@ -30,7 +30,7 @@ use Waaseyaa\Field\FieldDefinition;
  * coordinator introduction (T012, FR-021).
  *
  * Asserts the call chain:
- *   EntityRepository → EntityStorageCoordinator → FieldStorageBackendInterface → DatabaseInterface (DBAL)
+ *   EntityRepository → EntityStorageCoordinator → FieldStorageBackendV2Interface → DatabaseInterface (DBAL)
  *
  * Uses spy decorators and reflection to verify that:
  * 1. No raw PDO or direct-SQL bypass exists in the path.
@@ -58,13 +58,13 @@ final class PipelineInvariantTest extends TestCase
         $sqlBlob = new PipelineSpyBackend(ReservedBackendIds::SQL_BLOB);
         $frameworkProviderFqcn = $this->makeFrameworkProvider([$sqlBlob]);
 
-        $registrar = new BackendRegistrar([$frameworkProviderFqcn], [$frameworkProviderFqcn]);
+        $registrar = new BackendRegistrar([$frameworkProviderFqcn], [$frameworkProviderFqcn], new PermissiveFieldStorageGatewayAudit());
         $registrar->build();
 
         return $registrar;
     }
 
-    /** @param FieldStorageBackendInterface[] $backends */
+    /** @param FieldStorageBackendV2Interface[] $backends */
     private function makeFrameworkProvider(array $backends): string
     {
         static $counter = 0;
@@ -76,15 +76,15 @@ final class PipelineInvariantTest extends TestCase
         $fqcn = 'PipelineTestProvider' . $suffix;
 
         eval(<<<PHP
-            use Waaseyaa\EntityStorage\Backend\HasFieldStorageBackendsInterface;
-            use Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderInterface;
+                use Waaseyaa\EntityStorage\Backend\HasFieldStorageBackendsV2Interface;
+                use Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderV2Interface;
 
-            final class {$fqcn} implements HasFieldStorageBackendsInterface, IsFrameworkBackendProviderInterface {
-                public function fieldStorageBackends(): array {
-                    return \Waaseyaa\EntityStorage\Tests\Integration\Coordinator\PipelineTestProviderRegistry::get({$suffix});
+                final class {$fqcn} implements HasFieldStorageBackendsV2Interface, IsFrameworkBackendProviderV2Interface {
+                    public function fieldStorageBackendsV2(): array {
+                        return \Waaseyaa\EntityStorage\Tests\Integration\Coordinator\PipelineTestProviderRegistry::get({$suffix});
+                    }
                 }
-            }
-        PHP);
+            PHP);
 
         return $fqcn;
     }
@@ -114,7 +114,7 @@ final class PipelineInvariantTest extends TestCase
         $resolver = new BackendResolver($registrar);
         $coordinator = new EntityStorageCoordinator($resolver, $registrar);
 
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             entityType: $entityType,
             driver: $driver,
             eventDispatcher: $dispatcher,
@@ -145,7 +145,7 @@ final class PipelineInvariantTest extends TestCase
             new SingleConnectionResolver($db),
         );
 
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             entityType: $entityType,
             driver: $driver,
             eventDispatcher: $dispatcher,
@@ -213,16 +213,16 @@ final class PipelineInvariantTest extends TestCase
  */
 final class PipelineTestProviderRegistry
 {
-    /** @var array<int, FieldStorageBackendInterface[]> */
+    /** @var array<int, FieldStorageBackendV2Interface[]> */
     private static array $registry = [];
 
-    /** @param FieldStorageBackendInterface[] $backends */
+    /** @param FieldStorageBackendV2Interface[] $backends */
     public static function set(int $key, array $backends): void
     {
         self::$registry[$key] = $backends;
     }
 
-    /** @return FieldStorageBackendInterface[] */
+    /** @return FieldStorageBackendV2Interface[] */
     public static function get(int $key): array
     {
         return self::$registry[$key] ?? [];
@@ -232,19 +232,30 @@ final class PipelineTestProviderRegistry
 /**
  * @internal Test fixture only.
  */
-final class PipelineSpyBackend implements FieldStorageBackendInterface
+final class PipelineSpyBackend implements FieldStorageBackendV2Interface
 {
+    use V2GatewayTestBackendTrait;
+
     public function __construct(private readonly string $backendId) {}
 
-    public function id(): string { return $this->backendId; }
+    public function id(): string
+    {
+        return $this->backendId;
+    }
 
-    public function read(EntityInterface $entity, FieldDefinition $field): mixed { return null; }
+    public function read(EntityInterface $entity, FieldDefinition $field): mixed
+    {
+        return null;
+    }
 
     public function write(EntityInterface $entity, FieldDefinition $field, mixed $value): void {}
 
     public function delete(EntityInterface $entity): void {}
 
-    public function supportsQuery(FieldDefinition $field, EntityQuery $query): bool { return false; }
+    public function supportsQuery(FieldDefinition $field, EntityQuery $query): bool
+    {
+        return false;
+    }
 }
 
 /**

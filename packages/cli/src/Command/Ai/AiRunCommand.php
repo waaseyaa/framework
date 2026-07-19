@@ -7,6 +7,7 @@ namespace Waaseyaa\CLI\Command\Ai;
 use Waaseyaa\AI\Agent\AgentDefinitionRegistry;
 use Waaseyaa\AI\Agent\Entity\AgentRun;
 use Waaseyaa\AI\Agent\Enum\HitlMode;
+use Waaseyaa\AI\Agent\Security\AgentRunWorkerReaderInterface;
 use Waaseyaa\AI\Agent\Service\AgentRunDraft;
 use Waaseyaa\AI\Agent\Service\AgentRunService;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
@@ -46,6 +47,7 @@ final class AiRunCommand
     public function __construct(
         private readonly AgentRunService $runService,
         private readonly AgentDefinitionRegistry $definitionRegistry,
+        private readonly AgentRunWorkerReaderInterface $workerReader,
         /** @var array<string, mixed> */
         private readonly array $aiConfig = [],
         private readonly int|string $serviceAccountId = 0,
@@ -263,7 +265,7 @@ final class AiRunCommand
     {
         $runId = (string) $run->get('id');
         $status = (string) $run->get('status');
-        $response = $run->get('response');
+        $response = $this->workerReader->read($run)->response;
 
         $io->writeln(\sprintf('run_id: %s', $runId));
         $io->writeln(\sprintf('status: %s', $status));

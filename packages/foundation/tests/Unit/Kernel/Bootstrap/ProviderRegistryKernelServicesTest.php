@@ -10,6 +10,8 @@ use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface as PsrEventDispatcherInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface as SymfonyContractsEventDispatcherInterface;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\Gate\EntityAccessGate;
 use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Database\DatabaseInterface;
@@ -34,6 +36,7 @@ final class ProviderRegistryKernelServicesTest extends TestCase
         ?ApplicationSecret $applicationSecret = null,
         ?EntityTypeManager $entityTypeManager = null,
         array $providers = [],
+        ?AccountFieldReadScopeInterface $fieldReadScope = null,
     ): ProviderRegistryKernelServices {
         $dispatcher = new SymfonyEventDispatcherAdapter();
 
@@ -45,7 +48,17 @@ final class ProviderRegistryKernelServicesTest extends TestCase
             providersAccessor: static fn(): array => $providers,
             accessHandlerAccessor: $accessHandlerAccessor,
             applicationSecret: $applicationSecret,
+            fieldReadScope: $fieldReadScope,
         );
+    }
+
+    #[Test]
+    public function kernel_owned_field_read_scope_is_returned_by_identity(): void
+    {
+        $scope = new AccountFieldReadScope();
+        $services = $this->services(DBALDatabase::createSqlite(), fieldReadScope: $scope);
+
+        self::assertSame($scope, $services->get(AccountFieldReadScopeInterface::class));
     }
 
     #[Test]

@@ -8,15 +8,20 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Waaseyaa\Access\AccountPrincipalFactory;
+use Waaseyaa\Access\AccountPrincipalFactoryInterface;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistryKernelServices;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Oidc\OidcServiceProvider;
 use Waaseyaa\Oidc\Userinfo\UserinfoController;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 
 /**
  * Regression coverage for C-12: the kernel-services bus must publish the
@@ -106,11 +111,11 @@ final class OidcAccessHandlerBusResolutionTest extends TestCase
      *
      * @param (\Closure(): ?EntityAccessHandler)|null $accessHandlerAccessor
      */
-    private function kernelServices(?\Closure $accessHandlerAccessor): ProviderRegistryKernelServices
+    private function kernelServices(?\Closure $accessHandlerAccessor): KernelServicesInterface
     {
         $dispatcher = new EventDispatcher();
 
-        return new ProviderRegistryKernelServices(
+        $services = new ProviderRegistryKernelServices(
             entityTypeManager: new EntityTypeManager($dispatcher),
             // DBALDatabase satisfies OidcServiceProvider::resolveDatabase()'s
             // DBALDatabase instanceof guard for the AccessTokenIssuer leg.
@@ -122,6 +127,22 @@ final class OidcAccessHandlerBusResolutionTest extends TestCase
             accessHandlerAccessor: $accessHandlerAccessor,
             applicationSecret: ApplicationSecret::fromEnvironmentValue(null, 'testing'),
         );
+
+        return new readonly class ($services) implements KernelServicesInterface {
+            public function __construct(private ProviderRegistryKernelServices $services) {}
+
+            public function get(string $abstract): ?object
+            {
+                if ($abstract === UserInternalFieldReaderInterface::class) {
+                    return new UserInternalFieldReaderFixture();
+                }
+                if ($abstract === AccountPrincipalFactoryInterface::class) {
+                    return new AccountPrincipalFactory();
+                }
+
+                return $this->services->get($abstract);
+            }
+        };
     }
 
     /**

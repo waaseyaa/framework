@@ -7,7 +7,7 @@ namespace Waaseyaa\User;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\PolicySubjectViewInterface;
-use Waaseyaa\Access\ProtectedEntityReadPolicyInterface;
+use Waaseyaa\Access\ProjectedProtectedEntityReadPolicyInterface;
 use Waaseyaa\Entity\EntityStructure;
 
 /**
@@ -15,8 +15,13 @@ use Waaseyaa\Entity\EntityStructure;
  *
  * @api
  */
-final class UserEntityReadPolicy implements ProtectedEntityReadPolicyInterface
+final class UserEntityReadPolicy implements ProjectedProtectedEntityReadPolicyInterface
 {
+    public function authorizationInputs(): array
+    {
+        return ['status'];
+    }
+
     public function access(
         AuthorizationPrincipalInterface $principal,
         EntityStructure $structure,
@@ -48,6 +53,12 @@ final class UserEntityReadPolicy implements ProtectedEntityReadPolicyInterface
 
     private static function isActive(mixed $status): bool
     {
+        // A projected SQL subject reflects the physically stored value, so a
+        // legacy row with no status key supplies null here. A sealed hydrated
+        // subject may instead omit that absent input and fail the exact-shape
+        // check above; direct User construction can apply the active default.
+        // Neither query path may synthesize that permissive default. The only
+        // accepted decision difference is the independent administrator grant.
         return $status === true || $status === 1 || $status === '1';
     }
 }

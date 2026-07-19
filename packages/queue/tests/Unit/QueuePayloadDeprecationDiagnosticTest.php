@@ -45,6 +45,30 @@ final class QueuePayloadDeprecationDiagnosticTest extends TestCase
         self::assertSame([], $queue->getMessages());
     }
 
+    public function test_activation_accepts_a_large_scalar_message_projection(): void
+    {
+        $diagnostic = new QueuePayloadDeprecationDiagnostic(static function (): void {}, PersistentQueueBoundaryConfig::enforced());
+        $payload = array_fill(0, 2_000, 'public');
+        $message = new class ($payload) {
+            /** @param list<string> $payload */
+            public function __construct(public readonly array $payload) {}
+        };
+
+        self::assertSame($message, $diagnostic->inspect($message));
+    }
+
+    public function test_activation_rejects_an_uninspectable_compound_message_projection(): void
+    {
+        $diagnostic = new QueuePayloadDeprecationDiagnostic(static function (): void {}, PersistentQueueBoundaryConfig::enforced());
+        $message = new class (array_fill(0, 1_001, [])) {
+            /** @param list<array<never, never>> $payload */
+            public function __construct(public readonly array $payload) {}
+        };
+
+        $this->expectException(InvalidPersistentPayload::class);
+        $diagnostic->inspect($message);
+    }
+
     public function testDetectsAnEntityNestedInAPrivateMessagePropertyWithoutReadingItsValues(): void
     {
         $events = [];

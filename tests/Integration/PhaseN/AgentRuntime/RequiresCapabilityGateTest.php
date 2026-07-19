@@ -39,7 +39,6 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
-use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Migration\Migration;
 use Waaseyaa\Foundation\Migration\SchemaBuilder;
@@ -129,7 +128,7 @@ final class RequiresCapabilityGateTest extends TestCase
             $run->getStatus(),
             'A run whose initiator lacks the required capability must land Failed, not Completed.',
         );
-        self::assertSame('missing_capability', $run->get('error_code'));
+        self::assertSame('missing_capability', new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture()->read($run)->errorCode);
 
         // Prove the executor/agent loop never ran: IterationStart is the
         // first audit row AgentExecutor::doExecuteRun() writes.
@@ -324,6 +323,7 @@ final class RequiresCapabilityGateTest extends TestCase
             broadcaster: $this->broadcaster,
             provider: $provider ?? new NullLlmProvider(),
             accountLoader: new CapabilityTestAccountLoader(),
+            workerReader: new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture(),
         );
 
         $bus = new MessageBus([
@@ -362,7 +362,7 @@ final class RequiresCapabilityGateTest extends TestCase
         );
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver, 'id');
-        $entityRepo = new EntityRepository(
+        $entityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             $driver,
             new EventDispatcher(),
@@ -383,7 +383,7 @@ final class RequiresCapabilityGateTest extends TestCase
         );
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver, 'id');
-        $entityRepo = new EntityRepository(
+        $entityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             $driver,
             new EventDispatcher(),

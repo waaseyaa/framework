@@ -150,7 +150,10 @@ final class RegisterController
         return new JsonResponse([
             'data' => [
                 'id' => $user->id(),
-                'name' => $user->getName(),
+                // The public registration route has no ambient account read
+                // context. Return the validated request value that was just
+                // persisted instead of re-reading the Protected entity field.
+                'name' => $name,
                 'email' => $identity->mail,
                 'email_verified' => $identity->emailVerified,
             ],

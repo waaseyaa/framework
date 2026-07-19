@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Entity;
 
+use Waaseyaa\Access\CompiledFieldReadRule;
+use Waaseyaa\Access\CompiledPolicySubjectView;
+use Waaseyaa\Access\PolicySubjectViewInterface;
 use Waaseyaa\Entity\Exception\EntitySerializationForbidden;
 use Waaseyaa\Entity\Exception\FieldReadDenied;
 use Waaseyaa\Entity\Exception\InternalFieldArrayExportDenied;
@@ -19,23 +22,20 @@ final class EntityValueContainer
 
     private int $valueGeneration = 1;
 
+    /** @var array<string, PolicySubjectViewInterface> */
+    private array $policySubjectViews = [];
+
     /**
      * @param array<string, mixed|RestrictedEntityValue> $values
      */
     private function __construct(
         array $values,
-        private readonly ?EntityReadLayout $layout,
+        private readonly EntityReadLayout $layout,
         private readonly ?EntityValueReadGuardInterface $guard,
         ?object $viewIdentity = null,
     ) {
         $this->viewIdentity = $viewIdentity ?? new \stdClass();
         $this->values = $values;
-    }
-
-    /** @param array<string, mixed> $values */
-    public static function compatibility(array $values): self
-    {
-        return new self($values, null, null);
     }
 
     /** @param array<string, mixed> $values */
@@ -54,14 +54,9 @@ final class EntityValueContainer
         return new self($sealed, $layout, $guard, $viewIdentity);
     }
 
-    public function isSealed(): bool
-    {
-        return $this->layout !== null;
-    }
-
     public function read(EntityBase $entity, string $field): mixed
     {
-        $this->layout?->assertCurrent();
+        $this->layout->assertCurrent();
         if (!array_key_exists($field, $this->values)) {
             return null;
         }
@@ -70,27 +65,29 @@ final class EntityValueContainer
             return $stored;
         }
 
-        $level = $this->layout?->level($field) ?? FieldReadLevel::Internal;
+        $level = $this->layout->level($field);
         if ($level === FieldReadLevel::Internal) {
             throw new FieldReadDenied(sprintf('Field %s.%s requires an explicit audited capability.', $entity->getEntityTypeId(), $field));
         }
-        if ($this->guard === null) {
+        $guard = $this->guard ?? EntityReadRuntime::guard();
+        if ($guard === null) {
             throw new MissingFieldReadContext(sprintf('Field %s.%s requires an account read context.', $entity->getEntityTypeId(), $field));
         }
-        $this->guard->assertProtectedReadable($entity, $field, $this->viewIdentity);
+        $guard->assertProtectedReadable($entity, $field, $this->viewIdentity);
 
         return $stored->release($field, $this->viewIdentity);
     }
 
     public function write(EntityBase $entity, string $field, mixed $value): void
     {
-        $this->layout?->assertCurrent();
+        $this->layout->assertCurrent();
         ++$this->valueGeneration;
-        $level = $this->layout?->level($field) ?? FieldReadLevel::Public;
+        $this->policySubjectViews = [];
+        $level = $this->layout->level($field);
         $this->values[$field] = $level === FieldReadLevel::Public
             ? $value
             : RestrictedEntityValue::seal($field, $value, $this->viewIdentity, $this->valueGeneration);
-        $this->guard?->invalidate($entity);
+        ($this->guard ?? EntityReadRuntime::guard())?->invalidate($entity);
     }
 
     /** @return list<string> */
@@ -109,7 +106,12 @@ final class EntityValueContainer
 
     public function level(string $field): FieldReadLevel
     {
-        return $this->layout?->level($field) ?? FieldReadLevel::Public;
+        return $this->layout->level($field);
+    }
+
+    public function rule(string $field): CompiledFieldReadRule
+    {
+        return $this->layout->rule($field);
     }
 
     /**
@@ -120,8 +122,8 @@ final class EntityValueContainer
      */
     public function changedFieldNames(self $target, array $targetFields): array
     {
-        $this->layout?->assertCurrent();
-        $target->layout?->assertCurrent();
+        $this->layout->assertCurrent();
+        $target->layout->assertCurrent();
         $changed = [];
         foreach ($targetFields as $field) {
             if (!array_key_exists($field, $target->values)) {
@@ -147,7 +149,7 @@ final class EntityValueContainer
      */
     public function matchingSubmittedFieldNames(array $submitted, array $fields): array
     {
-        $this->layout?->assertCurrent();
+        $this->layout->assertCurrent();
         $matches = [];
         foreach ($fields as $field) {
             if (!array_key_exists($field, $submitted)) {
@@ -179,15 +181,41 @@ final class EntityValueContainer
             : $value;
     }
 
+    /** @internal Closed protected-policy evaluation only. */
+    public function policySubjectView(string $releasedField, object $viewIdentity): PolicySubjectViewInterface
+    {
+        $this->layout->assertCurrent();
+        if ($viewIdentity !== $this->viewIdentity) {
+            throw new \LogicException('A matching sealed entity view is required for policy evaluation.');
+        }
+        if (isset($this->policySubjectViews[$releasedField])) {
+            return $this->policySubjectViews[$releasedField];
+        }
+
+        $values = [];
+        foreach ($this->layout->authorizationInputsFor($releasedField) as $field) {
+            if (!array_key_exists($field, $this->values)) {
+                continue;
+            }
+            $values[$field] = $this->comparableValue($field);
+        }
+
+        return $this->policySubjectViews[$releasedField] = new CompiledPolicySubjectView($values);
+    }
+
+    /** @internal Closed entity-policy evaluation only; reachable through a bound EntityBase authority. */
+    public function entityPolicySubjectView(): PolicySubjectViewInterface
+    {
+        return $this->policySubjectView('', $this->viewIdentity);
+    }
+
     /** @return array<string, mixed> */
     public function publicArray(EntityBase $entity): array
     {
-        $this->layout?->assertCurrent();
-        if ($this->layout !== null) {
-            foreach ($this->values as $field => $value) {
-                if ($value instanceof RestrictedEntityValue && $this->layout->level($field) === FieldReadLevel::Internal) {
-                    throw new InternalFieldArrayExportDenied(sprintf('Entity %s contains Internal field %s and cannot be exported as an array.', $entity->getEntityTypeId(), $field));
-                }
+        $this->layout->assertCurrent();
+        foreach ($this->values as $field => $value) {
+            if ($value instanceof RestrictedEntityValue && $this->layout->level($field) === FieldReadLevel::Internal) {
+                throw new InternalFieldArrayExportDenied(sprintf('Entity %s contains Internal field %s and cannot be exported as an array.', $entity->getEntityTypeId(), $field));
             }
         }
 
@@ -202,7 +230,7 @@ final class EntityValueContainer
     /** @internal Closed validation/persistence authorities only. @return array<string, mixed> */
     public function rawValues(): array
     {
-        $this->layout?->assertCurrent();
+        $this->layout->assertCurrent();
         $result = [];
         foreach ($this->values as $field => $value) {
             $result[$field] = $value instanceof RestrictedEntityValue
@@ -215,7 +243,7 @@ final class EntityValueContainer
 
     public function reissue(): self
     {
-        $this->layout?->assertCurrent();
+        $this->layout->assertCurrent();
         $identity = new \stdClass();
         $values = [];
         foreach ($this->values as $field => $value) {
@@ -230,27 +258,17 @@ final class EntityValueContainer
     /** @param array<string, mixed> $values */
     public function relatedView(array $values): self
     {
-        return $this->layout === null
-            ? self::compatibility($values)
-            : self::seal($values, $this->layout, $this->guard);
+        return self::seal($values, $this->layout, $this->guard);
     }
 
     public function __serialize(): array
     {
-        if ($this->layout !== null) {
-            throw new EntitySerializationForbidden('Sealed entities cannot be serialized.');
-        }
-
-        return ['values' => $this->values];
+        throw new EntitySerializationForbidden('Sealed entities cannot be serialized.');
     }
 
-    /** @param array{values?: array<string, mixed>} $data */
+    /** @param array<string, mixed> $data */
     public function __unserialize(array $data): void
     {
-        $this->values = $data['values'] ?? [];
-        $this->layout = null;
-        $this->guard = null;
-        $this->viewIdentity = new \stdClass();
-        $this->valueGeneration = 1;
+        throw new EntitySerializationForbidden('Sealed entities cannot be unserialized.');
     }
 }

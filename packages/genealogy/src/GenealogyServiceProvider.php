@@ -4,12 +4,20 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Genealogy;
 
+use Waaseyaa\Access\Capability\CapabilityActorSemantics;
+use Waaseyaa\Access\Capability\CapabilityDeclaration;
+use Waaseyaa\Access\Capability\CapabilityReason;
+use Waaseyaa\Access\Capability\CapabilityRegistryInterface;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Audit\AuditedFieldRead;
+use Waaseyaa\Audit\Contract\StrictPrivilegedReadLedgerInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ConfiguresHttpKernelInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\Genealogy\Access\AuditedGenealogyInternalFieldReader;
+use Waaseyaa\Genealogy\Access\GenealogyInternalFieldReaderInterface;
 use Waaseyaa\Genealogy\Access\GenealogyRelationshipAccessPolicy;
 use Waaseyaa\Genealogy\Entity\GenealogyEvent;
 use Waaseyaa\Genealogy\Entity\GenealogyFamily;
@@ -29,6 +37,25 @@ final class GenealogyServiceProvider extends ServiceProvider implements Configur
         $this->entityType($this->personEntityType());
         $this->entityType($this->familyEntityType());
         $this->entityType($this->eventEntityType());
+
+        $this->singleton(GenealogyInternalFieldReaderInterface::class, function (): GenealogyInternalFieldReaderInterface {
+            $capabilities = $this->resolve(CapabilityRegistryInterface::class);
+            $ledger = $this->resolve(StrictPrivilegedReadLedgerInterface::class);
+            assert($capabilities instanceof CapabilityRegistryInterface);
+            assert($ledger instanceof StrictPrivilegedReadLedgerInterface);
+            $capabilities->register(new CapabilityDeclaration(
+                issuer: 'genealogy.tombstone',
+                reason: CapabilityReason::StrictAuditProjection,
+                entityTypes: ['genealogy_person', 'genealogy_family', 'genealogy_event'],
+                bundles: ['genealogy_person', 'genealogy_family', 'genealogy_event'],
+                fields: ['deleted_at'],
+                actorSemantics: [CapabilityActorSemantics::NoActingContext],
+                maxTtlSeconds: 60,
+                justification: 'Fail closed on soft-deleted genealogy content without exposing its Internal tombstone.',
+            ));
+
+            return new AuditedGenealogyInternalFieldReader(new AuditedFieldRead($capabilities, $ledger), $capabilities);
+        });
 
         $this->singleton(GenealogyPedigreeService::class, function (): GenealogyPedigreeService {
             /** @var EntityTypeManager $manager */

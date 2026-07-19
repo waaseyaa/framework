@@ -136,6 +136,12 @@ The default `editorial` workflow ships as **config data, not code**. The retired
 
 `Waaseyaa\Workflows\Transition\TransitionService` (final, container-bound):
 
+### Entity field-read boundary
+
+`status` and `workflow_state` are Protected authorization inputs, not Public projection data. User-driven transition discovery and execution establish the explicit account principal scope before reading them; workflow guards and pointer/republication invariants consume a fixed immutable `WorkflowEntitySnapshot` rather than ordinary entity accessors. The sessionless `workflows:backfill-state` maintenance path uses that same fixed-shape system view, and its regression fixture carries the production Protected classification so a Public test double cannot mask a missing authority boundary.
+
+Revision/publication selectors used only to preserve persistence invariants remain outside ordinary account projections. JSON:API therefore omits `published_revision_id`; workflow transition metadata reads state through the exact workflow view after its existing entity/field access gates. These rules do not grant transition permission, bypass the save-path or pointer guards, or make Internal selectors available to consumer code.
+
 - `transition(ContentEntityInterface $entity, string $transitionId, AccountInterface $account): TransitionResult`
   1. **Validate:** binding exists for the entity type/bundle; transition exists in the bound workflow; current revision state ∈ `from[]`; `$account` holds the transition's permission; group constraint (if any) satisfied. Failure → typed exception (`TransitionDeniedException` with a machine-readable reason), never a silent no-op.
   2. **Apply:** set `workflow_state` on the target revision; set `status` and promote to default revision per the target state's flags; persist through `EntityRepository` (the canonical pipeline — no direct storage writes).

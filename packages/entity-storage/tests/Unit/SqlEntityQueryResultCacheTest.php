@@ -102,7 +102,7 @@ final class SqlEntityQueryResultCacheTest extends TestCase
     {
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver);
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $this->entityType,
             $driver,
             new EventDispatcher(),

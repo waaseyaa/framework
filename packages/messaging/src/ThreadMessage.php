@@ -13,7 +13,7 @@ use Waaseyaa\Entity\ContentEntityBase;
 #[ContentEntityKeys(id: 'tmid', uuid: 'uuid', label: 'body')]
 final class ThreadMessage extends ContentEntityBase
 {
-    #[Field(label: 'Thread ID', settings: ['weight' => 0], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(label: 'Thread ID', settings: ['weight' => 0, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public int $thread_id = 0;
 
     #[Field(label: 'Sender ID', settings: ['weight' => 1], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]

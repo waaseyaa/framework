@@ -120,9 +120,19 @@ final class DbalQueue implements QueueInterface, PersistentPayloadReplayInterfac
         // invalid failed-row payload. The exact bytes, including authority and
         // correlation metadata, are then preserved for the worker.
         try {
-            $this->payloadSigner->open($signedPayload);
+            $opened = $this->payloadSigner->open($signedPayload);
         } catch (\Throwable $error) {
             throw new InvalidPersistentPayload('Persistent queue payload authentication failed.', previous: $error);
+        }
+        if ($this->boundaryConfig->requireAuthorityEnvelope) {
+            try {
+                $decoded = unserialize($opened, ['allowed_classes' => [QueueEnvelopeV1::class]]);
+            } catch (\Throwable $error) {
+                throw new InvalidPersistentPayload('Activated persistent queue retry requires a QueueEnvelopeV1 payload.', previous: $error);
+            }
+            if (!$decoded instanceof QueueEnvelopeV1) {
+                throw new InvalidPersistentPayload('Activated persistent queue retry requires a QueueEnvelopeV1 payload.');
+            }
         }
         $this->transport->push($queue, $signedPayload);
     }

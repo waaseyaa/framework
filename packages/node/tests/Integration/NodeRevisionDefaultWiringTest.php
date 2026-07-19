@@ -20,6 +20,7 @@ use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
+use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\Node\Node;
 use Waaseyaa\Node\NodeServiceProvider;
 use Waaseyaa\Node\NodeType;
@@ -188,8 +189,9 @@ final class NodeRevisionDefaultWiringTest extends TestCase
     {
         $dispatcher = new SymfonyEventDispatcherAdapter();
         $db = DBALDatabase::createSqlite();
+        $fieldRegistry = new FieldDefinitionRegistry();
 
-        $repositoryFactory = static function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $db): EntityRepositoryInterface {
+        $repositoryFactory = static function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $db, $fieldRegistry): EntityRepositoryInterface {
             $schemaHandler = new SqlSchemaHandler($definition, $db);
             $schemaHandler->ensureTable();
             if ($definition->isRevisionable()) {
@@ -198,16 +200,21 @@ final class NodeRevisionDefaultWiringTest extends TestCase
 
             $resolver = new SingleConnectionResolver($db);
 
-            return new EntityRepository(
+            return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                 $definition,
                 new SqlStorageDriver($resolver, $definition->getKeys()['id']),
                 $dispatcher,
                 $definition->isRevisionable() ? new RevisionableStorageDriver($resolver, $definition) : null,
                 $db,
+                fieldRegistry: $fieldRegistry,
             );
         };
 
-        $entityTypeManager = new EntityTypeManager($dispatcher, null, $repositoryFactory);
+        $entityTypeManager = new EntityTypeManager(
+            $dispatcher,
+            repositoryFactory: $repositoryFactory,
+            fieldRegistry: $fieldRegistry,
+        );
 
         $provider = new NodeServiceProvider();
 

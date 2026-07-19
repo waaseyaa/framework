@@ -416,7 +416,6 @@
             "Waaseyaa\\Listing\\Tests\\": "packages/listing/tests/",
             "Waaseyaa\\Database\\Tests\\": "packages/database-legacy/tests/",
             "Waaseyaa\\Debug\\Tests\\": "packages/debug/tests/",
-            "Waaseyaa\\EntityStorage\\Testing\\Contract\\": "packages/entity-storage/testing/Contract/",
             "Waaseyaa\\EntityStorage\\Tests\\": "packages/entity-storage/tests/",
             "Waaseyaa\\ErrorHandler\\Tests\\": "packages/error-handler/tests/",
             "Waaseyaa\\Access\\Tests\\": "packages/access/tests/",

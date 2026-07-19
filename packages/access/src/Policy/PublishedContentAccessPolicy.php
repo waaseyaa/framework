@@ -7,6 +7,9 @@ namespace Waaseyaa\Access\Policy;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\ProtectedEntityReadPolicyInterface;
+use Waaseyaa\Access\ProtectedFieldReadPolicyInterface;
+use Waaseyaa\Access\ProtectedReadPolicyProviderInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 
@@ -33,14 +36,27 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
  *
  * @api
  */
-final class PublishedContentAccessPolicy implements AccessPolicyInterface
+final class PublishedContentAccessPolicy implements AccessPolicyInterface, ProtectedReadPolicyProviderInterface
 {
     /** Entity-type group whose published members are public by default. */
     public const string PUBLIC_GROUP = 'content';
 
-    public function __construct(
-        private readonly EntityTypeManagerInterface $entityTypeManager,
-    ) {}
+    private readonly PublishedContentStatusReader $statusReader;
+
+    public function __construct(private readonly EntityTypeManagerInterface $entityTypeManager)
+    {
+        $this->statusReader = new PublishedContentStatusReader();
+    }
+
+    public function protectedEntityReadPolicy(): ProtectedEntityReadPolicyInterface
+    {
+        return new PublishedContentProtectedEntityReadPolicy($this->entityTypeManager);
+    }
+
+    public function protectedFieldReadPolicy(): ?ProtectedFieldReadPolicyInterface
+    {
+        return null;
+    }
 
     public function appliesTo(string $entityTypeId): bool
     {
@@ -53,7 +69,7 @@ final class PublishedContentAccessPolicy implements AccessPolicyInterface
 
     public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
     {
-        if ($operation === 'view' && $this->isPublished($entity)) {
+        if ($operation === 'view' && $this->statusReader->isPublished($entity)) {
             return AccessResult::allowed('Published content is publicly viewable by default.');
         }
 
@@ -66,19 +82,4 @@ final class PublishedContentAccessPolicy implements AccessPolicyInterface
         return AccessResult::neutral('Default policy has no opinion on create.');
     }
 
-    /**
-     * Published = a truthy `status` field. Content types created by
-     * `make:content-type` (and `node`) carry `status`; a content entity without
-     * a published signal is treated as NOT published (denied).
-     */
-    private function isPublished(EntityInterface $entity): bool
-    {
-        try {
-            $status = $entity->get('status');
-        } catch (\Throwable) {
-            return false;
-        }
-
-        return $status === true || $status === 1 || $status === '1';
-    }
 }

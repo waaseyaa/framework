@@ -8,8 +8,11 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\ContentEntityInterface;
+use Waaseyaa\Entity\Exception\MissingFieldReadContext;
 use Waaseyaa\Entity\FieldableInterface;
 use Waaseyaa\Relationship\Relationship;
+use Waaseyaa\Relationship\RelationshipMaintenanceReader;
+use Waaseyaa\Relationship\RelationshipTopologyReader;
 
 #[CoversClass(Relationship::class)]
 final class RelationshipTest extends TestCase
@@ -25,8 +28,9 @@ final class RelationshipTest extends TestCase
     public function default_values_are_applied(): void
     {
         $entity = new Relationship();
-        $this->assertSame('directed', $entity->get('directionality'));
-        $this->assertSame(1, $entity->get('status'));
+        $snapshot = new RelationshipMaintenanceReader()->read($entity);
+        $this->assertSame('directed', $snapshot->directionality);
+        $this->assertSame(1, $snapshot->status);
     }
 
     #[Test]
@@ -36,8 +40,9 @@ final class RelationshipTest extends TestCase
             'directionality' => 'bidirectional',
             'status' => 0,
         ]);
-        $this->assertSame('bidirectional', $entity->get('directionality'));
-        $this->assertSame(0, $entity->get('status'));
+        $snapshot = new RelationshipMaintenanceReader()->read($entity);
+        $this->assertSame('bidirectional', $snapshot->directionality);
+        $this->assertSame(0, $snapshot->status);
     }
 
     #[Test]
@@ -74,13 +79,16 @@ final class RelationshipTest extends TestCase
             'confidence' => 0.9,
             'notes' => 'Test note',
         ]);
-        $this->assertSame('node', $entity->get('from_entity_type'));
-        $this->assertSame('1', $entity->get('from_entity_id'));
-        $this->assertSame('node', $entity->get('to_entity_type'));
-        $this->assertSame('2', $entity->get('to_entity_id'));
-        $this->assertSame(5.0, $entity->get('weight'));
-        $this->assertSame(0.9, $entity->get('confidence'));
-        $this->assertSame('Test note', $entity->get('notes'));
+        $topology = new RelationshipTopologyReader()->read($entity);
+        $snapshot = new RelationshipMaintenanceReader()->read($entity);
+        $this->assertNotNull($topology);
+        $this->assertSame('node', $topology->fromType);
+        $this->assertSame('1', $topology->fromId);
+        $this->assertSame('node', $topology->toType);
+        $this->assertSame('2', $topology->toId);
+        $this->assertSame(5.0, $snapshot->weight);
+        $this->assertSame(0.9, $snapshot->confidence);
+        $this->assertSame('Test note', $snapshot->notes);
     }
 
     #[Test]
@@ -88,21 +96,18 @@ final class RelationshipTest extends TestCase
     {
         $entity = new Relationship(['weight' => 1.0]);
         $entity->set('weight', 5.0);
-        $this->assertSame(5.0, $entity->get('weight'));
+        $this->assertSame(5.0, new RelationshipMaintenanceReader()->read($entity)->weight);
     }
 
     #[Test]
-    public function to_array_returns_all_values(): void
+    public function protected_values_require_a_read_context_for_array_export(): void
     {
         $entity = new Relationship([
             'relationship_type' => 'references',
             'from_entity_type' => 'node',
             'from_entity_id' => '1',
         ]);
-        $array = $entity->toArray();
-        $this->assertSame('references', $array['relationship_type']);
-        $this->assertSame('node', $array['from_entity_type']);
-        $this->assertSame('directed', $array['directionality']);
-        $this->assertSame(1, $array['status']);
+        $this->expectException(MissingFieldReadContext::class);
+        $entity->toArray();
     }
 }

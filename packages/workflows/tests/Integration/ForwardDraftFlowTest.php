@@ -126,8 +126,8 @@ final class ForwardDraftFlowTest extends TestCase
 
         $created = $nodeRepository->find($entityId);
         $this->assertNotNull($created);
-        $this->assertSame('draft', $created->get('workflow_state'));
-        $this->assertSame(0, (int) $created->get('status'));
+        $this->assertSame('draft', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($created));
+        $this->assertSame(0, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($created));
         $this->assertNull($nodeRepository->loadPublishedRevision($entityId), 'No published pointer exists before the first publish.');
 
         // --- 2. Publish: pointer established, status flips to 1. ---
@@ -138,8 +138,8 @@ final class ForwardDraftFlowTest extends TestCase
         $this->assertNotNull($firstPublished);
         $firstPublishedRevisionId = (int) $firstPublished->get('revision_id');
         $this->assertSame('Original title', $firstPublished->get('title'));
-        $this->assertSame(1, (int) $firstPublished->get('status'));
-        $this->assertSame(1, (int) $nodeRepository->find($entityId)?->get('status'));
+        $this->assertSame(1, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($firstPublished));
+        $this->assertSame(1, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($nodeRepository->find($entityId)));
 
         // --- 3. Forward-draft edit via `editorial_forward`'s 'revise' edge ---
         // (published -> draft): under discipline this is a DISCIPLINED,
@@ -168,13 +168,13 @@ final class ForwardDraftFlowTest extends TestCase
         $servedDuringDraft = $nodeRepository->find($entityId);
         $this->assertNotNull($servedDuringDraft);
         $this->assertSame('Original title', $servedDuringDraft->get('title'), 'find() must keep serving the published title during the draft window.');
-        $this->assertSame('published', $servedDuringDraft->get('workflow_state'), 'find() must keep reporting the PUBLISHED state — the served row never saw the draft edit.');
-        $this->assertSame(1, (int) $servedDuringDraft->get('status'));
+        $this->assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($servedDuringDraft), 'find() must keep reporting the PUBLISHED state — the served row never saw the draft edit.');
+        $this->assertSame(1, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($servedDuringDraft));
 
         $workingCopyDuringDraft = $nodeRepository->loadWorkingCopy($entityId);
         $this->assertNotNull($workingCopyDuringDraft);
         $this->assertSame('Forward draft title', $workingCopyDuringDraft->get('title'), 'loadWorkingCopy() must serve the draft title.');
-        $this->assertSame('draft', $workingCopyDuringDraft->get('workflow_state'));
+        $this->assertSame('draft', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($workingCopyDuringDraft));
         $draftTipRevisionId = (int) $workingCopyDuringDraft->get('revision_id');
         $this->assertNotSame($firstPublishedRevisionId, $draftTipRevisionId, 'The forward draft is a NEW, distinct revision.');
 
@@ -191,10 +191,10 @@ final class ForwardDraftFlowTest extends TestCase
         $servedDuringReview = $nodeRepository->find($entityId);
         $this->assertNotNull($servedDuringReview);
         $this->assertSame('Original title', $servedDuringReview->get('title'));
-        $this->assertSame('published', $servedDuringReview->get('workflow_state'));
+        $this->assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($servedDuringReview));
         $reviewTip = $nodeRepository->loadWorkingCopy($entityId);
         $this->assertNotNull($reviewTip);
-        $this->assertSame('review', $reviewTip->get('workflow_state'));
+        $this->assertSame('review', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($reviewTip));
         $this->assertSame($firstPublishedRevisionId, (int) $nodeRepository->loadPublishedRevision($entityId)?->get('revision_id'));
 
         // --- 5. Publish the draft revision: promotion. ---
@@ -223,7 +223,7 @@ final class ForwardDraftFlowTest extends TestCase
         // gets promoted.
         $this->assertGreaterThan($draftTipRevisionId, $promotedRevisionId);
         $this->assertSame('Forward draft title', $promoted->get('title'));
-        $this->assertSame(1, (int) $promoted->get('status'));
+        $this->assertSame(1, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($promoted));
 
         $baseRowAfterPromotion = $this->rawBaseRow($db, $entityId);
         $this->assertSame('Forward draft title', $baseRowAfterPromotion['title'], 'The base row now serves the promoted content — setPublishedRevision() copied it in full under discipline.');
@@ -254,7 +254,7 @@ final class ForwardDraftFlowTest extends TestCase
         $this->assertNotNull($servedAfterSameStateEdit);
         $this->assertSame('Same-state authorized edit', $servedAfterSameStateEdit->get('title'), 'The base row is updated THROUGH the choke point, not left stale.');
         $this->assertSame((string) $republishedRevisionId, (string) $servedAfterSameStateEdit->get('revision_id'));
-        $this->assertSame((string) $republishedRevisionId, (string) $servedAfterSameStateEdit->get('published_revision_id'));
+        $this->assertSame((string) $republishedRevisionId, (string) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::publishedRevisionId($servedAfterSameStateEdit));
 
         // --- 7. The same shape by an UNAUTHORIZED account: denied at ---
         // PRE_SAVE, nothing committed (the base row stays exactly on the
@@ -289,9 +289,9 @@ final class ForwardDraftFlowTest extends TestCase
         $archived = $nodeRepository->loadPublishedRevision($entityId);
         $this->assertNotNull($archived);
         $archivedRevisionId = (int) $archived->get('revision_id');
-        $this->assertSame('archived', $archived->get('workflow_state'));
+        $this->assertSame('archived', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($archived));
         $this->assertSame('Same-state authorized edit', $archived->get('title'), 'Archiving does not change content, only state.');
-        $this->assertSame(0, (int) $nodeRepository->find($entityId)?->get('status'));
+        $this->assertSame(0, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($nodeRepository->find($entityId)));
 
         // --- 9a. Rollback attempt WITHOUT permission: denied via the ---
         // pointer guard, persisted state proven unchanged.
@@ -313,8 +313,8 @@ final class ForwardDraftFlowTest extends TestCase
         $afterDenial = $nodeRepository->find($entityId);
         $this->assertNotNull($afterDenial);
         $this->assertSame($archivedRevisionId, (int) $afterDenial->get('revision_id'));
-        $this->assertSame('archived', $afterDenial->get('workflow_state'));
-        $this->assertSame(0, (int) $afterDenial->get('status'));
+        $this->assertSame('archived', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($afterDenial));
+        $this->assertSame(0, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($afterDenial));
 
         $this->assertSame(
             0,
@@ -334,7 +334,7 @@ final class ForwardDraftFlowTest extends TestCase
         $rolledBack = $nodeRepository->rollback($entityId, $firstPublishedRevisionId);
 
         $this->assertSame('Original title', $rolledBack->get('title'), 'The rollback return value carries the restored content.');
-        $this->assertSame('published', $rolledBack->get('workflow_state'));
+        $this->assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($rolledBack));
         $newDraftTipRevisionId = (int) $rolledBack->get('revision_id');
         $this->assertNotSame($archivedRevisionId, $newDraftTipRevisionId);
         $this->assertNotSame($firstPublishedRevisionId, $newDraftTipRevisionId, 'Rollback copies content FORWARD as a new revision — it never re-points at the old one.');
@@ -349,7 +349,7 @@ final class ForwardDraftFlowTest extends TestCase
         $servedAfterRollback = $nodeRepository->find($entityId);
         $this->assertNotNull($servedAfterRollback);
         $this->assertSame('Same-state authorized edit', $servedAfterRollback->get('title'), 'find() still serves the archived content — the base row never moved.');
-        $this->assertSame('archived', $servedAfterRollback->get('workflow_state'));
+        $this->assertSame('archived', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($servedAfterRollback));
 
         $newDraftTip = $nodeRepository->loadWorkingCopy($entityId);
         $this->assertNotNull($newDraftTip);
@@ -475,7 +475,7 @@ final class ForwardDraftFlowTest extends TestCase
 
             $resolver = new SingleConnectionResolver($db);
 
-            return new EntityRepository(
+            return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                 $definition,
                 new SqlStorageDriver($resolver, $definition->getKeys()['id']),
                 $dispatcher,

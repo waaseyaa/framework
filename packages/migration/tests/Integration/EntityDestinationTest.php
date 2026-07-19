@@ -89,7 +89,7 @@ final class EntityDestinationTest extends TestCase
         $resolver = new SingleConnectionResolver($this->db);
         $driver = new SqlStorageDriver($resolver, 'id');
 
-        $this->repository = new EntityRepository(
+        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             entityType: $entityType,
             driver: $driver,
             eventDispatcher: $this->dispatcher,

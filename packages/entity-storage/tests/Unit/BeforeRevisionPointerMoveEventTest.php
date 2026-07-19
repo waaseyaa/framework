@@ -82,7 +82,7 @@ final class BeforeRevisionPointerMoveEventTest extends TestCase
         $handler->ensureRevisionTable();
 
         $resolver = new SingleConnectionResolver($this->db);
-        $repo = new EntityRepository(
+        $repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             new SqlStorageDriver($resolver),
             $this->dispatcher,
@@ -119,7 +119,7 @@ final class BeforeRevisionPointerMoveEventTest extends TestCase
         $handler->ensureTranslationRevisionTable();
 
         $resolver = new SingleConnectionResolver($this->db);
-        $repo = new EntityRepository(
+        $repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             new SqlStorageDriver($resolver),
             $this->dispatcher,

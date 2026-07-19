@@ -14,10 +14,12 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
@@ -72,9 +74,9 @@ final class SeoPublicControllerAccessTest extends TestCase
                 $database,
                 $accessHandler,
             ): EntityRepository {
-                (new SqlSchemaHandler($definition, $database))->ensureTable();
+                new SqlSchemaHandler($definition, $database)->ensureTable();
 
-                return new EntityRepository(
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                     $definition,
                     new SqlStorageDriver($resolver),
                     $dispatcher,
@@ -87,7 +89,7 @@ final class SeoPublicControllerAccessTest extends TestCase
         $entityTypeManager->registerEntityType(new EntityType(
             id: 'article',
             label: 'Article',
-            class: TestEntity::class,
+            class: SeoArticleEntity::class,
             keys: TestEntity::definitionKeys(),
         ));
 
@@ -165,4 +167,11 @@ final class SeoPublicControllerAccessTest extends TestCase
         self::assertStringContainsString('/article/1?format=md', $body, 'the publicly viewable published entity must be enumerated');
         self::assertStringNotContainsString('/article/2?format=md', $body, 'the access-restricted published entity must NOT be enumerated to anonymous');
     }
+}
+
+/** Explicitly classifies the policy input used by this surface fixture. */
+final class SeoArticleEntity extends TestEntity
+{
+    #[Field(type: 'boolean', required: false, read: FieldReadLevel::Public)]
+    public bool $restricted = false;
 }

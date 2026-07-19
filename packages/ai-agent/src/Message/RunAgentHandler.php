@@ -17,6 +17,8 @@ use Waaseyaa\AI\Agent\Enum\HitlMode;
 use Waaseyaa\AI\Agent\Enum\RunStatus;
 use Waaseyaa\AI\Agent\Provider\ProviderInterface;
 use Waaseyaa\AI\Agent\Repository\AgentRunRepository;
+use Waaseyaa\AI\Agent\Security\AgentRunWorkerFields;
+use Waaseyaa\AI\Agent\Security\AgentRunWorkerReaderInterface;
 use Waaseyaa\AI\Observability\Event\AgentRunTerminated;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
@@ -68,6 +70,7 @@ final class RunAgentHandler
         private readonly AgentRunBroadcasterInterface $broadcaster,
         private readonly ProviderInterface $provider,
         private readonly InitiatorAccountLoaderInterface $accountLoader,
+        private readonly AgentRunWorkerReaderInterface $workerReader,
         ?LoggerInterface $logger = null,
         ?\Closure $now = null,
         private readonly ?EventDispatcherInterface $eventDispatcher = null,
@@ -106,15 +109,16 @@ final class RunAgentHandler
 
         // Reload to observe the row with started_at + status='running'.
         $run = $this->runRepository->find($runId) ?? $run;
+        $workerFields = $this->workerReader->read($run);
 
         $this->broadcast($runId, 'run_started', [
-            'agent_id' => $run->get('agent_definition_id'),
+            'agent_id' => $workerFields->agentDefinitionId,
             'started_at' => $startedAt->format(\DateTimeInterface::ATOM),
         ]);
 
         try {
-            $definition = $this->resolveBundle($run);
-            $account = $this->accountLoader->load($run->getAccountId());
+            $definition = $this->resolveBundle($run, $workerFields);
+            $account = $this->accountLoader->load($workerFields->accountId);
 
             if (!$this->isCapabilityGranted($definition, $account)) {
                 $this->refuseForMissingCapability($runId, (string) $definition->requiresCapability);
@@ -123,7 +127,7 @@ final class RunAgentHandler
             }
 
             $messages = [
-                ['role' => 'user', 'content' => (string) $run->get('prompt')],
+                ['role' => 'user', 'content' => $workerFields->prompt],
             ];
             $tools = $this->allowedToolDescriptors($definition);
 
@@ -167,9 +171,10 @@ final class RunAgentHandler
 
             // Failed (or any other terminal). The executor already wrote
             // markTerminal(Failed, errorCode, errorMessage); emit the SSE.
+            $freshFields = $fresh !== null ? $this->workerReader->read($fresh) : null;
             $this->broadcast($runId, 'run_failed', [
-                'error_code' => $fresh?->get('error_code'),
-                'error_message' => $fresh?->get('error_message'),
+                'error_code' => $freshFields?->errorCode,
+                'error_message' => $freshFields?->errorMessage,
             ]);
         } catch (\Throwable $e) {
             // Final safety net: the handler MUST NOT propagate to the
@@ -320,9 +325,9 @@ final class RunAgentHandler
      *   3. A neutral fallback {@see AgentDefinition} (no system prompt,
      *      no tools) — keeps NullLlmProvider smoke tests viable.
      */
-    private function resolveBundle(AgentRun $run): AgentDefinition
+    private function resolveBundle(AgentRun $run, AgentRunWorkerFields $fields): AgentDefinition
     {
-        $bundleJson = (string) ($run->get('bundle_json') ?? '');
+        $bundleJson = $fields->bundleJson;
         if ($bundleJson !== '' && $bundleJson !== '{}') {
             try {
                 $decoded = json_decode($bundleJson, true, 512, JSON_THROW_ON_ERROR);
@@ -339,7 +344,7 @@ final class RunAgentHandler
             }
         }
 
-        $definitionId = $run->get('agent_definition_id');
+        $definitionId = $fields->agentDefinitionId;
         if (\is_string($definitionId) && $definitionId !== '' && $this->definitionRegistry->has($definitionId)) {
             return $this->definitionRegistry->get($definitionId);
         }
@@ -350,7 +355,7 @@ final class RunAgentHandler
             id: $definitionId ?? 'ad-hoc',
             label: 'Ad-hoc agent run',
             description: 'No registered definition; running with provider defaults.',
-            prompt: (string) ($run->get('prompt') ?? ''),
+            prompt: $fields->prompt,
         );
     }
 

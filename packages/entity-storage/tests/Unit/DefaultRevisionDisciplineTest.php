@@ -72,7 +72,7 @@ final class DefaultRevisionDisciplineTest extends TestCase
         $driver = new SqlStorageDriver($resolver);
         $revisionDriver = new RevisionableStorageDriver($resolver, $entityType);
 
-        return new EntityRepository(
+        return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             $driver,
             $this->dispatcher,
@@ -373,7 +373,7 @@ final class DefaultRevisionDisciplineTest extends TestCase
         $handler->ensureTable();
         $handler->ensureRevisionTable();
         $resolver = new SingleConnectionResolver($this->db);
-        $repo = new EntityRepository(
+        $repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             new SqlStorageDriver($resolver, fieldRegistry: $registry),
             $this->dispatcher,
@@ -600,7 +600,7 @@ final class DefaultRevisionDisciplineTest extends TestCase
         $handler->ensureTable();
 
         $resolver = new SingleConnectionResolver($this->db);
-        $repo = new EntityRepository(
+        $repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             new SqlStorageDriver($resolver),
             $this->dispatcher,

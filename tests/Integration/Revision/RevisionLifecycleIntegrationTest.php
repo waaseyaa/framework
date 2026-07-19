@@ -60,7 +60,7 @@ final class RevisionLifecycleIntegrationTest extends TestCase
             $this->events[] = 'revision_reverted';
         });
 
-        $this->repo = new EntityRepository($entityType, $driver, $dispatcher, $revisionDriver, $this->db);
+        $this->repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver($entityType, $driver, $dispatcher, $revisionDriver, $this->db);
     }
 
     /**
@@ -180,7 +180,7 @@ final class RevisionLifecycleIntegrationTest extends TestCase
         $resolver = new SingleConnectionResolver($this->db);
         $driver = new SqlStorageDriver($resolver);
         $dispatcher = new EventDispatcher();
-        $repo = new EntityRepository($entityType, $driver, $dispatcher);
+        $repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver($entityType, $driver, $dispatcher);
 
         $entity = new TestRevisionableEntity(
             values: ['title' => 'No revisions', 'id' => '1', 'uuid' => 'x'],

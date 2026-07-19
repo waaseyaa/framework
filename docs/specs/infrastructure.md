@@ -1,5 +1,7 @@
 # Infrastructure
 
+<!-- Spec reviewed 2026-07-18 - #2064 WP4 persistent-worker optimization retains only bounded immutable entity-layout blueprints and bounded JSON:API structural route templates. Every layout blueprint is rebound to current registry generations; every route template is cloned into a fresh router. Their complete isolation dimensions and cache exclusions are canonical in entity-field-read-boundary.md and api-layer.md; no request/security/runtime objects are retained. -->
+
 <!-- Spec reviewed 2026-07-17 - #2064 WP2 persistent dispatch signs QueueEnvelopeV1 only with an explicit reviewed factory; default dispatch retains a non-authorizing legacy payload plus deduplicated diagnostics. QueueServiceProvider accepts reviewed envelope-factory and scoped-authority-runtime implementations only through the kernel-services bus and otherwise uses NoAuthority. Workers confine resolved authority to the handler callback and clear it before queue side effects; CLI/API persistent retry preserves the original signed envelope and queue. Queue/cache diagnostics are production-wired at first-party write boundaries; state has no repository composition root, so MemoryState/SqlState expose the diagnostic at their constructor/write boundary. ProtectedCacheDimensions covers bundle/language/revision, and PublicStateProjection is Public-only; hard rejection remains WP4. -->
 
 <!-- Spec reviewed 2026-07-14 - R21 WP7 (#2010/#2000): request-reachable mutable process statics are blocked unless tools/access-hardening-baseline.php carries a reviewed, non-empty lifetime/isolation rationale. Safe alternatives are instance state, per-request execution context, or a structural cache keyed by every isolation dimension; unsafe fixture coverage runs in composer verify and blocking CI. -->
@@ -211,6 +213,8 @@ Every `Waaseyaa\Foundation\ServiceProvider\ServiceProvider` exposes a fixed set 
 | `setKernelServices(KernelServicesInterface): void` | `ProviderRegistry::discoverAndRegister()` | Inject the kernel-services bus before `register()`. |
 | `getEntityTypeRegistrations(): list<array{entityType, registrant}>` | `ProviderRegistry::discoverAndRegister()` | Entity-type registrations contributed during `register()`. |
 
+**Persistent-worker renderer ownership (#2064).** A fresh `HttpKernel` may be constructed for every request while multiple requests execute sequentially in one PHP worker process. `ThemeServiceProvider::register()` therefore constructs and publishes that provider instance's Twig environment before any provider `boot()` hook runs; `SsrServiceProvider` captures the same environment in its own provider instance, and its container bindings resolve that instance-owned value. Extension providers must never receive the static environment retained by an earlier kernel. The later Theme/SSR `boot()` hooks may finish wiring the current instance or support direct provider tests, but must not replace it with state from another request.
+
 > **`routes()` runs once at boot — resolve request-scoped services lazily inside the handler, not at route-build (#1611).** `BuiltinRouteRegistrar::register()` calls every provider's `routes()` exactly once during kernel boot. Any controller you construct *inside* `routes()` — and any service that controller captures via `$this->resolve(...)` at that point — is built a single time and reused for the lifetime of the process. If a captured service is request-scoped or otherwise ephemeral (e.g. `DatabaseInterface` / a connection that is replaced per request), the controller will keep using the stale boot-time instance and its **writes can be silently lost**. Do **not** resolve and `new` controllers eagerly in `routes()` when they depend on request-scoped state. Instead defer construction so resolution happens per dispatch: register a closure controller that resolves dependencies when the route is matched. See `Waaseyaa\AI\Agent\Routing\AgentRouteServiceProvider` for the canonical lazy-factory pattern (`$factory = fn() => $this->buildController();` wired into each route's controller callable). The eager style in `Waaseyaa\Routing\AuthOidcRouteServiceProvider` is only safe because the controllers it builds do not capture request-scoped DB state.
 
 **Tier 2 — abstract `ServiceProvider` capability methods.** Empty after mission #824 WP03 surfaces D–I lifted every kernel-invoked hook into a capability interface. New kernel-invoked hooks should enter as capability interfaces, never as no-op defaults on the abstract base. The contract test's `ABSTRACT_BASE_ONLY` allowlist enforces the empty invariant.
@@ -333,6 +337,22 @@ Real-time SSE delivery to the admin SPA is handled by the durable-log path: `Eve
 Event listeners for non-critical operations (broadcasting, logging, cache invalidation) must wrap in try-catch and log via `LoggerInterface` to avoid crashing the primary request. The project does not use `psr/log`; use `Waaseyaa\Foundation\Log\LoggerInterface` with `NullLogger` as the default fallback. Reserve `error_log()` only for last-resort fallbacks inside the logging infrastructure itself.
 
 ## Cache System
+
+### Process-lifetime structural cache boundary
+
+Request-reachable process statics remain deny-by-default under
+`tools/access-hardening-baseline.php`. A reviewed structural cache must be
+bounded, keyed by every input that can change its result, and hold only immutable
+construction data. A cache hit must rebind or clone that data into the current
+kernel/registry generation; a changed key must miss, and a stale generation must
+fail closed rather than fall back to older authority.
+
+The retained #2064 caches satisfy that rule narrowly: entity classification
+blueprints are rebound to fresh generation seals, and JSON:API structural route
+templates are cloned into fresh routers. Neither cache may retain requests,
+accounts/principals, entities or values, access decisions, capabilities, audit
+records, providers, services, runtime-bound controllers, routers, matchers,
+generators, or mutable route collections.
 
 ### CacheBackendInterface
 

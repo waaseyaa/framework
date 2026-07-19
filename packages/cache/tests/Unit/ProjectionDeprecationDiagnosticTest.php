@@ -16,6 +16,55 @@ use Waaseyaa\Entity\EntityBase;
 
 final class ProjectionDeprecationDiagnosticTest extends TestCase
 {
+    public function test_default_cache_boundary_rejects_nested_entity_before_write(): void
+    {
+        $backend = new MemoryBackend();
+        $entity = new class ([], 'user') extends EntityBase {};
+
+        try {
+            $backend->set('user:1', ['entity' => $entity]);
+            self::fail('The production cache boundary accepted an entity payload.');
+        } catch (EntityProjectionWriteForbidden) {
+        }
+
+        self::assertFalse($backend->get('user:1'));
+    }
+
+    public function test_default_cache_boundary_rejects_entity_after_a_large_public_projection(): void
+    {
+        $backend = new MemoryBackend();
+        $entity = new class ([], 'user') extends EntityBase {};
+        $payload = array_fill(0, 1_001, null);
+        $payload[] = $entity;
+
+        try {
+            $backend->set('user:large', $payload);
+            self::fail('The production cache boundary retained an entity-bearing projection.');
+        } catch (EntityProjectionWriteForbidden) {
+        }
+
+        self::assertFalse($backend->get('user:large'));
+    }
+
+    public function test_default_cache_boundary_accepts_a_large_scalar_projection(): void
+    {
+        $backend = new MemoryBackend();
+        $payload = array_fill(0, 2_000, 'public');
+
+        $backend->set('public:large', $payload);
+
+        self::assertSame($payload, $backend->get('public:large')->data);
+    }
+
+    public function test_default_cache_boundary_rejects_an_uninspectable_compound_projection(): void
+    {
+        $backend = new MemoryBackend();
+        $payload = array_fill(0, 1_001, []);
+
+        $this->expectException(EntityProjectionWriteForbidden::class);
+        $backend->set('compound:large', $payload);
+    }
+
     public function test_activation_rejects_nested_entity_before_cache_write(): void
     {
         $diagnostic = ProjectionDeprecationDiagnostic::forEntityPayloads(

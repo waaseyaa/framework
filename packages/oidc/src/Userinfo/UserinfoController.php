@@ -7,8 +7,10 @@ namespace Waaseyaa\Oidc\Userinfo;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Waaseyaa\Access\AccountPrincipalFactoryInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
+use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Oidc\Token\AccessTokenIssuer;
 use Waaseyaa\User\User;
@@ -32,7 +34,9 @@ final readonly class UserinfoController
         private AccessTokenIssuer $accessTokenIssuer,
         private EntityTypeManager $entityTypeManager,
         private EntityAccessHandler $entityAccessHandler,
+        private AccountPrincipalFactoryInterface $principalFactory,
         private UserinfoClaimResolver $claimResolver,
+        private UserInternalFieldReaderInterface $userInternalFields,
     ) {}
 
     public function __invoke(Request $request): Response
@@ -84,6 +88,8 @@ final readonly class UserinfoController
         $scope = isset($token['scope']) && is_string($token['scope']) && $token['scope'] !== '' ? $token['scope'] : 'openid';
         $scopes = array_filter(explode(' ', $scope), static fn(string $s): bool => $s !== '');
         $candidateClaims = $this->claimResolver->claimsFor(array_values($scopes));
+        $principal = $this->principalFactory->fromAccount($user);
+        $profileAccessible = $this->entityAccessHandler->check($user, 'view', $principal)->isAllowed();
 
         // Build response — always include sub, gate others through field-access
         $response = ['sub' => (string) $user->id()];
@@ -91,6 +97,9 @@ final readonly class UserinfoController
         foreach ($candidateClaims as $claim) {
             if ($claim === 'sub') {
                 continue; // already set
+            }
+            if (!$profileAccessible && in_array($claim, ['name', 'preferred_username', 'updated_at'], true)) {
+                continue;
             }
 
             $fieldName = $this->claimResolver->fieldNameForClaim($claim);
@@ -105,7 +114,14 @@ final readonly class UserinfoController
                 continue;
             }
 
-            $value = $user->get($fieldName);
+            $value = match ($fieldName) {
+                'mail' => $this->userInternalFields->verification($user)->mail,
+                'email_verified' => $this->userInternalFields->verification($user)->emailVerified,
+                'name' => $this->userInternalFields->sessionIdentity($user)->name,
+                // Internal fields require a purpose-specific audited reader;
+                // unsupported claims are omitted rather than read generically.
+                default => null,
+            };
             if ($value !== null) {
                 $response[$claim] = $value;
             }

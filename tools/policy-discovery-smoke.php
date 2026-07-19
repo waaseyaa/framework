@@ -25,7 +25,7 @@ $actual = [
     'schedule_entries' => count($manifest->scheduleEntries),
 ];
 $expected = [
-    'policies' => 19,
+    'policies' => 20,
     'agent_tools' => 21,
     'formatters' => 6,
     'middleware' => 16,

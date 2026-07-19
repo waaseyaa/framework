@@ -24,6 +24,7 @@ use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\Messaging\EventSubscriber\ThreadParticipantBootstrapSubscriber;
 use Waaseyaa\Messaging\MessageThread;
 use Waaseyaa\Messaging\MessagingAccessPolicy;
+use Waaseyaa\Messaging\Tests\Unit\MessagingFieldReadTestTrait;
 use Waaseyaa\Messaging\ThreadMessage;
 use Waaseyaa\Messaging\ThreadParticipant;
 
@@ -40,12 +41,23 @@ use Waaseyaa\Messaging\ThreadParticipant;
 #[CoversClass(ThreadParticipantBootstrapSubscriber::class)]
 final class ThreadParticipantBootstrapSubscriberTest extends TestCase
 {
+    use MessagingFieldReadTestTrait {
+        setUp as private setUpFieldReads;
+        tearDown as private tearDownFieldReads;
+    }
+
     private const CREATOR_UID = 100;
     private const OUTSIDER_UID = 200;
+
+    protected function setUp(): void
+    {
+        $this->setUpFieldReads();
+    }
 
     protected function tearDown(): void
     {
         ContentEntityBase::setFieldRegistry(null);
+        $this->tearDownFieldReads();
     }
 
     #[Test]
@@ -65,7 +77,7 @@ final class ThreadParticipantBootstrapSubscriberTest extends TestCase
         ]);
 
         self::assertCount(1, $rows, 'The creating account must be auto-seeded as a thread_participant.');
-        self::assertSame('owner', $rows[0]->get('role'));
+        self::assertSame('owner', $this->readMessaging(fn(): mixed => $rows[0]->get('role')));
     }
 
     #[Test]
@@ -164,11 +176,11 @@ final class ThreadParticipantBootstrapSubscriberTest extends TestCase
             $dispatcher,
             null,
             function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $resolver, $database, $registry): EntityRepository {
-                (new SqlSchemaHandler($definition, $database, $registry))->ensureTable();
+                new SqlSchemaHandler($definition, $database, $registry)->ensureTable();
 
                 $idKey = $definition->getKeys()['id'] ?? 'id';
 
-                return new EntityRepository(
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                     $definition,
                     new SqlStorageDriver($resolver, $idKey),
                     $dispatcher,

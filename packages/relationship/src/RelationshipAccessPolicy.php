@@ -8,15 +8,35 @@ use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Gate\PolicyAttribute;
+use Waaseyaa\Access\ProtectedEntityReadPolicyInterface;
+use Waaseyaa\Access\ProtectedFieldReadPolicyInterface;
+use Waaseyaa\Access\ProtectedReadPolicyProviderInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityValues;
 
 #[PolicyAttribute(entityType: 'relationship')]
-final class RelationshipAccessPolicy implements AccessPolicyInterface
+final class RelationshipAccessPolicy implements AccessPolicyInterface, ProtectedReadPolicyProviderInterface
 {
+    private readonly RelationshipMaintenanceReader $maintenanceReader;
+
+    public function __construct(?RelationshipMaintenanceReader $maintenanceReader = null)
+    {
+        $this->maintenanceReader = $maintenanceReader ?? new RelationshipMaintenanceReader();
+    }
+
     public function appliesTo(string $entityTypeId): bool
     {
         return $entityTypeId === 'relationship';
+    }
+
+    public function protectedEntityReadPolicy(): ?ProtectedEntityReadPolicyInterface
+    {
+        return null;
+    }
+
+    public function protectedFieldReadPolicy(): ProtectedFieldReadPolicyInterface
+    {
+        return new RelationshipProtectedFieldReadPolicy();
     }
 
     public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
@@ -25,7 +45,9 @@ final class RelationshipAccessPolicy implements AccessPolicyInterface
             return AccessResult::allowed('User has administer nodes permission.');
         }
 
-        $status = EntityValues::statusToInt($entity->get('status'));
+        $status = $entity instanceof Relationship
+            ? $this->maintenanceReader->read($entity)->status
+            : EntityValues::statusToInt($entity->get('status'));
 
         return match ($operation) {
             'view' => $status === 1 && $account->hasPermission('access content')

@@ -12,12 +12,14 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\Backend\BackendRegistrar;
-use Waaseyaa\EntityStorage\Backend\FieldStorageBackendInterface;
-use Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderInterface;
+use Waaseyaa\EntityStorage\Backend\FieldStorageBackendV2Interface;
+use Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderV2Interface;
 use Waaseyaa\EntityStorage\BackendResolver;
 use Waaseyaa\EntityStorage\Exception\UnsupportedQueryException;
 use Waaseyaa\EntityStorage\Query\DefinitionValidator;
 use Waaseyaa\EntityStorage\Query\EntityQuery;
+use Waaseyaa\EntityStorage\Tests\Support\PermissiveFieldStorageGatewayAudit;
+use Waaseyaa\EntityStorage\Tests\Support\V2GatewayTestBackendTrait;
 use Waaseyaa\Field\FieldDefinition;
 
 /**
@@ -55,7 +57,7 @@ final class DefinitionValidatorTest extends TestCase
             class: \stdClass::class,
             _fieldDefinitions: [
                 // Explicitly routed to sql-column, which supports querying.
-                'status' => (new FieldDefinition(name: 'status', type: 'string'))
+                'status' => new FieldDefinition(name: 'status', type: 'string')
                     ->storedIn('sql-column')
                     ->indexed(),
             ],
@@ -88,7 +90,7 @@ final class DefinitionValidatorTest extends TestCase
             class: \stdClass::class,
             _fieldDefinitions: [
                 // Indexed field routed explicitly to sql-blob, which cannot query.
-                'status' => (new FieldDefinition(name: 'status', type: 'string'))
+                'status' => new FieldDefinition(name: 'status', type: 'string')
                     ->storedIn('sql-blob')
                     ->indexed(),
             ],
@@ -118,7 +120,7 @@ final class DefinitionValidatorTest extends TestCase
             label: 'Article',
             class: \stdClass::class,
             _fieldDefinitions: [
-                'status' => (new FieldDefinition(name: 'status', type: 'string'))
+                'status' => new FieldDefinition(name: 'status', type: 'string')
                     ->storedIn('sql-blob')
                     ->indexed(),
             ],
@@ -157,7 +159,7 @@ final class DefinitionValidatorTest extends TestCase
             class: \stdClass::class,
             _fieldDefinitions: [
                 // NOT indexed — no declared query need.
-                'body' => (new FieldDefinition(name: 'body', type: 'text'))->storedIn('sql-blob'),
+                'body' => new FieldDefinition(name: 'body', type: 'text')->storedIn('sql-blob'),
             ],
         );
 
@@ -187,7 +189,7 @@ final class DefinitionValidatorTest extends TestCase
         TestBackendProviderRegistry::register(new TestBackend($id, $supportsQuery));
 
         $fqcn = TestBackendProvider::class;
-        $registrar = new BackendRegistrar([$fqcn], [$fqcn]);
+        $registrar = new BackendRegistrar([$fqcn], [$fqcn], new PermissiveFieldStorageGatewayAudit());
         $registrar->build();
 
         return $registrar;
@@ -204,14 +206,14 @@ final class DefinitionValidatorTest extends TestCase
  */
 final class TestBackendProviderRegistry
 {
-    private static ?FieldStorageBackendInterface $backend = null;
+    private static ?FieldStorageBackendV2Interface $backend = null;
 
-    public static function register(FieldStorageBackendInterface $backend): void
+    public static function register(FieldStorageBackendV2Interface $backend): void
     {
         self::$backend = $backend;
     }
 
-    public static function get(): FieldStorageBackendInterface
+    public static function get(): FieldStorageBackendV2Interface
     {
         if (self::$backend === null) {
             throw new \LogicException('TestBackendProviderRegistry: no backend registered.');
@@ -230,9 +232,9 @@ final class TestBackendProviderRegistry
  * Framework-owned provider that fetches its backend from the static registry.
  * Must be constructable with no arguments (BackendRegistrar::build() requirement).
  */
-final class TestBackendProvider implements IsFrameworkBackendProviderInterface
+final class TestBackendProvider implements IsFrameworkBackendProviderV2Interface
 {
-    public function fieldStorageBackends(): array
+    public function fieldStorageBackendsV2(): array
     {
         return [TestBackendProviderRegistry::get()];
     }
@@ -241,8 +243,10 @@ final class TestBackendProvider implements IsFrameworkBackendProviderInterface
 /**
  * Minimal backend implementation for validator tests.
  */
-final class TestBackend implements FieldStorageBackendInterface
+final class TestBackend implements FieldStorageBackendV2Interface
 {
+    use V2GatewayTestBackendTrait;
+
     public function __construct(
         private readonly string $backendId,
         private readonly bool $querySupported,

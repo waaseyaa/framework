@@ -81,7 +81,7 @@ final class AuditAttributionTest extends TestCase
             new EntityLifecycleAuditListener($this->writer, accountContext: $this->context),
         );
 
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             new EntityType(
                 id: 'attribution_subject',
                 label: 'Attribution subject',
@@ -113,7 +113,7 @@ final class AuditAttributionTest extends TestCase
             new EntityLifecycleAuditListener($this->writer, accountContext: $this->context),
         );
 
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             new EntityType(
                 id: 'attribution_subject',
                 label: 'Attribution subject',

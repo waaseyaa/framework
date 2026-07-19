@@ -15,6 +15,7 @@ use Waaseyaa\Access\Policy\PublishedContentAccessPolicy;
 use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\JsonApiResource;
 use Waaseyaa\Api\ResourceSerializer;
+use Waaseyaa\Api\Tests\Support\AccountScopedJsonApiController;
 use Waaseyaa\Config\ConfigFactory;
 use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\Storage\MemoryStorage;
@@ -74,8 +75,16 @@ final class WorkingCopyPointerAwarenessFlowTest extends TestCase
             new PublishedContentAccessPolicy($entityTypeManager),
         ]);
         $anon = new AnonymousUser();
-        $anonController = new JsonApiController($entityTypeManager, new ResourceSerializer($entityTypeManager), $accessHandler, $anon);
-        $editorController = new JsonApiController($entityTypeManager, new ResourceSerializer($entityTypeManager), $accessHandler, $editor);
+        $anonController = new AccountScopedJsonApiController(
+            new JsonApiController($entityTypeManager, new ResourceSerializer($entityTypeManager), $accessHandler, $anon),
+            $accessHandler,
+            $anon,
+        );
+        $editorController = new AccountScopedJsonApiController(
+            new JsonApiController($entityTypeManager, new ResourceSerializer($entityTypeManager), $accessHandler, $editor),
+            $accessHandler,
+            $editor,
+        );
 
         // --- Publish a node. ---
         $node = new Node(['title' => 'Original title', 'type' => 'article', 'slug' => 'original-title']);
@@ -181,7 +190,11 @@ final class WorkingCopyPointerAwarenessFlowTest extends TestCase
             new NodeAccessPolicy(),
             new PublishedContentAccessPolicy($entityTypeManager),
         ]);
-        $controller = new JsonApiController($entityTypeManager, new ResourceSerializer($entityTypeManager), $accessHandler, $viewer);
+        $controller = new AccountScopedJsonApiController(
+            new JsonApiController($entityTypeManager, new ResourceSerializer($entityTypeManager), $accessHandler, $viewer),
+            $accessHandler,
+            $viewer,
+        );
 
         // Sanity: the plain GET (no workingCopy) succeeds for this account.
         $plainGet = $controller->show('node', $entityId);
@@ -209,7 +222,7 @@ final class WorkingCopyPointerAwarenessFlowTest extends TestCase
         $node->enforceIsNew();
         $nodeRepository->save($node);
         $entityId = (string) $node->id();
-        self::assertSame('draft', $nodeRepository->find($entityId)?->get('workflow_state'));
+        self::assertSame('draft', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($nodeRepository->find($entityId)));
 
         $stranger = $this->account(13, []);
         $accountContext->set($stranger);
@@ -217,14 +230,22 @@ final class WorkingCopyPointerAwarenessFlowTest extends TestCase
             new NodeAccessPolicy(),
             new PublishedContentAccessPolicy($entityTypeManager),
         ]);
-        $controller = new JsonApiController($entityTypeManager, new ResourceSerializer($entityTypeManager), $accessHandler, $stranger);
+        $controller = new AccountScopedJsonApiController(
+            new JsonApiController($entityTypeManager, new ResourceSerializer($entityTypeManager), $accessHandler, $stranger),
+            $accessHandler,
+            $stranger,
+        );
 
         // World A: the SAME probe id, but genuinely missing (mirrors
         // JsonApiControllerDeniedNotFoundTest's "same probe id through two
         // worlds" technique — a byte comparison across DIFFERENT ids would
         // spuriously fail on the id embedded in the detail message, which is
         // not what this test pins).
-        $missingProbeController = new JsonApiController($entityTypeManager, new ResourceSerializer($entityTypeManager), $accessHandler, $stranger);
+        $missingProbeController = new AccountScopedJsonApiController(
+            new JsonApiController($entityTypeManager, new ResourceSerializer($entityTypeManager), $accessHandler, $stranger),
+            $accessHandler,
+            $stranger,
+        );
         $missingDoc = $missingProbeController->show('node', $entityId . '00');
         self::assertSame(404, $missingDoc->statusCode, 'sanity: the probe id must not resolve to a real row');
 
@@ -262,7 +283,11 @@ final class WorkingCopyPointerAwarenessFlowTest extends TestCase
             new NodeAccessPolicy(),
             new PublishedContentAccessPolicy($entityTypeManager),
         ]);
-        $controller = new JsonApiController($entityTypeManager, new ResourceSerializer($entityTypeManager), $accessHandler, $editor);
+        $controller = new AccountScopedJsonApiController(
+            new JsonApiController($entityTypeManager, new ResourceSerializer($entityTypeManager), $accessHandler, $editor),
+            $accessHandler,
+            $editor,
+        );
 
         $plainGet = $controller->show('node', $entityId);
         $workingCopyGet = $controller->show('node', $entityId, ['workingCopy' => '1']);
@@ -288,7 +313,11 @@ final class WorkingCopyPointerAwarenessFlowTest extends TestCase
         $entityId = (string) $node->id();
 
         $accessHandler = new EntityAccessHandler([new NodeAccessPolicy()]);
-        $controller = new JsonApiController($entityTypeManager, new ResourceSerializer($entityTypeManager), $accessHandler, $author);
+        $controller = new AccountScopedJsonApiController(
+            new JsonApiController($entityTypeManager, new ResourceSerializer($entityTypeManager), $accessHandler, $author),
+            $accessHandler,
+            $author,
+        );
 
         $patchDoc = $controller->update('node', $entityId, [
             'data' => ['type' => 'node', 'attributes' => ['title' => 'Edited without any workflow binding']],
@@ -320,12 +349,15 @@ final class WorkingCopyPointerAwarenessFlowTest extends TestCase
      */
     private function account(int $id, array $permissions): AccountInterface
     {
-        return new class ($id, $permissions) implements AccountInterface {
+        return new class ($id, $permissions) implements \Waaseyaa\Access\AuthorizationPrincipalInterface {
             public function __construct(private readonly int $accountId, private readonly array $permissions) {}
             public function id(): int|string { return $this->accountId; }
             public function hasPermission(string $permission): bool { return \in_array($permission, $this->permissions, true); }
             public function getRoles(): array { return []; }
             public function isAuthenticated(): bool { return true; }
+            public function claimsGeneration(): string { return 'workflow-pointer-test'; }
+            public function tenantId(): ?string { return null; }
+            public function communityId(): ?string { return null; }
         };
     }
 
@@ -362,7 +394,7 @@ final class WorkingCopyPointerAwarenessFlowTest extends TestCase
 
             $resolver = new SingleConnectionResolver($db);
 
-            return new EntityRepository(
+            return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                 $definition,
                 new SqlStorageDriver($resolver, $definition->getKeys()['id']),
                 $dispatcher,

@@ -5,10 +5,17 @@ declare(strict_types=1);
 namespace Waaseyaa\Workflows;
 
 use Waaseyaa\Entity\EntityInterface;
-use Waaseyaa\Entity\EntityValues;
+use Waaseyaa\Workflows\Read\WorkflowEntitySnapshotReader;
 
 final class WorkflowVisibility
 {
+    private readonly WorkflowEntitySnapshotReader $snapshotReader;
+
+    public function __construct(?WorkflowEntitySnapshotReader $snapshotReader = null)
+    {
+        $this->snapshotReader = $snapshotReader ?? new WorkflowEntitySnapshotReader();
+    }
+
     /**
      * @param array<string, mixed> $values
      */
@@ -38,7 +45,26 @@ final class WorkflowVisibility
 
     public function isNodePublicForEntity(EntityInterface $entity): bool
     {
-        return $this->isNodePublic(EntityValues::toCastAwareMap($entity));
+        $snapshot = $this->snapshotReader->read($entity);
+
+        return $this->isNodePublic([
+            'workflow_state' => $snapshot->workflowState,
+            'status' => $snapshot->status,
+        ]);
+    }
+
+    public function isEntityPublicForEntity(EntityInterface $entity): bool
+    {
+        $snapshot = $this->snapshotReader->read($entity);
+
+        if ($entity->getEntityTypeId() === 'node') {
+            return $this->isNodePublic([
+                'workflow_state' => $snapshot->workflowState,
+                'status' => $snapshot->status,
+            ]);
+        }
+
+        return $this->isStatusPublic($snapshot->status);
     }
 
     /**

@@ -200,7 +200,7 @@ final class SsrPreviewWorkingCopyTest extends TestCase
 
             $resolver = new SingleConnectionResolver($db);
 
-            return new EntityRepository(
+            return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                 $definition,
                 new SqlStorageDriver($resolver, $definition->getKeys()['id']),
                 $dispatcher,

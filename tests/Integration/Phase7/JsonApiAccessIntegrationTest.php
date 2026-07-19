@@ -8,19 +8,25 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\FieldReadGuard;
 use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Node\Node;
 use Waaseyaa\Node\NodeAccessPolicy;
+use Waaseyaa\Node\NodeAuthorizationSnapshotReader;
+use Waaseyaa\Tests\Support\AuthorizationPrincipalFactory;
 use Waaseyaa\User\AnonymousUser;
-use Waaseyaa\User\User;
 
 /**
  * JSON:API operations with access control integration tests.
@@ -34,6 +40,7 @@ final class JsonApiAccessIntegrationTest extends TestCase
     private InMemoryEntityStorage $storage;
     private EntityTypeManager $entityTypeManager;
     private EntityAccessHandler $accessHandler;
+    private AccountFieldReadScope $fieldReadScope;
 
     protected function setUp(): void
     {
@@ -60,6 +67,7 @@ final class JsonApiAccessIntegrationTest extends TestCase
             // entity key). Mirrors Node's real #[Field]-declared shape for
             // the two non-key fields this suite writes via attributes.
             _fieldDefinitions: [
+                'type' => new FieldDefinition(name: 'type', type: 'string', read: \Waaseyaa\Entity\FieldReadLevel::Public),
                 'status' => new FieldDefinition(name: 'status', type: 'boolean'),
                 'uid' => new FieldDefinition(name: 'uid', type: 'entity_reference'),
             ],
@@ -68,9 +76,14 @@ final class JsonApiAccessIntegrationTest extends TestCase
         $this->accessHandler = new EntityAccessHandler([
             new NodeAccessPolicy(),
         ]);
+        $this->fieldReadScope = new AccountFieldReadScope();
+        EntityReadRuntime::installGuard(new FieldReadGuard(
+            $this->fieldReadScope,
+            $this->accessHandler->checkProtectedFieldRead(...),
+        ));
     }
 
-    private function buildController(User|AnonymousUser $account): JsonApiController
+    private function buildController(AccountInterface $account): JsonApiController
     {
         $serializer = new ResourceSerializer($this->entityTypeManager);
 
@@ -87,6 +100,11 @@ final class JsonApiAccessIntegrationTest extends TestCase
         $serializer = new ResourceSerializer($this->entityTypeManager);
 
         return new JsonApiController($this->entityTypeManager, $serializer);
+    }
+
+    private function readAs(AuthorizationPrincipalInterface $principal, callable $callback): mixed
+    {
+        return $this->fieldReadScope->run($principal, $callback);
     }
 
     private function seedPublishedNode(string $title, int $authorUid = 1, string $type = 'article'): Node
@@ -119,7 +137,7 @@ final class JsonApiAccessIntegrationTest extends TestCase
     public function authenticatedUserWithAccessContentCanViewPublishedNode(): void
     {
         $node = $this->seedPublishedNode('Public Article');
-        $user = new User([
+        $user = AuthorizationPrincipalFactory::fromValues([
             'uid' => 10,
             'name' => 'reader',
             'permissions' => ['access content'],
@@ -163,7 +181,7 @@ final class JsonApiAccessIntegrationTest extends TestCase
         // below for the create-without-status floor this test used to cover
         // incidentally). Omit `status` here; this test's own point is that a
         // plain create-permission account can still create at all.
-        $user = new User([
+        $user = AuthorizationPrincipalFactory::fromValues([
             'uid' => 5,
             'name' => 'author',
             'permissions' => ['access content', 'create article content'],
@@ -194,7 +212,7 @@ final class JsonApiAccessIntegrationTest extends TestCase
         // to published (1) in its constructor when the caller omits it. An
         // account that may create but not edit `status`/`workflow_state` must
         // not get born-published content out of that constructor default.
-        $author = new User([
+        $author = AuthorizationPrincipalFactory::fromValues([
             'uid' => 5,
             'name' => 'author',
             'permissions' => ['access content', 'create article content'],
@@ -217,13 +235,13 @@ final class JsonApiAccessIntegrationTest extends TestCase
         $this->assertSame(201, $doc->statusCode);
         $uuid = $doc->toArray()['data']['id'];
         $stored = $this->storage->load($this->findNodeIdByUuid($uuid));
-        $this->assertSame(0, (int) $stored->get('status'));
+        $this->assertFalse(new NodeAuthorizationSnapshotReader()->read($stored)->published);
     }
 
     #[Test]
     public function createWithoutStatusDefaultsToDraftEvenForPublishers(): void
     {
-        $publisher = new User([
+        $publisher = AuthorizationPrincipalFactory::fromValues([
             'uid' => 6,
             'name' => 'editor',
             'permissions' => ['access content', 'create article content', NodeAccessPolicy::PUBLISH_PERMISSION],
@@ -246,13 +264,13 @@ final class JsonApiAccessIntegrationTest extends TestCase
         $this->assertSame(201, $doc->statusCode);
         $uuid = $doc->toArray()['data']['id'];
         $stored = $this->storage->load($this->findNodeIdByUuid($uuid));
-        $this->assertSame(0, (int) $stored->get('status'));
+        $this->assertFalse(new NodeAuthorizationSnapshotReader()->read($stored)->published);
     }
 
     #[Test]
     public function userWithoutCreatePermissionGets403OnStore(): void
     {
-        $user = new User([
+        $user = AuthorizationPrincipalFactory::fromValues([
             'uid' => 5,
             'name' => 'reader',
             'permissions' => ['access content'],
@@ -277,7 +295,7 @@ final class JsonApiAccessIntegrationTest extends TestCase
     public function userWithEditOwnPermissionCanUpdateOwnNode(): void
     {
         $node = $this->seedPublishedNode('Own Article', 5, 'article');
-        $user = new User([
+        $user = AuthorizationPrincipalFactory::fromValues([
             'uid' => 5,
             'name' => 'author',
             'permissions' => ['access content', 'edit own article content'],
@@ -308,7 +326,7 @@ final class JsonApiAccessIntegrationTest extends TestCase
         // `administer nodes`. Before NodeAccessPolicy gained field-level access,
         // this PATCH succeeded (mass-assignment).
         $node = $this->seedPublishedNode('Own Article', 5, 'article');
-        $user = new User([
+        $user = AuthorizationPrincipalFactory::fromValues([
             'uid' => 5,
             'name' => 'author',
             'permissions' => ['access content', 'edit own article content'],
@@ -336,7 +354,7 @@ final class JsonApiAccessIntegrationTest extends TestCase
         // existing node (it can move the node to a bundle with different field
         // access / visibility rules).
         $node = $this->seedPublishedNode('Own Article', 5, 'article');
-        $user = new User([
+        $user = AuthorizationPrincipalFactory::fromValues([
             'uid' => 5,
             'name' => 'author',
             'permissions' => ['access content', 'edit own article content'],
@@ -354,14 +372,14 @@ final class JsonApiAccessIntegrationTest extends TestCase
             ],
         ]);
 
-        $this->assertSame(403, $doc->statusCode);
+        $this->assertSame(422, $doc->statusCode);
     }
 
     #[Test]
     public function userCannotUpdateOtherUsersNodes(): void
     {
         $node = $this->seedPublishedNode('Other Author Article', 99, 'article');
-        $user = new User([
+        $user = AuthorizationPrincipalFactory::fromValues([
             'uid' => 5,
             'name' => 'limited_user',
             'permissions' => ['access content', 'edit own article content'],
@@ -385,7 +403,7 @@ final class JsonApiAccessIntegrationTest extends TestCase
     #[Test]
     public function adminCanPerformAllOperations(): void
     {
-        $admin = new User([
+        $admin = AuthorizationPrincipalFactory::fromValues([
             'uid' => 1,
             'name' => 'admin',
             'permissions' => ['administer nodes'],
@@ -395,7 +413,7 @@ final class JsonApiAccessIntegrationTest extends TestCase
         $controller = $this->buildController($admin);
 
         // Store.
-        $storeDoc = $controller->store('node', [
+        $storeDoc = $this->readAs($admin, fn() => $controller->store('node', [
             'data' => [
                 'type' => 'node',
                 'attributes' => [
@@ -405,18 +423,18 @@ final class JsonApiAccessIntegrationTest extends TestCase
                     'status' => 1,
                 ],
             ],
-        ]);
+        ]));
         $this->assertSame(201, $storeDoc->statusCode);
         $storeArray = $storeDoc->toArray();
         $uuid = $storeArray['data']['id'];
         $nodeId = $this->findNodeIdByUuid($uuid);
 
         // Show.
-        $showDoc = $controller->show('node', $nodeId);
+        $showDoc = $this->readAs($admin, fn() => $controller->show('node', $nodeId));
         $this->assertSame(200, $showDoc->statusCode);
 
         // Update.
-        $updateDoc = $controller->update('node', $nodeId, [
+        $updateDoc = $this->readAs($admin, fn() => $controller->update('node', $nodeId, [
             'data' => [
                 'type' => 'node',
                 'id' => $uuid,
@@ -424,7 +442,7 @@ final class JsonApiAccessIntegrationTest extends TestCase
                     'title' => 'Admin Updated',
                 ],
             ],
-        ]);
+        ]));
         $this->assertSame(200, $updateDoc->statusCode);
 
         // Delete.
@@ -436,7 +454,7 @@ final class JsonApiAccessIntegrationTest extends TestCase
     public function adminCanViewUnpublishedNodes(): void
     {
         $node = $this->seedUnpublishedNode('Draft Article', 99);
-        $admin = new User([
+        $admin = AuthorizationPrincipalFactory::fromValues([
             'uid' => 1,
             'name' => 'admin',
             'permissions' => ['administer nodes'],
@@ -444,7 +462,7 @@ final class JsonApiAccessIntegrationTest extends TestCase
         ]);
 
         $controller = $this->buildController($admin);
-        $doc = $controller->show('node', $node->id());
+        $doc = $this->readAs($admin, fn() => $controller->show('node', $node->id()));
 
         $this->assertSame(200, $doc->statusCode);
     }
@@ -453,7 +471,7 @@ final class JsonApiAccessIntegrationTest extends TestCase
     public function regularUserCannotViewUnpublishedNodes(): void
     {
         $node = $this->seedUnpublishedNode('Draft Article', 99);
-        $user = new User([
+        $user = AuthorizationPrincipalFactory::fromValues([
             'uid' => 10,
             'name' => 'reader',
             'permissions' => ['access content'],
@@ -471,7 +489,7 @@ final class JsonApiAccessIntegrationTest extends TestCase
     public function authorCanViewOwnUnpublishedNode(): void
     {
         $node = $this->seedUnpublishedNode('My Draft', 5);
-        $author = new User([
+        $author = AuthorizationPrincipalFactory::fromValues([
             'uid' => 5,
             'name' => 'author',
             'permissions' => ['access content', 'view own unpublished content'],
@@ -493,7 +511,7 @@ final class JsonApiAccessIntegrationTest extends TestCase
         $this->seedUnpublishedNode('Draft One', 99);
         $this->seedUnpublishedNode('Draft Two', 99);
 
-        $reader = new User([
+        $reader = AuthorizationPrincipalFactory::fromValues([
             'uid' => 10,
             'name' => 'reader',
             'permissions' => ['access content'],
@@ -521,7 +539,7 @@ final class JsonApiAccessIntegrationTest extends TestCase
         $this->seedUnpublishedNode('Draft One', 99);
         $this->seedUnpublishedNode('Draft Two', 99);
 
-        $reader = new User([
+        $reader = AuthorizationPrincipalFactory::fromValues([
             'uid' => 10,
             'name' => 'reader',
             'permissions' => ['access content'],
@@ -541,7 +559,7 @@ final class JsonApiAccessIntegrationTest extends TestCase
     public function userWithDeleteOwnPermissionCanDeleteOwnNode(): void
     {
         $node = $this->seedPublishedNode('My Article', 5, 'article');
-        $user = new User([
+        $user = AuthorizationPrincipalFactory::fromValues([
             'uid' => 5,
             'name' => 'author',
             'permissions' => ['access content', 'delete own article content'],
@@ -558,7 +576,7 @@ final class JsonApiAccessIntegrationTest extends TestCase
     public function userCannotDeleteOtherUsersNodes(): void
     {
         $node = $this->seedPublishedNode('Other Article', 99, 'article');
-        $user = new User([
+        $user = AuthorizationPrincipalFactory::fromValues([
             'uid' => 5,
             'name' => 'limited_user',
             'permissions' => ['access content', 'delete own article content'],

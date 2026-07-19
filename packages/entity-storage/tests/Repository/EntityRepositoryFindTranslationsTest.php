@@ -64,7 +64,7 @@ final class EntityRepositoryFindTranslationsTest extends TestCase
                 'langcode' => 'langcode',
             ],
         );
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             entityType: $entityType,
             driver: $driver,
             eventDispatcher: new EventDispatcher(),
@@ -101,7 +101,7 @@ final class EntityRepositoryFindTranslationsTest extends TestCase
             ]);
             $driver->writeTranslation('test_translatable', '1', 'en', ['title' => 'Hi']);
 
-            $repository = new EntityRepository(
+            $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
                 entityType: $entityType,
                 driver: $driver,
                 eventDispatcher: new EventDispatcher(),
@@ -142,7 +142,7 @@ final class EntityRepositoryFindTranslationsTest extends TestCase
             $driver->writeTranslation('test_translatable', '7', 'en', ['title' => 'Hello']);
             $driver->writeTranslation('test_translatable', '7', 'fr', ['title' => 'Bonjour']);
 
-            $repository = new EntityRepository(
+            $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
                 entityType: $entityType,
                 driver: $driver,
                 eventDispatcher: new EventDispatcher(),
@@ -182,7 +182,7 @@ final class EntityRepositoryFindTranslationsTest extends TestCase
             $driver->writeTranslation('test_translatable', '9', 'fr', ['title' => 'Bonjour']);
             $driver->writeTranslation('test_translatable', '9', 'oj', ['title' => 'Aaniin']);
 
-            $repository = new EntityRepository(
+            $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
                 entityType: $entityType,
                 driver: $driver,
                 eventDispatcher: new EventDispatcher(),
@@ -279,7 +279,7 @@ final class EntityRepositoryFindTranslationsTest extends TestCase
             // findTranslations query path.
             $counting = new CountingDatabaseProxy($database);
             $driver = new SqlStorageDriver(new SingleConnectionResolver($counting));
-            $repository = new EntityRepository(
+            $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                 entityType: $entityType,
                 driver: $driver,
                 eventDispatcher: new EventDispatcher(),
@@ -374,7 +374,7 @@ final class EntityRepositoryFindTranslationsTest extends TestCase
 
             $counting = new CountingDatabaseProxy($database);
             $driver = new SqlStorageDriver(new SingleConnectionResolver($counting));
-            $repository = new EntityRepository(
+            $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                 entityType: $entityType,
                 driver: $driver,
                 eventDispatcher: new EventDispatcher(),
@@ -420,7 +420,7 @@ final class EntityRepositoryFindTranslationsTest extends TestCase
             $driver->writeTranslation('test_translatable', '1', 'en', ['title' => 'Hello']);
             $driver->writeTranslation('test_translatable', '1', 'fr', ['title' => 'Bonjour']);
 
-            $repository = new EntityRepository(
+            $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
                 entityType: $entityType,
                 driver: $driver,
                 eventDispatcher: new EventDispatcher(),
@@ -454,7 +454,7 @@ final class EntityRepositoryFindTranslationsTest extends TestCase
             $driver->writeTranslation('test_translatable', '1', 'en', ['title' => 'Hello']);
             $driver->writeTranslation('test_translatable', '1', 'fr', ['title' => 'Bonjour']);
 
-            $repository = new EntityRepository(
+            $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
                 entityType: $entityType,
                 driver: $driver,
                 eventDispatcher: new EventDispatcher(),
@@ -489,7 +489,7 @@ final class EntityRepositoryFindTranslationsTest extends TestCase
             $driver->writeTranslation('test_translatable', '1', 'en', ['title' => 'Hello']);
             $driver->writeTranslation('test_translatable', '1', 'fr', ['title' => 'Bonjour']);
 
-            $repository = new EntityRepository(
+            $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
                 entityType: $entityType,
                 driver: $driver,
                 eventDispatcher: new EventDispatcher(),
@@ -523,7 +523,7 @@ final class EntityRepositoryFindTranslationsTest extends TestCase
             $driver->writeTranslation('test_translatable', '1', 'en', ['title' => 'Hello']);
             $driver->writeTranslation('test_translatable', '1', 'fr', ['title' => 'Bonjour']);
 
-            $repository = new EntityRepository(
+            $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
                 entityType: $entityType,
                 driver: $driver,
                 eventDispatcher: new EventDispatcher(),

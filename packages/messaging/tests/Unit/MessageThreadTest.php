@@ -12,14 +12,18 @@ use Waaseyaa\Messaging\MessageThread;
 #[CoversClass(MessageThread::class)]
 final class MessageThreadTest extends TestCase
 {
+    use MessagingFieldReadTestTrait;
+
     #[Test]
     public function creates_with_required_fields(): void
     {
         $thread = new MessageThread(['created_by' => 1]);
-        $this->assertSame(1, (int) $thread->get('created_by'));
-        $this->assertSame('', $thread->get('title'));
-        $this->assertSame('direct', $thread->get('thread_type'));
-        $this->assertNotNull($thread->get('created_at'));
+        $this->readMessaging(function () use ($thread): void {
+            $this->assertSame(1, (int) $thread->get('created_by'));
+            $this->assertSame('', $thread->get('title'));
+            $this->assertSame('direct', $thread->get('thread_type'));
+            $this->assertNotNull($thread->get('created_at'));
+        });
     }
 
     #[Test]
@@ -42,6 +46,6 @@ final class MessageThreadTest extends TestCase
     public function accepts_group_thread_type(): void
     {
         $thread = new MessageThread(['created_by' => 1, 'thread_type' => 'group']);
-        $this->assertSame('group', $thread->get('thread_type'));
+        $this->assertSame('group', $this->readMessaging(fn(): mixed => $thread->get('thread_type')));
     }
 }

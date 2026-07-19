@@ -4,18 +4,17 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Tests\Integration\Kernel;
 
-use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Audit\AuditServiceProvider;
 use Waaseyaa\Entity\EntityInterface;
-use Waaseyaa\Entity\EntityType;
-use Waaseyaa\EntityStorage\Backend\FieldStorageBackendInterface;
-use Waaseyaa\EntityStorage\Backend\HasFieldStorageBackendsInterface;
-use Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderInterface;
+use Waaseyaa\EntityStorage\Backend\FieldStorageBackendV2Interface;
+use Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderV2Interface;
 use Waaseyaa\EntityStorage\Exception\UnsupportedQueryException;
 use Waaseyaa\EntityStorage\Query\DefinitionValidator;
 use Waaseyaa\EntityStorage\Query\EntityQuery;
+use Waaseyaa\EntityStorage\Tests\Support\V2GatewayTestBackendTrait;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
@@ -125,7 +124,7 @@ final class DefinitionValidatorBootTest extends TestCase
             $entityTypeConfig,
         );
 
-        return new class($projectRoot) extends AbstractKernel {
+        return new class ($projectRoot) extends AbstractKernel {
             public function publicBoot(): void
             {
                 $this->boot();
@@ -144,7 +143,7 @@ final class DefinitionValidatorBootTest extends TestCase
                 $this->manifest = new PackageManifest(
                     providers: array_merge(
                         $this->manifest->providers,
-                        [BootTestBackendProvider::class],
+                        [AuditServiceProvider::class, BootTestBackendProvider::class],
                     ),
                     migrations: $this->manifest->migrations,
                     fieldTypes: $this->manifest->fieldTypes,
@@ -163,8 +162,8 @@ final class DefinitionValidatorBootTest extends TestCase
     private function createMinimalProjectRoot(): string
     {
         $projectRoot = sys_get_temp_dir() . '/waaseyaa_dvboot_test_' . uniqid();
-        mkdir($projectRoot . '/config', 0755, true);
-        mkdir($projectRoot . '/storage', 0755, true);
+        mkdir($projectRoot . '/config', 0o755, true);
+        mkdir($projectRoot . '/storage', 0o755, true);
 
         file_put_contents(
             $projectRoot . '/config/waaseyaa.php',
@@ -174,7 +173,7 @@ final class DefinitionValidatorBootTest extends TestCase
         // entity-types.php is written per test via buildKernel().
         file_put_contents(
             $projectRoot . '/config/entity-types.php',
-            "<?php return [];",
+            '<?php return [];',
         );
 
         return $projectRoot;
@@ -183,43 +182,43 @@ final class DefinitionValidatorBootTest extends TestCase
     private function indexedFieldEntityTypeConfig(string $backendId): string
     {
         return <<<PHP
-<?php
-return [
-    new \Waaseyaa\Entity\EntityType(
-        id: 'article',
-        label: 'Article',
-        class: \stdClass::class,
-        _fieldDefinitions: [
-            'status' => (new \Waaseyaa\Field\FieldDefinition(
-                name: 'status',
-                type: 'string',
-                targetEntityTypeId: 'article',
-            ))->storedIn('{$backendId}')->indexed(),
-        ],
-    ),
-];
-PHP;
+            <?php
+            return [
+                new \Waaseyaa\Entity\EntityType(
+                    id: 'article',
+                    label: 'Article',
+                    class: \stdClass::class,
+                    _fieldDefinitions: [
+                        'status' => (new \Waaseyaa\Field\FieldDefinition(
+                            name: 'status',
+                            type: 'string',
+                            targetEntityTypeId: 'article',
+                        ))->storedIn('{$backendId}')->indexed(),
+                    ],
+                ),
+            ];
+            PHP;
     }
 
     private function nonIndexedFieldEntityTypeConfig(string $backendId): string
     {
         return <<<PHP
-<?php
-return [
-    new \Waaseyaa\Entity\EntityType(
-        id: 'article',
-        label: 'Article',
-        class: \stdClass::class,
-        _fieldDefinitions: [
-            'body' => (new \Waaseyaa\Field\FieldDefinition(
-                name: 'body',
-                type: 'text',
-                targetEntityTypeId: 'article',
-            ))->storedIn('{$backendId}'),
-        ],
-    ),
-];
-PHP;
+            <?php
+            return [
+                new \Waaseyaa\Entity\EntityType(
+                    id: 'article',
+                    label: 'Article',
+                    class: \stdClass::class,
+                    _fieldDefinitions: [
+                        'body' => (new \Waaseyaa\Field\FieldDefinition(
+                            name: 'body',
+                            type: 'text',
+                            targetEntityTypeId: 'article',
+                        ))->storedIn('{$backendId}'),
+                    ],
+                ),
+            ];
+            PHP;
     }
 }
 
@@ -233,14 +232,14 @@ PHP;
  */
 final class BootTestBackendRegistry
 {
-    private static ?FieldStorageBackendInterface $backend = null;
+    private static ?FieldStorageBackendV2Interface $backend = null;
 
-    public static function register(FieldStorageBackendInterface $backend): void
+    public static function register(FieldStorageBackendV2Interface $backend): void
     {
         self::$backend = $backend;
     }
 
-    public static function get(): FieldStorageBackendInterface
+    public static function get(): FieldStorageBackendV2Interface
     {
         if (self::$backend === null) {
             throw new \LogicException('BootTestBackendRegistry: no backend registered.');
@@ -259,9 +258,9 @@ final class BootTestBackendRegistry
  * Framework-owned provider that fetches its backend from the static registry.
  * Must be no-arg-constructable (BackendRegistrar::build() requirement).
  */
-final class BootTestBackendProvider implements IsFrameworkBackendProviderInterface
+final class BootTestBackendProvider implements IsFrameworkBackendProviderV2Interface
 {
-    public function fieldStorageBackends(): array
+    public function fieldStorageBackendsV2(): array
     {
         return [BootTestBackendRegistry::get()];
     }
@@ -270,8 +269,10 @@ final class BootTestBackendProvider implements IsFrameworkBackendProviderInterfa
 /**
  * Minimal backend implementation for kernel boot validation tests.
  */
-final class BootTestBackend implements FieldStorageBackendInterface
+final class BootTestBackend implements FieldStorageBackendV2Interface
 {
+    use V2GatewayTestBackendTrait;
+
     public function __construct(
         private readonly string $backendId,
         private readonly bool $querySupported,

@@ -1824,70 +1824,51 @@ backends are provided:
 | `sql-blob`   | `SqlBlobBackend`      | JSON `_data` blob; all fields in one column   |
 | `sql-column` | `SqlColumnBackend`    | Dedicated SQL column per field                |
 
-### FieldStorageBackendInterface
+### FieldStorageBackendV2Interface
 
-> WP3 compatibility status: this is the dormant V1 SPI. Its exact registered
-> implementations are preflight blockers and WP4 removes it without an adapter.
-
-Every backend implements `Waaseyaa\EntityStorage\Backend\FieldStorageBackendInterface`:
+Every backend implements the active, fingerprinted V2 contract:
 
 ```php
-interface FieldStorageBackendInterface
+interface FieldStorageBackendV2Interface
 {
     public function id(): string;
-    public function read(EntityInterface $entity, FieldDefinition $field): mixed;
-    public function write(EntityInterface $entity, FieldDefinition $field, mixed $value): void;
-    public function delete(EntityInterface $entity): void;
-    public function supportsQuery(FieldDefinition $field, EntityQuery $query): bool;
+    public function fingerprint(): string;
+    public function invoke(FieldStorageGatewayRole $gateway, FieldStorageGatewayInput $input): FieldStorageGatewayOutput;
 }
 ```
 
-Contract obligations:
-- `id()` — returns a stable non-empty string; two calls must return the same value.
-- `read()` — returns the stored value or `null` when absent.
-- `write()` — idempotent: writing the same field twice yields the second value, not both.
-- `delete()` — removes all data the backend holds for the entity; idempotent (second call must not throw).
-- `supportsQuery()` — returns `true` iff this backend can satisfy a field-level predicate query for the given field type and query object. Callers check this at definition-validation time.
+The fingerprint is a frozen lowercase SHA-256 value. Inputs, outputs, roles,
+invocations, and receipts are opaque, non-serializable, and exact-boundary
+objects. Backends unwrap and complete each call through the registrar-issued
+role; raw implementations are never exposed.
 
 ### Backend registration
 
-Backends are registered via `BackendRegistrar`. The two built-in backends are
-pre-registered by the framework. Third-party backends implement
-`HasFieldStorageBackendsInterface` and return their instances from
-`fieldStorageBackends()`. The `BackendRegistrarFactory` creates a registrar
-bound to a specific entity type.
+Backends are registered via `BackendRegistrar`. Providers implement
+`HasFieldStorageBackendsV2Interface` and return instances from
+`fieldStorageBackendsV2()`. `BackendRegistrarFactory` creates the registrar;
+active construction requires a strict gateway audit binding.
 
-`IsFrameworkBackendProviderInterface` is a marker interface reserved for
-built-in backend providers — application code must not implement it.
+`IsFrameworkBackendProviderV2Interface` is reserved for built-in providers and
+permits use of reserved backend ids only when the provider is also in the
+composition root's explicit framework allowlist.
 
 `ReservedBackendIds` holds the canonical string constants for the two built-in
 backends: `SQL_BLOB = 'sql-blob'` and `SQL_COLUMN = 'sql-column'`.
 
-#### Fingerprinted V2 privileged gateway (WP3 dormant)
-
-`FieldStorageBackendV2Interface` is the replacement SPI. It contains only
-`id()`, a reviewed 64-character lowercase hexadecimal `fingerprint()`, and
-`invoke(FieldStorageGatewayRole, FieldStorageGatewayInput):
-FieldStorageGatewayOutput`. The registrar binds the implementation to one
-object-identity authority and returns a `FieldStorageBackendGateway`; it has no
-raw-V2 accessor. A constructed but unissued role or input cannot be unwrapped,
-an output from another invocation/boundary cannot be consumed, and all boundary
-handles reject serialization.
-
-Active registration is constrained to providers implementing
-`HasFieldStorageBackendsV2Interface`, retains reserved-id enforcement, rejects
-malformed/duplicate fingerprints, and requires a
-`StrictFieldStorageGatewayAuditInterface`. Preflight uses a separate
-`buildPreflightInventory()` path: it validates and inventories fingerprints but
-does not construct a gateway or issue a role. Retained V1 implementations are
-reported deterministically as `provider:id:implementation` in the existing
-checksum-bearing `v1_drivers` inventory.
+The registrar returns only `FieldStorageBackendGateway`; it has no raw backend
+accessor. Each operation reserves a value-free descriptor before fingerprint
+validation or invocation and finalizes success or failure durably. Preflight
+may validate fingerprints without issuing gateway authority. There is no V1
+interface, provider marker, adapter, conformance harness, or fallback.
 
 ### EntityStorageCoordinator
 
 `EntityStorageCoordinator` is the fan-out engine. On save, it dispatches
-`BeforeSaveEvent`, then calls each backend's `write()` in registration order. On
-delete, it calls each backend's `delete()`, then dispatches `AfterDeleteEvent`.
+`BeforeSaveEvent`, captures post-callback persistence values through a private
+closed authority, then invokes each registrar-owned gateway in registration
+order. The raw value bag is never passed to an event, provider, or backend.
+Delete similarly invokes each gateway before `AfterDeleteEvent`.
 
 `BackendResolver` resolves which backend is responsible for a given
 `FieldDefinition` (consulting `FieldDefinition::getBackendId()` or falling back
@@ -1974,24 +1955,6 @@ generates PHP migration files from a `StorageMigrationTemplate`. `BackfillHelper
 populates new columns from existing `_data` blob values. `UnmappedFieldTypeException`
 is thrown when a field type has no column mapping. `BackfillRowCountMismatchException`
 is thrown when the backfill row count differs from the expected count.
-
-### Conformance test harness (WP12, FR-049)
-
-`FieldStorageBackendContractTestCase` (in `Waaseyaa\EntityStorage\Testing\Contract`,
-mapped under `testing/` not `src/`) is an abstract PHPUnit test base class.
-Any class implementing `FieldStorageBackendInterface` should subclass it and pass
-all inherited tests:
-
-1. `idIsStableString` — `id()` returns a stable non-empty string.
-2. `readWriteDeleteRoundTrip` — full CRUD round-trip: write → read → delete → read returns null.
-3. `idempotentRewrite` — writing twice yields the second value.
-4. `supportsQueryContract` — `supportsQuery()` returns the declared bool.
-5. `deleteCascade` — `delete()` is idempotent; second call must not throw.
-
-**Placement rule:** This class lives under `testing/` and is registered via
-`autoload-dev` only. Placing it under `src/` would expose the
-`PHPUnit\Framework\TestCase` parent to production class scans, crashing consumer
-kernel boot.
 
 → See `docs/specs/field-storage-backends.md` for the full backend contract and
 type-mapping table.

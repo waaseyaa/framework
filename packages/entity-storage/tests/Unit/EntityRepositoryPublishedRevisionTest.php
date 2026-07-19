@@ -51,7 +51,7 @@ final class EntityRepositoryPublishedRevisionTest extends TestCase
         $dispatcher = $this->createMock(EventDispatcherInterface::class);
         $dispatcher->method('dispatch')->willReturnArgument(0);
 
-        $this->repo = new EntityRepository(
+        $this->repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             $driver,
             $dispatcher,

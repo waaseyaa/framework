@@ -10,8 +10,8 @@ use Waaseyaa\Access\AccessChecker;
 use Waaseyaa\Routing\RouteBuilder;
 use Waaseyaa\Routing\RouteMatch;
 use Waaseyaa\Routing\WaaseyaaRouter;
+use Waaseyaa\Tests\Support\AuthorizationPrincipalFactory;
 use Waaseyaa\User\AnonymousUser;
-use Waaseyaa\User\User;
 
 /**
  * Integration tests for waaseyaa/routing + waaseyaa/access + waaseyaa/user.
@@ -115,12 +115,9 @@ final class RoutingAccessIntegrationTest extends TestCase
 
     public function testUserWithPermissionCanAccessPermissionProtectedRoute(): void
     {
-        $user = new User([
-            'uid' => 1,
-            'name' => 'viewer',
-            'permissions' => ['view user profiles'],
-            'roles' => ['authenticated'],
-        ]);
+        $user = AuthorizationPrincipalFactory::authenticated(
+            permissions: ['view user profiles'],
+        );
 
         $params = $this->router->match('/user/42');
         $route = $this->getRouteByName('user.profile');
@@ -131,12 +128,10 @@ final class RoutingAccessIntegrationTest extends TestCase
 
     public function testUserWithoutPermissionCannotAccessPermissionProtectedRoute(): void
     {
-        $user = new User([
-            'uid' => 2,
-            'name' => 'basic',
-            'permissions' => ['access content'],
-            'roles' => ['authenticated'],
-        ]);
+        $user = AuthorizationPrincipalFactory::authenticated(
+            permissions: ['access content'],
+            accountId: 2,
+        );
 
         $route = $this->getRouteByName('user.profile');
         $result = $this->accessChecker->check($route, $user);
@@ -164,12 +159,9 @@ final class RoutingAccessIntegrationTest extends TestCase
 
     public function testUserWithRequiredRoleCanAccessRoleProtectedRoute(): void
     {
-        $admin = new User([
-            'uid' => 1,
-            'name' => 'admin',
-            'permissions' => [],
-            'roles' => ['administrator'],
-        ]);
+        $admin = AuthorizationPrincipalFactory::authenticated(
+            roles: ['administrator'],
+        );
 
         $route = $this->getRouteByName('admin.users');
         $result = $this->accessChecker->check($route, $admin);
@@ -179,12 +171,10 @@ final class RoutingAccessIntegrationTest extends TestCase
 
     public function testUserWithoutRequiredRoleCannotAccessRoleProtectedRoute(): void
     {
-        $user = new User([
-            'uid' => 2,
-            'name' => 'editor',
-            'permissions' => [],
-            'roles' => ['editor'],
-        ]);
+        $user = AuthorizationPrincipalFactory::authenticated(
+            roles: ['editor'],
+            accountId: 2,
+        );
 
         $route = $this->getRouteByName('admin.users');
         $result = $this->accessChecker->check($route, $user);
@@ -199,12 +189,10 @@ final class RoutingAccessIntegrationTest extends TestCase
 
     public function testRouteRequiringBothPermissionAndRoleAllowsQualifiedUser(): void
     {
-        $admin = new User([
-            'uid' => 1,
-            'name' => 'admin',
-            'permissions' => ['administer site'],
-            'roles' => ['administrator'],
-        ]);
+        $admin = AuthorizationPrincipalFactory::authenticated(
+            permissions: ['administer site'],
+            roles: ['administrator'],
+        );
 
         $route = $this->getRouteByName('admin.dashboard');
         $result = $this->accessChecker->check($route, $admin);
@@ -217,12 +205,11 @@ final class RoutingAccessIntegrationTest extends TestCase
 
     public function testRouteRequiringBothPermissionAndRoleForbidsUserWithOnlyPermission(): void
     {
-        $user = new User([
-            'uid' => 2,
-            'name' => 'partial',
-            'permissions' => ['administer site'],
-            'roles' => ['editor'],
-        ]);
+        $user = AuthorizationPrincipalFactory::authenticated(
+            permissions: ['administer site'],
+            roles: ['editor'],
+            accountId: 2,
+        );
 
         $route = $this->getRouteByName('admin.dashboard');
         $result = $this->accessChecker->check($route, $user);
@@ -239,12 +226,10 @@ final class RoutingAccessIntegrationTest extends TestCase
         // permission" scenario. Administrators bypass permission checks
         // by design (#609), so using 'administrator' here would not test
         // the intended access-control logic.
-        $user = new User([
-            'uid' => 3,
-            'name' => 'role_only',
-            'permissions' => [],
-            'roles' => ['editor'],
-        ]);
+        $user = AuthorizationPrincipalFactory::authenticated(
+            roles: ['editor'],
+            accountId: 3,
+        );
 
         $route = $this->getRouteByName('admin.dashboard');
         $result = $this->accessChecker->check($route, $user);
@@ -269,12 +254,7 @@ final class RoutingAccessIntegrationTest extends TestCase
 
     public function testPublicRouteAllowsAuthenticatedUser(): void
     {
-        $user = new User([
-            'uid' => 1,
-            'name' => 'user',
-            'permissions' => [],
-            'roles' => ['authenticated'],
-        ]);
+        $user = AuthorizationPrincipalFactory::authenticated();
 
         $route = $this->getRouteByName('homepage');
         $result = $this->accessChecker->check($route, $user);
@@ -315,12 +295,9 @@ final class RoutingAccessIntegrationTest extends TestCase
 
     public function testEndToEndMatchAndCheckAccess(): void
     {
-        $user = new User([
-            'uid' => 1,
-            'name' => 'viewer',
-            'permissions' => ['access content'],
-            'roles' => ['authenticated'],
-        ]);
+        $user = AuthorizationPrincipalFactory::authenticated(
+            permissions: ['access content'],
+        );
 
         // Simulate the full flow: match URL -> extract route -> check access.
         $params = $this->router->match('/content/about-us');

@@ -11,6 +11,8 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Waaseyaa\Access\AccountPrincipalFactoryInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
@@ -19,13 +21,13 @@ use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
-use Waaseyaa\Oidc\Keys\SigningKey;
 use Waaseyaa\Oidc\Token\AccessTokenIssuer;
 use Waaseyaa\Oidc\Token\AccessTokenPair;
-use Waaseyaa\Oidc\Token\KeyMaterialProviderInterface;
 use Waaseyaa\Oidc\Userinfo\UserinfoClaimResolver;
 use Waaseyaa\Oidc\Userinfo\UserinfoController;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 use Waaseyaa\User\User;
+use Waaseyaa\User\UserAccessPolicy;
 
 /**
  * Regression test for C-9: /oidc/userinfo must authenticate the OPAQUE access
@@ -70,7 +72,7 @@ final class UserinfoControllerTest extends TestCase
             'created' => ['type' => 'int', 'not null' => false],
         ]);
         // C-22 WP4: the sole persistence engine — no separate storage read path.
-        $this->userRepository = new EntityRepository(
+        $this->userRepository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $userEntityType,
             new SqlStorageDriver(new SingleConnectionResolver($userDb), 'uid'),
             new EventDispatcher(),
@@ -102,6 +104,61 @@ final class UserinfoControllerTest extends TestCase
         self::assertSame((string) self::ACCOUNT_ID, $payload['sub']);
         self::assertSame('subject42@example.test', $payload['email']);
         // Scope was 'openid email profile' -> email/name claims resolvable.
+        self::assertSame('Subject Forty-Two', $payload['name']);
+    }
+
+    #[Test]
+    public function inactive_non_admin_subject_does_not_receive_the_protected_name_claim(): void
+    {
+        $user = $this->userRepository->find((string) self::ACCOUNT_ID);
+        self::assertInstanceOf(User::class, $user);
+        $user->set('status', 0);
+        $this->userRepository->save($user);
+        $pair = $this->issueToken();
+
+        $response = ($this->controller())($this->bearerRequest($pair->token));
+
+        self::assertSame(200, $response->getStatusCode());
+        $payload = json_decode((string) $response->getContent(), true);
+        self::assertIsArray($payload);
+        self::assertArrayNotHasKey(
+            'name',
+            $payload,
+            'Userinfo released the Protected name of an inactive non-admin subject.',
+        );
+        self::assertArrayNotHasKey('preferred_username', $payload);
+        self::assertSame('subject42@example.test', $payload['email']);
+    }
+
+    #[Test]
+    public function active_subject_without_profile_permission_does_not_receive_profile_claims(): void
+    {
+        $pair = $this->issueToken();
+
+        $response = ($this->controller(profileAccess: false))($this->bearerRequest($pair->token));
+
+        self::assertSame(200, $response->getStatusCode());
+        $payload = json_decode((string) $response->getContent(), true);
+        self::assertIsArray($payload);
+        self::assertArrayNotHasKey('name', $payload);
+        self::assertArrayNotHasKey('preferred_username', $payload);
+        self::assertSame('subject42@example.test', $payload['email']);
+    }
+
+    #[Test]
+    public function inactive_admin_subject_receives_the_protected_name_claim(): void
+    {
+        $user = $this->userRepository->find((string) self::ACCOUNT_ID);
+        self::assertInstanceOf(User::class, $user);
+        $user->set('status', 0);
+        $this->userRepository->save($user);
+        $pair = $this->issueToken();
+
+        $response = ($this->controller(admin: true))($this->bearerRequest($pair->token));
+
+        self::assertSame(200, $response->getStatusCode());
+        $payload = json_decode((string) $response->getContent(), true);
+        self::assertIsArray($payload);
         self::assertSame('Subject Forty-Two', $payload['name']);
     }
 
@@ -163,16 +220,26 @@ final class UserinfoControllerTest extends TestCase
         );
     }
 
-    private function controller(): UserinfoController
+    private function controller(bool $admin = false, bool $profileAccess = true): UserinfoController
     {
         $entityTypeManager = $this->createMock(EntityTypeManager::class);
         $entityTypeManager->method('getRepository')->with('user')->willReturn($this->userRepository);
+        $principalFactory = $this->createMock(AccountPrincipalFactoryInterface::class);
+        $principalFactory->method('fromAccount')->willReturn(new AuthorizationPrincipal(
+            accountId: self::ACCOUNT_ID,
+            authenticated: true,
+            roles: [],
+            permissions: $admin ? ['administer users'] : ($profileAccess ? ['access user profiles'] : []),
+            claimsGeneration: $admin ? 'admin-test' : ($profileAccess ? 'profile-test' : 'subject-test'),
+        ));
 
         return new UserinfoController(
             accessTokenIssuer: $this->accessTokenIssuer,
             entityTypeManager: $entityTypeManager,
-            entityAccessHandler: new EntityAccessHandler(),
+            entityAccessHandler: new EntityAccessHandler([new UserAccessPolicy()]),
+            principalFactory: $principalFactory,
             claimResolver: new UserinfoClaimResolver(),
+            userInternalFields: new UserInternalFieldReaderFixture(),
         );
     }
 

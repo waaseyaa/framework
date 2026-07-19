@@ -48,7 +48,7 @@ final class SqlEntityQueryJsonFieldNameGuardTest extends TestCase
 
         $resolver = new SingleConnectionResolver($database);
         $driver = new SqlStorageDriver($resolver);
-        $this->repository = new EntityRepository(
+        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             $driver,
             new EventDispatcher(),

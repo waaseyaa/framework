@@ -7,12 +7,19 @@ namespace Waaseyaa\AI\Agent\Access;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Access\Gate\PolicyAttribute;
+use Waaseyaa\Access\PolicySubjectViewInterface;
+use Waaseyaa\Access\ProtectedEntityReadPolicyInterface;
+use Waaseyaa\Access\ProtectedFieldReadPolicyInterface;
+use Waaseyaa\Access\ProtectedReadPolicyProviderInterface;
 use Waaseyaa\AI\Agent\Entity\AgentAuditLog;
 use Waaseyaa\AI\Agent\Entity\AgentRun;
 use Waaseyaa\AI\Agent\Repository\AgentRunRepository;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityStructure;
 
 /**
  * Initiator-owns-row access policy for `agent_run` and `agent_audit_log`.
@@ -39,14 +46,33 @@ use Waaseyaa\Entity\EntityInterface;
  * @api
  */
 #[PolicyAttribute(entityType: ['agent_run', 'agent_audit_log'])]
-final class AgentRunAccessPolicy implements AccessPolicyInterface, FieldAccessPolicyInterface
+final class AgentRunAccessPolicy implements AccessPolicyInterface, FieldAccessPolicyInterface, ProtectedReadPolicyProviderInterface
 {
     public const PERMISSION_RUN = 'agent.run';
     public const PERMISSION_BYPASS_OWNERSHIP = 'agent.run.bypass_ownership';
 
+    /** @var \Closure(EntityBase): PolicySubjectViewInterface */
+    private readonly \Closure $policySubjectAuthority;
+
     public function __construct(
         private readonly ?AgentRunRepository $runRepository = null,
-    ) {}
+    ) {
+        $this->policySubjectAuthority = \Closure::bind(
+            static fn(EntityBase $entity): PolicySubjectViewInterface => $entity->valueContainer->entityPolicySubjectView(),
+            null,
+            EntityBase::class,
+        );
+    }
+
+    public function protectedEntityReadPolicy(): ProtectedEntityReadPolicyInterface
+    {
+        return new AgentRunOwnerEntityReadPolicy($this->runRepository);
+    }
+
+    public function protectedFieldReadPolicy(): ProtectedFieldReadPolicyInterface
+    {
+        return new AgentRunOwnerFieldReadPolicy();
+    }
 
     public function appliesTo(string $entityTypeId): bool
     {
@@ -109,7 +135,11 @@ final class AgentRunAccessPolicy implements AccessPolicyInterface, FieldAccessPo
         }
 
         if ($entity instanceof AgentAuditLog && $this->runRepository !== null) {
-            $runId = $entity->getRunId();
+            $subject = ($this->policySubjectAuthority)($entity);
+            if ($subject->fields() !== ['run_id']) {
+                return null;
+            }
+            $runId = (string) $subject->get('run_id');
             return $runId !== '' ? $this->runRepository->find($runId) : null;
         }
 
@@ -118,7 +148,11 @@ final class AgentRunAccessPolicy implements AccessPolicyInterface, FieldAccessPo
 
     private function isOwner(AgentRun $run, AccountInterface $account): bool
     {
-        $runAccountId = $run->getAccountId();
+        $subject = ($this->policySubjectAuthority)($run);
+        if ($subject->fields() !== ['account_id']) {
+            return false;
+        }
+        $runAccountId = $subject->get('account_id');
         $callerId = $account->id();
 
         if (\is_int($callerId)) {
@@ -126,5 +160,66 @@ final class AgentRunAccessPolicy implements AccessPolicyInterface, FieldAccessPo
         }
 
         return $callerId === (string) $runAccountId;
+    }
+}
+
+/** V2 immutable owner policy for protected AgentRun reads. @api */
+final class AgentRunOwnerEntityReadPolicy implements ProtectedEntityReadPolicyInterface
+{
+    /** @var \Closure(EntityBase): PolicySubjectViewInterface */
+    private readonly \Closure $policySubjectAuthority;
+
+    public function __construct(private readonly ?AgentRunRepository $runRepository = null)
+    {
+        $this->policySubjectAuthority = \Closure::bind(
+            static fn(EntityBase $entity): PolicySubjectViewInterface => $entity->valueContainer->entityPolicySubjectView(),
+            null,
+            EntityBase::class,
+        );
+    }
+
+    public function access(AuthorizationPrincipalInterface $principal, EntityStructure $structure, PolicySubjectViewInterface $subject, string $operation): AccessResult
+    {
+        if ($structure->entityTypeId === 'agent_audit_log' && $subject->fields() === ['run_id'] && $this->runRepository !== null) {
+            $run = $this->runRepository->find((string) $subject->get('run_id'));
+            if ($run === null) {
+                return AccessResult::forbidden('Agent audit-log parent run is unavailable.');
+            }
+            $runSubject = ($this->policySubjectAuthority)($run);
+
+            return $runSubject->fields() === ['account_id']
+                ? self::ownerResult($principal, $runSubject)
+                : AccessResult::forbidden('AgentRun access requires the exact compiled owner input.');
+        }
+
+        if ($structure->entityTypeId !== 'agent_run' || $subject->fields() !== ['account_id']) {
+            return AccessResult::forbidden('AgentRun access requires the exact compiled owner input.');
+        }
+
+        return self::ownerResult($principal, $subject);
+    }
+
+    public static function ownerResult(AuthorizationPrincipalInterface $principal, PolicySubjectViewInterface $subject): AccessResult
+    {
+        if ($principal->hasPermission(AgentRunAccessPolicy::PERMISSION_BYPASS_OWNERSHIP)) {
+            return AccessResult::allowed('bypass-ownership permission holder');
+        }
+
+        return (string) $principal->id() === (string) $subject->get('account_id')
+            ? AccessResult::allowed('initiator owns row')
+            : AccessResult::forbidden('non-initiator without bypass');
+    }
+}
+
+/** V2 immutable owner policy for protected AgentRun fields. @api */
+final class AgentRunOwnerFieldReadPolicy implements ProtectedFieldReadPolicyInterface
+{
+    public function access(AuthorizationPrincipalInterface $principal, EntityStructure $structure, PolicySubjectViewInterface $subject, string $fieldName): AccessResult
+    {
+        if ($structure->entityTypeId !== 'agent_run' || $fieldName === 'account_id' || $subject->fields() !== ['account_id']) {
+            return AccessResult::forbidden('AgentRun field access requires the exact compiled owner input.');
+        }
+
+        return AgentRunOwnerEntityReadPolicy::ownerResult($principal, $subject);
     }
 }

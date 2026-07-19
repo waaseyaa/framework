@@ -102,7 +102,7 @@ final class ShippedEditorialForwardDraftFlowTest extends TestCase
         $firstPublished = $nodeRepository->loadPublishedRevision($entityId);
         $this->assertNotNull($firstPublished);
         $this->assertSame('Original title', $firstPublished->get('title'));
-        $this->assertSame(1, (int) $nodeRepository->find($entityId)?->get('status'));
+        $this->assertSame(1, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($nodeRepository->find($entityId)));
 
         // --- 2. `revise` (published -> draft) on the SHIPPED workflow: ---
         // the forward-draft entry edge this PR restores. `find()` — the
@@ -128,13 +128,13 @@ final class ShippedEditorialForwardDraftFlowTest extends TestCase
         $servedDuringDraft = $nodeRepository->find($entityId);
         $this->assertNotNull($servedDuringDraft);
         $this->assertSame('Original title', $servedDuringDraft->get('title'), 'find() must keep serving the published title during the draft window.');
-        $this->assertSame('published', $servedDuringDraft->get('workflow_state'));
-        $this->assertSame(1, (int) $servedDuringDraft->get('status'));
+        $this->assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($servedDuringDraft));
+        $this->assertSame(1, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($servedDuringDraft));
 
         $workingCopy = $nodeRepository->loadWorkingCopy($entityId);
         $this->assertNotNull($workingCopy);
         $this->assertSame('Forward draft title', $workingCopy->get('title'), 'loadWorkingCopy() must serve the draft title.');
-        $this->assertSame('draft', $workingCopy->get('workflow_state'));
+        $this->assertSame('draft', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($workingCopy));
 
         // --- 3. submit_for_review -> publish: promotion through the ---
         // shipped workflow's normal review path, base row byte-stable
@@ -180,8 +180,8 @@ final class ShippedEditorialForwardDraftFlowTest extends TestCase
 
         $archived = $nodeRepository->loadPublishedRevision($entityId);
         $this->assertNotNull($archived);
-        $this->assertSame('archived', $archived->get('workflow_state'));
-        $this->assertSame(0, (int) $nodeRepository->find($entityId)?->get('status'));
+        $this->assertSame('archived', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($archived));
+        $this->assertSame(0, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($nodeRepository->find($entityId)));
 
         $baseRowBeforeRestore = $this->rawBaseRow($db, $entityId);
 
@@ -201,7 +201,7 @@ final class ShippedEditorialForwardDraftFlowTest extends TestCase
 
         $servedDuringRestoreDraft = $nodeRepository->find($entityId);
         $this->assertNotNull($servedDuringRestoreDraft);
-        $this->assertSame('archived', $servedDuringRestoreDraft->get('workflow_state'), 'find() still serves the archived pointer while the restore draft is pending.');
+        $this->assertSame('archived', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($servedDuringRestoreDraft), 'find() still serves the archived pointer while the restore draft is pending.');
 
         $restoreDraftTip = $nodeRepository->loadWorkingCopy($entityId);
         $this->assertNotNull($restoreDraftTip);
@@ -210,8 +210,8 @@ final class ShippedEditorialForwardDraftFlowTest extends TestCase
 
         $roundTripped = $nodeRepository->loadPublishedRevision($entityId);
         $this->assertNotNull($roundTripped);
-        $this->assertSame('published', $roundTripped->get('workflow_state'));
-        $this->assertSame(1, (int) $nodeRepository->find($entityId)?->get('status'));
+        $this->assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($roundTripped));
+        $this->assertSame(1, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($nodeRepository->find($entityId)));
         $this->assertSame('Forward draft title', $nodeRepository->find($entityId)?->get('title'), 'The round trip republishes the same content the archived revision carried.');
     }
 
@@ -270,7 +270,7 @@ final class ShippedEditorialForwardDraftFlowTest extends TestCase
 
             $resolver = new SingleConnectionResolver($db);
 
-            return new EntityRepository(
+            return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                 $definition,
                 new SqlStorageDriver($resolver, $definition->getKeys()['id']),
                 $dispatcher,

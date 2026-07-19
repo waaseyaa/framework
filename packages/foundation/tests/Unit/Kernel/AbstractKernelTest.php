@@ -122,7 +122,7 @@ final class AbstractKernelTest extends TestCase
     }
 
     #[Test]
-    public function boot_writes_manifest_cache_inside_fake_project_root(): void
+    public function production_boot_requires_preflight_after_compiling_manifest_inventory(): void
     {
         file_put_contents(
             $this->projectRoot . '/config/waaseyaa.php',
@@ -136,7 +136,11 @@ final class AbstractKernelTest extends TestCase
             }
         };
 
-        $kernel->publicBoot();
+        try {
+            $kernel->publicBoot();
+            self::fail('Production boot must require the exact field-access preflight.');
+        } catch (\Waaseyaa\Entity\Exception\FieldAccessActivationBlocked) {
+        }
 
         $cachePath = $this->projectRoot . '/storage/framework/packages.php';
         $this->assertFileExists($cachePath);

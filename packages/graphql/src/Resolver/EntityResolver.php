@@ -178,11 +178,7 @@ final class EntityResolver
             if ($this->queryFieldForbidden($entity, $gatedQueryFields)) {
                 continue;
             }
-            $values = EntityValues::toCastAwareMap($entity);
-            $allowed = $this->guard->filterFields($entity, array_keys($values), 'view');
-            $data = array_intersect_key($values, array_flip($allowed));
-            $data['_graphql_depth'] = 0;
-            $items[] = $data;
+            $items[] = $this->projectVisible($entity);
         }
 
         return ['items' => $items, 'total' => $total];
@@ -203,12 +199,7 @@ final class EntityResolver
             return null;
         }
 
-        $values = EntityValues::toCastAwareMap($entity);
-        $allowed = $this->guard->filterFields($entity, array_keys($values), 'view');
-        $data = array_intersect_key($values, array_flip($allowed));
-        $data['_graphql_depth'] = 0;
-
-        return $data;
+        return $this->projectVisible($entity);
     }
 
     /**
@@ -252,10 +243,7 @@ final class EntityResolver
             throw new UserError($e->getMessage());
         }
 
-        $values = EntityValues::toCastAwareMap($entity);
-        $values['_graphql_depth'] = 0;
-
-        return $values;
+        return $this->projectVisible($entity);
     }
 
     /**
@@ -357,10 +345,7 @@ final class EntityResolver
             throw new UserError($e->getMessage());
         }
 
-        $values = EntityValues::toCastAwareMap($target);
-        $values['_graphql_depth'] = 0;
-
-        return $values;
+        return $this->projectVisible($target);
     }
 
     public function resolveDelete(string $entityTypeId, int|string $id): bool
@@ -381,6 +366,16 @@ final class EntityResolver
         $this->entityTypeManager->getRepository($entityTypeId)->delete($entity);
 
         return true;
+    }
+
+    /** @return array<string, mixed> */
+    private function projectVisible(EntityInterface $entity): array
+    {
+        $allowed = $this->guard->filterFields($entity, EntityValues::ordinaryFieldNames($entity), 'view');
+        $values = EntityValues::toCastAwareMap($entity, $allowed);
+        $values['_graphql_depth'] = 0;
+
+        return $values;
     }
 
     private function loadEntity(string $entityTypeId, int|string $id): ?EntityInterface

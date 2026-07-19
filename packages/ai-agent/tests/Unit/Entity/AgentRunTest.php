@@ -47,11 +47,12 @@ final class AgentRunTest extends TestCase
     }
 
     #[Test]
-    public function getAccountIdCastsToInt(): void
+    public function getAccountIdRequiresAnEstablishedReadContext(): void
     {
         $run = new AgentRun(['id' => 'abc', 'account_id' => '42']);
 
-        self::assertSame(42, $run->getAccountId());
+        $this->expectException(\Waaseyaa\Entity\Exception\MissingFieldReadContext::class);
+        $run->getAccountId();
     }
 
     #[Test]

@@ -658,7 +658,7 @@ final class AgentExecutor
                 return self::HITL_DENIED_INTERACTIVE;
             }
 
-            if ($status === RunStatus::Failed && $fresh->get('error_code') === 'approval_denied') {
+            if ($status === RunStatus::Failed) {
                 $this->appendAudit(
                     $runId,
                     $iteration,

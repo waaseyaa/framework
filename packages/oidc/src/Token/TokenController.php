@@ -10,6 +10,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Oidc\ClientRegistry\OidcClientLookup;
+use Waaseyaa\Oidc\ClientRegistry\OidcClientSystemReader;
 use Waaseyaa\Oidc\Repository\AuthorizationCodeRepositoryInterface;
 
 /**
@@ -27,6 +28,8 @@ final readonly class TokenController
 {
     private const ACCESS_TOKEN_EXPIRY = 3600;
 
+    private OidcClientSystemReader $clientReader;
+
     /**
      * @param Closure(): DateTimeImmutable $clock
      */
@@ -41,7 +44,10 @@ final readonly class TokenController
         private RefreshTokenGrantHandler $refreshGrantHandler,
         private string $issuer,
         private Closure $clock,
-    ) {}
+        ?OidcClientSystemReader $clientReader = null,
+    ) {
+        $this->clientReader = $clientReader ?? new OidcClientSystemReader();
+    }
 
     public function __invoke(Request $request): Response
     {
@@ -72,12 +78,11 @@ final readonly class TokenController
             return $this->error(401, 'invalid_client', 'Unknown client_id.');
         }
 
-        if ($client->isConfidential()) {
+        if ($this->clientReader->registration($client)->confidential) {
             if ($credClientSecret === null) {
                 return $this->error(401, 'invalid_client', 'Client authentication required.');
             }
-            $hash = $client->getClientSecretHash();
-            if ($hash === null || !password_verify($credClientSecret, $hash)) {
+            if (!$this->clientReader->verifySecret($client, $credClientSecret)) {
                 return $this->error(401, 'invalid_client', 'Client authentication failed.');
             }
         }
@@ -169,12 +174,11 @@ final readonly class TokenController
             return $this->error(401, 'invalid_client', 'Unknown client_id.');
         }
 
-        if ($client->isConfidential()) {
+        if ($this->clientReader->registration($client)->confidential) {
             if ($clientSecret === null) {
                 return $this->error(401, 'invalid_client', 'Client authentication required.');
             }
-            $hash = $client->getClientSecretHash();
-            if ($hash === null || !password_verify($clientSecret, $hash)) {
+            if (!$this->clientReader->verifySecret($client, $clientSecret)) {
                 return $this->error(401, 'invalid_client', 'Client authentication failed.');
             }
         }

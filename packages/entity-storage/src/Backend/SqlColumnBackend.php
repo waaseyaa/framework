@@ -46,8 +46,10 @@ use Waaseyaa\Foundation\Log\NullLogger;
  *
  * @internal Only instantiate via the framework provider; use BackendRegistrar to obtain.
  */
-final class SqlColumnBackend implements FieldStorageBackendInterface
+final class SqlColumnBackend implements FieldStorageBackendV2Interface
 {
+    public const string FINGERPRINT = '72f0e1016a66312a441603286fa70232c6aa6e87dc5e6ec257299a337884c781';
+
     private readonly LoggerInterface $logger;
 
     public function __construct(
@@ -66,13 +68,43 @@ final class SqlColumnBackend implements FieldStorageBackendInterface
         return ReservedBackendIds::SQL_COLUMN;
     }
 
+    public function fingerprint(): string
+    {
+        return self::FINGERPRINT;
+    }
+
+    public function invoke(FieldStorageGatewayRole $gateway, FieldStorageGatewayInput $input): FieldStorageGatewayOutput
+    {
+        $call = $gateway->unwrap($input, $this);
+        $value = match ($call->operation) {
+            FieldStorageGatewayOperation::Read => $this->read(
+                $call->entity ?? throw new \LogicException('sql-column read requires an entity.'),
+                $call->field ?? throw new \LogicException('sql-column read requires a field.'),
+            ),
+            FieldStorageGatewayOperation::Write => $this->write(
+                $call->entity ?? throw new \LogicException('sql-column write requires an entity.'),
+                $call->field ?? throw new \LogicException('sql-column write requires a field.'),
+                $call->value,
+            ),
+            FieldStorageGatewayOperation::Delete => $this->delete(
+                $call->entity ?? throw new \LogicException('sql-column delete requires an entity.'),
+            ),
+            FieldStorageGatewayOperation::SupportsQuery => $this->supportsQuery(
+                $call->field ?? throw new \LogicException('sql-column query support requires a field.'),
+                $call->query ?? throw new \LogicException('sql-column query support requires a query.'),
+            ),
+        };
+
+        return $gateway->complete($input, $this, $value);
+    }
+
     /**
      * Read a single field value from the entity's column.
      *
      * Returns null when the entity does not exist or the field column is absent.
      * Performs type coercion on read (json decoded, bool cast).
      */
-    public function read(EntityInterface $entity, FieldDefinition $field): mixed
+    private function read(EntityInterface $entity, FieldDefinition $field): mixed
     {
         $id = $entity->id();
         if ($id === null) {
@@ -102,11 +134,11 @@ final class SqlColumnBackend implements FieldStorageBackendInterface
      * Idempotent: calling write() twice with the same value produces the
      * same stored state as calling it once.
      */
-    public function write(EntityInterface $entity, FieldDefinition $field, mixed $value): void
+    private function write(EntityInterface $entity, FieldDefinition $field, mixed $value): null
     {
         $id = $entity->id();
         if ($id === null) {
-            return;
+            return null;
         }
 
         $fieldName = $field->getName();
@@ -116,6 +148,8 @@ final class SqlColumnBackend implements FieldStorageBackendInterface
             ->fields([$fieldName => $coerced])
             ->condition($this->idKey, $id)
             ->execute();
+
+        return null;
     }
 
     /**
@@ -127,16 +161,18 @@ final class SqlColumnBackend implements FieldStorageBackendInterface
      *
      * `read()` after `delete()` returns null because the row is gone.
      */
-    public function delete(EntityInterface $entity): void
+    private function delete(EntityInterface $entity): null
     {
         $id = $entity->id();
         if ($id === null) {
-            return;
+            return null;
         }
 
         $this->database->delete($this->entityTableName)
             ->condition($this->idKey, $id)
             ->execute();
+
+        return null;
     }
 
     /**
@@ -150,7 +186,7 @@ final class SqlColumnBackend implements FieldStorageBackendInterface
      * field types, matching FR-014 ("MUST report supportsQuery(): true for all
      * stored field types").
      */
-    public function supportsQuery(FieldDefinition $field, EntityQuery $query): bool
+    private function supportsQuery(FieldDefinition $field, EntityQuery $query): bool
     {
         $fieldType = strtolower($field->getType());
 

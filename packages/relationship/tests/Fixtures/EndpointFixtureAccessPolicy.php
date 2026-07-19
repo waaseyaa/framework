@@ -7,6 +7,7 @@ namespace Waaseyaa\Relationship\Tests\Fixtures;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 
 /**
@@ -20,6 +21,19 @@ use Waaseyaa\Entity\EntityInterface;
  */
 final class EndpointFixtureAccessPolicy implements AccessPolicyInterface
 {
+    /** @var \Closure(EntityBase): \Waaseyaa\Access\PolicySubjectViewInterface */
+    private readonly \Closure $subjectAuthority;
+
+    public function __construct()
+    {
+        $authority = \Closure::bind(
+            static fn(EntityBase $entity): \Waaseyaa\Access\PolicySubjectViewInterface => $entity->valueContainer->entityPolicySubjectView(),
+            null,
+            EntityBase::class,
+        );
+        $this->subjectAuthority = $authority;
+    }
+
     public function appliesTo(string $entityTypeId): bool
     {
         return $entityTypeId === 'endpoint_entity';
@@ -35,7 +49,12 @@ final class EndpointFixtureAccessPolicy implements AccessPolicyInterface
             return AccessResult::neutral();
         }
 
-        return $entity->get('published') === true
+        if (!$entity instanceof EntityBase) {
+            return AccessResult::neutral('Endpoint policy requires a framework entity.');
+        }
+        $subject = ($this->subjectAuthority)($entity);
+
+        return $subject->fields() === ['published'] && $subject->get('published') === true
             ? AccessResult::allowed('Endpoint is published.')
             : AccessResult::neutral('Endpoint is not published.');
     }

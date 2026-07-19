@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Attachment\Attachment;
 use Waaseyaa\Attachment\AttachmentActiveGuardListener;
+use Waaseyaa\Attachment\Maintenance\AttachmentMaintenanceFieldReader;
 use Waaseyaa\Attachment\Schema\AttachmentSchema;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
@@ -53,7 +54,7 @@ final class GenericEntityApiActiveGuardTest extends TestCase
             new AttachmentActiveGuardListener($database),
         );
 
-        $entityRepository = new EntityRepository(
+        $entityRepository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             entityType: $entityType,
             driver: $driver,
             eventDispatcher: $dispatcher,
@@ -90,7 +91,7 @@ final class GenericEntityApiActiveGuardTest extends TestCase
 
         $reloadedFirst = $entityRepository->find((string) $first->id());
         self::assertInstanceOf(Attachment::class, $reloadedFirst);
-        self::assertSame(0, (int) $reloadedFirst->get('is_active'), 'First attachment must be demoted.');
+        self::assertSame(0, (int) new AttachmentMaintenanceFieldReader()->read($reloadedFirst)->active, 'First attachment must be demoted.');
     }
 
     /**
@@ -121,7 +122,7 @@ final class GenericEntityApiActiveGuardTest extends TestCase
         // No listener registered — simulates a boot() that failed to wire.
         $dispatcher = new SymfonyEventDispatcherAdapter();
 
-        $entityRepository = new EntityRepository(
+        $entityRepository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             entityType: $entityType,
             driver: $driver,
             eventDispatcher: $dispatcher,
@@ -172,7 +173,7 @@ final class GenericEntityApiActiveGuardTest extends TestCase
         // No listener registered — simulates a boot() that failed to wire.
         $dispatcher = new SymfonyEventDispatcherAdapter();
 
-        $entityRepository = new EntityRepository(
+        $entityRepository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             entityType: $entityType,
             driver: $driver,
             eventDispatcher: $dispatcher,
@@ -267,7 +268,7 @@ final class GenericEntityApiActiveGuardTest extends TestCase
             new AttachmentActiveGuardListener($database),
         );
 
-        return new EntityRepository(
+        return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             entityType: EntityType::fromClass(Attachment::class),
             driver: new SqlStorageDriver(new SingleConnectionResolver($database), 'id'),
             eventDispatcher: $dispatcher,

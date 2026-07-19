@@ -12,9 +12,7 @@ use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Backend\BackendRegistrar;
-use Waaseyaa\EntityStorage\Backend\FieldStorageBackendInterface;
-use Waaseyaa\EntityStorage\Backend\HasFieldStorageBackendsInterface;
-use Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderInterface;
+use Waaseyaa\EntityStorage\Backend\FieldStorageBackendV2Interface;
 use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\BackendResolver;
 use Waaseyaa\EntityStorage\CoordinatorLifecycleDispatcher;
@@ -27,6 +25,8 @@ use Waaseyaa\EntityStorage\Event\BeforeSaveEvent;
 use Waaseyaa\EntityStorage\Event\EntityLifecycleEventInterface;
 use Waaseyaa\EntityStorage\Query\EntityQuery;
 use Waaseyaa\EntityStorage\SaveContext;
+use Waaseyaa\EntityStorage\Tests\Support\PermissiveFieldStorageGatewayAudit;
+use Waaseyaa\EntityStorage\Tests\Support\V2GatewayTestBackendTrait;
 use Waaseyaa\Field\FieldDefinition;
 
 /**
@@ -47,10 +47,10 @@ final class LifecycleDispatchTest extends TestCase
     // Helpers
     // ---------------------------------------------------------------------------
 
-    private function makeRegistrar(FieldStorageBackendInterface ...$backends): BackendRegistrar
+    private function makeRegistrar(FieldStorageBackendV2Interface ...$backends): BackendRegistrar
     {
         $fqcn = LifecycleTestProviderRegistry::register($backends);
-        $registrar = new BackendRegistrar([$fqcn], [$fqcn]);
+        $registrar = new BackendRegistrar([$fqcn], [$fqcn], new PermissiveFieldStorageGatewayAudit());
         $registrar->build();
 
         return $registrar;
@@ -73,7 +73,7 @@ final class LifecycleDispatchTest extends TestCase
             class: LifecycleTestEntity::class,
             keys: ['id' => 'id'],
             _fieldDefinitions: [
-                'title' => (new FieldDefinition(name: 'title', type: 'string'))->storedIn($backendId),
+                'title' => new FieldDefinition(name: 'title', type: 'string')->storedIn($backendId),
             ],
         );
     }
@@ -310,13 +310,13 @@ final class LifecycleDispatchTest extends TestCase
  */
 final class LifecycleTestProviderRegistry
 {
-    /** @var array<int, FieldStorageBackendInterface[]> */
+    /** @var array<int, FieldStorageBackendV2Interface[]> */
     private static array $registry = [];
 
     private static int $counter = 0;
 
     /**
-     * @param FieldStorageBackendInterface[] $backends
+     * @param FieldStorageBackendV2Interface[] $backends
      * @return class-string
      */
     public static function register(array $backends): string
@@ -328,10 +328,10 @@ final class LifecycleTestProviderRegistry
         $fqcn = 'LifecycleTestProvider' . $suffix;
 
         eval(sprintf(
-            'use Waaseyaa\EntityStorage\Backend\HasFieldStorageBackendsInterface;
-             use Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderInterface;
-             final class %s implements HasFieldStorageBackendsInterface, IsFrameworkBackendProviderInterface {
-                 public function fieldStorageBackends(): array {
+            'use Waaseyaa\EntityStorage\Backend\HasFieldStorageBackendsV2Interface;
+             use Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderV2Interface;
+             final class %s implements HasFieldStorageBackendsV2Interface, IsFrameworkBackendProviderV2Interface {
+                 public function fieldStorageBackendsV2(): array {
                      return \Waaseyaa\EntityStorage\Tests\Integration\Events\LifecycleTestProviderRegistry::get(%d);
                  }
              }',
@@ -342,7 +342,7 @@ final class LifecycleTestProviderRegistry
         return $fqcn;
     }
 
-    /** @return FieldStorageBackendInterface[] */
+    /** @return FieldStorageBackendV2Interface[] */
     public static function get(int $suffix): array
     {
         return self::$registry[$suffix] ?? [];
@@ -352,8 +352,10 @@ final class LifecycleTestProviderRegistry
 /**
  * @internal Test fixture: spy backend that records write/delete counts.
  */
-final class LifecycleSpyBackend implements FieldStorageBackendInterface
+final class LifecycleSpyBackend implements FieldStorageBackendV2Interface
 {
+    use V2GatewayTestBackendTrait;
+
     public int $writeCount = 0;
     public int $deleteCount = 0;
 

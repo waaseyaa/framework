@@ -124,15 +124,7 @@ final class UserAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
 
     private function viewAccess(User $user, AccountInterface $account): AccessResult
     {
-        if (!$user->isActive()) {
-            return AccessResult::neutral('Blocked accounts are only visible to administrators.');
-        }
-
-        if ($account->hasPermission('access user profiles')) {
-            return AccessResult::allowed('User has "access user profiles" permission.');
-        }
-
-        return AccessResult::neutral('User lacks "access user profiles" permission.');
+        return AccessResult::neutral('Non-administrator profile reads require the V2 immutable principal and policy-subject path.');
     }
 
     private function updateAccess(User $user, AccountInterface $account): AccessResult

@@ -7,9 +7,11 @@ namespace Waaseyaa\Tests\Integration\DBAL;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityConstants;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
@@ -58,7 +60,7 @@ final class DBALEntityStorageTest extends TestCase
 
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver, $this->entityType->getKeys()['id'] ?? 'id');
-        $this->storage = new EntityRepository(
+        $this->storage = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $this->entityType,
             $driver,
             $this->eventDispatcher,
@@ -524,6 +526,16 @@ final class DBALEntityStorageTest extends TestCase
  */
 class DBALTestEntity extends ContentEntityBase
 {
+    #[Field(type: 'string', read: FieldReadLevel::Public)] public string $title;
+    #[Field(type: 'string', read: FieldReadLevel::Public)] public string $body;
+    #[Field(type: 'integer', read: FieldReadLevel::Public)] public int $status;
+    #[Field(type: 'integer', read: FieldReadLevel::Public)] public int $weight;
+    #[Field(type: 'float', read: FieldReadLevel::Public)] public float $price;
+    #[Field(type: 'json', read: FieldReadLevel::Public)] public array $custom_field;
+    #[Field(type: 'json', read: FieldReadLevel::Public)] public array $tags;
+    #[Field(type: 'json', read: FieldReadLevel::Public)] public array $nested_data;
+    #[Field(type: 'json', read: FieldReadLevel::Public)] public array $meta;
+
     public function __construct(
         array $values = [],
         string $entityTypeId = 'test_item',

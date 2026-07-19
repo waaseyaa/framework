@@ -40,7 +40,6 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
-use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Migration\Migration;
 use Waaseyaa\Foundation\Migration\SchemaBuilder;
@@ -100,7 +99,7 @@ final class CancellationTest extends TestCase
         $run = $this->runRepository->find($runId);
         self::assertNotNull($run);
         self::assertSame(RunStatus::Cancelled, $run->getStatus(), 'Pre-pickup DELETE must reach Cancelled directly.');
-        self::assertSame('cancelled_by_user', $run->get('error_code'));
+        self::assertSame('cancelled_by_user', new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture()->read($run)->errorCode);
 
         $events = $this->channelEvents('agent.run.' . $runId);
         self::assertContains('run_cancelled', $events, 'Cancellation must emit run_cancelled SSE.');
@@ -227,6 +226,7 @@ final class CancellationTest extends TestCase
             broadcaster: $broadcaster,
             accessPolicy: new AgentRunAccessPolicy($this->runRepository),
             validator: new AgentRunRequestValidator(),
+            accountProjectionReader: new \Waaseyaa\Tests\Support\AgentRunAccountProjectionReaderFixture(),
         );
     }
 
@@ -273,6 +273,7 @@ final class CancellationTest extends TestCase
             broadcaster: new AgentRunBroadcaster($this->broadcastStorage),
             provider: new NullLlmProvider(),
             accountLoader: new StubInitiatorAccountLoader(),
+            workerReader: new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture(),
         );
     }
 
@@ -299,7 +300,7 @@ final class CancellationTest extends TestCase
         );
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver, 'id');
-        $entityRepo = new EntityRepository(
+        $entityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             $driver,
             new EventDispatcher(),
@@ -320,7 +321,7 @@ final class CancellationTest extends TestCase
         );
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver, 'id');
-        $entityRepo = new EntityRepository(
+        $entityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             $driver,
             new EventDispatcher(),

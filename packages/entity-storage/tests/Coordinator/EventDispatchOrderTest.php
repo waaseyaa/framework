@@ -14,9 +14,7 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Entity\Event\TranslationEvent;
 use Waaseyaa\EntityStorage\Backend\BackendRegistrar;
-use Waaseyaa\EntityStorage\Backend\FieldStorageBackendInterface;
-use Waaseyaa\EntityStorage\Backend\HasFieldStorageBackendsInterface;
-use Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderInterface;
+use Waaseyaa\EntityStorage\Backend\FieldStorageBackendV2Interface;
 use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\CoordinatorLifecycleDispatcher;
 use Waaseyaa\EntityStorage\Event\AfterDeleteEvent;
@@ -26,6 +24,8 @@ use Waaseyaa\EntityStorage\Event\BeforeSaveEvent;
 use Waaseyaa\EntityStorage\Exception\PartialSaveException;
 use Waaseyaa\EntityStorage\Query\EntityQuery;
 use Waaseyaa\EntityStorage\SaveContext;
+use Waaseyaa\EntityStorage\Tests\Support\PermissiveFieldStorageGatewayAudit;
+use Waaseyaa\EntityStorage\Tests\Support\V2GatewayTestBackendTrait;
 use Waaseyaa\Field\FieldDefinition;
 
 /**
@@ -60,7 +60,7 @@ final class EventDispatchOrderTest extends TestCase
 
         $groups = [
             ReservedBackendIds::SQL_BLOB => [
-                (new FieldDefinition(name: 'title', type: 'string'))->storedIn(ReservedBackendIds::SQL_BLOB),
+                new FieldDefinition(name: 'title', type: 'string')->storedIn(ReservedBackendIds::SQL_BLOB),
             ],
         ];
 
@@ -104,7 +104,7 @@ final class EventDispatchOrderTest extends TestCase
 
         $groups = [
             ReservedBackendIds::SQL_BLOB => [
-                (new FieldDefinition(name: 'title', type: 'string'))->storedIn(ReservedBackendIds::SQL_BLOB),
+                new FieldDefinition(name: 'title', type: 'string')->storedIn(ReservedBackendIds::SQL_BLOB),
             ],
         ];
 
@@ -147,7 +147,7 @@ final class EventDispatchOrderTest extends TestCase
 
         $groups = [
             ReservedBackendIds::SQL_BLOB => [
-                (new FieldDefinition(name: 'title', type: 'string'))->storedIn(ReservedBackendIds::SQL_BLOB),
+                new FieldDefinition(name: 'title', type: 'string')->storedIn(ReservedBackendIds::SQL_BLOB),
             ],
         ];
 
@@ -196,7 +196,7 @@ final class EventDispatchOrderTest extends TestCase
 
         $groups = [
             ReservedBackendIds::SQL_BLOB => [
-                (new FieldDefinition(name: 'title', type: 'string'))->storedIn(ReservedBackendIds::SQL_BLOB),
+                new FieldDefinition(name: 'title', type: 'string')->storedIn(ReservedBackendIds::SQL_BLOB),
             ],
         ];
 
@@ -247,7 +247,7 @@ final class EventDispatchOrderTest extends TestCase
 
         $groups = [
             ReservedBackendIds::SQL_BLOB => [
-                (new FieldDefinition(name: 'title', type: 'string'))->storedIn(ReservedBackendIds::SQL_BLOB),
+                new FieldDefinition(name: 'title', type: 'string')->storedIn(ReservedBackendIds::SQL_BLOB),
             ],
         ];
 
@@ -331,12 +331,12 @@ final class EventDispatchOrderTest extends TestCase
     }
 
     /**
-     * @param FieldStorageBackendInterface[] $backends
+     * @param FieldStorageBackendV2Interface[] $backends
      */
     private function makeRegistrarWith(array $backends): BackendRegistrar
     {
         $fqcn = EventOrderProviderRegistry::register($backends);
-        $registrar = new BackendRegistrar([$fqcn], [$fqcn]);
+        $registrar = new BackendRegistrar([$fqcn], [$fqcn], new PermissiveFieldStorageGatewayAudit());
         $registrar->build();
 
         return $registrar;
@@ -350,7 +350,7 @@ final class EventDispatchOrderTest extends TestCase
             class: EventOrderTestEntity::class,
             keys: ['id' => 'id'],
             _fieldDefinitions: [
-                'title' => (new FieldDefinition(name: 'title', type: 'string'))
+                'title' => new FieldDefinition(name: 'title', type: 'string')
                     ->storedIn(ReservedBackendIds::SQL_BLOB),
             ],
         );
@@ -366,13 +366,13 @@ final class EventDispatchOrderTest extends TestCase
  */
 final class EventOrderProviderRegistry
 {
-    /** @var array<int, FieldStorageBackendInterface[]> */
+    /** @var array<int, FieldStorageBackendV2Interface[]> */
     private static array $registry = [];
 
     private static int $counter = 0;
 
     /**
-     * @param FieldStorageBackendInterface[] $backends
+     * @param FieldStorageBackendV2Interface[] $backends
      * @return class-string
      */
     public static function register(array $backends): string
@@ -384,10 +384,10 @@ final class EventOrderProviderRegistry
         $fqcn = 'EventOrderProvider' . $suffix;
 
         eval(sprintf(
-            'use Waaseyaa\EntityStorage\Backend\HasFieldStorageBackendsInterface;
-             use Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderInterface;
-             final class %s implements HasFieldStorageBackendsInterface, IsFrameworkBackendProviderInterface {
-                 public function fieldStorageBackends(): array {
+            'use Waaseyaa\EntityStorage\Backend\HasFieldStorageBackendsV2Interface;
+             use Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderV2Interface;
+             final class %s implements HasFieldStorageBackendsV2Interface, IsFrameworkBackendProviderV2Interface {
+                 public function fieldStorageBackendsV2(): array {
                      return \Waaseyaa\EntityStorage\Tests\Coordinator\EventOrderProviderRegistry::get(%d);
                  }
              }',
@@ -398,7 +398,7 @@ final class EventOrderProviderRegistry
         return $fqcn;
     }
 
-    /** @return FieldStorageBackendInterface[] */
+    /** @return FieldStorageBackendV2Interface[] */
     public static function get(int $suffix): array
     {
         return self::$registry[$suffix] ?? [];
@@ -408,8 +408,10 @@ final class EventOrderProviderRegistry
 /**
  * @internal
  */
-final class EventOrderNoopBackend implements FieldStorageBackendInterface
+final class EventOrderNoopBackend implements FieldStorageBackendV2Interface
 {
+    use V2GatewayTestBackendTrait;
+
     public function __construct(private readonly string $backendId) {}
 
     public function id(): string
@@ -441,8 +443,10 @@ final class EventOrderNoopBackend implements FieldStorageBackendInterface
 /**
  * @internal
  */
-final class EventOrderThrowingBackend implements FieldStorageBackendInterface
+final class EventOrderThrowingBackend implements FieldStorageBackendV2Interface
 {
+    use V2GatewayTestBackendTrait;
+
     public function __construct(private readonly string $backendId) {}
 
     public function id(): string

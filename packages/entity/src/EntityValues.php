@@ -11,6 +11,8 @@ use Waaseyaa\Entity\Cast\FromArrayEntityValueInterface;
  *
  * {@see EntityInterface::toArray()} and storage remain storage-canonical; use this for API/SSR/GraphQL
  * and other presentation logic so {@see EntityBase::$casts} apply. Do not use for persistence snapshots.
+ *
+ * @api
  */
 final class EntityValues
 {

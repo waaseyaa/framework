@@ -71,7 +71,7 @@ final class ListingFilterTest extends TestCase
         $resolver = new SingleConnectionResolver($this->database);
         $database = $this->database;
         $accessHandler = $this->accessHandler;
-        $this->repository = new EntityRepository(
+        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             new SqlStorageDriver($resolver),
             $eventDispatcher,
@@ -82,7 +82,7 @@ final class ListingFilterTest extends TestCase
         $this->entityTypeManager = new EntityTypeManager(
             $eventDispatcher,
             // C-22: repository factory mirroring the kernel's getRepository() shape.
-            repositoryFactory: static fn(string $_id, EntityTypeInterface $type): EntityRepository => new EntityRepository(
+            repositoryFactory: static fn(string $_id, EntityTypeInterface $type): EntityRepository => \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                 $type,
                 new SqlStorageDriver($resolver),
                 $eventDispatcher,

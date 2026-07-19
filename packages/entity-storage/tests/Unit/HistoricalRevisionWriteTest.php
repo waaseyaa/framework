@@ -88,12 +88,15 @@ final class HistoricalRevisionWriteTest extends TestCase
             public function __construct(int $vid, string $langcode, bool $current)
             {
                 parent::__construct(
-                    values: ['id' => 1, 'langcode' => $langcode],
+                    values: [
+                        'id' => 1,
+                        'langcode' => $langcode,
+                        'revision_id' => $vid,
+                        'is_latest_revision' => $current,
+                    ],
                     entityTypeId: 'teaching',
-                    entityKeys: ['id' => 'id', 'langcode' => 'langcode'],
+                    entityKeys: ['id' => 'id', 'langcode' => 'langcode', 'revision' => 'revision_id'],
                 );
-                $this->setRevisionId($vid);
-                $this->setIsCurrentRevision($current);
             }
         };
     }

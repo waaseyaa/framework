@@ -232,6 +232,7 @@ final class AiRunCommandWatchTest extends TestCase
         $command = new AiRunCommand(
             runService: $service,
             definitionRegistry: $registry,
+            workerReader: new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture(),
             aiConfig: ['providers' => [['id' => 'null', 'model_default' => 'noop']]],
             sseClient: $sseClient,
             baseUrl: 'http://localhost:8000',
@@ -304,6 +305,7 @@ final class AiRunCommandWatchTest extends TestCase
             broadcaster: new InertBroadcasterForWatchTest(),
             provider: new NullLlmProvider(),
             accountLoader: new StubInitiatorAccountLoader(),
+            workerReader: new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture(),
         );
 
         $bus = new MessageBus([
@@ -329,7 +331,7 @@ final class AiRunCommandWatchTest extends TestCase
         );
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver, 'id');
-        $entityRepo = new EntityRepository(
+        $entityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             $driver,
             new EventDispatcher(),
@@ -349,7 +351,7 @@ final class AiRunCommandWatchTest extends TestCase
         );
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver, 'id');
-        $entityRepo = new EntityRepository(
+        $entityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             $driver,
             new EventDispatcher(),

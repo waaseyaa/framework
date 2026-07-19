@@ -71,7 +71,7 @@ final class SqlEntityQueryDeniesNeutralRowTest extends TestCase
         $dispatcher = new EventDispatcher();
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver);
-        $this->repository = new EntityRepository(
+        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             $driver,
             $dispatcher,

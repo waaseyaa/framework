@@ -12,12 +12,15 @@ use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
 use Waaseyaa\Entity\Attribute\ContentEntityType;
+use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Field\Classification\ClassificationParentResolverInterface;
+use Waaseyaa\Field\Classification\ClassificationSubjectReader;
 use Waaseyaa\Field\Classification\Job\HoldScanJob;
 use Waaseyaa\Field\Classification\Job\PurgeJob;
 use Waaseyaa\Field\Classification\LabelInheritanceResolver;
@@ -99,7 +102,7 @@ final class ClassificationRetentionIntegrationTest extends TestCase
         mkdir($this->projectRoot . '/storage', 0o755, true);
         file_put_contents(
             $this->projectRoot . '/config/waaseyaa.php',
-            "<?php return ['database' => ':memory:'];",
+            "<?php return ['database' => ':memory:', 'environment' => 'testing'];",
         );
 
         $this->auditWriter = $this->recordingAuditWriter();
@@ -149,8 +152,9 @@ final class ClassificationRetentionIntegrationTest extends TestCase
         $reloaded = $this->loadByUuid($repository, 'child-inherit-uuid');
         self::assertNotNull($reloaded);
         // (a) inheritance cascaded on first save through the booted pipeline.
-        self::assertSame('confidential', $reloaded->get('classification_label'));
-        self::assertSame('parent-uuid', $reloaded->get('classification_inherited_from'));
+        $subject = new ClassificationSubjectReader()->read($reloaded);
+        self::assertSame('confidential', $subject->label);
+        self::assertSame('parent-uuid', $subject->inheritedFrom);
     }
 
     #[Test]
@@ -172,8 +176,9 @@ final class ClassificationRetentionIntegrationTest extends TestCase
         $overridden = $this->loadByUuid($repository, 'child-override-uuid');
         self::assertNotNull($overridden);
         // (b) explicit override persists and does NOT inherit the parent label.
-        self::assertSame('public', $overridden->get('classification_label'));
-        self::assertNull($overridden->get('classification_inherited_from'));
+        $subject = new ClassificationSubjectReader()->read($overridden);
+        self::assertSame('public', $subject->label);
+        self::assertNull($subject->inheritedFrom);
     }
 
     #[Test]
@@ -619,6 +624,9 @@ final class ClassificationRetentionIntegrationTest extends TestCase
 )]
 final class Fr015Document extends ContentEntityBase
 {
+    #[Field(type: 'string', required: false, read: FieldReadLevel::Public)]
+    public string $parent_uuid;
+
     /**
      * @param array<string, mixed> $values
      * @param array<string, string> $entityKeys

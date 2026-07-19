@@ -128,6 +128,6 @@ final class VerifyEmailControllerTest extends TestCase
         self::assertSame(200, $response->getStatusCode());
         $data = json_decode((string) $response->getContent(), true);
         self::assertTrue($data['ok']);
-        self::assertTrue($user->isEmailVerified());
+        self::assertTrue(new \Waaseyaa\Tests\Support\UserInternalFieldReaderFixture()->verification($user)->emailVerified);
     }
 }

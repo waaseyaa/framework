@@ -8,6 +8,8 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Http\Router\DomainRouterInterface;
@@ -23,6 +25,7 @@ final class MediaDownloadRouter implements DomainRouterInterface
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly EntityAccessHandler $accessHandler,
         private readonly string $filesRoot,
+        private readonly AccountFieldReadScopeInterface $fieldReadScope,
     ) {}
 
     public function supports(Request $request): bool
@@ -34,11 +37,30 @@ final class MediaDownloadRouter implements DomainRouterInterface
     {
         $id = (string) $request->attributes->get('id', '');
         $account = $request->attributes->get('_account');
+        $principal = $request->attributes->get('_authorization_principal');
+
+        if (!$account instanceof AccountInterface
+            || !$principal instanceof AuthorizationPrincipalInterface
+            || (string) $principal->id() !== (string) $account->id()
+        ) {
+            return $this->notFound();
+        }
+
+        /** @var Response $response */
+        $response = $this->fieldReadScope->run(
+            $principal,
+            fn(): Response => $this->handleAuthorized($id, $account),
+        );
+
+        return $response;
+    }
+
+    private function handleAuthorized(string $id, AccountInterface $account): Response
+    {
         $media = $id !== '' ? $this->entityTypeManager->getRepository('media')->find($id) : null;
 
         if (
             !$media instanceof Media
-            || !$account instanceof AccountInterface
             || !$this->accessHandler->check($media, 'view', $account)->isAllowed()
         ) {
             return $this->notFound();
@@ -49,14 +71,11 @@ final class MediaDownloadRouter implements DomainRouterInterface
             return $this->notFound();
         }
 
-        $contentType = (string) $media->get('mime_type');
-        if ($contentType === '') {
-            $contentType = 'application/octet-stream';
-        }
-        $filename = (string) $media->get('filename');
-        if ($filename === '') {
-            $filename = basename($path);
-        }
+        $detectedContentType = new \finfo(FILEINFO_MIME_TYPE)->file($path);
+        $contentType = is_string($detectedContentType) && $detectedContentType !== ''
+            ? $detectedContentType
+            : 'application/octet-stream';
+        $filename = basename($path);
         $sanitizedFilename = preg_replace('/[^A-Za-z0-9._-]/', '_', basename($filename));
         $safeFilename = $sanitizedFilename !== null && $sanitizedFilename !== '' ? $sanitizedFilename : 'download';
 

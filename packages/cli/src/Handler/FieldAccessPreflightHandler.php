@@ -8,6 +8,7 @@ use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\CLI\Security\DatabaseFieldAccessInventoryScanner;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\FieldReadLevel;
+use Waaseyaa\Entity\Preflight\FieldAccessClassificationArtifact;
 use Waaseyaa\Field\Preflight\FieldAccessPreflightScanner;
 
 /** @api */
@@ -34,9 +35,12 @@ final readonly class FieldAccessPreflightHandler
         if (is_file($root . '/composer.lock')) {
             $version .= '@' . substr(hash_file('sha256', $root . '/composer.lock'), 0, 16);
         }
-        $artifact = $this->loadClassificationArtifact($root);
-        $version .= '@classification-' . substr(hash('sha256', json_encode($artifact, JSON_THROW_ON_ERROR)), 0, 16);
-        $result = $this->preflight->scan($this->entityTypes, $this->liveScanner->scan($version, $artifact));
+        $classification = FieldAccessClassificationArtifact::load($root);
+        $version = $classification->bindToFrameworkVersion($version);
+        $result = $this->preflight->scan(
+            $this->entityTypes,
+            $this->liveScanner->scan($version, $this->classificationFields($classification->document)),
+        );
         $json = json_encode($result->toArray(), JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
         $io->write($json);
 
@@ -58,15 +62,13 @@ final readonly class FieldAccessPreflightHandler
         return $result->ready ? 0 : 1;
     }
 
-    /** @return array<string, FieldReadLevel> */
-    private function loadClassificationArtifact(string $root): array
+    /** @param array<string, mixed> $document @return array<string, FieldReadLevel> */
+    private function classificationFields(array $document): array
     {
-        $path = $root . '/.waaseyaa/field-access-classification.json';
-        if (!is_file($path)) {
+        if ($document === []) {
             return [];
         }
-        $decoded = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
-        $fields = is_array($decoded) ? ($decoded['fields'] ?? null) : null;
+        $fields = $document['fields'] ?? null;
         if (!is_array($fields) || array_is_list($fields)) {
             throw new \RuntimeException('Field-access classification artifact must contain an object-valued "fields" map.');
         }

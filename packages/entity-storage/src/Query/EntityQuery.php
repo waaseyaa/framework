@@ -10,11 +10,11 @@ namespace Waaseyaa\EntityStorage\Query;
  * Marker interface for entity query objects.
  *
  * WP01 stubs this type so that the canonical two-parameter
- * {@see \Waaseyaa\EntityStorage\Backend\FieldStorageBackendInterface::supportsQuery()}
+ * {@see \Waaseyaa\EntityStorage\Backend\FieldStorageBackendGateway::supportsQuery()}
  * signature is correct from the first commit. WP06 enriches this interface
  * with filter, sort, and pagination contracts without touching the backend API.
  *
- * Backends implementing {@see \Waaseyaa\EntityStorage\Backend\FieldStorageBackendInterface}
+ * Registrar-owned {@see \Waaseyaa\EntityStorage\Backend\FieldStorageBackendGateway} instances
  * receive this object at definition-validation time and must declare whether
  * they can satisfy the query for a given field. If they cannot, they return
  * false; callers then throw

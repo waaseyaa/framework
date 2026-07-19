@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Field\Entity\RetentionPolicy;
+use Waaseyaa\Field\Entity\RetentionPolicyMaintenanceReader;
 
 #[CoversClass(RetentionPolicy::class)]
 final class RetentionPolicyTest extends TestCase
@@ -16,13 +17,14 @@ final class RetentionPolicyTest extends TestCase
     public function can_construct_with_empty_values(): void
     {
         $policy = new RetentionPolicy([]);
+        $view = new RetentionPolicyMaintenanceReader()->read($policy);
 
-        self::assertSame('', $policy->getName());
-        self::assertSame('', $policy->getAction());
-        self::assertSame('', $policy->getTriggerKind());
-        self::assertSame('', $policy->getTriggerValue());
-        self::assertSame([], $policy->getAppliesTo());
-        self::assertSame([], $policy->getExemptions());
+        self::assertSame('', $view->name);
+        self::assertSame('', $view->action);
+        self::assertSame('', $view->triggerKind);
+        self::assertSame('', $view->triggerValue);
+        self::assertSame([], $view->appliesTo);
+        self::assertSame([], $view->exemptions);
     }
 
     #[Test]
@@ -37,12 +39,31 @@ final class RetentionPolicyTest extends TestCase
             'exemptions' => ['note:abc-123'],
         ]);
 
-        self::assertSame('Purge old internal notes', $policy->getName());
-        self::assertSame(['internal', 'confidential'], $policy->getAppliesTo());
-        self::assertSame('purge', $policy->getAction());
-        self::assertSame('age_based', $policy->getTriggerKind());
-        self::assertSame('P90D', $policy->getTriggerValue());
-        self::assertSame(['note:abc-123'], $policy->getExemptions());
+        $view = new RetentionPolicyMaintenanceReader()->read($policy);
+        self::assertSame('Purge old internal notes', $view->name);
+        self::assertSame(['internal', 'confidential'], $view->appliesTo);
+        self::assertSame('purge', $view->action);
+        self::assertSame('age_based', $view->triggerKind);
+        self::assertSame('P90D', $view->triggerValue);
+        self::assertSame(['note:abc-123'], $view->exemptions);
+    }
+
+    #[Test]
+    public function audit_context_preserves_the_exact_operational_shape(): void
+    {
+        $view = new RetentionPolicyMaintenanceReader()->read(new RetentionPolicy([
+            'name' => 'Purge old internal notes',
+            'action' => RetentionPolicy::ACTION_PURGE,
+            'trigger_kind' => RetentionPolicy::TRIGGER_AGE_BASED,
+            'created_at' => 1_700_000_000,
+        ]));
+
+        self::assertSame([
+            'policy_name' => 'Purge old internal notes',
+            'action' => 'purge',
+            'trigger_kind' => 'age_based',
+            'created_at' => 1_700_000_000,
+        ], $view->auditContext());
     }
 
     #[Test]
@@ -53,8 +74,9 @@ final class RetentionPolicyTest extends TestCase
             'exemptions' => '["audit:1","audit:2"]',
         ]);
 
-        self::assertSame(['hold-legal', 'hold-research'], $policy->getAppliesTo());
-        self::assertSame(['audit:1', 'audit:2'], $policy->getExemptions());
+        $view = new RetentionPolicyMaintenanceReader()->read($policy);
+        self::assertSame(['hold-legal', 'hold-research'], $view->appliesTo);
+        self::assertSame(['audit:1', 'audit:2'], $view->exemptions);
     }
 
     #[Test]
@@ -66,40 +88,43 @@ final class RetentionPolicyTest extends TestCase
             'applies_to' => ['ok', 42, '', null, 'also-ok'],
         ]);
 
-        self::assertSame(['ok', 'also-ok'], $policy->getAppliesTo());
+        self::assertSame(['ok', 'also-ok'], new RetentionPolicyMaintenanceReader()->read($policy)->appliesTo);
     }
 
     #[Test]
     public function matches_label_supports_literal_equality(): void
     {
         $policy = new RetentionPolicy(['applies_to' => ['internal', 'confidential']]);
+        $view = new RetentionPolicyMaintenanceReader()->read($policy);
 
-        self::assertTrue($policy->matchesLabel('internal'));
-        self::assertTrue($policy->matchesLabel('confidential'));
-        self::assertFalse($policy->matchesLabel('public'));
-        self::assertFalse($policy->matchesLabel('hold-legal'));
+        self::assertTrue($view->matchesLabel('internal'));
+        self::assertTrue($view->matchesLabel('confidential'));
+        self::assertFalse($view->matchesLabel('public'));
+        self::assertFalse($view->matchesLabel('hold-legal'));
     }
 
     #[Test]
     public function matches_label_supports_prefix_glob(): void
     {
         $policy = new RetentionPolicy(['applies_to' => ['nation-*', 'hold-*']]);
+        $view = new RetentionPolicyMaintenanceReader()->read($policy);
 
-        self::assertTrue($policy->matchesLabel('nation-confidential'));
-        self::assertTrue($policy->matchesLabel('nation-sacred'));
-        self::assertTrue($policy->matchesLabel('hold-legal'));
-        self::assertFalse($policy->matchesLabel('confidential'));
-        self::assertFalse($policy->matchesLabel('public'));
+        self::assertTrue($view->matchesLabel('nation-confidential'));
+        self::assertTrue($view->matchesLabel('nation-sacred'));
+        self::assertTrue($view->matchesLabel('hold-legal'));
+        self::assertFalse($view->matchesLabel('confidential'));
+        self::assertFalse($view->matchesLabel('public'));
     }
 
     #[Test]
     public function star_alone_matches_anything(): void
     {
         $policy = new RetentionPolicy(['applies_to' => ['*']]);
+        $view = new RetentionPolicyMaintenanceReader()->read($policy);
 
-        self::assertTrue($policy->matchesLabel('public'));
-        self::assertTrue($policy->matchesLabel('hold-legal'));
-        self::assertTrue($policy->matchesLabel('anything'));
+        self::assertTrue($view->matchesLabel('public'));
+        self::assertTrue($view->matchesLabel('hold-legal'));
+        self::assertTrue($view->matchesLabel('anything'));
     }
 
     #[Test]
@@ -108,11 +133,12 @@ final class RetentionPolicyTest extends TestCase
         $policy = new RetentionPolicy([
             'exemptions' => ['node:abc-123', 'media:xyz-789'],
         ]);
+        $view = new RetentionPolicyMaintenanceReader()->read($policy);
 
-        self::assertTrue($policy->isExempt('node', 'abc-123'));
-        self::assertTrue($policy->isExempt('media', 'xyz-789'));
-        self::assertFalse($policy->isExempt('node', 'xyz-789'));
-        self::assertFalse($policy->isExempt('media', 'abc-123'));
+        self::assertTrue($view->isExempt('node', 'abc-123'));
+        self::assertTrue($view->isExempt('media', 'xyz-789'));
+        self::assertFalse($view->isExempt('node', 'xyz-789'));
+        self::assertFalse($view->isExempt('media', 'abc-123'));
     }
 
     #[Test]

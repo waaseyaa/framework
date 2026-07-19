@@ -163,7 +163,7 @@ final class GenealogySeoEnumerationTest extends TestCase
                 (new SqlSchemaHandler($definition, $database, $registry))->ensureTable();
                 $idKey = $definition->getKeys()['id'] ?? 'id';
 
-                return new EntityRepository(
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                     $definition,
                     new SqlStorageDriver($resolver, $idKey),
                     $dispatcher,

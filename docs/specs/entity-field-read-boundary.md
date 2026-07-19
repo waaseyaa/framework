@@ -1,7 +1,7 @@
 # Entity Field-Read Boundary
 
-**Status:** WP1 contracts, WP2 closed authorities, and WP3 sealed entity/convergence primitives; field-read enforcement remains dormant until the single no-shim activation PR.
-**Anchor:** GitHub #2064, with Design Revisions 2 and 3 controlling.
+**Status:** WP4 activated: sealed entity reads, persistence gateways, production preflight, and payload boundaries are enforced without compatibility shims.
+**Anchor:** GitHub #2064, with approved Design Revision 6 controlling.
 
 ## WP1 contract
 
@@ -107,15 +107,45 @@ activation readiness. The diagnostic report carries those reference ratios but
 no pass/fail result.
 
 Activation performance is decided only by the frozen real-page harness. It
-compares the WP2 baseline tree with the activation candidate across nine fresh
-process blocks per tree, after 30 warmups and with 200 timed samples per block.
-Both the cache-cold content page and the cache-cold members-directory page must
-have a paired upper-95 ratio no greater than 1.03 **and** a paired upper-95
-absolute delta no greater than 500,000 ns (0.50 ms). Response bodies, execution
+compares the WP2 baseline tree with the activation candidate across 20 fresh
+randomized paired process blocks, after 30 warmups and with 200 timed samples
+per page and tree in each block.
+The timed boundary includes fresh `HttpKernel` construction and `handle()` for
+every request, matching the production front controller rather than shifting
+kernel boot cost outside the measurement. If exact WP2 cannot execute that
+lifecycle, the declared baseline is a clean benchmark-only WP2 parity commit
+containing only the identical Twig lifecycle fix present in the candidate; no
+field-read implementation may enter that parity commit. This keeps both trees
+on the same executable lifecycle while isolating the field-read cost.
+For every paired block, the harness calculates the candidate/baseline request-
+median ratio and request-median delta. With a checked-in MT19937 seed it
+resamples those 20 paired observations with replacement 100,000 times, takes
+the median ratio and median delta of each resample, and uses the nearest-rank
+one-sided 95th percentile as each upper confidence bound. Both the cache-cold
+content page and the cache-cold members-directory page must have a bootstrap
+paired-median ratio upper bound no greater than 1.03 **and** stay within the
+bootstrap paired-median absolute upper bound
+`max(0.50 ms, 0.05 ms × hydrated entity count)` for that page. The content-
+scaled absolute budget prevents a large entity page
+from failing on an immaterial fixed per-entity cost while the independent ratio
+gate still bounds total-page impact. The hydrated-entity count is a frozen
+workload attribute in each page trace (one entity for content; the authenticated
+session User plus the rendered Users for the directory), not a candidate-side
+observation. A missing, non-positive, cross-tree-mismatched, or cross-block-
+changing count makes the result non-comparable. Response bodies, execution
 traces, workload hashes, fixture manifests, PHP binaries/configuration, and
-extensions must match before timings are comparable. The cache-hit content page
-and the synthetic field-read microbenchmarks are diagnostic only and cannot
-rescue a cache-cold failure.
+extensions must also match before timings are comparable. Each measured page
+uses a project-and-page-private PHP session namespace. Page traces bind the
+expected authorization mode, per-request kernel lifecycle, and privileged-read
+ledger row count, so retained session/account state, authorization-ledger drift,
+or a warmed framework kernel makes a block non-comparable instead of becoming
+timing noise. Reports retain every paired ratio/delta, paired p95/max, and the
+pooled request-sample p95/max for each tree. They also surface a separate raw-
+tail warning when request maxima exceed either unchanged budget in at least 15
+of 20 blocks, even when the bootstrap gate passes; a single noisy maximum is
+never promoted into that consistency signal. The cache-hit content page and
+the synthetic field-read
+microbenchmarks are diagnostic only and cannot rescue a cache-cold failure.
 
 ## Explicit non-effects in WP1
 
@@ -307,10 +337,38 @@ do not install it in this tranche; WP4 performs that single no-shim activation.
 protected or public raw value bag for subclasses. Public fields remain stored as
 raw scalars/arrays in that container, while Protected and Internal fields are
 stored as restricted cells bound to the exact entity-view identity and compiled
-`EntityReadLayout`. The layout is sealed to a process generation. Every sealed
-read checks that generation before field lookup, so an entity compiled under an
-obsolete classification/policy generation must be reloaded rather than read
-under stale semantics.
+`EntityReadLayout`. Layout compilation is cached only under the exact entity
+class/type/bundle source, immutable definition identities and semantic
+fingerprint, structural key map, field-name shape, and registry-owned
+type/bundle generation. Registry mutation advances that source generation and
+replaces the registry's generation source so compiled identity/layout entries
+cannot survive registration. A changed immutable-definition fingerprint does
+the same. Custom definition implementations additionally install a weak,
+registry-owned semantic fingerprint probe: an in-place change to read level or
+authorization-input status advances the existing generation before the next
+read. Losing the registry also stales that generation. The probe cannot retain
+the registry, and the final readonly framework `FieldDefinition` never installs
+one, preserving its constant-time generation check.
+Every retained layout is sealed to both the process generation and its exact
+registry generation, and every sealed entity or projected query decision checks
+those seals. A value compiled under obsolete classification/policy metadata is
+therefore rejected and must be reloaded/recompiled rather than read under stale
+semantics.
+
+Equivalent built-in immutable definitions may reuse a bounded process-lifetime
+classification blueprint containing only field levels, authorization-input
+names, and the undeclared-field level. A blueprint carries no registry authority:
+each hit creates a fresh `EntityReadLayout` bound to the current process and the
+requesting registry's current generation. Its key includes the exact semantic
+definition identity and structural source shape, so a semantic definition
+change misses instead of reusing stale classification. A registry-generation
+change may reuse the immutable recipe, but only by binding a new layout to that
+fresh generation; the already-bound layout still throws as obsolete. Custom
+definition implementations never enter this cross-registry cache and retain
+full metadata resolution plus the semantic mutation probe described above. The
+cache is capped at 256 blueprints and excludes
+entities, field values, views, principals, account scopes, policy decisions,
+capabilities, ledger records, registries, and mutable runtime services.
 
 V2 creation and hydration use an opaque `EntityInitialization` issued by one
 `EntityInitializationBoundary`. The factory seals values and immutable
@@ -394,16 +452,7 @@ backends committed. The strict failure finalization records that invocation
 started; existing `PartialSaveException` committed/uncommitted reporting and
 application-owned reconciliation semantics remain unchanged.
 
-WP3 does not route `EntityStorageCoordinator` or `EntityRepository` through the
-new gateway. `FieldStorageBackendInterface` and its provider capability remain
-dormant compatibility surfaces, and `BackendRegistrar::get()` remains only for
-that unchanged V1 coordinator. The registrar exposes a deterministic exact
-`provider:id:implementation` V1 blocker inventory. The live
-`field-access:preflight` scanner merges that inventory into `v1_drivers`, so it
-changes the checksum-bound artifact and blocks readiness. Its inventory-only
-registrar mode validates V2 ids/fingerprints but issues no gateway authority.
-
-The WP4 no-shim activation removes the compatibility path in one change:
+WP4 activates the no-shim field-storage gateway in one change:
 
 1. convert first-party and approved extension backends to
    `FieldStorageBackendV2Interface` and freeze their reviewed fingerprints;
@@ -413,10 +462,13 @@ The WP4 no-shim activation removes the compatibility path in one change:
 4. delete `FieldStorageBackendInterface`, `HasFieldStorageBackendsInterface`,
    `IsFrameworkBackendProviderInterface`, the V1 conformance harness, and the
    registrar's `get()`/`all()` V1 exposure; and
-5. refuse activation unless preflight reports an empty V1 backend inventory.
+5. make the V1 field-backend preflight inventory empty because no V1 surface is
+   loadable.
 
-There is no adapter from V1 to V2 and no fallback from a missing or rejected V2
-gateway to V1 in the activation change.
+`CoordinatorLifecycleDispatcher` obtains post-callback persistence values once
+through a private `EntityBase`-bound authority and passes only each declared
+field value into its gateway. There is no adapter from V1 to V2 and no fallback
+from a missing or rejected V2 gateway to V1.
 The guard depends only on entity/access-layer compiled rules. Field-definition
 metadata is resolved and weakly compiled by `FieldReadMetadataResolver` at the
 existing field composition boundary, so the access package has no dependency
@@ -435,15 +487,136 @@ there is no optional compatibility or raw-access fallback. Audited value reads
 authorize and describe an attached `EntityStructure::bundleId` as canonical,
 falling back to `EntityInterface::bundle()` only for non-V2/third-party entities.
 
-Cache, state, queue, and entity-serialization convergence is activation-ready
-but remains dormant by explicit configuration. Enforced cache/state diagnostics
-reject a nested entity graph before any write and require identifiers or an
-explicit Public projection. The entity serialization boundary throws
-`EntitySerializationForbidden` before PHP serialization when enforced.
-Persistent queue enforcement rejects entity-bearing messages before
-serialization, requires a reviewed `QueueEnvelopeV1` factory at dispatch, and
-rejects authenticated legacy rows before handler execution. An activated worker
-also requires an authority-restoring runtime; its scope closes in `finally`
-before acknowledgement, release, or failure handling. Preflight readiness is
-enforceable through `assertReadyForActivation()`, with V1 drivers, serialized
-entities, and legacy queue payloads remaining hard checksum-bound blockers.
+WP4 activates cache, state, queue, and entity-serialization convergence.
+Cache/state defaults and production HTTP cache composition reject a nested
+entity graph before any write and require identifiers or an explicit Public
+projection. `EntitySerializationBoundary` throws
+`EntitySerializationForbidden` by default. Persistent database queue
+composition rejects entity-bearing messages before serialization, requires a
+reviewed `QueueEnvelopeV1` factory at dispatch and an authority-restoring
+runtime at worker construction, and rejects authenticated legacy rows at both
+retry and worker consumption. The restored scope closes in `finally` before
+acknowledgement, release, or failure handling. Sync queues remain process-local
+and do not claim persistent envelope semantics.
+
+Normal runtime composition installs one process guard after policy discovery.
+It uses the exact kernel-owned `AccountFieldReadScopeInterface` instance given
+to `FieldReadContextMiddleware`; a separate scope would make request principals
+invisible to sealed entity reads and is forbidden. Protected decisions route
+through `EntityAccessHandler::checkProtectedFieldRead()` with an
+entity-view-bound authorization-input subject. Internal values remain available
+only through the audited capability readers.
+
+Access-checked repository queries receive that same scope. A live account bound
+with `setAccount()` is evaluated as the current immutable principal only when
+account id and authentication state match; a different active identity fails
+before cache or SQL work. An explicitly bound principal remains valid outside an
+ambient scope. Access-filtered query cache identities include claims generation,
+tenant, and community so a changed authorization snapshot cannot reuse prior
+survivors. A framework Protected entity-read policy may opt into the closed
+candidate projection only through `ProjectedProtectedEntityReadPolicyInterface`,
+whose authorization-input list is a complete declaration for one exact
+type/bundle plan. The handler returns a plan only when every matching Protected
+entity-read policy has that contract; its declared input set must exactly equal
+the generation-bound `EntityReadLayout` authorization inputs. The SQL query then
+selects only those reviewed inputs and required structural selectors under
+opaque aliases, builds `EntityStructure` through the canonical runtime compiler,
+and evaluates a `CompiledPolicySubjectView` without constructing an entity or
+returning subject values. SQL fragments come only from trusted resolved field
+metadata and candidate IDs remain bound parameters. Legacy policies,
+non-opted-in V2 policies, and unresolved bundle plans retain the existing
+full-entity loader evaluation.
+
+The projected path is fail-closed at both compilation and execution. An
+unclassified or non-Protected declared input, a non-framework definition, an
+unsupported storage backend, a policy/layout input mismatch, an obsolete layout
+generation, or an incomplete, duplicate, or disappeared candidate row raises an
+error before any survivor set is returned. Projection reads are chunked within
+driver parameter limits and restored to the original candidate order. Missing
+account context and an insufficient principal remain distinct from these
+projection-integrity failures; neither becomes a null or empty-value success.
+
+One reviewed User-specific difference is intentional. A legacy row with no
+physical `status` key projects an exact `status => null` subject, which the User
+policy treats as inactive and therefore denies to an ordinary profile viewer.
+The hydrated subject omits a physically absent authorization input and fails
+the policy's exact-subject-shape check. Those paths therefore agree on ordinary
+denial and neither may synthesize User's permissive constructor default. An
+administrator is the sole decision difference: projection permits through the
+independent `administer users` grant after receiving the exact null-bearing
+shape, while hydrated evaluation denies the incomplete shape. This accepted
+discrepancy grants no authority to an ordinary principal and must not be
+"fixed" by defaulting absent status to active; the private projection never
+releases the null value or any entity field.
+
+Production-equivalent normal boot consumes
+`.waaseyaa/field-access-preflight.json`, recomputes framework,
+classification-artifact, package-lock, and database-schema identities, verifies
+the canonical checksum/readiness flag, and calls
+`assertReadyForActivation()`. A missing, stale, malformed, or blocker-bearing
+artifact aborts normal boot before provider boot hooks. The restricted
+`field-access:preflight` command remains the sole producer of this artifact.
+
+The semantic accessor inventory was reviewed under #2067. Remaining entries
+are classified activation-compatible guarded accessors, closed
+persistence/validation authorities, third-party compatibility fallbacks, or
+explicitly classified audit read-model helpers; no entry retains stale WP3 wording.
+The imperative `node_type` registration explicitly classifies its structural,
+display, revision-default, status, dependency, and export fields Public, so the
+production revision-default listener consumes the same reviewed metadata under
+sealed repository hydration rather than relying on fixture-default access.
+The relationship type is simultaneously the relationship bundle and label
+selector, so it is structurally Public; endpoint and visibility content remain
+Protected.
+`MediaDownloadRouter` requires the request's immutable authorization principal
+to match its account and runs policy evaluation plus the Protected `source_uri`
+read inside the kernel-shared account scope. Direct dispatch without that
+principal fails closed; response MIME type and filename are derived from the
+resolved contained file, so the download path does not acquire authority for
+unclassified metadata fields.
+Media ownership remains Protected: `uid` is the exact compiled authorization
+input consumed by `MediaAccessPolicy` through a private entity-bound subject
+authority. The policy never invokes the ordinary owner accessor, and ordinary
+`getOwnerId()` calls still require an explicit account principal context.
+
+Relationship endpoint selectors and maintenance values remain Protected.
+Topology, traversal, endpoint visibility, and lifecycle consumers receive only
+fixed-shape typed projections from private `EntityBase`-bound readers; callers
+cannot select arbitrary relationship fields or export the underlying value bag.
+
+Genealogy policy decisions consume compiled Protected `tree_id`, `status`,
+`owner_uid`, `is_living`, and `death_date` inputs. Person/family/event
+`deleted_at` tombstones remain Internal and are read only by a typed reader that
+opens an execution boundary, issues the exact `genealogy.tombstone` capability,
+uses the strict audited value-read seam, and revokes the boundary in `finally`.
+Pedigree and family services consume the shared typed relationship-topology
+projection. Anonymous SSR integration enters one exact principal scope around
+the complete synchronous controller and template render, preserving living
+person concealment without granting ambient access.
+
+Wayfinding keeps `owner_uid` Protected and marked as an authorization input.
+`TrailAccessPolicy` decides ownership from the compiled subject, while
+`TrailStore` uses a private fixed-shape persistence authority for the exact
+title, beacon, origin, and owner values required by save and re-record flows.
+
+Classification retention-policy fields are Protected governance configuration.
+The V2 entity/field policy releases them only to `governance-viewer` or admin
+principals (mutations remain admin-only), while scheduler jobs receive one
+closed fixed-shape maintenance projection rather than entering an ambient
+account scope or invoking ordinary getters.
+
+Messaging thread, message, and participant values—including participant
+roles—are Protected participant content. Message and participant `thread_id`
+selectors are exact authorization inputs. `MessagingAccessPolicy` evaluates
+immutable principals against those compiled selectors (or the structural thread
+id), and Protected entity/field reads fail closed for non-participants.
+
+Taxonomy term `name` is explicitly Public because it is the entity's public
+label; an undeclared runtime-added term field remains Internal and cannot be
+read or array-exported accidentally. Engagement comment, reaction, and follow
+content is Protected. Owner, target type/id, and comment publication status are
+exact compiled inputs used by immutable-principal entity and field policies;
+unpublished comments release only to their owner, while published engagement
+still inherits parent visibility. Note ingestion provenance remains Internal
+and is exposed to trusted ingestion verification only as a fixed two-field
+metadata projection.

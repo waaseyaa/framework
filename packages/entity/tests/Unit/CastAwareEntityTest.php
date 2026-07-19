@@ -11,6 +11,8 @@ use Waaseyaa\Entity\Cast\Exception\CastException;
 use Waaseyaa\Entity\Cast\ValueCaster;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityBase;
+use Waaseyaa\Entity\Attribute\Field;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Entity\Tests\Unit\Cast\Fixture\SampleStringEnum;
 
 /**
@@ -148,6 +150,9 @@ final class EnumCastingTestEntity extends TestEntity
 
 final class CastingContentEntity extends TestContentEntity
 {
+    #[Field(type: 'string', read: FieldReadLevel::Public)]
+    public mixed $tags = null;
+
     /**
      * @var array<string, string|array<string, mixed>>
      */

@@ -18,6 +18,6 @@ final class TaxonomyTermContentTestEntity extends ContentEntityBase
         array $entityKeys = [],
         array $fieldDefinitions = [],
     ) {
-        parent::__construct($values, $entityTypeId, $entityKeys, $fieldDefinitions);
+        parent::__construct($values, $entityTypeId, $entityKeys, ApiFixtureFieldDefinitions::mergePublic($values, $fieldDefinitions));
     }
 }

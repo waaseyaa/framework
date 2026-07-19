@@ -84,7 +84,7 @@ final class TwoFactorE2ETest extends TestCase
             'first_code' => $firstCode,
         ]));
         $this->assertSame(200, $enableRes->getStatusCode());
-        $this->assertSame($setup['secret'], $this->user->getTwoFactorSecret());
+        $this->assertSame($setup['secret'], new UserInternalFieldReaderFixture()->twoFactor($this->user)->secret);
 
         // 3. Simulate pending-login session (LoginController would set this)
         $_SESSION['waaseyaa_pending_2fa_uid'] = $this->user->id();
@@ -121,7 +121,7 @@ final class TwoFactorE2ETest extends TestCase
         $this->assertSame(401, $second->getStatusCode());
 
         // 7 of 8 codes remain.
-        $remaining = $this->user->getTwoFactorRecoveryCodesHash();
+        $remaining = new UserInternalFieldReaderFixture()->twoFactor($this->user)->recoveryCodeHashes;
         $this->assertNotNull($remaining);
         $this->assertCount(7, $remaining);
     }
@@ -134,8 +134,9 @@ final class TwoFactorE2ETest extends TestCase
         $code = $this->manager->getCurrentCode($setup['secret']);
         $disableRes = ($this->disableCtrl)($this->authenticatedRequest($this->user, ['code' => $code]));
         $this->assertSame(200, $disableRes->getStatusCode());
-        $this->assertNull($this->user->getTwoFactorSecret());
-        $this->assertNull($this->user->getTwoFactorRecoveryCodesHash());
+        $twoFactor = new UserInternalFieldReaderFixture()->twoFactor($this->user);
+        $this->assertNull($twoFactor->secret);
+        $this->assertSame([], $twoFactor->recoveryCodeHashes);
         $this->assertFalse($this->service->isEnabled($this->user));
     }
 
@@ -146,7 +147,7 @@ final class TwoFactorE2ETest extends TestCase
         $res = ($this->disableCtrl)($this->authenticatedRequest($this->user, ['code' => '000000']));
         $this->assertSame(401, $res->getStatusCode());
         // Credentials NOT wiped.
-        $this->assertNotNull($this->user->getTwoFactorSecret());
+        $this->assertNotNull(new UserInternalFieldReaderFixture()->twoFactor($this->user)->secret);
     }
 
     public function testVerifyRateLimitsRepeatedFailures(): void

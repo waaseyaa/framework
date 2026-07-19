@@ -12,7 +12,7 @@ namespace Waaseyaa\EntityStorage\Exception;
  *
  * The flow is:
  *   1. {@see \Waaseyaa\EntityStorage\Query\DefinitionValidator} calls
- *      {@see \Waaseyaa\EntityStorage\Backend\FieldStorageBackendInterface::supportsQuery()}.
+ *      {@see \Waaseyaa\EntityStorage\Backend\FieldStorageBackendGateway::supportsQuery()}.
  *   2. Backend returns false.
  *   3. Validator throws this exception with a precise reason.
  *

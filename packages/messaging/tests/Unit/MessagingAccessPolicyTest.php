@@ -8,13 +8,19 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\FieldReadGuard;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Exception\FieldReadDenied;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\Testing\QueryOnlyStubRepository;
 use Waaseyaa\Messaging\MessagingAccessPolicy;
+use Waaseyaa\Messaging\ThreadMessage;
 
 /**
  * The README/spec promise that "only participants can read or post". These tests
@@ -73,6 +79,26 @@ final class MessagingAccessPolicyTest extends TestCase
         self::assertFalse($policy->createAccess('message_thread', 'message_thread', $this->account(0, authenticated: false))->isAllowed());
     }
 
+    #[Test]
+    public function protected_message_fields_use_the_exact_participant_principal(): void
+    {
+        $handler = $this->handler();
+        $scope = new AccountFieldReadScope();
+        EntityReadRuntime::installGuard(new FieldReadGuard($scope, $handler->checkProtectedFieldRead(...)));
+        $message = new ThreadMessage(['thread_id' => self::THREAD_ID, 'sender_id' => 2, 'body' => 'Private body']);
+
+        try {
+            $participant = new AuthorizationPrincipal(self::PARTICIPANT_UID, true, [], [], 'messaging-policy-test');
+            self::assertSame('Private body', $scope->run($participant, fn(): mixed => $message->get('body')));
+
+            $this->expectException(FieldReadDenied::class);
+            $outsider = new AuthorizationPrincipal(self::OUTSIDER_UID, true, [], [], 'messaging-policy-test');
+            $scope->run($outsider, fn(): mixed => $message->get('body'));
+        } finally {
+            EntityReadRuntime::installGuard(null);
+        }
+    }
+
     private function handler(): EntityAccessHandler
     {
         return new EntityAccessHandler([new MessagingAccessPolicy($this->entityTypeManager())]);
@@ -117,7 +143,7 @@ final class MessagingAccessPolicyTest extends TestCase
         $entity->method('getEntityTypeId')->willReturn('thread_message');
         $entity->method('bundle')->willReturn('');
         $entity->method('get')->willReturnCallback(
-            static fn (string $f): mixed => $f === 'thread_id' ? $threadId : null,
+            static fn(string $f): mixed => $f === 'thread_id' ? $threadId : null,
         );
 
         return $entity;

@@ -18,12 +18,11 @@ use Waaseyaa\Audit\Contract\StrictPrivilegedReadLedgerInterface;
 use Waaseyaa\Audit\AuditedFieldRead;
 use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
-use Waaseyaa\Entity\EntityStructure;
 use Waaseyaa\Entity\Exception\FieldReadDenied;
 
 final class AuditedFieldReadTest extends TestCase
 {
-    public function test_attached_structure_bundle_is_authoritative_for_audited_reads(): void
+    public function test_atomically_sealed_structure_bundle_is_authoritative_for_audited_reads(): void
     {
         $registry = new InMemoryCapabilityRegistry();
         $registry->register(new CapabilityDeclaration(
@@ -46,10 +45,11 @@ final class AuditedFieldReadTest extends TestCase
             classificationGeneration: 'class-1',
             policyGeneration: 'policy-1',
         ), $boundary);
-        $entity = new class(['bundle' => '', 'pass' => 'hash'], 'user') extends EntityBase {
-            public function bundle(): string { return (string) $this->get('bundle'); }
-        };
-        $entity->_attachEntityStructure(new EntityStructure('user', 'user', 7, fieldNames: ['bundle', 'pass']));
+        $entity = new class(
+            ['id' => 7, 'bundle' => 'user', 'pass' => 'hash'],
+            'user',
+            ['id' => 'id', 'bundle' => 'bundle'],
+        ) extends EntityBase {};
         $ledger = $this->createMock(StrictPrivilegedReadLedgerInterface::class);
         $ledger->method('reserve')->willReturn(new PrivilegedReadReceipt('structure-bundle'));
 

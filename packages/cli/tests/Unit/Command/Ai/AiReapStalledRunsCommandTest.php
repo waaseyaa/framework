@@ -9,6 +9,10 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Waaseyaa\Access\AccessResult;
+use Waaseyaa\Access\AuthorizationPrincipal;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
+use Waaseyaa\Access\FieldReadGuard;
 use Waaseyaa\AI\Agent\Broadcast\AgentRunBroadcasterInterface;
 use Waaseyaa\AI\Agent\Entity\AgentRun;
 use Waaseyaa\AI\Agent\Enum\HitlMode;
@@ -22,6 +26,7 @@ use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
@@ -44,6 +49,11 @@ final class AiReapStalledRunsCommandTest extends TestCase
         \assert($migration instanceof Migration);
         $schema = new SchemaBuilder($this->database->getConnection());
         $migration->up($schema);
+    }
+
+    protected function tearDown(): void
+    {
+        EntityReadRuntime::installGuard(null);
     }
 
     #[Test]
@@ -80,7 +90,16 @@ final class AiReapStalledRunsCommandTest extends TestCase
         $loaded = $runRepo->find('stuck-1');
         self::assertNotNull($loaded);
         self::assertSame(RunStatus::Failed, $loaded->getStatus());
-        self::assertSame('worker_crashed', $loaded->get('error_code'));
+        $scope = new AccountFieldReadScope();
+        EntityReadRuntime::installGuard(new FieldReadGuard(
+            $scope,
+            static fn(...$args): AccessResult => AccessResult::allowed('System reaper verification projection.'),
+        ));
+        $principal = new AuthorizationPrincipal(0, true, ['system'], [], 'cli-agent-reaper-test');
+        self::assertSame('worker_crashed', $scope->run(
+            $principal,
+            static fn(): mixed => $loaded->get('error_code'),
+        ));
     }
 
     #[Test]
@@ -179,7 +198,7 @@ final class AiReapStalledRunsCommandTest extends TestCase
         );
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver, 'id');
-        $entityRepo = new EntityRepository(
+        $entityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             $driver,
             new EventDispatcher(),
@@ -200,7 +219,7 @@ final class AiReapStalledRunsCommandTest extends TestCase
         );
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver, 'id');
-        $entityRepo = new EntityRepository(
+        $entityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             $driver,
             new EventDispatcher(),
@@ -248,7 +267,7 @@ final class AiReapStalledRunsCommandTest extends TestCase
     {
         return CliTester::for(
             $this->commandDefinition(),
-            new class($command) implements ContainerInterface {
+            new class ($command) implements ContainerInterface {
                 public function __construct(private readonly AiReapStalledRunsCommand $cmd) {}
 
                 public function get(string $id): mixed

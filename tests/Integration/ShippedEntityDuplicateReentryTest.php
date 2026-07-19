@@ -25,7 +25,10 @@ use Waaseyaa\Path\PathAlias;
 use Waaseyaa\Relationship\Relationship;
 use Waaseyaa\Taxonomy\Term;
 use Waaseyaa\Taxonomy\Vocabulary;
+use Waaseyaa\Tests\Support\AuthorizationPrincipalFactory;
+use Waaseyaa\Tests\Support\ProtectedFieldRead;
 use Waaseyaa\User\User;
+use Waaseyaa\User\UserAccessPolicy;
 use Waaseyaa\User\UserBlock;
 use Waaseyaa\Workflows\Workflow;
 
@@ -41,8 +44,9 @@ final class ShippedEntityDuplicateReentryTest extends TestCase
     {
         $user = new User(['uid' => 1, 'name' => 'a', 'mail' => 'a@x.test']);
         $this->assertNotSame($user, $user->duplicate());
-        $this->assertSame('b', $user->with('name', 'b')->getName());
-        $this->assertSame('a', $user->getName(), 'with() must not mutate the original entity');
+        $admin = AuthorizationPrincipalFactory::authenticated(permissions: ['administer users']);
+        $this->assertSame('b', ProtectedFieldRead::run([new UserAccessPolicy()], $admin, $user->with('name', 'b')->getName(...)));
+        $this->assertSame('a', ProtectedFieldRead::run([new UserAccessPolicy()], $admin, $user->getName(...)), 'with() must not mutate the original entity');
 
         $node = new Node(['type' => 'page', 'title' => 'T', 'uid' => 1]);
         $this->assertNotSame($node, $node->duplicate());

@@ -235,7 +235,7 @@ final class RelationshipTraversalServiceTest extends TestCase
         $result = $service->traverse('node', 1, ['status' => 'published']);
 
         $this->assertCount(1, $result, 'Edge to the draft endpoint must be withheld');
-        $this->assertSame('3', (string) $result[0]->get('to_entity_id'));
+        $this->assertSame('3', new \Waaseyaa\Relationship\RelationshipTopologyReader()->read($result[0])?->toId);
     }
 
     public function testTraverseAllModeReturnsMixedStateEdgesUnfiltered(): void
@@ -397,7 +397,7 @@ final class RelationshipTraversalServiceTest extends TestCase
         $result = $service->traverse('node', 1, ['status' => 'unpublished']);
 
         $this->assertCount(1, $result);
-        $this->assertSame('2', (string) $result[0]->get('to_entity_id'));
+        $this->assertSame('2', new \Waaseyaa\Relationship\RelationshipTopologyReader()->read($result[0])?->toId);
     }
 
     public function testBrowseAllIncludesMixedStateEndpointsDeterministically(): void

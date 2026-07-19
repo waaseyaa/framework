@@ -26,6 +26,10 @@
         },
         {
             "type": "path",
+            "url": "../field"
+        },
+        {
+            "type": "path",
             "url": "../foundation"
         },
         {
@@ -52,6 +56,7 @@
         "waaseyaa/config": "^0.1.0-alpha.267",
         "waaseyaa/entity": "^0.1.0-alpha.267",
         "waaseyaa/entity-storage": "^0.1.0-alpha.267",
+        "waaseyaa/field": "^0.1.0-alpha.267",
         "waaseyaa/foundation": "^0.1.0-alpha.267",
         "waaseyaa/groups": "^0.1.0-alpha.267",
         "waaseyaa/relationship": "^0.1.0-alpha.267"

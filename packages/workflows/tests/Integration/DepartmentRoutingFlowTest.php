@@ -117,8 +117,8 @@ final class DepartmentRoutingFlowTest extends TestCase
 
         $created = $nodeRepository->find($entityId);
         $this->assertNotNull($created);
-        $this->assertSame('draft', $created->get('workflow_state'));
-        $this->assertSame(0, (int) $created->get('status'));
+        $this->assertSame('draft', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($created));
+        $this->assertSame(0, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($created));
 
         // --- 2. Author submits for review: member of the content's own ---
         // group AND holds the transition's permission -> allowed. Proves
@@ -134,7 +134,7 @@ final class DepartmentRoutingFlowTest extends TestCase
 
         $inReview = $nodeRepository->find($entityId);
         $this->assertNotNull($inReview);
-        $this->assertSame('review', $inReview->get('workflow_state'));
+        $this->assertSame('review', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($inReview));
 
         // --- 3. decisionmaker_b (dept_b member, holds the 'publish' ---
         // permission, but NOT a member of dept_a, the content's own group)
@@ -154,8 +154,8 @@ final class DepartmentRoutingFlowTest extends TestCase
         // attempt (the gate fires before any repository write).
         $afterGroupDenial = $nodeRepository->find($entityId);
         $this->assertNotNull($afterGroupDenial);
-        $this->assertSame('review', $afterGroupDenial->get('workflow_state'));
-        $this->assertSame(0, (int) $afterGroupDenial->get('status'));
+        $this->assertSame('review', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($afterGroupDenial));
+        $this->assertSame(0, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($afterGroupDenial));
 
         // --- 4. getAvailableTransitions is the sanctioned read side for ---
         // UIs: it must not offer decisionmaker_b a transition they would be
@@ -201,7 +201,7 @@ final class DepartmentRoutingFlowTest extends TestCase
 
         $stillInReview = $nodeRepository->find($entityId);
         $this->assertNotNull($stillInReview);
-        $this->assertSame('review', $stillInReview->get('workflow_state'));
+        $this->assertSame('review', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($stillInReview));
 
         // --- 6. decisionmaker_a publishes: pointer establishes, status ---
         // flips (mirrors ForwardDraftFlowTest's first-publish assertions).
@@ -212,9 +212,9 @@ final class DepartmentRoutingFlowTest extends TestCase
         $published = $nodeRepository->loadPublishedRevision($entityId);
         $this->assertNotNull($published);
         $this->assertSame('Q3 department memo', $published->get('title'));
-        $this->assertSame(1, (int) $published->get('status'));
-        $this->assertSame(1, (int) $nodeRepository->find($entityId)?->get('status'));
-        $this->assertSame('published', $nodeRepository->find($entityId)?->get('workflow_state'));
+        $this->assertSame(1, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($published));
+        $this->assertSame(1, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($nodeRepository->find($entityId)));
+        $this->assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($nodeRepository->find($entityId)));
 
         // --- 7. Audit trail: one entry per TransitionService call, in ---
         // order — submit_for_review (allowed), decisionmaker_b's publish
@@ -352,7 +352,7 @@ final class DepartmentRoutingFlowTest extends TestCase
 
             $resolver = new SingleConnectionResolver($db);
 
-            return new EntityRepository(
+            return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                 $definition,
                 new SqlStorageDriver($resolver, $definition->getKeys()['id']),
                 $dispatcher,

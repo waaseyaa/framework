@@ -596,7 +596,6 @@ final class JsonApiController
             // supplied value was already access-checked above).
             if ($entity instanceof FieldableInterface
                 && !\array_key_exists('status', $attributes)
-                && $entity->get('status') !== null
                 && $this->accessHandler->checkFieldAccess($entity, 'status', 'edit', $this->account)->isForbidden()) {
                 $entity->set('status', 0);
             }

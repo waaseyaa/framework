@@ -13,6 +13,7 @@ use Waaseyaa\Access\Gate\EntityAccessGate;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
@@ -77,11 +78,19 @@ final class SplitBundleCompositionFreshInstallTest extends TestCase
             . ')',
         );
 
-        $entityType = EntityType::fromClass(Node::class);
+        $entityType = new EntityType(
+            id: 'node',
+            label: 'Content',
+            class: Node::class,
+            keys: ['id' => 'nid', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type', 'revision' => 'revision_id'],
+            _fieldDefinitions: [
+                'term_refs' => ['type' => 'json', 'read' => FieldReadLevel::Public],
+            ],
+        );
         $this->typeManager = new EntityTypeManager(new EventDispatcher());
         $this->typeManager->registerEntityType($entityType);
         $this->dispatcher = new EventDispatcher();
-        $this->repository = new EntityRepository(
+        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             entityType: $entityType,
             driver: new SqlStorageDriver(new SingleConnectionResolver($this->db), 'nid'),
             eventDispatcher: $this->dispatcher,

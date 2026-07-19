@@ -14,6 +14,7 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\JsonApiResource;
 use Waaseyaa\Api\ResourceSerializer;
+use Waaseyaa\Api\Tests\Support\AccountScopedJsonApiController;
 use Waaseyaa\Config\ConfigFactory;
 use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\Storage\MemoryStorage;
@@ -113,7 +114,7 @@ final class WriteAllowlistPointerBypassFlowTest extends TestCase
         $archiveResult = $transitionService->transition($archived, 'archive', $editor);
         self::assertSame('archived', $archiveResult->toState);
 
-        self::assertSame('archived', $nodeRepository->find($entityId)?->get('workflow_state'));
+        self::assertSame('archived', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($nodeRepository->find($entityId)));
 
         $beforeRow = $this->rawNodeRow($db, $entityId);
         self::assertNotSame($revP, (int) $beforeRow['published_revision_id'], 'sanity: archive must have moved the pointer past rev_P');
@@ -123,9 +124,8 @@ final class WriteAllowlistPointerBypassFlowTest extends TestCase
         $eve = $this->account(12, ['edit any article content']);
         $accountContext->set($eve);
         $accessHandler = new EntityAccessHandler([new NodeAccessPolicy()]);
-        $controller = new JsonApiController(
-            $entityTypeManager,
-            new ResourceSerializer($entityTypeManager),
+        $controller = new AccountScopedJsonApiController(
+            new JsonApiController($entityTypeManager, new ResourceSerializer($entityTypeManager), $accessHandler, $eve),
             $accessHandler,
             $eve,
         );
@@ -173,9 +173,8 @@ final class WriteAllowlistPointerBypassFlowTest extends TestCase
         $eve = $this->account(12, ['edit any article content']);
         $accountContext->set($eve);
         $accessHandler = new EntityAccessHandler([new NodeAccessPolicy()]);
-        $controller = new JsonApiController(
-            $entityTypeManager,
-            new ResourceSerializer($entityTypeManager),
+        $controller = new AccountScopedJsonApiController(
+            new JsonApiController($entityTypeManager, new ResourceSerializer($entityTypeManager), $accessHandler, $eve),
             $accessHandler,
             $eve,
         );
@@ -204,9 +203,8 @@ final class WriteAllowlistPointerBypassFlowTest extends TestCase
         $eve = $this->account(12, ['create article content']);
         $accountContext->set($eve);
         $accessHandler = new EntityAccessHandler([new NodeAccessPolicy()]);
-        $controller = new JsonApiController(
-            $entityTypeManager,
-            new ResourceSerializer($entityTypeManager),
+        $controller = new AccountScopedJsonApiController(
+            new JsonApiController($entityTypeManager, new ResourceSerializer($entityTypeManager), $accessHandler, $eve),
             $accessHandler,
             $eve,
         );
@@ -247,9 +245,8 @@ final class WriteAllowlistPointerBypassFlowTest extends TestCase
         // Gated: edit access but no publish permission.
         $gated = $this->account(13, ['edit any article content']);
         $accountContext->set($gated);
-        $gatedController = new JsonApiController(
-            $entityTypeManager,
-            new ResourceSerializer($entityTypeManager),
+        $gatedController = new AccountScopedJsonApiController(
+            new JsonApiController($entityTypeManager, new ResourceSerializer($entityTypeManager), $accessHandler, $gated),
             $accessHandler,
             $gated,
         );
@@ -262,9 +259,8 @@ final class WriteAllowlistPointerBypassFlowTest extends TestCase
         // Permitted: edit access AND the publish permission.
         $permitted = $this->account(14, ['edit any article content', 'use editorial transition publish']);
         $accountContext->set($permitted);
-        $permittedController = new JsonApiController(
-            $entityTypeManager,
-            new ResourceSerializer($entityTypeManager),
+        $permittedController = new AccountScopedJsonApiController(
+            new JsonApiController($entityTypeManager, new ResourceSerializer($entityTypeManager), $accessHandler, $permitted),
             $accessHandler,
             $permitted,
         );
@@ -332,9 +328,8 @@ final class WriteAllowlistPointerBypassFlowTest extends TestCase
         self::assertSame($beforeRow['revision_id'], $beforeRow['published_revision_id'], 'sanity: a freshly-published node is self-consistent (tip === published)');
 
         $accessHandler = new EntityAccessHandler([new NodeAccessPolicy()]);
-        $controller = new JsonApiController(
-            $entityTypeManager,
-            new ResourceSerializer($entityTypeManager),
+        $controller = new AccountScopedJsonApiController(
+            new JsonApiController($entityTypeManager, new ResourceSerializer($entityTypeManager), $accessHandler, $admin),
             $accessHandler,
             $admin,
         );
@@ -345,7 +340,7 @@ final class WriteAllowlistPointerBypassFlowTest extends TestCase
         \assert($getDoc->data instanceof JsonApiResource);
         $loadedAttributes = $getDoc->data->attributes;
         self::assertArrayHasKey('revision_id', $loadedAttributes, 'sanity: revision_id must ride the read attributes (FR-008)');
-        self::assertArrayHasKey('published_revision_id', $loadedAttributes, 'sanity: published_revision_id must ride the read attributes (finding #1)');
+        self::assertArrayNotHasKey('published_revision_id', $loadedAttributes, 'Internal publication pointers must not ride an ordinary account projection.');
         self::assertSame((int) $beforeRow['revision_id'], (int) $loadedAttributes['revision_id']);
 
         // SchemaForm.vue's exact shape: the FULL loaded attribute object,
@@ -412,9 +407,8 @@ final class WriteAllowlistPointerBypassFlowTest extends TestCase
         self::assertNull($beforeRow['published_revision_id'], 'sanity: a never-published node carries no published pointer');
 
         $accessHandler = new EntityAccessHandler([new NodeAccessPolicy()]);
-        $controller = new JsonApiController(
-            $entityTypeManager,
-            new ResourceSerializer($entityTypeManager),
+        $controller = new AccountScopedJsonApiController(
+            new JsonApiController($entityTypeManager, new ResourceSerializer($entityTypeManager), $accessHandler, $editor),
             $accessHandler,
             $editor,
         );
@@ -468,9 +462,8 @@ final class WriteAllowlistPointerBypassFlowTest extends TestCase
         $typeLevelOnly = $this->account(31, ['create node content']);
         $accountContext->set($typeLevelOnly);
         $accessHandler = new EntityAccessHandler([new NodeAccessPolicy()]);
-        $controller = new JsonApiController(
-            $entityTypeManager,
-            new ResourceSerializer($entityTypeManager),
+        $controller = new AccountScopedJsonApiController(
+            new JsonApiController($entityTypeManager, new ResourceSerializer($entityTypeManager), $accessHandler, $typeLevelOnly),
             $accessHandler,
             $typeLevelOnly,
         );
@@ -511,12 +504,15 @@ final class WriteAllowlistPointerBypassFlowTest extends TestCase
      */
     private function account(int $id, array $permissions): AccountInterface
     {
-        return new class ($id, $permissions) implements AccountInterface {
+        return new class ($id, $permissions) implements \Waaseyaa\Access\AuthorizationPrincipalInterface {
             public function __construct(private readonly int $accountId, private readonly array $permissions) {}
             public function id(): int|string { return $this->accountId; }
             public function hasPermission(string $permission): bool { return \in_array($permission, $this->permissions, true); }
             public function getRoles(): array { return []; }
             public function isAuthenticated(): bool { return true; }
+            public function claimsGeneration(): string { return 'workflow-write-test'; }
+            public function tenantId(): ?string { return null; }
+            public function communityId(): ?string { return null; }
         };
     }
 
@@ -549,7 +545,7 @@ final class WriteAllowlistPointerBypassFlowTest extends TestCase
 
             $resolver = new SingleConnectionResolver($db);
 
-            return new EntityRepository(
+            return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                 $definition,
                 new SqlStorageDriver($resolver, $definition->getKeys()['id']),
                 $dispatcher,

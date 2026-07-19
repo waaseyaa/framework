@@ -6,6 +6,7 @@ namespace Waaseyaa\Listing\Tests\Contract\Fixtures;
 
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\TranslatableInterface;
+use Waaseyaa\Listing\Tests\Fixtures\PublicListingFields;
 
 /**
  * Translatable variant of {@see ArticleEntity}.
@@ -21,6 +22,8 @@ use Waaseyaa\Entity\TranslatableInterface;
  */
 final class TranslatableArticleEntity extends ContentEntityBase implements TranslatableInterface
 {
+    use PublicListingFields;
+
     /**
      * @var array<string, string>
      */

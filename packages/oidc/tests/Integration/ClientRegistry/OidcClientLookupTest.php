@@ -14,6 +14,7 @@ use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Oidc\ClientRegistry\OidcClientLookup;
+use Waaseyaa\Oidc\ClientRegistry\OidcClientSystemReader;
 use Waaseyaa\Oidc\Entity\OidcClient;
 
 #[CoversClass(OidcClientLookup::class)]
@@ -43,7 +44,7 @@ final class OidcClientLookupTest extends TestCase
         ]);
 
         $dispatcher = new EventDispatcher();
-        $this->repository = new EntityRepository(
+        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             new SqlStorageDriver(new SingleConnectionResolver($database)),
             $dispatcher,
@@ -71,8 +72,9 @@ final class OidcClientLookupTest extends TestCase
 
         $this->assertInstanceOf(OidcClient::class, $found);
         $this->assertSame('minoo-web', $found->getClientId());
-        $this->assertSame('Minoo', $found->getName());
-        $this->assertSame(['https://minoo.test/callback'], $found->getRedirectUris());
+        $registration = new OidcClientSystemReader()->registration($found);
+        $this->assertSame('Minoo', $registration->name);
+        $this->assertSame(['https://minoo.test/callback'], $registration->redirectUris);
     }
 
     public function testDoesNotMatchPartialClientId(): void
@@ -109,7 +111,7 @@ final class OidcClientLookupTest extends TestCase
         $found = $this->lookup->findByClientId('dup');
 
         $this->assertInstanceOf(OidcClient::class, $found);
-        $this->assertSame('First', $found->getName());
+        $this->assertSame('First', new OidcClientSystemReader()->registration($found)->name);
     }
 
     public function testEmptyClientIdReturnsNull(): void

@@ -12,20 +12,24 @@ use Waaseyaa\Messaging\ThreadMessage;
 #[CoversClass(ThreadMessage::class)]
 final class ThreadMessageTest extends TestCase
 {
+    use MessagingFieldReadTestTrait;
+
     #[Test]
     public function creates_with_required_fields(): void
     {
         $msg = new ThreadMessage(['thread_id' => 1, 'sender_id' => 2, 'body' => 'Hello']);
-        $this->assertSame('Hello', $msg->get('body'));
-        $this->assertSame(1, (int) $msg->get('status'));
-        $this->assertNull($msg->get('edited_at'));
+        $this->readMessaging(function () use ($msg): void {
+            $this->assertSame('Hello', $msg->get('body'));
+            $this->assertSame(1, (int) $msg->get('status'));
+            $this->assertNull($msg->get('edited_at'));
+        });
     }
 
     #[Test]
     public function trims_body(): void
     {
         $msg = new ThreadMessage(['thread_id' => 1, 'sender_id' => 2, 'body' => '  Hello  ']);
-        $this->assertSame('Hello', $msg->get('body'));
+        $this->assertSame('Hello', $this->readMessaging(fn(): mixed => $msg->get('body')));
     }
 
     #[Test]

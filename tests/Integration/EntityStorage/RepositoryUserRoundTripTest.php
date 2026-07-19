@@ -15,6 +15,7 @@ use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Field\FieldDefinitionRegistry;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 use Waaseyaa\User\User;
 
 /**
@@ -50,7 +51,7 @@ final class RepositoryUserRoundTripTest extends TestCase
         $resolver = new SingleConnectionResolver($database);
         $driver = new SqlStorageDriver($resolver, idKey: $entityType->getKeys()['id']);
 
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             $driver,
             $dispatcher,
@@ -72,9 +73,13 @@ final class RepositoryUserRoundTripTest extends TestCase
         $reloaded = $repository->find((string) $uid);
 
         self::assertInstanceOf(User::class, $reloaded);
-        self::assertSame('alice', $reloaded->getName());
-        self::assertSame('alice@example.com', $reloaded->getEmail());
-        self::assertSame(1, $reloaded->toArray()['email_verified']);
-        self::assertSame(1, $reloaded->get('status'));
+        $internal = new UserInternalFieldReaderFixture();
+        $identity = $internal->sessionIdentity($reloaded);
+        $verification = $internal->verification($reloaded);
+        $credentials = $internal->credentials($reloaded);
+        self::assertSame('alice', $identity->name);
+        self::assertSame('alice@example.com', $identity->mail);
+        self::assertTrue($verification->emailVerified);
+        self::assertTrue($credentials->active);
     }
 }

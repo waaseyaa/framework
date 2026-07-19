@@ -12,6 +12,7 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\PermissionHandler;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Tests\Support\AuthorizationPrincipalFactory;
 use Waaseyaa\User\AnonymousUser;
 use Waaseyaa\User\Role;
 use Waaseyaa\User\User;
@@ -59,12 +60,10 @@ final class UserAccessIntegrationTest extends TestCase
 
     public function testUserWithPermissionCanAccessEntity(): void
     {
-        $user = new User([
-            'uid' => 1,
-            'name' => 'admin',
-            'permissions' => ['view user profiles', 'administer users'],
-            'roles' => ['administrator'],
-        ]);
+        $user = AuthorizationPrincipalFactory::authenticated(
+            permissions: ['view user profiles', 'administer users'],
+            roles: ['administrator'],
+        );
 
         $targetUser = new User([
             'uid' => 2,
@@ -78,12 +77,11 @@ final class UserAccessIntegrationTest extends TestCase
 
     public function testUserWithoutPermissionGetsForbidden(): void
     {
-        $user = new User([
-            'uid' => 3,
-            'name' => 'editor',
-            'permissions' => ['access content'],
-            'roles' => ['editor'],
-        ]);
+        $user = AuthorizationPrincipalFactory::authenticated(
+            permissions: ['access content'],
+            roles: ['editor'],
+            accountId: 3,
+        );
 
         $targetUser = new User([
             'uid' => 2,
@@ -136,12 +134,10 @@ final class UserAccessIntegrationTest extends TestCase
 
     public function testAdminUserCanDeleteEntity(): void
     {
-        $admin = new User([
-            'uid' => 1,
-            'name' => 'admin',
-            'permissions' => ['administer users'],
-            'roles' => ['administrator'],
-        ]);
+        $admin = AuthorizationPrincipalFactory::authenticated(
+            permissions: ['administer users'],
+            roles: ['administrator'],
+        );
 
         $targetUser = new User([
             'uid' => 2,
@@ -155,12 +151,10 @@ final class UserAccessIntegrationTest extends TestCase
 
     public function testNonAdminCannotDeleteEntity(): void
     {
-        $regularUser = new User([
-            'uid' => 3,
-            'name' => 'regular',
-            'permissions' => ['view user profiles'],
-            'roles' => ['authenticated'],
-        ]);
+        $regularUser = AuthorizationPrincipalFactory::authenticated(
+            permissions: ['view user profiles'],
+            accountId: 3,
+        );
 
         $targetUser = new User([
             'uid' => 2,
@@ -206,12 +200,11 @@ final class UserAccessIntegrationTest extends TestCase
         );
 
         // Simulate role-to-permissions resolution.
-        $user = new User([
-            'uid' => 5,
-            'name' => 'editor_user',
-            'roles' => [$editorRole->id],
-            'permissions' => $editorRole->permissions,
-        ]);
+        $user = AuthorizationPrincipalFactory::authenticated(
+            permissions: $editorRole->permissions,
+            roles: [$editorRole->id],
+            accountId: 5,
+        );
 
         $this->assertSame(['editor'], $user->getRoles());
         $this->assertTrue($user->hasPermission('view user profiles'));
@@ -235,11 +228,9 @@ final class UserAccessIntegrationTest extends TestCase
 
     public function testUserSessionWithAuthenticatedUser(): void
     {
-        $user = new User([
-            'uid' => 1,
-            'name' => 'admin',
-            'permissions' => ['administer users'],
-        ]);
+        $user = AuthorizationPrincipalFactory::authenticated(
+            permissions: ['administer users'],
+        );
 
         $session = new UserSession($user);
 
@@ -252,11 +243,10 @@ final class UserAccessIntegrationTest extends TestCase
         $session = new UserSession();
         $this->assertFalse($session->isAuthenticated());
 
-        $user = new User([
-            'uid' => 7,
-            'name' => 'switcher',
-            'permissions' => ['access content'],
-        ]);
+        $user = AuthorizationPrincipalFactory::authenticated(
+            permissions: ['access content'],
+            accountId: 7,
+        );
 
         $session->setAccount($user);
         $this->assertTrue($session->isAuthenticated());
@@ -267,11 +257,9 @@ final class UserAccessIntegrationTest extends TestCase
 
     public function testCheckCreateAccessWithPermission(): void
     {
-        $user = new User([
-            'uid' => 1,
-            'name' => 'admin',
-            'permissions' => ['administer users'],
-        ]);
+        $user = AuthorizationPrincipalFactory::authenticated(
+            permissions: ['administer users'],
+        );
 
         $result = $this->accessHandler->checkCreateAccess('user', 'user', $user);
 
@@ -280,11 +268,10 @@ final class UserAccessIntegrationTest extends TestCase
 
     public function testCheckCreateAccessWithoutPermission(): void
     {
-        $user = new User([
-            'uid' => 5,
-            'name' => 'regular',
-            'permissions' => ['access content'],
-        ]);
+        $user = AuthorizationPrincipalFactory::authenticated(
+            permissions: ['access content'],
+            accountId: 5,
+        );
 
         $result = $this->accessHandler->checkCreateAccess('user', 'user', $user);
 
@@ -300,11 +287,9 @@ final class UserAccessIntegrationTest extends TestCase
             new AlwaysForbiddenPolicy(),
         ]);
 
-        $admin = new User([
-            'uid' => 1,
-            'name' => 'admin',
-            'permissions' => ['view user profiles', 'administer users'],
-        ]);
+        $admin = AuthorizationPrincipalFactory::authenticated(
+            permissions: ['view user profiles', 'administer users'],
+        );
 
         $target = new User(['uid' => 2, 'name' => 'target']);
         $result = $handler->check($target, 'view', $admin);

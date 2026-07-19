@@ -16,6 +16,9 @@ use Waaseyaa\Cache\ContextResolver;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
+use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\Driver\StorageBoundary;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\Foundation\Http\RequestContext;
 use Waaseyaa\Listing\EntityRepositoryRegistry;
@@ -118,7 +121,12 @@ abstract class ListingResolverContract extends TestCase
         $manager = new EntityTypeManager(new EventDispatcher());
         $manager->registerEntityType($entityType);
 
-        $repo = new EntityRepository($entityType, $driver, new EventDispatcher());
+        $repo = match (true) {
+            $driver instanceof SqlStorageDriver => \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver($entityType, $driver, new EventDispatcher()),
+            $driver instanceof InMemoryStorageDriver => \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create($entityType, $driver, new EventDispatcher()),
+            $driver instanceof SpyStorageDriver => $this->createRepositoryForSpy($entityType, $driver),
+            default => throw new \LogicException('Listing contracts require a concrete first-party storage backend.'),
+        };
         $registry = new EntityRepositoryRegistry(['article' => $repo]);
 
         $contextRegistry = new ContextRegistry();
@@ -139,6 +147,18 @@ abstract class ListingResolverContract extends TestCase
             requestContext: $request,
             cache: $cache,
             keyBuilder: $keyBuilder,
+        );
+    }
+
+    private function createRepositoryForSpy(EntityType $entityType, SpyStorageDriver $driver): EntityRepository
+    {
+        $boundary = new StorageBoundary();
+
+        return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
+            $entityType,
+            $driver->toV2($boundary),
+            new EventDispatcher(),
+            storageBoundary: $boundary,
         );
     }
 

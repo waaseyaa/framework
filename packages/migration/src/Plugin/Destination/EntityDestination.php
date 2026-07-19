@@ -483,9 +483,25 @@ final class EntityDestination implements DestinationPluginInterface
         $keys = $definition->getKeys();
         $uuidKey = $keys['uuid'] ?? 'uuid';
 
-        // Seed a UUIDv7 so the WriteResult can record a stable destination handle
-        // even if the storage backend assigns an integer primary key.
-        $entity = new $class([$uuidKey => Uuid::v7()->toRfc4122()]);
+        // Structural selectors are immutable once the entity is sealed. Seed
+        // every selector carried by the destination record atomically with the
+        // UUID instead of constructing first and mutating bundle/language
+        // afterward.
+        $initialValues = [$uuidKey => Uuid::v7()->toRfc4122()];
+        foreach ($record->values as $logicalKey => $value) {
+            $physicalKey = $this->fieldMap[(string) $logicalKey] ?? (string) $logicalKey;
+            if (in_array($physicalKey, $this->structuralFieldNames($keys), true)) {
+                $initialValues[$physicalKey] = $value;
+            }
+        }
+        if ($record->bundle !== null && isset($keys['bundle'])) {
+            $initialValues[$keys['bundle']] = $record->bundle;
+        }
+        if ($record->langcode !== null && isset($keys['langcode'])) {
+            $initialValues[$keys['langcode']] = $record->langcode;
+        }
+
+        $entity = new $class($initialValues);
         \assert($entity instanceof EntityInterface);
 
         return $entity;
@@ -521,28 +537,19 @@ final class EntityDestination implements DestinationPluginInterface
      */
     private function applyValuesToEntity(EntityInterface $entity, DestinationRecord $record): void
     {
+        $definition = $this->entityTypeManager->getDefinition($this->destinationEntityTypeId);
+        $keys = $definition->getKeys();
+        $structuralFields = $this->structuralFieldNames($keys);
+
         foreach ($record->values as $logicalKey => $value) {
             // DestinationRecord constructor rejects non-string keys; the cast is
             // a static-type narrowing for PHPStan.
             $logicalKey = (string) $logicalKey;
             $physicalKey = $this->fieldMap[$logicalKey] ?? $logicalKey;
+            if (in_array($physicalKey, $structuralFields, true)) {
+                continue;
+            }
             $entity->set($physicalKey, $value);
-        }
-
-        if ($record->bundle !== null) {
-            $definition = $this->entityTypeManager->getDefinition($this->destinationEntityTypeId);
-            $bundleKey = $definition->getKeys()['bundle'] ?? null;
-            if ($bundleKey !== null) {
-                $entity->set($bundleKey, $record->bundle);
-            }
-        }
-
-        if ($record->langcode !== null) {
-            $definition = $this->entityTypeManager->getDefinition($this->destinationEntityTypeId);
-            $langcodeKey = $definition->getKeys()['langcode'] ?? null;
-            if ($langcodeKey !== null) {
-                $entity->set($langcodeKey, $record->langcode);
-            }
         }
     }
 
@@ -589,9 +596,9 @@ final class EntityDestination implements DestinationPluginInterface
             return $this->destinationEntityTypeId;
         }
 
-        $bundle = $entity->get($bundleKey);
+        $bundle = $entity->bundle();
 
-        if (!\is_string($bundle) || $bundle === '') {
+        if ($bundle === '') {
             return $this->destinationEntityTypeId;
         }
 
@@ -606,9 +613,9 @@ final class EntityDestination implements DestinationPluginInterface
         $definition = $this->entityTypeManager->getDefinition($this->destinationEntityTypeId);
         $uuidKey = $definition->getKeys()['uuid'] ?? 'uuid';
 
-        $raw = $entity->get($uuidKey);
+        $raw = $entity->uuid();
 
-        if (!\is_string($raw) || $raw === '') {
+        if ($raw === '') {
             throw DestinationWriteException::entitySaveFailed(
                 $this->destinationEntityTypeId,
                 new \RuntimeException(\sprintf(
@@ -620,6 +627,22 @@ final class EntityDestination implements DestinationPluginInterface
         }
 
         return $raw;
+    }
+
+    /**
+     * @param array<string, string> $keys
+     * @return list<string>
+     */
+    private function structuralFieldNames(array $keys): array
+    {
+        $fields = [$keys['id'] ?? 'id'];
+        foreach (['uuid', 'bundle', 'langcode', 'default_langcode', 'revision'] as $kind) {
+            if (isset($keys[$kind])) {
+                $fields[] = $keys[$kind];
+            }
+        }
+
+        return array_values(array_unique($fields));
     }
 
     /**

@@ -81,8 +81,8 @@ final class AgentExecutorEventDispatchTest extends TestCase
             keys: ['id' => 'id', 'uuid' => 'id', 'label' => 'event_type'],
         );
 
-        $runEntityRepo = new EntityRepository($runType, $driver, $symdispatcher);
-        $logEntityRepo = new EntityRepository($logType, $driver, $symdispatcher);
+        $runEntityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver($runType, $driver, $symdispatcher);
+        $logEntityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver($logType, $driver, $symdispatcher);
 
         $this->runRepository = new AgentRunRepository($runEntityRepo, $this->database);
         $this->auditRepository = new AgentAuditLogRepository($logEntityRepo, $this->database);
@@ -454,9 +454,10 @@ final class AgentExecutorEventDispatchTest extends TestCase
         self::assertTrue($result->success, 'a list-valued tool argument must not crash the run');
 
         $logged = $this->auditRepository->findByRunId((string) $run->id());
+        $eventReader = new \Waaseyaa\Tests\Support\AgentAuditEventTypeReaderFixture();
         $toolCalls = array_filter(
             $logged,
-            static fn(AgentAuditLog $log): bool => $log->getEventType() === EventType::ToolCall,
+            static fn(AgentAuditLog $log): bool => $eventReader->read($log) === EventType::ToolCall,
         );
         self::assertNotEmpty($toolCalls, 'the tool_call audit row (written right after argumentsForAudit) must be present');
     }

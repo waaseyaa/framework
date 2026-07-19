@@ -305,13 +305,14 @@ class EntityBaseTest extends TestCase
         $this->assertSame('B', $next->label());
     }
 
-    public function testWithValuesAppliesSetsInOrder(): void
+    public function testWithValuesRejectsStructuralRetargeting(): void
     {
         $entity = new TestEntity(['id' => 1, 'label' => 'A', 'bundle' => 'b']);
-        $next = $entity->withValues(['label' => 'B', 'bundle' => 'page']);
 
-        $this->assertSame('B', $next->label());
-        $this->assertSame('page', $next->bundle());
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('Structural field test_entity.bundle is immutable after construction.');
+
+        $entity->withValues(['label' => 'B', 'bundle' => 'page']);
     }
 
     public function testWithThrowsSameAsSetOnCastFailure(): void

@@ -6,19 +6,22 @@ namespace Waaseyaa\EntityStorage\Tests\Unit\Driver;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
+use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\EntityType;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverV2Interface;
 use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriver;
 use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriverV2;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriverV2Interface;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriverV2;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriverV2;
-use Waaseyaa\EntityStorage\Driver\LegacyStorageDriverAdapter;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\Driver\StorageRow;
 use Waaseyaa\EntityStorage\Driver\StorageRowSet;
 use Waaseyaa\EntityStorage\Driver\StorageSnapshot;
 use Waaseyaa\EntityStorage\Driver\StorageBoundary;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\EntityStorage\SqlSchemaHandler;
 
 final class EntityStorageDriverV2ContractTest extends TestCase
 {
@@ -32,42 +35,6 @@ final class EntityStorageDriverV2ContractTest extends TestCase
         self::assertSame(StorageSnapshot::class, (string) $interface->getMethod('write')->getParameters()[2]->getType());
         self::assertFalse(StorageRow::class === '' || is_subclass_of(StorageRow::class, \Traversable::class));
         self::assertFalse(is_subclass_of(StorageSnapshot::class, \Stringable::class));
-    }
-
-    #[Test]
-    public function legacy_adapter_preserves_v1_read_behavior_inside_the_new_shape(): void
-    {
-        $boundary = new StorageBoundary();
-        $legacy = new class implements EntityStorageDriverInterface {
-            public function read(string $entityType, string $id, ?string $langcode = null): ?array { return ['id' => $id, 'title' => 'Hello']; }
-            public function readMultiple(string $entityType, array $ids, ?string $langcode = null): array { return ['1' => ['id' => '1']]; }
-            public function write(string $entityType, string $id, array $values): string { return $id; }
-            public function remove(string $entityType, string $id): void {}
-            public function exists(string $entityType, string $id): bool { return true; }
-            public function count(string $entityType, array $criteria = []): int { return 1; }
-            public function findBy(string $entityType, array $criteria = [], ?array $orderBy = null, ?int $limit = null): array { return [['id' => '1']]; }
-            public function findTranslations(string $entityType, string $id, ?string $defaultLangcode = null): array { return ['en' => ['id' => $id, 'langcode' => 'en']]; }
-        };
-
-        $events = [];
-        $adapter = new LegacyStorageDriverAdapter(
-            $legacy,
-            $boundary->driverRowFactory(),
-            $boundary->driverSnapshotReader(),
-            static function (string $channel, array $context) use (&$events): void {
-                $events[] = [$channel, $context];
-            },
-        );
-
-        self::assertSame('entity.deprecation', $events[0][0]);
-        self::assertSame('v1_storage_driver_adapter', $events[0][1]['event']);
-        self::assertInstanceOf(StorageRow::class, $adapter->read('node', '1'));
-        self::assertCount(1, $adapter->readMultiple('node', ['1']));
-        self::assertCount(1, $adapter->findBy('node'));
-        self::assertCount(1, $adapter->findTranslations('node', '1'));
-        self::assertSame('1', $adapter->write('node', '1', $boundary->repositorySnapshotFactory()->create(['id' => '1'])));
-        $this->expectException(\LogicException::class);
-        serialize($adapter->read('node', '1'));
     }
 
     #[Test]
@@ -126,6 +93,37 @@ final class EntityStorageDriverV2ContractTest extends TestCase
         self::assertInstanceOf(StorageRow::class, $row);
         self::assertSame(
             ['id' => '7', 'title' => 'Tansi'],
+            $boundary->repositoryRowReader()->read($row),
+        );
+    }
+
+    #[Test]
+    public function first_party_sql_driver_crosses_the_repository_boundary_only_as_opaque_objects(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $entityType = new EntityType(
+            id: 'v2_sql_contract',
+            label: 'V2 SQL contract',
+            class: EntityInterface::class,
+            keys: ['id' => 'id', 'label' => 'title'],
+        );
+        new SqlSchemaHandler($entityType, $database)->ensureTable();
+        $boundary = new StorageBoundary();
+        $driver = new SqlStorageDriverV2(
+            new SqlStorageDriver(new SingleConnectionResolver($database)),
+            $boundary->driverRowFactory(),
+            $boundary->driverSnapshotReader(),
+        );
+        $snapshot = $boundary->repositorySnapshotFactory()->create([
+            'id' => '7',
+            'title' => 'Tansi',
+        ]);
+
+        self::assertSame('7', $driver->write('v2_sql_contract', '7', $snapshot));
+        $row = $driver->read('v2_sql_contract', '7');
+        self::assertInstanceOf(StorageRow::class, $row);
+        self::assertSame(
+            ['id' => '7', 'bundle' => '', 'title' => 'Tansi', 'langcode' => 'en'],
             $boundary->repositoryRowReader()->read($row),
         );
     }

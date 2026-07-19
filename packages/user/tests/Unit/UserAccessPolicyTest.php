@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\User\User;
@@ -71,9 +72,9 @@ final class UserAccessPolicyTest extends TestCase
     public function testViewOwnAccountAllowed(): void
     {
         $user = new User(['uid' => 5, 'name' => 'alice', 'status' => 1]);
-        $account = $this->createAccount(5, ['access user profiles']);
+        $account = $this->createPrincipal(5, ['access user profiles']);
 
-        $result = $this->policy->access($user, 'view', $account);
+        $result = new EntityAccessHandler([$this->policy])->check($user, 'view', $account);
         $this->assertTrue($result->isAllowed());
     }
 
@@ -84,9 +85,9 @@ final class UserAccessPolicyTest extends TestCase
     public function testViewOtherActiveAccountWithPermission(): void
     {
         $user = new User(['uid' => 5, 'name' => 'alice', 'status' => 1]);
-        $account = $this->createAccount(10, ['access user profiles']);
+        $account = $this->createPrincipal(10, ['access user profiles']);
 
-        $result = $this->policy->access($user, 'view', $account);
+        $result = new EntityAccessHandler([$this->policy])->check($user, 'view', $account);
         $this->assertTrue($result->isAllowed());
     }
 
@@ -97,9 +98,9 @@ final class UserAccessPolicyTest extends TestCase
     public function testViewOtherActiveAccountWithoutPermission(): void
     {
         $user = new User(['uid' => 5, 'name' => 'alice', 'status' => 1]);
-        $account = $this->createAccount(10, []);
+        $account = $this->createPrincipal(10, []);
 
-        $result = $this->policy->access($user, 'view', $account);
+        $result = new EntityAccessHandler([$this->policy])->check($user, 'view', $account);
         $this->assertTrue($result->isNeutral());
     }
 
@@ -110,10 +111,10 @@ final class UserAccessPolicyTest extends TestCase
     public function testViewBlockedAccountDeniedForNonAdmin(): void
     {
         $user = new User(['uid' => 5, 'name' => 'alice', 'status' => 0]);
-        $account = $this->createAccount(10, ['access user profiles']);
+        $account = $this->createPrincipal(10, ['access user profiles']);
 
-        $result = $this->policy->access($user, 'view', $account);
-        $this->assertTrue($result->isNeutral());
+        $result = new EntityAccessHandler([$this->policy])->check($user, 'view', $account);
+        $this->assertTrue($result->isForbidden());
     }
 
     public function testViewBlockedAccountAllowedForAdmin(): void
@@ -333,5 +334,11 @@ final class UserAccessPolicyTest extends TestCase
         );
 
         return $account;
+    }
+
+    /** @param list<string> $permissions */
+    private function createPrincipal(int $id, array $permissions): AuthorizationPrincipal
+    {
+        return new AuthorizationPrincipal($id, true, [], $permissions, 'test-claims-1');
     }
 }

@@ -2,6 +2,7 @@
 
 <!-- Spec reviewed 2026-07-17 - #2064 WP1 adds additive ordinary and revision V2 opaque-row/snapshot SPIs, role-separated driver/repository boundary collaborators, and a dormant repository-only V1 adapter that receives driver roles and requires entity.deprecation emission. Existing V1 drivers and repositories remain byte-compatible; activation removes V1/adapter under the charter no-shim path. Canonical contract: entity-field-read-boundary.md. -->
 <!-- Spec reviewed 2026-07-17 - #2064 WP2 routes ordinary plus revision/langcode repository paths through one opaque V2 boundary, retains first-party persistence authority as a private non-exported EntityRepository closure used only after lifecycle callbacks for base/bundle/translation/revision/backfill writes, attaches immutable structural metadata during creation/hydration/bootstrap, and proves the additive SPI with a consumer-extension fixture. No public raw-bag companion or extractor exists; legacy third-party toArray compatibility remains diagnosed until WP4 removes it. Canonical contract: entity-field-read-boundary.md. -->
+<!-- Spec reviewed 2026-07-18 - #2064 WP4 activates the fingerprinted field-storage gateway, removes every V1 SPI/provider/raw-registrar/conformance surface without an adapter, requires strict durable audit at composition, and routes resolver/validation/coordinator operations through registrar-owned gateways. Canonical backend contract: field-storage-backends.md. -->
 
 > **Two-axis cross-reference.** Revisionable + translatable
 > entities (e.g. Minoo `teaching`) compose this spec's revision model with the
@@ -50,14 +51,14 @@ The expanded mission delivers all three concerns in one coordinated pass. Doing 
 
 ### 1.1 Goals
 
-1. Establish a stable, registrable **field-storage backend contract** (`FieldStorageBackendInterface`).
+1. Establish a stable, registrable **field-storage backend contract** (`FieldStorageBackendV2Interface`).
 2. Refactor the current `_data` JSON path into a named **`sql-blob` backend**, with no observable behavior change for existing entity types.
 3. Implement a new **`sql-column` backend** that stores field values in real SQL columns with indexes.
 4. Implement a storage **coordinator** that fans reads/writes across per-field backends and dispatches the four ADR-011 lifecycle events.
 5. Implement first-class **entity revisions** (`RevisionableEntityInterface`) co-designed with the column-backed schema.
 6. Provide a **storage-migration generator** (`bin/waaseyaa make:storage-migration <entity_type>`) for per-entity-type migration from `sql-blob` to `sql-column`.
 7. Define the **query-support contract** (`supportsQuery()`, `UnsupportedQueryException`) — input for the future listing pipeline (ADR 015).
-8. Ship a **backend-conformance test suite** that any future backend implementation must pass.
+8. Ship direct gateway and built-in backend integration tests for every backend implementation.
 9. Validate the mission by migrating **one Minoo entity type** end-to-end (selection criteria in §16.4).
 
 ### 1.2 Non-goals
@@ -80,7 +81,7 @@ The following are deliberately deferred to future missions / ADRs and must not c
 
 ### 2.1 In scope
 
-- `FieldStorageBackendInterface` and its registration mechanism (composer-discovery via provider capability).
+- `FieldStorageBackendV2Interface` and its registration mechanism (composer-discovery via provider capability).
 - The reserved backend-id namespace: `sql-blob`, `sql-column`, `vector` (vector reserved but not implemented here).
 - `EntityStorage` coordinator: per-field backend dispatch on read/write/delete.
 - `sql-blob` backend: refactor of existing `SqlEntityStorage` path; identical observable behavior.
@@ -94,7 +95,7 @@ The following are deliberately deferred to future missions / ADRs and must not c
 - Query-support contract on backends (`supportsQuery()`, `UnsupportedQueryException` at definition validation time).
 - `view_revision` operation in `GateInterface` and policy adapter.
 - Storage-migration generator CLI.
-- Backend-conformance test suite (reusable harness).
+- Gateway and built-in backend integration suites (no compatibility harness).
 - Upgrade-guide template entry for "migrating entity type X to `sql-column`."
 - One Minoo entity-type end-to-end migration (validation).
 
@@ -110,16 +111,16 @@ Normative requirements use **MUST / SHOULD / MAY** per RFC 2119. Numbered for Sp
 
 ### 3.1 Backend contract
 
-- **FR-001** The framework MUST expose `Waaseyaa\Entity\Storage\FieldStorageBackendInterface` as a stable surface (charter §5.3).
+- **FR-001** The framework MUST expose `Waaseyaa\Entity\Storage\FieldStorageBackendV2Interface` as a stable surface (charter §5.3).
 - **FR-002** A backend MUST declare its id via `id(): string`. Ids `sql-blob`, `sql-column`, and `vector` are reserved by the framework. Apps and packages MAY register additional backends under any non-reserved id.
 - **FR-003** A backend MUST implement `read`, `write`, `delete`, and `supportsQuery` per the interface signatures in ADR 010.
-- **FR-004** Backends MUST be registered via a provider capability `HasFieldStorageBackendsInterface` (parallel to `HasNativeCommandsInterface`).
+- **FR-004** Backends MUST be registered via a provider capability `HasFieldStorageBackendsV2Interface` (parallel to `HasNativeCommandsInterface`).
 - **FR-005** Backend-id collisions MUST fail at boot with a typed `BackendIdCollisionException` carrying both registering FQCNs.
 - **FR-006** Backend registration that fails any registration check (e.g. missing capability method, malformed id) MUST emit on the `boot.deprecation` log channel and fail the boot loudly (no silent drop — per charter §5.4).
 
 ### 3.2 `sql-blob` backend (refactor)
 
-- **FR-007** The current `_data` JSON-blob storage path MUST be refactored to implement `FieldStorageBackendInterface` with id `sql-blob`.
+- **FR-007** The current `_data` JSON-blob storage path MUST be refactored to implement `FieldStorageBackendV2Interface` with id `sql-blob`.
 - **FR-008** All existing entity types MUST continue to function with no observable behavior change. Schema, query results, and stored values MUST be byte-identical post-refactor (verified by integration tests in WP12).
 - **FR-009** `sql-blob` MUST report `supportsQuery(): false` for individual field predicates. Query against `sql-blob`-backed fields MUST raise `UnsupportedQueryException` at definition validation time (per FR-021).
 - **FR-010** `sql-blob` MUST support equality queries on entity keys (`id`, `uuid`, bundle, langcode) which live outside `_data` as real columns; these are not field predicates.
@@ -188,9 +189,9 @@ Normative requirements use **MUST / SHOULD / MAY** per RFC 2119. Numbered for Sp
 
 ### 3.10 Testing
 
-- **FR-049** A reusable backend-conformance test suite (`Waaseyaa\Entity\Testing\BackendConformanceTestCase`) MUST ship. Any class implementing `FieldStorageBackendInterface` is expected to subclass and pass.
-- **FR-050** The conformance suite MUST cover: read/write/delete round-trips, all FR-012 type mappings (for typed backends), supportsQuery semantics, error-path coverage (UnsupportedQueryException, write failures).
-- **FR-051** Revision behavior MUST have dedicated integration tests separate from the conformance suite.
+- **FR-049** Every backend MUST have direct registrar-owned gateway integration tests; no V1 adapter or reusable compatibility harness may expose the raw implementation contract.
+- **FR-050** The integration suites MUST cover read/write/delete round-trips, all FR-012 type mappings (for typed backends), query-support semantics, fingerprint validation, strict audit ordering, and write failures.
+- **FR-051** Revision behavior MUST have dedicated integration tests separate from the backend suites.
 - **FR-052** The coordinator MUST have integration tests covering: multi-backend fan-out, partial-save error path, lifecycle event dispatch order, abort-on-BeforeSave semantics.
 
 ### 3.11 Documentation
@@ -208,8 +209,8 @@ Maps the mission's stable-surface output to charter §5.3.
 
 | Symbol | Kind | Governing ADR | Charter §5.3 anchor |
 |---|---|---|---|
-| `FieldStorageBackendInterface` | Interface | 010 | "Field storage backend contract" bullet |
-| `HasFieldStorageBackendsInterface` | Provider capability | 010 | Same |
+| `FieldStorageBackendV2Interface` | Interface | 010 | "Field storage backend contract" bullet |
+| `HasFieldStorageBackendsV2Interface` | Provider capability | 010 | Same |
 | Backend-id namespace (`sql-blob`, `sql-column`, `vector` reserved) | String set | 010 | Same |
 | `FieldDefinition::storedIn(string)` | Method | 010 | "FieldDefinition API" bullet |
 | `FieldDefinition::indexed()` | Method | 010 | Same |
@@ -233,10 +234,10 @@ See ADR 010 §"Contract" for the interface signature. This mission's spec for th
 
 ### 5.1 Registration
 
-Backends are registered through provider capability `HasFieldStorageBackendsInterface`:
+Backends are registered through provider capability `HasFieldStorageBackendsV2Interface`:
 
 ```php
-public function fieldStorageBackends(): array
+public function fieldStorageBackendsV2(): array
 {
     return [
         new SqlBlobBackend(...),
@@ -484,9 +485,10 @@ Policies that don't declare `view_revision` fall back to `view`. The framework M
 
 ## 12. Test surface (FR-049…FR-052)
 
-### 12.1 Backend-conformance suite
+### 12.1 Backend gateway integration suites
 
-`Waaseyaa\Entity\Testing\BackendConformanceTestCase` is reusable. Future backend implementations (vector, remote) subclass and pass it. The suite covers:
+Future backend implementations provide direct tests through a registrar-owned
+gateway. A reusable raw-backend compatibility harness is forbidden. The suites cover:
 
 - Single-field write → read round-trip.
 - All FR-012 type mappings (for typed backends).
@@ -537,7 +539,7 @@ Twelve WPs. Each names its primary FR coverage and its dependencies.
 | **WP09** | Per-revision access (`view_revision` operation + fallback) | FR-038..FR-040 | WP08 |
 | **WP10** | Storage-migration generator CLI | FR-041..FR-045 | WP05, WP07, WP08 |
 | **WP11** | First Minoo entity migration (validation) + upgrade-guide pilot | FR-056 + validation across all FRs | WP10 |
-| **WP12** | Backend-conformance suite + docs (`entity-system.md` update, `field-storage-backends.md` spec, upgrade-guide template) | FR-049..FR-055 | WP04, WP06, WP09 |
+| **WP12** | Backend integration suites + docs (`entity-system.md` update, `field-storage-backends.md` spec, upgrade-guide template) | FR-049..FR-055 | WP04, WP06, WP09 |
 
 ### 13.1 Sequencing diagram
 
@@ -572,7 +574,7 @@ The mission is complete when:
 
 1. All 12 WPs are merged.
 2. All FRs in §3 are covered by tests.
-3. The backend-conformance test suite is green for `sql-blob` and `sql-column`.
+3. The registrar-owned gateway integration suites are green for `sql-blob` and `sql-column`.
 4. WP11's Minoo migration ships in production and serves traffic for at least 7 days without a related incident.
 5. Charter §3.2 criterion 8 ("revisions in production") is satisfiable — at least one revisionable entity type is shipping in Minoo.
 6. Charter §5.3 stable-surface entries for this mission are reflected in `public-surface-map.md` and `public-surface-map.php` with both tier (`stable`) and mission-status (`present`) labels.

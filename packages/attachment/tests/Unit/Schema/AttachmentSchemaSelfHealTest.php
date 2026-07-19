@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Attachment\Attachment;
 use Waaseyaa\Attachment\AttachmentRepository;
+use Waaseyaa\Attachment\Maintenance\AttachmentMaintenanceFieldReader;
 use Waaseyaa\Attachment\Schema\AttachmentSchema;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
@@ -61,7 +62,7 @@ final class AttachmentSchemaSelfHealTest extends TestCase
         $entityType = EntityType::fromClass(Attachment::class);
         new SqlSchemaHandler($entityType, $database)->ensureTable();
 
-        $entityRepository = new EntityRepository(
+        $entityRepository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             entityType: $entityType,
             driver: new SqlStorageDriver(new SingleConnectionResolver($database), 'id'),
             eventDispatcher: new EventDispatcher(),
@@ -83,8 +84,9 @@ final class AttachmentSchemaSelfHealTest extends TestCase
         // from the `_data` blob because the real columns do not exist yet).
         $preHeal = $entityRepository->find($id);
         self::assertInstanceOf(Attachment::class, $preHeal);
-        self::assertSame('node', (string) $preHeal->get('parent_entity_type'));
-        self::assertSame('42', (string) $preHeal->get('parent_entity_id'));
+        $maintenance = new AttachmentMaintenanceFieldReader();
+        self::assertSame('node', $maintenance->read($preHeal)->parentEntityType);
+        self::assertSame('42', $maintenance->read($preHeal)->parentEntityId);
 
         $spyLogger = new SchemaSpyLogger();
         new AttachmentSchema($database, $spyLogger)->ensureTable();
@@ -94,21 +96,22 @@ final class AttachmentSchemaSelfHealTest extends TestCase
         // real columns now win over `_data` at every read boundary.
         $postHeal = $entityRepository->find($id);
         self::assertInstanceOf(Attachment::class, $postHeal);
-        self::assertSame('node', (string) $postHeal->get('parent_entity_type'), 'parent_entity_type must survive the heal');
-        self::assertSame('42', (string) $postHeal->get('parent_entity_id'), 'parent_entity_id must survive the heal');
-        self::assertSame(1, (int) $postHeal->get('is_active'), 'is_active must survive the heal');
-        self::assertSame(1_111, (int) $postHeal->get('created_at'), 'created_at must survive the heal');
+        $postHealFields = $maintenance->read($postHeal);
+        self::assertSame('node', $postHealFields->parentEntityType, 'parent_entity_type must survive the heal');
+        self::assertSame('42', $postHealFields->parentEntityId, 'parent_entity_id must survive the heal');
+        self::assertSame(1, (int) $postHealFields->active, 'is_active must survive the heal');
 
         // The healed columns must be REAL column values, not blob shadows:
         // a raw column read (no mergeFromRead) must see the backfill.
         $rows = iterator_to_array($database->select('attachment', 'a')
-            ->fields('a', ['parent_entity_type', 'parent_entity_id', 'is_active'])
+            ->fields('a', ['parent_entity_type', 'parent_entity_id', 'is_active', 'created_at'])
             ->condition('id', $id)
             ->execute());
         self::assertCount(1, $rows);
         self::assertSame('node', (string) $rows[0]['parent_entity_type']);
         self::assertSame('42', (string) $rows[0]['parent_entity_id']);
         self::assertSame(1, (int) $rows[0]['is_active']);
+        self::assertSame(1_111, (int) $rows[0]['created_at'], 'created_at must survive the heal');
 
         // Operator visibility: the heal must say how many rows it touched.
         self::assertNotEmpty($spyLogger->infosAndNotices, 'Backfill must log the healed row count.');
@@ -126,7 +129,7 @@ final class AttachmentSchemaSelfHealTest extends TestCase
         $repository->setActive($id);
         $reloaded = $entityRepository->find($id);
         self::assertInstanceOf(Attachment::class, $reloaded);
-        self::assertSame(1, (int) $reloaded->get('is_active'));
+        self::assertSame(1, (int) $maintenance->read($reloaded)->active);
     }
 
     /**

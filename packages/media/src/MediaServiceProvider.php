@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Media;
 
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
@@ -17,6 +18,8 @@ final class MediaServiceProvider extends ServiceProvider implements HasHttpDomai
     public function httpDomainRouters(HttpKernel $httpKernel): iterable
     {
         $mediaTypeRepository = $httpKernel->getEntityTypeManager()->getRepository('media_type');
+        $fieldReadScope = $this->resolve(AccountFieldReadScopeInterface::class);
+        assert($fieldReadScope instanceof AccountFieldReadScopeInterface);
 
         return [
             new MediaRouter(
@@ -29,6 +32,7 @@ final class MediaServiceProvider extends ServiceProvider implements HasHttpDomai
                 $httpKernel->getEntityTypeManager(),
                 $httpKernel->getAccessHandler(),
                 $this->resolveFilesRoot($httpKernel),
+                $fieldReadScope,
             ),
         ];
     }

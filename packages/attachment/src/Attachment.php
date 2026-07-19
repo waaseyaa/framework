@@ -55,10 +55,10 @@ final class Attachment extends ContentEntityBase
     #[Field(type: 'integer', required: false, label: 'Updated', read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public ?int $updated_at = null;
 
-    #[Field(label: 'Parent Entity Type', settings: ['weight' => 1], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(label: 'Parent Entity Type', settings: ['weight' => 1, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $parent_entity_type = '';
 
-    #[Field(label: 'Parent Entity ID', settings: ['weight' => 2], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(label: 'Parent Entity ID', settings: ['weight' => 2, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $parent_entity_id = '';
 
     #[Field(type: 'boolean', label: 'Active', default: 0, settings: ['weight' => 3], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]

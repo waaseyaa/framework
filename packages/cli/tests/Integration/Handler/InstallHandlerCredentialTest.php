@@ -22,6 +22,7 @@ use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 use Waaseyaa\User\User;
 
 /**
@@ -98,7 +99,7 @@ final class InstallHandlerCredentialTest extends TestCase
             'created' => ['type' => 'int', 'not null' => false],
         ]);
 
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $userEntityType,
             new SqlStorageDriver(new SingleConnectionResolver($userDb), 'uid'),
             new EventDispatcher(),
@@ -112,7 +113,7 @@ final class InstallHandlerCredentialTest extends TestCase
     {
         $manager = new EntityTypeManager(
             eventDispatcher: new EventDispatcher(),
-            repositoryFactory: static fn (): EntityRepository => $repository,
+            repositoryFactory: static fn(): EntityRepository => $repository,
         );
         $manager->registerEntityType($userEntityType);
 
@@ -205,9 +206,14 @@ final class InstallHandlerCredentialTest extends TestCase
         $admin = $repository->find('1');
         self::assertNotNull($admin, 'InstallHandler must have persisted the admin user.');
         self::assertInstanceOf(User::class, $admin);
-        self::assertSame('admin@example.com', $admin->getEmail(), 'Admin email must land in the `mail` entity key.');
+        $internalFields = new UserInternalFieldReaderFixture();
+        self::assertSame(
+            'admin@example.com',
+            $internalFields->mailDelivery($admin)->mail,
+            'Admin email must land in the `mail` entity key.',
+        );
         self::assertTrue(
-            $admin->checkPassword(self::ADMIN_PASSWORD),
+            password_verify(self::ADMIN_PASSWORD, $internalFields->credentials($admin)->passwordHash),
             'Admin must be able to authenticate with the --admin-password supplied at install time.',
         );
     }

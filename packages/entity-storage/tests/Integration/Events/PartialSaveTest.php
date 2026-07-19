@@ -12,7 +12,7 @@ use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Backend\BackendRegistrar;
-use Waaseyaa\EntityStorage\Backend\FieldStorageBackendInterface;
+use Waaseyaa\EntityStorage\Backend\FieldStorageBackendV2Interface;
 use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\BackendResolver;
 use Waaseyaa\EntityStorage\CoordinatorLifecycleDispatcher;
@@ -20,7 +20,8 @@ use Waaseyaa\EntityStorage\EntityStorageCoordinator;
 use Waaseyaa\EntityStorage\Event\AfterSaveEvent;
 use Waaseyaa\EntityStorage\Exception\PartialSaveException;
 use Waaseyaa\EntityStorage\Query\EntityQuery;
-use Waaseyaa\EntityStorage\SaveContext;
+use Waaseyaa\EntityStorage\Tests\Support\PermissiveFieldStorageGatewayAudit;
+use Waaseyaa\EntityStorage\Tests\Support\V2GatewayTestBackendTrait;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\LogLevel;
@@ -41,12 +42,12 @@ final class PartialSaveTest extends TestCase
     // ---------------------------------------------------------------------------
 
     /**
-     * @param FieldStorageBackendInterface[] $backends
+     * @param FieldStorageBackendV2Interface[] $backends
      */
     private function makeRegistrar(array $backends): BackendRegistrar
     {
         $fqcn = PartialSaveProviderRegistry::register($backends);
-        $registrar = new BackendRegistrar([$fqcn], [$fqcn]);
+        $registrar = new BackendRegistrar([$fqcn], [$fqcn], new PermissiveFieldStorageGatewayAudit());
         $registrar->build();
 
         return $registrar;
@@ -75,8 +76,8 @@ final class PartialSaveTest extends TestCase
             class: PartialSaveTestEntity::class,
             keys: ['id' => 'id'],
             _fieldDefinitions: [
-                'title' => (new FieldDefinition(name: 'title', type: 'string'))->storedIn($primaryId),
-                'body'  => (new FieldDefinition(name: 'body', type: 'string'))->storedIn($secondaryId),
+                'title' => new FieldDefinition(name: 'title', type: 'string')->storedIn($primaryId),
+                'body'  => new FieldDefinition(name: 'body', type: 'string')->storedIn($secondaryId),
             ],
         );
     }
@@ -184,14 +185,38 @@ final class PartialSaveTest extends TestCase
                 $this->records[] = ['level' => $level, 'message' => (string) $message, 'context' => $context];
             }
 
-            public function emergency(string|\Stringable $message, array $context = []): void { $this->log(LogLevel::EMERGENCY, $message, $context); }
-            public function alert(string|\Stringable $message, array $context = []): void { $this->log(LogLevel::ALERT, $message, $context); }
-            public function critical(string|\Stringable $message, array $context = []): void { $this->log(LogLevel::CRITICAL, $message, $context); }
-            public function error(string|\Stringable $message, array $context = []): void { $this->log(LogLevel::ERROR, $message, $context); }
-            public function warning(string|\Stringable $message, array $context = []): void { $this->log(LogLevel::WARNING, $message, $context); }
-            public function notice(string|\Stringable $message, array $context = []): void { $this->log(LogLevel::NOTICE, $message, $context); }
-            public function info(string|\Stringable $message, array $context = []): void { $this->log(LogLevel::INFO, $message, $context); }
-            public function debug(string|\Stringable $message, array $context = []): void { $this->log(LogLevel::DEBUG, $message, $context); }
+            public function emergency(string|\Stringable $message, array $context = []): void
+            {
+                $this->log(LogLevel::EMERGENCY, $message, $context);
+            }
+            public function alert(string|\Stringable $message, array $context = []): void
+            {
+                $this->log(LogLevel::ALERT, $message, $context);
+            }
+            public function critical(string|\Stringable $message, array $context = []): void
+            {
+                $this->log(LogLevel::CRITICAL, $message, $context);
+            }
+            public function error(string|\Stringable $message, array $context = []): void
+            {
+                $this->log(LogLevel::ERROR, $message, $context);
+            }
+            public function warning(string|\Stringable $message, array $context = []): void
+            {
+                $this->log(LogLevel::WARNING, $message, $context);
+            }
+            public function notice(string|\Stringable $message, array $context = []): void
+            {
+                $this->log(LogLevel::NOTICE, $message, $context);
+            }
+            public function info(string|\Stringable $message, array $context = []): void
+            {
+                $this->log(LogLevel::INFO, $message, $context);
+            }
+            public function debug(string|\Stringable $message, array $context = []): void
+            {
+                $this->log(LogLevel::DEBUG, $message, $context);
+            }
         };
 
         $primaryBackend = new PartialSaveSpyBackend(ReservedBackendIds::SQL_BLOB);
@@ -233,13 +258,13 @@ final class PartialSaveTest extends TestCase
  */
 final class PartialSaveProviderRegistry
 {
-    /** @var array<int, FieldStorageBackendInterface[]> */
+    /** @var array<int, FieldStorageBackendV2Interface[]> */
     private static array $registry = [];
 
     private static int $counter = 0;
 
     /**
-     * @param FieldStorageBackendInterface[] $backends
+     * @param FieldStorageBackendV2Interface[] $backends
      * @return class-string
      */
     public static function register(array $backends): string
@@ -251,10 +276,10 @@ final class PartialSaveProviderRegistry
         $fqcn = 'PartialSaveTestProvider' . $suffix;
 
         eval(sprintf(
-            'use Waaseyaa\EntityStorage\Backend\HasFieldStorageBackendsInterface;
-             use Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderInterface;
-             final class %s implements HasFieldStorageBackendsInterface, IsFrameworkBackendProviderInterface {
-                 public function fieldStorageBackends(): array {
+            'use Waaseyaa\EntityStorage\Backend\HasFieldStorageBackendsV2Interface;
+             use Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderV2Interface;
+             final class %s implements HasFieldStorageBackendsV2Interface, IsFrameworkBackendProviderV2Interface {
+                 public function fieldStorageBackendsV2(): array {
                      return \Waaseyaa\EntityStorage\Tests\Integration\Events\PartialSaveProviderRegistry::get(%d);
                  }
              }',
@@ -265,7 +290,7 @@ final class PartialSaveProviderRegistry
         return $fqcn;
     }
 
-    /** @return FieldStorageBackendInterface[] */
+    /** @return FieldStorageBackendV2Interface[] */
     public static function get(int $suffix): array
     {
         return self::$registry[$suffix] ?? [];
@@ -275,15 +300,23 @@ final class PartialSaveProviderRegistry
 /**
  * @internal Test fixture: records writes, succeeds.
  */
-final class PartialSaveSpyBackend implements FieldStorageBackendInterface
+final class PartialSaveSpyBackend implements FieldStorageBackendV2Interface
 {
+    use V2GatewayTestBackendTrait;
+
     public int $writeCount = 0;
 
     public function __construct(private readonly string $backendId) {}
 
-    public function id(): string { return $this->backendId; }
+    public function id(): string
+    {
+        return $this->backendId;
+    }
 
-    public function read(EntityInterface $entity, FieldDefinition $field): mixed { return null; }
+    public function read(EntityInterface $entity, FieldDefinition $field): mixed
+    {
+        return null;
+    }
 
     public function write(EntityInterface $entity, FieldDefinition $field, mixed $value): void
     {
@@ -292,22 +325,33 @@ final class PartialSaveSpyBackend implements FieldStorageBackendInterface
 
     public function delete(EntityInterface $entity): void {}
 
-    public function supportsQuery(FieldDefinition $field, EntityQuery $query): bool { return false; }
+    public function supportsQuery(FieldDefinition $field, EntityQuery $query): bool
+    {
+        return false;
+    }
 }
 
 /**
  * @internal Test fixture: always throws on write/delete.
  */
-final class PartialSaveFailingBackend implements FieldStorageBackendInterface
+final class PartialSaveFailingBackend implements FieldStorageBackendV2Interface
 {
+    use V2GatewayTestBackendTrait;
+
     public function __construct(
         private readonly string $backendId,
         private readonly \Throwable $toThrow,
     ) {}
 
-    public function id(): string { return $this->backendId; }
+    public function id(): string
+    {
+        return $this->backendId;
+    }
 
-    public function read(EntityInterface $entity, FieldDefinition $field): mixed { return null; }
+    public function read(EntityInterface $entity, FieldDefinition $field): mixed
+    {
+        return null;
+    }
 
     public function write(EntityInterface $entity, FieldDefinition $field, mixed $value): void
     {
@@ -319,7 +363,10 @@ final class PartialSaveFailingBackend implements FieldStorageBackendInterface
         throw $this->toThrow;
     }
 
-    public function supportsQuery(FieldDefinition $field, EntityQuery $query): bool { return false; }
+    public function supportsQuery(FieldDefinition $field, EntityQuery $query): bool
+    {
+        return false;
+    }
 }
 
 /**

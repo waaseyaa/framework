@@ -6,6 +6,7 @@ namespace Waaseyaa\Cache\Backend;
 
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Cache\CacheItem;
+use Waaseyaa\Cache\EntityPayloadBoundaryConfig;
 use Waaseyaa\Cache\Exception\InvalidCacheTagException;
 use Waaseyaa\Cache\ProjectionDeprecationDiagnostic;
 use Waaseyaa\Cache\TagAwareCacheInterface;
@@ -16,7 +17,15 @@ use Waaseyaa\Cache\TaggedCacheInterface;
  */
 final class MemoryBackend implements TagAwareCacheInterface, TaggedCacheInterface
 {
-    public function __construct(private readonly ?ProjectionDeprecationDiagnostic $projectionDiagnostic = null) {}
+    private readonly ProjectionDeprecationDiagnostic $projectionDiagnostic;
+
+    public function __construct(?ProjectionDeprecationDiagnostic $projectionDiagnostic = null)
+    {
+        $this->projectionDiagnostic = $projectionDiagnostic ?? ProjectionDeprecationDiagnostic::forEntityPayloads(
+            static function (): void {},
+            EntityPayloadBoundaryConfig::enforced(),
+        );
+    }
 
     /** @var array<string, CacheItem> */
     private array $cache = [];
@@ -84,7 +93,7 @@ final class MemoryBackend implements TagAwareCacheInterface, TaggedCacheInterfac
 
     public function set(string $cid, mixed $data, int $expire = self::PERMANENT, array $tags = []): void
     {
-        $data = $this->projectionDiagnostic?->inspect($cid, $data) ?? $data;
+        $data = $this->projectionDiagnostic->inspect($cid, $data);
         $this->cache[$cid] = new CacheItem(
             cid: $cid,
             data: $data,

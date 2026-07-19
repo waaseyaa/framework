@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\EntityStorage\Tests\Unit\Driver;
 
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
@@ -11,9 +14,6 @@ use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
-use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\TestCase;
 
 #[CoversClass(SqlStorageDriver::class)]
 final class SqlStorageDriverTest extends TestCase
@@ -662,23 +662,18 @@ final class SqlStorageDriverTest extends TestCase
             '_data' => '{}',
         ]);
 
-        // Hydrate the existing row into an entity and set a different id on it.
-        $row = $this->driver->read('test_entity', '1');
-        $this->assertNotNull($row);
-        $entity = new TestStorageEntity($row, 'test_entity', [
-            'id' => 'id',
-            'uuid' => 'uuid',
-            'bundle' => 'bundle',
-            'label' => 'label',
-            'langcode' => 'langcode',
-        ]);
-        $entity->set('id', 999);
-        $entity->set('label', 'Renamed');
-
         // Update path: the write is keyed on the stored row's id ('1'), the
-        // values bag carries the divergent id (999) — exactly the shape the
-        // exclusion site guards against.
-        $this->driver->write('test_entity', '1', $entity->toArray());
+        // driver input carries the divergent id (999) — exactly the shape the
+        // exclusion site guards against, without constructing an entity with
+        // an impossible post-hydration identity mutation.
+        $this->driver->write('test_entity', '1', [
+            'id' => 999,
+            'uuid' => 'pin-uuid-1',
+            'label' => 'Renamed',
+            'bundle' => 'article',
+            'langcode' => 'en',
+            '_data' => '{}',
+        ]);
 
         // Storage state: the original row still exists under id 1, the rest of
         // the update applied, and the divergent id was dropped (not rewritten).

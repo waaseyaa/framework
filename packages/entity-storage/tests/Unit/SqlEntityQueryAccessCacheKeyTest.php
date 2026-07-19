@@ -11,6 +11,7 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
@@ -65,7 +66,7 @@ final class SqlEntityQueryAccessCacheKeyTest extends TestCase
 
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver);
-        $this->repository = new EntityRepository(
+        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $this->entityType,
             $driver,
             new EventDispatcher(),
@@ -193,6 +194,42 @@ final class SqlEntityQueryAccessCacheKeyTest extends TestCase
             $this->titlesFor($second),
             'a second identical query for the same account hits the cache (no a2)',
         );
+    }
+
+    #[Test]
+    public function changed_claims_generation_cannot_reuse_an_access_filtered_cache_entry(): void
+    {
+        $this->seedRows([['title' => 'visible-with-current-claim', 'owner_id' => 1]]);
+        $handler = new EntityAccessHandler([new class implements AccessPolicyInterface {
+            public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
+            {
+                return $account->hasPermission('view claimed rows')
+                    ? AccessResult::allowed('current claim permits the row')
+                    : AccessResult::forbidden('current claim denies the row');
+            }
+
+            public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+            {
+                return AccessResult::neutral();
+            }
+
+            public function appliesTo(string $entityTypeId): bool
+            {
+                return $entityTypeId === 'article';
+            }
+        }]);
+
+        $allowed = $this->newQuery()
+            ->withAccessHandler($handler)
+            ->setAccount(new AuthorizationPrincipal(1, true, ['member'], ['view claimed rows'], 'claims-v1'))
+            ->execute();
+        self::assertCount(1, $allowed);
+
+        $denied = $this->newQuery()
+            ->withAccessHandler($handler)
+            ->setAccount(new AuthorizationPrincipal(1, true, ['member'], [], 'claims-v2'))
+            ->execute();
+        self::assertSame([], $denied);
     }
 
     /**

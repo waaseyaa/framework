@@ -20,6 +20,9 @@ use Waaseyaa\Entity\ContentEntityBase;
 #[ContentEntityKeys(id: 'tid', uuid: 'uuid', label: 'name', bundle: 'vid')]
 final class Term extends ContentEntityBase
 {
+    #[Field(type: 'string', label: 'Name', description: 'The public display name of the term.', settings: ['weight' => 0], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
+    public string $name = '';
+
     #[Field(type: 'text', label: 'Description', description: 'A description of the term.', settings: ['weight' => 5], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public ?string $description = null;
 

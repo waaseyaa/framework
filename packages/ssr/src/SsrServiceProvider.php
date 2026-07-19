@@ -7,6 +7,8 @@ namespace Waaseyaa\SSR;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Twig\Environment;
+use Waaseyaa\Access\AccountPrincipalFactoryInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\ErrorPageRendererInterface;
 use Waaseyaa\Access\Gate\EntityAccessGate;
 use Waaseyaa\Cache\CacheBackendInterface;
@@ -35,14 +37,22 @@ final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttp
     private static ?Environment $twigEnvironment = null;
     private static ?FieldFormatterRegistry $formatterRegistry = null;
 
+    private ?Environment $kernelTwigEnvironment = null;
+
     private ?RenderCache $renderCache = null;
 
     private ?SsrPageHandler $ssrPageHandler = null;
 
     public function register(): void
     {
+        if ($this->projectRoot !== '') {
+            $this->kernelTwigEnvironment = ThemeServiceProvider::getTwigEnvironment()
+                ?? self::createTwigEnvironment($this->projectRoot, $this->config);
+            self::$twigEnvironment = $this->kernelTwigEnvironment;
+        }
+
         $this->singleton(ErrorPageRendererInterface::class, function (): ErrorPageRendererInterface {
-            $twig = self::getTwigEnvironment();
+            $twig = $this->kernelTwigEnvironment ?? self::getTwigEnvironment();
             if ($twig !== null) {
                 return new TwigErrorPageRenderer($twig);
             }
@@ -61,7 +71,7 @@ final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttp
         // throws when no environment is available so a caller's resolveOptional()
         // degrades to null rather than receiving a non-object.
         $this->singleton(Environment::class, function (): Environment {
-            $twig = self::getTwigEnvironment();
+            $twig = $this->kernelTwigEnvironment ?? self::getTwigEnvironment();
             if ($twig === null) {
                 throw new \RuntimeException('SSR Twig environment is not available.');
             }
@@ -76,8 +86,9 @@ final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttp
             return;
         }
 
-        self::$twigEnvironment = ThemeServiceProvider::getTwigEnvironment()
+        $this->kernelTwigEnvironment ??= ThemeServiceProvider::getTwigEnvironment()
             ?? self::createTwigEnvironment($this->projectRoot, $this->config);
+        self::$twigEnvironment = $this->kernelTwigEnvironment;
         self::$formatterRegistry = new FieldFormatterRegistry($this->manifestFormatters);
 
         $flashService = new FlashMessageService();
@@ -186,6 +197,8 @@ final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttp
             gate: new EntityAccessGate($kernel->getAccessHandler()),
             inertiaFullPageRenderer: $kernel->getInertiaFullPageRenderer(),
             accessHandler: $kernel->getAccessHandler(),
+            fieldReadScope: $this->resolve(AccountFieldReadScopeInterface::class),
+            principalFactory: $this->resolve(AccountPrincipalFactoryInterface::class),
         );
     }
 

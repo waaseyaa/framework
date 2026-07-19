@@ -132,6 +132,7 @@ final class DebugModeTest extends TestCase
         $kernel = new class($this->projectRoot) extends AbstractKernel {
             public function publicBoot(): void { $this->boot(); }
             public function debugMode(): bool { return $this->isDebugMode(); }
+            protected function validateQueryDefinitions(): void {}
         };
         $kernel->publicBoot();
         $this->assertTrue($kernel->debugMode());
@@ -146,6 +147,7 @@ final class DebugModeTest extends TestCase
         $kernel = new class($this->projectRoot) extends AbstractKernel {
             public function publicBoot(): void { $this->boot(); }
             public function debugMode(): bool { return $this->isDebugMode(); }
+            protected function validateQueryDefinitions(): void {}
         };
         $kernel->publicBoot();
         $this->assertFalse($kernel->debugMode());
@@ -188,13 +190,14 @@ final class DebugModeTest extends TestCase
         $kernel = new class($this->projectRoot) extends AbstractKernel {
             public function publicBoot(): void { $this->boot(); }
             public function debugMode(): bool { return $this->isDebugMode(); }
+            protected function validateQueryDefinitions(): void {}
         };
         $kernel->publicBoot();
         $this->assertFalse($kernel->debugMode());
     }
 
     #[Test]
-    public function boot_succeeds_in_production_without_debug(): void
+    public function production_boot_without_debug_still_requires_field_access_preflight(): void
     {
         putenv('APP_ENV=production');
         putenv('WAASEYAA_APP_SECRET=base64:' . base64_encode(str_repeat('p', 32)));
@@ -202,9 +205,11 @@ final class DebugModeTest extends TestCase
         $kernel = new class($this->projectRoot) extends AbstractKernel {
             public function publicBoot(): void { $this->boot(); }
             public function debugMode(): bool { return $this->isDebugMode(); }
+            protected function validateQueryDefinitions(): void {}
         };
+        $this->expectException(\Waaseyaa\Entity\Exception\FieldAccessActivationBlocked::class);
+        $this->expectExceptionMessage('field-access-preflight.json');
         $kernel->publicBoot();
-        $this->assertFalse($kernel->debugMode());
     }
 
     #[Test]
@@ -250,6 +255,7 @@ final class DebugModeTest extends TestCase
         $kernel = new class($this->projectRoot) extends AbstractKernel {
             public function publicBoot(): void { $this->boot(); }
             public function debugMode(): bool { return $this->isDebugMode(); }
+            protected function validateQueryDefinitions(): void {}
         };
         $kernel->publicBoot();
         $this->assertTrue($kernel->debugMode());

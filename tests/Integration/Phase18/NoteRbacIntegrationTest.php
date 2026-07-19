@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\ResourceSerializer;
@@ -18,8 +19,8 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Note\Note;
 use Waaseyaa\Note\NoteAccessPolicy;
+use Waaseyaa\Tests\Support\AuthorizationPrincipalFactory;
 use Waaseyaa\User\AnonymousUser;
-use Waaseyaa\User\User;
 
 /**
  * Integration tests for #199 — baseline RBAC on core.note.
@@ -287,7 +288,7 @@ final class NoteRbacIntegrationTest extends TestCase
     // Helpers
     // -----------------------------------------------------------------------
 
-    private function buildController(User|AnonymousUser $account): JsonApiController
+    private function buildController(AccountInterface $account): JsonApiController
     {
         return new JsonApiController(
             $this->entityTypeManager,
@@ -297,9 +298,9 @@ final class NoteRbacIntegrationTest extends TestCase
         );
     }
 
-    private function makeUser(int $id = 10, array $roles = [], array $permissions = []): User
+    private function makeUser(int $id = 10, array $roles = [], array $permissions = []): AccountInterface
     {
-        return new User([
+        return AuthorizationPrincipalFactory::fromValues([
             'uid'         => $id,
             'name'        => 'test_user',
             'permissions' => $permissions,

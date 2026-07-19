@@ -8,10 +8,16 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Waaseyaa\Access\AuthorizationPrincipal;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
+use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\FieldReadGuard;
+use Waaseyaa\AI\Agent\Access\AgentRunAccessPolicy;
 use Waaseyaa\AI\Agent\Entity\AgentRun;
 use Waaseyaa\AI\Agent\Enum\HitlMode;
 use Waaseyaa\AI\Agent\Enum\RunStatus;
 use Waaseyaa\AI\Agent\Repository\AgentRunRepository;
+use Waaseyaa\AI\Agent\Security\AccountScopedAgentRunProjectionReader;
 use Waaseyaa\AI\Observability\Event\AgentRunIterationCompleted;
 use Waaseyaa\AI\Observability\Event\AgentRunProviderCallCompleted;
 use Waaseyaa\AI\Observability\Event\AgentRunStarted;
@@ -21,12 +27,13 @@ use Waaseyaa\AI\Observability\Listener\AgentRunTelemetryListener;
 use Waaseyaa\AI\Observability\Recorder\AgentRunMetricsRecorderInterface;
 use Waaseyaa\AI\Observability\Recorder\AgentTelescopeRecorderInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
-use Waaseyaa\Foundation\Log\LogLevel;
 use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\LogLevel;
 
 #[CoversClass(AgentRunTelemetryListener::class)]
 final class AgentRunTelemetryListenerTest extends TestCase
@@ -52,7 +59,7 @@ final class AgentRunTelemetryListenerTest extends TestCase
             keys: ['id' => 'id', 'uuid' => 'id', 'label' => 'id'],
         );
         $driver = new SqlStorageDriver(new SingleConnectionResolver($this->database), 'id');
-        $entityRepo = new EntityRepository(
+        $entityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             $driver,
             new EventDispatcher(),
@@ -131,10 +138,22 @@ final class AgentRunTelemetryListenerTest extends TestCase
         // AgentRun row populated.
         $persisted = $this->runRepository->find('run-1');
         self::assertNotNull($persisted);
-        self::assertSame(1_000_000, (int) $persisted->get('token_usage_in'));
-        self::assertSame(200_000, (int) $persisted->get('token_usage_out'));
-        self::assertSame(600, (int) $persisted->get('cost_cents'));
-        self::assertSame(1, (int) $persisted->get('tool_call_count'));
+        $scope = new AccountFieldReadScope();
+        $access = new EntityAccessHandler([new AgentRunAccessPolicy($this->runRepository)]);
+        $priorGuard = EntityReadRuntime::guard();
+        EntityReadRuntime::installGuard(new FieldReadGuard($scope, $access->checkProtectedFieldRead(...)));
+        try {
+            $projection = new AccountScopedAgentRunProjectionReader($scope)->read(
+                $persisted,
+                new AuthorizationPrincipal(7, true, ['authenticated'], [], 'telemetry-test'),
+            );
+        } finally {
+            EntityReadRuntime::installGuard($priorGuard);
+        }
+        self::assertSame(1_000_000, $projection->tokenUsageIn);
+        self::assertSame(200_000, $projection->tokenUsageOut);
+        self::assertSame(600, $projection->costCents);
+        self::assertSame(1, $projection->toolCallCount);
 
         // Metrics.
         self::assertCount(1, $metrics->terminalRuns);

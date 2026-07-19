@@ -68,7 +68,7 @@ final class EntityRepositoryOptimisticLockingTest extends TestCase
         $this->driver = new SqlStorageDriver($resolver);
         $this->revisionDriver = new RevisionableStorageDriver($resolver, $this->entityType);
 
-        $this->repo = new EntityRepository(
+        $this->repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $this->entityType,
             $this->driver,
             $this->spyDispatcher(),
@@ -238,7 +238,7 @@ final class EntityRepositoryOptimisticLockingTest extends TestCase
             class: TestStorageEntity::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'label'],
         );
-        $repo = new EntityRepository($plainType, $this->driver, $this->spyDispatcher());
+        $repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver($plainType, $this->driver, $this->spyDispatcher());
 
         $entity = new TestStorageEntity(
             values: ['id' => '1', 'label' => 'x'],
@@ -270,7 +270,7 @@ final class EntityRepositoryOptimisticLockingTest extends TestCase
             revisionDefault: true,
             translatable: true,
         );
-        $repo = new EntityRepository($twoAxisType, $this->driver, $this->spyDispatcher());
+        $repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver($twoAxisType, $this->driver, $this->spyDispatcher());
 
         $entity = new TestTranslatableEntity(
             values: ['id' => '1', 'label' => 'x', 'langcode' => 'en', 'default_langcode' => 'en'],
@@ -287,7 +287,7 @@ final class EntityRepositoryOptimisticLockingTest extends TestCase
     public function noDatabaseWithExpectationIsRejected(): void
     {
         // Driver-only construction: no DatabaseInterface wired.
-        $repo = new EntityRepository(
+        $repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $this->entityType,
             $this->driver,
             $this->spyDispatcher(),
@@ -309,7 +309,7 @@ final class EntityRepositoryOptimisticLockingTest extends TestCase
         // Database wired but NO revision driver: without this clause the
         // expectation would silently degrade to the TOCTOU-unsafe pre-check
         // (the guarded claim branch requires a revision driver).
-        $repo = new EntityRepository(
+        $repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $this->entityType,
             $this->driver,
             $this->spyDispatcher(),
@@ -366,7 +366,7 @@ final class EntityRepositoryOptimisticLockingTest extends TestCase
             revisionable: true,
             revisionDefault: false,
         );
-        $repo = new EntityRepository(
+        $repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $defaultFalseType,
             $this->driver,
             $this->spyDispatcher(),
@@ -399,7 +399,7 @@ final class EntityRepositoryOptimisticLockingTest extends TestCase
             revisionDefault: true,
             constraints: ['title' => [new NotBlank()]],
         );
-        $repo = new EntityRepository(
+        $repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $constrainedType,
             $this->driver,
             $this->spyDispatcher(),
@@ -442,7 +442,7 @@ final class EntityRepositoryOptimisticLockingTest extends TestCase
 
         $resolver = new SingleConnectionResolver($this->db);
 
-        return new EntityRepository(
+        return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $plainRevisionableType,
             new SqlStorageDriver($resolver),
             $this->spyDispatcher(),

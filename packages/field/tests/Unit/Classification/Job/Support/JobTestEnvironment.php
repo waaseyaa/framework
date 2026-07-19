@@ -15,6 +15,7 @@ use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
 use Waaseyaa\Field\Entity\RetentionPolicy;
+use Waaseyaa\Field\Entity\RetentionPolicyMaintenanceReader;
 
 /**
  * Shared in-memory test doubles for the classification retention jobs.
@@ -416,8 +417,8 @@ final class FakeQuery implements EntityQueryInterface
             $sortField = $this->sortField;
             $dir = $this->sortDirection;
             usort($filtered, static function (EntityInterface $a, EntityInterface $b) use ($sortField, $dir): int {
-                $va = $a->get($sortField);
-                $vb = $b->get($sortField);
+                $va = self::readField($a, $sortField);
+                $vb = self::readField($b, $sortField);
                 $cmp = is_numeric($va) && is_numeric($vb)
                     ? ((float) $va <=> (float) $vb)
                     : ((string) ($va ?? '') <=> (string) ($vb ?? ''));
@@ -446,19 +447,39 @@ final class FakeQuery implements EntityQueryInterface
     private function matches(EntityInterface $entity): bool
     {
         foreach ($this->existsFields as $field) {
-            $value = $entity->get($field);
+            $value = self::readField($entity, $field);
             if ($value === null || $value === '') {
                 return false;
             }
         }
 
         foreach ($this->conditions as $cond) {
-            if (!$this->matchesCondition($entity->get($cond['field']), $cond['value'], $cond['op'])) {
+            if (!$this->matchesCondition(self::readField($entity, $cond['field']), $cond['value'], $cond['op'])) {
                 return false;
             }
         }
 
         return true;
+    }
+
+    private static function readField(EntityInterface $entity, string $field): mixed
+    {
+        if ($entity instanceof RetentionPolicy) {
+            $view = new RetentionPolicyMaintenanceReader()->read($entity);
+
+            return match ($field) {
+                'name' => $view->name,
+                'applies_to' => $view->appliesTo,
+                'action' => $view->action,
+                'trigger_kind' => $view->triggerKind,
+                'trigger_value' => $view->triggerValue,
+                'exemptions' => $view->exemptions,
+                'created_at' => $view->createdAt,
+                default => $entity->get($field),
+            };
+        }
+
+        return $entity->get($field);
     }
 
     private function matchesCondition(mixed $actual, mixed $expected, string $op): bool

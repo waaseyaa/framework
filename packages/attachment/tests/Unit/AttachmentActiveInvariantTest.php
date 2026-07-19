@@ -10,6 +10,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Attachment\Attachment;
 use Waaseyaa\Attachment\AttachmentActiveInvariant;
+use Waaseyaa\Attachment\Maintenance\AttachmentMaintenanceFieldReader;
 use Waaseyaa\Attachment\Schema\AttachmentSchema;
 use Waaseyaa\Database\DBALDatabase;
 
@@ -58,7 +59,7 @@ final class AttachmentActiveInvariantTest extends TestCase
         // value directly into the value bag the way hydration does.
         $attachment->set('is_active', $value);
 
-        self::assertSame($expected, AttachmentActiveInvariant::isActive($attachment));
+        self::assertSame($expected, AttachmentActiveInvariant::isActive($attachment, new AttachmentMaintenanceFieldReader()));
     }
 
     /**

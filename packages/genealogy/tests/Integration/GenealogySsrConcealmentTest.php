@@ -11,11 +11,15 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\Request;
 use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
+use Waaseyaa\Access\AuthorizationPrincipal;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\FieldReadGuard;
 use Waaseyaa\Access\Gate\EntityAccessGate;
 use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -61,6 +65,8 @@ final class GenealogySsrConcealmentTest extends TestCase
 
     private EntityAccessHandler $accessHandler;
 
+    private AccountFieldReadScope $fieldReadScope;
+
     protected function setUp(): void
     {
         $this->manager = $this->makeManager();
@@ -80,6 +86,11 @@ final class GenealogySsrConcealmentTest extends TestCase
         // fallback) and the chart would render no ancestors at all.
         $this->accessHandler = new EntityAccessHandler([new GenealogyContentAccessPolicy()]);
         $this->accessHandler->addPolicy(new GenealogyRelationshipAccessPolicy($this->manager, $this->accessHandler));
+        $this->fieldReadScope = new AccountFieldReadScope();
+        EntityReadRuntime::installGuard(new FieldReadGuard(
+            $this->fieldReadScope,
+            $this->accessHandler->checkProtectedFieldRead(...),
+        ));
 
         // R8 WP3: wire the real access handler so pedigree label emission is
         // exercised through the same field-access gate production wires
@@ -101,6 +112,7 @@ final class GenealogySsrConcealmentTest extends TestCase
     {
         GenealogyBootstrap::reset();
         ContentEntityBase::setFieldRegistry(null);
+        EntityReadRuntime::installGuard(null);
     }
 
     /**
@@ -112,12 +124,12 @@ final class GenealogySsrConcealmentTest extends TestCase
         $treeId = $this->createTree(published: true);
         $deceased = $this->createPerson('Nokomis Deceased', $treeId, isLiving: false, published: true);
 
-        $response = $this->controller->person(
+        $response = $this->asAnonymous(fn() => $this->controller->person(
             ['id' => (string) $deceased->id()],
             [],
             new AnonymousUser(),
             $this->request(),
-        );
+        ));
 
         self::assertSame(200, $response->getStatusCode());
         self::assertStringContainsString('Nokomis Deceased', (string) $response->getContent());
@@ -135,12 +147,12 @@ final class GenealogySsrConcealmentTest extends TestCase
         $treeId = $this->createTree(published: true);
         $living = $this->createPerson('Living Secret', $treeId, isLiving: true, published: true);
 
-        $response = $this->controller->person(
+        $response = $this->asAnonymous(fn() => $this->controller->person(
             ['id' => (string) $living->id()],
             [],
             new AnonymousUser(),
             $this->request(),
-        );
+        ));
 
         self::assertSame(404, $response->getStatusCode());
         self::assertStringNotContainsString('Living Secret', (string) $response->getContent());
@@ -161,12 +173,12 @@ final class GenealogySsrConcealmentTest extends TestCase
         $this->createParentEdge((string) $livingParent->id(), (string) $subject->id());
         $this->createParentEdge((string) $deceasedParent->id(), (string) $subject->id());
 
-        $response = $this->controller->person(
+        $response = $this->asAnonymous(fn() => $this->controller->person(
             ['id' => (string) $subject->id()],
             [],
             new AnonymousUser(),
             $this->request(),
-        );
+        ));
 
         self::assertSame(200, $response->getStatusCode());
         $html = (string) $response->getContent();
@@ -194,12 +206,12 @@ final class GenealogySsrConcealmentTest extends TestCase
         $this->createParentEdge((string) $livingParent->id(), (string) $subject->id());
         $this->createParentEdge((string) $deceasedGrandparent->id(), (string) $livingParent->id());
 
-        $response = $this->controller->ancestorChart(
+        $response = $this->asAnonymous(fn() => $this->controller->ancestorChart(
             ['id' => (string) $subject->id()],
             [],
             new AnonymousUser(),
             $this->request(),
-        );
+        ));
 
         self::assertSame(200, $response->getStatusCode());
         $html = (string) $response->getContent();
@@ -223,12 +235,12 @@ final class GenealogySsrConcealmentTest extends TestCase
         $treeId = $this->createTree(published: false);
         $deceased = $this->createPerson('Hidden Under Private Tree', $treeId, isLiving: false, published: true);
 
-        $response = $this->controller->person(
+        $response = $this->asAnonymous(fn() => $this->controller->person(
             ['id' => (string) $deceased->id()],
             [],
             new AnonymousUser(),
             $this->request(),
-        );
+        ));
 
         self::assertSame(404, $response->getStatusCode());
         self::assertStringNotContainsString('Hidden Under Private Tree', (string) $response->getContent());
@@ -253,10 +265,10 @@ final class GenealogySsrConcealmentTest extends TestCase
             // C-22 WP2: repository factory mirroring the kernel's getRepository() shape
             // — threads the same lazy accessHandlerResolver the storage factory used to.
             function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $resolver, $database, $registry): EntityRepository {
-                (new SqlSchemaHandler($definition, $database, $registry))->ensureTable();
+                new SqlSchemaHandler($definition, $database, $registry)->ensureTable();
                 $idKey = $definition->getKeys()['id'] ?? 'id';
 
-                return new EntityRepository(
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                     $definition,
                     new SqlStorageDriver($resolver, $idKey),
                     $dispatcher,
@@ -318,6 +330,19 @@ final class GenealogySsrConcealmentTest extends TestCase
     private function request(): Request
     {
         return Request::create('/genealogy', 'GET');
+    }
+
+    /**
+     * Execute a synchronous anonymous SSR request inside its exact authorization scope.
+     *
+     * @param callable(): \Symfony\Component\HttpFoundation\Response $request
+     */
+    private function asAnonymous(callable $request): \Symfony\Component\HttpFoundation\Response
+    {
+        return $this->fieldReadScope->run(
+            new AuthorizationPrincipal(0, false, [], [], 'genealogy-ssr-test'),
+            $request,
+        );
     }
 
     private function createTree(bool $published): string

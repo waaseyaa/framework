@@ -86,8 +86,8 @@ final class FirstPublishEstablishmentFlowTest extends TestCase
 
         $created = $nodeRepository->find($entityId);
         $this->assertNotNull($created);
-        $this->assertSame('draft', $created->get('workflow_state'));
-        $this->assertSame(0, (int) $created->get('status'));
+        $this->assertSame('draft', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($created));
+        $this->assertSame(0, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($created));
         $this->assertNull($nodeRepository->loadPublishedRevision($entityId), 'No published pointer exists before the first publish.');
 
         // --- 2. Submit for review: draft -> review, a real edge. ---
@@ -96,7 +96,7 @@ final class FirstPublishEstablishmentFlowTest extends TestCase
 
         $inReview = $nodeRepository->find($entityId);
         $this->assertNotNull($inReview);
-        $this->assertSame('review', $inReview->get('workflow_state'));
+        $this->assertSame('review', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($inReview));
 
         // --- 3. Approve: review -> published. This is the FIRST publish ---
         // of a never-published entity — the pointer-move guard sees
@@ -113,12 +113,12 @@ final class FirstPublishEstablishmentFlowTest extends TestCase
         $published = $nodeRepository->loadPublishedRevision($entityId);
         $this->assertNotNull($published, 'The published pointer must be established.');
         $this->assertSame('Quarterly report', $published->get('title'));
-        $this->assertSame(1, (int) $published->get('status'));
+        $this->assertSame(1, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($published));
 
         $served = $nodeRepository->find($entityId);
         $this->assertNotNull($served);
-        $this->assertSame('published', $served->get('workflow_state'));
-        $this->assertSame(1, (int) $served->get('status'));
+        $this->assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($served));
+        $this->assertSame(1, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($served));
         $this->assertSame((string) $published->get('revision_id'), (string) $served->get('revision_id'));
 
         // --- 5. Audit trail complete: both TransitionService calls allowed. ---
@@ -177,7 +177,7 @@ final class FirstPublishEstablishmentFlowTest extends TestCase
 
         $afterDenial = $nodeRepository->find($entityId);
         $this->assertNotNull($afterDenial);
-        $this->assertSame('review', $afterDenial->get('workflow_state'), 'A denied attempt must not move the state.');
+        $this->assertSame('review', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($afterDenial), 'A denied attempt must not move the state.');
         $this->assertNull($nodeRepository->loadPublishedRevision($entityId), 'A denied attempt must not establish a pointer.');
 
         // --- Member (holds the permission AND dept_a membership): the ---
@@ -189,7 +189,7 @@ final class FirstPublishEstablishmentFlowTest extends TestCase
 
         $published = $nodeRepository->loadPublishedRevision($entityId);
         $this->assertNotNull($published);
-        $this->assertSame(1, (int) $published->get('status'));
+        $this->assertSame(1, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($published));
     }
 
     #[Test]
@@ -233,7 +233,7 @@ final class FirstPublishEstablishmentFlowTest extends TestCase
 
         $orphanTip = $nodeRepository->find($entityId);
         $this->assertNotNull($orphanTip);
-        $this->assertSame('published', $orphanTip->get('workflow_state'));
+        $this->assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($orphanTip));
         $orphanRevisionId = (int) $orphanTip->get('revision_id');
         $this->assertNull($nodeRepository->loadPublishedRevision($entityId), 'Still never published: the pointer has not moved.');
 
@@ -299,20 +299,20 @@ final class FirstPublishEstablishmentFlowTest extends TestCase
         $entityId = (string) $node->id();
         $draftRevision = $nodeRepository->find($entityId);
         $this->assertNotNull($draftRevision);
-        $this->assertSame('draft', $draftRevision->get('workflow_state'));
-        $this->assertSame(0, (int) $draftRevision->get('status'));
+        $this->assertSame('draft', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($draftRevision));
+        $this->assertSame(0, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($draftRevision));
         $draftRevisionId = (int) $draftRevision->get('revision_id');
 
         $accountContext->set($this->account(53, ['use review_required transition reject']));
         $established = $nodeRepository->setPublishedRevision($entityId, $draftRevisionId);
 
-        $this->assertSame('draft', $established->get('workflow_state'));
-        $this->assertSame(0, (int) $established->get('status'), 'A draft-stamped pointer must derive status=0 — nothing is publicly served.');
+        $this->assertSame('draft', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($established));
+        $this->assertSame(0, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($established), 'A draft-stamped pointer must derive status=0 — nothing is publicly served.');
 
         $served = $nodeRepository->find($entityId);
         $this->assertNotNull($served);
-        $this->assertSame(0, (int) $served->get('status'));
-        $this->assertSame('draft', $served->get('workflow_state'));
+        $this->assertSame(0, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($served));
+        $this->assertSame('draft', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($served));
     }
 
     /**
@@ -616,7 +616,7 @@ final class FirstPublishEstablishmentFlowTest extends TestCase
 
             $resolver = new SingleConnectionResolver($db);
 
-            return new EntityRepository(
+            return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                 $definition,
                 new SqlStorageDriver($resolver, $definition->getKeys()['id']),
                 $dispatcher,

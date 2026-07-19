@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Migration\Tests\Fixtures;
 
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\FieldReadLevel;
 
 /**
  * Test-fixture helper: emits the two `EntityType` definitions used by the
@@ -33,9 +34,9 @@ final class MigrationTestWidgetType
             class: MigrationTestWidget::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'widget_type'],
             _fieldDefinitions: [
-                'status' => ['type' => 'boolean', 'label' => 'Published', 'default' => 0],
-                'archived' => ['type' => 'boolean', 'label' => 'Archived', 'default' => 0],
-                'optional_flag' => ['type' => 'boolean', 'label' => 'Optional flag'],
+                'status' => ['type' => 'boolean', 'label' => 'Published', 'default' => 0, 'read' => FieldReadLevel::Public],
+                'archived' => ['type' => 'boolean', 'label' => 'Archived', 'default' => 0, 'read' => FieldReadLevel::Public],
+                'optional_flag' => ['type' => 'boolean', 'label' => 'Optional flag', 'read' => FieldReadLevel::Public],
             ],
         );
     }

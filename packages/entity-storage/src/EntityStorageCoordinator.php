@@ -10,7 +10,7 @@ use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\Exception\EntityTranslationException;
 use Waaseyaa\Entity\TranslatableInterface;
 use Waaseyaa\EntityStorage\Backend\BackendRegistrar;
-use Waaseyaa\EntityStorage\Backend\FieldStorageBackendInterface;
+use Waaseyaa\EntityStorage\Backend\FieldStorageBackendGateway;
 use Waaseyaa\EntityStorage\Event\AbortOperationException;
 use Waaseyaa\EntityStorage\Exception\PartialSaveException;
 use Waaseyaa\EntityStorage\Exception\UnknownBackendException;
@@ -23,7 +23,7 @@ use Waaseyaa\Foundation\Log\LoggerInterface;
  * Coordinates field-level storage fan-out across multiple registered backends.
  *
  * The coordinator sits between {@see \Waaseyaa\Entity\Repository\EntityRepositoryInterface}
- * and the per-backend {@see FieldStorageBackendInterface} implementations. It does NOT
+ * and registrar-owned {@see FieldStorageBackendGateway} instances. It does NOT
  * subsume the repository — entity lifecycle (hydration, events, language fallback) remains
  * the repository's responsibility.
  *
@@ -269,9 +269,9 @@ final class EntityStorageCoordinator
     /**
      * @throws UnknownBackendException
      */
-    private function requireBackend(string $backendId, EntityTypeInterface $entityType): FieldStorageBackendInterface
+    private function requireBackend(string $backendId, EntityTypeInterface $entityType): FieldStorageBackendGateway
     {
-        $backend = $this->registrar->get($backendId);
+        $backend = $this->registrar->gateway($backendId);
 
         if ($backend === null) {
             throw new UnknownBackendException(

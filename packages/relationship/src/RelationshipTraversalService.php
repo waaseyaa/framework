@@ -16,6 +16,10 @@ use Waaseyaa\Entity\EntityValues;
  */
 final class RelationshipTraversalService
 {
+    private readonly RelationshipTopologyReader $topologyReader;
+
+    private readonly RelationshipMaintenanceReader $maintenanceReader;
+
     /**
      * @param ?VisibilityFilterInterface $visibilityFilter Decides whether a
      *        related entity is publicly visible when `browse()` runs in
@@ -48,7 +52,12 @@ final class RelationshipTraversalService
         private readonly ?VisibilityFilterInterface $visibilityFilter = null,
         private readonly ?EntityAccessHandler $accessHandler = null,
         private readonly ?AccountInterface $account = null,
-    ) {}
+        ?RelationshipTopologyReader $topologyReader = null,
+        ?RelationshipMaintenanceReader $maintenanceReader = null,
+    ) {
+        $this->topologyReader = $topologyReader ?? new RelationshipTopologyReader();
+        $this->maintenanceReader = $maintenanceReader ?? new RelationshipMaintenanceReader();
+    }
 
     /**
      * Traverse relationship edges for an entity.
@@ -182,9 +191,10 @@ final class RelationshipTraversalService
         string $sourceEntityId,
     ): array {
         $pairs = [];
+        $topology = $this->topology($relationship);
         $candidates = [
-            [(string) ($relationship->get('from_entity_type') ?? ''), (string) ($relationship->get('from_entity_id') ?? '')],
-            [(string) ($relationship->get('to_entity_type') ?? ''), (string) ($relationship->get('to_entity_id') ?? '')],
+            [$topology->fromType, $topology->fromId],
+            [$topology->toType, $topology->toId],
         ];
 
         foreach ($candidates as [$endpointType, $endpointId]) {
@@ -364,12 +374,14 @@ final class RelationshipTraversalService
                 return $statusCmp;
             }
 
-            $weightCmp = $this->compareOptionalNumbersDesc($a->get('weight'), $b->get('weight'));
+            $aMaintenance = $this->maintenanceReader->read($a);
+            $bMaintenance = $this->maintenanceReader->read($b);
+            $weightCmp = $this->compareOptionalNumbersDesc($aMaintenance->weight, $bMaintenance->weight);
             if ($weightCmp !== 0) {
                 return $weightCmp;
             }
 
-            $startCmp = $this->compareOptionalTemporalsAsc($a->get('start_date'), $b->get('start_date'));
+            $startCmp = $this->compareOptionalTemporalsAsc($aMaintenance->startDate, $bMaintenance->startDate);
             if ($startCmp !== 0) {
                 return $startCmp;
             }
@@ -521,11 +533,13 @@ final class RelationshipTraversalService
         string $entityType,
         string $entityId,
     ): bool {
-        $fromType = (string) ($relationship->get('from_entity_type') ?? '');
-        $fromId = (string) ($relationship->get('from_entity_id') ?? '');
-        $toType = (string) ($relationship->get('to_entity_type') ?? '');
-        $toId = (string) ($relationship->get('to_entity_id') ?? '');
-        $directionality = strtolower(trim((string) ($relationship->get('directionality') ?? 'directed')));
+        $topology = $this->topology($relationship);
+        $maintenance = $this->maintenanceReader->read($relationship);
+        $fromType = $topology->fromType;
+        $fromId = $topology->fromId;
+        $toType = $topology->toType;
+        $toId = $topology->toId;
+        $directionality = strtolower(trim($maintenance->directionality));
 
         if ($fromType === $entityType && $fromId === $entityId) {
             return true;
@@ -539,11 +553,13 @@ final class RelationshipTraversalService
         string $entityType,
         string $entityId,
     ): bool {
-        $fromType = (string) ($relationship->get('from_entity_type') ?? '');
-        $fromId = (string) ($relationship->get('from_entity_id') ?? '');
-        $toType = (string) ($relationship->get('to_entity_type') ?? '');
-        $toId = (string) ($relationship->get('to_entity_id') ?? '');
-        $directionality = strtolower(trim((string) ($relationship->get('directionality') ?? 'directed')));
+        $topology = $this->topology($relationship);
+        $maintenance = $this->maintenanceReader->read($relationship);
+        $fromType = $topology->fromType;
+        $fromId = $topology->fromId;
+        $toType = $topology->toType;
+        $toId = $topology->toId;
+        $directionality = strtolower(trim($maintenance->directionality));
 
         if ($toType === $entityType && $toId === $entityId) {
             return true;
@@ -600,11 +616,13 @@ final class RelationshipTraversalService
         $edges = [];
 
         foreach ($relationships as $relationship) {
-            $fromType = (string) ($relationship->get('from_entity_type') ?? '');
-            $fromId = (string) ($relationship->get('from_entity_id') ?? '');
-            $toType = (string) ($relationship->get('to_entity_type') ?? '');
-            $toId = (string) ($relationship->get('to_entity_id') ?? '');
-            $directionality = strtolower(trim((string) ($relationship->get('directionality') ?? 'directed')));
+            $topology = $this->topology($relationship);
+            $maintenance = $this->maintenanceReader->read($relationship);
+            $fromType = $topology->fromType;
+            $fromId = $topology->fromId;
+            $toType = $topology->toType;
+            $toId = $topology->toId;
+            $directionality = strtolower(trim($maintenance->directionality));
 
             $relatedType = '';
             $relatedId = '';
@@ -667,10 +685,10 @@ final class RelationshipTraversalService
                 'related_entity_label' => $relatedSummary['label'],
                 'related_entity_path' => sprintf('/%s/%s', $relatedType, $relatedId),
                 'status' => $this->statusSortValue($relationship),
-                'weight' => is_numeric($relationship->get('weight')) ? (float) $relationship->get('weight') : null,
-                'confidence' => is_numeric($relationship->get('confidence')) ? (float) $relationship->get('confidence') : null,
-                'start_date' => $this->normalizeTemporal($relationship->get('start_date')),
-                'end_date' => $this->normalizeTemporal($relationship->get('end_date')),
+                'weight' => is_numeric($maintenance->weight) ? (float) $maintenance->weight : null,
+                'confidence' => is_numeric($maintenance->confidence) ? (float) $maintenance->confidence : null,
+                'start_date' => $this->normalizeTemporal($maintenance->startDate),
+                'end_date' => $this->normalizeTemporal($maintenance->endDate),
             ];
         }
 
@@ -687,11 +705,13 @@ final class RelationshipTraversalService
         string $sourceEntityId,
         string $direction,
     ): ?array {
-        $fromType = (string) ($relationship->get('from_entity_type') ?? '');
-        $fromId = (string) ($relationship->get('from_entity_id') ?? '');
-        $toType = (string) ($relationship->get('to_entity_type') ?? '');
-        $toId = (string) ($relationship->get('to_entity_id') ?? '');
-        $directionality = strtolower(trim((string) ($relationship->get('directionality') ?? 'directed')));
+        $topology = $this->topology($relationship);
+        $maintenance = $this->maintenanceReader->read($relationship);
+        $fromType = $topology->fromType;
+        $fromId = $topology->fromId;
+        $toType = $topology->toType;
+        $toId = $topology->toId;
+        $directionality = strtolower(trim($maintenance->directionality));
 
         if ($direction === 'outbound') {
             if ($fromType === $sourceEntityType && $fromId === $sourceEntityId) {
@@ -809,7 +829,7 @@ final class RelationshipTraversalService
                         : sprintf('%s:%s', $entityType, $entityId);
                     $summaryCache[$cacheKey] = [
                         'label' => $label,
-                        'is_public' => $this->isEntityPublic($entityType, EntityValues::toCastAwareMap($entity)),
+                        'is_public' => $this->isLoadedEntityPublic($entity),
                         'is_viewable' => $this->isEntityViewable($entity),
                     ];
                 } else {
@@ -846,7 +866,7 @@ final class RelationshipTraversalService
 
                 return [
                     'label' => $label,
-                    'is_public' => $this->isEntityPublic($entityType, EntityValues::toCastAwareMap($entity)),
+                    'is_public' => $this->isLoadedEntityPublic($entity),
                     'is_viewable' => $this->isEntityViewable($entity),
                 ];
             }
@@ -886,6 +906,19 @@ final class RelationshipTraversalService
         // related entity is public, so it is treated as non-public and its
         // label/path is withheld from published/unpublished browse results.
         return $this->visibilityFilter?->isEntityPublic($entityType, $values) ?? false;
+    }
+
+    /**
+     * Prefer a filter-owned closed projection so relationship discovery never
+     * needs to probe a sealed publication field merely to decide visibility.
+     */
+    private function isLoadedEntityPublic(EntityInterface $entity): bool
+    {
+        if ($this->visibilityFilter instanceof EntityVisibilityFilterInterface) {
+            return $this->visibilityFilter->isEntityPublicForEntity($entity);
+        }
+
+        return $this->isEntityPublic($entity->getEntityTypeId(), EntityValues::toCastAwareMap($entity));
     }
 
     /**
@@ -1002,8 +1035,9 @@ final class RelationshipTraversalService
 
     private function isActiveAt(Relationship $relationship, int $at): bool
     {
-        $start = $this->normalizeTemporal($relationship->get('start_date'));
-        $end = $this->normalizeTemporal($relationship->get('end_date'));
+        $maintenance = $this->maintenanceReader->read($relationship);
+        $start = $this->normalizeTemporal($maintenance->startDate);
+        $end = $this->normalizeTemporal($maintenance->endDate);
 
         if ($start !== null && $start > $at) {
             return false;
@@ -1017,24 +1051,12 @@ final class RelationshipTraversalService
 
     private function statusSortValue(Relationship $relationship): int
     {
-        $status = $relationship->get('status');
-        if (is_bool($status)) {
-            return $status ? 1 : 0;
-        }
-        if (is_numeric($status)) {
-            return ((int) $status) === 0 ? 0 : 1;
-        }
-        if (is_string($status)) {
-            $normalized = strtolower(trim($status));
-            if (in_array($normalized, ['0', 'false'], true)) {
-                return 0;
-            }
-            if (in_array($normalized, ['1', 'true'], true)) {
-                return 1;
-            }
-        }
+        return $this->maintenanceReader->read($relationship)->status;
+    }
 
-        return 0;
+    private function topology(Relationship $relationship): RelationshipTopology
+    {
+        return $this->topologyReader->read($relationship);
     }
 
     private function compareOptionalNumbersDesc(mixed $a, mixed $b): int

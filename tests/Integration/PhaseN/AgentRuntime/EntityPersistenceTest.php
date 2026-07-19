@@ -74,9 +74,10 @@ final class EntityPersistenceTest extends TestCase
 
         $loaded = $repository->find('run-1');
         self::assertNotNull($loaded);
-        self::assertSame(42, $loaded->getAccountId());
+        $worker = new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture();
+        self::assertSame(42, $worker->read($loaded)->accountId);
         self::assertSame(RunStatus::Queued, $loaded->getStatus());
-        self::assertSame('hello agent', $loaded->get('prompt'));
+        self::assertSame('hello agent', $worker->read($loaded)->prompt);
     }
 
     #[Test]
@@ -125,8 +126,9 @@ final class EntityPersistenceTest extends TestCase
 
         $rows = $auditRepo->findByRunId('run-3');
         self::assertCount(2, $rows);
-        self::assertSame(EventType::IterationStart, $rows[0]->getEventType());
-        self::assertSame(EventType::ProviderCall, $rows[1]->getEventType());
+        $reader = new \Waaseyaa\Tests\Support\AgentAuditEventTypeReaderFixture();
+        self::assertSame(EventType::IterationStart, $reader->read($rows[0]));
+        self::assertSame(EventType::ProviderCall, $reader->read($rows[1]));
     }
 
     #[Test]
@@ -189,7 +191,7 @@ final class EntityPersistenceTest extends TestCase
 
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver, 'id');
-        $entityRepo = new EntityRepository(
+        $entityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             $driver,
             new EventDispatcher(),
@@ -211,7 +213,7 @@ final class EntityPersistenceTest extends TestCase
 
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver, 'id');
-        $entityRepo = new EntityRepository(
+        $entityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             $driver,
             new EventDispatcher(),

@@ -31,7 +31,7 @@ final class RequiredFieldTestEntity extends ContentEntityBase
             throw new \RuntimeException('RequiredFieldTestEntity requires owner_id to be present.');
         }
 
-        parent::__construct($values, $entityTypeId, $entityKeys, $fieldDefinitions);
+        parent::__construct($values, $entityTypeId, $entityKeys, ApiFixtureFieldDefinitions::mergePublic($values, $fieldDefinitions));
     }
 
     /**

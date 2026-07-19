@@ -29,7 +29,7 @@ final class ThreadParticipantSchemaTest extends TestCase
         $type = EntityType::fromClass(ThreadParticipant::class, group: 'messaging');
         (new SqlSchemaHandler($type, $database))->ensureTable();
 
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $type,
             new SqlStorageDriver(new SingleConnectionResolver($database), 'tpid'),
             new EventDispatcher(),
@@ -76,7 +76,7 @@ final class ThreadParticipantSchemaTest extends TestCase
         $type = EntityType::fromClass(ThreadParticipant::class, group: 'messaging');
         (new SqlSchemaHandler($type, $database))->ensureTable();
 
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $type,
             new SqlStorageDriver(new SingleConnectionResolver($database), 'tpid'),
             new EventDispatcher(),

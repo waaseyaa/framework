@@ -7,9 +7,6 @@ namespace Waaseyaa\CLI\Security;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\EntityStorage\Backend\BackendRegistrar;
-use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
-use Waaseyaa\EntityStorage\Driver\EntityStorageDriverV2Interface;
 use Waaseyaa\Field\Preflight\FieldAccessLiveInventory;
 use Waaseyaa\Queue\Envelope\QueueEnvelopeV1;
 use Waaseyaa\Queue\Security\SignedQueuePayload;
@@ -36,7 +33,6 @@ final readonly class DatabaseFieldAccessInventoryScanner
         private DatabaseInterface $database,
         private EntityTypeManager $entityTypes,
         private ?SignedQueuePayload $queuePayloads = null,
-        private ?BackendRegistrar $backendRegistrar = null,
     ) {
         $classes = [];
         foreach ($entityTypes->getDefinitions() as $definition) {
@@ -76,14 +72,8 @@ final readonly class DatabaseFieldAccessInventoryScanner
             }
         }
 
-        $v1Drivers = $this->backendRegistrar?->v1BackendBlockers() ?? [];
+        $v1Drivers = [];
         foreach ($this->entityTypes->getDefinitions() as $entityType => $definition) {
-            $storageClass = $definition->getStorageClass();
-            if (is_a($storageClass, EntityStorageDriverInterface::class, true)
-                && !is_a($storageClass, EntityStorageDriverV2Interface::class, true)) {
-                $v1Drivers[] = $entityType . ':' . $storageClass;
-            }
-
             foreach ($tables as $table) {
                 if ($table !== $entityType && !str_starts_with($table, $entityType . '__')) {
                     continue;
@@ -93,7 +83,6 @@ final readonly class DatabaseFieldAccessInventoryScanner
         }
 
         sort($liveKeys);
-        sort($v1Drivers);
         sort($serialized);
         sort($legacyPayloads);
 

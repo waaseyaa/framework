@@ -11,6 +11,7 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
@@ -250,12 +251,14 @@ final class TwoBundleCoexistenceTest extends TestCase
                 type: 'string',
                 targetEntityTypeId: 'group',
                 targetBundle: 'alpha',
+                read: FieldReadLevel::Public,
             ),
             new FieldDefinition(
                 name: 'shared_tag',
                 type: 'string',
                 targetEntityTypeId: 'group',
                 targetBundle: 'alpha',
+                read: FieldReadLevel::Public,
             ),
         ]);
     }
@@ -268,12 +271,14 @@ final class TwoBundleCoexistenceTest extends TestCase
                 type: 'string',
                 targetEntityTypeId: 'group',
                 targetBundle: 'beta',
+                read: FieldReadLevel::Public,
             ),
             new FieldDefinition(
                 name: 'shared_tag',
                 type: 'string',
                 targetEntityTypeId: 'group',
                 targetBundle: 'beta',
+                read: FieldReadLevel::Public,
             ),
         ]);
     }
@@ -297,7 +302,7 @@ final class TwoBundleCoexistenceTest extends TestCase
         // must be told, or read()/write() key off the wrong column.
         $idKey = $this->groupType->getKeys()['id'] ?? 'id';
 
-        return new EntityRepository(
+        return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $this->groupType,
             new SqlStorageDriver(new SingleConnectionResolver($this->database), $idKey),
             $this->dispatcher,

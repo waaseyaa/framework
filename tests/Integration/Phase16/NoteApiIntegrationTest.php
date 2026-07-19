@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\ResourceSerializer;
@@ -20,8 +21,8 @@ use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Note\Note;
 use Waaseyaa\Note\NoteAccessPolicy;
 use Waaseyaa\Note\NoteServiceProvider;
+use Waaseyaa\Tests\Support\AuthorizationPrincipalFactory;
 use Waaseyaa\User\AnonymousUser;
-use Waaseyaa\User\User;
 
 /**
  * Integration tests for the core.note entity type API layer.
@@ -185,7 +186,7 @@ final class NoteApiIntegrationTest extends TestCase
     // Helpers
     // -----------------------------------------------------------------------
 
-    private function buildController(User|AnonymousUser $account): JsonApiController
+    private function buildController(AccountInterface $account): JsonApiController
     {
         return new JsonApiController(
             $this->entityTypeManager,
@@ -195,9 +196,9 @@ final class NoteApiIntegrationTest extends TestCase
         );
     }
 
-    private function makeUser(int $id = 10, array $permissions = []): User
+    private function makeUser(int $id = 10, array $permissions = []): AccountInterface
     {
-        return new User([
+        return AuthorizationPrincipalFactory::fromValues([
             'uid' => $id,
             'name' => 'test_user',
             'permissions' => $permissions,

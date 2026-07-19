@@ -34,7 +34,6 @@ final class CutoverFreshInstallSmokeTest extends TestCase
         symlink($this->repoRoot . '/packages', $this->projectRoot . '/packages');
 
         ComposerProjectFixture::installMetadata($this->repoRoot, $this->projectRoot);
-        symlink($this->repoRoot . '/packages', $this->projectRoot . '/vendor/waaseyaa');
         $this->writeAutoloadWrapper();
 
         file_put_contents($this->projectRoot . '/composer.json', json_encode([

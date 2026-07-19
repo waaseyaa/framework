@@ -11,6 +11,7 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Attachment\Attachment;
 use Waaseyaa\Attachment\AttachmentNotFoundException;
 use Waaseyaa\Attachment\AttachmentRepository;
+use Waaseyaa\Attachment\Maintenance\AttachmentMaintenanceFieldReader;
 use Waaseyaa\Attachment\Schema\AttachmentSchema;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
@@ -48,7 +49,7 @@ final class AttachmentRepositoryTest extends TestCase
         $driver = new SqlStorageDriver($resolver, 'id');
         $dispatcher = new EventDispatcher();
 
-        $this->entityRepository = new EntityRepository(
+        $this->entityRepository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             entityType: $entityType,
             driver: $driver,
             eventDispatcher: $dispatcher,
@@ -102,8 +103,8 @@ final class AttachmentRepositoryTest extends TestCase
         $found = $this->entityRepository->find($id);
         self::assertInstanceOf(Attachment::class, $found);
         self::assertSame($id, (string) $found->id());
-        self::assertSame('node', $found->get('parent_entity_type'));
-        self::assertSame('1', $found->get('parent_entity_id'));
+        self::assertSame('node', new AttachmentMaintenanceFieldReader()->read($found)->parentEntityType);
+        self::assertSame('1', new AttachmentMaintenanceFieldReader()->read($found)->parentEntityId);
     }
 
     #[Test]
@@ -154,8 +155,8 @@ final class AttachmentRepositoryTest extends TestCase
         self::assertInstanceOf(Attachment::class, $reloadedA);
         self::assertInstanceOf(Attachment::class, $reloadedB);
 
-        self::assertSame(1, (int) $reloadedA->get('is_active'), 'Target must be active');
-        self::assertSame(0, (int) $reloadedB->get('is_active'), 'Sibling must be inactive');
+        self::assertSame(1, (int) new AttachmentMaintenanceFieldReader()->read($reloadedA)->active, 'Target must be active');
+        self::assertSame(0, (int) new AttachmentMaintenanceFieldReader()->read($reloadedB)->active, 'Sibling must be inactive');
     }
 
     #[Test]
@@ -171,8 +172,8 @@ final class AttachmentRepositoryTest extends TestCase
         self::assertInstanceOf(Attachment::class, $reloadedA);
         self::assertInstanceOf(Attachment::class, $reloadedB);
 
-        self::assertSame(0, (int) $reloadedA->get('is_active'), 'Previously active must now be inactive');
-        self::assertSame(1, (int) $reloadedB->get('is_active'), 'Target must now be active');
+        self::assertSame(0, (int) new AttachmentMaintenanceFieldReader()->read($reloadedA)->active, 'Previously active must now be inactive');
+        self::assertSame(1, (int) new AttachmentMaintenanceFieldReader()->read($reloadedB)->active, 'Target must now be active');
     }
 
     /**
@@ -238,7 +239,7 @@ final class AttachmentRepositoryTest extends TestCase
         // parent2's attachment must remain active.
         $reloadedP2 = $this->entityRepository->find((string) $parent2->id());
         self::assertInstanceOf(Attachment::class, $reloadedP2);
-        self::assertSame(1, (int) $reloadedP2->get('is_active'), 'Other parent attachment must remain active');
+        self::assertSame(1, (int) new AttachmentMaintenanceFieldReader()->read($reloadedP2)->active, 'Other parent attachment must remain active');
     }
 
     #[Test]
@@ -296,7 +297,7 @@ final class AttachmentRepositoryTest extends TestCase
 
         $reloadedFirst = $this->entityRepository->find((string) $first->id());
         self::assertInstanceOf(Attachment::class, $reloadedFirst);
-        self::assertSame(0, (int) $reloadedFirst->get('is_active'), 'Previously active attachment must be demoted.');
+        self::assertSame(0, (int) new AttachmentMaintenanceFieldReader()->read($reloadedFirst)->active, 'Previously active attachment must be demoted.');
     }
 
     /**
@@ -321,7 +322,7 @@ final class AttachmentRepositoryTest extends TestCase
 
         $reloadedActive = $this->entityRepository->find((string) $active->id());
         self::assertInstanceOf(Attachment::class, $reloadedActive);
-        self::assertSame(1, (int) $reloadedActive->get('is_active'), 'Existing active attachment must be unaffected.');
+        self::assertSame(1, (int) new AttachmentMaintenanceFieldReader()->read($reloadedActive)->active, 'Existing active attachment must be unaffected.');
     }
 
     /**

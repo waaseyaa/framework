@@ -48,7 +48,7 @@ final class AgentRunRepositoryTest extends TestCase
 
         $resolver = new SingleConnectionResolver($this->database);
         $driver = new SqlStorageDriver($resolver, 'id');
-        $entityRepo = new EntityRepository(
+        $entityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             $driver,
             new EventDispatcher(),
@@ -69,10 +69,11 @@ final class AgentRunRepositoryTest extends TestCase
 
         self::assertNotNull($loaded);
         self::assertSame('run-1', $loaded->id());
-        self::assertSame(42, $loaded->getAccountId());
+        $worker = new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture();
+        self::assertSame(42, $worker->read($loaded)->accountId);
         self::assertSame(RunStatus::Queued, $loaded->getStatus());
         self::assertSame(HitlMode::None, $loaded->getDestructiveApproval());
-        self::assertSame('hello world', $loaded->get('prompt'));
+        self::assertSame('hello world', $worker->read($loaded)->prompt);
     }
 
     #[Test]
@@ -181,8 +182,9 @@ final class AgentRunRepositoryTest extends TestCase
         $loaded = $this->repository->find('run-4');
         self::assertNotNull($loaded);
         self::assertSame(RunStatus::Failed, $loaded->getStatus());
-        self::assertSame('provider_rate_limited', $loaded->get('error_code'));
-        self::assertSame('Anthropic 429', $loaded->get('error_message'));
+        $worker = new \Waaseyaa\Tests\Support\AgentRunWorkerReaderFixture();
+        self::assertSame('provider_rate_limited', $worker->read($loaded)->errorCode);
+        self::assertSame('Anthropic 429', $worker->read($loaded)->errorMessage);
     }
 
     #[Test]

@@ -9,7 +9,10 @@ use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Field\Classification\ClassificationSubjectReader;
 use Waaseyaa\Field\Entity\RetentionPolicy;
+use Waaseyaa\Field\Entity\RetentionPolicyMaintenanceReader;
+use Waaseyaa\Field\Entity\RetentionPolicyMaintenanceView;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 
@@ -44,23 +47,30 @@ final class PurgeJob
 
     private readonly LoggerInterface $logger;
     private readonly RetentionScanner $scanner;
+    private readonly RetentionPolicyMaintenanceReader $policyReader;
+    private readonly ClassificationSubjectReader $subjectReader;
 
     public function __construct(
         private readonly EntityTypeManager $entityTypeManager,
         private readonly AuditWriterInterface $auditWriter,
         ?LoggerInterface $logger = null,
         ?RetentionScanner $scanner = null,
+        ?RetentionPolicyMaintenanceReader $policyReader = null,
+        ?ClassificationSubjectReader $subjectReader = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
         $this->scanner = $scanner ?? new RetentionScanner($entityTypeManager);
+        $this->policyReader = $policyReader ?? new RetentionPolicyMaintenanceReader();
+        $this->subjectReader = $subjectReader ?? new ClassificationSubjectReader();
     }
 
     public function run(): void
     {
         foreach ($this->loadPurgePolicies() as $policy) {
             try {
-                $purged = $this->applyPolicy($policy);
-                $this->logger->info('classification.retention.purge_complete', [
+                $view = $this->policyReader->read($policy);
+                $purged = $this->applyPolicy($policy, $view);
+                $this->logger->info('classification.retention.purge_complete', $view->auditContext() + [
                     'policy_id' => $policy->id(),
                     'purged' => $purged,
                 ]);
@@ -102,13 +112,13 @@ final class PurgeJob
     /**
      * Apply a single purge policy. Returns the number of entities deleted.
      */
-    private function applyPolicy(RetentionPolicy $policy): int
+    private function applyPolicy(RetentionPolicy $policy, RetentionPolicyMaintenanceView $view): int
     {
-        $cutoff = $this->computeCutoff($policy->getTriggerValue());
+        $cutoff = $this->computeCutoff($view->triggerValue);
         if ($cutoff === null) {
             $this->logger->warning('classification.retention.purge_bad_trigger', [
                 'policy_id' => $policy->id(),
-                'trigger_value' => $policy->getTriggerValue(),
+                'trigger_value' => $view->triggerValue,
             ]);
 
             return 0;
@@ -122,9 +132,9 @@ final class PurgeJob
                 continue;
             }
 
-            foreach ($this->scanner->scan($entityTypeId, $cutoffString, RetentionScanner::labelCondition($policy)) as $entity) {
-                $labelId = (string) ($entity->get('classification_label') ?? '');
-                if ($labelId === '' || !$policy->matchesLabel($labelId)) {
+            foreach ($this->scanner->scan($entityTypeId, $cutoffString, RetentionScanner::labelCondition($view)) as $entity) {
+                $labelId = $this->subjectReader->read($entity)->label ?? '';
+                if ($labelId === '' || !$view->matchesLabel($labelId)) {
                     continue;
                 }
 
@@ -140,7 +150,7 @@ final class PurgeJob
                 }
 
                 $uuid = (string) ($entity->get('uuid') ?? '');
-                if ($uuid !== '' && $policy->isExempt($entityTypeId, $uuid)) {
+                if ($uuid !== '' && $view->isExempt($entityTypeId, $uuid)) {
                     continue;
                 }
 

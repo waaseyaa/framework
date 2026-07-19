@@ -17,9 +17,49 @@ use Waaseyaa\Entity\Exception\FieldReadDenied;
 use Waaseyaa\Entity\Exception\InternalFieldArrayExportDenied;
 use Waaseyaa\Entity\Exception\StaleEntityReadLayout;
 use Waaseyaa\Entity\FieldReadLevel;
+use Waaseyaa\Access\CompiledFieldReadRule;
 
 final class SealedEntityValueContainerTest extends TestCase
 {
+    #[Test]
+    public function layout_reuses_compiled_rules_and_precomputed_authorization_input_lists(): void
+    {
+        $layout = new EntityReadLayout(
+            new EntityReadLayoutGeneration(),
+            [
+                'uid' => FieldReadLevel::Public,
+                'name' => FieldReadLevel::Protected,
+                'status' => FieldReadLevel::Protected,
+            ],
+            ['status'],
+        );
+
+        self::assertInstanceOf(CompiledFieldReadRule::class, $layout->rule('name'));
+        self::assertSame($layout->rule('name'), $layout->rule('name'));
+        self::assertSame(['status'], $layout->authorizationInputsFor('name'));
+        self::assertSame([], $layout->authorizationInputsFor('status'));
+    }
+
+    #[Test]
+    public function policy_subject_view_is_reused_until_mutation_then_rebuilt_for_the_same_view(): void
+    {
+        $guard = new SubjectIdentityRecordingGuard();
+        $entity = $this->sealedEntity([
+            'uid' => 15,
+            'name' => 'Member',
+            'status' => 1,
+        ], guard: $guard);
+
+        self::assertSame('Member', $entity->get('name'));
+        self::assertSame('Member', $entity->get('name'));
+        self::assertSame($guard->subjects[0], $guard->subjects[1]);
+
+        $entity->set('status', 0);
+        self::assertSame('Member', $entity->get('name'));
+        self::assertNotSame($guard->subjects[1], $guard->subjects[2]);
+        self::assertSame([['status' => 1], ['status' => 1], ['status' => 0]], $guard->subjectValues);
+    }
+
     #[Test]
     public function nameless_user_without_context_cannot_yield_internal_mail(): void
     {
@@ -87,29 +127,25 @@ final class SealedEntityValueContainerTest extends TestCase
     }
 
     #[Test]
-    public function attached_structural_selectors_win_over_blank_compatibility_values(): void
+    public function ordinary_construction_seals_structural_selectors_atomically(): void
     {
         $entity = new TestEntity(
-            ['uid' => 15, 'bundle' => '', 'langcode' => ''],
+            [
+                'uid' => 15,
+                'uuid' => '018f5f20-0000-7000-8000-000000000001',
+                'bundle' => 'user',
+                'langcode' => 'en',
+                'revision_id' => 7,
+            ],
             'user',
-            ['id' => 'uid', 'bundle' => 'bundle', 'langcode' => 'langcode'],
+            ['id' => 'uid', 'uuid' => 'uuid', 'bundle' => 'bundle', 'langcode' => 'langcode', 'revision' => 'revision_id'],
         );
-        $entity->_attachEntityStructure(new EntityStructure(
-            entityTypeId: 'user',
-            bundleId: 'user',
-            id: 15,
-            uuid: '018f5f20-0000-7000-8000-000000000001',
-            activeLanguageId: 'en',
-            defaultLanguageId: 'en',
-            knownTranslationIds: ['en'],
-            revisionId: 7,
-            fieldNames: ['uid', 'bundle', 'langcode'],
-        ));
 
         self::assertSame(15, $entity->id());
         self::assertSame('018f5f20-0000-7000-8000-000000000001', $entity->uuid());
         self::assertSame('user', $entity->bundle());
         self::assertSame('en', $entity->language());
+        self::assertSame(7, $entity->entityStructure()->revisionId);
     }
 
     #[Test]
@@ -174,8 +210,9 @@ final class SealedEntityValueContainerTest extends TestCase
         $layout = new EntityReadLayout($generation, [
             'uid' => FieldReadLevel::Public,
             'name' => FieldReadLevel::Protected,
+            'status' => FieldReadLevel::Protected,
             'mail' => FieldReadLevel::Internal,
-        ]);
+        ], ['status']);
         $structure = new EntityStructure(
             entityTypeId: 'user',
             bundleId: 'user',
@@ -223,4 +260,32 @@ final class RecordingEntityValueReadGuard implements EntityValueReadGuardInterfa
     }
 
     public function invalidate(\Waaseyaa\Entity\EntityBase $entity): void {}
+}
+
+final class SubjectIdentityRecordingGuard implements EntityValueReadGuardInterface
+{
+    /** @var list<\Waaseyaa\Access\PolicySubjectViewInterface> */
+    public array $subjects = [];
+
+    /** @var list<array<string, mixed>> */
+    public array $subjectValues = [];
+
+    public function assertProtectedReadable(EntityBase $entity, string $field, object $viewIdentity): void
+    {
+        $reader = \Closure::bind(
+            static fn(EntityBase $subject, string $releasedField, object $identity): \Waaseyaa\Access\PolicySubjectViewInterface =>
+                $subject->valueContainer->policySubjectView($releasedField, $identity),
+            null,
+            EntityBase::class,
+        );
+        $view = $reader($entity, $field, $viewIdentity);
+        $this->subjects[] = $view;
+        $values = [];
+        foreach ($view->fields() as $name) {
+            $values[$name] = $view->get($name);
+        }
+        $this->subjectValues[] = $values;
+    }
+
+    public function invalidate(EntityBase $entity): void {}
 }

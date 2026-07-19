@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Waaseyaa\SSR;
 
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
+use Waaseyaa\Access\CompiledPolicySubjectView;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\EntityValues;
@@ -81,10 +84,50 @@ final class EntityRenderer
         $definition = $this->entityTypeManager->getDefinition($entityTypeId);
         $fieldDefinitions = $definition->getFieldDefinitions();
         $display = $this->viewModeConfig->getDisplay($entityTypeId, $mode);
-        $values = EntityValues::toCastAwareMap($entity);
+
+        // Resolve the projection from non-value-bearing field names first.
+        // A denied field must never be read merely so it can be removed from
+        // the finished Twig bag afterward.
+        $fieldNames = array_values(array_filter(
+            EntityValues::ordinaryFieldNames($entity),
+            static fn(string $fieldName): bool => !in_array($fieldName, self::ALWAYS_INTERNAL_FIELDS, true)
+                && !(isset($fieldDefinitions[$fieldName]) && $fieldDefinitions[$fieldName]->getSetting('internal') === true),
+        ));
+
+        if ($account !== null) {
+            $fieldNames = $this->accessHandler !== null
+                ? $this->accessHandler->filterFields($entity, $fieldNames, 'view', $account)
+                : [];
+
+            // Protected fields need an affirmative V2 release decision before
+            // value projection. A legacy account object has no immutable
+            // principal, so those names are withheld rather than probed.
+            $fieldNames = array_values(array_filter(
+                $fieldNames,
+                function (string $fieldName) use ($entity, $account): bool {
+                    if (!$entity instanceof EntityBase || $entity->fieldReadLevel($fieldName) === \Waaseyaa\Entity\FieldReadLevel::Public) {
+                        return true;
+                    }
+                    if (!$account instanceof AuthorizationPrincipalInterface || $this->accessHandler === null) {
+                        return false;
+                    }
+
+                    return $this->accessHandler->checkProtectedFieldRead(
+                        $account,
+                        $entity->entityStructure(),
+                        new CompiledPolicySubjectView([]),
+                        $fieldName,
+                    )->isAllowed();
+                },
+            ));
+        }
+
+        $values = EntityValues::toCastAwareMap($entity, $fieldNames);
 
         if ($display === []) {
             $display = $this->buildDefaultDisplay($fieldDefinitions, $values, $definition->getKeys());
+        } else {
+            $display = array_intersect_key($display, array_flip($fieldNames));
         }
 
         uasort($display, static function (array $a, array $b): int {
@@ -95,11 +138,6 @@ final class EntityRenderer
 
         $fields = [];
         foreach ($display as $fieldName => $item) {
-            if (in_array($fieldName, self::ALWAYS_INTERNAL_FIELDS, true)
-                || (isset($fieldDefinitions[$fieldName]) && $fieldDefinitions[$fieldName]->getSetting('internal') === true)) {
-                continue;
-            }
-
             $raw = $values[$fieldName] ?? null;
             $fieldType = isset($fieldDefinitions[$fieldName]) ? $fieldDefinitions[$fieldName]->getType() : 'string';
             $formatterType = (string) ($item['formatter'] ?? $fieldType);
@@ -110,22 +148,6 @@ final class EntityRenderer
                 'formatted' => $this->formatterRegistry->format($formatterType, $raw, $settings),
                 'type' => $fieldType,
             ];
-        }
-
-        if ($account !== null) {
-            if ($this->accessHandler !== null) {
-                $allowedFieldNames = $this->accessHandler->filterFields($entity, array_keys($fields), 'view', $account);
-                $fields = array_intersect_key($fields, array_flip($allowedFieldNames));
-            } else {
-                // Fail closed (defense in depth): enforcement was requested
-                // (an $account was supplied) but no access handler is
-                // available to evaluate it. Deny all fields rather than risk
-                // a leak. Production never reaches this branch —
-                // SsrPageHandler::renderEntityHtml() refuses to render at all
-                // (500) before constructing an entity bag when its
-                // accessHandler is null.
-                $fields = [];
-            }
         }
 
         return [

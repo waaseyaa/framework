@@ -103,7 +103,7 @@ final class ListingCacheInvalidationIntegrationTest extends TestCase
         $this->driver = new InMemoryStorageDriver();
         $this->cache = new MemoryBackend();
 
-        $this->repository = new EntityRepository(
+        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::create(
             $this->entityTypeManager->getDefinition('event'),
             $this->driver,
             $this->dispatcher,

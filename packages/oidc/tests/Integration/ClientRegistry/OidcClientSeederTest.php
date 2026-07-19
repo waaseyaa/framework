@@ -14,6 +14,7 @@ use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Oidc\ClientRegistry\OidcClientSeeder;
+use Waaseyaa\Oidc\ClientRegistry\OidcClientSystemReader;
 use Waaseyaa\Oidc\Entity\OidcClient;
 
 #[CoversClass(OidcClientSeeder::class)]
@@ -33,8 +34,8 @@ final class OidcClientSeederTest extends TestCase
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'name'],
         );
 
-        (new SqlSchemaHandler($entityType, $database))->ensureTable();
-        (new SqlSchemaHandler($entityType, $database))->addFieldColumns([
+        new SqlSchemaHandler($entityType, $database)->ensureTable();
+        new SqlSchemaHandler($entityType, $database)->addFieldColumns([
             'client_id' => ['type' => 'varchar', 'length' => 255, 'not null' => true],
             'name' => ['type' => 'varchar', 'length' => 255, 'not null' => true],
             'is_confidential' => ['type' => 'int', 'not null' => true, 'default' => 0],
@@ -42,7 +43,7 @@ final class OidcClientSeederTest extends TestCase
         ]);
 
         $dispatcher = new EventDispatcher();
-        $this->repository = new EntityRepository(
+        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             new SqlStorageDriver(new SingleConnectionResolver($database)),
             $dispatcher,
@@ -71,10 +72,11 @@ final class OidcClientSeederTest extends TestCase
 
         $client = $this->repository->find((string) $ids[0]);
         $this->assertSame('minoo-web', $client->getClientId());
-        $this->assertSame('Minoo', $client->getName());
-        $this->assertSame(['https://minoo.test/callback'], $client->getRedirectUris());
-        $this->assertSame(['openid'], $client->getScopes(), 'default scopes applied');
-        $this->assertSame(['authorization_code'], $client->getGrantTypes(), 'default grant types applied');
+        $registration = new OidcClientSystemReader()->registration($client);
+        $this->assertSame('Minoo', $registration->name);
+        $this->assertSame(['https://minoo.test/callback'], $registration->redirectUris);
+        $this->assertSame(['openid'], $registration->scopes, 'default scopes applied');
+        $this->assertSame(['authorization_code'], $registration->grantTypes, 'default grant types applied');
     }
 
     public function testSeedAppliesAllOptionalFields(): void
@@ -92,10 +94,12 @@ final class OidcClientSeederTest extends TestCase
 
         $ids = $this->repository->getQuery()->accessCheck(false)->condition('client_id', 'biindigen')->execute();
         $client = $this->repository->find((string) $ids[0]);
-        $this->assertSame(['openid', 'profile', 'email'], $client->getScopes());
-        $this->assertSame(['authorization_code', 'refresh_token'], $client->getGrantTypes());
-        $this->assertTrue($client->isConfidential());
-        $this->assertSame('hashed', $client->getClientSecretHash());
+        $reader = new OidcClientSystemReader();
+        $registration = $reader->registration($client);
+        $this->assertSame(['openid', 'profile', 'email'], $registration->scopes);
+        $this->assertSame(['authorization_code', 'refresh_token'], $registration->grantTypes);
+        $this->assertTrue($registration->confidential);
+        $this->assertTrue($reader->hasStoredSecretHash($client, 'hashed'));
     }
 
     public function testSeedUpdatesExistingClient(): void
@@ -130,12 +134,13 @@ final class OidcClientSeederTest extends TestCase
         $reloaded = $this->repository->find((string) $originalId);
         $this->assertSame($originalId, $reloaded->id());
         $this->assertSame($originalUuid, $reloaded->uuid());
-        $this->assertSame('Minoo (renamed)', $reloaded->getName());
+        $registration = new OidcClientSystemReader()->registration($reloaded);
+        $this->assertSame('Minoo (renamed)', $registration->name);
         $this->assertSame(
             ['https://minoo.test/callback', 'https://minoo.test/new-callback'],
-            $reloaded->getRedirectUris(),
+            $registration->redirectUris,
         );
-        $this->assertSame(['openid', 'profile'], $reloaded->getScopes());
+        $this->assertSame(['openid', 'profile'], $registration->scopes);
     }
 
     public function testSeedIsIdempotent(): void

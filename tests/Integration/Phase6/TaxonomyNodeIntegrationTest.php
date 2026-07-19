@@ -8,13 +8,18 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\FieldReadLevel;
+use Waaseyaa\Field\FieldDefinition;
+use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\Node\Node;
 use Waaseyaa\Node\NodeAccessPolicy;
+use Waaseyaa\Node\NodeAuthorizationSnapshotReader;
 use Waaseyaa\Taxonomy\Term;
 use Waaseyaa\Taxonomy\TermAccessPolicy;
 use Waaseyaa\Taxonomy\Vocabulary;
+use Waaseyaa\Tests\Support\AuthorizationPrincipalFactory;
 use Waaseyaa\User\AnonymousUser;
-use Waaseyaa\User\User;
 
 /**
  * Integration tests for waaseyaa/taxonomy + waaseyaa/node + waaseyaa/access.
@@ -26,15 +31,26 @@ use Waaseyaa\User\User;
 #[CoversNothing]
 final class TaxonomyNodeIntegrationTest extends TestCase
 {
-    private EntityAccessHandler $accessHandler;
-
     protected function setUp(): void
     {
+        $registry = new FieldDefinitionRegistry();
+        $registry->registerCoreFields('node', [
+            'field_tags' => ['type' => 'entity_reference', 'read' => FieldReadLevel::Public],
+            'field_category' => ['type' => 'entity_reference', 'read' => FieldReadLevel::Public],
+        ]);
+        ContentEntityBase::setFieldRegistry($registry);
         $this->accessHandler = new EntityAccessHandler([
             new NodeAccessPolicy(),
             new TermAccessPolicy(),
         ]);
     }
+
+    protected function tearDown(): void
+    {
+        ContentEntityBase::setFieldRegistry(null);
+    }
+
+    private EntityAccessHandler $accessHandler;
 
     #[Test]
     public function vocabularyAndTermsCanBeCreated(): void
@@ -88,6 +104,8 @@ final class TaxonomyNodeIntegrationTest extends TestCase
             'title' => 'PHP Testing Best Practices',
             'uid' => 1,
             'status' => 1,
+        ], fieldDefinitions: [
+            'field_tags' => new FieldDefinition('field_tags', 'entity_reference', read: FieldReadLevel::Public),
         ]);
         // Store term references as a field value.
         $node->set('field_tags', [$phpTerm->id(), $testingTerm->id()]);
@@ -101,14 +119,14 @@ final class TaxonomyNodeIntegrationTest extends TestCase
     #[Test]
     public function termAndNodeAccessPoliciesWorkTogether(): void
     {
-        $viewer = new User([
+        $viewer = AuthorizationPrincipalFactory::fromValues([
             'uid' => 10,
             'name' => 'viewer',
             'permissions' => ['access content'],
             'roles' => ['authenticated'],
         ]);
 
-        $editor = new User([
+        $editor = AuthorizationPrincipalFactory::fromValues([
             'uid' => 11,
             'name' => 'editor',
             'permissions' => ['access content', 'edit terms in tags'],
@@ -122,6 +140,8 @@ final class TaxonomyNodeIntegrationTest extends TestCase
             'title' => 'Tagged Article',
             'uid' => 1,
             'status' => 1,
+        ], fieldDefinitions: [
+            'field_tags' => new FieldDefinition('field_tags', 'entity_reference', read: FieldReadLevel::Public),
         ]);
 
         $term = new Term([
@@ -154,6 +174,8 @@ final class TaxonomyNodeIntegrationTest extends TestCase
             'title' => 'Public Article',
             'uid' => 1,
             'status' => 1,
+        ], fieldDefinitions: [
+            'field_category' => new FieldDefinition('field_category', 'entity_reference', read: FieldReadLevel::Public),
         ]);
         $term = new Term([
             'tid' => 1,
@@ -222,7 +244,7 @@ final class TaxonomyNodeIntegrationTest extends TestCase
 
         // Node entity itself is fully functional despite orphaned references.
         $this->assertSame('Tagged Article', $node->getTitle());
-        $this->assertTrue($node->isPublished());
+        $this->assertTrue(new NodeAuthorizationSnapshotReader()->read($node)->published);
     }
 
     #[Test]
@@ -267,14 +289,14 @@ final class TaxonomyNodeIntegrationTest extends TestCase
     #[Test]
     public function createAccessForTermsRequiresVocabularyPermission(): void
     {
-        $termEditor = new User([
+        $termEditor = AuthorizationPrincipalFactory::fromValues([
             'uid' => 5,
             'name' => 'term_editor',
             'permissions' => ['create terms in tags'],
             'roles' => ['editor'],
         ]);
 
-        $regularUser = new User([
+        $regularUser = AuthorizationPrincipalFactory::fromValues([
             'uid' => 6,
             'name' => 'regular',
             'permissions' => ['access content'],
@@ -291,7 +313,7 @@ final class TaxonomyNodeIntegrationTest extends TestCase
     #[Test]
     public function taxonomyAdminBypassesAllChecks(): void
     {
-        $admin = new User([
+        $admin = AuthorizationPrincipalFactory::fromValues([
             'uid' => 1,
             'name' => 'admin',
             'permissions' => ['administer taxonomy'],
@@ -313,14 +335,14 @@ final class TaxonomyNodeIntegrationTest extends TestCase
     #[Test]
     public function nodeOwnerAccessControlWithTermReferences(): void
     {
-        $author = new User([
+        $author = AuthorizationPrincipalFactory::fromValues([
             'uid' => 10,
             'name' => 'author',
             'permissions' => ['access content', 'edit own article content', 'delete own article content'],
             'roles' => ['authenticated'],
         ]);
 
-        $otherUser = new User([
+        $otherUser = AuthorizationPrincipalFactory::fromValues([
             'uid' => 20,
             'name' => 'other',
             'permissions' => ['access content'],

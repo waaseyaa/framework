@@ -57,7 +57,7 @@ final class TrailStoreTest extends TestCase
 
         // Mirror the kernel: the SQL driver needs the entity's id key ('tid'),
         // not the 'id' default (AbstractKernel::bootEntityTypeManager).
-        $repository = new EntityRepository(
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             new SqlStorageDriver($resolver, $entityType->getKeys()['id']),
             $dispatcher,

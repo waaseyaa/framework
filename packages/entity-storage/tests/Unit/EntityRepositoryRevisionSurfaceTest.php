@@ -63,7 +63,7 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
         $dispatcher = $this->createMock(EventDispatcherInterface::class);
         $dispatcher->method('dispatch')->willReturnArgument(0);
 
-        $this->repo = new EntityRepository(
+        $this->repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $this->entityType,
             $driver,
             $dispatcher,
@@ -284,7 +284,7 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
         $revisionDriver = new RevisionableStorageDriver($resolver, $legacyType);
         $dispatcher = $this->createMock(EventDispatcherInterface::class);
         $dispatcher->method('dispatch')->willReturnArgument(0);
-        $legacyRepo = new EntityRepository($legacyType, $driver, $dispatcher, $revisionDriver, $this->db);
+        $legacyRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver($legacyType, $driver, $dispatcher, $revisionDriver, $this->db);
 
         $this->db->insert('test_revisionable_legacy_restore')
             ->fields(['id', 'uuid', 'title', 'bundle', 'langcode', 'revision_id', '_data'])
@@ -407,7 +407,7 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
         $revisionDriver = new RevisionableStorageDriver($resolver, $legacyType);
         $dispatcher = $this->createMock(EventDispatcherInterface::class);
         $dispatcher->method('dispatch')->willReturnArgument(0);
-        $legacyRepo = new EntityRepository($legacyType, $driver, $dispatcher, $revisionDriver, $this->db);
+        $legacyRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver($legacyType, $driver, $dispatcher, $revisionDriver, $this->db);
 
         $this->db->insert('test_revisionable_legacy_prune')
             ->fields(['id', 'uuid', 'title', 'bundle', 'langcode', 'revision_id', '_data'])

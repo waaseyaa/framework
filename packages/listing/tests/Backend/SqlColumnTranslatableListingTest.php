@@ -285,7 +285,7 @@ final class SqlColumnTranslatableListingTest extends TestCase
         $manager = new EntityTypeManager(new EventDispatcher());
         $manager->registerEntityType($entityType);
 
-        $repo = new EntityRepository($entityType, $driver, new EventDispatcher());
+        $repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver($entityType, $driver, new EventDispatcher());
         $registry = new EntityRepositoryRegistry(['article' => $repo]);
 
         $contextResolver = new ContextResolver(new ContextRegistry());

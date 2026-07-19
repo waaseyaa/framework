@@ -13,6 +13,7 @@ use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Entity\RevisionableInterface;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 use Waaseyaa\Workflows\Group\GroupConstraintChecker;
+use Waaseyaa\Workflows\Read\WorkflowEntitySnapshotReader;
 use Waaseyaa\Workflows\Republish\RepublishMarker;
 use Waaseyaa\Workflows\Transition\TransitionDeniedException;
 use Waaseyaa\Workflows\Workflow;
@@ -66,6 +67,7 @@ final class WorkflowStateGuard
         // content never re-publish", not a boot crash; production wiring
         // always injects the shared singleton.
         private readonly ?RepublishMarker $republishMarker = null,
+        private readonly ?WorkflowEntitySnapshotReader $workflowValues = null,
     ) {}
 
     /**
@@ -585,7 +587,7 @@ final class WorkflowStateGuard
             return $pointerState->published ? 1 : 0;
         }
 
-        return $published->get('status');
+        return $this->workflowValues()->read($published)->status;
     }
 
     private function loadPublishedRevision(EntityInterface $entity): ?EntityInterface
@@ -611,8 +613,13 @@ final class WorkflowStateGuard
 
     private function explicitState(EntityInterface $entity): ?string
     {
-        $state = $entity->get('workflow_state');
+        $state = $this->workflowValues()->read($entity)->workflowState;
 
         return \is_string($state) && $state !== '' ? $state : null;
+    }
+
+    private function workflowValues(): WorkflowEntitySnapshotReader
+    {
+        return $this->workflowValues ?? new WorkflowEntitySnapshotReader();
     }
 }

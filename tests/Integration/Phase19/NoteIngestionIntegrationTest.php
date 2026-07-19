@@ -14,6 +14,7 @@ use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
 use Waaseyaa\Note\Ingestion\IngestionEnvelope;
 use Waaseyaa\Note\Ingestion\IngestionEnvelopeValidator;
 use Waaseyaa\Note\Ingestion\NoteIngester;
+use Waaseyaa\Note\Ingestion\NoteIngestionMetadataReader;
 use Waaseyaa\Note\Ingestion\ValidationError;
 use Waaseyaa\Note\Note;
 
@@ -80,8 +81,9 @@ final class NoteIngestionIntegrationTest extends TestCase
 
         $note = $this->ingester->ingest(IngestionEnvelope::fromValidated($raw));
 
-        $this->assertSame('cli:batch-import', $note->get('ingestion_source'));
-        $this->assertSame('2026-03-07T09:30:00Z', $note->get('ingested_at'));
+        $metadata = new NoteIngestionMetadataReader()->read($note);
+        $this->assertSame('cli:batch-import', $metadata->source);
+        $this->assertSame('2026-03-07T09:30:00Z', $metadata->ingestedAt);
     }
 
     #[Test]

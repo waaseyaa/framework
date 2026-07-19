@@ -15,6 +15,8 @@ use Waaseyaa\Engagement\Reaction;
 #[CoversClass(Reaction::class)]
 final class ReactionTest extends TestCase
 {
+    use EngagementFieldReadTestTrait;
+
     #[Test]
     public function creates_with_required_fields(): void
     {
@@ -25,9 +27,11 @@ final class ReactionTest extends TestCase
             'reaction_type' => 'like',
         ]);
 
-        $this->assertSame(1, (int) $reaction->get('user_id'));
-        $this->assertSame('like', $reaction->get('reaction_type'));
-        $this->assertNotNull($reaction->get('created_at'));
+        $this->readEngagement(function () use ($reaction): void {
+            $this->assertSame(1, (int) $reaction->get('user_id'));
+            $this->assertSame('like', $reaction->get('reaction_type'));
+            $this->assertNotNull($reaction->get('created_at'));
+        });
     }
 
     #[Test]
@@ -56,7 +60,7 @@ final class ReactionTest extends TestCase
             'reaction_type' => 'miigwech',
         ]);
 
-        $this->assertSame('miigwech', $reaction->get('reaction_type'));
+        $this->assertSame('miigwech', $this->readEngagement(fn(): mixed => $reaction->get('reaction_type')));
     }
 
     #[Test]
@@ -72,7 +76,7 @@ final class ReactionTest extends TestCase
             allowedReactionTypes: ['like', 'miigwech'],
         );
 
-        $this->assertSame('miigwech', $reaction->get('reaction_type'));
+        $this->assertSame('miigwech', $this->readEngagement(fn(): mixed => $reaction->get('reaction_type')));
     }
 
     #[Test]

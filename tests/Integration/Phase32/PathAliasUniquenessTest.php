@@ -58,7 +58,7 @@ final class PathAliasUniquenessTest extends TestCase
         $resolver = new SingleConnectionResolver($this->database);
         $database = $this->database;
 
-        $this->repository = new EntityRepository(
+        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             new SqlStorageDriver($resolver),
             $eventDispatcher,
@@ -72,7 +72,7 @@ final class PathAliasUniquenessTest extends TestCase
             // so PathAliasUniquenessListener's
             // $entityTypeManager->getRepository('path_alias') call resolves to
             // this same in-memory-sqlite-backed repository.
-            repositoryFactory: static fn(string $_id, EntityTypeInterface $type): EntityRepository => new EntityRepository(
+            repositoryFactory: static fn(string $_id, EntityTypeInterface $type): EntityRepository => \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                 $type,
                 new SqlStorageDriver($resolver),
                 $eventDispatcher,

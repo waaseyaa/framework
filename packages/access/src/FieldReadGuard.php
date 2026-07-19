@@ -16,10 +16,7 @@ use Waaseyaa\Entity\Exception\MissingFieldReadContext;
 use Waaseyaa\Entity\FieldReadLevel;
 
 /**
- * Dormant accessor backstop prepared for WP4 installation in EntityBase.
- *
- * WP3 consumers and fixtures may exercise the exact decision path explicitly;
- * ordinary entity access remains unchanged until the no-shim activation.
+ * Fail-closed accessor backstop installed by the WP4 entity-read runtime.
  *
  * @internal
  */
@@ -27,6 +24,9 @@ final class FieldReadGuard implements EntityValueReadGuardInterface
 {
     /** @var \Closure(AuthorizationPrincipalInterface, EntityStructure, PolicySubjectViewInterface, string): AccessResult */
     private \Closure $protectedDecision;
+
+    /** @var \Closure(EntityBase, string, object): PolicySubjectViewInterface */
+    private \Closure $policySubject;
 
     /** @var \WeakMap<object, true> Contexts retained weakly only for explicit mutation invalidation. */
     private \WeakMap $contexts;
@@ -40,22 +40,25 @@ final class FieldReadGuard implements EntityValueReadGuardInterface
     public function __construct(
         private readonly AccountFieldReadScopeInterface $scope,
         callable $protectedDecision,
-        private readonly bool $activationEnabled = false,
-        private readonly ?PolicySubjectViewInterface $policySubject = null,
     ) {
         $this->protectedDecision = $protectedDecision(...);
+        $this->policySubject = \Closure::bind(
+            static fn(EntityBase $entity, string $field, object $viewIdentity): PolicySubjectViewInterface =>
+                $entity->valueContainer->policySubjectView($field, $viewIdentity),
+            null,
+            EntityBase::class,
+        );
         $this->contexts = new \WeakMap();
         $this->fastScope = $scope instanceof FastAccountFieldReadScopeInterface ? $scope : null;
         $this->concreteScope = $scope instanceof AccountFieldReadScope ? $scope : null;
     }
 
     /** Optimized activation path after the entity accessor resolves its compiled field rule. */
-    public function assertCompiled(EntityInterface $entity, CompiledFieldReadRule $rule): void
-    {
-        if (!$this->activationEnabled) {
-            return;
-        }
-
+    public function assertCompiled(
+        EntityInterface $entity,
+        CompiledFieldReadRule $rule,
+        ?PolicySubjectViewInterface $policySubject = null,
+    ): void {
         $field = $rule->field;
         $level = $rule->level;
         if ($level === FieldReadLevel::Public) {
@@ -74,7 +77,7 @@ final class FieldReadGuard implements EntityValueReadGuardInterface
             if (!(($this->protectedDecision)(
                 $principal,
                 $this->structure($entity, $field),
-                $this->subject(),
+                $policySubject ?? $this->emptySubject(),
                 $field,
             ))->isAllowed()) {
                 throw new FieldReadDenied(sprintf('Field %s.%s is not readable in this account context.', $entity->getEntityTypeId(), $field));
@@ -92,7 +95,7 @@ final class FieldReadGuard implements EntityValueReadGuardInterface
             $allowed = (($this->protectedDecision)(
                 $principal,
                 $this->structure($entity, $field),
-                $this->subject(),
+                $policySubject ?? $this->emptySubject(),
                 $field,
             ))->isAllowed();
             $context->remember($entity, $field, $allowed);
@@ -105,7 +108,11 @@ final class FieldReadGuard implements EntityValueReadGuardInterface
 
     public function assertProtectedReadable(EntityBase $entity, string $field, object $viewIdentity): void
     {
-        $this->assertCompiled($entity, new CompiledFieldReadRule($field, $entity->fieldReadLevel($field)));
+        $this->assertCompiled(
+            $entity,
+            $entity->compiledFieldReadRule($field),
+            ($this->policySubject)($entity, $field, $viewIdentity),
+        );
     }
 
     /**
@@ -121,9 +128,9 @@ final class FieldReadGuard implements EntityValueReadGuardInterface
         }
     }
 
-    private function subject(): PolicySubjectViewInterface
+    private function emptySubject(): PolicySubjectViewInterface
     {
-        return $this->policySubject ?? new class implements PolicySubjectViewInterface {
+        return new class implements PolicySubjectViewInterface {
             public function fields(): array
             {
                 return [];

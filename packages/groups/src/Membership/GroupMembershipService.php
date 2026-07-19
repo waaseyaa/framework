@@ -8,6 +8,8 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Groups\GroupRelationshipTypes;
 use Waaseyaa\Relationship\Relationship;
+use Waaseyaa\Relationship\RelationshipMaintenanceReader;
+use Waaseyaa\Relationship\RelationshipTopologyReader;
 
 /**
  * Group (department) membership and content-group lookups and writes,
@@ -50,6 +52,8 @@ final class GroupMembershipService
 {
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
+        private readonly ?RelationshipTopologyReader $topologyReader = null,
+        private readonly ?RelationshipMaintenanceReader $maintenanceReader = null,
     ) {}
 
     /**
@@ -260,7 +264,7 @@ final class GroupMembershipService
             if (!$entity instanceof Relationship) {
                 return;
             }
-            if ((int) $entity->get('status') === 1) {
+            if ($this->maintenanceReader()->read($entity)->status === 1) {
                 return;
             }
             $entity->set('status', 1);
@@ -305,7 +309,7 @@ final class GroupMembershipService
             if (!$entity instanceof Relationship) {
                 continue;
             }
-            if ((int) $entity->get('status') === 0) {
+            if ($this->maintenanceReader()->read($entity)->status === 0) {
                 continue;
             }
 
@@ -327,10 +331,20 @@ final class GroupMembershipService
         $groupIds = [];
         foreach ($repository->findMany($ids) as $entity) {
             if ($entity instanceof Relationship) {
-                $groupIds[] = (string) $entity->get('to_entity_id');
+                $groupIds[] = $this->topologyReader()->read($entity)->toId;
             }
         }
 
         return array_values(array_unique($groupIds));
+    }
+
+    private function topologyReader(): RelationshipTopologyReader
+    {
+        return $this->topologyReader ?? new RelationshipTopologyReader();
+    }
+
+    private function maintenanceReader(): RelationshipMaintenanceReader
+    {
+        return $this->maintenanceReader ?? new RelationshipMaintenanceReader();
     }
 }

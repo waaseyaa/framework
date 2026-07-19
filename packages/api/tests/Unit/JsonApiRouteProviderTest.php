@@ -25,8 +25,104 @@ final class JsonApiRouteProviderTest extends TestCase
 
     protected function setUp(): void
     {
+        $this->resetStructuralRouteCache();
         $this->entityTypeManager = new EntityTypeManager(new EventDispatcher());
         $this->router = new WaaseyaaRouter();
+    }
+
+    #[Test]
+    public function equivalent_manager_shapes_reuse_templates_but_receive_fresh_routes_and_collections(): void
+    {
+        $firstManager = $this->managerWith(['user' => true, 'article' => true]);
+        $secondManager = $this->managerWith(['article' => true, 'user' => true]);
+        $firstRouter = new WaaseyaaRouter();
+        $secondRouter = new WaaseyaaRouter();
+
+        new JsonApiRouteProvider($firstManager)->registerRoutes($firstRouter);
+        $firstCache = $this->structuralRouteCache();
+        self::assertCount(1, $firstCache);
+        $firstTemplate = array_values($firstCache)[0][0]['route'];
+        new JsonApiRouteProvider($secondManager)->registerRoutes($secondRouter);
+
+        $secondCache = $this->structuralRouteCache();
+        self::assertCount(1, $secondCache);
+        self::assertSame($firstTemplate, array_values($secondCache)[0][0]['route']);
+        $firstInternalCollection = $this->routerCollection($firstRouter);
+        $secondInternalCollection = $this->routerCollection($secondRouter);
+        self::assertNotSame($firstInternalCollection, $secondInternalCollection);
+        $firstInternalRoute = $firstInternalCollection->get('api.article.index');
+        $secondInternalRoute = $secondInternalCollection->get('api.article.index');
+        self::assertNotNull($firstInternalRoute);
+        self::assertNotNull($secondInternalRoute);
+        self::assertNotSame($firstTemplate, $firstInternalRoute);
+        self::assertNotSame($firstInternalRoute, $secondInternalRoute);
+        $firstInternalRoute->setPath('/mutated-only-in-first-router');
+        self::assertSame('/api/article', $secondInternalRoute->getPath());
+        $firstCollection = $firstRouter->getRouteCollection();
+        $secondCollection = $secondRouter->getRouteCollection();
+        self::assertNotSame($firstCollection, $secondCollection);
+        $firstRoute = $firstCollection->get('api.article.index');
+        $secondRoute = $secondCollection->get('api.article.index');
+        self::assertNotNull($firstRoute);
+        self::assertNotNull($secondRoute);
+        self::assertNotSame($firstRoute, $secondRoute);
+        self::assertSame('/mutated-only-in-first-router', $firstRoute->getPath());
+        self::assertSame('/api/article', $secondRoute->getPath());
+    }
+
+    #[Test]
+    public function structural_cache_key_binds_ids_exposure_base_path_and_workflow_request(): void
+    {
+        new JsonApiRouteProvider($this->managerWith(['article' => true]))
+            ->registerRoutes(new WaaseyaaRouter());
+        new JsonApiRouteProvider($this->managerWith(['article' => true]))
+            ->registerRoutes(new WaaseyaaRouter());
+        self::assertCount(1, $this->structuralRouteCache());
+
+        new JsonApiRouteProvider($this->managerWith(['article' => true]), '/jsonapi')
+            ->registerRoutes(new WaaseyaaRouter());
+        new JsonApiRouteProvider($this->managerWith(['user' => true]))
+            ->registerRoutes(new WaaseyaaRouter());
+        new JsonApiRouteProvider($this->managerWith(['article' => false]))
+            ->registerRoutes(new WaaseyaaRouter());
+        self::assertCount(2, $this->structuralRouteCache());
+
+        $beforeWorkflow = array_keys($this->structuralRouteCache());
+        new JsonApiRouteProvider($this->managerWith(['article' => true]))
+            ->registerWorkflowTransitionRoutes(new WaaseyaaRouter());
+        $afterWorkflow = array_keys($this->structuralRouteCache());
+        self::assertCount(2, $afterWorkflow);
+        self::assertNotSame($beforeWorkflow, $afterWorkflow);
+        self::assertTrue(array_any($afterWorkflow, static fn(string $key): bool => str_contains($key, "\0workflow\0")));
+        new JsonApiRouteProvider($this->managerWith(['article' => true]))
+            ->registerWorkflowTransitionRoutes(new WaaseyaaRouter());
+        self::assertSame($afterWorkflow, array_keys($this->structuralRouteCache()));
+    }
+
+    #[Test]
+    public function structural_cache_is_bounded_and_diagnostic_closures_capture_only_the_type_id(): void
+    {
+        $representativeTypes = [];
+        for ($index = 0; $index < 45; ++$index) {
+            $representativeTypes[sprintf('type_%02d', $index)] = true;
+        }
+        $memoryBefore = memory_get_usage();
+        for ($index = 0; $index < 12; ++$index) {
+            new JsonApiRouteProvider($this->managerWith($representativeTypes), '/api-' . $index)
+                ->registerRoutes(new WaaseyaaRouter());
+        }
+        gc_collect_cycles();
+        self::assertLessThanOrEqual(2, $this->structuralRouteCacheSize());
+        self::assertLessThan(4 * 1024 * 1024, memory_get_usage() - $memoryBefore);
+
+        $router = new WaaseyaaRouter();
+        new JsonApiRouteProvider($this->managerWith(['hidden' => false]), '/diagnostic')
+            ->registerRoutes($router);
+        $route = $router->getRouteCollection()->get('api.hidden.not_exposed');
+        self::assertNotNull($route);
+        $controller = $route->getDefault('_controller');
+        self::assertInstanceOf(\Closure::class, $controller);
+        self::assertSame(['entityTypeId' => 'hidden'], (new \ReflectionFunction($controller))->getStaticVariables());
     }
 
     #[Test]
@@ -383,5 +479,59 @@ final class JsonApiRouteProviderTest extends TestCase
         $this->assertSame('api.article.show', $match['_route']);
         $this->assertSame('42', $match['id']);
         $this->assertSame('article', $match['_entity_type']);
+    }
+
+    /** @param array<string, bool> $types */
+    private function managerWith(array $types): EntityTypeManager
+    {
+        $manager = new EntityTypeManager(new EventDispatcher());
+        foreach ($types as $id => $exposed) {
+            $manager->registerEntityType(new EntityType(
+                id: $id,
+                label: ucfirst($id),
+                class: TestEntity::class,
+                keys: TestEntity::definitionKeys(),
+                api: $exposed,
+            ));
+        }
+
+        return $manager;
+    }
+
+    private function resetStructuralRouteCache(): void
+    {
+        $this->setProviderStatic('structuralRouteCache', []);
+    }
+
+    /** @return array<string, list<array{name: string, route: \Symfony\Component\Routing\Route}>> */
+    private function structuralRouteCache(): array
+    {
+        $cache = $this->providerStatic('structuralRouteCache');
+        self::assertIsArray($cache);
+
+        return $cache;
+    }
+
+    private function structuralRouteCacheSize(): int
+    {
+        return count($this->structuralRouteCache());
+    }
+
+    private function setProviderStatic(string $name, mixed $value): void
+    {
+        (new \ReflectionProperty(JsonApiRouteProvider::class, $name))->setValue(null, $value);
+    }
+
+    private function providerStatic(string $name): mixed
+    {
+        return (new \ReflectionProperty(JsonApiRouteProvider::class, $name))->getValue();
+    }
+
+    private function routerCollection(WaaseyaaRouter $router): \Symfony\Component\Routing\RouteCollection
+    {
+        $collection = (new \ReflectionProperty(WaaseyaaRouter::class, 'routes'))->getValue($router);
+        self::assertInstanceOf(\Symfony\Component\Routing\RouteCollection::class, $collection);
+
+        return $collection;
     }
 }

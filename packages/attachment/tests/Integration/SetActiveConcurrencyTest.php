@@ -100,7 +100,7 @@ final class SetActiveConcurrencyTest extends TestCase
         $driver = new SqlStorageDriver($resolver, 'id');
         $dispatcher = new EventDispatcher();
 
-        $entityRepository = new EntityRepository(
+        $entityRepository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             entityType: $entityType,
             driver: $driver,
             eventDispatcher: $dispatcher,
@@ -154,7 +154,7 @@ final class SetActiveConcurrencyTest extends TestCase
                     $childDriver = new SqlStorageDriver($childResolver, 'id');
                     $childDispatcher = new EventDispatcher();
 
-                    $childEntityRepo = new EntityRepository(
+                    $childEntityRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                         entityType: $childEntityType,
                         driver: $childDriver,
                         eventDispatcher: $childDispatcher,

@@ -19,6 +19,7 @@ use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Access\Policy\PublishedContentStatusReader;
 use Waaseyaa\AI\Vector\SearchController;
 use Waaseyaa\AI\Vector\SqliteEmbeddingStorage;
 use Waaseyaa\Api\ResourceSerializer;
@@ -26,6 +27,7 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
@@ -68,7 +70,7 @@ final class DiscoveryFixtureConsumersIntegrationTest extends TestCase
                 new SqlSchemaHandler($definition, $this->database)->ensureTable();
                 $idKey = $definition->getKeys()['id'] ?? 'id';
 
-                return new EntityRepository(
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                     $definition,
                     new SqlStorageDriver($resolver, $idKey),
                     $dispatcher,
@@ -84,10 +86,10 @@ final class DiscoveryFixtureConsumersIntegrationTest extends TestCase
             class: \Waaseyaa\Api\Tests\Fixtures\NodeContentTestEntity::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type'],
             _fieldDefinitions: [
-                'title' => ['type' => 'string'],
-                'body' => ['type' => 'text'],
-                'status' => ['type' => 'boolean'],
-                'workflow_state' => ['type' => 'string'],
+                'title' => ['type' => 'string', 'read' => FieldReadLevel::Public],
+                'body' => ['type' => 'text', 'read' => FieldReadLevel::Public],
+                'status' => ['type' => 'boolean', 'read' => FieldReadLevel::Public],
+                'workflow_state' => ['type' => 'string', 'read' => FieldReadLevel::Public],
             ],
         ));
         $this->entityTypeManager->registerEntityType(new EntityType(
@@ -96,14 +98,14 @@ final class DiscoveryFixtureConsumersIntegrationTest extends TestCase
             class: Relationship::class,
             keys: ['id' => 'rid', 'uuid' => 'uuid', 'label' => 'relationship_type', 'bundle' => 'relationship_type'],
             _fieldDefinitions: [
-                'relationship_type' => ['type' => 'string'],
-                'from_entity_type' => ['type' => 'string'],
-                'from_entity_id' => ['type' => 'string'],
-                'to_entity_type' => ['type' => 'string'],
-                'to_entity_id' => ['type' => 'string'],
-                'status' => ['type' => 'boolean'],
-                'start_date' => ['type' => 'integer'],
-                'end_date' => ['type' => 'integer'],
+                'relationship_type' => ['type' => 'string', 'read' => FieldReadLevel::Public],
+                'from_entity_type' => ['type' => 'string', 'settings' => ['authorizationInput' => true], 'read' => FieldReadLevel::Protected],
+                'from_entity_id' => ['type' => 'string', 'settings' => ['authorizationInput' => true], 'read' => FieldReadLevel::Protected],
+                'to_entity_type' => ['type' => 'string', 'settings' => ['authorizationInput' => true], 'read' => FieldReadLevel::Protected],
+                'to_entity_id' => ['type' => 'string', 'settings' => ['authorizationInput' => true], 'read' => FieldReadLevel::Protected],
+                'status' => ['type' => 'boolean', 'read' => FieldReadLevel::Protected],
+                'start_date' => ['type' => 'integer', 'read' => FieldReadLevel::Protected],
+                'end_date' => ['type' => 'integer', 'read' => FieldReadLevel::Protected],
             ],
         ));
         new RelationshipSchemaManager($this->database)->ensure();
@@ -229,7 +231,7 @@ final class DiscoveryFixtureNodeViewPolicy implements AccessPolicyInterface
             return AccessResult::neutral();
         }
 
-        return (int) ($entity->toArray()['status'] ?? 0) === 1
+        return new PublishedContentStatusReader()->isPublished($entity)
             ? AccessResult::allowed('Published')
             : AccessResult::forbidden('Unpublished');
     }
@@ -253,7 +255,7 @@ final class DiscoveryFixtureRelationshipViewPolicy implements AccessPolicyInterf
             return AccessResult::neutral();
         }
 
-        return (int) ($entity->toArray()['status'] ?? 0) === 1
+        return new PublishedContentStatusReader()->isPublished($entity)
             ? AccessResult::allowed('Published')
             : AccessResult::forbidden('Unpublished');
     }

@@ -89,7 +89,7 @@ final class GroupConstraintSaveGuardTest extends TestCase
         $this->assertSame(TransitionDeniedException::REASON_GROUP_CONSTRAINT, $denied->reason);
 
         $stored = $repository->find((string) $entity->id());
-        $this->assertSame('review', $stored?->get('workflow_state'), 'A denied raw save must not mutate persisted state.');
+        $this->assertSame('review', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($stored), 'A denied raw save must not mutate persisted state.');
     }
 
     #[Test]
@@ -108,7 +108,7 @@ final class GroupConstraintSaveGuardTest extends TestCase
         $repository->save($loaded);
 
         $stored = $repository->find((string) $entity->id());
-        $this->assertSame('published', $stored?->get('workflow_state'));
+        $this->assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($stored));
     }
 
     #[Test]
@@ -131,7 +131,7 @@ final class GroupConstraintSaveGuardTest extends TestCase
         $repository->save($loaded);
 
         $stored = $repository->find((string) $entity->id());
-        $this->assertSame('published', $stored?->get('workflow_state'));
+        $this->assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($stored));
     }
 
     private function account(int $id, array $permissions): AccountInterface
@@ -199,7 +199,7 @@ final class GroupConstraintSaveGuardTest extends TestCase
 
             $idKey = $definition->getKeys()['id'] ?? 'id';
 
-            return new EntityRepository(
+            return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                 $definition,
                 new SqlStorageDriver($resolver, $idKey),
                 $dispatcher,
@@ -316,6 +316,7 @@ final class GroupConstraintSaveGuardTest extends TestCase
 final class GroupConstraintGuardSubject extends ContentEntityBase implements RevisionableInterface, RevisionableEntityInterface
 {
     use RevisionableEntityTrait;
+    use \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectFields;
 
     public function __construct(
         array $values = [],

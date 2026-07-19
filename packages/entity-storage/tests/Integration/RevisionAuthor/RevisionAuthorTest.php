@@ -13,9 +13,11 @@ use Waaseyaa\Access\Context\RequestAccountContext;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\Attribute\ContentEntityKeys;
 use Waaseyaa\Entity\Attribute\ContentEntityType;
+use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\Event\EntityEvents;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Entity\RevisionableEntityTrait;
 use Waaseyaa\Entity\RevisionableInterface;
@@ -459,7 +461,7 @@ final class RevisionAuthorTest extends TestCase
         $handler->ensureRevisionTable();
 
         $resolver = new SingleConnectionResolver($this->db);
-        $repo = new EntityRepository(
+        $repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             new SqlStorageDriver($resolver),
             $this->dispatcher,
@@ -499,7 +501,7 @@ final class RevisionAuthorTest extends TestCase
         $handler->ensureTranslationRevisionTable();
 
         $resolver = new SingleConnectionResolver($this->db);
-        $repo = new EntityRepository(
+        $repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             new SqlStorageDriver($resolver),
             $this->dispatcher,
@@ -592,6 +594,8 @@ class RevisionAuthorSubject extends ContentEntityBase implements RevisionableInt
 {
     use RevisionableEntityTrait;
 
+    #[Field(type: 'string', read: FieldReadLevel::Public)] public string $title;
+
     /**
      * @param array<string, mixed> $values
      * @param array<string, string> $entityKeys
@@ -613,6 +617,8 @@ class RevisionAuthorSubject extends ContentEntityBase implements RevisionableInt
 class RevisionAuthorTranslatableSubject extends ContentEntityBase implements RevisionableInterface, RevisionableEntityInterface
 {
     use RevisionableEntityTrait;
+
+    #[Field(type: 'string', read: FieldReadLevel::Public)] public string $title;
 
     /**
      * @param array<string, mixed> $values

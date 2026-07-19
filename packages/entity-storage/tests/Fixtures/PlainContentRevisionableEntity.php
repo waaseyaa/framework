@@ -6,7 +6,9 @@ namespace Waaseyaa\EntityStorage\Tests\Fixtures;
 
 use Waaseyaa\Entity\Attribute\ContentEntityKeys;
 use Waaseyaa\Entity\Attribute\ContentEntityType;
+use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\FieldReadLevel;
 
 /**
  * Revisionable test entity that does NOT declare the legacy
@@ -22,6 +24,8 @@ use Waaseyaa\Entity\ContentEntityBase;
 #[ContentEntityKeys(id: 'id', uuid: 'uuid', label: 'title', revision: 'revision_id')]
 class PlainContentRevisionableEntity extends ContentEntityBase
 {
+    #[Field(type: 'string', read: FieldReadLevel::Public)] public string $title;
+
     public function __construct(
         array $values = [],
         string $entityTypeId = '',

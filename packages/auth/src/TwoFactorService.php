@@ -43,10 +43,10 @@ final class TwoFactorService
 
         $secret = $this->manager->generateSecret();
         $recoveryCodes = $this->manager->generateRecoveryCodes();
-        $identity = $this->internalFields->twoFactor($user);
+        $identity = $this->internalFields->mailDelivery($user);
         $qrCodeUri = $this->manager->getQrCodeUri(
             $secret,
-            $identity->mail !== '' ? $identity->mail : $user->getName(),
+            $identity->mail !== '' ? $identity->mail : $identity->name,
             self::ISSUER,
         );
 

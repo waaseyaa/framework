@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Attachment;
 
+use Waaseyaa\Attachment\Maintenance\AttachmentMaintenanceFieldReader;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\Event\EntityEvent;
 
@@ -55,6 +56,7 @@ final class AttachmentActiveGuardListener
 {
     public function __construct(
         private readonly DatabaseInterface $database,
+        private readonly AttachmentMaintenanceFieldReader $maintenanceFields = new AttachmentMaintenanceFieldReader(),
     ) {}
 
     public function __invoke(EntityEvent $event): void
@@ -64,16 +66,17 @@ final class AttachmentActiveGuardListener
             return;
         }
 
-        if (!AttachmentActiveInvariant::isActive($entity)) {
+        if (!AttachmentActiveInvariant::isActive($entity, $this->maintenanceFields)) {
             return;
         }
 
         $id = $entity->id();
 
+        $fields = $this->maintenanceFields->read($entity);
         AttachmentActiveInvariant::demoteSiblings(
             $this->database,
-            (string) $entity->get('parent_entity_type'),
-            (string) $entity->get('parent_entity_id'),
+            $fields->parentEntityType,
+            $fields->parentEntityId,
             $id !== null ? (string) $id : null,
         );
     }

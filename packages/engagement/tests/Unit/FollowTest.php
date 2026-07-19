@@ -15,6 +15,8 @@ use Waaseyaa\Engagement\Follow;
 #[CoversClass(Follow::class)]
 final class FollowTest extends TestCase
 {
+    use EngagementFieldReadTestTrait;
+
     #[Test]
     public function creates_with_required_fields(): void
     {
@@ -24,9 +26,11 @@ final class FollowTest extends TestCase
             'target_id' => 42,
         ]);
 
-        $this->assertSame(1, (int) $follow->get('user_id'));
-        $this->assertSame('community', $follow->get('target_type'));
-        $this->assertNotNull($follow->get('created_at'));
+        $this->readEngagement(function () use ($follow): void {
+            $this->assertSame(1, (int) $follow->get('user_id'));
+            $this->assertSame('community', $follow->get('target_type'));
+            $this->assertNotNull($follow->get('created_at'));
+        });
     }
 
     #[Test]

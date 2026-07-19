@@ -112,8 +112,8 @@ final class ImportSaveContextGuardTest extends TestCase
 
         $stored = $repository->find((string) $entity->id());
         $this->assertNotNull($stored);
-        $this->assertSame('draft', $stored->get('workflow_state'));
-        $this->assertSame(0, $stored->get('status'));
+        $this->assertSame('draft', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($stored));
+        $this->assertSame(0, \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($stored));
     }
 
     #[Test]
@@ -178,8 +178,8 @@ final class ImportSaveContextGuardTest extends TestCase
 
         $stored = $repository->find((string) $entity->id());
         $this->assertNotNull($stored);
-        $this->assertSame('published', $stored->get('workflow_state'));
-        $this->assertSame(1, $stored->get('status'));
+        $this->assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($stored));
+        $this->assertSame(1, \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($stored));
     }
 
     #[Test]
@@ -296,7 +296,7 @@ final class ImportSaveContextGuardTest extends TestCase
 
             $resolver = new SingleConnectionResolver($db);
 
-            return new EntityRepository(
+            return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                 $definition,
                 new SqlStorageDriver($resolver),
                 $dispatcher,
@@ -358,6 +358,7 @@ final class ImportSaveContextGuardTest extends TestCase
 final class ImportGuardSubject extends ContentEntityBase implements RevisionableInterface, RevisionableEntityInterface
 {
     use RevisionableEntityTrait;
+    use \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectFields;
 
     public function __construct(
         array $values = [],

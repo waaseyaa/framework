@@ -58,7 +58,7 @@ final class EntityToolRevisionExposureTest extends TestCase
         $handler = new SqlSchemaHandler($revisionableType, $this->db);
         $handler->ensureTable();
         $handler->ensureRevisionTable();
-        $this->revisionableRepo = new EntityRepository(
+        $this->revisionableRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $revisionableType,
             new SqlStorageDriver($resolver),
             $dispatcher,
@@ -74,7 +74,7 @@ final class EntityToolRevisionExposureTest extends TestCase
             keys: self::PLAIN_KEYS,
         );
         new SqlSchemaHandler($plainType, $this->db)->ensureTable();
-        $plainRepo = new EntityRepository(
+        $plainRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $plainType,
             new SqlStorageDriver($resolver),
             $dispatcher,

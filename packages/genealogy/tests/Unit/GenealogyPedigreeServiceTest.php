@@ -11,12 +11,19 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
+use Waaseyaa\Access\FieldReadGuard;
 use Waaseyaa\Access\Gate\EntityAccessGate;
+use Waaseyaa\Access\PolicySubjectViewInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityReadRuntime;
+use Waaseyaa\Entity\EntityStructure;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -30,11 +37,26 @@ use Waaseyaa\Genealogy\Entity\GenealogyPerson;
 use Waaseyaa\Genealogy\GenealogyRelationshipType;
 use Waaseyaa\Genealogy\Service\GenealogyPedigreeService;
 use Waaseyaa\Relationship\Relationship;
-use Waaseyaa\User\AnonymousUser;
 
 #[CoversClass(GenealogyPedigreeService::class)]
 final class GenealogyPedigreeServiceTest extends TestCase
 {
+    private AccountFieldReadScope $fieldReadScope;
+
+    protected function setUp(): void
+    {
+        $this->fieldReadScope = new AccountFieldReadScope();
+        EntityReadRuntime::installGuard(new FieldReadGuard(
+            $this->fieldReadScope,
+            static fn(
+                AuthorizationPrincipalInterface $principal,
+                EntityStructure $structure,
+                PolicySubjectViewInterface $subject,
+                string $field,
+            ): AccessResult => AccessResult::allowed(),
+        ));
+    }
+
     private function makeManager(): EntityTypeManager
     {
         EntityType::clearFromClassCache();
@@ -49,11 +71,11 @@ final class GenealogyPedigreeServiceTest extends TestCase
             null,
             // C-22 WP4: repository factory mirroring the kernel's getRepository() shape.
             function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $resolver, $database, $registry): EntityRepository {
-                (new SqlSchemaHandler($definition, $database, $registry))->ensureTable();
+                new SqlSchemaHandler($definition, $database, $registry)->ensureTable();
 
                 $idKey = $definition->getKeys()['id'] ?? 'id';
 
-                return new EntityRepository(
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                     $definition,
                     new SqlStorageDriver($resolver, $idKey),
                     $dispatcher,
@@ -95,6 +117,7 @@ final class GenealogyPedigreeServiceTest extends TestCase
     protected function tearDown(): void
     {
         ContentEntityBase::setFieldRegistry(null);
+        EntityReadRuntime::installGuard(null);
     }
 
     #[Test]
@@ -226,12 +249,15 @@ final class GenealogyPedigreeServiceTest extends TestCase
         ]);
         $relRepository->save($edge, validate: false);
 
-        $account = new AnonymousUser();
+        $account = $this->anonymousPrincipal();
         $accessHandler = new EntityAccessHandler([$this->viewAllowedLabelForbiddenPolicy()]);
         $gate = new EntityAccessGate($accessHandler);
         $service = new GenealogyPedigreeService($manager, $accessHandler);
 
-        $slots = $service->neighborSlots($service->parentPersonIds((string) $subject->id()), $account, $gate);
+        $slots = $this->fieldReadScope->run(
+            $account,
+            fn(): array => $service->neighborSlots($service->parentPersonIds((string) $subject->id()), $account, $gate),
+        );
 
         self::assertCount(1, $slots);
         self::assertTrue($slots[0]['redacted']);
@@ -267,12 +293,15 @@ final class GenealogyPedigreeServiceTest extends TestCase
         ]);
         $relRepository->save($edge, validate: false);
 
-        $account = new AnonymousUser();
+        $account = $this->anonymousPrincipal();
         $accessHandler = new EntityAccessHandler([$this->viewAllowedPolicy()]);
         $gate = new EntityAccessGate($accessHandler);
         $service = new GenealogyPedigreeService($manager, $accessHandler);
 
-        $slots = $service->neighborSlots($service->parentPersonIds((string) $subject->id()), $account, $gate);
+        $slots = $this->fieldReadScope->run(
+            $account,
+            fn(): array => $service->neighborSlots($service->parentPersonIds((string) $subject->id()), $account, $gate),
+        );
 
         self::assertCount(1, $slots);
         self::assertFalse($slots[0]['redacted']);
@@ -294,12 +323,15 @@ final class GenealogyPedigreeServiceTest extends TestCase
         $subject = $personRepository->create(['display_name' => 'Secret Subject']);
         $personRepository->save($subject, validate: false);
 
-        $account = new AnonymousUser();
+        $account = $this->anonymousPrincipal();
         $accessHandler = new EntityAccessHandler([$this->viewAllowedLabelForbiddenPolicy()]);
         $gate = new EntityAccessGate($accessHandler);
         $service = new GenealogyPedigreeService($manager, $accessHandler);
 
-        $levels = $service->ancestorGenerationsRedacted((string) $subject->id(), $account, $gate, 1);
+        $levels = $this->fieldReadScope->run(
+            $account,
+            fn(): array => $service->ancestorGenerationsRedacted((string) $subject->id(), $account, $gate, 1),
+        );
 
         self::assertTrue($levels[0][0]['redacted']);
         self::assertSame('Private profile', $levels[0][0]['label']);
@@ -318,12 +350,15 @@ final class GenealogyPedigreeServiceTest extends TestCase
         $subject = $personRepository->create(['display_name' => 'Visible Subject']);
         $personRepository->save($subject, validate: false);
 
-        $account = new AnonymousUser();
+        $account = $this->anonymousPrincipal();
         $accessHandler = new EntityAccessHandler([$this->viewAllowedPolicy()]);
         $gate = new EntityAccessGate($accessHandler);
         $service = new GenealogyPedigreeService($manager, $accessHandler);
 
-        $levels = $service->ancestorGenerationsRedacted((string) $subject->id(), $account, $gate, 1);
+        $levels = $this->fieldReadScope->run(
+            $account,
+            fn(): array => $service->ancestorGenerationsRedacted((string) $subject->id(), $account, $gate, 1),
+        );
 
         self::assertFalse($levels[0][0]['redacted']);
         self::assertSame('Visible Subject', $levels[0][0]['label']);
@@ -351,6 +386,11 @@ final class GenealogyPedigreeServiceTest extends TestCase
                 return $entityTypeId === 'genealogy_person';
             }
         };
+    }
+
+    private function anonymousPrincipal(): AuthorizationPrincipal
+    {
+        return new AuthorizationPrincipal(0, false, [], [], 'genealogy-pedigree-test');
     }
 
     /**

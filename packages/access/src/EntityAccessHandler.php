@@ -6,7 +6,9 @@ namespace Waaseyaa\Access;
 
 use Waaseyaa\Access\Attribute\AccessPolicy;
 use Waaseyaa\Access\Gate\GateInterface;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityStructure;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 
 /**
@@ -28,6 +30,9 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
  */
 class EntityAccessHandler
 {
+    /** @var \Closure(EntityBase): PolicySubjectViewInterface */
+    private readonly \Closure $entityPolicySubjectAuthority;
+
     /**
      * Operations recognized by the handler. 'translate' is the M-006 addition
      * that falls through to 'update' when no policy opines.
@@ -53,6 +58,12 @@ class EntityAccessHandler
      */
     public function __construct(array $policies = [])
     {
+        $authority = \Closure::bind(
+            static fn(EntityBase $entity): PolicySubjectViewInterface => $entity->valueContainer->entityPolicySubjectView(),
+            null,
+            EntityBase::class,
+        );
+        $this->entityPolicySubjectAuthority = $authority;
         foreach ($policies as $policy) {
             $this->addPolicy($policy);
         }
@@ -90,6 +101,16 @@ class EntityAccessHandler
         AccountInterface $account,
         array $context = [],
     ): AccessResult {
+        if ($operation === GateInterface::VIEW
+            && $entity instanceof EntityBase
+            && $account instanceof AuthorizationPrincipalInterface
+            && $this->hasProtectedEntityReadPolicy($entity->getEntityTypeId(), $entity->bundle())
+        ) {
+            $subject = ($this->entityPolicySubjectAuthority)($entity);
+
+            return $this->checkProtectedEntityRead($account, $entity->entityStructure(), $subject, $operation);
+        }
+
         $result = AccessResult::neutral('No policy provided an opinion.');
         $entityTypeId = $entity->getEntityTypeId();
         $bundle = $entity->bundle();
@@ -122,6 +143,79 @@ class EntityAccessHandler
         }
 
         return $result;
+    }
+
+    /** Fail-closed Protected entity decision over immutable principal and structural subject data. */
+    public function checkProtectedEntityRead(
+        AuthorizationPrincipalInterface $principal,
+        EntityStructure $structure,
+        PolicySubjectViewInterface $subject,
+        string $operation = GateInterface::VIEW,
+    ): AccessResult {
+        $result = AccessResult::neutral('No protected entity-read policy provided an opinion.');
+        foreach ($this->policies as $index => $policy) {
+            if (!$policy->appliesTo($structure->entityTypeId)
+                || !$this->matchesBundle($this->bundleFilters[$index] ?? [], $structure->bundleId)
+                || !$policy instanceof ProtectedReadPolicyProviderInterface
+            ) {
+                continue;
+            }
+            $entityPolicy = $policy->protectedEntityReadPolicy();
+            if ($entityPolicy === null) {
+                continue;
+            }
+            $result = $result->orIf($entityPolicy->access($principal, $structure, $subject, $operation));
+            if ($result->isForbidden()) {
+                return $result;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Resolve every V2 Protected entity-read policy for one exact type/bundle.
+     *
+     * A non-null result is complete for the same policy set used by
+     * checkProtectedEntityRead(); callers may therefore evaluate an immutable
+     * compiled subject without constructing an Entity object.
+     *
+     * @internal
+     */
+    public function protectedEntityReadProjectionPlan(string $entityTypeId, string $bundle): ?ProtectedEntityReadPlan
+    {
+        $policies = [];
+        $inputs = [];
+        $foundProtectedPolicy = false;
+        foreach ($this->policies as $index => $policy) {
+            if (!$policy->appliesTo($entityTypeId)
+                || !$this->matchesBundle($this->bundleFilters[$index] ?? [], $bundle)
+                || !$policy instanceof ProtectedReadPolicyProviderInterface
+            ) {
+                continue;
+            }
+            $entityPolicy = $policy->protectedEntityReadPolicy();
+            if ($entityPolicy === null) {
+                continue;
+            }
+            $foundProtectedPolicy = true;
+            if (!$entityPolicy instanceof ProjectedProtectedEntityReadPolicyInterface) {
+                return null;
+            }
+            $policies[] = $entityPolicy;
+            foreach ($entityPolicy->authorizationInputs() as $fieldName) {
+                $inputs[$fieldName] = true;
+            }
+        }
+
+        if (!$foundProtectedPolicy) {
+            return null;
+        }
+
+        $inputNames = array_keys($inputs);
+        sort($inputNames);
+
+        return new ProtectedEntityReadPlan($entityTypeId, $bundle, $inputNames, $policies);
     }
 
     /**
@@ -190,6 +284,36 @@ class EntityAccessHandler
             $policyResult = $policy->fieldAccess($entity, $fieldName, $operation, $account);
             $result = $result->orIf($policyResult);
 
+            if ($result->isForbidden()) {
+                return $result;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Fail-closed Protected field decision over immutable principal and structural subject data.
+     */
+    public function checkProtectedFieldRead(
+        AuthorizationPrincipalInterface $principal,
+        EntityStructure $structure,
+        PolicySubjectViewInterface $subject,
+        string $fieldName,
+    ): AccessResult {
+        $result = AccessResult::neutral('No protected field-read policy provided an opinion.');
+        foreach ($this->policies as $index => $policy) {
+            if (!$policy->appliesTo($structure->entityTypeId)
+                || !$this->matchesBundle($this->bundleFilters[$index] ?? [], $structure->bundleId)
+                || !$policy instanceof ProtectedReadPolicyProviderInterface
+            ) {
+                continue;
+            }
+            $fieldPolicy = $policy->protectedFieldReadPolicy();
+            if ($fieldPolicy === null) {
+                continue;
+            }
+            $result = $result->orIf($fieldPolicy->access($principal, $structure, $subject, $fieldName));
             if ($result->isForbidden()) {
                 return $result;
             }
@@ -276,6 +400,21 @@ class EntityAccessHandler
         $attribute = $attributes[0]->newInstance();
 
         return $attribute->bundles;
+    }
+
+    private function hasProtectedEntityReadPolicy(string $entityTypeId, string $bundle): bool
+    {
+        foreach ($this->policies as $index => $policy) {
+            if ($policy->appliesTo($entityTypeId)
+                && $this->matchesBundle($this->bundleFilters[$index] ?? [], $bundle)
+                && $policy instanceof ProtectedReadPolicyProviderInterface
+                && $policy->protectedEntityReadPolicy() !== null
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

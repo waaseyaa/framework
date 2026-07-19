@@ -13,6 +13,8 @@ use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\DbInitHandler;
 use Waaseyaa\CLI\Testing\CliTester;
+use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Tests\Support\ComposerProjectFixture;
 
 #[CoversNothing]
@@ -80,6 +82,9 @@ final class SsrHttpKernelIntegrationTest extends TestCase
 
     protected function tearDown(): void
     {
+        ContentEntityBase::setFieldRegistry(null);
+        EntityReadRuntime::installFieldRegistry(null);
+
         if (!is_dir($this->projectRoot)) {
             return;
         }
@@ -98,7 +103,35 @@ final class SsrHttpKernelIntegrationTest extends TestCase
         $this->assertStringNotContainsString('data-template="package-node-full"', $response['body']);
         $this->assertStringContainsString('Water Is Life', $response['body']);
         $this->assertStringContainsString('2025-01-01', $response['body']);
-        $this->assertStringContainsString('<a href="/user/7">Author</a>', $response['body']);
+        $this->assertStringNotContainsString('/user/7', $response['body']);
+    }
+
+    #[Test]
+    public function consecutive_worker_requests_boot_fresh_kernels_without_retaining_twig_state(): void
+    {
+        $runner = $this->repoRoot . '/tests/Integration/Phase13/Fixtures/consecutive_http_kernel_runner.php';
+        $command = sprintf(
+            '%s %s %s %s %s 2>&1',
+            escapeshellarg(PHP_BINARY),
+            escapeshellarg($runner),
+            escapeshellarg($this->repoRoot),
+            escapeshellarg($this->projectRoot),
+            escapeshellarg('/node/1'),
+        );
+
+        $output = shell_exec($command);
+        $this->assertNotNull($output, 'Consecutive kernel runner produced no output.');
+        $lines = array_values(array_filter(
+            preg_split('/\R/', trim($output)) ?: [],
+            static fn(string $line): bool => trim($line) !== '',
+        ));
+        $responses = json_decode($lines !== [] ? $lines[count($lines) - 1] : '', true);
+
+        $this->assertIsArray($responses, 'Consecutive kernel runner returned invalid JSON: ' . $output);
+        $this->assertCount(2, $responses);
+        $this->assertSame(200, $responses[0]['status'] ?? null);
+        $this->assertSame(200, $responses[1]['status'] ?? null);
+        $this->assertStringContainsString('Water Is Life', (string) ($responses[1]['body'] ?? ''));
     }
 
     #[Test]
@@ -152,7 +185,7 @@ final class SsrHttpKernelIntegrationTest extends TestCase
 
         $this->assertStringContainsString('data-template="app-node-full"', $full['body']);
         $this->assertStringContainsString('2025-01-01', $full['body']);
-        $this->assertStringContainsString('/user/7', $full['body']);
+        $this->assertStringNotContainsString('/user/7', $full['body']);
 
         $this->assertStringContainsString('data-template="app-node-teaser"', $teaser['body']);
         $this->assertStringNotContainsString('/user/7', $teaser['body']);
@@ -165,7 +198,7 @@ final class SsrHttpKernelIntegrationTest extends TestCase
         $response = $this->request('/does-not-exist');
 
         $this->assertSame(404, $response['status']);
-        $this->assertStringContainsString('<h1>Not Found</h1>', $response['body']);
+        $this->assertStringContainsString('/does-not-exist', $response['body']);
         $this->assertStringNotContainsString('"jsonapi"', $response['body']);
     }
 

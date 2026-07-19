@@ -15,19 +15,25 @@ use Waaseyaa\SSR\Twig\WaaseyaaExtension;
 final class ThemeServiceProvider extends ServiceProvider
 {
     private static ?Environment $twigEnvironment = null;
+    private ?Environment $kernelTwigEnvironment = null;
 
     public function register(): void
     {
-        // SSR/Twig wiring happens in boot().
+        $this->initializeKernelTwigEnvironment();
     }
 
     public function boot(): void
     {
+        $this->initializeKernelTwigEnvironment();
+    }
+
+    private function initializeKernelTwigEnvironment(): void
+    {
         if ($this->projectRoot === '') {
             return;
         }
-
-        self::$twigEnvironment = self::createTwigEnvironment($this->projectRoot, $this->config);
+        $this->kernelTwigEnvironment ??= self::createTwigEnvironment($this->projectRoot, $this->config);
+        self::$twigEnvironment = $this->kernelTwigEnvironment;
     }
 
     public static function getTwigEnvironment(): ?Environment

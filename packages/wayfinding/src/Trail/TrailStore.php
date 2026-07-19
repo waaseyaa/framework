@@ -37,9 +37,18 @@ use Waaseyaa\Wayfinding\Entity\Trail;
  */
 final class TrailStore
 {
+    /** @var \Closure(Trail): array<string, mixed> */
+    private readonly \Closure $trailValuesAuthority;
+
     public function __construct(
         private readonly EntityRepository $trails,
-    ) {}
+    ) {
+        $this->trailValuesAuthority = \Closure::bind(
+            static fn(Trail $trail): array => $trail->valueContainer->rawValues(),
+            null,
+            \Waaseyaa\Entity\EntityBase::class,
+        );
+    }
 
     /**
      * FR-010: record a live trail to a new saved trail, owned by $ownerUid. The
@@ -96,10 +105,11 @@ final class TrailStore
     public function reRecord(string $trailId, string $langcode, string $title, array $beacons): ReRecordResult
     {
         $current = $this->trails->loadTranslation($trailId, $langcode);
-        $humanOwned = $current !== null && (string) $current->get('origin') === Trail::ORIGIN_HUMAN;
+        $currentValues = $current instanceof Trail ? ($this->trailValuesAuthority)($current) : [];
+        $humanOwned = (string) ($currentValues['origin'] ?? '') === Trail::ORIGIN_HUMAN;
 
-        $owner = $current !== null
-            ? (int) $current->get('owner_uid')
+        $owner = $current instanceof Trail
+            ? (int) ($currentValues['owner_uid'] ?? 0)
             : $this->resolveOwner($trailId, null);
         $values = $this->valuesFor($title, $beacons, Trail::ORIGIN_RECORDED, $owner, $langcode);
 
@@ -152,13 +162,18 @@ final class TrailStore
 
     private function toSavedTrail(string $trailId, string $langcode, EntityInterface $entity): SavedTrail
     {
+        if (!$entity instanceof Trail) {
+            throw new \LogicException('TrailStore requires hydrated Trail entities.');
+        }
+        $values = ($this->trailValuesAuthority)($entity);
+
         return new SavedTrail(
             id: $trailId,
             langcode: $langcode,
-            title: (string) ($entity->get('title') ?? ''),
-            beacons: $this->decodeBeacons((string) ($entity->get('beacons') ?? '[]')),
-            origin: (string) ($entity->get('origin') ?? Trail::ORIGIN_RECORDED),
-            ownerUid: (int) ($entity->get('owner_uid') ?? 0),
+            title: (string) ($values['title'] ?? ''),
+            beacons: $this->decodeBeacons((string) ($values['beacons'] ?? '[]')),
+            origin: (string) ($values['origin'] ?? Trail::ORIGIN_RECORDED),
+            ownerUid: (int) ($values['owner_uid'] ?? 0),
         );
     }
 
@@ -166,14 +181,21 @@ final class TrailStore
     {
         if ($langcode !== null) {
             $peer = $this->trails->loadTranslation($trailId, $langcode);
-            if ($peer !== null) {
-                return (int) $peer->get('owner_uid');
+            if ($peer instanceof Trail) {
+                $values = ($this->trailValuesAuthority)($peer);
+
+                return (int) ($values['owner_uid'] ?? 0);
             }
         }
 
         $default = $this->trails->find($trailId);
 
-        return $default !== null ? (int) $default->get('owner_uid') : 0;
+        if (!$default instanceof Trail) {
+            return 0;
+        }
+        $values = ($this->trailValuesAuthority)($default);
+
+        return (int) ($values['owner_uid'] ?? 0);
     }
 
     /**

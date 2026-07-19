@@ -135,7 +135,7 @@ final class EndToEndCsvImportTest extends TestCase
         $this->dispatcher = new EventDispatcher();
         $resolver = new SingleConnectionResolver($this->db);
         $driver = new SqlStorageDriver($resolver, 'id');
-        $this->repository = new EntityRepository(
+        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             entityType: $entityType,
             driver: $driver,
             eventDispatcher: $this->dispatcher,
@@ -336,8 +336,7 @@ final class EndToEndCsvImportTest extends TestCase
         $this->dispatcher->addListener(
             BeforeDeleteEvent::class,
             static function (BeforeDeleteEvent $e) use (&$deleteOrder): void {
-                $uuid = $e->entity()->get('uuid');
-                \assert(\is_string($uuid));
+                $uuid = $e->entity()->uuid();
                 $deleteOrder[] = $uuid;
             },
         );

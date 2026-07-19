@@ -12,7 +12,13 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Route;
 use Waaseyaa\Access\AccessChecker;
+use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AccountPrincipalFactoryInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\Middleware\AuthorizationMiddleware;
+use Waaseyaa\Access\Middleware\FieldReadContextMiddleware;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
@@ -23,6 +29,7 @@ use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpPipeline;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 use Waaseyaa\User\Middleware\SessionMiddleware;
 use Waaseyaa\User\User;
 
@@ -48,7 +55,7 @@ final class AuthorizationPipelineTest extends TestCase
                 $schema = new SqlSchemaHandler($def, $this->database);
                 $schema->ensureTable();
 
-                return new EntityRepository($def, new SqlStorageDriver($resolver, $idKey), $dispatcher);
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver($def, new SqlStorageDriver($resolver, $idKey), $dispatcher);
             },
         );
 
@@ -134,9 +141,25 @@ final class AuthorizationPipelineTest extends TestCase
         // C-22 WP3: read path now goes through the canonical repository.
         $userRepository = $this->entityTypeManager->getRepository('user');
         $accessChecker = new AccessChecker();
+        $internalFields = new UserInternalFieldReaderFixture();
+        $principalFactory = new class ($internalFields) implements AccountPrincipalFactoryInterface {
+            public function __construct(private readonly UserInternalFieldReaderFixture $internalFields) {}
+
+            public function fromAccount(AccountInterface $account): AuthorizationPrincipalInterface
+            {
+                if (!$account instanceof User) {
+                    return new AuthorizationPrincipal($account->id(), $account->isAuthenticated(), $account->getRoles(), [], 'phase11-account');
+                }
+                $claims = $this->internalFields->maintenanceAuthorization($account);
+
+                return new AuthorizationPrincipal($account->id(), true, $claims->roles, $claims->permissions, 'phase11-user');
+            }
+        };
+        $scope = new AccountFieldReadScope();
 
         return new HttpPipeline()
             ->withMiddleware(new SessionMiddleware($userRepository))
+            ->withMiddleware(new FieldReadContextMiddleware($principalFactory, $scope))
             ->withMiddleware(new AuthorizationMiddleware($accessChecker));
     }
 

@@ -10,7 +10,9 @@ use Waaseyaa\Audit\Enum\AuditEventKind;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Field\Attribute\FieldTemplate;
+use Waaseyaa\Field\Classification\ClassificationSubjectReader;
 use Waaseyaa\Field\Entity\RetentionPolicy;
+use Waaseyaa\Field\Entity\RetentionPolicyMaintenanceReader;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 
@@ -41,15 +43,21 @@ final class RedactJob
 
     private readonly LoggerInterface $logger;
     private readonly RetentionScanner $scanner;
+    private readonly RetentionPolicyMaintenanceReader $policyReader;
+    private readonly ClassificationSubjectReader $subjectReader;
 
     public function __construct(
         private readonly EntityTypeManager $entityTypeManager,
         private readonly AuditWriterInterface $auditWriter,
         ?LoggerInterface $logger = null,
         ?RetentionScanner $scanner = null,
+        ?RetentionPolicyMaintenanceReader $policyReader = null,
+        ?ClassificationSubjectReader $subjectReader = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
         $this->scanner = $scanner ?? new RetentionScanner($entityTypeManager);
+        $this->policyReader = $policyReader ?? new RetentionPolicyMaintenanceReader();
+        $this->subjectReader = $subjectReader ?? new ClassificationSubjectReader();
     }
 
     public function run(): void
@@ -100,6 +108,7 @@ final class RedactJob
      */
     private function applyPolicy(RetentionPolicy $policy): int
     {
+        $view = $this->policyReader->read($policy);
         $redacted = 0;
 
         foreach ($this->entityTypeManager->getDefinitions() as $entityTypeId => $definition) {
@@ -107,14 +116,14 @@ final class RedactJob
                 continue;
             }
 
-            foreach ($this->scanner->scan($entityTypeId, null, RetentionScanner::labelCondition($policy)) as $entity) {
-                $labelId = (string) ($entity->get('classification_label') ?? '');
-                if ($labelId === '' || !$policy->matchesLabel($labelId)) {
+            foreach ($this->scanner->scan($entityTypeId, null, RetentionScanner::labelCondition($view)) as $entity) {
+                $labelId = $this->subjectReader->read($entity)->label ?? '';
+                if ($labelId === '' || !$view->matchesLabel($labelId)) {
                     continue;
                 }
 
                 $uuid = (string) ($entity->get('uuid') ?? '');
-                if ($uuid !== '' && $policy->isExempt($entityTypeId, $uuid)) {
+                if ($uuid !== '' && $view->isExempt($entityTypeId, $uuid)) {
                     continue;
                 }
 

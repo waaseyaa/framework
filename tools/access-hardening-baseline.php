@@ -11,6 +11,8 @@ declare(strict_types=1);
  * @return array<string, string>
  */
 return [
+    'packages/api/src/JsonApiRouteProvider.php::$structuralRouteCache'
+        => 'Two-shape FIFO of clone-only Symfony Route templates keyed by scalar base path, workflow mode, entity-type IDs, and API exposure; retains no managers, providers, services, requests, accounts, guards, decisions, or entity values.',
     'packages/foundation/src/Security/ApplicationSecret.php::$secrets'
         => 'Process-lifetime WeakMap custody keyed by kernel-owned ApplicationSecret objects; entries disappear with their kernel, contain no request/account data, and keep master bytes out of object debug and serialization surfaces.',
     'packages/foundation/src/Security/SensitiveKey.php::$keys'

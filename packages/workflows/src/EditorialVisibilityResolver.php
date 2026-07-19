@@ -7,7 +7,8 @@ namespace Waaseyaa\Workflows;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Entity\EntityInterface;
-use Waaseyaa\Entity\EntityValues;
+use Waaseyaa\Workflows\Read\EditorialPreviewSubjectReader;
+use Waaseyaa\Workflows\Read\WorkflowEntitySnapshotReader;
 
 /**
  * @api
@@ -15,11 +16,17 @@ use Waaseyaa\Entity\EntityValues;
 final class EditorialVisibilityResolver
 {
     private readonly Workflow $workflow;
+    private readonly WorkflowEntitySnapshotReader $workflowValues;
+    private readonly EditorialPreviewSubjectReader $previewSubject;
 
     public function __construct(
         ?Workflow $workflow = null,
+        ?WorkflowEntitySnapshotReader $workflowValues = null,
+        ?EditorialPreviewSubjectReader $previewSubject = null,
     ) {
         $this->workflow = $workflow ?? EditorialWorkflowPreset::create();
+        $this->workflowValues = $workflowValues ?? new WorkflowEntitySnapshotReader();
+        $this->previewSubject = $previewSubject ?? new EditorialPreviewSubjectReader();
     }
 
     public function canRender(EntityInterface $entity, AccountInterface $account, bool $previewRequested = false): AccessResult
@@ -49,7 +56,7 @@ final class EditorialVisibilityResolver
         }
 
         $bundle = $this->bundleForEntity($entity);
-        $uid = $entity->get('uid');
+        $uid = $this->previewSubject->read($entity)->authorId;
         $authorId = ($uid !== null && $uid !== '') ? (string) $uid : '';
         if ($authorId !== '' && (string) $account->id() === $authorId && $account->hasPermission('view own unpublished content')) {
             return AccessResult::allowed('Author can preview own unpublished content.');
@@ -94,11 +101,11 @@ final class EditorialVisibilityResolver
 
     public function stateForEntity(EntityInterface $entity): string
     {
-        $values = EntityValues::toCastAwareMap($entity);
+        $values = $this->workflowValues->read($entity);
 
         return EditorialWorkflowPreset::normalizeState(
-            workflowState: $values['workflow_state'] ?? null,
-            status: $values['status'] ?? 0,
+            workflowState: $values->workflowState,
+            status: $values->status,
         );
     }
 
@@ -109,8 +116,6 @@ final class EditorialVisibilityResolver
             return $bundle;
         }
 
-        $type = $entity->get('type');
-
-        return trim((string) ($type ?? ''));
+        return '';
     }
 }

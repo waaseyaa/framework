@@ -12,24 +12,20 @@ use Waaseyaa\Entity\Exception\EntitySerializationForbidden;
 
 final class EntitySerializationBoundaryTest extends TestCase
 {
-    public function test_dormant_boundary_preserves_legacy_serialization_but_activation_rejects(): void
+    public function test_default_boundary_is_activated(): void
     {
         $entity = new SerializationBoundaryFixtureEntity(['id' => 1], 'node', ['id' => 'id']);
 
-        self::assertNotSame('', new EntitySerializationBoundary(EntitySerializationBoundaryConfig::dormant())->serialize($entity));
-
         $this->expectException(EntitySerializationForbidden::class);
-        new EntitySerializationBoundary(EntitySerializationBoundaryConfig::enforced())->serialize($entity);
+        new EntitySerializationBoundary()->serialize($entity);
     }
 
-    public function test_dormant_compatibility_entity_remains_readable_after_serialization_round_trip(): void
+    public function test_legacy_dormant_switch_cannot_bypass_the_activated_entity_runtime(): void
     {
-        $entity = new SerializationBoundaryFixtureEntity(['id' => 1, 'title' => 'Legacy'], 'node', ['id' => 'id']);
+        $entity = new SerializationBoundaryFixtureEntity(['id' => 1], 'node', ['id' => 'id']);
 
-        $copy = unserialize(serialize($entity));
-
-        self::assertInstanceOf(SerializationBoundaryFixtureEntity::class, $copy);
-        self::assertSame('Legacy', $copy->get('title'));
+        $this->expectException(EntitySerializationForbidden::class);
+        new EntitySerializationBoundary(EntitySerializationBoundaryConfig::dormant())->serialize($entity);
     }
 }
 

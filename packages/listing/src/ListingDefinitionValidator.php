@@ -37,7 +37,7 @@ use Waaseyaa\Listing\Exception\UnsupportedListingException;
  * is queryable by definition; a field stored in the `_data` blob is not
  * (its values live inside an opaque JSON column and storage backends
  * such as `SqlBlobBackend` report {@code supportsQuery=false}). This is
- * the same invariant the {@see FieldStorageBackendInterface} contract
+ * the same invariant the registrar-owned field-storage gateway contract
  * tests exercise for live backends.
  *
  * Lexicographic ordering on string fields is permitted: per ADR-010 the

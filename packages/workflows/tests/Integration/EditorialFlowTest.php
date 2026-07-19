@@ -72,8 +72,8 @@ final class EditorialFlowTest extends TestCase
 
         $stored = $repository->find((string) $entity->id());
         $this->assertNotNull($stored);
-        $this->assertSame('draft', $stored->get('workflow_state'));
-        $this->assertSame(0, $stored->get('status'));
+        $this->assertSame('draft', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($stored));
+        $this->assertSame(0, \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($stored));
 
         $reviewer = $this->account(1, ['use editorial transition submit_for_review']);
         $publisher = $this->account(2, ['use editorial transition publish', 'use editorial transition archive']);
@@ -84,7 +84,7 @@ final class EditorialFlowTest extends TestCase
         $this->assertSame('review', $result->toState);
 
         $stored = $repository->find((string) $entity->id());
-        $this->assertSame('review', $stored->get('workflow_state'));
+        $this->assertSame('review', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($stored));
 
         // --- publish: DENIED for the reviewer (lacks the publish permission). ---
         $denied = null;
@@ -98,23 +98,23 @@ final class EditorialFlowTest extends TestCase
 
         // Denial must not mutate state.
         $stored = $repository->find((string) $entity->id());
-        $this->assertSame('review', $stored->get('workflow_state'));
+        $this->assertSame('review', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($stored));
 
         // --- publish: allowed for the publisher. ---
         $result = $service->transition($stored, 'publish', $publisher);
         $this->assertSame('published', $result->toState);
 
         $stored = $repository->find((string) $entity->id());
-        $this->assertSame('published', $stored->get('workflow_state'));
-        $this->assertSame(1, $stored->get('status'));
+        $this->assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($stored));
+        $this->assertSame(1, \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($stored));
 
         // --- archive: allowed for the publisher; unpublishes. ---
         $result = $service->transition($stored, 'archive', $publisher);
         $this->assertSame('archived', $result->toState);
 
         $stored = $repository->find((string) $entity->id());
-        $this->assertSame('archived', $stored->get('workflow_state'));
-        $this->assertSame(0, $stored->get('status'));
+        $this->assertSame('archived', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($stored));
+        $this->assertSame(0, \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($stored));
 
         // --- Audit trail: one entry per fired transition, allowed AND denied. ---
         $this->assertCount(4, $auditWriter->recorded, 'Expected one audit entry per TransitionService call (3 allowed + 1 denied).');
@@ -168,7 +168,7 @@ final class EditorialFlowTest extends TestCase
 
             $resolver = new SingleConnectionResolver($db);
 
-            return new EntityRepository(
+            return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                 $definition,
                 new SqlStorageDriver($resolver),
                 $dispatcher,
@@ -235,6 +235,7 @@ final class EditorialFlowSpyAuditWriter implements AuditWriterInterface
 final class EditorialFlowSubject extends ContentEntityBase implements RevisionableInterface, RevisionableEntityInterface
 {
     use RevisionableEntityTrait;
+    use \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectFields;
 
     public function __construct(
         array $values = [],

@@ -8,6 +8,7 @@ final class FieldReadPageCorpus
 {
     public const int MEMBER_COUNT = 100;
     public const int DYNAMIC_CONTENT_FIELDS = 24;
+    public const int CONTENT_RENDERED_FIELDS = 31;
     public const int FIXED_TIMESTAMP = 1_735_689_600;
 
     /** @return list<string> */
@@ -19,6 +20,25 @@ final class FieldReadPageCorpus
         }
 
         return $fields;
+    }
+
+    /** @return array<string, array<string, mixed>> */
+    public static function contentDisplay(): array
+    {
+        $display = [
+            'title' => ['formatter' => 'string', 'weight' => 0],
+            'type' => ['formatter' => 'string', 'weight' => 1],
+            'slug' => ['formatter' => 'string', 'weight' => 2],
+            'promote' => ['formatter' => 'boolean', 'weight' => 3],
+            'sticky' => ['formatter' => 'boolean', 'weight' => 4],
+            'created' => ['formatter' => 'datetime', 'settings' => ['format' => 'Y-m-d'], 'weight' => 5],
+            'changed' => ['formatter' => 'datetime', 'settings' => ['format' => 'Y-m-d'], 'weight' => 6],
+        ];
+        foreach (self::contentFieldNames() as $index => $field) {
+            $display[$field] = ['formatter' => 'text', 'weight' => 7 + $index];
+        }
+
+        return $display;
     }
 
     /** @return array<string, mixed> */
@@ -46,6 +66,7 @@ final class FieldReadPageCorpus
     public static function users(): array
     {
         $users = [[
+            'bundle' => 'user',
             'name' => 'performance-viewer',
             'mail' => 'viewer@example.invalid',
             'status' => 1,
@@ -55,6 +76,7 @@ final class FieldReadPageCorpus
         ]];
         for ($i = 1; $i <= self::MEMBER_COUNT; ++$i) {
             $users[] = [
+                'bundle' => 'user',
                 'name' => sprintf('member-%03d-frozen-display-name', $i),
                 'mail' => sprintf('member-%03d@example.invalid', $i),
                 'status' => 1,

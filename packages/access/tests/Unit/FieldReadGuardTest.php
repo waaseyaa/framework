@@ -18,19 +18,19 @@ use Waaseyaa\Entity\FieldReadLevel;
 
 final class FieldReadGuardTest extends TestCase
 {
-    public function test_dormant_guard_preserves_existing_reads(): void
+    public function test_guard_is_unconditionally_active(): void
     {
-        $guard = $this->guard(new AccountFieldReadScope(), false);
-        $rule = new CompiledFieldReadRule('mail', FieldReadLevel::Internal);
-        $guard->assertCompiled($this->entity(), $rule);
-
-        self::addToAssertionCount(1);
+        $this->expectException(FieldReadDenied::class);
+        $this->guard(new AccountFieldReadScope())->assertCompiled(
+            $this->entity(),
+            new CompiledFieldReadRule('mail', FieldReadLevel::Internal),
+        );
     }
 
     public function test_activated_protected_read_requires_context_and_explicit_allow(): void
     {
         $scope = new AccountFieldReadScope();
-        $guard = $this->guard($scope, true);
+        $guard = $this->guard($scope);
         $entity = $this->entity();
         $rule = new CompiledFieldReadRule('name', FieldReadLevel::Protected);
 
@@ -48,7 +48,7 @@ final class FieldReadGuardTest extends TestCase
     public function test_activated_internal_read_requires_audited_reader(): void
     {
         $this->expectException(FieldReadDenied::class);
-        $this->guard(new AccountFieldReadScope(), true)->assertCompiled(
+        $this->guard(new AccountFieldReadScope())->assertCompiled(
             $this->entity(),
             new CompiledFieldReadRule('mail', FieldReadLevel::Internal),
         );
@@ -66,7 +66,6 @@ final class FieldReadGuardTest extends TestCase
 
                 return $allow ? AccessResult::allowed() : AccessResult::forbidden();
             },
-            activationEnabled: true,
         );
         $entity = $this->entity();
         $rule = new CompiledFieldReadRule('name', FieldReadLevel::Protected);
@@ -102,7 +101,6 @@ final class FieldReadGuardTest extends TestCase
 
                 return $principal->id() === 7 ? AccessResult::allowed() : AccessResult::forbidden();
             },
-            activationEnabled: true,
         );
         $entity = $this->entity();
         $rule = new CompiledFieldReadRule('name', FieldReadLevel::Protected);
@@ -127,7 +125,7 @@ final class FieldReadGuardTest extends TestCase
     public function test_ended_scope_does_not_retain_its_last_read_entity(): void
     {
         $scope = new AccountFieldReadScope();
-        $guard = $this->guard($scope, true);
+        $guard = $this->guard($scope);
         $rule = new CompiledFieldReadRule('name', FieldReadLevel::Protected);
         $principal = new AuthorizationPrincipal(7, true, [], [], 'claims-1');
         $weak = (function () use ($scope, $guard, $rule, $principal): \WeakReference {
@@ -142,12 +140,11 @@ final class FieldReadGuardTest extends TestCase
         self::assertNull($weak->get(), 'A completed worker scope must release its subject graph.');
     }
 
-    private function guard(AccountFieldReadScope $scope, bool $active): FieldReadGuard
+    private function guard(AccountFieldReadScope $scope): FieldReadGuard
     {
         return new FieldReadGuard(
             $scope,
             static fn() => AccessResult::allowed(),
-            $active,
         );
     }
 

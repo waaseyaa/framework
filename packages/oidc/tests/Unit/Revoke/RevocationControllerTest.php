@@ -51,7 +51,7 @@ final class RevocationControllerTest extends TestCase
         ]);
 
         $dispatcher = new EventDispatcher();
-        $this->repository = new EntityRepository(
+        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             new SqlStorageDriver(new SingleConnectionResolver($entityDb)),
             $dispatcher,

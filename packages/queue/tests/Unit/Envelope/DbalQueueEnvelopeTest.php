@@ -22,6 +22,50 @@ use Waaseyaa\Queue\Transport\InMemoryTransport;
 
 final class DbalQueueEnvelopeTest extends TestCase
 {
+    public function test_activation_rejects_authenticated_legacy_payload_replay(): void
+    {
+        $transport = new InMemoryTransport();
+        $signer = new SignedQueuePayload(str_repeat('q', 32));
+        $queue = new DbalQueue(
+            $transport,
+            $signer,
+            envelopeFactory: new SystemQueueEnvelopeFactory(QueueSystemReason::SystemJob, 'reviewed-service'),
+            boundaryConfig: PersistentQueueBoundaryConfig::enforced(),
+        );
+
+        try {
+            $queue->replaySignedPayload('default', $signer->seal(serialize(new GenericMessage('legacy'))));
+            self::fail('The activated retry boundary accepted a signed legacy payload.');
+        } catch (InvalidPersistentPayload) {
+        }
+
+        self::assertSame(0, $transport->size('default'));
+    }
+
+    public function test_activation_replays_an_authenticated_authority_envelope_byte_for_byte(): void
+    {
+        $transport = new InMemoryTransport();
+        $signer = new SignedQueuePayload(str_repeat('q', 32));
+        $queue = new DbalQueue(
+            $transport,
+            $signer,
+            envelopeFactory: new SystemQueueEnvelopeFactory(QueueSystemReason::SystemJob, 'reviewed-service'),
+            boundaryConfig: PersistentQueueBoundaryConfig::enforced(),
+        );
+        $sealed = $signer->seal(serialize(QueueEnvelopeV1::forSystem(
+            serialize(new GenericMessage('retry')),
+            QueueSystemReason::SystemJob,
+            'reviewed-service',
+            null,
+            null,
+            'retry-correlation',
+        )));
+
+        $queue->replaySignedPayload('critical', $sealed);
+
+        self::assertSame($sealed, $transport->pop('critical')['payload'] ?? null);
+    }
+
     public function test_activation_requires_reviewed_authority_envelope_before_persistent_dispatch(): void
     {
         $transport = new InMemoryTransport();
@@ -37,6 +81,27 @@ final class DbalQueueEnvelopeTest extends TestCase
         } finally {
             self::assertSame(0, $transport->size('default'));
         }
+    }
+
+    public function test_activation_rejects_entity_after_a_large_public_message_projection(): void
+    {
+        $transport = new InMemoryTransport();
+        $queue = new DbalQueue(
+            $transport,
+            new SignedQueuePayload(str_repeat('q', 32)),
+            envelopeFactory: new SystemQueueEnvelopeFactory(QueueSystemReason::SystemJob, 'reviewed-service'),
+            boundaryConfig: PersistentQueueBoundaryConfig::enforced(),
+        );
+        $payload = array_fill(0, 1_001, null);
+        $payload[] = new SerializableQueueEntityFixture();
+
+        try {
+            $queue->dispatch(new GenericMessage('large', $payload));
+            self::fail('The activated persistent queue retained an entity-bearing message.');
+        } catch (InvalidPersistentPayload) {
+        }
+
+        self::assertSame(0, $transport->size('default'));
     }
 
     #[Test]

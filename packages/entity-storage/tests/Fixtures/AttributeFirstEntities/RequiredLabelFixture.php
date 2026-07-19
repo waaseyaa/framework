@@ -8,6 +8,7 @@ use Waaseyaa\Entity\Attribute\ContentEntityKeys;
 use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\FieldReadLevel;
 
 /**
  * Storage fixture used by EntityRepositoryTest's constraint-derivation tests.
@@ -18,7 +19,7 @@ use Waaseyaa\Entity\ContentEntityBase;
 #[ContentEntityKeys(id: 'id', uuid: 'uuid', label: 'label', bundle: 'bundle', langcode: 'langcode')]
 class RequiredLabelFixture extends ContentEntityBase
 {
-    #[Field(required: true)]
+    #[Field(required: true, read: FieldReadLevel::Public)]
     public string $label = '';
 
     /**

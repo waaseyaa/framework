@@ -31,6 +31,10 @@ final class FreshInstallContentModelHydrationTest extends TestCase
         mkdir($this->projectRoot . '/vendor/composer', 0755, true);
 
         symlink($this->repoRoot . '/packages', $this->projectRoot . '/packages');
+        mkdir($this->projectRoot . '/vendor/waaseyaa', 0755, true);
+        foreach (glob($this->repoRoot . '/packages/*', GLOB_ONLYDIR) ?: [] as $packageRoot) {
+            symlink($packageRoot, $this->projectRoot . '/vendor/waaseyaa/' . basename($packageRoot));
+        }
         $this->writeAutoloadWrapper();
 
         file_put_contents($this->projectRoot . '/composer.json', json_encode([
@@ -118,7 +122,7 @@ final class FreshInstallContentModelHydrationTest extends TestCase
 
     private function writeAutoloadWrapper(): void
     {
-        foreach (['installed.json', 'installed.php'] as $file) {
+        foreach (['installed.json', 'installed.php', 'autoload_psr4.php', 'autoload_classmap.php', 'autoload_files.php', 'autoload_namespaces.php'] as $file) {
             copy($this->vendorRoot . '/composer/' . $file, $this->projectRoot . '/vendor/composer/' . $file);
         }
 

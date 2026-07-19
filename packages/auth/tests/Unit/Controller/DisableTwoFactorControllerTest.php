@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Auth\Controller\DisableTwoFactorController;
 use Waaseyaa\Auth\TwoFactorManager;
+use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
 
 #[CoversClass(DisableTwoFactorController::class)]
 final class DisableTwoFactorControllerTest extends TestCase
@@ -27,8 +28,9 @@ final class DisableTwoFactorControllerTest extends TestCase
         $this->assertSame(200, $response->getStatusCode());
         $body = json_decode($response->getContent(), true, 512, JSON_THROW_ON_ERROR);
         $this->assertFalse($body['data']['attributes']['enabled']);
-        $this->assertNull($user->getTwoFactorSecret());
-        $this->assertNull($user->getTwoFactorRecoveryCodesHash());
+        $snapshot = new UserInternalFieldReaderFixture()->twoFactor($user);
+        $this->assertNull($snapshot->secret);
+        $this->assertSame([], $snapshot->recoveryCodeHashes);
     }
 
     public function testWrongCodeReturns401AndKeepsCredentials(): void
@@ -42,8 +44,9 @@ final class DisableTwoFactorControllerTest extends TestCase
         $response = $controller($request);
 
         $this->assertSame(401, $response->getStatusCode());
-        $this->assertSame('JBSWY3DPEHPK3PXP', $user->getTwoFactorSecret());
-        $this->assertSame(['hash'], $user->getTwoFactorRecoveryCodesHash());
+        $snapshot = new UserInternalFieldReaderFixture()->twoFactor($user);
+        $this->assertSame('JBSWY3DPEHPK3PXP', $snapshot->secret);
+        $this->assertSame(['hash'], $snapshot->recoveryCodeHashes);
     }
 
     public function testNotEnabledReturns400(): void

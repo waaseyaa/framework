@@ -4,16 +4,19 @@ declare(strict_types=1);
 
 namespace Waaseyaa\EntityStorage\Hydration;
 
+use Symfony\Component\Uid\Uuid;
 use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInitializationBoundary;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityReadLayout;
-use Waaseyaa\Entity\EntityStructure;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityValueReadGuardInterface;
+use Waaseyaa\Entity\Exception\StaleEntityReadLayout;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
-use Waaseyaa\Entity\Hydration\HydratableFromStorageInterface;
-use Waaseyaa\Entity\Hydration\HydrationContext;
+use Waaseyaa\Entity\Field\FieldReadLayoutGenerationSourceInterface;
+use Waaseyaa\Field\FieldDefinition;
+use Waaseyaa\Field\FieldDefinitionRegistry;
 
 /**
  * Centralizes entity construction from storage-normalized value bags.
@@ -27,6 +30,9 @@ use Waaseyaa\Entity\Hydration\HydrationContext;
  */
 final class EntityInstantiator
 {
+    /** @var array<string, array{layout: EntityReadLayout, registryGeneration: int}> */
+    private array $compiledLayouts = [];
+
     public function __construct(
         private readonly EntityTypeInterface $entityType,
         private readonly ?FieldDefinitionRegistryInterface $fieldRegistry = null,
@@ -46,57 +52,109 @@ final class EntityInstantiator
             ));
         }
 
-        if (!is_subclass_of($class, HydratableFromStorageInterface::class)) {
-            throw new \RuntimeException(sprintf(
-                'Entity class "%s" must implement %s for storage hydration.',
+        if (is_a($class, EntityBase::class, true)) {
+            $layoutCacheKey = $this->layoutCacheKey($class, $values);
+            $cached = $this->compiledLayouts[$layoutCacheKey] ?? null;
+            $layout = $cached['layout'] ?? null;
+            $registryGeneration = $this->registryGeneration($values);
+            if ($layout !== null && $cached['registryGeneration'] !== $registryGeneration) {
+                unset($this->compiledLayouts[$layoutCacheKey]);
+                $layout = null;
+            }
+            if ($layout !== null) {
+                try {
+                    $layout->assertCurrent();
+                } catch (StaleEntityReadLayout) {
+                    unset($this->compiledLayouts[$layoutCacheKey]);
+                    $layout = null;
+                }
+            }
+            if ($layout === null) {
+                $layout = EntityReadRuntime::layoutFor(
+                    $class,
+                    $values,
+                    $this->entityType->id(),
+                    $this->entityType->getKeys(),
+                    $this->fieldRegistry,
+                    true,
+                    $this->entityType->getFieldDefinitions(),
+                );
+                if ($this->hasImmutableLayoutSources($values)) {
+                    $this->compiledLayouts[$layoutCacheKey] = [
+                        'layout' => $layout,
+                        'registryGeneration' => $registryGeneration,
+                    ];
+                }
+            }
+
+            return $this->instantiateSealed(
                 $class,
-                HydratableFromStorageInterface::class,
-            ));
+                $values,
+                $layout,
+            );
         }
 
-        $context = new HydrationContext(
-            entityTypeId: $this->entityType->id(),
-            entityKeys: $this->entityType->getKeys(),
+        throw new \RuntimeException(sprintf(
+            'Registered entity class "%s" must extend %s for sealed V2 hydration.',
+            $class,
+            EntityBase::class,
+        ));
+    }
+
+    /** @param class-string $class @param array<string, mixed> $values */
+    private function layoutCacheKey(string $class, array $values): string
+    {
+        $fieldNames = array_keys($values);
+        sort($fieldNames);
+        $bundleKey = $this->entityType->getKeys()['bundle'] ?? 'bundle';
+        $bundle = (string) ($values[$bundleKey] ?? $this->entityType->id());
+
+        return implode("\0", [$class, $bundle, implode("\0", $fieldNames)]);
+    }
+
+    /** @param array<string, mixed> $values */
+    private function hasImmutableLayoutSources(array $values): bool
+    {
+        foreach ($this->entityType->getFieldDefinitions() as $definition) {
+            if (!$definition instanceof FieldDefinition) {
+                return false;
+            }
+        }
+        if ($this->fieldRegistry === null) {
+            return true;
+        }
+        if (!$this->fieldRegistry instanceof FieldDefinitionRegistry) {
+            return false;
+        }
+
+        $entityTypeId = $this->entityType->id();
+        $bundleKey = $this->entityType->getKeys()['bundle'] ?? 'bundle';
+        $bundle = (string) ($values[$bundleKey] ?? $entityTypeId);
+        $definitions = array_merge(
+            $this->fieldRegistry->coreFieldsFor($entityTypeId),
+            $this->fieldRegistry->bundleFieldsFor($entityTypeId, $bundle),
         );
-
-        $entity = $class::fromStorage($values, $context);
-        if ($entity instanceof EntityBase) {
-            $keys = $this->entityType->getKeys();
-            $bundleKey = $keys['bundle'] ?? null;
-            $idKey = $keys['id'] ?? 'id';
-            $uuidKey = $keys['uuid'] ?? 'uuid';
-            $langcodeKey = $keys['langcode'] ?? 'langcode';
-            $revisionKey = $keys['revision'] ?? 'revision_id';
-            $langcode = (string) ($values[$langcodeKey] ?? 'en');
-            $defaultLangcode = (string) ($values['default_langcode'] ?? $langcode);
-            $knownTranslationIds = array_values(array_unique([$defaultLangcode, $langcode]));
-            sort($knownTranslationIds);
-            $bundle = $bundleKey === null ? '' : (string) ($values[$bundleKey] ?? '');
-            $fieldNames = array_values(array_unique(array_merge(
-                array_values($keys),
-                array_keys($this->entityType->getFieldDefinitions()),
-                array_keys($this->fieldRegistry?->coreFieldsFor($this->entityType->id()) ?? []),
-                array_keys($this->fieldRegistry?->bundleFieldsFor($this->entityType->id(), $bundle !== '' ? $bundle : $this->entityType->id()) ?? []),
-            )));
-            sort($fieldNames);
-            $entity->_attachEntityStructure(new EntityStructure(
-                entityTypeId: $this->entityType->id(),
-                bundleId: $bundle !== '' ? $bundle : $this->entityType->id(),
-                id: $values[$idKey] ?? null,
-                uuid: $entity->uuid() !== ''
-                    ? $entity->uuid()
-                    : (isset($values[$uuidKey]) ? (string) $values[$uuidKey] : null),
-                activeLanguageId: $langcode,
-                defaultLanguageId: $defaultLangcode,
-                knownTranslationIds: $knownTranslationIds,
-                revisionId: $values[$revisionKey] ?? null,
-                revisionTip: (bool) ($values['is_latest_revision'] ?? true),
-                defaultRevision: (bool) ($values['is_default_revision'] ?? true),
-                fieldNames: $fieldNames,
-            ));
+        foreach ($definitions as $definition) {
+            if (!$definition instanceof FieldDefinition) {
+                return false;
+            }
         }
 
-        return $entity;
+        return true;
+    }
+
+    /** @param array<string, mixed> $values */
+    private function registryGeneration(array $values): int
+    {
+        if (!$this->fieldRegistry instanceof FieldReadLayoutGenerationSourceInterface) {
+            return 0;
+        }
+        $entityTypeId = $this->entityType->id();
+        $bundleKey = $this->entityType->getKeys()['bundle'] ?? 'bundle';
+        $bundle = (string) ($values[$bundleKey] ?? $entityTypeId);
+        $bundle = $bundle !== '' ? $bundle : $entityTypeId;
+
+        return $this->fieldRegistry->fieldReadLayoutGeneration($entityTypeId, $bundle)->current();
     }
 
     /**
@@ -122,7 +180,18 @@ final class EntityInstantiator
         }
 
         $keys = $this->entityType->getKeys();
-        $structure = $this->structureFor($values);
+        if (isset($keys['uuid'])) {
+            $uuidKey = $keys['uuid'];
+            if (!isset($values[$uuidKey]) || $values[$uuidKey] === '') {
+                $values[$uuidKey] = Uuid::v4()->toRfc4122();
+            }
+        }
+        $structure = EntityReadRuntime::structureFor(
+            $values,
+            $this->entityType->id(),
+            $keys,
+            $layout,
+        );
         $boundary = new EntityInitializationBoundary();
         $initialization = $boundary->factory()->seal(
             values: $values,
@@ -134,44 +203,6 @@ final class EntityInstantiator
         );
 
         return $boundary->installer()->instantiate($class, $initialization);
-    }
-
-    /** @param array<string, mixed> $values */
-    private function structureFor(array $values): EntityStructure
-    {
-        $keys = $this->entityType->getKeys();
-        $bundleKey = $keys['bundle'] ?? null;
-        $idKey = $keys['id'] ?? 'id';
-        $uuidKey = $keys['uuid'] ?? 'uuid';
-        $langcodeKey = $keys['langcode'] ?? 'langcode';
-        $revisionKey = $keys['revision'] ?? 'revision_id';
-        $langcode = (string) ($values[$langcodeKey] ?? 'en');
-        $defaultLangcode = (string) ($values['default_langcode'] ?? $langcode);
-        $knownTranslationIds = array_values(array_unique([$defaultLangcode, $langcode]));
-        sort($knownTranslationIds);
-        $bundle = $bundleKey === null ? '' : (string) ($values[$bundleKey] ?? '');
-        $fieldNames = array_values(array_unique(array_merge(
-            array_values($keys),
-            array_keys($values),
-            array_keys($this->entityType->getFieldDefinitions()),
-            array_keys($this->fieldRegistry?->coreFieldsFor($this->entityType->id()) ?? []),
-            array_keys($this->fieldRegistry?->bundleFieldsFor($this->entityType->id(), $bundle !== '' ? $bundle : $this->entityType->id()) ?? []),
-        )));
-        sort($fieldNames);
-
-        return new EntityStructure(
-            entityTypeId: $this->entityType->id(),
-            bundleId: $bundle !== '' ? $bundle : $this->entityType->id(),
-            id: $values[$idKey] ?? null,
-            uuid: isset($values[$uuidKey]) ? (string) $values[$uuidKey] : null,
-            activeLanguageId: $langcode,
-            defaultLanguageId: $defaultLangcode,
-            knownTranslationIds: $knownTranslationIds,
-            revisionId: $values[$revisionKey] ?? null,
-            revisionTip: (bool) ($values['is_latest_revision'] ?? true),
-            defaultRevision: (bool) ($values['is_default_revision'] ?? true),
-            fieldNames: $fieldNames,
-        );
     }
 
     /**

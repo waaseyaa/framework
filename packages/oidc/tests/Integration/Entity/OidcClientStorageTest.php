@@ -13,6 +13,7 @@ use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
+use Waaseyaa\Oidc\ClientRegistry\OidcClientSystemReader;
 use Waaseyaa\Oidc\Entity\OidcClient;
 
 /**
@@ -51,7 +52,7 @@ final class OidcClientStorageTest extends TestCase
             'client_secret_hash' => ['type' => 'varchar', 'length' => 255, 'not null' => false],
         ]);
 
-        $this->repository = new EntityRepository(
+        $this->repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $entityType,
             new SqlStorageDriver(new SingleConnectionResolver($this->database)),
             new EventDispatcher(),
@@ -85,10 +86,11 @@ final class OidcClientStorageTest extends TestCase
             'name' => 'Minoo',
         ]);
 
-        $this->assertSame(['openid'], $client->getScopes());
-        $this->assertSame(['authorization_code'], $client->getGrantTypes());
-        $this->assertFalse($client->isConfidential());
-        $this->assertSame([], $client->getRedirectUris());
+        $registration = new OidcClientSystemReader()->registration($client);
+        $this->assertSame(['openid'], $registration->scopes);
+        $this->assertSame(['authorization_code'], $registration->grantTypes);
+        $this->assertFalse($registration->confidential);
+        $this->assertSame([], $registration->redirectUris);
     }
 
     public function testFullRoundTripPreservesAllFields(): void
@@ -120,15 +122,17 @@ final class OidcClientStorageTest extends TestCase
         $this->assertSame((string) $id, (string) $loaded->id());
         $this->assertSame($uuid, $loaded->uuid());
         $this->assertSame('biindigen', $loaded->getClientId());
-        $this->assertSame('Biindigen Community Portal', $loaded->getName());
+        $reader = new OidcClientSystemReader();
+        $registration = $reader->registration($loaded);
+        $this->assertSame('Biindigen Community Portal', $registration->name);
         $this->assertSame(
             ['https://biindigen.test/auth/callback', 'https://biindigen.test/auth/silent'],
-            $loaded->getRedirectUris(),
+            $registration->redirectUris,
         );
-        $this->assertSame(['openid', 'profile', 'email'], $loaded->getScopes());
-        $this->assertSame(['authorization_code', 'refresh_token'], $loaded->getGrantTypes());
-        $this->assertTrue($loaded->isConfidential());
-        $this->assertSame('hashed-secret', $loaded->getClientSecretHash());
+        $this->assertSame(['openid', 'profile', 'email'], $registration->scopes);
+        $this->assertSame(['authorization_code', 'refresh_token'], $registration->grantTypes);
+        $this->assertTrue($registration->confidential);
+        $this->assertTrue($reader->hasStoredSecretHash($loaded, 'hashed-secret'));
     }
 
     public function testUpdatePersistsChanges(): void
@@ -151,9 +155,9 @@ final class OidcClientStorageTest extends TestCase
         $reloaded = $this->repository->find((string) $id);
         $this->assertSame(
             ['https://minoo.test/callback', 'https://minoo.test/new-callback'],
-            $reloaded->getRedirectUris(),
+            new OidcClientSystemReader()->registration($reloaded)->redirectUris,
         );
-        $this->assertSame(['openid', 'profile'], $reloaded->getScopes());
+        $this->assertSame(['openid', 'profile'], new OidcClientSystemReader()->registration($reloaded)->scopes);
     }
 
     public function testUpdatePreservesUuid(): void
@@ -210,7 +214,7 @@ final class OidcClientStorageTest extends TestCase
         $this->repository->save($client);
         $id = $client->id();
 
-        $fresh = new EntityRepository(
+        $fresh = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             new EntityType(
                 id: 'oidc_client',
                 label: 'OIDC Client',
@@ -225,7 +229,7 @@ final class OidcClientStorageTest extends TestCase
         $loaded = $fresh->find((string) $id);
         $this->assertNotNull($loaded);
         $this->assertSame('minoo-web', $loaded->getClientId());
-        $this->assertSame(['openid', 'profile'], $loaded->getScopes());
+        $this->assertSame(['openid', 'profile'], new OidcClientSystemReader()->registration($loaded)->scopes);
     }
 
     private function seedClients(): void

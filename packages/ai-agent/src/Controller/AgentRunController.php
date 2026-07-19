@@ -13,11 +13,12 @@ use Waaseyaa\AI\Agent\Access\AgentRunAccessPolicy;
 use Waaseyaa\AI\Agent\AgentDefinitionRegistry;
 use Waaseyaa\AI\Agent\Broadcast\AgentRunBroadcasterInterface;
 use Waaseyaa\AI\Agent\Entity\AgentAuditLog;
-use Waaseyaa\AI\Agent\Entity\AgentRun;
 use Waaseyaa\AI\Agent\Enum\EventType;
 use Waaseyaa\AI\Agent\Enum\RunStatus;
 use Waaseyaa\AI\Agent\Repository\AgentAuditLogRepository;
 use Waaseyaa\AI\Agent\Repository\AgentRunRepository;
+use Waaseyaa\AI\Agent\Security\AgentRunAccountProjection;
+use Waaseyaa\AI\Agent\Security\AgentRunAccountProjectionReaderInterface;
 use Waaseyaa\AI\Agent\Service\AgentRunDraft;
 use Waaseyaa\AI\Agent\Service\AgentRunService;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -63,6 +64,7 @@ final class AgentRunController
         private readonly AgentRunBroadcasterInterface $broadcaster,
         private readonly AgentRunAccessPolicy $accessPolicy,
         private readonly AgentRunRequestValidator $validator,
+        private readonly AgentRunAccountProjectionReaderInterface $accountProjectionReader,
         ?LoggerInterface $logger = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
@@ -159,7 +161,7 @@ final class AgentRunController
             return $this->error(403, 'forbidden', 'You do not own this run.');
         }
 
-        return new JsonResponse($this->serialize($run), status: 200);
+        return new JsonResponse($this->serialize($this->accountProjectionReader->read($run, $account)), status: 200);
     }
 
     /**
@@ -243,12 +245,13 @@ final class AgentRunController
         \assert(\is_array($body));
         $callId = (string) $body['call_id'];
         $decision = (string) $body['decision'];
+        $projection = $this->accountProjectionReader->read($run, $account);
 
         if ($run->getStatus() !== RunStatus::AwaitingApproval) {
             return $this->error(404, 'not_awaiting_approval', "Run {$id} is not awaiting approval.");
         }
 
-        $pending = $run->get('pending_approval_call_id');
+        $pending = $projection->pendingApprovalCallId;
         if (!\is_string($pending) || $pending === '' || $pending !== $callId) {
             return $this->error(409, 'call_id_mismatch', 'call_id does not match the pending approval.');
         }
@@ -263,7 +266,7 @@ final class AgentRunController
             $this->auditRepository->append(AgentAuditLog::for(
                 id: Uuid::v4()->toRfc4122(),
                 runId: $id,
-                iteration: (int) ($run->get('tool_call_count') ?? 0),
+                iteration: $projection->toolCallCount,
                 eventType: EventType::ApprovalGranted,
                 occurredAt: $now,
                 success: true,
@@ -288,7 +291,7 @@ final class AgentRunController
         $this->auditRepository->append(AgentAuditLog::for(
             id: Uuid::v4()->toRfc4122(),
             runId: $id,
-            iteration: (int) ($run->get('tool_call_count') ?? 0),
+            iteration: $projection->toolCallCount,
             eventType: EventType::ApprovalDenied,
             occurredAt: $now,
             success: false,
@@ -340,59 +343,39 @@ final class AgentRunController
      *
      * @return array<string, mixed>
      */
-    private function serialize(AgentRun $run): array
+    private function serialize(AgentRunAccountProjection $run): array
     {
         $pending = null;
-        $pendingCallId = $run->get('pending_approval_call_id');
-        if ($run->getStatus() === RunStatus::AwaitingApproval
+        $pendingCallId = $run->pendingApprovalCallId;
+        if ($run->status === RunStatus::AwaitingApproval->value
             && \is_string($pendingCallId) && $pendingCallId !== '') {
             $pending = [
                 'call_id' => $pendingCallId,
                 'tool_name' => '',
                 'arguments' => new \stdClass(),
-                'expires_at' => (string) ($run->get('approval_expires_at') ?? ''),
+                'expires_at' => $run->approvalExpiresAt ?? '',
             ];
         }
 
-        $transcriptRaw = $run->get('transcript_json');
-        $transcript = [];
-        $truncated = false;
-        if (\is_string($transcriptRaw) && $transcriptRaw !== '') {
-            try {
-                $decoded = \json_decode($transcriptRaw, true, 64, \JSON_THROW_ON_ERROR);
-                if (\is_array($decoded)) {
-                    $transcript = $decoded;
-                }
-            } catch (\JsonException) {
-                // Treat corrupt transcripts as empty + truncated.
-                $truncated = true;
-            }
-        }
-
-        $status = $run->getStatus()->value;
-        $destructive = $run->getDestructiveApproval()->value;
-
         return [
-            'run_id' => (string) $run->get('id'),
-            'status' => $status,
-            'agent_id' => $run->get('agent_definition_id') !== null
-                ? (string) $run->get('agent_definition_id')
-                : null,
-            'prompt' => (string) ($run->get('prompt') ?? ''),
-            'response' => $run->get('response') !== null ? (string) $run->get('response') : null,
-            'transcript' => $transcript,
-            'truncated' => $truncated,
-            'token_usage_in' => (int) ($run->get('token_usage_in') ?? 0),
-            'token_usage_out' => (int) ($run->get('token_usage_out') ?? 0),
-            'cost_cents' => $run->get('cost_cents') !== null ? (int) $run->get('cost_cents') : null,
-            'tool_call_count' => (int) ($run->get('tool_call_count') ?? 0),
-            'destructive_approval' => $destructive,
+            'run_id' => $run->id,
+            'status' => $run->status,
+            'agent_id' => $run->agentDefinitionId,
+            'prompt' => $run->prompt,
+            'response' => $run->response,
+            'transcript' => $run->transcript,
+            'truncated' => $run->transcriptTruncated,
+            'token_usage_in' => $run->tokenUsageIn,
+            'token_usage_out' => $run->tokenUsageOut,
+            'cost_cents' => $run->costCents,
+            'tool_call_count' => $run->toolCallCount,
+            'destructive_approval' => $run->destructiveApproval,
             'pending_approval' => $pending,
-            'queued_at' => (string) ($run->get('queued_at') ?? ''),
-            'started_at' => $run->get('started_at') !== null ? (string) $run->get('started_at') : null,
-            'finished_at' => $run->get('finished_at') !== null ? (string) $run->get('finished_at') : null,
-            'error_code' => $run->get('error_code') !== null ? (string) $run->get('error_code') : null,
-            'error_message' => $run->get('error_message') !== null ? (string) $run->get('error_message') : null,
+            'queued_at' => $run->queuedAt,
+            'started_at' => $run->startedAt,
+            'finished_at' => $run->finishedAt,
+            'error_code' => $run->errorCode,
+            'error_message' => $run->errorMessage,
         ];
     }
 

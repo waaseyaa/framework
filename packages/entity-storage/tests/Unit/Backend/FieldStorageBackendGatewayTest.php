@@ -8,10 +8,8 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\ContentEntityBase;
-use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\EntityStorage\Backend\BackendRegistrar;
 use Waaseyaa\EntityStorage\Backend\BackendRegistrarFactory;
-use Waaseyaa\EntityStorage\Backend\FieldStorageBackendInterface;
 use Waaseyaa\EntityStorage\Backend\FieldStorageBackendV2Interface;
 use Waaseyaa\EntityStorage\Backend\FieldStorageGatewayAttempt;
 use Waaseyaa\EntityStorage\Backend\FieldStorageGatewayAuditReceipt;
@@ -20,10 +18,8 @@ use Waaseyaa\EntityStorage\Backend\FieldStorageGatewayInput;
 use Waaseyaa\EntityStorage\Backend\FieldStorageGatewayOperation;
 use Waaseyaa\EntityStorage\Backend\FieldStorageGatewayOutput;
 use Waaseyaa\EntityStorage\Backend\FieldStorageGatewayRole;
-use Waaseyaa\EntityStorage\Backend\HasFieldStorageBackendsInterface;
 use Waaseyaa\EntityStorage\Backend\HasFieldStorageBackendsV2Interface;
 use Waaseyaa\EntityStorage\Backend\StrictFieldStorageGatewayAuditInterface;
-use Waaseyaa\EntityStorage\Query\EntityQuery;
 use Waaseyaa\Field\FieldDefinition;
 
 #[CoversNothing]
@@ -155,20 +151,16 @@ final class FieldStorageBackendGatewayTest extends TestCase
     }
 
     #[Test]
-    public function registrar_exposes_exact_fingerprint_and_v1_blocker_inventories_without_raw_v2_backends(): void
+    public function registrar_exposes_exact_fingerprint_inventory_without_raw_v2_backends(): void
     {
-        $v1 = new GatewayLegacyBackend('legacy');
         $v2 = new GatewayTestBackend('external', str_repeat('c', 64));
-        $registrar = $this->registrar(v1: [$v1], v2: [$v2], audit: new GatewayTestAudit());
+        $registrar = $this->registrar(v2: [$v2], audit: new GatewayTestAudit());
 
         self::assertSame(
             ['external' => GatewayTestBackend::class . ':' . str_repeat('c', 64)],
             $registrar->gatewayFingerprints(),
         );
-        self::assertSame(
-            [GatewayTestProvider::class . ':legacy:' . GatewayLegacyBackend::class],
-            $registrar->v1BackendBlockers(),
-        );
+        self::assertFalse(method_exists($registrar, 'v1BackendBlockers'));
         self::assertFalse(method_exists($registrar, 'getV2Backend'));
     }
 
@@ -193,7 +185,6 @@ final class FieldStorageBackendGatewayTest extends TestCase
     #[Test]
     public function preflight_inventory_validates_fingerprints_without_issuing_gateway_authority(): void
     {
-        GatewayTestProvider::$v1 = [];
         GatewayTestProvider::$v2 = [new GatewayTestBackend('external', str_repeat('d', 64))];
         $registrar = new BackendRegistrar([GatewayTestProvider::class]);
 
@@ -247,12 +238,10 @@ final class FieldStorageBackendGatewayTest extends TestCase
     }
 
     /**
-     * @param list<FieldStorageBackendInterface> $v1
      * @param list<FieldStorageBackendV2Interface> $v2
      */
-    private function registrar(array $v1 = [], array $v2 = [], ?StrictFieldStorageGatewayAuditInterface $audit = null): BackendRegistrar
+    private function registrar(array $v2 = [], ?StrictFieldStorageGatewayAuditInterface $audit = null): BackendRegistrar
     {
-        GatewayTestProvider::$v1 = $v1;
         GatewayTestProvider::$v2 = $v2;
         $registrar = new BackendRegistrar([GatewayTestProvider::class], [], $audit);
         $registrar->build();
@@ -261,17 +250,11 @@ final class FieldStorageBackendGatewayTest extends TestCase
     }
 }
 
-final class GatewayTestProvider implements HasFieldStorageBackendsInterface, HasFieldStorageBackendsV2Interface
+final class GatewayTestProvider implements HasFieldStorageBackendsV2Interface
 {
-    /** @var list<FieldStorageBackendInterface> */
-    public static array $v1 = [];
     /** @var list<FieldStorageBackendV2Interface> */
     public static array $v2 = [];
 
-    public function fieldStorageBackends(): array
-    {
-        return self::$v1;
-    }
     public function fieldStorageBackendsV2(): array
     {
         return self::$v2;
@@ -376,24 +359,5 @@ final class GatewayTestEntity extends ContentEntityBase
     public function __construct(array $values = [])
     {
         parent::__construct($values, 'gateway_test', ['id' => 'id']);
-    }
-}
-
-final class GatewayLegacyBackend implements FieldStorageBackendInterface
-{
-    public function __construct(private readonly string $backendId) {}
-    public function id(): string
-    {
-        return $this->backendId;
-    }
-    public function read(EntityInterface $entity, FieldDefinition $field): mixed
-    {
-        return null;
-    }
-    public function write(EntityInterface $entity, FieldDefinition $field, mixed $value): void {}
-    public function delete(EntityInterface $entity): void {}
-    public function supportsQuery(FieldDefinition $field, EntityQuery $query): bool
-    {
-        return false;
     }
 }

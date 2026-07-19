@@ -10,7 +10,10 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Hydration\EntityInstantiator;
 use Waaseyaa\Node\Node;
+use Waaseyaa\Tests\Support\AuthorizationPrincipalFactory;
+use Waaseyaa\Tests\Support\ProtectedFieldRead;
 use Waaseyaa\User\User;
+use Waaseyaa\User\UserAccessPolicy;
 
 #[CoversNothing]
 final class UserNodeEntityInstantiatorTest extends TestCase
@@ -33,12 +36,14 @@ final class UserNodeEntityInstantiatorTest extends TestCase
             'uid' => 5,
             'name' => 'entity',
             'mail' => 'e@example.test',
+            'status' => 1,
             'uuid' => '550e8400-e29b-41d4-a716-446655440000',
         ]);
 
         $this->assertInstanceOf(User::class, $entity);
         $this->assertSame(5, $entity->id());
-        $this->assertSame('entity', $entity->getName());
+        $admin = AuthorizationPrincipalFactory::authenticated(permissions: ['administer users']);
+        $this->assertSame('entity', ProtectedFieldRead::run([new UserAccessPolicy()], $admin, $entity->getName(...)));
     }
 
     #[Test]

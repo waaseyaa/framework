@@ -64,14 +64,11 @@ final class TranslatableEntityTraitTest extends TestCase
     }
 
     #[Test]
-    public function defaultLangcodeThrowsWhenUnset(): void
+    public function defaultLangcodeUsesTheSealedStructuralDefaultWhenUnset(): void
     {
         $entity = new FixtureTranslatableEntity([]);
 
-        $this->expectException(EntityTranslationException::class);
-        $this->expectExceptionMessage('default_langcode');
-
-        $entity->defaultLangcode();
+        self::assertSame('en', $entity->defaultLangcode());
     }
 
     // -------------------------------------------------------------------------

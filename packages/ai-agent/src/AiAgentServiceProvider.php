@@ -4,10 +4,18 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Agent;
 
+use Waaseyaa\Access\Capability\CapabilityRegistryInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\AI\Agent\Repository\AgentAuditLogRepository;
 use Waaseyaa\AI\Agent\Repository\AgentRunRepository;
+use Waaseyaa\AI\Agent\Security\AccountScopedAgentRunProjectionReader;
+use Waaseyaa\AI\Agent\Security\AgentRunAccountProjectionReaderInterface;
+use Waaseyaa\AI\Agent\Security\AgentRunWorkerReaderInterface;
+use Waaseyaa\AI\Agent\Security\AuditedAgentRunWorkerReader;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
+use Waaseyaa\Audit\AuditedFieldRead;
+use Waaseyaa\Audit\Contract\StrictPrivilegedReadLedgerInterface;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -35,6 +43,22 @@ final class AiAgentServiceProvider extends ServiceProvider
             AgentDefinitionRegistry::class,
             fn(): AgentDefinitionRegistry => new AgentDefinitionRegistry(
                 $this->resolve(PackageManifest::class),
+            ),
+        );
+
+        $this->singleton(AgentRunWorkerReaderInterface::class, function (): AgentRunWorkerReaderInterface {
+            $capabilities = $this->resolve(CapabilityRegistryInterface::class);
+            $ledger = $this->resolve(StrictPrivilegedReadLedgerInterface::class);
+            assert($capabilities instanceof CapabilityRegistryInterface);
+            assert($ledger instanceof StrictPrivilegedReadLedgerInterface);
+
+            return new AuditedAgentRunWorkerReader(new AuditedFieldRead($capabilities, $ledger), $capabilities);
+        });
+
+        $this->singleton(
+            AgentRunAccountProjectionReaderInterface::class,
+            fn(): AgentRunAccountProjectionReaderInterface => new AccountScopedAgentRunProjectionReader(
+                $this->resolve(AccountFieldReadScopeInterface::class),
             ),
         );
 

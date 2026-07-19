@@ -18,6 +18,7 @@ use Waaseyaa\AI\Tools\Tests\Fixtures\SingleTypeEntityTypeManager;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityValueComparator;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
@@ -61,7 +62,7 @@ final class EntitySetCurrentRevisionToolFieldAccessTest extends TestCase
         $handler->ensureRevisionTable();
 
         $resolver = new SingleConnectionResolver($this->db);
-        $this->repo = new EntityRepository(
+        $this->repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $this->entityType,
             new SqlStorageDriver($resolver),
             new EventDispatcher(),
@@ -189,7 +190,7 @@ final class EntitySetCurrentRevisionToolFieldAccessTest extends TestCase
 
         $reloaded = $this->repo->find('1');
         \assert($reloaded instanceof TestRevisionableEntity);
-        self::assertSame(['viewer'], $reloaded->get('roles'), 'no write happened — roles must remain unchanged');
+        $this->assertRestrictedFieldsMatch($reloaded, ['roles' => ['viewer']], 'no write happened — roles must remain unchanged');
         self::assertSame(2, $reloaded->getRevisionId(), 'the base-table pointer must not have moved');
     }
 
@@ -206,7 +207,7 @@ final class EntitySetCurrentRevisionToolFieldAccessTest extends TestCase
         self::assertFalse($result->isError, $result->summary ?? '');
         $reloaded = $this->repo->find('1');
         \assert($reloaded instanceof TestRevisionableEntity);
-        self::assertSame(['administrator'], $reloaded->get('roles'));
+        $this->assertRestrictedFieldsMatch($reloaded, ['roles' => ['administrator']]);
         self::assertSame(1, $reloaded->getRevisionId());
     }
 
@@ -236,7 +237,7 @@ final class EntitySetCurrentRevisionToolFieldAccessTest extends TestCase
         $reloaded = $this->repo->find('1');
         \assert($reloaded instanceof TestRevisionableEntity);
         self::assertSame('v1', $reloaded->label());
-        self::assertSame('hash-v1', $reloaded->get('pass'), 'the whole-row restore still writes the credential field');
+        $this->assertRestrictedFieldsMatch($reloaded, ['pass' => 'hash-v1'], 'the whole-row restore still writes the credential field');
     }
 
     #[Test]
@@ -261,6 +262,13 @@ final class EntitySetCurrentRevisionToolFieldAccessTest extends TestCase
         $reloaded = $this->repo->find('1');
         \assert($reloaded instanceof TestRevisionableEntity);
         self::assertSame('v1', $reloaded->label());
-        self::assertSame(['viewer'], $reloaded->get('roles'));
+        $this->assertRestrictedFieldsMatch($reloaded, ['roles' => ['viewer']]);
+    }
+
+    /** @param array<string, mixed> $expected */
+    private function assertRestrictedFieldsMatch(TestRevisionableEntity $actual, array $expected, string $message = ''): void
+    {
+        $expectedEntity = new TestRevisionableEntity(values: $expected);
+        self::assertSame([], new EntityValueComparator()->changedFieldNames($actual, $expectedEntity, array_keys($expected)), $message);
     }
 }

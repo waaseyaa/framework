@@ -83,7 +83,7 @@ final class WorkflowTransitionEndToEndTest extends TestCase
 
         $stored = $repository->find($id);
         $this->assertNotNull($stored);
-        $this->assertSame('draft', $stored->get('workflow_state'));
+        $this->assertSame('draft', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($stored));
 
         // GET available transitions.
         $getRequest = Request::create("/api/wf_e2e_subject/{$id}/workflow/transitions", 'GET');
@@ -117,7 +117,7 @@ final class WorkflowTransitionEndToEndTest extends TestCase
         // Persisted state actually changed.
         $reloaded = $repository->find($id);
         $this->assertNotNull($reloaded);
-        $this->assertSame('review', $reloaded->get('workflow_state'));
+        $this->assertSame('review', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($reloaded));
     }
 
     #[Test]
@@ -163,7 +163,7 @@ final class WorkflowTransitionEndToEndTest extends TestCase
 
         $reloaded = $repository->find($id);
         $this->assertNotNull($reloaded);
-        $this->assertSame('draft', $reloaded->get('workflow_state'), 'A denied transition must never mutate persisted state.');
+        $this->assertSame('draft', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($reloaded), 'A denied transition must never mutate persisted state.');
     }
 
     private function allowAllPolicy(): AccessPolicyInterface
@@ -217,7 +217,7 @@ final class WorkflowTransitionEndToEndTest extends TestCase
 
             $resolver = new SingleConnectionResolver($db);
 
-            return new EntityRepository(
+            return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                 $definition,
                 new SqlStorageDriver($resolver),
                 $dispatcher,
@@ -281,6 +281,7 @@ final class WorkflowTransitionEndToEndTest extends TestCase
 final class WorkflowE2ESubject extends ContentEntityBase implements RevisionableInterface, RevisionableEntityInterface
 {
     use RevisionableEntityTrait;
+    use \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectFields;
 
     public function __construct(
         array $values = [],

@@ -10,10 +10,16 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\EntityStorage\Backend\BackendRegistrar;
 use Waaseyaa\EntityStorage\Backend\BackendRegistrarFactory;
-use Waaseyaa\EntityStorage\Backend\FieldStorageBackendInterface;
-use Waaseyaa\EntityStorage\Backend\HasFieldStorageBackendsInterface;
-use Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderInterface;
+use Waaseyaa\EntityStorage\Backend\FieldStorageBackendV2Interface;
+use Waaseyaa\EntityStorage\Backend\FieldStorageGatewayAttempt;
+use Waaseyaa\EntityStorage\Backend\FieldStorageGatewayAuditReceipt;
+use Waaseyaa\EntityStorage\Backend\FieldStorageGatewayFailure;
+use Waaseyaa\EntityStorage\Backend\FieldStorageGatewayInput;
+use Waaseyaa\EntityStorage\Backend\FieldStorageGatewayOutput;
+use Waaseyaa\EntityStorage\Backend\FieldStorageGatewayRole;
+use Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderV2Interface;
 use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
+use Waaseyaa\EntityStorage\Backend\StrictFieldStorageGatewayAuditInterface;
 use Waaseyaa\EntityStorage\Exception\BackendIdCollisionException;
 use Waaseyaa\EntityStorage\Query\EntityQuery;
 use Waaseyaa\Field\FieldDefinition;
@@ -28,14 +34,26 @@ final class BackendRegistrarTest extends TestCase
     // Helpers — anonymous inline backend and provider factories
     // ---------------------------------------------------------------------------
 
-    private function makeBackend(string $id): FieldStorageBackendInterface
+    private function makeBackend(string $id): FieldStorageBackendV2Interface
     {
-        return new class ($id) implements FieldStorageBackendInterface {
+        return new class ($id) implements FieldStorageBackendV2Interface {
             public function __construct(private readonly string $backendId) {}
 
             public function id(): string
             {
                 return $this->backendId;
+            }
+
+            public function fingerprint(): string
+            {
+                return hash('sha256', 'registrar-test:' . $this->backendId);
+            }
+
+            public function invoke(FieldStorageGatewayRole $gateway, FieldStorageGatewayInput $input): FieldStorageGatewayOutput
+            {
+                $gateway->unwrap($input, $this);
+
+                return $gateway->complete($input, $this, null);
             }
 
             public function read(EntityInterface $entity, FieldDefinition $field): mixed
@@ -55,7 +73,7 @@ final class BackendRegistrarTest extends TestCase
     }
 
     /**
-     * @param FieldStorageBackendInterface[] $backends
+     * @param FieldStorageBackendV2Interface[] $backends
      */
     private function makeProviderClass(array $backends, ?int $priority = null): string
     {
@@ -69,13 +87,13 @@ final class BackendRegistrarTest extends TestCase
         BackendProviderRegistry::set($className, $backends);
 
         $code = <<<PHP
-            final class {$className} implements \Waaseyaa\EntityStorage\Backend\HasFieldStorageBackendsInterface {
-                {$priorityConst}
-                public function fieldStorageBackends(): array {
-                    return \Waaseyaa\EntityStorage\Tests\Unit\Backend\BackendProviderRegistry::get('{$className}');
+                final class {$className} implements \Waaseyaa\EntityStorage\Backend\HasFieldStorageBackendsV2Interface {
+                    {$priorityConst}
+                    public function fieldStorageBackendsV2(): array {
+                        return \Waaseyaa\EntityStorage\Tests\Unit\Backend\BackendProviderRegistry::get('{$className}');
+                    }
                 }
-            }
-        PHP;
+            PHP;
 
         eval($code); // phpcs:ignore
 
@@ -95,7 +113,7 @@ final class BackendRegistrarTest extends TestCase
         $providerA = $this->makeProviderClass([$backend1]);
         $providerB = $this->makeProviderClass([$backend2]);
 
-        $registrar = new BackendRegistrar([$providerA, $providerB]);
+        $registrar = new BackendRegistrar([$providerA, $providerB], gatewayAudit: new RegistrarTestAudit());
 
         $this->expectException(BackendIdCollisionException::class);
         $this->expectExceptionMessage('my-custom-backend');
@@ -110,7 +128,7 @@ final class BackendRegistrarTest extends TestCase
         $providerFqcn = $this->makeProviderClass([$backend]);
 
         // No framework provider FQCNs passed — this provider is third-party.
-        $registrar = new BackendRegistrar([$providerFqcn]);
+        $registrar = new BackendRegistrar([$providerFqcn], gatewayAudit: new RegistrarTestAudit());
 
         $this->expectException(BackendIdCollisionException::class);
         // New message: reserved-by-framework path (null $firstFqcn).
@@ -126,7 +144,7 @@ final class BackendRegistrarTest extends TestCase
         $backend = $this->makeBackend(ReservedBackendIds::SQL_COLUMN);
         $providerFqcn = $this->makeProviderClass([$backend]);
 
-        $registrar = new BackendRegistrar([$providerFqcn]);
+        $registrar = new BackendRegistrar([$providerFqcn], gatewayAudit: new RegistrarTestAudit());
 
         $this->expectException(BackendIdCollisionException::class);
         // New message: reserved-by-framework path (null $firstFqcn).
@@ -143,7 +161,7 @@ final class BackendRegistrarTest extends TestCase
         $providerFqcn = $this->makeProviderClass([$backend]);
 
         // Declare this provider as a framework provider.
-        $registrar = new BackendRegistrar([$providerFqcn], [$providerFqcn]);
+        $registrar = new BackendRegistrar([$providerFqcn], [$providerFqcn], new RegistrarTestAudit());
         $registrar->build();
 
         self::assertTrue($registrar->has(ReservedBackendIds::SQL_BLOB));
@@ -159,12 +177,12 @@ final class BackendRegistrarTest extends TestCase
         $providerB = $this->makeProviderClass([$backend2]);
 
         // Pass in installed.json order: A first, B second.
-        $registrar = new BackendRegistrar([$providerA, $providerB]);
+        $registrar = new BackendRegistrar([$providerA, $providerB], gatewayAudit: new RegistrarTestAudit());
         $registrar->build();
 
-        self::assertSame('alpha', $registrar->get('alpha')?->id());
-        self::assertSame('beta', $registrar->get('beta')?->id());
-        self::assertSame(['alpha', 'beta'], array_keys($registrar->all()));
+        self::assertSame('alpha', $registrar->gateway('alpha')?->id());
+        self::assertSame('beta', $registrar->gateway('beta')?->id());
+        self::assertSame(['alpha', 'beta'], array_keys($registrar->gatewayFingerprints()));
     }
 
     #[Test]
@@ -178,11 +196,11 @@ final class BackendRegistrarTest extends TestCase
         $providerHigh = $this->makeProviderClass([$backendHigh], priority: 100);
 
         // Pass low first in order, but high has higher priority integer.
-        $registrar = new BackendRegistrar([$providerLow, $providerHigh]);
+        $registrar = new BackendRegistrar([$providerLow, $providerHigh], gatewayAudit: new RegistrarTestAudit());
         $registrar->build();
 
         // After priority sort, high-priority provider registers first.
-        $keys = array_keys($registrar->all());
+        $keys = array_keys($registrar->gatewayFingerprints());
         self::assertSame('high-priority-backend', $keys[0]);
         self::assertSame('low-priority-backend', $keys[1]);
     }
@@ -193,7 +211,7 @@ final class BackendRegistrarTest extends TestCase
         $backend = $this->makeBackend('known-backend');
         $providerFqcn = $this->makeProviderClass([$backend], priority: null);
 
-        $registrar = new BackendRegistrar([$providerFqcn]);
+        $registrar = new BackendRegistrar([$providerFqcn], gatewayAudit: new RegistrarTestAudit());
         $registrar->build();
 
         $this->expectException(\InvalidArgumentException::class);
@@ -208,7 +226,7 @@ final class BackendRegistrarTest extends TestCase
         $backend = $this->makeBackend('known-backend');
         $providerFqcn = $this->makeProviderClass([$backend]);
 
-        $registrar = new BackendRegistrar([$providerFqcn]);
+        $registrar = new BackendRegistrar([$providerFqcn], gatewayAudit: new RegistrarTestAudit());
         $registrar->build();
 
         // Must not throw.
@@ -258,9 +276,9 @@ final class BackendRegistrarTest extends TestCase
     // ---------------------------------------------------------------------------
 
     /**
-     * Generate a named provider class that also implements IsFrameworkBackendProviderInterface.
+     * Generate a named provider class that also implements IsFrameworkBackendProviderV2Interface.
      *
-     * @param FieldStorageBackendInterface[] $backends
+     * @param FieldStorageBackendV2Interface[] $backends
      */
     private function makeFrameworkProviderClass(array $backends): string
     {
@@ -269,13 +287,13 @@ final class BackendRegistrarTest extends TestCase
         BackendProviderRegistry::set($className, $backends);
 
         $code = <<<PHP
-            final class {$className}
-                implements \Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderInterface {
-                public function fieldStorageBackends(): array {
-                    return \Waaseyaa\EntityStorage\Tests\Unit\Backend\BackendProviderRegistry::get('{$className}');
+                final class {$className}
+                    implements \Waaseyaa\EntityStorage\Backend\IsFrameworkBackendProviderV2Interface {
+                    public function fieldStorageBackendsV2(): array {
+                        return \Waaseyaa\EntityStorage\Tests\Unit\Backend\BackendProviderRegistry::get('{$className}');
+                    }
                 }
-            }
-        PHP;
+            PHP;
 
         eval($code); // phpcs:ignore
 
@@ -291,13 +309,13 @@ final class BackendRegistrarTest extends TestCase
         $providerA = $this->makeProviderClass([$backend1]);
         $providerB = $this->makeProviderClass([$backend2]);
 
-        $factory = new BackendRegistrarFactory([$providerA, $providerB]);
+        $factory = new BackendRegistrarFactory([$providerA, $providerB], gatewayAudit: new RegistrarTestAudit());
         $registrar = $factory->create();
         $registrar->build();
 
-        self::assertSame('custom-a', $registrar->get('custom-a')?->id());
-        self::assertSame('custom-b', $registrar->get('custom-b')?->id());
-        self::assertCount(2, $registrar->all());
+        self::assertSame('custom-a', $registrar->gateway('custom-a')?->id());
+        self::assertSame('custom-b', $registrar->gateway('custom-b')?->id());
+        self::assertCount(2, $registrar->gatewayFingerprints());
     }
 
     #[Test]
@@ -306,8 +324,8 @@ final class BackendRegistrarTest extends TestCase
         $backend = $this->makeBackend(ReservedBackendIds::SQL_BLOB);
         $frameworkProvider = $this->makeFrameworkProviderClass([$backend]);
 
-        // Pass as a regular provider — factory detects IsFrameworkBackendProviderInterface.
-        $factory = new BackendRegistrarFactory([$frameworkProvider]);
+        // Pass as a regular provider — factory detects IsFrameworkBackendProviderV2Interface.
+        $factory = new BackendRegistrarFactory([$frameworkProvider], gatewayAudit: new RegistrarTestAudit());
         $registrar = $factory->create();
         $registrar->build();
 
@@ -320,7 +338,7 @@ final class BackendRegistrarTest extends TestCase
         $backend = $this->makeBackend(ReservedBackendIds::SQL_BLOB);
         $thirdPartyProvider = $this->makeProviderClass([$backend]); // NOT a framework provider.
 
-        $factory = new BackendRegistrarFactory([$thirdPartyProvider]);
+        $factory = new BackendRegistrarFactory([$thirdPartyProvider], gatewayAudit: new RegistrarTestAudit());
         $registrar = $factory->create();
 
         $this->expectException(BackendIdCollisionException::class);
@@ -342,13 +360,25 @@ final class BackendRegistrarTest extends TestCase
             return new $fqcn();
         };
 
-        $factory = new BackendRegistrarFactory([$providerFqcn], $instantiator);
+        $factory = new BackendRegistrarFactory([$providerFqcn], $instantiator, new RegistrarTestAudit());
         $registrar = $factory->create();
         $registrar->build();
 
         self::assertTrue($instantiatorCalled, 'Custom instantiator was not called.');
         self::assertTrue($registrar->has('injected-backend'));
     }
+}
+
+final class RegistrarTestAudit implements StrictFieldStorageGatewayAuditInterface
+{
+    public function reserve(FieldStorageGatewayAttempt $attempt): FieldStorageGatewayAuditReceipt
+    {
+        return new FieldStorageGatewayAuditReceipt($attempt);
+    }
+
+    public function succeed(FieldStorageGatewayAuditReceipt $receipt): void {}
+
+    public function fail(FieldStorageGatewayAuditReceipt $receipt, FieldStorageGatewayFailure $failure): void {}
 }
 
 /**
@@ -359,16 +389,16 @@ final class BackendRegistrarTest extends TestCase
  */
 final class BackendProviderRegistry
 {
-    /** @var array<string, FieldStorageBackendInterface[]> */
+    /** @var array<string, FieldStorageBackendV2Interface[]> */
     private static array $backends = [];
 
-    /** @param FieldStorageBackendInterface[] $backends */
+    /** @param FieldStorageBackendV2Interface[] $backends */
     public static function set(string $className, array $backends): void
     {
         self::$backends[$className] = $backends;
     }
 
-    /** @return FieldStorageBackendInterface[] */
+    /** @return FieldStorageBackendV2Interface[] */
     public static function get(string $className): array
     {
         return self::$backends[$className] ?? [];

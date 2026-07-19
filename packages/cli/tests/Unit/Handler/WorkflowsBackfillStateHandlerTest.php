@@ -12,12 +12,14 @@ use Waaseyaa\CLI\Handler\WorkflowsBackfillStateHandler;
 use Waaseyaa\CLI\Provider\WorkflowsServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Entity\RevisionableEntityTrait;
@@ -101,7 +103,7 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
 
             $resolver = new SingleConnectionResolver($db);
 
-            return new EntityRepository(
+            return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                 $definition,
                 new SqlStorageDriver($resolver),
                 $dispatcher,
@@ -219,19 +221,19 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
 
         $published = $repository->find($publishedId);
         self::assertNotNull($published);
-        self::assertSame('published', $published->get('workflow_state'), 'status=1 rows backfill to the published+default_revision state.');
+        self::assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($published), 'status=1 rows backfill to the published+default_revision state.');
         self::assertSame($publishedRevisionBefore, (int) $published->get('revision_id'), 'Backfill must not create a new revision.');
         self::assertCount(1, $repository->listRevisions($publishedId), 'Exactly the original revision must remain — no churn.');
 
         $draft = $repository->find($draftId);
         self::assertNotNull($draft);
-        self::assertSame('draft', $draft->get('workflow_state'), 'status=0 rows backfill to the workflow initial_state.');
+        self::assertSame('draft', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($draft), 'status=0 rows backfill to the workflow initial_state.');
         self::assertSame($draftRevisionBefore, (int) $draft->get('revision_id'));
         self::assertCount(1, $repository->listRevisions($draftId));
 
         $unchanged = $repository->find($alreadyId);
         self::assertNotNull($unchanged);
-        self::assertSame('review', $unchanged->get('workflow_state'), 'Rows with a pre-existing state are left untouched.');
+        self::assertSame('review', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($unchanged), 'Rows with a pre-existing state are left untouched.');
 
         // Rework task 3 (#3/#9): the pointer-establishment phase runs
         // immediately after the state-stamp phase in the same command
@@ -304,14 +306,14 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
         // the revision id/history are byte-identical to pre-command state.
         $published = $repository->find($publishedId);
         self::assertNotNull($published);
-        self::assertNull($published->get('workflow_state'));
+        self::assertNull(\Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($published));
         self::assertSame($publishedRevisionBefore, (int) $published->get('revision_id'));
         self::assertCount(1, $repository->listRevisions($publishedId));
         self::assertNull($repository->loadPublishedRevision($publishedId), 'Dry run establishes no pointer.');
 
         $draft = $repository->find($draftId);
         self::assertNotNull($draft);
-        self::assertNull($draft->get('workflow_state'));
+        self::assertNull(\Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($draft));
         self::assertSame($draftRevisionBefore, (int) $draft->get('revision_id'));
         self::assertCount(1, $repository->listRevisions($draftId));
     }
@@ -391,13 +393,13 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
 
         $article = $repository->find($articleId);
         self::assertNotNull($article);
-        self::assertSame('published', $article->get('workflow_state'));
+        self::assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($article));
 
         // The 'page' bundle row is entirely out of scope — the query itself
         // is bundle-filtered, so it is never examined, let alone written.
         $page = $repository->find($pageId);
         self::assertNotNull($page);
-        self::assertNull($page->get('workflow_state'));
+        self::assertNull(\Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($page));
     }
 
     #[Test]
@@ -427,11 +429,11 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
         // Zero writes: BOTH rows (published and unpublished) untouched.
         $published = $repository->find($publishedId);
         self::assertNotNull($published);
-        self::assertNull($published->get('workflow_state'));
+        self::assertNull(\Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($published));
         self::assertSame($publishedRevisionBefore, (int) $published->get('revision_id'));
         $draft = $repository->find($draftId);
         self::assertNotNull($draft);
-        self::assertNull($draft->get('workflow_state'));
+        self::assertNull(\Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($draft));
 
         // The abort applies before the dry-run branch too — a dry run
         // against the same shape surfaces the same hard error.
@@ -473,8 +475,8 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
 
         $draft = $repository->find($draftId);
         self::assertNotNull($draft);
-        self::assertSame('draft', $draft->get('workflow_state'));
-        self::assertSame('live', $repository->find((string) $alreadyLive->id())?->get('workflow_state'));
+        self::assertSame('draft', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($draft));
+        self::assertSame('live', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($repository->find((string) $alreadyLive->id())));
 
         // Rework task 3: the pointer phase is gated on a resolved
         // published-default-revision state. With none, the phase is
@@ -514,7 +516,7 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
 
         $stamped = $repository->find($id);
         self::assertNotNull($stamped);
-        self::assertSame('published', $stamped->get('workflow_state'));
+        self::assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($stamped));
     }
 
     /**
@@ -531,7 +533,7 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
 
             $resolver = new SingleConnectionResolver($db);
 
-            return new EntityRepository(
+            return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                 $definition,
                 new SqlStorageDriver($resolver),
                 $dispatcher,
@@ -853,6 +855,12 @@ final class PointerFailureStubEntity implements EntityInterface, RevisionableInt
 final class BackfillSubject extends ContentEntityBase implements RevisionableInterface, RevisionableEntityInterface
 {
     use RevisionableEntityTrait;
+
+    #[Field(type: 'boolean', settings: ['authorizationInput' => true], read: FieldReadLevel::Protected)]
+    public bool $status = false;
+
+    #[Field(type: 'string', required: false, settings: ['authorizationInput' => true], read: FieldReadLevel::Protected)]
+    public ?string $workflow_state = null;
 
     public function __construct(
         array $values = [],

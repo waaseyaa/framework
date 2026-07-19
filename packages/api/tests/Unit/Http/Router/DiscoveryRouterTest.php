@@ -430,7 +430,7 @@ final class DiscoveryRouterTest extends TestCase
                 new SqlSchemaHandler($definition, $database)->ensureTable();
                 $idKey = $definition->getKeys()['id'] ?? 'id';
 
-                return new EntityRepository(
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                     $definition,
                     new SqlStorageDriver($resolver, $idKey),
                     $dispatcher,
@@ -509,7 +509,7 @@ final class DiscoveryRouterTest extends TestCase
                 new SqlSchemaHandler($definition, $database)->ensureTable();
                 $idKey = $definition->getKeys()['id'] ?? 'id';
 
-                return new EntityRepository(
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                     $definition,
                     new SqlStorageDriver($resolver, $idKey),
                     $dispatcher,
@@ -560,7 +560,7 @@ final class DiscoveryRouterTest extends TestCase
                 new SqlSchemaHandler($definition, $database)->ensureTable();
                 $idKey = $definition->getKeys()['id'] ?? 'id';
 
-                return new EntityRepository(
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                     $definition,
                     new SqlStorageDriver($resolver, $idKey),
                     $dispatcher,
@@ -655,7 +655,7 @@ final class DiscoveryRouterTest extends TestCase
                 new SqlSchemaHandler($definition, $database)->ensureTable();
                 $idKey = $definition->getKeys()['id'] ?? 'id';
 
-                return new EntityRepository(
+                return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                     $definition,
                     new SqlStorageDriver($resolver, $idKey),
                     $dispatcher,

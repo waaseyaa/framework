@@ -32,9 +32,12 @@ final class EntityValidator
      * safe to share across all repositories. Deliberately not cached statically
      * — the kernel owns sharing.
      */
-    public static function createDefault(): self
+    public static function createDefault(?ValidationReadLedgerInterface $closedLedger = null): self
     {
-        return new self(\Symfony\Component\Validator\Validation::createValidator());
+        return new self(
+            \Symfony\Component\Validator\Validation::createValidator(),
+            $closedLedger === null ? null : new ValidationFieldReader($closedLedger),
+        );
     }
 
     /**

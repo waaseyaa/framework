@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Tests\Integration\FreshInstall\Fixtures;
 
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Migration\ContentModel\ContentModel;
@@ -28,6 +29,7 @@ final class CutoverContentModelProvider extends ServiceProvider implements Deriv
                         type: 'text_long',
                         targetEntityTypeId: 'node',
                         targetBundle: 'cutover_page',
+                        read: FieldReadLevel::Public,
                     ),
                 ],
             ),
@@ -56,6 +58,7 @@ final class CutoverContentModelProvider extends ServiceProvider implements Deriv
                         targetEntityTypeId: 'node',
                         targetBundle: 'tribe_events',
                         label: 'Event start',
+                        read: FieldReadLevel::Public,
                     ),
                     new FieldDefinition(
                         name: 'event_end',
@@ -64,6 +67,7 @@ final class CutoverContentModelProvider extends ServiceProvider implements Deriv
                         targetEntityTypeId: 'node',
                         targetBundle: 'tribe_events',
                         label: 'Event end',
+                        read: FieldReadLevel::Public,
                     ),
                 ],
             ),
@@ -79,6 +83,7 @@ final class CutoverContentModelProvider extends ServiceProvider implements Deriv
                 type: 'text_long',
                 targetEntityTypeId: 'node',
                 targetBundle: $bundle,
+                read: FieldReadLevel::Public,
             ),
         ];
     }
