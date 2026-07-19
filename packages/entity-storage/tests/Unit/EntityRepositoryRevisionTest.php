@@ -198,7 +198,7 @@ final class EntityRepositoryRevisionTest extends TestCase
         // which still reads published_revision_id=null).
         $this->repo->setPublishedRevision('1', 1);
         $this->assertSame(1, $this->repo->find('1')->get('published_revision_id'), 'live pointer set before rollback');
-        $this->assertSame(1, $this->repo->find('1')->get('status'), 'live status before rollback');
+        $this->assertSame(true, $this->repo->find('1')->get('status'), 'live status before rollback');
 
         // Roll back CONTENT to revision 1 (whose frozen snapshot has
         // status=0 and published_revision_id=null — stale values that must
@@ -206,7 +206,7 @@ final class EntityRepositoryRevisionTest extends TestCase
         $rolledBack = $this->repo->rollback('1', 1);
 
         $this->assertSame('v1', $rolledBack->label(), 'content restored from the target revision');
-        $this->assertSame(1, $this->repo->find('1')->get('status'), 'live status untouched by rollback');
+        $this->assertSame(true, $this->repo->find('1')->get('status'), 'live status untouched by rollback');
         $this->assertSame(
             1,
             $this->repo->find('1')->get('published_revision_id'),

@@ -248,23 +248,20 @@ final class FieldDefinitionConstraintBuilderTest extends TestCase
     }
 
     #[Test]
-    public function booleanFieldAcceptsBoolAndIntZeroOne(): void
+    public function booleanFieldAcceptsOnlyCanonicalNativeBool(): void
     {
-        // #1655: the framework's boolean convention keeps 0/1 through
-        // get()/validate() (User.php "status stays 0/1" comment), so the
-        // derived constraint must accept the convention, not just bool.
         $constraints = FieldDefinitionConstraintBuilder::build([
             'active' => ['type' => 'boolean'],
         ]);
 
-        foreach ([true, false, 0, 1] as $value) {
+        foreach ([true, false] as $value) {
             $entity = $this->stubEntity(['active' => $value]);
             $violations = (new EntityValidator(Validation::createValidator()))->validate($entity, $constraints);
 
             self::assertCount(
                 0,
                 $violations,
-                sprintf('Boolean field must accept %s (#1655 framework 0/1 convention).', var_export($value, true)),
+                sprintf('Canonical boolean field must accept %s.', var_export($value, true)),
             );
         }
     }
@@ -276,10 +273,7 @@ final class FieldDefinitionConstraintBuilderTest extends TestCase
             'active' => ['type' => 'boolean'],
         ]);
 
-        // Choice compares strictly: '1'/'0' never match bool/int choices,
-        // 2 matches nothing, and 1.0 !== 1 (a float is never identical to an
-        // int) — pinned against observed Choice behaviour, not assumed.
-        foreach (['1', '0', 2, 1.0] as $value) {
+        foreach ([0, 1, '1', '0', 2, 1.0] as $value) {
             $entity = $this->stubEntity(['active' => $value]);
             $violations = (new EntityValidator(Validation::createValidator()))->validate($entity, $constraints);
 
@@ -293,20 +287,16 @@ final class FieldDefinitionConstraintBuilderTest extends TestCase
     }
 
     #[Test]
-    public function userShapedBooleanStatusWithoutCastAcceptsIntOneRejectsString(): void
+    public function userShapedBooleanStatusUsesTheSameNativeBoolConstraint(): void
     {
-        // Pin for the original #1655 break: User::$status is declared
-        // #[Field(type: 'boolean')] with deliberately NO bool cast, and
-        // User::setActive() writes `$active ? 1 : 0`. alpha.204's Type('bool')
-        // rejected the framework's own accessor output.
         $constraints = FieldDefinitionConstraintBuilder::build([
             'status' => ['type' => 'boolean', 'required' => true],
         ]);
         $validator = new EntityValidator(Validation::createValidator());
 
-        self::assertCount(0, $validator->validate($this->stubEntity(['status' => 1]), $constraints));
+        self::assertCount(0, $validator->validate($this->stubEntity(['status' => true]), $constraints));
 
-        $violations = $validator->validate($this->stubEntity(['status' => 'yes']), $constraints);
+        $violations = $validator->validate($this->stubEntity(['status' => 1]), $constraints);
         self::assertGreaterThan(0, $violations->count());
         self::assertSame('status', $violations->get(0)->getPropertyPath());
     }

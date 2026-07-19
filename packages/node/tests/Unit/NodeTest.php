@@ -225,6 +225,11 @@ final class NodeTest extends TestCase
     {
         $node = new Node(['promote' => 1]);
         $this->assertTrue($node->isPromoted());
+        $this->assertSame(
+            true,
+            $node->get('promote'),
+            'A listing-style public consumer must never observe backend integer 1 for a boolean field.',
+        );
     }
 
     public function testSetPromoted(): void
@@ -352,9 +357,9 @@ final class NodeTest extends TestCase
         $this->assertSame('article', $array['type']);
         $this->assertSame('Test Article', $array['title']);
         $this->assertSame(3, $array['uid']);
-        $this->assertSame(1, $array['status']);
-        $this->assertSame(1, $array['promote']);
-        $this->assertSame(0, $array['sticky']);
+        $this->assertSame(true, $array['status']);
+        $this->assertSame(true, $array['promote']);
+        $this->assertSame(false, $array['sticky']);
         $this->assertSame(1700000000, $array['created']);
         $this->assertSame(1700000050, $array['changed']);
         $this->assertArrayHasKey('uuid', $array);

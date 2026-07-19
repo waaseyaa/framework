@@ -198,11 +198,11 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
         );
 
         $this->repo->setCurrentRevision('1', 1);
-        self::assertSame(1, $this->repo->find('1')?->toArray()['flag']);
+        self::assertSame(true, $this->repo->find('1')?->toArray()['flag']);
 
         $rolledBack = $this->repo->rollback('1', 1);
-        self::assertSame(1, $rolledBack->toArray()['flag']);
-        self::assertSame(1, $this->repo->find('1')?->toArray()['flag']);
+        self::assertSame(true, $rolledBack->toArray()['flag']);
+        self::assertSame(true, $this->repo->find('1')?->toArray()['flag']);
     }
 
     #[Test]
@@ -232,12 +232,12 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
 
         $this->repo->setPublishedRevision('1', 1);
         $this->assertSame(1, $this->repo->find('1')->get('published_revision_id'));
-        $this->assertSame(1, $this->repo->find('1')->get('status'));
+        $this->assertSame(true, $this->repo->find('1')->get('status'));
 
         $reverted = $this->repo->setCurrentRevision('1', 1);
 
         $this->assertSame('v1', $reverted->label(), 'content restored from the target revision');
-        $this->assertSame(1, $this->repo->find('1')->get('status'), 'live status untouched');
+        $this->assertSame(true, $this->repo->find('1')->get('status'), 'live status untouched');
         $this->assertSame(
             1,
             $this->repo->find('1')->get('published_revision_id'),
@@ -466,7 +466,7 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
         ]);
 
         self::assertSame(1, $this->repo->backfillInitialRevisions());
-        self::assertSame(1, $this->repo->find('8')?->toArray()['flag']);
-        self::assertSame(1, $this->repo->loadRevision('8', 1)?->toArray()['flag']);
+        self::assertSame(true, $this->repo->find('8')?->toArray()['flag']);
+        self::assertSame(true, $this->repo->loadRevision('8', 1)?->toArray()['flag']);
     }
 }

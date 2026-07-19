@@ -381,11 +381,8 @@ final class UserTest extends TestCase
 
     public function testSetActiveResultValidatesUnderDerivedBooleanConstraints(): void
     {
-        // #1655: setActive() writes 0/1 by design ($status has deliberately
-        // NO bool cast — "status stays 0/1 in storage and in get()/validate()").
-        // The constraints derived from User's own field definitions must accept
-        // what the framework's own accessor produces; alpha.204's Type('bool')
-        // rejected it and broke every save after setActive().
+        // #2064 alpha.270: definition, mutation, closed validation, and guarded
+        // read all use the same native-bool representation.
         $constraints = EntityTypeValidationConstraints::forEntityType(EntityType::fromClass(User::class));
         $ledger = new class implements ValidationReadLedgerInterface {
             public function reserve(\Waaseyaa\Entity\EntityStructure $subject, string $field): ValidationReadReservationInterface
@@ -406,22 +403,20 @@ final class UserTest extends TestCase
         $this->assertCount(0, $validator->validate($user, $constraints));
     }
 
-    // W3-5 contract: status stays int 0/1 in storage (get()), not bool.
-
-    public function testSetActiveTrueStoresIntOne(): void
+    public function testSetActiveTrueStoresCanonicalBool(): void
     {
         $user = new User();
         $user->setActive(true);
         $this->assertTrue($this->asAdmin(static fn(): bool => $user->isActive()));
-        $this->assertSame(1, $this->asAdmin(static fn(): mixed => $user->get('status')));
+        $this->assertSame(true, $this->asAdmin(static fn(): mixed => $user->get('status')));
     }
 
-    public function testSetActiveFalseStoresIntZero(): void
+    public function testSetActiveFalseStoresCanonicalBool(): void
     {
         $user = new User();
         $user->setActive(false);
         $this->assertFalse($this->asAdmin(static fn(): bool => $user->isActive()));
-        $this->assertSame(0, $this->asAdmin(static fn(): mixed => $user->get('status')));
+        $this->assertSame(false, $this->asAdmin(static fn(): mixed => $user->get('status')));
     }
 
     // -----------------------------------------------------------------

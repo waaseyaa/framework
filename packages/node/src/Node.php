@@ -60,13 +60,13 @@ final class Node extends ContentEntityBase implements HydratableFromStorageInter
     #[Field(label: 'Slug', description: 'The URL-friendly identifier for this content.', required: true, settings: ['weight' => 2], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public string $slug = '';
 
-    #[Field(type: 'boolean', label: 'Published', description: 'Whether the content is published.', default: 0, settings: ['weight' => 10, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(type: 'boolean', label: 'Published', description: 'Whether the content is published.', default: false, settings: ['weight' => 10, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public bool $status = false;
 
-    #[Field(type: 'boolean', label: 'Promoted to front page', description: 'Whether the content is promoted to the front page.', default: 0, settings: ['weight' => 11], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
+    #[Field(type: 'boolean', label: 'Promoted to front page', description: 'Whether the content is promoted to the front page.', default: false, settings: ['weight' => 11], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public bool $promote = false;
 
-    #[Field(type: 'boolean', label: 'Sticky at top of lists', description: 'Whether the content is sticky at the top of lists.', default: 0, settings: ['weight' => 12], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
+    #[Field(type: 'boolean', label: 'Sticky at top of lists', description: 'Whether the content is sticky at the top of lists.', default: false, settings: ['weight' => 12], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public bool $sticky = false;
 
     /**
@@ -103,13 +103,13 @@ final class Node extends ContentEntityBase implements HydratableFromStorageInter
         // Ensure defaults for optional properties.
         if (!array_key_exists('status', $values)) {
             // New content is private until an explicit publication decision.
-            $values['status'] = 0;
+            $values['status'] = false;
         }
         if (!array_key_exists('promote', $values)) {
-            $values['promote'] = 0;
+            $values['promote'] = false;
         }
         if (!array_key_exists('sticky', $values)) {
-            $values['sticky'] = 0;
+            $values['sticky'] = false;
         }
         if (!array_key_exists('created', $values)) {
             $values['created'] = 0;
@@ -206,7 +206,7 @@ final class Node extends ContentEntityBase implements HydratableFromStorageInter
      */
     public function setPublished(bool $published): static
     {
-        $this->set('status', $published ? 1 : 0);
+        $this->set('status', $published);
 
         return $this;
     }

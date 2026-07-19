@@ -10,7 +10,6 @@ use Waaseyaa\Access\PolicySubjectViewInterface;
 use Waaseyaa\Access\ProtectedEntityReadPolicyInterface;
 use Waaseyaa\Access\ProtectedFieldReadPolicyInterface;
 use Waaseyaa\Entity\EntityStructure;
-use Waaseyaa\Entity\EntityValues;
 
 /** Closed V2 entity and field policy for Node protected inputs. @internal */
 final class NodeProtectedReadPolicy implements ProtectedEntityReadPolicyInterface, ProtectedFieldReadPolicyInterface
@@ -43,7 +42,7 @@ final class NodeProtectedReadPolicy implements ProtectedEntityReadPolicyInterfac
         $type = $structure->bundleId;
 
         return match ($operationOrField) {
-            'view' => EntityValues::statusToInt($status) === 1 && $principal->hasPermission('access content')
+            'view' => $status === true && $principal->hasPermission('access content')
                 ? AccessResult::allowed('Published node view allowed.')
                 : ($isOwner && $principal->hasPermission('view own unpublished content')
                     ? AccessResult::allowed('Author may view own unpublished node.')

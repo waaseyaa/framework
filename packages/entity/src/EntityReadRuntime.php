@@ -146,6 +146,7 @@ final class EntityReadRuntime
         foreach ($definitions as $name => $definition) {
             $level = self::metadataResolver()->resolve($definition)->level ?? FieldReadLevel::Internal;
             $classificationInputs[] = $name . ':' . $level->value . ':'
+                . self::canonicalDefinitionType($definition->getType()) . ':'
                 . ($definition->getSetting('authorizationInput') === true ? 'auth' : 'ordinary');
         }
         sort($classificationInputs);
@@ -170,6 +171,7 @@ final class EntityReadRuntime
             $registeredEntityType ? FieldReadLevel::Internal : FieldReadLevel::Public,
         );
         $authorizationInputs = [];
+        $booleanFields = [];
         foreach ($definitions as $name => $definition) {
             $level = self::metadataResolver()->resolve($definition)->level ?? FieldReadLevel::Internal;
             $levels[$name] = $level;
@@ -178,6 +180,9 @@ final class EntityReadRuntime
                     throw new \LogicException(sprintf('Authorization input %s.%s must be Protected.', $entityTypeId, $name));
                 }
                 $authorizationInputs[] = $name;
+            }
+            if (in_array(strtolower($definition->getType()), ['bool', 'boolean'], true)) {
+                $booleanFields[] = $name;
             }
         }
 
@@ -189,9 +194,10 @@ final class EntityReadRuntime
         }
         ksort($levels);
         sort($authorizationInputs);
+        sort($booleanFields);
 
         $undeclaredLevel = $registeredEntityType ? FieldReadLevel::Internal : FieldReadLevel::Public;
-        $template = new EntityReadLayoutTemplate($levels, $authorizationInputs, $undeclaredLevel);
+        $template = new EntityReadLayoutTemplate($levels, $authorizationInputs, $undeclaredLevel, $booleanFields);
         $layout = $sourceCache->layouts[$cacheKey] = $template->bind(self::generation(), $sourceCache->generation);
         if ($identityCacheKey !== null) {
             $sourceCache->identityLayouts[$identityCacheKey] = $layout;
@@ -224,7 +230,8 @@ final class EntityReadRuntime
                 $existingAuthorizationInput = $existing->getSetting('authorizationInput') === true;
                 $incomingAuthorizationInput = $definition->getSetting('authorizationInput') === true;
                 if ($existingLevel !== null && $incomingLevel !== null
-                    && ($existingLevel !== $incomingLevel || $existingAuthorizationInput !== $incomingAuthorizationInput)) {
+                    && ($existingLevel !== $incomingLevel
+                        || $existingAuthorizationInput !== $incomingAuthorizationInput)) {
                     throw new \LogicException(sprintf(
                         'Conflicting field-read definitions for %s.%s.',
                         $entityTypeId,
@@ -233,11 +240,27 @@ final class EntityReadRuntime
                 }
                 if ($existingLevel === null && $incomingLevel !== null) {
                     $merged[$name] = $definition;
+                    continue;
+                }
+                if ($incomingLevel !== null) {
+                    // Registry core/bundle definitions are the effective field
+                    // shape when their read semantics agree with the class
+                    // declaration. Preserve that established overlay order so
+                    // type-driven canonicalization follows the same resolved
+                    // definition as validation and persistence.
+                    $merged[$name] = $definition;
                 }
             }
         }
 
         return $merged;
+    }
+
+    private static function canonicalDefinitionType(string $type): string
+    {
+        $type = strtolower($type);
+
+        return in_array($type, ['bool', 'boolean'], true) ? 'boolean' : $type;
     }
 
     /**
@@ -249,7 +272,7 @@ final class EntityReadRuntime
      */
     private static function immutableDefinitionSemanticFingerprint(array $sources): ?string
     {
-        /** @var array<string, array{level: ?FieldReadLevel, authorizationInput: bool, conflict: string}> $semantics */
+        /** @var array<string, array{level: ?FieldReadLevel, authorizationInput: bool, type: string, conflict: string}> $semantics */
         $semantics = [];
         foreach ($sources as $source) {
             ksort($source);
@@ -264,6 +287,7 @@ final class EntityReadRuntime
                 $incoming = [
                     'level' => $readLevel,
                     'authorizationInput' => $definition->getSetting('authorizationInput') === true,
+                    'type' => self::canonicalDefinitionType($definition->getType()),
                     'conflict' => $selfConflict ? 'metadata' : '',
                 ];
                 $existing = $semantics[$name] ?? null;
@@ -273,12 +297,15 @@ final class EntityReadRuntime
                 }
                 if ($incoming['level'] !== null
                     && ($incoming['level'] !== $existing['level']
-                        || $incoming['authorizationInput'] !== $existing['authorizationInput'])) {
+                        || $incoming['authorizationInput'] !== $existing['authorizationInput']
+                        || $incoming['type'] !== $existing['type'])) {
                     $semantics[$name]['conflict'] = implode('-', [
                         $existing['level']->value,
                         $existing['authorizationInput'] ? 'auth' : 'ordinary',
                         $incoming['level']->value,
                         $incoming['authorizationInput'] ? 'auth' : 'ordinary',
+                        $existing['type'],
+                        $incoming['type'],
                     ]);
                 }
             }
@@ -291,6 +318,7 @@ final class EntityReadRuntime
                 $name,
                 $semantic['level'] === null ? 'unclassified' : $semantic['level']->value,
                 $semantic['authorizationInput'] ? 'auth' : 'ordinary',
+                $semantic['type'],
                 $semantic['conflict'],
             ]);
         }
@@ -406,11 +434,13 @@ final readonly class EntityReadLayoutTemplate
     /**
      * @param array<string, FieldReadLevel> $levels
      * @param list<string> $authorizationInputs
+     * @param list<string> $booleanFields
      */
     public function __construct(
         private array $levels,
         private array $authorizationInputs,
         private FieldReadLevel $undeclaredLevel,
+        private array $booleanFields,
     ) {}
 
     public function bind(
@@ -423,6 +453,7 @@ final readonly class EntityReadLayoutTemplate
             $this->authorizationInputs,
             $this->undeclaredLevel,
             [$registryGeneration],
+            $this->booleanFields,
         );
     }
 }

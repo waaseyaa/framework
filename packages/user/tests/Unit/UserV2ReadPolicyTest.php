@@ -43,7 +43,7 @@ final class UserV2ReadPolicyTest extends TestCase
     {
         $principal = $this->principal(9, ['access user profiles']);
         $structure = $this->structure(5);
-        $subject = $this->subject(['status' => 1]);
+        $subject = $this->subject(['status' => true]);
 
         self::assertTrue(new UserEntityReadPolicy()->access($principal, $structure, $subject, 'view')->isAllowed());
         self::assertTrue(new UserProtectedFieldReadPolicy()->access($principal, $structure, $subject, 'name')->isAllowed());
@@ -53,7 +53,7 @@ final class UserV2ReadPolicyTest extends TestCase
     public function inactive_profile_and_name_are_forbidden_to_self_and_ordinary_viewers(): void
     {
         $structure = $this->structure(5);
-        $subject = $this->subject(['status' => 0]);
+        $subject = $this->subject(['status' => false]);
 
         foreach ([$this->principal(5, ['access user profiles']), $this->principal(9, ['access user profiles'])] as $principal) {
             self::assertTrue(new UserEntityReadPolicy()->access($principal, $structure, $subject, 'view')->isForbidden());
@@ -66,7 +66,7 @@ final class UserV2ReadPolicyTest extends TestCase
     {
         $principal = $this->principal(9, ['administer users']);
         $structure = $this->structure(5);
-        $subject = $this->subject(['status' => 0]);
+        $subject = $this->subject(['status' => false]);
 
         self::assertTrue(new UserEntityReadPolicy()->access($principal, $structure, $subject, 'view')->isAllowed());
         self::assertTrue(new UserProtectedFieldReadPolicy()->access($principal, $structure, $subject, 'name')->isAllowed());
@@ -92,16 +92,16 @@ final class UserV2ReadPolicyTest extends TestCase
         $policy = new UserProtectedFieldReadPolicy();
 
         self::assertTrue($policy->access($principal, $structure, $this->subject([]), 'name')->isForbidden());
-        self::assertTrue($policy->access($principal, $structure, $this->subject(['status' => 1, 'mail' => 'leak@example.test']), 'name')->isForbidden());
-        self::assertTrue($policy->access($principal, $structure, $this->subject(['status' => 1]), 'status')->isForbidden());
+        self::assertTrue($policy->access($principal, $structure, $this->subject(['status' => true, 'mail' => 'leak@example.test']), 'name')->isForbidden());
+        self::assertTrue($policy->access($principal, $structure, $this->subject(['status' => true]), 'status')->isForbidden());
         self::assertTrue(new UserEntityReadPolicy()->access(
             $principal,
             $structure,
-            $this->subject(['status' => 1, 'roles' => ['administrator']]),
+            $this->subject(['status' => true, 'roles' => ['administrator']]),
             'view',
         )->isForbidden());
         $admin = $this->principal(1, ['administer users']);
-        $polluted = $this->subject(['status' => 0, 'mail' => 'leak@example.test']);
+        $polluted = $this->subject(['status' => false, 'mail' => 'leak@example.test']);
         self::assertTrue($policy->access($admin, $structure, $polluted, 'name')->isForbidden());
         self::assertTrue(new UserEntityReadPolicy()->access($admin, $structure, $polluted, 'view')->isForbidden());
     }

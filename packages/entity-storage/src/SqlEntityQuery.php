@@ -718,7 +718,7 @@ final class SqlEntityQuery implements EntityQueryInterface
                 if (!array_key_exists($compiled['alias'], $row)) {
                     throw ProtectedEntityReadProjectionException::incompleteRow($this->entityType->id());
                 }
-                $values[$fieldName] = $row[$compiled['alias']];
+                $values[$fieldName] = $projection['layout']->canonicalize($fieldName, $row[$compiled['alias']]);
             }
 
             $selectors = [];

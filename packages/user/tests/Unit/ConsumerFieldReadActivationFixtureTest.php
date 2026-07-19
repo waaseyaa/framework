@@ -80,8 +80,8 @@ final class ConsumerFieldReadActivationFixtureTest extends TestCase
         $admin = new AuthorizationPrincipal(9, true, ['member'], ['administer users'], 'admin-claims');
         $viewer = new AuthorizationPrincipal(10, true, ['member'], ['access user profiles'], 'viewer-claims');
 
-        self::assertSame(0, $this->scope->run($self, static fn(): mixed => $user->get('status')));
-        self::assertSame(0, $this->scope->run($admin, static fn(): mixed => $user->get('status')));
+        self::assertSame(false, $this->scope->run($self, static fn(): mixed => $user->get('status')));
+        self::assertSame(false, $this->scope->run($admin, static fn(): mixed => $user->get('status')));
         $this->expectException(FieldReadDenied::class);
         $this->scope->run($viewer, static fn(): mixed => $user->get('status'));
     }

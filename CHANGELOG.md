@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Boolean-classified entity fields now have one definition-driven native-PHP `bool` representation across create, validation, persistence snapshots, hydration, guarded reads, query policy projections, and public consumer output (#2064).** The alpha.266/R25 repository rule converted every boolean back to integer `0`/`1`, while alpha.269's activated closed validator enforced the field definition; `user:create` consequently failed on its default Protected `status`, and the same int-vs-bool split had already broken a news listing. The compiled field layout now records resolved `boolean`/`bool` fields, and the private sealed value container canonicalizes legacy `0`/`1` at atomic construction/hydration and every mutation. Repository array-only translation/revision/rollback/backfill paths use that same canonicalizer and preserve native bool in their snapshots; SQL adapters alone may choose a physical `0/1` encoding. Derived validation is again strict `Type('bool')`, User's definition default and setter are bool, first-party integer boolean defaults are removed, and closed SQL policy projections canonicalize before policy evaluation. A first-party definition inventory/architecture gate rejects integer boolean defaults and pins definition/write/validate agreement while separately proving Protected missing-context denial is unchanged. Real-handler coverage proves `user:create` succeeds; round-trip and listing-shaped regressions prove neither protected status reads nor public boolean consumers can observe the retired integer representation.
+
 ## [0.1.0-alpha.269] - 2026-07-19
 
 ### Fixed

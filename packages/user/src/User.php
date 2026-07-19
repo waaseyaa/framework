@@ -33,7 +33,6 @@ final class User extends ContentEntityBase implements AccountInterface, Hydratab
      * @var array<string, string|array<string, mixed>>
      */
     protected array $casts = [
-        // status stays 0/1 in storage and in get()/validate(); use isActive() for booleans.
         'email_verified' => 'bool',
     ];
 
@@ -70,7 +69,7 @@ final class User extends ContentEntityBase implements AccountInterface, Hydratab
 
     // Account state is a non-recursive authorization input. Direct release is
     // self/admin only; entity/name policies receive it through the exact V2 map.
-    #[Field(type: 'boolean', label: 'Active', description: 'Whether the user account is active.', settings: ['weight' => 10, 'authorizationInput' => true], read: FieldReadLevel::Protected)]
+    #[Field(type: 'boolean', label: 'Active', description: 'Whether the user account is active.', default: true, settings: ['weight' => 10, 'authorizationInput' => true], read: FieldReadLevel::Protected)]
     public bool $status = true;
 
     // Account chronology is retained for audited administration only.
@@ -103,7 +102,7 @@ final class User extends ContentEntityBase implements AccountInterface, Hydratab
         $values += [
             'roles' => [],
             'permissions' => [],
-            'status' => 1,
+            'status' => true,
         ];
 
         parent::__construct($values, $entityTypeId, $entityKeys, $fieldDefinitions);
@@ -397,7 +396,7 @@ final class User extends ContentEntityBase implements AccountInterface, Hydratab
      */
     public function setActive(bool $active): static
     {
-        return $this->set('status', $active ? 1 : 0);
+        return $this->set('status', $active);
     }
 
     // -----------------------------------------------------------------

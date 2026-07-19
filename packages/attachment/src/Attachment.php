@@ -61,7 +61,7 @@ final class Attachment extends ContentEntityBase
     #[Field(label: 'Parent Entity ID', settings: ['weight' => 2, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public string $parent_entity_id = '';
 
-    #[Field(type: 'boolean', label: 'Active', default: 0, settings: ['weight' => 3], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
+    #[Field(type: 'boolean', label: 'Active', default: false, settings: ['weight' => 3], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]
     public bool $is_active = false;
 
     /**

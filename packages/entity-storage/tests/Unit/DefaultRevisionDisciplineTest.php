@@ -339,7 +339,7 @@ final class DefaultRevisionDisciplineTest extends TestCase
         $this->alwaysApplyDefaultRevisionSemantics();
         $repo->setPublishedRevision('1', 1);
 
-        self::assertSame(1, $repo->find('1')?->toArray()['flag']);
+        self::assertSame(true, $repo->find('1')?->toArray()['flag']);
     }
 
     #[Test]
