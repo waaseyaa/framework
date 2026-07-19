@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Relationship;
 
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
+use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
@@ -15,6 +18,25 @@ final class RelationshipServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->singleton(AuthorizedRelationshipTraversal::class, function (): AuthorizedRelationshipTraversal {
+            $entityTypeManager = $this->resolve(EntityTypeManager::class);
+            $database = $this->resolve(DatabaseInterface::class);
+            $accessHandler = $this->resolve(EntityAccessHandler::class);
+            $fieldReadScope = $this->resolve(AccountFieldReadScopeInterface::class);
+
+            assert($entityTypeManager instanceof EntityTypeManagerInterface);
+            assert($database instanceof DatabaseInterface);
+            assert($accessHandler instanceof EntityAccessHandler);
+            assert($fieldReadScope instanceof AccountFieldReadScopeInterface);
+
+            return new AuthorizedRelationshipTraversal(
+                $entityTypeManager,
+                $database,
+                $accessHandler,
+                $fieldReadScope,
+            );
+        });
+
         $this->entityType(new EntityType(
             id: 'relationship',
             label: 'Relationship',

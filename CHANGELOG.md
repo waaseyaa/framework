@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Authorized consumers can traverse sealed relationship topology without hand-wiring field capabilities (#2079).** Relationship endpoint selectors remain Protected because membership and affiliation graphs can be sensitive. The container now provides a principal-scoped `AuthorizedRelationshipTraversal`: consumers pass a source and bounded domain options, while the framework owns the fixed-shape query and account scope and returns immutable `AuthorizedRelationshipEdge` projections only for active, viewable edges with viewable sources and endpoints. Missing or view-denied sources remain concealed; arbitrary field selection, raw relationship value bags, and a caller-controlled status bypass are not exposed.
 - **JSON:API mutations now resolve UUID and numeric targets identically before write authorization (#2078).** UUID lookup no longer inherits the entity-query `view` filter, so principals with bundle-scoped edit/delete authority can target view-hidden drafts (including uid-less drafts) just as they can by numeric ID; single-resource reads still enforce `view` and preserve the canonical missing/view-denied 404 response.
 
 ## [0.1.0-alpha.270] - 2026-07-19

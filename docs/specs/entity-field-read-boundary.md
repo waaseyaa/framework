@@ -1,5 +1,6 @@
 # Entity Field-Read Boundary
 
+<!-- Spec reviewed 2026-07-19 - #2079 confirms that relationship endpoint selectors remain Protected because topology can itself disclose sensitive membership or affiliation. Principal-facing consumers traverse through the fixed-shape AuthorizedRelationshipTraversal domain seam, which owns the account scope and source/edge/endpoint view gates and returns immutable AuthorizedRelationshipEdge projections; consumers receive no raw entity value bag, arbitrary field selector, capability handle, or status bypass. -->
 <!-- Spec reviewed 2026-07-19 - #2064 alpha.269 closes the post-activation mutable-account convergence class: request composition passes the validated immutable principal to every entity/field access decision; EntityAccessHandler and policy PHPDoc narrow decision accounts to AuthorizationPrincipalInterface under PHPStan; and EntityAccessHandler centrally rejects a live entity-backed account before any policy can call hasPermission()/getRoles(). An architecture test pins the static and runtime gates. This does not unseal a field or create a missing-context fallback. -->
 
 **Status:** WP4 activated: sealed entity reads, persistence gateways, production preflight, and payload boundaries are enforced without compatibility shims.
@@ -587,6 +588,13 @@ Relationship endpoint selectors and maintenance values remain Protected.
 Topology, traversal, endpoint visibility, and lifecycle consumers receive only
 fixed-shape typed projections from private `EntityBase`-bound readers; callers
 cannot select arbitrary relationship fields or export the underlying value bag.
+Principal-facing application traversal uses `AuthorizedRelationshipTraversal`:
+the framework establishes the immutable principal's account scope, conceals a
+missing or view-denied source, and returns only active relationship edges whose
+relationship record and related endpoint are viewable by the same principal.
+The public result is an immutable `AuthorizedRelationshipEdge` projection, not
+a raw relationship entity or field capability. This is the relationship-domain
+equivalent of media's authorized download seam over Protected `source_uri`.
 
 Genealogy policy decisions consume compiled Protected `tree_id`, `status`,
 `owner_uid`, `is_living`, and `death_date` inputs. Person/family/event

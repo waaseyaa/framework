@@ -1,5 +1,6 @@
 # Relationship Modeling (v0.6)
 
+<!-- Spec reviewed 2026-07-19 - #2079 keeps relationship endpoint selectors Protected and adds AuthorizedRelationshipTraversal as the public principal-scoped consumer seam. Consumers supply only a principal, source identity, and bounded domain options; the framework owns the fixed-shape topology query and account field-read scope. Results are immutable AuthorizedRelationshipEdge projections and include only active relationship rows for which the source, edge, and related endpoint are viewable. Missing or view-denied sources are concealed as an empty result. No arbitrary field selector, status-all switch, raw Relationship entity, or capability handle crosses the seam. -->
 <!-- Spec reviewed 2026-07-14 - R24 relationship minor (#2020): closes R5 residual 2. RelationshipEndpointVisibilityPolicy now returns entity-level Forbidden for `view` when NEITHER endpoint is viewable, concealing the whole edge and its relationship type/status behind the canonical not-found response. If at least one endpoint is viewable the policy remains entity-neutral and its existing field-access behavior redacts only the hidden endpoint pair. Update/delete/create behavior and RelationshipAccessPolicy's ordinary publication/permission gate are unchanged. Acceptance: RelationshipEndpointVisibilityRestTest::both_endpoints_hidden_conceals_the_entire_edge plus isolated both-hidden and one-visible policy tests; boundary test was RED at 200 before the fix and GREEN at 404 after. -->
 <!-- Spec reviewed 2026-07-13 - #1984: relationship traversal SQL now resolves every non-key field against the actual relationship table shape. Fresh sql-blob installs query the canonical `_data` JSON payload; upgraded installs that already carry historical dedicated columns continue querying those columns. Timeline overlap remains SQL-level on both shapes. A clean `db:init` + fresh-process SSR regression pins the fresh path, while the existing physical-column suite pins upgraded compatibility. -->
 <!-- Spec reviewed 2026-07-05 - audit-remediation batch R7 WP2 (security, audit R5 residual #1): closed the discovery/browse-API half of R5's residual 1. `RelationshipTraversalService` gained OPTIONAL `?EntityAccessHandler $accessHandler` / `?AccountInterface $account` constructor params (independent of, and additive to, `$visibilityFilter`'s publish-status gate) — see the revised "Endpoint visibility (traverse and browse, fail-closed)" section. `DiscoveryApiHandler::createDiscoveryService(AccountInterface $account)` now threads the request account and the kernel's `EntityAccessHandler` into `RelationshipTraversalService`, so a published-but-access-restricted related/endpoint entity is withheld from `topicHub`/`clusterPage`/`timeline`/`endpointPage`/`relationshipEntityPage` (all route through `browse()`) exactly as it already was from JSON:API/entity.read/GraphQL (R5) and SSR nav (R6 PR2, a separate post-filter mechanism — left as-is, not migrated to this gate). `DiscoveryApiHandler::isDiscoveryEntityPublic()` (source-entity/own-identity gate for the discovery "endpoint" route) is likewise now access-aware given `$account`, signature changed to take the loaded `EntityInterface` instead of `(string $entityType, array $values)`. When `$accessHandler`/`$account` are not wired (any caller other than the discovery API — SSR, and any future `traverse()`/`browse()` consumer that doesn't opt in), the gate is OFF and behavior is unchanged. Cache-key generation bumped (`DiscoveryCachePrimitives::CACHE_KEY_GENERATION` 1->2) to bust pre-fix anonymous discovery-cache entries immediately on deploy rather than waiting out the 120s TTL. See the R5 section's residual-1 bullet, now updated to reflect closure. Acceptance: RelationshipTraversalServiceTest (4 new access-aware cases, RED against pre-fix code), DiscoveryRouterTest (3 new integration cases against real SQLite + EntityAccessHandler, RED against pre-fix code), DiscoveryCachePrimitivesTest (generation-bump key-diff case). -->
@@ -90,6 +91,30 @@ Visibility normalization invariant:
 - Relationship/public discovery checks must use shared workflow/status normalization (`Waaseyaa\Workflows\WorkflowVisibility`) rather than per-surface custom logic, so `workflow_state` and fallback `status` semantics stay identical across SSR/search/MCP/relationship browse.
 
 ### Endpoint visibility (traverse and browse, fail-closed)
+
+#### Principal-scoped application traversal
+
+Relationship endpoint selectors remain Protected because graph topology can
+disclose membership, affiliation, or other sensitive identity links. Ordinary
+application consumers therefore use the container-provided
+`AuthorizedRelationshipTraversal`, not endpoint-field capabilities and not a
+raw `status: all` traversal call.
+
+`edges()` takes an immutable `AuthorizationPrincipalInterface`, a source entity
+type/id, and only bounded domain options: `direction`, `relationship_types`,
+`at`, and `limit`. It establishes and restores the principal's field-read scope,
+checks the source's `view` access, executes the framework-owned fixed-shape
+topology lookup, and returns only active edges whose relationship entity and
+related endpoint both pass `view` for the same principal. A missing,
+unregistered, or view-denied source produces an empty list, preserving
+concealment. Its result is a list of immutable `AuthorizedRelationshipEdge`
+projections; consumers receive neither raw `Relationship` entities/value bags
+nor field names, capability handles, or publication-bypass controls.
+
+This facade is the supported ergonomic seam for membership lists and other
+principal-facing graph traversal. `RelationshipTraversalService` and the private
+typed topology/maintenance readers remain lower-level framework mechanisms for
+existing discovery and system-context flows.
 
 Both public read surfaces of `RelationshipTraversalService` gate on the *related endpoint's* publication visibility, not just the relationship row's own `status`:
 

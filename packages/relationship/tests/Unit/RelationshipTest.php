@@ -8,7 +8,9 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\ContentEntityInterface;
+use Waaseyaa\Entity\Attribute\EntityMetadataReader;
 use Waaseyaa\Entity\Exception\MissingFieldReadContext;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Entity\FieldableInterface;
 use Waaseyaa\Relationship\Relationship;
 use Waaseyaa\Relationship\RelationshipMaintenanceReader;
@@ -109,5 +111,15 @@ final class RelationshipTest extends TestCase
         ]);
         $this->expectException(MissingFieldReadContext::class);
         $entity->toArray();
+    }
+
+    #[Test]
+    public function endpoint_selectors_remain_protected(): void
+    {
+        $fields = EntityMetadataReader::resolveFields(Relationship::class);
+
+        foreach (['from_entity_type', 'from_entity_id', 'to_entity_type', 'to_entity_id'] as $fieldName) {
+            self::assertSame(FieldReadLevel::Protected, $fields[$fieldName]->getReadLevel());
+        }
     }
 }

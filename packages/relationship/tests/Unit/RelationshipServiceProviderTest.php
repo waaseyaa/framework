@@ -7,10 +7,16 @@ namespace Waaseyaa\Relationship\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
+use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
+use Waaseyaa\Relationship\AuthorizedRelationshipTraversal;
 use Waaseyaa\Relationship\RelationshipDeleteGuardListener;
 use Waaseyaa\Relationship\RelationshipPreSaveListener;
 use Waaseyaa\Relationship\RelationshipServiceProvider;
@@ -29,6 +35,25 @@ final class RelationshipServiceProviderTest extends TestCase
 
         $this->assertCount(1, $entityTypes);
         $this->assertSame('relationship', $entityTypes[0]->id());
+    }
+
+    #[Test]
+    public function registers_fully_wired_authorized_traversal_facade(): void
+    {
+        $manager = new StubEntityTypeManager();
+        $provider = new RelationshipServiceProvider();
+        $provider->setKernelServices($this->kernelServices([
+            EntityTypeManager::class => $manager,
+            DatabaseInterface::class => DBALDatabase::createSqlite(),
+            EntityAccessHandler::class => new EntityAccessHandler(),
+            AccountFieldReadScopeInterface::class => new AccountFieldReadScope(),
+        ]));
+        $provider->register();
+
+        self::assertInstanceOf(
+            AuthorizedRelationshipTraversal::class,
+            $provider->resolve(AuthorizedRelationshipTraversal::class),
+        );
     }
 
     #[Test]
