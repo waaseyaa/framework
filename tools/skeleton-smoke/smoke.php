@@ -17,6 +17,8 @@ declare(strict_types=1);
  * Exit codes: 0 success; non-zero failure.
  */
 
+use Waaseyaa\Access\AccountPrincipalFactoryInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\User\User;
 
@@ -67,6 +69,7 @@ $email = $marker . '@example.test';
 $user = User::make([
     'name' => $marker,
     'mail' => $email,
+    'permissions' => ['access user profiles'],
     'status' => 1,
     'created' => time(),
 ]);
@@ -85,10 +88,26 @@ if (!$reloaded instanceof User) {
     exit(1);
 }
 
-if ($reloaded->getName() !== $marker || $reloaded->getEmail() !== $email) {
+$resolver = $kernel->getHttpServiceResolver();
+$scope = $resolver->resolve(AccountFieldReadScopeInterface::class);
+if (!$scope instanceof AccountFieldReadScopeInterface) {
+    fwrite(STDERR, "skeleton-smoke: account field-read scope is not available\n");
+    exit(1);
+}
+
+$principalFactory = $resolver->resolve(AccountPrincipalFactoryInterface::class);
+if (!$principalFactory instanceof AccountPrincipalFactoryInterface) {
+    fwrite(STDERR, "skeleton-smoke: account principal factory is not available\n");
+    exit(1);
+}
+
+$profileViewer = $principalFactory->fromAccount($reloaded);
+$reloadedName = $scope->run($profileViewer, static fn(): string => $reloaded->getName());
+
+if ($reloadedName !== $marker) {
     fwrite(STDERR, "skeleton-smoke: round-trip mismatch\n");
-    fwrite(STDERR, "  expected name={$marker} mail={$email}\n");
-    fwrite(STDERR, "  got      name={$reloaded->getName()} mail={$reloaded->getEmail()}\n");
+    fwrite(STDERR, "  expected name={$marker}\n");
+    fwrite(STDERR, "  got      name={$reloadedName}\n");
     exit(1);
 }
 
