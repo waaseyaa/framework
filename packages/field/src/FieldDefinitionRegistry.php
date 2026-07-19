@@ -53,8 +53,9 @@ final class FieldDefinitionRegistry implements FieldDefinitionRegistryInterface,
             $byName[$field->getName()] = $field;
         }
         $this->coreFields[$entityTypeId] = $byName;
-        foreach ($this->fieldReadLayoutGenerations[$entityTypeId] ?? [] as $generation) {
+        foreach ($this->fieldReadLayoutGenerations[$entityTypeId] ?? [] as $bundle => $generation) {
             $generation->advance();
+            $generation->replaceSemanticFingerprintProvider($this->semanticFingerprintProvider($entityTypeId, $bundle));
         }
     }
 
@@ -194,12 +195,58 @@ final class FieldDefinitionRegistry implements FieldDefinitionRegistryInterface,
         foreach ($byName as $name => $field) {
             $this->bundleFields[$entityTypeId][$bundle][$name] = $field;
         }
-        $this->fieldReadLayoutGeneration($entityTypeId, $bundle)->advance();
+        $generation = $this->fieldReadLayoutGeneration($entityTypeId, $bundle);
+        $generation->advance();
+        $generation->replaceSemanticFingerprintProvider($this->semanticFingerprintProvider($entityTypeId, $bundle));
     }
 
     public function fieldReadLayoutGeneration(string $entityTypeId, string $bundle): EntityReadLayoutGeneration
     {
-        return $this->fieldReadLayoutGenerations[$entityTypeId][$bundle] ??= new EntityReadLayoutGeneration();
+        return $this->fieldReadLayoutGenerations[$entityTypeId][$bundle] ??= new EntityReadLayoutGeneration(
+            $this->semanticFingerprintProvider($entityTypeId, $bundle),
+        );
+    }
+
+    /** @return (\Closure(): string)|null */
+    private function semanticFingerprintProvider(string $entityTypeId, string $bundle): ?\Closure
+    {
+        $definitions = ($this->coreFields[$entityTypeId] ?? [])
+            + ($this->bundleFields[$entityTypeId][$bundle] ?? []);
+        foreach ($definitions as $definition) {
+            if (!$definition instanceof FieldDefinition) {
+                $registry = \WeakReference::create($this);
+
+                return static function () use ($registry, $entityTypeId, $bundle): string {
+                    $instance = $registry->get();
+                    if (!$instance instanceof self) {
+                        return 'registry-released';
+                    }
+
+                    return $instance->fieldReadSemanticFingerprint($entityTypeId, $bundle);
+                };
+            }
+        }
+
+        return null;
+    }
+
+    private function fieldReadSemanticFingerprint(string $entityTypeId, string $bundle): string
+    {
+        $definitions = ($this->coreFields[$entityTypeId] ?? [])
+            + ($this->bundleFields[$entityTypeId][$bundle] ?? []);
+        ksort($definitions);
+        $resolver = new FieldReadMetadataResolver();
+        $semantics = [];
+        foreach ($definitions as $name => $definition) {
+            $level = $resolver->resolve($definition)->level;
+            $semantics[] = implode(':', [
+                $name,
+                $level === null ? 'unclassified' : $level->value,
+                $definition->getSetting('authorizationInput') === true ? 'auth' : 'ordinary',
+            ]);
+        }
+
+        return 'definitions:' . hash('xxh128', implode("\0", $semantics));
     }
 
     public function coreFieldsFor(string $entityTypeId): array

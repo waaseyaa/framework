@@ -18,6 +18,7 @@ use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionInterface;
 use Waaseyaa\Field\FieldDefinitionRegistry;
+use Waaseyaa\Field\FieldReadDefinitionInterface;
 
 final class EntityReadRuntimeCacheTest extends TestCase
 {
@@ -263,6 +264,109 @@ final class EntityReadRuntimeCacheTest extends TestCase
 
         $this->expectException(StaleEntityReadLayout::class);
         $entity->get('name');
+    }
+
+    #[Test]
+    public function in_place_classification_tightening_advances_the_registry_generation_before_a_stale_read(): void
+    {
+        $level = FieldReadLevel::Public;
+        $definition = $this->createMockForIntersectionOfInterfaces([
+            FieldDefinitionInterface::class,
+            FieldReadDefinitionInterface::class,
+        ]);
+        $definition->method('getName')->willReturn('name');
+        $definition->method('getTargetEntityTypeId')->willReturn('cache_entity');
+        $definition->method('getTargetBundle')->willReturn(null);
+        $definition->method('getReadLevel')->willReturnCallback(static function () use (&$level): FieldReadLevel {
+            return $level;
+        });
+        $definition->method('getSetting')->willReturn(null);
+
+        $registry = new FieldDefinitionRegistry();
+        $registry->registerCoreFields('cache_entity', ['name' => $definition]);
+        $generation = $registry->fieldReadLayoutGeneration('cache_entity', 'cache_entity');
+        $layout = EntityReadRuntime::layoutFor(
+            RuntimeRegistryCacheEntity::class,
+            ['id' => 1, 'name' => 'Previously public'],
+            'cache_entity',
+            ['id' => 'id'],
+            $registry,
+            true,
+        );
+        $boundary = new EntityInitializationBoundary();
+        $payload = $boundary->factory()->seal(
+            values: ['id' => 1, 'name' => 'Previously public'],
+            layout: $layout,
+            structure: new EntityStructure('cache_entity', 'cache_entity', 1, fieldNames: ['id', 'name']),
+            entityTypeId: 'cache_entity',
+            entityKeys: ['id' => 'id'],
+        );
+        $entity = $boundary->installer()->instantiate(RuntimeRegistryCacheEntity::class, $payload);
+        self::assertSame('Previously public', $entity->get('name'));
+        $publicGeneration = $generation->current();
+
+        $level = FieldReadLevel::Protected;
+
+        try {
+            $entity->get('name');
+            self::fail('An in-place classification tightening served a stale Public value.');
+        } catch (StaleEntityReadLayout) {
+            self::assertSame(
+                $generation,
+                $registry->fieldReadLayoutGeneration('cache_entity', 'cache_entity'),
+                'The registry must advance its existing generation source, not hide drift behind a replacement.',
+            );
+            self::assertSame($publicGeneration + 1, $generation->current());
+        }
+    }
+
+    #[Test]
+    public function a_custom_definition_probe_does_not_make_a_sealed_layout_retain_its_registry(): void
+    {
+        $definition = $this->createStub(FieldDefinitionInterface::class);
+        $definition->method('getName')->willReturn('name');
+        $definition->method('getTargetEntityTypeId')->willReturn('cache_entity');
+        $definition->method('getTargetBundle')->willReturn(null);
+        $definition->method('getSetting')->willReturnCallback(
+            static fn(string $setting): mixed => $setting === 'internal' ? false : null,
+        );
+        $registry = new FieldDefinitionRegistry();
+        $registry->registerCoreFields('cache_entity', ['name' => $definition]);
+        $layout = EntityReadRuntime::layoutFor(
+            RuntimeRegistryCacheEntity::class,
+            ['id' => 1, 'name' => 'Custom'],
+            'cache_entity',
+            ['id' => 'id'],
+            $registry,
+            true,
+        );
+        $registryReference = \WeakReference::create($registry);
+
+        unset($registry);
+        gc_collect_cycles();
+
+        self::assertNull($registryReference->get());
+        $this->expectException(StaleEntityReadLayout::class);
+        $layout->assertCurrent();
+    }
+
+    #[Test]
+    public function final_readonly_framework_definitions_keep_the_unprobed_generation_fast_path(): void
+    {
+        $registry = new FieldDefinitionRegistry();
+        $registry->registerCoreFields('cache_entity', [
+            'name' => new FieldDefinition(
+                name: 'name',
+                type: 'string',
+                targetEntityTypeId: 'cache_entity',
+                read: FieldReadLevel::Public,
+            ),
+        ]);
+
+        $generation = $registry->fieldReadLayoutGeneration('cache_entity', 'cache_entity');
+        $provider = (new \ReflectionObject($generation))->getProperty('semanticFingerprintProvider');
+
+        self::assertNull($provider->getValue($generation));
     }
 
     #[Test]

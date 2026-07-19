@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **In-place custom field-classification changes now stale every previously sealed layout (#2064).** Registry generations weakly fingerprint mutable custom definitions and advance before a changed read level or authorization-input role can be used, while final readonly framework definitions retain the unprobed constant-time fast path and sealed layouts do not retain registries.
 - **Fresh HTTP kernels isolate Twig state inside persistent workers (#2064).** Theme and SSR providers publish an instance-owned Twig environment during registration, before extension providers boot, so consecutive requests cannot resolve or mutate a prior kernel's initialized renderer.
 
 ## [0.1.0-alpha.267] - 2026-07-17

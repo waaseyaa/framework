@@ -329,9 +329,14 @@ stored as restricted cells bound to the exact entity-view identity and compiled
 class/type/bundle source, immutable definition identities and semantic
 fingerprint, structural key map, field-name shape, and registry-owned
 type/bundle generation. Registry mutation advances that source generation and
-clears its compiled identity/layout entries; a changed immutable-definition
-fingerprint does the same, while custom definition implementations retain the
-full metadata-resolution path rather than claiming the immutable fast path.
+replaces the registry's generation source so compiled identity/layout entries
+cannot survive registration. A changed immutable-definition fingerprint does
+the same. Custom definition implementations additionally install a weak,
+registry-owned semantic fingerprint probe: an in-place change to read level or
+authorization-input status advances the existing generation before the next
+read. Losing the registry also stales that generation. The probe cannot retain
+the registry, and the final readonly framework `FieldDefinition` never installs
+one, preserving its constant-time generation check.
 Every retained layout is sealed to both the process generation and its exact
 registry generation, and every sealed entity or projected query decision checks
 those seals. A value compiled under obsolete classification/policy metadata is
@@ -348,7 +353,8 @@ change misses instead of reusing stale classification. A registry-generation
 change may reuse the immutable recipe, but only by binding a new layout to that
 fresh generation; the already-bound layout still throws as obsolete. Custom
 definition implementations never enter this cross-registry cache and retain
-full metadata resolution. The cache is capped at 256 blueprints and excludes
+full metadata resolution plus the semantic mutation probe described above. The
+cache is capped at 256 blueprints and excludes
 entities, field values, views, principals, account scopes, policy decisions,
 capabilities, ledger records, registries, and mutable runtime services.
 

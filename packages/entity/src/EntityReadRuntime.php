@@ -435,7 +435,12 @@ final class EntityReadLayoutRegistryCacheScope
 
     public function source(string $key, ?EntityReadLayoutGeneration $generation = null): EntityReadLayoutSourceCache
     {
-        return $this->sources[$key] ??= new EntityReadLayoutSourceCache($generation);
+        $source = $this->sources[$key] ?? null;
+        if ($source === null || ($generation !== null && $source->generation !== $generation)) {
+            $source = $this->sources[$key] = new EntityReadLayoutSourceCache($generation);
+        }
+
+        return $source;
     }
 
     public function clear(): void
