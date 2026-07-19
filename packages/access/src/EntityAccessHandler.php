@@ -91,7 +91,7 @@ class EntityAccessHandler
      *
      * @param EntityInterface  $entity    The entity being accessed.
      * @param string           $operation The operation: 'view', 'update', 'delete', or 'translate'.
-     * @param AccountInterface $account   The account requesting access.
+     * @param AuthorizationPrincipalInterface $account The immutable principal requesting access.
      * @param array<string, mixed> $context Optional extra context. For 'translate':
      *                                       ['langcode' => string].
      */
@@ -101,9 +101,11 @@ class EntityAccessHandler
         AccountInterface $account,
         array $context = [],
     ): AccessResult {
+        $this->assertImmutableDecisionAccount($account);
+
         if ($operation === GateInterface::VIEW
             && $entity instanceof EntityBase
-            && $account instanceof AuthorizationPrincipalInterface
+            && $this->isAuthorizationPrincipal($account)
             && $this->hasProtectedEntityReadPolicy($entity->getEntityTypeId(), $entity->bundle())
         ) {
             $subject = ($this->entityPolicySubjectAuthority)($entity);
@@ -223,10 +225,12 @@ class EntityAccessHandler
      *
      * @param string           $entityTypeId The entity type ID.
      * @param string           $bundle       The bundle.
-     * @param AccountInterface $account      The account requesting access.
+     * @param AuthorizationPrincipalInterface $account The immutable principal requesting access.
      */
     public function checkCreateAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
     {
+        $this->assertImmutableDecisionAccount($account);
+
         $result = AccessResult::neutral('No policy provided an opinion.');
 
         foreach ($this->policies as $index => $policy) {
@@ -258,7 +262,7 @@ class EntityAccessHandler
      * @param EntityInterface  $entity    The entity being accessed.
      * @param string           $fieldName The field name being checked.
      * @param string           $operation The operation: 'view' or 'edit'.
-     * @param AccountInterface $account   The account requesting access.
+     * @param AuthorizationPrincipalInterface $account The immutable principal requesting access.
      */
     public function checkFieldAccess(
         EntityInterface $entity,
@@ -266,6 +270,8 @@ class EntityAccessHandler
         string $operation,
         AccountInterface $account,
     ): AccessResult {
+        $this->assertImmutableDecisionAccount($account);
+
         $result = AccessResult::neutral('No field access policy provided an opinion.');
         $entityTypeId = $entity->getEntityTypeId();
         $bundle = $entity->bundle();
@@ -328,7 +334,7 @@ class EntityAccessHandler
      * @param EntityInterface  $entity     The entity being accessed.
      * @param string[]         $fieldNames The field names to check.
      * @param string           $operation  The operation: 'view' or 'edit'.
-     * @param AccountInterface $account    The account requesting access.
+     * @param AuthorizationPrincipalInterface $account The immutable principal requesting access.
      *
      * @return string[] Field names that are not forbidden.
      */
@@ -338,6 +344,8 @@ class EntityAccessHandler
         string $operation,
         AccountInterface $account,
     ): array {
+        $this->assertImmutableDecisionAccount($account);
+
         return array_values(array_filter(
             $fieldNames,
             fn(string $field): bool => !$this->checkFieldAccess($entity, $field, $operation, $account)->isForbidden(),
@@ -365,12 +373,16 @@ class EntityAccessHandler
      * Callers MUST fail closed on a `null` return (render a non-identifying
      * placeholder, e.g. the entity type id — never fall back to the raw
      * label).
+     *
+     * @param AuthorizationPrincipalInterface $account The immutable principal requesting access.
      */
     public function viewableLabel(
         EntityInterface $entity,
         AccountInterface $account,
         EntityTypeManagerInterface $entityTypeManager,
     ): ?string {
+        $this->assertImmutableDecisionAccount($account);
+
         $label = $entity->label();
         $entityTypeId = $entity->getEntityTypeId();
 
@@ -384,6 +396,11 @@ class EntityAccessHandler
         }
 
         return $this->checkFieldAccess($entity, $labelFieldName, 'view', $account)->isForbidden() ? null : $label;
+    }
+
+    private function isAuthorizationPrincipal(AccountInterface $account): bool
+    {
+        return $account instanceof AuthorizationPrincipalInterface;
     }
 
     /**
@@ -415,6 +432,20 @@ class EntityAccessHandler
         }
 
         return false;
+    }
+
+    /**
+     * Mutable entity-backed accounts must be snapshotted at the audited identity
+     * boundary before any access policy can inspect their claims.
+     */
+    private function assertImmutableDecisionAccount(AccountInterface $account): void
+    {
+        if ($account instanceof EntityInterface) {
+            throw new \LogicException(sprintf(
+                'Access decisions require an immutable AuthorizationPrincipal; mutable %s was provided.',
+                $account::class,
+            ));
+        }
     }
 
     /**

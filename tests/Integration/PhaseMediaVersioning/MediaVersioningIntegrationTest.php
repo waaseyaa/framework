@@ -10,6 +10,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Api\Controller\MediaVersionController;
 use Waaseyaa\Api\Http\Router\MediaVersionApiRouter;
 use Waaseyaa\Api\Media\ApiMediaVersionAdapter;
@@ -56,24 +57,7 @@ final class MediaVersioningIntegrationTest extends TestCase
         $this->controller = new MediaVersionController($this->adapter);
         $this->router = new MediaVersionApiRouter($this->controller);
 
-        $this->account = new class implements AccountInterface {
-            public function id(): int|string
-            {
-                return 1;
-            }
-            public function isAuthenticated(): bool
-            {
-                return true;
-            }
-            public function getRoles(): array
-            {
-                return ['administrator'];
-            }
-            public function hasPermission(string $permission): bool
-            {
-                return true;
-            }
-        };
+        $this->account = new AuthorizationPrincipal(1, true, ['administrator'], [], 'test');
     }
 
     private function createSchema(): void

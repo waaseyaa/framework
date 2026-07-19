@@ -60,6 +60,8 @@ final class EntityUpdateTool extends AbstractAgentTool
         ];
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
+
     public function execute(array $arguments, AccountInterface $account): AgentToolResult
     {
         $denied = $this->requireCapability('tool.entity.update', $account);
@@ -176,6 +178,8 @@ final class EntityUpdateTool extends AbstractAgentTool
             summary: sprintf('Updated %s/%s', $entityType, (string) $id),
         );
     }
+
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
 
     public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
     {

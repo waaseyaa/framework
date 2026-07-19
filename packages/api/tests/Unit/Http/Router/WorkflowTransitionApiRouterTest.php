@@ -161,11 +161,6 @@ final class WorkflowTransitionApiRouterTest extends TestCase
 
     private function account(): \Waaseyaa\Access\AccountInterface
     {
-        return new class implements \Waaseyaa\Access\AccountInterface {
-            public function id(): int|string { return 1; }
-            public function hasPermission(string $permission): bool { return true; }
-            public function getRoles(): array { return ['authenticated']; }
-            public function isAuthenticated(): bool { return true; }
-        };
+        return new \Waaseyaa\Access\AuthorizationPrincipal(1, true, ['administrator'], [], 'test');
     }
 }

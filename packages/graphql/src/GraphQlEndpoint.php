@@ -33,6 +33,7 @@ final class GraphQlEndpoint
     private array $mutationOverrides = [];
     private readonly LoggerInterface $logger;
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly EntityAccessHandler $accessHandler,

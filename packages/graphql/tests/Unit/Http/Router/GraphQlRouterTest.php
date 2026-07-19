@@ -9,7 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\Request;
-use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Access\EntityAccessHandler;
@@ -45,7 +45,7 @@ final class GraphQlRouterTest extends TestCase
         $etm = new EntityTypeManager(new EventDispatcher());
         $router = new GraphQlRouter($etm, new EntityAccessHandler());
         $request = Request::create('/graphql', 'POST', server: ['CONTENT_TYPE' => 'application/json'], content: '{');
-        $account = $this->createStub(AccountInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('isAuthenticated')->willReturn(false);
         $account->method('id')->willReturn(0);
         $request->attributes->set('_account', $account);

@@ -11,7 +11,7 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\RequestContext;
 use Waaseyaa\Access\AccessResult;
-use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AdminSurface\AdminSurfaceRoutePaths;
 use Waaseyaa\AdminSurface\AdminSurfaceServiceProvider;
@@ -345,7 +345,7 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
         $controller = $router->getRouteCollection()->get('admin_surface.action')?->getDefault('_controller');
         self::assertIsCallable($controller);
 
-        $account = $this->createStub(AccountInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);
@@ -439,7 +439,7 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
         $controller = $router->getRouteCollection()->get('admin_surface.action')?->getDefault('_controller');
         self::assertIsCallable($controller);
 
-        $account = $this->createStub(AccountInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);

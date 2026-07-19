@@ -11,6 +11,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
 use Waaseyaa\Entity\EntityInterface;
@@ -102,13 +103,7 @@ final class GenericAdminSurfaceHostWorkingCopyTest extends TestCase
 
     private function resolveSessionAs(GenericAdminSurfaceHost $host, int $accountId): void
     {
-        $account = new class ($accountId) implements AccountInterface {
-            public function __construct(private readonly int $accountId) {}
-            public function id(): int|string { return $this->accountId; }
-            public function hasPermission(string $permission): bool { return true; }
-            public function getRoles(): array { return ['administrator']; }
-            public function isAuthenticated(): bool { return true; }
-        };
+        $account = new AuthorizationPrincipal($accountId, true, ['administrator'], [], 'test');
         $request = Request::create('/admin/surface/session');
         $request->attributes->set('_account', $account);
         $host->resolveSession($request);

@@ -19,7 +19,7 @@ interface AccessPolicyInterface
      *
      * @param EntityInterface $entity    The entity being accessed.
      * @param string          $operation The operation: 'view', 'update', or 'delete'.
-     * @param AccountInterface $account  The account requesting access.
+     * @param AuthorizationPrincipalInterface $account The immutable principal requesting access.
      */
     public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult;
 
@@ -28,7 +28,7 @@ interface AccessPolicyInterface
      *
      * @param string           $entityTypeId The entity type ID (e.g. 'node').
      * @param string           $bundle       The bundle (e.g. 'article').
-     * @param AccountInterface $account      The account requesting access.
+     * @param AuthorizationPrincipalInterface $account The immutable principal requesting access.
      */
     public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult;
 

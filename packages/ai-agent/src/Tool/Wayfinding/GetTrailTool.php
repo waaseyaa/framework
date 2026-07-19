@@ -46,6 +46,8 @@ final class GetTrailTool extends AbstractTrailTool
         ];
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
+
     public function execute(array $arguments, AccountInterface $account): AgentToolResult
     {
         $denied = $this->requireCapability(self::CAPABILITY, $account);

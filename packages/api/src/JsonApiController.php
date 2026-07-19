@@ -38,6 +38,7 @@ final class JsonApiController
      */
     private const ALWAYS_INTERNAL_FIELDS = ['pass', 'password', 'password_hash'];
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface|null $account */
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly ResourceSerializer $serializer,

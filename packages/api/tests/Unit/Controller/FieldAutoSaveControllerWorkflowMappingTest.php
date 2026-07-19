@@ -11,6 +11,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Controller\FieldAutoSaveController;
 use Waaseyaa\Entity\EntityInterface;
@@ -116,12 +117,7 @@ final class FieldAutoSaveControllerWorkflowMappingTest extends TestCase
             new FieldDefinition(name: 'title', type: 'string', targetEntityTypeId: 'article', targetBundle: 'article', label: 'Title'),
         ]);
 
-        $account = new class implements AccountInterface {
-            public function id(): int|string { return 1; }
-            public function isAuthenticated(): bool { return true; }
-            public function hasPermission(string $permission): bool { return true; }
-            public function getRoles(): array { return ['authenticated']; }
-        };
+        $account = new AuthorizationPrincipal(1, true, ['authenticated'], ['administer content'], 'test');
 
         $controller = new FieldAutoSaveController($entityTypeManager, $accessHandler, $fieldRegistry);
 

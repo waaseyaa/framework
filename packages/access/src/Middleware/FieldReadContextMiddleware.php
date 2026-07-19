@@ -10,6 +10,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AccountPrincipalFactoryInterface;
 use Waaseyaa\Access\AuthorizationPrincipal;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
+use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\ContextualAccountPrincipalFactoryInterface;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
@@ -28,6 +30,7 @@ final readonly class FieldReadContextMiddleware implements HttpMiddlewareInterfa
     public function __construct(
         private AccountPrincipalFactoryInterface $principalFactory,
         private AccountFieldReadScopeInterface $scope,
+        private ?AccountContextInterface $accountContext = null,
     ) {}
 
     public function process(Request $request, HttpHandlerInterface $next): Response
@@ -46,12 +49,24 @@ final readonly class FieldReadContextMiddleware implements HttpMiddlewareInterfa
             : new AuthorizationPrincipal(0, false, [], [], 'anonymous', $tenantId, $communityId);
         $request->attributes->set('_authorization_principal', $principal);
 
-        $response = $this->scope->run($principal, static fn(): Response => $next->handle($request));
+        $response = $this->runWithPrincipal($principal, static fn(): Response => $next->handle($request));
         if ($response instanceof StreamedResponse && ($callback = $response->getCallback()) !== null) {
-            $response->setCallback(fn(): mixed => $this->scope->run($principal, $callback));
+            $response->setCallback(fn(): mixed => $this->runWithPrincipal($principal, $callback));
         }
 
         return $response;
+    }
+
+    private function runWithPrincipal(AuthorizationPrincipalInterface $principal, callable $callback): mixed
+    {
+        $previousAccount = $this->accountContext?->current();
+        $this->accountContext?->set($principal);
+
+        try {
+            return $this->scope->run($principal, $callback);
+        } finally {
+            $this->accountContext?->set($previousAccount);
+        }
     }
 
     private function scopeId(mixed $value): ?string

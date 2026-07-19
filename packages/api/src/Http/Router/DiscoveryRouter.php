@@ -45,7 +45,7 @@ final class DiscoveryRouter implements DomainRouterInterface
     private function resolveDiscoveryStatus(WaaseyaaContext $ctx): string
     {
         $requested = is_string($ctx->query['status'] ?? null) ? trim((string) $ctx->query['status']) : 'published';
-        $authorized = $ctx->account->isAuthenticated() && $ctx->account->hasPermission('administer nodes');
+        $authorized = $ctx->principal->isAuthenticated() && $ctx->principal->hasPermission('administer nodes');
         if (!$authorized && $requested !== 'published') {
             return 'published';
         }
@@ -68,7 +68,7 @@ final class DiscoveryRouter implements DomainRouterInterface
         $params = $request->attributes->all();
 
         if (str_contains($controller, 'ApiDiscoveryController')) {
-            $discoveryController = new ApiDiscoveryController($this->entityTypeManager, account: $ctx->account);
+            $discoveryController = new ApiDiscoveryController($this->entityTypeManager, account: $ctx->principal);
             $result = $discoveryController->discover();
 
             return $this->jsonApiResponse(200, ['jsonapi' => ['version' => '1.1'], ...$result]);
@@ -98,7 +98,7 @@ final class DiscoveryRouter implements DomainRouterInterface
         }
 
         $resolvedEntity = $this->discoveryHandler->loadDiscoveryEntity($entityType, (string) $entityId);
-        if ($resolvedEntity === null || !$this->discoveryHandler->isDiscoveryEntityPublic($resolvedEntity, $ctx->account)) {
+        if ($resolvedEntity === null || !$this->discoveryHandler->isDiscoveryEntityPublic($resolvedEntity, $ctx->principal)) {
             return $this->jsonApiResponse(404, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [['status' => '404', 'title' => 'Not Found', 'detail' => sprintf('Discovery hub not publicly visible: %s:%s', $entityType, (string) $entityId)]],
@@ -115,7 +115,7 @@ final class DiscoveryRouter implements DomainRouterInterface
         ];
 
         $cacheKey = $this->discoveryHandler->buildDiscoveryCacheKey('hub', $entityType, (string) $entityId, $resolvedOptions);
-        $cached = $this->discoveryHandler->getDiscoveryCachedResponse($cacheKey, $ctx->account);
+        $cached = $this->discoveryHandler->getDiscoveryCachedResponse($cacheKey, $ctx->principal);
         if ($cached !== null) {
             return $this->jsonApiResponse(200, $cached, [
                 'Cache-Control' => 'public, max-age=120',
@@ -123,9 +123,9 @@ final class DiscoveryRouter implements DomainRouterInterface
             ]);
         }
 
-        $service = $this->discoveryHandler->createDiscoveryService($ctx->account);
+        $service = $this->discoveryHandler->createDiscoveryService($ctx->principal);
         $payload = $service->topicHub($entityType, (string) $entityId, $resolvedOptions);
-        [$dPayload, $dHeaders] = $this->discoveryHandler->prepareDiscoveryResponse(200, ['data' => $payload], $cacheKey, $ctx->account);
+        [$dPayload, $dHeaders] = $this->discoveryHandler->prepareDiscoveryResponse(200, ['data' => $payload], $cacheKey, $ctx->principal);
 
         return $this->jsonApiResponse(200, $dPayload, $dHeaders);
     }
@@ -142,7 +142,7 @@ final class DiscoveryRouter implements DomainRouterInterface
         }
 
         $resolvedEntity = $this->discoveryHandler->loadDiscoveryEntity($entityType, (string) $entityId);
-        if ($resolvedEntity === null || !$this->discoveryHandler->isDiscoveryEntityPublic($resolvedEntity, $ctx->account)) {
+        if ($resolvedEntity === null || !$this->discoveryHandler->isDiscoveryEntityPublic($resolvedEntity, $ctx->principal)) {
             return $this->jsonApiResponse(404, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [['status' => '404', 'title' => 'Not Found', 'detail' => sprintf('Discovery cluster not publicly visible: %s:%s', $entityType, (string) $entityId)]],
@@ -159,7 +159,7 @@ final class DiscoveryRouter implements DomainRouterInterface
         ];
 
         $cacheKey = $this->discoveryHandler->buildDiscoveryCacheKey('cluster', $entityType, (string) $entityId, $resolvedOptions);
-        $cached = $this->discoveryHandler->getDiscoveryCachedResponse($cacheKey, $ctx->account);
+        $cached = $this->discoveryHandler->getDiscoveryCachedResponse($cacheKey, $ctx->principal);
         if ($cached !== null) {
             return $this->jsonApiResponse(200, $cached, [
                 'Cache-Control' => 'public, max-age=120',
@@ -167,9 +167,9 @@ final class DiscoveryRouter implements DomainRouterInterface
             ]);
         }
 
-        $service = $this->discoveryHandler->createDiscoveryService($ctx->account);
+        $service = $this->discoveryHandler->createDiscoveryService($ctx->principal);
         $payload = $service->clusterPage($entityType, (string) $entityId, $resolvedOptions);
-        [$dPayload, $dHeaders] = $this->discoveryHandler->prepareDiscoveryResponse(200, ['data' => $payload], $cacheKey, $ctx->account);
+        [$dPayload, $dHeaders] = $this->discoveryHandler->prepareDiscoveryResponse(200, ['data' => $payload], $cacheKey, $ctx->principal);
 
         return $this->jsonApiResponse(200, $dPayload, $dHeaders);
     }
@@ -186,7 +186,7 @@ final class DiscoveryRouter implements DomainRouterInterface
         }
 
         $resolvedEntity = $this->discoveryHandler->loadDiscoveryEntity($entityType, (string) $entityId);
-        if ($resolvedEntity === null || !$this->discoveryHandler->isDiscoveryEntityPublic($resolvedEntity, $ctx->account)) {
+        if ($resolvedEntity === null || !$this->discoveryHandler->isDiscoveryEntityPublic($resolvedEntity, $ctx->principal)) {
             return $this->jsonApiResponse(404, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [['status' => '404', 'title' => 'Not Found', 'detail' => sprintf('Discovery timeline not publicly visible: %s:%s', $entityType, (string) $entityId)]],
@@ -206,7 +206,7 @@ final class DiscoveryRouter implements DomainRouterInterface
         ];
 
         $cacheKey = $this->discoveryHandler->buildDiscoveryCacheKey('timeline', $entityType, (string) $entityId, $resolvedOptions);
-        $cached = $this->discoveryHandler->getDiscoveryCachedResponse($cacheKey, $ctx->account);
+        $cached = $this->discoveryHandler->getDiscoveryCachedResponse($cacheKey, $ctx->principal);
         if ($cached !== null) {
             return $this->jsonApiResponse(200, $cached, [
                 'Cache-Control' => 'public, max-age=120',
@@ -214,9 +214,9 @@ final class DiscoveryRouter implements DomainRouterInterface
             ]);
         }
 
-        $service = $this->discoveryHandler->createDiscoveryService($ctx->account);
+        $service = $this->discoveryHandler->createDiscoveryService($ctx->principal);
         $payload = $service->timeline($entityType, (string) $entityId, $resolvedOptions);
-        [$dPayload, $dHeaders] = $this->discoveryHandler->prepareDiscoveryResponse(200, ['data' => $payload], $cacheKey, $ctx->account);
+        [$dPayload, $dHeaders] = $this->discoveryHandler->prepareDiscoveryResponse(200, ['data' => $payload], $cacheKey, $ctx->principal);
 
         return $this->jsonApiResponse(200, $dPayload, $dHeaders);
     }
@@ -234,7 +234,7 @@ final class DiscoveryRouter implements DomainRouterInterface
 
         $resolvedId = (string) $entityId;
         $resolvedEntity = $this->discoveryHandler->loadDiscoveryEntity($entityType, $resolvedId);
-        if ($resolvedEntity === null || !$this->discoveryHandler->isDiscoveryEntityPublic($resolvedEntity, $ctx->account)) {
+        if ($resolvedEntity === null || !$this->discoveryHandler->isDiscoveryEntityPublic($resolvedEntity, $ctx->principal)) {
             return $this->jsonApiResponse(404, [
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [['status' => '404', 'title' => 'Not Found', 'detail' => sprintf('Discovery endpoint not publicly visible: %s:%s', $entityType, $resolvedId)]],
@@ -250,7 +250,7 @@ final class DiscoveryRouter implements DomainRouterInterface
         ];
 
         $cacheKey = $this->discoveryHandler->buildDiscoveryCacheKey('endpoint', $entityType, $resolvedId, $resolvedOptions);
-        $cached = $this->discoveryHandler->getDiscoveryCachedResponse($cacheKey, $ctx->account);
+        $cached = $this->discoveryHandler->getDiscoveryCachedResponse($cacheKey, $ctx->principal);
         if ($cached !== null) {
             return $this->jsonApiResponse(200, $cached, [
                 'Cache-Control' => 'public, max-age=120',
@@ -258,11 +258,11 @@ final class DiscoveryRouter implements DomainRouterInterface
             ]);
         }
 
-        $service = $this->discoveryHandler->createDiscoveryService($ctx->account);
+        $service = $this->discoveryHandler->createDiscoveryService($ctx->principal);
 
         if ($entityType !== 'relationship') {
             $payload = $service->endpointPage($entityType, $resolvedId, $resolvedOptions);
-            [$dPayload, $dHeaders] = $this->discoveryHandler->prepareDiscoveryResponse(200, ['data' => $payload], $cacheKey, $ctx->account);
+            [$dPayload, $dHeaders] = $this->discoveryHandler->prepareDiscoveryResponse(200, ['data' => $payload], $cacheKey, $ctx->principal);
 
             return $this->jsonApiResponse(200, $dPayload, $dHeaders);
         }
@@ -277,7 +277,7 @@ final class DiscoveryRouter implements DomainRouterInterface
             || $fromId === ''
             || $toType === ''
             || $toId === ''
-            || !$this->discoveryHandler->isDiscoveryEndpointPairPublic($fromType, $fromId, $toType, $toId, $ctx->account)
+            || !$this->discoveryHandler->isDiscoveryEndpointPairPublic($fromType, $fromId, $toType, $toId, $ctx->principal)
         ) {
             return $this->jsonApiResponse(404, [
                 'jsonapi' => ['version' => '1.1'],
@@ -291,7 +291,7 @@ final class DiscoveryRouter implements DomainRouterInterface
             'at' => $resolvedOptions['at'],
             'limit' => $resolvedOptions['limit'],
         ]);
-        [$dPayload, $dHeaders] = $this->discoveryHandler->prepareDiscoveryResponse(200, ['data' => $payload], $cacheKey, $ctx->account);
+        [$dPayload, $dHeaders] = $this->discoveryHandler->prepareDiscoveryResponse(200, ['data' => $payload], $cacheKey, $ctx->principal);
 
         return $this->jsonApiResponse(200, $dPayload, $dHeaders);
     }

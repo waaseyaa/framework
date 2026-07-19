@@ -301,29 +301,7 @@ final class SqlEntityQueryAccessCacheKeyTest extends TestCase
 
     private function makeAccount(int $id): AccountInterface
     {
-        return new class($id) implements AccountInterface {
-            public function __construct(private readonly int $accountId) {}
-
-            public function id(): int|string
-            {
-                return $this->accountId;
-            }
-
-            public function hasPermission(string $permission): bool
-            {
-                return false;
-            }
-
-            public function getRoles(): array
-            {
-                return [];
-            }
-
-            public function isAuthenticated(): bool
-            {
-                return $this->accountId !== 0;
-            }
-        };
+        return new AuthorizationPrincipal($id, $id !== 0, [], [], 'test-' . $id);
     }
 
     private function ownerOnlyPolicy(): AccessPolicyInterface

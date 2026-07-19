@@ -53,6 +53,8 @@ final class EntitySetCurrentRevisionTool extends AbstractAgentTool
         ];
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
+
     public function execute(array $arguments, AccountInterface $account): AgentToolResult
     {
         $denied = $this->requireCapability('tool.entity.update', $account);
@@ -108,6 +110,8 @@ final class EntitySetCurrentRevisionTool extends AbstractAgentTool
             summary: sprintf('Set %s/%s current revision to %d', $entityType, (string) $id, $revisionId),
         );
     }
+
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
 
     public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
     {

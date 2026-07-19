@@ -128,24 +128,7 @@ final class GenericAdminSurfaceHostFieldAccessPaginationTest extends TestCase
 
     private function account(): AccountInterface
     {
-        return new class implements AccountInterface {
-            public function id(): int|string
-            {
-                return 1;
-            }
-            public function hasPermission(string $permission): bool
-            {
-                return true;
-            }
-            public function getRoles(): array
-            {
-                return ['administrator'];
-            }
-            public function isAuthenticated(): bool
-            {
-                return true;
-            }
-        };
+        return new AuthorizationPrincipal(1, true, ['administrator'], [], 'test');
     }
 }
 

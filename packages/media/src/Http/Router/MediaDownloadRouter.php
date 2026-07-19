@@ -49,19 +49,19 @@ final class MediaDownloadRouter implements DomainRouterInterface
         /** @var Response $response */
         $response = $this->fieldReadScope->run(
             $principal,
-            fn(): Response => $this->handleAuthorized($id, $account),
+            fn(): Response => $this->handleAuthorized($id, $principal),
         );
 
         return $response;
     }
 
-    private function handleAuthorized(string $id, AccountInterface $account): Response
+    private function handleAuthorized(string $id, AuthorizationPrincipalInterface $principal): Response
     {
         $media = $id !== '' ? $this->entityTypeManager->getRepository('media')->find($id) : null;
 
         if (
             !$media instanceof Media
-            || !$this->accessHandler->check($media, 'view', $account)->isAllowed()
+            || !$this->accessHandler->check($media, 'view', $principal)->isAllowed()
         ) {
             return $this->notFound();
         }

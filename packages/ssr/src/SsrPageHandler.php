@@ -10,6 +10,7 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Symfony\Component\Routing\Route;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AccountPrincipalFactoryInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\Api\Markdown\EntityMarkdownPresenter;
@@ -205,9 +206,12 @@ final class SsrPageHandler
                 return $this->htmlResult($response->getStatusCode(), (string) $response->getContent(), $headers);
             }
 
+            $authorizationAccount = $this->authorizationAccount($account);
             $previewRequested = $this->isPreviewRequested($httpRequest);
             $visibilityResolver = new EditorialVisibilityResolver();
-            $visibility = $visibilityResolver->canRender($entity, $account, $previewRequested);
+            $visibility = $authorizationAccount !== null
+                ? $visibilityResolver->canRender($entity, $authorizationAccount, $previewRequested)
+                : \Waaseyaa\Access\AccessResult::forbidden('Immutable authorization principal unavailable.');
             if ($visibility->isForbidden()) {
                 $response = new RenderController($twig)->renderForbidden($aliasLookupPath, $account);
                 $headers = $this->extractHeaders($response);
@@ -220,7 +224,7 @@ final class SsrPageHandler
             // above: a node must be published-or-previewable AND pass the
             // per-entity AccessPolicy view check — neither gate alone is
             // sufficient. See {@see shouldDenyEntityRender()}.
-            if ($this->shouldDenyEntityRender($entityTypeId, $entity, $account)) {
+            if ($authorizationAccount === null || $this->shouldDenyEntityRender($entityTypeId, $entity, $authorizationAccount)) {
                 $response = new RenderController($twig)->renderForbidden($aliasLookupPath, $account);
                 $headers = $this->extractHeaders($response);
                 $headers['Cache-Control'] = $cacheControlHeader;
@@ -255,7 +259,7 @@ final class SsrPageHandler
                 $workingCopyRepository = $this->entityTypeManager->getRepository($entityTypeId);
                 $workingCopy = $entity->id() !== null ? $workingCopyRepository->loadWorkingCopy((string) $entity->id()) : null;
                 if ($workingCopy !== null
-                    && $visibilityResolver->canRender($workingCopy, $account, $previewRequested)->isAllowed()
+                    && $visibilityResolver->canRender($workingCopy, $authorizationAccount, $previewRequested)->isAllowed()
                 ) {
                     $entity = $workingCopy;
                 }
@@ -274,7 +278,7 @@ final class SsrPageHandler
             // into the cache variant below so the two representations never share a
             // cache entry.
             $mediaType = $this->negotiateMediaType($httpRequest);
-            $relationshipContext = $this->buildRelationshipRenderContext($entity, $account);
+            $relationshipContext = $this->buildRelationshipRenderContext($entity, $authorizationAccount);
             $renderContext = $relationshipContext;
             $renderContext['workflow_visibility'] = $visibilityResolver->buildRenderContext($entity, $previewRequested);
             $cacheVariantLangcode = $this->buildSsrCacheVariantLangcode(
@@ -330,7 +334,7 @@ final class SsrPageHandler
             // a Forbidden label field, falls back to the entity type id — never
             // the raw label — while a genuinely public/unrestricted label still
             // renders for real (see EntityAccessHandler::viewableLabel()).
-            $viewableLabel = $this->accessHandler?->viewableLabel($entity, $account, $this->entityTypeManager);
+            $viewableLabel = $this->accessHandler?->viewableLabel($entity, $authorizationAccount, $this->entityTypeManager);
             $safeTitle = ($viewableLabel !== null && $viewableLabel !== '') ? $viewableLabel : $entityTypeId;
 
             $twigEntityContext = $renderContext;
@@ -341,8 +345,8 @@ final class SsrPageHandler
             $twigEntityContext['schema_org_jsonld'] = $this->buildSchemaOrgScript($entity, $normalizedPath, $safeTitle);
 
             $response = $mediaType === MediaTypeAcceptNegotiator::MARKDOWN
-                ? $this->renderEntityMarkdown($entity, $viewMode, $viewModeConfig, $normalizedPath, $account)
-                : $this->renderEntityHtml($entity, $viewMode, $entityRenderer, $twig, $twigEntityContext, $account);
+                ? $this->renderEntityMarkdown($entity, $viewMode, $viewModeConfig, $normalizedPath, $authorizationAccount)
+                : $this->renderEntityHtml($entity, $viewMode, $entityRenderer, $twig, $twigEntityContext, $authorizationAccount);
             if (
                 !$account->isAuthenticated()
                 && !$previewRequested
@@ -421,6 +425,7 @@ final class SsrPageHandler
             request: $httpRequest,
             route: $routeObject,
             account: $account,
+            decisionAccount: $this->authorizationAccount($account),
             entityTypeManager: $this->entityTypeManager,
             twig: $twig,
             routeParams: $routeParams,
@@ -817,7 +822,10 @@ final class SsrPageHandler
             return false;
         }
 
-        return $this->accessHandler->check($endpoint, 'view', $account)->isAllowed();
+        $authorizationAccount = $this->authorizationAccount($account);
+
+        return $authorizationAccount !== null
+            && $this->accessHandler->check($endpoint, 'view', $authorizationAccount)->isAllowed();
     }
 
     public function getLanguageResolver(): LanguageResolver
@@ -1035,12 +1043,24 @@ final class SsrPageHandler
      * than risk leaking a draft (or a held/restricted entity) through a wiring
      * gap.
      */
+    /** @param AuthorizationPrincipalInterface $account */
     private function shouldDenyEntityRender(string $entityTypeId, EntityInterface $entity, AccountInterface $account): bool
     {
-        $authorizationAccount = $this->fieldReadScope?->current() ?? $account;
+        $authorizationAccount = $this->authorizationAccount($account);
 
         return $this->accessHandler === null
+            || $authorizationAccount === null
             || !$this->accessHandler->check($entity, 'view', $authorizationAccount)->isAllowed();
+    }
+
+    private function authorizationAccount(AccountInterface $account): ?AuthorizationPrincipalInterface
+    {
+        $principal = $this->fieldReadScope?->current();
+        if ($principal !== null) {
+            return (string) $principal->id() === (string) $account->id() ? $principal : null;
+        }
+
+        return $account instanceof AuthorizationPrincipalInterface ? $account : null;
     }
 
     /**
@@ -1067,6 +1087,7 @@ final class SsrPageHandler
      * is always applied — Markdown must never expose a field the HTML/JSON:API
      * representations would hide for the same account.
      */
+    /** @param AuthorizationPrincipalInterface $account */
     private function renderEntityMarkdown(
         EntityInterface $entity,
         ViewMode $viewMode,
@@ -1133,6 +1154,7 @@ final class SsrPageHandler
      *
      * @param array<string, mixed> $context
      */
+    /** @param AuthorizationPrincipalInterface $account */
     private function renderEntityHtml(
         EntityInterface $entity,
         ViewMode $viewMode,

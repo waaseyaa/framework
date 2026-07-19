@@ -17,15 +17,16 @@ use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldReadGuard;
-use Waaseyaa\Access\PolicySubjectViewInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityReadRuntime;
-use Waaseyaa\Entity\EntityStructure;
+use Waaseyaa\Entity\Exception\FieldReadDenied;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
 use Waaseyaa\Media\Http\Router\MediaDownloadRouter;
 use Waaseyaa\Media\Media;
+use Waaseyaa\Media\MediaAccessPolicy;
+use Waaseyaa\User\User;
 
 #[CoversClass(MediaDownloadRouter::class)]
 final class MediaDownloadRouterTest extends TestCase
@@ -39,14 +40,10 @@ final class MediaDownloadRouterTest extends TestCase
         mkdir($this->filesRoot, 0o755, true);
         file_put_contents($this->filesRoot . '/teaching.txt', 'AANIIN');
         $this->fieldReadScope = new AccountFieldReadScope();
+        $accessHandler = new EntityAccessHandler([new MediaAccessPolicy()]);
         EntityReadRuntime::installGuard(new FieldReadGuard(
             $this->fieldReadScope,
-            static fn(
-                AuthorizationPrincipalInterface $principal,
-                EntityStructure $structure,
-                PolicySubjectViewInterface $subject,
-                string $field,
-            ): AccessResult => AccessResult::allowed(),
+            $accessHandler->checkProtectedFieldRead(...),
         ));
     }
 
@@ -68,6 +65,39 @@ final class MediaDownloadRouterTest extends TestCase
         self::assertSame('AANIIN', $this->capture($response));
         self::assertSame('text/plain', $response->headers->get('Content-Type'));
         self::assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
+    }
+
+    #[Test]
+    public function gated_document_uses_the_immutable_principal_for_member_and_administrator_access(): void
+    {
+        $router = $this->routerWithPolicy('public://teaching.txt', new MediaAccessPolicy());
+
+        $member = new User([
+            'uid' => 7,
+            'name' => 'Band Member',
+            'mail' => 'member@example.test',
+            'roles' => ['band_member'],
+            'permissions' => ['access media'],
+            'status' => 1,
+        ]);
+        $memberPrincipal = new AuthorizationPrincipal(7, true, ['band_member'], ['access media'], 'member-v1');
+        self::assertSame(200, $router->handle($this->requestFor($member, $memberPrincipal))->getStatusCode());
+        $this->assertUserIdentityFieldsRemainSealed($member);
+
+        $administrator = new User([
+            'uid' => 8,
+            'name' => 'Administrator',
+            'mail' => 'admin@example.test',
+            'roles' => ['administrator'],
+            'permissions' => [],
+            'status' => 1,
+        ]);
+        $administratorPrincipal = new AuthorizationPrincipal(8, true, ['administrator'], [], 'admin-v1');
+        self::assertSame(200, $router->handle($this->requestFor($administrator, $administratorPrincipal))->getStatusCode());
+        $this->assertUserIdentityFieldsRemainSealed($administrator);
+
+        $anonymous = new AuthorizationPrincipal(0, false, [], [], 'anonymous-v1');
+        self::assertSame(404, $router->handle($this->requestFor($anonymous, $anonymous))->getStatusCode());
     }
 
     #[Test]
@@ -95,18 +125,6 @@ final class MediaDownloadRouterTest extends TestCase
 
     private function router(string $sourceUri, int $allowedAccountId): MediaDownloadRouter
     {
-        $media = new Media([
-            'mid' => 10,
-            'bundle' => 'document',
-            'source_uri' => $sourceUri,
-            'filename' => 'teaching.txt',
-            'mime_type' => 'text/plain',
-        ]);
-        $storage = $this->createStub(EntityStorageInterface::class);
-        $storage->method('load')->willReturn($media);
-        $manager = $this->createStub(EntityTypeManagerInterface::class);
-        $manager->method('getRepository')->with('media')->willReturn(new StorageBackedStubRepository($storage));
-
         $policy = new class ($allowedAccountId) implements AccessPolicyInterface {
             public function __construct(private readonly int $allowedAccountId) {}
             public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
@@ -124,6 +142,25 @@ final class MediaDownloadRouterTest extends TestCase
                 return $entityTypeId === 'media';
             }
         };
+
+        return $this->routerWithPolicy($sourceUri, $policy);
+    }
+
+    private function routerWithPolicy(string $sourceUri, AccessPolicyInterface $policy): MediaDownloadRouter
+    {
+        $media = new Media([
+            'mid' => 10,
+            'bundle' => 'document',
+            'source_uri' => $sourceUri,
+            'filename' => 'teaching.txt',
+            'mime_type' => 'text/plain',
+            'status' => 1,
+            'uid' => 99,
+        ]);
+        $storage = $this->createStub(EntityStorageInterface::class);
+        $storage->method('load')->willReturn($media);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
+        $manager->method('getRepository')->with('media')->willReturn(new StorageBackedStubRepository($storage));
 
         return new MediaDownloadRouter($manager, new EntityAccessHandler([$policy]), $this->filesRoot, $this->fieldReadScope);
     }
@@ -144,11 +181,33 @@ final class MediaDownloadRouterTest extends TestCase
             $account->id(),
             $account->isAuthenticated(),
             $account->getRoles(),
-            [],
+            ['access media'],
             'media-download-test',
         ));
 
         return $request;
+    }
+
+    private function requestFor(AccountInterface $account, AuthorizationPrincipalInterface $principal): Request
+    {
+        $request = Request::create('/media/10/download');
+        $request->attributes->set('id', '10');
+        $request->attributes->set('_account', $account);
+        $request->attributes->set('_authorization_principal', $principal);
+
+        return $request;
+    }
+
+    private function assertUserIdentityFieldsRemainSealed(User $user): void
+    {
+        foreach (['mail', 'roles'] as $field) {
+            try {
+                $user->get($field);
+                self::fail("User.{$field} became readable outside an authorized field-read capability.");
+            } catch (FieldReadDenied) {
+                self::addToAssertionCount(1);
+            }
+        }
     }
 
     private function capture(StreamedResponse $response): string

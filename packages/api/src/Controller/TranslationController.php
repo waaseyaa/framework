@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Waaseyaa\Api\Controller;
 
 use Symfony\Component\HttpFoundation\Request;
-use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
+use Waaseyaa\Access\DecisionAccountResolver;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Exception\JsonApiDocumentException;
 use Waaseyaa\Api\JsonApiDocument;
@@ -59,8 +60,8 @@ final class TranslationController
         // handler) into serialize() so the per-account field filter runs on the
         // response. checkAccess() already denied a null account, so this is
         // non-null in the happy path; the guard fails closed defensively.
-        $account = $request->attributes->get('_account');
-        if (!$account instanceof AccountInterface) {
+        $account = $this->decisionAccount($request);
+        if ($account === null) {
             return $this->forbiddenDocument();
         }
 
@@ -106,8 +107,8 @@ final class TranslationController
         // Same account checkAccess() just authorized — thread it (with the
         // handler) into serialize() so the per-account field filter runs on the
         // response.
-        $account = $request->attributes->get('_account');
-        if (!$account instanceof AccountInterface) {
+        $account = $this->decisionAccount($request);
+        if ($account === null) {
             return $this->forbiddenDocument();
         }
 
@@ -155,8 +156,8 @@ final class TranslationController
         // Same account checkAccess() just authorized — used both for the
         // field-level edit gate below and for the per-account field filter on
         // the serialized response.
-        $account = $request->attributes->get('_account');
-        if (!$account instanceof AccountInterface) {
+        $account = $this->decisionAccount($request);
+        if ($account === null) {
             return $this->forbiddenDocument();
         }
 
@@ -242,8 +243,8 @@ final class TranslationController
         // Same account checkAccess() just authorized — used both for the
         // field-level edit gate below and for the per-account field filter on
         // the serialized response.
-        $account = $request->attributes->get('_account');
-        if (!$account instanceof AccountInterface) {
+        $account = $this->decisionAccount($request);
+        if ($account === null) {
             return $this->forbiddenDocument();
         }
 
@@ -350,8 +351,7 @@ final class TranslationController
         EntityInterface&TranslatableInterface $entity,
         string $operation,
     ): ?JsonApiDocument {
-        /** @var AccountInterface|null $account */
-        $account = $request->attributes->get('_account');
+        $account = $this->decisionAccount($request);
 
         // If no account is set on the request, SessionMiddleware did not run or
         // the session pipeline is misconfigured. Treat as anonymous-denied.
@@ -368,6 +368,14 @@ final class TranslationController
         }
 
         return null;
+    }
+
+    private function decisionAccount(Request $request): ?AuthorizationPrincipalInterface
+    {
+        return DecisionAccountResolver::resolve(
+            $request->attributes->get('_authorization_principal'),
+            $request->attributes->get('_account'),
+        );
     }
 
     /**

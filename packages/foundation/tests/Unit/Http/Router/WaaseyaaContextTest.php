@@ -8,7 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
-use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\Http\Router\WaaseyaaContext;
@@ -19,7 +19,7 @@ final class WaaseyaaContextTest extends TestCase
     #[Test]
     public function from_request_extracts_all_attributes(): void
     {
-        $account = $this->createStub(AccountInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $broadcastStorage = new BroadcastStorage(DBALDatabase::createSqlite());
 
         $request = Request::create('/test', 'POST');
@@ -40,7 +40,7 @@ final class WaaseyaaContextTest extends TestCase
     #[Test]
     public function from_request_handles_null_parsed_body(): void
     {
-        $account = $this->createStub(AccountInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $broadcastStorage = new BroadcastStorage(DBALDatabase::createSqlite());
 
         $request = Request::create('/test', 'GET');

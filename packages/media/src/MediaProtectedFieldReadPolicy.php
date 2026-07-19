@@ -10,7 +10,7 @@ use Waaseyaa\Access\PolicySubjectViewInterface;
 use Waaseyaa\Access\ProtectedFieldReadPolicyInterface;
 use Waaseyaa\Entity\EntityStructure;
 
-/** Closed owner/admin policy for protected Media fields. @internal */
+/** Closed owner/admin and authorized-download policy for protected Media fields. @internal */
 final class MediaProtectedFieldReadPolicy implements ProtectedFieldReadPolicyInterface
 {
     public function access(
@@ -24,6 +24,9 @@ final class MediaProtectedFieldReadPolicy implements ProtectedFieldReadPolicyInt
         }
         if ($principal->hasPermission('administer media')) {
             return AccessResult::allowed('Media administrators may read protected media fields.');
+        }
+        if ($fieldName === 'source_uri' && $principal->hasPermission('access media')) {
+            return AccessResult::allowed('Authorized media viewers may resolve the protected download source.');
         }
         $ownerId = in_array('uid', $subject->fields(), true) ? $subject->get('uid') : null;
 

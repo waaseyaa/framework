@@ -106,6 +106,7 @@ final class RenderController
      * which passes the same account both ways).
      *
      * @param array<string, mixed> $context
+     * @param \Waaseyaa\Access\AuthorizationPrincipalInterface|null $account
      */
     public function renderEntity(EntityInterface $entity, ViewMode|string $viewMode = 'full', array $context = [], ?AccountInterface $account = null): Response
     {

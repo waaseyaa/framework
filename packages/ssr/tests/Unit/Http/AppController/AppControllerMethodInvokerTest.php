@@ -154,6 +154,7 @@ final class AppControllerMethodInvokerTest extends TestCase
             request: Request::create('/fixture'),
             route: $route,
             account: new AnonymousUser(),
+            decisionAccount: new AnonymousUser(),
             entityTypeManager: $manager,
             twig: new Environment(new ArrayLoader([])),
             routeParams: $routeParams,

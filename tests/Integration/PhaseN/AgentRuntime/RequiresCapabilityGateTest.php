@@ -13,6 +13,8 @@ use Symfony\Component\Messenger\Handler\HandlersLocator;
 use Symfony\Component\Messenger\MessageBus;
 use Symfony\Component\Messenger\Middleware\HandleMessageMiddleware;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\AI\Agent\Account\InitiatorAccountLoaderInterface;
 use Waaseyaa\AI\Agent\AgentDefinitionRegistry;
 use Waaseyaa\AI\Agent\AgentExecutor;
@@ -452,85 +454,25 @@ final class R18ToolUseProvider implements ProviderInterface
  */
 final class CapabilityTestAccountLoader implements InitiatorAccountLoaderInterface
 {
-    public function load(int|string $accountId): AccountInterface
+    public function load(int|string $accountId): AuthorizationPrincipalInterface
     {
         if ($accountId === RequiresCapabilityGateTest::ACCOUNT_HAS_PERMISSION) {
-            return new class implements AccountInterface {
-                public function id(): int|string
-                {
-                    return RequiresCapabilityGateTest::ACCOUNT_HAS_PERMISSION;
-                }
-
-                public function hasPermission(string $permission): bool
-                {
-                    return $permission === RequiresCapabilityGateTest::CAPABILITY;
-                }
-
-                public function getRoles(): array
-                {
-                    return ['authenticated'];
-                }
-
-                public function isAuthenticated(): bool
-                {
-                    return true;
-                }
-            };
+            return new AuthorizationPrincipal(
+                RequiresCapabilityGateTest::ACCOUNT_HAS_PERMISSION,
+                true,
+                ['authenticated'],
+                [RequiresCapabilityGateTest::CAPABILITY],
+                'test-capable',
+            );
         }
 
         if ($accountId === RequiresCapabilityGateTest::ACCOUNT_ANONYMOUS) {
-            return new class implements AccountInterface {
-                public function id(): int|string
-                {
-                    return 0;
-                }
-
-                public function hasPermission(string $permission): bool
-                {
-                    unset($permission);
-
-                    return false;
-                }
-
-                public function getRoles(): array
-                {
-                    return ['anonymous'];
-                }
-
-                public function isAuthenticated(): bool
-                {
-                    return false;
-                }
-            };
+            return new AuthorizationPrincipal(0, false, ['anonymous'], [], 'test-anonymous');
         }
 
         // ACCOUNT_NO_PERMISSION and any other id: authenticated but with no
         // permissions — mirrors StubInitiatorAccountLoader.
-        return new class ($accountId) implements AccountInterface {
-            public function __construct(private readonly int|string $accountId) {}
-
-            public function id(): int|string
-            {
-                return $this->accountId;
-            }
-
-            public function hasPermission(string $permission): bool
-            {
-                unset($permission);
-
-                return false;
-            }
-
-            public function getRoles(): array
-            {
-                return ['authenticated'];
-            }
-
-            public function isAuthenticated(): bool
-            {
-                return true;
-            }
-        };
+        return new AuthorizationPrincipal($accountId, true, ['authenticated'], [], 'test-' . (string) $accountId);
     }
 }
 

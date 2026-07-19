@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Access\Gate;
 
-use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -34,9 +34,9 @@ final class EntityAccessGate implements GateInterface
 
     public function allows(string $ability, mixed $subject, ?object $user = null): bool
     {
-        if (!$user instanceof AccountInterface) {
+        if (!$user instanceof AuthorizationPrincipalInterface) {
             $this->logger->warning(sprintf(
-                'EntityAccessGate: expected AccountInterface, got %s for ability "%s".',
+                'EntityAccessGate: expected AuthorizationPrincipalInterface, got %s for ability "%s".',
                 get_debug_type($user),
                 $ability,
             ));

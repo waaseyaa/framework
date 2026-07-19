@@ -17,6 +17,7 @@ use Waaseyaa\Entity\EntityInterface;
  */
 final class GraphQlAccessGuard
 {
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     public function __construct(
         private readonly EntityAccessHandler $handler,
         private readonly AccountInterface $account,

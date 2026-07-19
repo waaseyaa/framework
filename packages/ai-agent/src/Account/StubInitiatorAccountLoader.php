@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Agent\Account;
 
-use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 
 /**
  * Default {@see InitiatorAccountLoaderInterface} implementation: returns
@@ -18,30 +19,8 @@ use Waaseyaa\Access\AccountInterface;
  */
 final class StubInitiatorAccountLoader implements InitiatorAccountLoaderInterface
 {
-    public function load(int|string $accountId): AccountInterface
+    public function load(int|string $accountId): AuthorizationPrincipalInterface
     {
-        return new class ($accountId) implements AccountInterface {
-            public function __construct(private readonly int|string $accountId) {}
-
-            public function id(): int|string
-            {
-                return $this->accountId;
-            }
-
-            public function hasPermission(string $permission): bool
-            {
-                return false;
-            }
-
-            public function getRoles(): array
-            {
-                return ['authenticated'];
-            }
-
-            public function isAuthenticated(): bool
-            {
-                return true;
-            }
-        };
+        return new AuthorizationPrincipal($accountId, true, ['authenticated'], [], 'stub-initiator');
     }
 }

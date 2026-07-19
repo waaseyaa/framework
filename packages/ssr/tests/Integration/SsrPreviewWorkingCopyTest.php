@@ -11,6 +11,8 @@ use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Twig\Environment;
 use Twig\Loader\ArrayLoader;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Access\Context\RequestAccountContext;
 use Waaseyaa\Access\EntityAccessHandler;
@@ -37,6 +39,7 @@ use Waaseyaa\Node\NodeServiceProvider;
 use Waaseyaa\Node\NodeType;
 use Waaseyaa\Routing\CacheConfigResolver;
 use Waaseyaa\SSR\SsrPageHandler;
+use Waaseyaa\Tests\Support\ProtectedFieldRead;
 use Waaseyaa\SSR\SsrServiceProvider;
 use Waaseyaa\User\AnonymousUser;
 use Waaseyaa\Workflows\DefaultWorkflows;
@@ -132,9 +135,13 @@ final class SsrPreviewWorkingCopyTest extends TestCase
 
         // The editor holds 'administer nodes' (EditorialVisibilityResolver's
         // preview-branch admin bypass) — a genuinely authorized preview.
-        $result = $handler->handleRenderPage($path, $editor, HttpRequest::create($previewPath));
+        $result = ProtectedFieldRead::run(
+            [new NodeAccessPolicy(), new PublishedContentAccessPolicy($entityTypeManager)],
+            $editor,
+            fn(): array => $handler->handleRenderPage($path, $editor, HttpRequest::create($previewPath)),
+        );
 
-        self::assertSame(200, $result['status']);
+        self::assertSame(200, $result['status'], json_encode($result, JSON_THROW_ON_ERROR));
         self::assertStringContainsString('Draft title', (string) $result['content'], 'An authorized preview request must render the WORKING COPY.');
     }
 
@@ -163,15 +170,9 @@ final class SsrPreviewWorkingCopyTest extends TestCase
     /**
      * @param list<string> $permissions
      */
-    private function account(int $id, array $permissions): AccountInterface
+    private function account(int $id, array $permissions): AuthorizationPrincipalInterface
     {
-        return new class ($id, $permissions) implements AccountInterface {
-            public function __construct(private readonly int $accountId, private readonly array $permissions) {}
-            public function id(): int|string { return $this->accountId; }
-            public function hasPermission(string $permission): bool { return \in_array($permission, $this->permissions, true); }
-            public function getRoles(): array { return []; }
-            public function isAuthenticated(): bool { return true; }
-        };
+        return new AuthorizationPrincipal($id, true, [], $permissions, 'test-' . $id);
     }
 
     /**

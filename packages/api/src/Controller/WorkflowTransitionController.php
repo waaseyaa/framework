@@ -7,6 +7,8 @@ namespace Waaseyaa\Api\Controller;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
+use Waaseyaa\Access\DecisionAccountResolver;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Http\JsonApiResponse;
 use Waaseyaa\Api\JsonApiError;
@@ -54,8 +56,8 @@ final class WorkflowTransitionController
      */
     public function transitions(Request $request, string $entityType, string $id): Response
     {
-        $account = $request->attributes->get('_account');
-        if (!$account instanceof AccountInterface) {
+        $account = $this->decisionAccount($request);
+        if ($account === null) {
             return $this->unauthenticated();
         }
 
@@ -121,8 +123,8 @@ final class WorkflowTransitionController
      */
     public function transition(Request $request, string $entityType, string $id): Response
     {
-        $account = $request->attributes->get('_account');
-        if (!$account instanceof AccountInterface) {
+        $account = $this->decisionAccount($request);
+        if ($account === null) {
             return $this->unauthenticated();
         }
 
@@ -193,6 +195,7 @@ final class WorkflowTransitionController
      * Fails CLOSED when no access handler is wired: these are
      * workflow-state-revealing surfaces, not generic reads.
      */
+    /** @param AuthorizationPrincipalInterface $account */
     private function loadViewableEntity(string $entityTypeId, string $id, AccountInterface $account): ?EntityInterface
     {
         if (!$this->entityTypeManager->hasDefinition($entityTypeId)) {
@@ -236,6 +239,14 @@ final class WorkflowTransitionController
     {
         return $this->errorResponse(
             JsonApiError::notFound("Entity of type '{$entityTypeId}' with ID '{$id}' not found."),
+        );
+    }
+
+    private function decisionAccount(Request $request): ?AuthorizationPrincipalInterface
+    {
+        return DecisionAccountResolver::resolve(
+            $request->attributes->get('_authorization_principal'),
+            $request->attributes->get('_account'),
         );
     }
 

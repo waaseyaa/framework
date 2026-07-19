@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\AgentToolInterface;
@@ -38,7 +39,7 @@ final class McpEndpointDispatchEventTest extends TestCase
     protected function setUp(): void
     {
         $this->auth = $this->createMock(McpAuthInterface::class);
-        $this->account = $this->createMock(AccountInterface::class);
+        $this->account = $this->createMock(AuthorizationPrincipalInterface::class);
         $this->account->method('id')->willReturn(7);
         $this->account->method('hasPermission')->willReturn(true);
     }
@@ -66,7 +67,7 @@ final class McpEndpointDispatchEventTest extends TestCase
     #[Test]
     public function dispatchEventPreservesOpaqueStringAccountId(): void
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createMock(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn('acct-anishinaabe-7');
         $account->method('hasPermission')->willReturn(true);
         $this->auth->method('authenticate')->willReturn($account);

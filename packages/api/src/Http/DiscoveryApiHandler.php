@@ -165,6 +165,7 @@ final class DiscoveryApiHandler
         return $this->discoveryCachePrimitives()->buildTags($payload);
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface|null $account */
     public function isDiscoveryEndpointPairPublic(
         string $fromType,
         string $fromId,
@@ -215,6 +216,7 @@ final class DiscoveryApiHandler
      * published-but-access-restricted entity must not be discoverable just
      * because it is published.
      */
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface|null $account */
     public function isDiscoveryEntityPublic(EntityInterface $entity, ?AccountInterface $account = null): bool
     {
         if (!new WorkflowVisibility()->isEntityPublic($entity->getEntityTypeId(), EntityValues::toCastAwareMap($entity))) {
@@ -228,6 +230,7 @@ final class DiscoveryApiHandler
         return $this->accessHandler->check($entity, 'view', $account)->isAllowed();
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     public function createDiscoveryService(AccountInterface $account): RelationshipDiscoveryService
     {
         return new RelationshipDiscoveryService(

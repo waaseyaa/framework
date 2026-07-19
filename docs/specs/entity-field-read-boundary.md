@@ -1,5 +1,7 @@
 # Entity Field-Read Boundary
 
+<!-- Spec reviewed 2026-07-19 - #2064 alpha.269 closes the post-activation mutable-account convergence class: request composition passes the validated immutable principal to every entity/field access decision; EntityAccessHandler and policy PHPDoc narrow decision accounts to AuthorizationPrincipalInterface under PHPStan; and EntityAccessHandler centrally rejects a live entity-backed account before any policy can call hasPermission()/getRoles(). An architecture test pins the static and runtime gates. This does not unseal a field or create a missing-context fallback. -->
+
 **Status:** WP4 activated: sealed entity reads, persistence gateways, production preflight, and payload boundaries are enforced without compatibility shims.
 **Anchor:** GitHub #2064, with approved Design Revision 6 controlling.
 
@@ -571,7 +573,9 @@ Protected.
 `MediaDownloadRouter` requires the request's immutable authorization principal
 to match its account and runs policy evaluation plus the Protected `source_uri`
 read inside the kernel-shared account scope. Direct dispatch without that
-principal fails closed; response MIME type and filename are derived from the
+principal fails closed. `MediaProtectedFieldReadPolicy` releases `source_uri`
+to an immutable principal holding the same `access media` capability that
+admits published media view, while `uid` remains owner/admin-only; response MIME type and filename are derived from the
 resolved contained file, so the download path does not acquire authority for
 unclassified metadata fields.
 Media ownership remains Protected: `uid` is the exact compiled authorization

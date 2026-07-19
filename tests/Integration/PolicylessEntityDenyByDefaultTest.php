@@ -8,6 +8,8 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\ResourceSerializer;
@@ -16,7 +18,6 @@ use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\User\AnonymousUser;
-use Waaseyaa\User\User;
 
 /**
  * Defense-in-depth pin for the deny-by-default contract on POLICY-LESS entity
@@ -98,7 +99,7 @@ final class PolicylessEntityDenyByDefaultTest extends TestCase
     {
         // No policy grants view to ANYONE; deny-by-default means an ordinary
         // authenticated account is denied too (only an explicit Allow grants).
-        $account = new User(['uid' => 7, 'name' => 'someone', 'roles' => ['authenticated']]);
+        $account = new AuthorizationPrincipal(7, true, ['authenticated'], [], 'policyless-test-v1');
 
         $index = $this->buildController($account)->index('widget');
         self::assertCount(0, $index->toArray()['data']);
@@ -126,7 +127,7 @@ final class PolicylessEntityDenyByDefaultTest extends TestCase
         self::assertCount(2, $doc->toArray()['data'], 'The account-less system construction is intentionally unfiltered (accessCheck(false)).');
     }
 
-    private function buildController(User|AnonymousUser $account): JsonApiController
+    private function buildController(AccountInterface $account): JsonApiController
     {
         return new JsonApiController(
             $this->entityTypeManager,

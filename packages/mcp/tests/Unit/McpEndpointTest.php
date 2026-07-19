@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\AgentToolInterface;
 use Waaseyaa\AI\Tools\AgentToolResult;
@@ -30,7 +31,7 @@ final class McpEndpointTest extends TestCase
     protected function setUp(): void
     {
         $this->auth = $this->createMock(McpAuthInterface::class);
-        $this->account = $this->createMock(AccountInterface::class);
+        $this->account = $this->createMock(AuthorizationPrincipalInterface::class);
         $this->account->method('id')->willReturn(1);
         $this->account->method('hasPermission')->willReturn(true);
         $this->tools = [];

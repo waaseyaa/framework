@@ -6,7 +6,7 @@ namespace Waaseyaa\Api\Controller;
 
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\DecisionAccountResolver;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Http\JsonApiResponse;
 use Waaseyaa\Api\Sanitizer\RichTextSanitizer;
@@ -119,9 +119,12 @@ final class FieldAutoSaveController
             );
         }
 
-        // 6. Account from request (set by SessionMiddleware as '_account').
-        $account = $request->attributes->get('_account');
-        if (!$account instanceof AccountInterface) {
+        // 6. Immutable principal from the authorization middleware.
+        $account = DecisionAccountResolver::resolve(
+            $request->attributes->get('_authorization_principal'),
+            $request->attributes->get('_account'),
+        );
+        if ($account === null) {
             return $this->error(401, 'unauthenticated', 'Authentication required');
         }
 

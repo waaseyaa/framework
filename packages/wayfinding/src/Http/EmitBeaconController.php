@@ -59,7 +59,7 @@ final class EmitBeaconController
 
         // Defence-in-depth: the route is gated (authenticated + capability), but a
         // direct dispatch must still fail closed without the capability.
-        if (!$ctx->account->hasPermission(self::CAPABILITY)) {
+        if (!$ctx->principal->hasPermission(self::CAPABILITY)) {
             return $this->error(403, 'Forbidden', sprintf('The "%s" capability is required to emit beacons.', self::CAPABILITY));
         }
 
@@ -105,7 +105,7 @@ final class EmitBeaconController
             'anchor_id' => $anchorId,
             'content' => $content,
             'order' => $order,
-            'emitted_by' => $ctx->account->id(),
+            'emitted_by' => $ctx->principal->id(),
         ];
 
         // Retain the beacon (keyed by anchor) so it is replayed to the target

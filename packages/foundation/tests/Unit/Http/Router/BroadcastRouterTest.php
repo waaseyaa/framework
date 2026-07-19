@@ -67,7 +67,7 @@ final class BroadcastRouterTest extends TestCase
         $db = \Waaseyaa\Database\DBALDatabase::createSqlite();
         $broadcastStorage = new \Waaseyaa\Api\Controller\BroadcastStorage($db);
 
-        $account = $this->createStub(\Waaseyaa\Access\AccountInterface::class);
+        $account = $this->createStub(\Waaseyaa\Access\AuthorizationPrincipalInterface::class);
         $account->method('isAuthenticated')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);
         $account->method('hasPermission')->willReturn(false);
@@ -118,7 +118,7 @@ final class BroadcastRouterTest extends TestCase
     {
         // Use an admin-role account so the existing streaming tests continue to
         // exercise the `admin` channel after the per-channel ACL was introduced.
-        $account = $this->createStub(\Waaseyaa\Access\AccountInterface::class);
+        $account = $this->createStub(\Waaseyaa\Access\AuthorizationPrincipalInterface::class);
         $account->method('isAuthenticated')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);
         $account->method('hasPermission')->willReturn(false);

@@ -18,6 +18,7 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\Policy\PublishedContentStatusReader;
 use Waaseyaa\AI\Vector\SearchController;
@@ -354,7 +355,7 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
     }
 }
 
-final class BaselineAnonymousAccount implements AccountInterface
+final class BaselineAnonymousAccount implements AuthorizationPrincipalInterface
 {
     public function id(): int|string
     {
@@ -371,6 +372,18 @@ final class BaselineAnonymousAccount implements AccountInterface
     public function isAuthenticated(): bool
     {
         return false;
+    }
+    public function claimsGeneration(): string
+    {
+        return 'test-anonymous';
+    }
+    public function tenantId(): ?string
+    {
+        return null;
+    }
+    public function communityId(): ?string
+    {
+        return null;
     }
 }
 

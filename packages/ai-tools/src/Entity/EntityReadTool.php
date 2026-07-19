@@ -51,6 +51,8 @@ final class EntityReadTool extends AbstractAgentTool
         ];
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
+
     public function execute(array $arguments, AccountInterface $account): AgentToolResult
     {
         $denied = $this->requireCapability('tool.entity.read', $account);
@@ -101,6 +103,8 @@ final class EntityReadTool extends AbstractAgentTool
         );
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
+
     public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
     {
         // Read-only — dryRun is the same as execute.
@@ -110,6 +114,7 @@ final class EntityReadTool extends AbstractAgentTool
     /**
      * @return array<string, mixed>
      */
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     private function serialize(EntityInterface $entity, AccountInterface $account): array
     {
         $data = [
@@ -131,7 +136,7 @@ final class EntityReadTool extends AbstractAgentTool
         if ($entity instanceof EntityBase) {
             $names = EntityFieldRedaction::ordinaryFieldNames($this->entityTypeManager, $entity);
             $allowed = $this->applyFieldAccessFilter($entity, array_fill_keys($names, true), $account);
-            $values = EntityValues::toCastAwareMap($entity, array_keys($allowed));
+            $values = EntityValues::toCastAwareMap($entity, array_values(array_filter(array_keys($allowed), is_string(...))));
         } else {
             $values = [];
             if (method_exists($entity, 'getValues')) {
@@ -159,6 +164,7 @@ final class EntityReadTool extends AbstractAgentTool
      * @param array<string, mixed> $values
      * @return array<string, mixed>
      */
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     private function filterReadableValues(EntityInterface $entity, array $values, AccountInterface $account): array
     {
         $values = EntityFieldRedaction::stripInternal($this->entityTypeManager, $entity, $values);

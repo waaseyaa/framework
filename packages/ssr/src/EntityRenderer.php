@@ -72,6 +72,7 @@ final class EntityRenderer
      *   template_suggestions: list<string>,
      *   fields: array<string, array{raw: mixed, formatted: string, type: string}>
      * }
+     * @param \Waaseyaa\Access\AuthorizationPrincipalInterface|null $account
      */
     public function render(EntityInterface $entity, ViewMode|string $viewMode = 'full', ?AccountInterface $account = null): array
     {
@@ -108,7 +109,7 @@ final class EntityRenderer
                     if (!$entity instanceof EntityBase || $entity->fieldReadLevel($fieldName) === \Waaseyaa\Entity\FieldReadLevel::Public) {
                         return true;
                     }
-                    if (!$account instanceof AuthorizationPrincipalInterface || $this->accessHandler === null) {
+                    if (!$this->isAuthorizationPrincipal($account) || $this->accessHandler === null) {
                         return false;
                     }
 
@@ -183,6 +184,11 @@ final class EntityRenderer
         $suggestions[] = 'entity.html.twig';
 
         return array_values(array_unique($suggestions));
+    }
+
+    private function isAuthorizationPrincipal(AccountInterface $account): bool
+    {
+        return $account instanceof AuthorizationPrincipalInterface;
     }
 
     /**

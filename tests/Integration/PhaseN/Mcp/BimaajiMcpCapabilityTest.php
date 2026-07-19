@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\AgentToolInterface;
 use Waaseyaa\AI\Tools\AgentToolResult;
@@ -151,30 +152,7 @@ final class BimaajiMcpCapabilityTest extends TestCase
      */
     private function accountWith(array $permissions): AccountInterface
     {
-        return new class ($permissions) implements AccountInterface {
-            /** @param list<string> $permissions */
-            public function __construct(private readonly array $permissions) {}
-
-            public function id(): int
-            {
-                return 7;
-            }
-
-            public function hasPermission(string $permission): bool
-            {
-                return in_array($permission, $this->permissions, true);
-            }
-
-            public function getRoles(): array
-            {
-                return [];
-            }
-
-            public function isAuthenticated(): bool
-            {
-                return true;
-            }
-        };
+        return new AuthorizationPrincipal(7, true, [], $permissions, 'test');
     }
 
     private function stubRegistry(): AgentToolRegistryInterface

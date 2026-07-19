@@ -62,7 +62,7 @@ final class EntityTypeLifecycleRouterTest extends TestCase
     public function handle_entity_types_returns_list(): void
     {
         $router = $this->createRouter();
-        $account = $this->createStub(\Waaseyaa\Access\AccountInterface::class);
+        $account = $this->createStub(\Waaseyaa\Access\AuthorizationPrincipalInterface::class);
         $broadcastStorage = new \Waaseyaa\Api\Controller\BroadcastStorage(\Waaseyaa\Database\DBALDatabase::createSqlite());
         $request = Request::create('/api/entity-types');
         $request->attributes->set('_controller', 'entity_types');

@@ -21,6 +21,38 @@ use PHPUnit\Framework\TestCase;
 final class FieldReadBoundaryArchitectureTest extends TestCase
 {
     #[Test]
+    public function entity_access_decision_entry_points_reject_mutable_entity_accounts(): void
+    {
+        foreach (['check', 'checkCreateAccess', 'checkFieldAccess', 'filterFields', 'viewableLabel'] as $methodName) {
+            $method = new \ReflectionMethod(\Waaseyaa\Access\EntityAccessHandler::class, $methodName);
+            self::assertStringContainsString(
+                'AuthorizationPrincipalInterface $account',
+                $method->getDocComment() ?: '',
+                "{$methodName} must be statically narrowed to an immutable principal for PHPStan callers.",
+            );
+            $source = file(\dirname(__DIR__, 2) . '/packages/access/src/EntityAccessHandler.php');
+            self::assertIsArray($source);
+            $body = implode('', array_slice($source, $method->getStartLine() - 1, $method->getEndLine() - $method->getStartLine() + 1));
+
+            self::assertStringContainsString(
+                '$this->assertImmutableDecisionAccount($account);',
+                $body,
+                "{$methodName} must reject a live User/entity before dispatching any access policy.",
+            );
+        }
+
+        $guard = new \ReflectionMethod(\Waaseyaa\Access\EntityAccessHandler::class, 'assertImmutableDecisionAccount');
+        self::assertTrue($guard->isPrivate());
+        self::assertSame(\Waaseyaa\Access\AccountInterface::class, (string) $guard->getParameters()[0]->getType());
+
+        $handler = new \Waaseyaa\Access\EntityAccessHandler();
+        $liveUser = new \Waaseyaa\User\User(['uid' => 77, 'name' => 'Mutable account']);
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('Access decisions require an immutable AuthorizationPrincipal');
+        $handler->checkCreateAccess('node', 'article', $liveUser);
+    }
+
+    #[Test]
     public function ast_inventory_resists_lexical_and_type_evasion(): void
     {
         $inventory = $this->astInventoryForSources([

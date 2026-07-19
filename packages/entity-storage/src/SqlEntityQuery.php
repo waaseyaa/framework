@@ -414,6 +414,7 @@ final class SqlEntityQuery implements EntityQueryInterface
      * no risk that the cardinality and the page diverge.
      *
      * @param array<int, int|string> $candidateIds
+     * @param AuthorizationPrincipalInterface $authorizationAccount
      * @return array<int, int|string>
      */
     private function filterCandidates(array $candidateIds, AccountInterface $authorizationAccount): array
@@ -1013,12 +1014,16 @@ final class SqlEntityQuery implements EntityQueryInterface
      * established for this execution scope. The scope never supplies authority
      * to an unbound query, and a different acting identity fails before SQL.
      */
-    private function authorizationAccount(): AccountInterface
+    private function authorizationAccount(): AuthorizationPrincipalInterface
     {
         $account = $this->account;
         \assert($account instanceof AccountInterface);
         $principal = $this->fieldReadScope?->current();
         if ($principal === null) {
+            if (!$account instanceof AuthorizationPrincipalInterface) {
+                throw QueryAccountPrincipalMismatchException::forBoundAccount();
+            }
+
             return $account;
         }
 

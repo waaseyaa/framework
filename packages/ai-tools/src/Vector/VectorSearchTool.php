@@ -60,6 +60,8 @@ final class VectorSearchTool extends AbstractAgentTool
         ];
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
+
     public function execute(array $arguments, AccountInterface $account): AgentToolResult
     {
         $denied = $this->requireCapability('tool.vector.search', $account);
@@ -123,6 +125,7 @@ final class VectorSearchTool extends AbstractAgentTool
      * @param array<int, mixed> $results
      * @return list<array<string, mixed>|object>
      */
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     private function applyAccessGate(array $results, AccountInterface $account): array
     {
         $enforced = $this->isAccessEnforced();
@@ -201,6 +204,8 @@ final class VectorSearchTool extends AbstractAgentTool
             return null;
         }
     }
+
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
 
     public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
     {

@@ -291,11 +291,13 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
         assert($scope instanceof AccountFieldReadScopeInterface);
         $principalFactory = $this->resolve(AccountPrincipalFactoryInterface::class);
         assert($principalFactory instanceof AccountPrincipalFactoryInterface);
+        $accountContext = $this->resolveOptional(AccountContextInterface::class);
 
         return [
             new FieldReadContextMiddleware(
                 $principalFactory,
                 $scope,
+                $accountContext instanceof AccountContextInterface ? $accountContext : null,
             ),
             new ApiRequestAuditListener($writer, $resolvedLogger),
         ];

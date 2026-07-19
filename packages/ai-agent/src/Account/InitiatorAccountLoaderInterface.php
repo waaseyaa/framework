@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Agent\Account;
 
-use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 
 /**
  * Resolve the {@see AccountInterface} that initiated an
@@ -33,5 +33,5 @@ interface InitiatorAccountLoaderInterface
      * so the worker can still record the failure path; throw only for
      * actual storage errors.
      */
-    public function load(int|string $accountId): AccountInterface;
+    public function load(int|string $accountId): AuthorizationPrincipalInterface;
 }

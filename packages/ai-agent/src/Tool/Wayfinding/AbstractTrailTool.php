@@ -59,6 +59,7 @@ abstract class AbstractTrailTool extends AbstractAgentTool
      * ownership is inherited from that row and does not vary per language, so
      * either row carries the correct `owner_uid` for the policy check.
      */
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     protected function requireTrailUpdateAccess(string $trailId, string $langcode, AccountInterface $account, string $toolName): ?AgentToolResult
     {
         $repository = $this->repository();

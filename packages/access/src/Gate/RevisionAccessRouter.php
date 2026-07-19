@@ -53,6 +53,7 @@ final class RevisionAccessRouter
      * INVARIANT: this method NEVER returns Forbidden without first consulting view().
      * Any code path that skips view() and returns Forbidden is a contract violation.
      */
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     public function route(
         RevisionableEntityInterface $entity,
         AccountInterface $account,

@@ -35,6 +35,7 @@ final class GenealogySsrController
      *
      * @param array<string, mixed> $params
      * @param array<string, mixed> $query
+     * @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account
      */
     public function landing(array $params, array $query, AccountInterface $account, Request $request): Response
     {
@@ -52,6 +53,7 @@ final class GenealogySsrController
     /**
      * @param array<string, mixed> $params
      * @param array<string, mixed> $query
+     * @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account
      */
     public function person(array $params, array $query, AccountInterface $account, Request $request): Response
     {
@@ -89,6 +91,7 @@ final class GenealogySsrController
     /**
      * @param array<string, mixed> $params
      * @param array<string, mixed> $query
+     * @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account
      */
     public function family(array $params, array $query, AccountInterface $account, Request $request): Response
     {
@@ -115,6 +118,7 @@ final class GenealogySsrController
     /**
      * @param array<string, mixed> $params
      * @param array<string, mixed> $query
+     * @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account
      */
     public function ancestorChart(array $params, array $query, AccountInterface $account, Request $request): Response
     {

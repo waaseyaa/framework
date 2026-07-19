@@ -27,6 +27,7 @@ final class SearchController
 
     private readonly LoggerInterface $logger;
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface|null $account */
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly ResourceSerializer $serializer,

@@ -23,6 +23,7 @@ use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
  */
 final class AgentToolRegistryBridge
 {
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     public function __construct(
         private readonly AgentToolRegistryInterface $registry,
         private readonly AccountInterface $account,

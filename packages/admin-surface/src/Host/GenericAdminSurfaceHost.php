@@ -6,6 +6,7 @@ namespace Waaseyaa\AdminSurface\Host;
 
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\DecisionAccountResolver;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AdminSurface\Action\SurfaceActionHandlerInterface;
 use Waaseyaa\AdminSurface\Catalog\CatalogBuilder;
@@ -45,6 +46,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
      */
     private const array ALWAYS_INTERNAL_FIELDS = ['pass', 'password', 'password_hash'];
 
+    /** @var \Waaseyaa\Access\AuthorizationPrincipalInterface|null */
     private ?AccountInterface $currentAccount = null;
 
     /** @var array<string, SurfaceActionHandlerInterface> */
@@ -67,25 +69,29 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
     public function resolveSession(Request $request): ?AdminSurfaceSessionData
     {
         $account = $request->attributes->get('_account');
+        $principal = DecisionAccountResolver::resolve(
+            $request->attributes->get('_authorization_principal'),
+            $account,
+        );
 
-        if (!$account instanceof AccountInterface) {
+        if (!$account instanceof AccountInterface || $principal === null) {
             return null;
         }
 
-        if (!$account->hasPermission($this->adminPermission)) {
+        if (!$principal->hasPermission($this->adminPermission)) {
             return null;
         }
 
-        $this->currentAccount = $account;
+        $this->currentAccount = $principal;
 
         return new AdminSurfaceSessionData(
-            accountId: (string) $account->id(),
+            accountId: (string) $principal->id(),
             accountName: 'Admin',
-            roles: $account->getRoles(),
+            roles: $principal->getRoles(),
             policies: [],
             tenantId: $this->tenantId,
             tenantName: $this->tenantName,
-            ui: $this->buildAdminUi($account),
+            ui: $this->buildAdminUi($principal),
         );
     }
 

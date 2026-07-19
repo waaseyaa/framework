@@ -26,7 +26,7 @@ interface ContextAwareAccessPolicyInterface
      *
      * @param EntityInterface  $entity    The entity being accessed.
      * @param string           $operation The operation: 'view', 'update', 'delete', or 'translate'.
-     * @param AccountInterface $account   The account requesting access.
+     * @param AuthorizationPrincipalInterface $account The immutable principal requesting access.
      * @param array<string, mixed> $context Extra context. For 'translate':
      *                                       ['langcode' => string].
      */

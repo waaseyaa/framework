@@ -8,6 +8,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\AccountPrincipalFactoryInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
@@ -109,7 +110,7 @@ final readonly class UserinfoController
             }
 
             // DIR-004: check field access using the token subject as the requesting account
-            if (!$this->isFieldAccessible($user, $fieldName)) {
+            if (!$this->isFieldAccessible($user, $fieldName, $principal)) {
                 // Forbidden — omit entirely, never emit null or ""
                 continue;
             }
@@ -138,9 +139,12 @@ final readonly class UserinfoController
      * Check whether a field on the User entity is accessible.
      * Open-by-default: Neutral = accessible, only Forbidden restricts.
      */
-    private function isFieldAccessible(User $user, string $fieldName): bool
-    {
-        $result = $this->entityAccessHandler->checkFieldAccess($user, $fieldName, 'view', $user);
+    private function isFieldAccessible(
+        User $user,
+        string $fieldName,
+        AuthorizationPrincipalInterface $principal,
+    ): bool {
+        $result = $this->entityAccessHandler->checkFieldAccess($user, $fieldName, 'view', $principal);
 
         return !$result->isForbidden();
     }

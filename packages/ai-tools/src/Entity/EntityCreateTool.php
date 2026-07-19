@@ -52,6 +52,8 @@ final class EntityCreateTool extends AbstractAgentTool
         ];
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
+
     public function execute(array $arguments, AccountInterface $account): AgentToolResult
     {
         $denied = $this->requireCapability('tool.entity.create', $account);
@@ -125,6 +127,8 @@ final class EntityCreateTool extends AbstractAgentTool
             summary: sprintf('Created %s/%s', $entityType, (string) $id),
         );
     }
+
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
 
     public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
     {

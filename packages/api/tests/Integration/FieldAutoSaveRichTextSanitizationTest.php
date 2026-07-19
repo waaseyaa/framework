@@ -12,6 +12,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Controller\FieldAutoSaveController;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
@@ -92,27 +93,7 @@ final class FieldAutoSaveRichTextSanitizationTest extends TestCase
 
         $this->allowAllHandler = new EntityAccessHandler([$allowAllPolicy]);
 
-        $this->account = new class implements AccountInterface {
-            public function id(): int|string
-            {
-                return 42;
-            }
-
-            public function isAuthenticated(): bool
-            {
-                return true;
-            }
-
-            public function hasPermission(string $permission): bool
-            {
-                return true;
-            }
-
-            public function getRoles(): array
-            {
-                return ['authenticated'];
-            }
-        };
+        $this->account = new AuthorizationPrincipal(42, true, ['administrator'], [], 'test');
     }
 
     #[Test]
