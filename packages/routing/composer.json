@@ -35,14 +35,14 @@
     ],
     "require": {
         "php": ">=8.5",
-        "waaseyaa/entity": "^0.1.0-alpha.268",
-        "waaseyaa/access": "^0.1.0-alpha.268",
-        "waaseyaa/i18n": "^0.1.0-alpha.268",
-        "waaseyaa/auth": "^0.1.0-alpha.268",
-        "waaseyaa/oidc": "^0.1.0-alpha.268",
+        "waaseyaa/entity": "^0.1.0-alpha.269",
+        "waaseyaa/access": "^0.1.0-alpha.269",
+        "waaseyaa/i18n": "^0.1.0-alpha.269",
+        "waaseyaa/auth": "^0.1.0-alpha.269",
+        "waaseyaa/oidc": "^0.1.0-alpha.269",
         "symfony/routing": "^7.0",
-        "waaseyaa/foundation": "^0.1.0-alpha.268",
-        "waaseyaa/user": "^0.1.0-alpha.268"
+        "waaseyaa/foundation": "^0.1.0-alpha.269",
+        "waaseyaa/user": "^0.1.0-alpha.269"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"

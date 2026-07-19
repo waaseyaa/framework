@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.269] - 2026-07-19
+
 ### Fixed
 
 - **The published-skeleton entity round-trip smoke now establishes an explicit immutable profile-view principal before reading the Protected User name (#2064).** The smoke still persists an Internal email value, but does not bypass the entity boundary to inspect it; the alpha.268 missing-context throw remains unchanged.

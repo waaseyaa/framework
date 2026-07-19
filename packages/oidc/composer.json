@@ -34,12 +34,12 @@
         "ext-sodium": "*",
         "lcobucci/jwt": "^5.3",
         "league/oauth2-server": "^9.0",
-        "waaseyaa/access": "^0.1.0-alpha.268",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.268",
-        "waaseyaa/entity": "^0.1.0-alpha.268",
-        "waaseyaa/entity-storage": "^0.1.0-alpha.268",
-        "waaseyaa/foundation": "^0.1.0-alpha.268",
-        "waaseyaa/user": "^0.1.0-alpha.268"
+        "waaseyaa/access": "^0.1.0-alpha.269",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.269",
+        "waaseyaa/entity": "^0.1.0-alpha.269",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.269",
+        "waaseyaa/foundation": "^0.1.0-alpha.269",
+        "waaseyaa/user": "^0.1.0-alpha.269"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
