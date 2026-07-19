@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The published-skeleton entity round-trip smoke now establishes an explicit immutable profile-view principal before reading the Protected User name (#2064).** The smoke still persists an Internal email value, but does not bypass the entity boundary to inspect it; the alpha.268 missing-context throw remains unchanged.
+
 ## [0.1.0-alpha.268] - 2026-07-19
 
 - **The accepted User status-projection edge is now an explicit contract (#2064).** A physically absent stored `status` remains `null` in the closed query projection and denies ordinary profile visibility instead of inheriting User's active constructor default; the canonical boundary spec, policy rationale, and regression test pin both paths against a permissive fallback. Only administrators differ: their independent permission admits the exact null-bearing projection while the incomplete hydrated subject remains denied, and the private projection releases no field value.
