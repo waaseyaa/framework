@@ -1,5 +1,7 @@
 # API Layer
 
+<!-- Spec reviewed 2026-07-19 - Sheguiandah Gap 1 (#2078): JsonApiController's UUID lookup is identity resolution, not authorization. It now uses an explicit accessCheck(false) query, matching numeric repository find(); show/update/destroy then apply their existing view/update/delete checks respectively. This lets edit-any/delete-any principals target view-hidden drafts without weakening the read-path 404 oracle. -->
+
 <!-- Spec reviewed 2026-07-18 - #2064 WP4 retains only bounded structural route templates and stable priority buckets as route-build optimizations. JsonApiRouteProvider keys templates by base path, exact entity-type exposure shape, and base/workflow mode, then clones every Route into a fresh WaaseyaaRouter. No request, account, entity, authorization decision, provider/service instance, runtime controller capture, or mutable RouteCollection is cached. WaaseyaaRouter preserves descending priority and registration-order ties while reading each priority once. -->
 
 <!-- Spec reviewed 2026-07-15 - #2050: SchemaPresenter maps authoritative field type date to JSON Schema string/format date/x-widget date and projects date settings min/max as x-min/x-max presentation bounds; timestamp/datetime and ordinary strings remain distinct. -->
@@ -686,7 +688,7 @@ differing-value refusal), `GenericAdminSurfaceHostWriteAllowlistTest` +
 
 ### ID Resolution
 
-`loadByIdOrUuid()` accepts `int|string`. If the entity type has a UUID key and the value matches UUID regex (`/^[0-9a-f]{8}-...-[0-9a-f]{12}$/i`), it queries by UUID. Otherwise it loads by primary key.
+`loadByIdOrUuid()` accepts `int|string`. If the entity type has a UUID key and the value matches UUID regex (`/^[0-9a-f]{8}-...-[0-9a-f]{12}$/i`), it queries by UUID with `accessCheck(false)`; otherwise it loads by primary key. Both branches perform identity resolution only and return the same underlying entity regardless of locator form. The caller then applies the operation-specific authorization gate: `show()` checks `view` and collapses denial to the canonical 404, `update()` checks `update`, and `destroy()` checks `delete`. A mutation target is never pre-filtered through the query layer's `view` decision.
 
 ## Resource Serialization
 

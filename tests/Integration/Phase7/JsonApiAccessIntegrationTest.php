@@ -21,6 +21,7 @@ use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Node\Node;
 use Waaseyaa\Node\NodeAccessPolicy;
@@ -316,6 +317,72 @@ final class JsonApiAccessIntegrationTest extends TestCase
         $this->assertSame(200, $doc->statusCode);
         $array = $doc->toArray();
         $this->assertSame('Updated Own Article', $array['data']['attributes']['title']);
+    }
+
+    #[Test]
+    public function editAnyCanUpdateUidlessDraftByNumericIdAndUuidWithoutViewAccess(): void
+    {
+        // Gap 1 (#2078): mutation identity resolution must not inherit the
+        // query layer's view filter. This draft has no uid, so it cannot be
+        // "own unpublished" for any principal. The editor deliberately has
+        // edit-any but no unpublished-view grant.
+        $node = new Node([
+            'title' => 'Uid-less draft',
+            'type' => 'article',
+            'status' => 0,
+        ]);
+        $this->storage->save($node);
+
+        $editor = AuthorizationPrincipalFactory::fromValues([
+            'uid' => 5,
+            'name' => 'editor',
+            'permissions' => ['access content', 'edit any article content'],
+            'roles' => ['authenticated'],
+        ]);
+        $controller = $this->buildController($editor);
+
+        $numeric = $controller->update('node', $node->id(), [
+            'data' => [
+                'type' => 'node',
+                'id' => $node->uuid(),
+                'attributes' => ['title' => 'Updated by numeric ID'],
+            ],
+        ]);
+        $this->assertSame(200, $numeric->statusCode);
+
+        $uuid = $controller->update('node', $node->uuid(), [
+            'data' => [
+                'type' => 'node',
+                'id' => $node->uuid(),
+                'attributes' => ['title' => 'Updated by UUID'],
+            ],
+        ]);
+        $this->assertSame(200, $uuid->statusCode);
+        $this->assertSame('Updated by UUID', $this->storage->load($node->id())?->label());
+        $this->assertSame([false], $this->storage->lastQuery?->accessChecks);
+        $this->assertNull($this->storage->lastQuery?->boundAccount);
+    }
+
+    #[Test]
+    public function uidlessDraftStillRequiresViewAccessForNumericAndUuidReads(): void
+    {
+        $node = new Node([
+            'title' => 'Hidden uid-less draft',
+            'type' => 'article',
+            'status' => 0,
+        ]);
+        $this->storage->save($node);
+
+        $editor = AuthorizationPrincipalFactory::fromValues([
+            'uid' => 5,
+            'name' => 'editor',
+            'permissions' => ['access content', 'edit any article content'],
+            'roles' => ['authenticated'],
+        ]);
+        $controller = $this->buildController($editor);
+
+        $this->assertSame(404, $controller->show('node', $node->id())->statusCode);
+        $this->assertSame(404, $controller->show('node', $node->uuid())->statusCode);
     }
 
     #[Test]
@@ -633,6 +700,7 @@ class NodeInMemoryStorage extends InMemoryEntityStorage
     /** @var array<int|string, Node> */
     private array $nodes = [];
     private int $nextId = 1;
+    public ?ViewFilteredNodeQuery $lastQuery = null;
 
     public function create(array $values = []): Node
     {
@@ -660,6 +728,11 @@ class NodeInMemoryStorage extends InMemoryEntityStorage
         return $result;
     }
 
+    public function getQuery(): EntityQueryInterface
+    {
+        return $this->lastQuery = new ViewFilteredNodeQuery(array_keys($this->nodes), $this->nodes);
+    }
+
     public function save(\Waaseyaa\Entity\EntityInterface $entity): int
     {
         $isNew = $entity->isNew();
@@ -682,16 +755,50 @@ class NodeInMemoryStorage extends InMemoryEntityStorage
         }
     }
 
-    public function getQuery(): \Waaseyaa\Entity\Storage\EntityQueryInterface
-    {
-        return new \Waaseyaa\Api\Tests\Fixtures\InMemoryEntityQuery(
-            array_keys($this->nodes),
-            $this->nodes,
-        );
-    }
-
     public function getEntityTypeId(): string
     {
         return 'node';
+    }
+}
+
+/**
+ * Query double that models the production query-layer view filter: binding an
+ * account hides this fixture's unpublished, uid-less node, while the explicit
+ * system-context bypass returns its identity for caller-specific authorization.
+ */
+final class ViewFilteredNodeQuery extends \Waaseyaa\Api\Tests\Fixtures\InMemoryEntityQuery
+{
+    /** @var list<bool> */
+    public array $accessChecks = [];
+    public ?AccountInterface $boundAccount = null;
+    private bool $viewFiltered = false;
+    private bool $uuidCondition = false;
+
+    public function condition(string $field, mixed $value, string $operator = '='): static
+    {
+        $this->uuidCondition = $field === 'uuid';
+
+        return parent::condition($field, $value, $operator);
+    }
+
+    public function accessCheck(bool $check = true): static
+    {
+        $this->accessChecks[] = $check;
+        $this->viewFiltered = $check;
+
+        return $this;
+    }
+
+    public function setAccount(?AccountInterface $account): static
+    {
+        $this->boundAccount = $account;
+        $this->viewFiltered = true;
+
+        return $this;
+    }
+
+    public function execute(): array
+    {
+        return $this->viewFiltered && $this->uuidCondition ? [] : parent::execute();
     }
 }

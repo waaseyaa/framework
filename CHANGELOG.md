@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **JSON:API mutations now resolve UUID and numeric targets identically before write authorization (#2078).** UUID lookup no longer inherits the entity-query `view` filter, so principals with bundle-scoped edit/delete authority can target view-hidden drafts (including uid-less drafts) just as they can by numeric ID; single-resource reads still enforce `view` and preserve the canonical missing/view-denied 404 response.
+
 ## [0.1.0-alpha.270] - 2026-07-19
 
 ### Fixed
