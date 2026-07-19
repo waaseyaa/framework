@@ -277,7 +277,7 @@ final class PagePerformanceHarnessContractTest extends TestCase
         $ratioFailure = [];
         $absoluteBaseline = [];
         $absoluteFailure = [];
-        for ($i = 0; $i < 9; ++$i) {
+        for ($i = 0; $i < 20; ++$i) {
             $baseline[] = $this->block('content', 1_000_000, 'same', ['sql' => 5, 'rows' => 1, 'fields' => 32]);
             $ratioFailure[] = $this->block('content', 1_040_000, 'same', ['sql' => 5, 'rows' => 1, 'fields' => 32]);
             $absoluteBaseline[] = $this->block('content', 100_000_000, 'same', ['sql' => 5, 'rows' => 1, 'fields' => 32]);
@@ -293,7 +293,7 @@ final class PagePerformanceHarnessContractTest extends TestCase
     {
         $baseline = [];
         $candidate = [];
-        for ($i = 0; $i < 9; ++$i) {
+        for ($i = 0; $i < 20; ++$i) {
             $trace = [
                 'sql' => 5,
                 'rows' => 100,
@@ -309,6 +309,109 @@ final class PagePerformanceHarnessContractTest extends TestCase
         self::assertSame(100, $comparison['hydrated_entity_count']);
         self::assertSame(5_000_000, $comparison['absolute_limit_ns']);
         self::assertTrue($comparison['passed']);
+    }
+
+    #[Test]
+    public function the_gate_uses_twenty_blocks_and_a_deterministic_one_sided_bootstrap_bound(): void
+    {
+        self::assertSame(20, PagePerformanceOrchestrator::BLOCKS);
+        self::assertSame(100_000, PagePerformanceOrchestrator::BOOTSTRAP_RESAMPLES);
+        self::assertSame(0.95, PagePerformanceOrchestrator::BOOTSTRAP_CONFIDENCE);
+
+        $baseline = [];
+        $candidate = [];
+        for ($i = 0; $i < 20; ++$i) {
+            $baseline[] = $this->block('content_cold', 40_000_000 + ($i * 10_000), 'same', [
+                'hydrated_entity_count' => 1,
+            ]);
+            $candidate[] = $this->block('content_cold', 40_200_000 + ($i * 10_000), 'same', [
+                'hydrated_entity_count' => 1,
+            ]);
+        }
+
+        $first = PagePerformanceOrchestrator::comparePage($baseline, $candidate);
+        $second = PagePerformanceOrchestrator::comparePage($baseline, $candidate);
+
+        self::assertSame($first['bootstrap'], $second['bootstrap']);
+        self::assertSame(100_000, $first['bootstrap']['resamples']);
+        self::assertSame(0.95, $first['bootstrap']['confidence']);
+        self::assertLessThanOrEqual(1.03, $first['bootstrap']['paired_median_ratio_upper_bound']);
+        self::assertLessThanOrEqual(500_000, $first['bootstrap']['paired_median_delta_upper_bound_ns']);
+        self::assertTrue($first['passed']);
+    }
+
+    #[Test]
+    public function one_noisy_block_is_visible_in_raw_diagnostics_but_does_not_become_the_gate(): void
+    {
+        $baseline = [];
+        $candidate = [];
+        for ($i = 0; $i < 20; ++$i) {
+            $baseline[] = $this->block('content_cold', 40_000_000, 'same', ['hydrated_entity_count' => 1]);
+            $candidate[] = $this->block(
+                'content_cold',
+                $i === 7 ? 44_000_000 : 40_000_000,
+                'same',
+                ['hydrated_entity_count' => 1],
+            );
+        }
+
+        $comparison = PagePerformanceOrchestrator::comparePage($baseline, $candidate);
+
+        self::assertTrue($comparison['passed']);
+        self::assertSame(1.10, $comparison['raw_paired']['ratio_max']);
+        self::assertSame(4_000_000.0, $comparison['raw_paired']['delta_max_ns']);
+        self::assertSame(1, $comparison['consistent_regression']['ratio_budget_exceeded_blocks']);
+        self::assertSame(1, $comparison['consistent_regression']['absolute_budget_exceeded_blocks']);
+        self::assertFalse($comparison['consistent_regression']['large_consistent_regression']);
+        self::assertSame(44_000_000, $comparison['pooled_requests']['candidate']['max_ns']);
+    }
+
+    #[Test]
+    public function a_large_regression_across_three_quarters_of_blocks_is_surfaced_explicitly(): void
+    {
+        $baseline = [];
+        $candidate = [];
+        for ($i = 0; $i < 20; ++$i) {
+            $baseline[] = $this->block('content_cold', 40_000_000, 'same', ['hydrated_entity_count' => 1]);
+            $candidate[] = $this->block(
+                'content_cold',
+                $i < 15 ? 41_600_000 : 39_900_000,
+                'same',
+                ['hydrated_entity_count' => 1],
+            );
+        }
+
+        $comparison = PagePerformanceOrchestrator::comparePage($baseline, $candidate);
+
+        self::assertSame(15, $comparison['consistent_regression']['minimum_consistent_blocks']);
+        self::assertSame(15, $comparison['consistent_regression']['ratio_budget_exceeded_blocks']);
+        self::assertSame(15, $comparison['consistent_regression']['absolute_budget_exceeded_blocks']);
+        self::assertTrue($comparison['consistent_regression']['large_consistent_regression']);
+        self::assertFalse($comparison['passed']);
+    }
+
+    #[Test]
+    public function a_consistent_raw_max_regression_is_surfaced_even_when_the_bootstrap_gate_passes(): void
+    {
+        $baseline = [];
+        $candidate = [];
+        for ($i = 0; $i < 20; ++$i) {
+            $baselineBlock = $this->block('content_cold', 40_000_000, 'same', ['hydrated_entity_count' => 1]);
+            $candidateBlock = $this->block('content_cold', 40_000_000, 'same', ['hydrated_entity_count' => 1]);
+            if ($i < 15) {
+                $candidateBlock['samples_ns'][199] = 44_000_000;
+            }
+            $baseline[] = $baselineBlock;
+            $candidate[] = $candidateBlock;
+        }
+
+        $comparison = PagePerformanceOrchestrator::comparePage($baseline, $candidate);
+
+        self::assertTrue($comparison['passed']);
+        self::assertSame(15, $comparison['consistent_regression']['raw_max_ratio_budget_exceeded_blocks']);
+        self::assertSame(15, $comparison['consistent_regression']['raw_max_absolute_budget_exceeded_blocks']);
+        self::assertTrue($comparison['consistent_regression']['large_consistent_regression']);
+        self::assertTrue($comparison['consistent_regression']['bootstrap_passed_with_large_consistent_regression']);
     }
 
     #[Test]

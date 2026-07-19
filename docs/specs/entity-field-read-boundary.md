@@ -107,8 +107,9 @@ activation readiness. The diagnostic report carries those reference ratios but
 no pass/fail result.
 
 Activation performance is decided only by the frozen real-page harness. It
-compares the WP2 baseline tree with the activation candidate across nine fresh
-process blocks per tree, after 30 warmups and with 200 timed samples per block.
+compares the WP2 baseline tree with the activation candidate across 20 fresh
+randomized paired process blocks, after 30 warmups and with 200 timed samples
+per page and tree in each block.
 The timed boundary includes fresh `HttpKernel` construction and `handle()` for
 every request, matching the production front controller rather than shifting
 kernel boot cost outside the measurement. If exact WP2 cannot execute that
@@ -116,10 +117,16 @@ lifecycle, the declared baseline is a clean benchmark-only WP2 parity commit
 containing only the identical Twig lifecycle fix present in the candidate; no
 field-read implementation may enter that parity commit. This keeps both trees
 on the same executable lifecycle while isolating the field-read cost.
-Both the cache-cold content page and the cache-cold members-directory page must
-have a paired upper-95 ratio no greater than 1.03 **and** stay within the paired
-upper-95 absolute sanity budget `max(0.50 ms, 0.05 ms × hydrated entity count)`
-for that page. The content-scaled absolute budget prevents a large entity page
+For every paired block, the harness calculates the candidate/baseline request-
+median ratio and request-median delta. With a checked-in MT19937 seed it
+resamples those 20 paired observations with replacement 100,000 times, takes
+the median ratio and median delta of each resample, and uses the nearest-rank
+one-sided 95th percentile as each upper confidence bound. Both the cache-cold
+content page and the cache-cold members-directory page must have a bootstrap
+paired-median ratio upper bound no greater than 1.03 **and** stay within the
+bootstrap paired-median absolute upper bound
+`max(0.50 ms, 0.05 ms × hydrated entity count)` for that page. The content-
+scaled absolute budget prevents a large entity page
 from failing on an immaterial fixed per-entity cost while the independent ratio
 gate still bounds total-page impact. The hydrated-entity count is a frozen
 workload attribute in each page trace (one entity for content; the authenticated
@@ -132,7 +139,12 @@ uses a project-and-page-private PHP session namespace. Page traces bind the
 expected authorization mode, per-request kernel lifecycle, and privileged-read
 ledger row count, so retained session/account state, authorization-ledger drift,
 or a warmed framework kernel makes a block non-comparable instead of becoming
-timing noise. The cache-hit content page and the synthetic field-read
+timing noise. Reports retain every paired ratio/delta, paired p95/max, and the
+pooled request-sample p95/max for each tree. They also surface a separate raw-
+tail warning when request maxima exceed either unchanged budget in at least 15
+of 20 blocks, even when the bootstrap gate passes; a single noisy maximum is
+never promoted into that consistency signal. The cache-hit content page and
+the synthetic field-read
 microbenchmarks are diagnostic only and cannot rescue a cache-cold failure.
 
 ## Explicit non-effects in WP1

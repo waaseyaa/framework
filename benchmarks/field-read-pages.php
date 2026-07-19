@@ -7,10 +7,10 @@ use Waaseyaa\Benchmark\BenchmarkProcessRunner;
 use Waaseyaa\Tests\Integration\FieldReadPagePerformance\PagePerformanceOrchestrator;
 
 $harnessRoot = dirname(__DIR__);
-$contractRoot = $harnessRoot.'/tests/Integration/FieldReadPagePerformance';
-$fixtureRoot = $contractRoot.'/Fixtures';
-require $contractRoot.'/PagePerformanceOrchestrator.php';
-require $harnessRoot.'/benchmarks/BenchmarkProcessRunner.php';
+$contractRoot = $harnessRoot . '/tests/Integration/FieldReadPagePerformance';
+$fixtureRoot = $contractRoot . '/Fixtures';
+require $contractRoot . '/PagePerformanceOrchestrator.php';
+require $harnessRoot . '/benchmarks/BenchmarkProcessRunner.php';
 
 $options = getopt('', ['baseline-root:', 'candidate-root:', 'output::', 'validate-only']);
 if (!is_string($options['baseline-root'] ?? null) || !is_string($options['candidate-root'] ?? null)) {
@@ -22,7 +22,7 @@ try {
     $baselineRoot = (string) realpath($options['baseline-root']);
     $candidateRoot = (string) realpath($options['candidate-root']);
     PagePerformanceOrchestrator::validateSourceTrees($baselineRoot, $candidateRoot);
-    $frozenManifest = assertFrozenHarness($harnessRoot, $contractRoot.'/fixture-manifest.json');
+    $frozenManifest = assertFrozenHarness($harnessRoot, $contractRoot . '/fixture-manifest.json');
     $identity = [
         'baseline' => sourceIdentity($baselineRoot),
         'candidate' => sourceIdentity($candidateRoot),
@@ -35,9 +35,9 @@ try {
     }
 
     $workingRoot = makeTemporaryDirectory('waaseyaa-field-read-pages');
-    $baseProject = $workingRoot.'/frozen-base';
+    $baseProject = $workingRoot . '/frozen-base';
     runWorker('prepare', $baselineRoot, $fixtureRoot, $baseProject, 0);
-    $baseDatabaseHash = hash_file('sha256', $baseProject.'/storage/waaseyaa.sqlite');
+    $baseDatabaseHash = hash_file('sha256', $baseProject . '/storage/waaseyaa.sqlite');
 
     $blocks = ['baseline' => [], 'candidate' => []];
     $blockOrders = [];
@@ -75,16 +75,33 @@ try {
         $comparisons[$page]['diagnostic_only'] = $page === 'content_hit_diagnostic';
     }
     $passed = PagePerformanceOrchestrator::finalVerdict($comparisons);
+    $consistentRegressionWarnings = [];
+    foreach ($comparisons as $page => $comparison) {
+        if (($comparison['consistent_regression']['bootstrap_passed_with_large_consistent_regression'] ?? false) === true) {
+            $consistentRegressionWarnings[] = sprintf(
+                '%s passed the bootstrap bound, but raw request maxima exceeded a budget in at least %.0f%% of paired blocks.',
+                $page,
+                PagePerformanceOrchestrator::CONSISTENT_REGRESSION_FRACTION * 100,
+            );
+        }
+    }
     $report = [
         'passed' => $passed,
+        'warnings' => $consistentRegressionWarnings,
         'identity' => $identity,
         'constants' => [
             'blocks' => PagePerformanceOrchestrator::BLOCKS,
             'warmups' => PagePerformanceOrchestrator::WARMUPS,
             'samples' => PagePerformanceOrchestrator::SAMPLES,
+            'bootstrap_resamples' => PagePerformanceOrchestrator::BOOTSTRAP_RESAMPLES,
+            'bootstrap_confidence' => PagePerformanceOrchestrator::BOOTSTRAP_CONFIDENCE,
+            'bootstrap_seed' => PagePerformanceOrchestrator::BOOTSTRAP_SEED,
+            'bootstrap_statistic' => 'one-sided percentile upper confidence bound of paired block median ratio and delta',
             'ratio_limit' => PagePerformanceOrchestrator::RATIO_LIMIT,
             'absolute_floor_ns' => PagePerformanceOrchestrator::ABSOLUTE_FLOOR_NS,
             'per_hydrated_entity_ns' => PagePerformanceOrchestrator::PER_HYDRATED_ENTITY_NS,
+            'consistent_regression_fraction' => PagePerformanceOrchestrator::CONSISTENT_REGRESSION_FRACTION,
+            'raw_diagnostics' => 'paired block p95/max plus pooled request p95/max; raw request-max budget counts remain visible even when bootstrap passes',
         ],
         'base_database_sha256' => $baseDatabaseHash,
         'process_order_seed' => $orderSeed,
@@ -100,7 +117,7 @@ try {
     }
     exit($passed ? 0 : 1);
 } catch (Throwable $e) {
-    fwrite(STDERR, $e::class.': '.$e->getMessage()."\n");
+    fwrite(STDERR, $e::class . ': ' . $e->getMessage() . "\n");
     exit(2);
 }
 
@@ -116,10 +133,10 @@ function assertFrozenHarness(string $root, string $manifestPath): array
     }
     $actual = [];
     foreach ($expected as $relative => $hash) {
-        if (!is_string($relative) || !is_string($hash) || !is_file($root.'/'.$relative)) {
+        if (!is_string($relative) || !is_string($hash) || !is_file($root . '/' . $relative)) {
             throw new RuntimeException(sprintf('Frozen fixture manifest entry is invalid: %s', (string) $relative));
         }
-        $actual[$relative] = hash_file('sha256', $root.'/'.$relative);
+        $actual[$relative] = hash_file('sha256', $root . '/' . $relative);
     }
     PagePerformanceOrchestrator::assertSameFixtureManifest($expected, $actual);
 
@@ -129,8 +146,8 @@ function assertFrozenHarness(string $root, string $manifestPath): array
 /** @return array<string,string> */
 function sourceIdentity(string $root): array
 {
-    $head = trim(runCommand([$root.'/bin/git', 'rev-parse', 'HEAD'], $root)['stdout']);
-    $status = runCommand([$root.'/bin/git', 'status', '--short', '--untracked-files=all'], $root);
+    $head = trim(runCommand([$root . '/bin/git', 'rev-parse', 'HEAD'], $root)['stdout']);
+    $status = runCommand([$root . '/bin/git', 'status', '--short', '--untracked-files=all'], $root);
     if ($status['exit_code'] !== 0) {
         throw new RuntimeException(sprintf('Could not verify immutable source tree: %s', $root));
     }
@@ -141,8 +158,8 @@ function sourceIdentity(string $root): array
         'root' => $root,
         'head' => $head,
         'framework_sha256' => frameworkHash($root),
-        'composer_lock_sha256' => is_file($root.'/composer.lock') ? hash_file('sha256', $root.'/composer.lock') : 'missing',
-        'vendor_installed_sha256' => is_file($root.'/vendor/composer/installed.json') ? hash_file('sha256', $root.'/vendor/composer/installed.json') : 'missing',
+        'composer_lock_sha256' => is_file($root . '/composer.lock') ? hash_file('sha256', $root . '/composer.lock') : 'missing',
+        'vendor_installed_sha256' => is_file($root . '/vendor/composer/installed.json') ? hash_file('sha256', $root . '/vendor/composer/installed.json') : 'missing',
     ];
 }
 
@@ -150,10 +167,10 @@ function frameworkHash(string $root): string
 {
     $files = [];
     foreach (['packages', 'src'] as $directory) {
-        if (!is_dir($root.'/'.$directory)) {
+        if (!is_dir($root . '/' . $directory)) {
             continue;
         }
-        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root.'/'.$directory, FilesystemIterator::SKIP_DOTS));
+        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root . '/' . $directory, FilesystemIterator::SKIP_DOTS));
         foreach ($iterator as $file) {
             if ($file->isFile()) {
                 $relative = substr($file->getPathname(), strlen($root) + 1);
@@ -162,8 +179,8 @@ function frameworkHash(string $root): string
         }
     }
     foreach (['composer.json', 'composer.lock'] as $relative) {
-        if (is_file($root.'/'.$relative)) {
-            $files[$relative] = hash_file('sha256', $root.'/'.$relative);
+        if (is_file($root . '/' . $relative)) {
+            $files[$relative] = hash_file('sha256', $root . '/' . $relative);
         }
     }
     ksort($files);
@@ -181,7 +198,7 @@ function runWorker(string $mode, string $sourceRoot, string $fixtureRoot, string
         '-d', 'xdebug.mode=off',
         '-d', 'zend.assertions=-1',
         '-d', 'memory_limit=1G',
-        $fixtureRoot.'/persistent_http_runner.php',
+        $fixtureRoot . '/persistent_http_runner.php',
         $mode,
         $sourceRoot,
         $fixtureRoot,
@@ -225,7 +242,7 @@ function runCommand(array $command, string $cwd): array
 
 function makeTemporaryDirectory(string $prefix): string
 {
-    $path = sys_get_temp_dir().'/'.$prefix.'-'.bin2hex(random_bytes(6));
+    $path = sys_get_temp_dir() . '/' . $prefix . '-' . bin2hex(random_bytes(6));
     if (!mkdir($path, 0o755, true)) {
         throw new RuntimeException(sprintf('Could not create temporary directory: %s', $path));
     }
@@ -239,7 +256,7 @@ function copyDirectory(string $source, string $target): void
     }
     $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($source, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::SELF_FIRST);
     foreach ($iterator as $item) {
-        $destination = $target.'/'.substr($item->getPathname(), strlen($source) + 1);
+        $destination = $target . '/' . substr($item->getPathname(), strlen($source) + 1);
         if ($item->isDir()) {
             if (!is_dir($destination) && !mkdir($destination, 0o755, true)) {
                 throw new RuntimeException(sprintf('Could not create clone directory: %s', $destination));
@@ -262,7 +279,7 @@ function removeDirectory(string $path): void
 /** @param array<string,mixed> $report */
 function emitReport(array $report, mixed $output): void
 {
-    $json = json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)."\n";
+    $json = json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
     if (is_string($output) && $output !== '') {
         file_put_contents($output, $json, LOCK_EX);
         return;
