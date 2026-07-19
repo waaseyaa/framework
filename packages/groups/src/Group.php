@@ -31,6 +31,17 @@ final class Group extends ContentEntityBase
     #[Field(type: 'integer', label: 'Updated at', stored: FieldStorage::Data, read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public ?int $updated_at = null;
 
+    #[Field(
+        type: 'boolean',
+        default: false,
+        label: 'Members can view directory',
+        description: 'Whether a live direct member may receive this group\'s fixed member-directory projection.',
+        settings: ['authorizationInput' => true],
+        stored: FieldStorage::Data,
+        read: \Waaseyaa\Entity\FieldReadLevel::Protected,
+    )]
+    public bool $members_can_view_directory = false;
+
     /**
      * @param array<string, mixed> $values Initial entity values.
      * @param string $entityTypeId Override machine name (defaults to `group` when empty).

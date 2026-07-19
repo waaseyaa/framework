@@ -243,6 +243,28 @@ final class EntityValueContainer
         return $result;
     }
 
+    /**
+     * @internal Closed fixed-shape authorities only.
+     * @param list<string> $fields
+     * @return array<string, mixed>
+     */
+    public function rawProjection(array $fields): array
+    {
+        $this->layout->assertCurrent();
+        $result = [];
+        foreach ($fields as $field) {
+            if (!array_key_exists($field, $this->values)) {
+                continue;
+            }
+            $value = $this->values[$field];
+            $result[$field] = $value instanceof RestrictedEntityValue
+                ? $value->release($field, $this->viewIdentity)
+                : $value;
+        }
+
+        return $result;
+    }
+
     public function reissue(): self
     {
         $this->layout->assertCurrent();

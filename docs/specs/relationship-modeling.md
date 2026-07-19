@@ -1,5 +1,6 @@
 # Relationship Modeling (v0.6)
 
+<!-- Spec reviewed 2026-07-19 - #2079 design revisions 2-3 add the exact-group ReBAC member-directory contract after fresh-context design attack. AuthorizedRelationshipTraversal::memberDirectory selects either the unchanged broad source-view branch or an isolated scoped branch. The scoped branch requires authenticated principal identity, strict true Protected group opt-in, active group, and the principal's live temporally active direct user->exact-group membership from one transaction/row set/evaluation instant; it returns only readonly MemberDirectoryEntry{userId, displayName} for active direct co-members. Generic group/relationship/user policies and edges() remain unchanged, email/Internal fields are never projected, and other groups, inactive/revoked/malformed edges, anonymous/non-members, inverse/bidirectional/chained/transitive paths, and missing/malformed opt-ins grant nothing. -->
 <!-- Spec reviewed 2026-07-19 - #2079 keeps relationship endpoint selectors Protected and adds AuthorizedRelationshipTraversal as the public principal-scoped consumer seam. Consumers supply only a principal, source identity, and bounded domain options; the framework owns the fixed-shape topology query and account field-read scope. Results are immutable AuthorizedRelationshipEdge projections and include only active relationship rows for which the source, edge, and related endpoint are viewable. Missing or view-denied sources are concealed as an empty result. No arbitrary field selector, status-all switch, raw Relationship entity, or capability handle crosses the seam. -->
 <!-- Spec reviewed 2026-07-14 - R24 relationship minor (#2020): closes R5 residual 2. RelationshipEndpointVisibilityPolicy now returns entity-level Forbidden for `view` when NEITHER endpoint is viewable, concealing the whole edge and its relationship type/status behind the canonical not-found response. If at least one endpoint is viewable the policy remains entity-neutral and its existing field-access behavior redacts only the hidden endpoint pair. Update/delete/create behavior and RelationshipAccessPolicy's ordinary publication/permission gate are unchanged. Acceptance: RelationshipEndpointVisibilityRestTest::both_endpoints_hidden_conceals_the_entire_edge plus isolated both-hidden and one-visible policy tests; boundary test was RED at 200 before the fix and GREEN at 404 after. -->
 <!-- Spec reviewed 2026-07-13 - #1984: relationship traversal SQL now resolves every non-key field against the actual relationship table shape. Fresh sql-blob installs query the canonical `_data` JSON payload; upgraded installs that already carry historical dedicated columns continue querying those columns. Timeline overlap remains SQL-level on both shapes. A clean `db:init` + fresh-process SSR regression pins the fresh path, while the existing physical-column suite pins upgraded compatibility. -->
@@ -115,6 +116,38 @@ This facade is the supported ergonomic seam for membership lists and other
 principal-facing graph traversal. `RelationshipTraversalService` and the private
 typed topology/maintenance readers remain lower-level framework mechanisms for
 existing discovery and system-context flows.
+
+#### Exact-group member-directory ReBAC
+
+`memberDirectory($principal, $groupId)` is a separate, purpose-specific method;
+it accepts no traversal options. Generic source `group:view` selects the broad
+branch, which retains the existing edge and endpoint checks and maps surviving
+direct membership edges to the narrow directory DTO. When generic source view
+is not allowed, the scoped branch requires an authenticated principal, an
+active exact group whose Protected `members_can_view_directory` value is strict
+`true`, and that principal's direct `user/{principal id} -> group/{group id}`
+`group_membership` edge in the same live, temporally active row set being
+enumerated.
+
+The scoped invocation captures one evaluation second and materializes its exact
+group state, opt-in, and membership graph authority in one database statement
+inside a repeatable-read transaction; a database without that explicit
+consistent-read capability fails closed. The authority reader supports both
+fresh `_data` relationship storage and the historical dedicated-column shape.
+Start and end bounds are inclusive; null is open;
+malformed bounds make an edge inactive. Only direct
+directed membership rows participate—no inverse interpretation, group-to-group
+edge, inferred edge, or graph walk can confer authority. Transitivity is off;
+adding it requires a separate product decision and contract.
+
+Both branches return only readonly `MemberDirectoryEntry{userId,
+displayName}` values for active user endpoints. The fixed endpoint projector
+releases no email, roles, permissions, credentials, chronology, custom fields,
+raw edge metadata, or value bag. The scoped grant is invocation-local and never changes
+`edges()`, `EntityAccessHandler`, field classifications, the principal, or later
+generic reads. Missing/false/malformed opt-in, inactive group/user, absent or
+inactive caller membership, unknown entities, and read/transaction failures
+produce an empty scoped result.
 
 Both public read surfaces of `RelationshipTraversalService` gate on the *related endpoint's* publication visibility, not just the relationship row's own `status`:
 

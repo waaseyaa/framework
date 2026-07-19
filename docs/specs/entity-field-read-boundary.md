@@ -1,5 +1,6 @@
 # Entity Field-Read Boundary
 
+<!-- Spec reviewed 2026-07-19 - #2079 adds a purpose-scoped ReBAC directory projection without changing field classifications or missing-context behavior. Group.members_can_view_directory is a Protected default-false authorization setting with admin-only generic release. AuthorizedRelationshipTraversal privately reads only exact group opt-in/status and active User id/status/name after verifying the immutable principal's live direct membership to that exact group in one graph snapshot. The readonly DTO contains only userId/displayName; User.mail and every other Internal/Protected field remain unavailable to ordinary reads and are never selected by the directory projector. -->
 <!-- Spec reviewed 2026-07-19 - #2079 confirms that relationship endpoint selectors remain Protected because topology can itself disclose sensitive membership or affiliation. Principal-facing consumers traverse through the fixed-shape AuthorizedRelationshipTraversal domain seam, which owns the account scope and source/edge/endpoint view gates and returns immutable AuthorizedRelationshipEdge projections; consumers receive no raw entity value bag, arbitrary field selector, capability handle, or status bypass. -->
 <!-- Spec reviewed 2026-07-19 - #2064 alpha.269 closes the post-activation mutable-account convergence class: request composition passes the validated immutable principal to every entity/field access decision; EntityAccessHandler and policy PHPDoc narrow decision accounts to AuthorizationPrincipalInterface under PHPStan; and EntityAccessHandler centrally rejects a live entity-backed account before any policy can call hasPermission()/getRoles(). An architecture test pins the static and runtime gates. This does not unseal a field or create a missing-context fallback. -->
 
@@ -595,6 +596,11 @@ relationship record and related endpoint are viewable by the same principal.
 The public result is an immutable `AuthorizedRelationshipEdge` projection, not
 a raw relationship entity or field capability. This is the relationship-domain
 equivalent of media's authorized download seam over Protected `source_uri`.
+The exact-group member-directory operation is narrower still: an explicit
+default-false Protected group setting plus a live direct membership edge grants
+only a fixed active-user `{userId, displayName}` projection for that group.
+It does not release the User entity or its ordinary field surface; in
+particular, `mail` stays Internal and is never read by the projector.
 
 Genealogy policy decisions consume compiled Protected `tree_id`, `status`,
 `owner_uid`, `is_living`, and `death_date` inputs. Person/family/event

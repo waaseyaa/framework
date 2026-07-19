@@ -92,6 +92,7 @@ return [
     'Waaseyaa\Cache\ContextNames' => 'public',
     'Waaseyaa\Cache\Exception\InvalidCacheTagException' => 'public',
     'Waaseyaa\Database\DatabaseInterface' => 'public',
+    'Waaseyaa\Database\ConsistentReadDatabaseInterface' => 'public',
     // SelectInterface gained two raw-expression seams in WP6 (#1816):
     // whereRaw(string, array) and orderByRaw(string, string). condition() /
     // orderBy() / isNull() / isNotNull() now auto-quote their $field identifier;

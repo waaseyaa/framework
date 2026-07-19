@@ -88,10 +88,19 @@ final class GroupsServiceProviderTest extends TestCase
         // are the FieldStorage::Data universals so registry-aware queries can
         // resolve `status`/`created_at`/`updated_at` via json_extract.
         $fieldDefs = $group->getFieldDefinitions();
-        self::assertSame(['status', 'created_at', 'updated_at'], array_keys($fieldDefs));
+        self::assertSame(
+            ['status', 'created_at', 'updated_at', 'members_can_view_directory'],
+            array_keys($fieldDefs),
+        );
         foreach ($fieldDefs as $def) {
             self::assertSame(\Waaseyaa\Field\FieldStorage::Data, $def['stored']);
         }
+        self::assertFalse($fieldDefs['members_can_view_directory']['default']);
+        self::assertSame(
+            \Waaseyaa\Entity\FieldReadLevel::Protected,
+            $fieldDefs['members_can_view_directory']['read'],
+        );
+        self::assertTrue($fieldDefs['members_can_view_directory']['settings']['authorizationInput']);
     }
 
     /**

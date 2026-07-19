@@ -1,5 +1,6 @@
 # Access Control
 
+<!-- Spec reviewed 2026-07-19 - #2079 adds one purpose-scoped ReBAC operation alongside, not inside, generic RBAC evaluation. AuthorizedRelationshipTraversal::memberDirectory selects broad-only behavior when group:view is Allowed; otherwise its isolated scoped branch requires strict exact-group opt-in plus the authenticated principal's live direct membership from the same graph snapshot. The scoped branch grants only MemberDirectoryEntry{userId, displayName}; it does not mutate permissions/policies, authorize edges(), or release generic group/relationship/user fields. Generic Forbidden results retain precedence on the broad branch and never fall back to scoped output. -->
 <!-- Spec reviewed 2026-07-19 - #2064 alpha.269 principal-convergence follow-up: every first-party HTTP access-decision boundary now propagates the middleware-established immutable AuthorizationPrincipal rather than the live User entity. EntityAccessHandler's five public decision entry points and the policy interfaces are statically narrowed to AuthorizationPrincipalInterface for PHPStan, and the handler also rejects every entity-backed decision account at runtime before policy dispatch; DecisionAccountResolver permits only the validated principal or an immutable principal value object, never an AccountInterface/User fallback. The architecture suite pins both layers. The sweep covers media and attachment downloads, OIDC userinfo field decisions, generic API/schema/translation/workflow/search/discovery/GraphQL/admin/SSR/app-controller surfaces, broadcast and Wayfinding permission checks, search account context, and direct agent-run policy decisions. Internal User fields and missing-context behavior remain unchanged. -->
 <!-- Spec reviewed 2026-07-18 - #2064 WP4 routes access-checked query candidates through the current immutable HTTP principal when a caller binds the matching live account. A mismatched active identity fails before SQL, and principal cache dimensions include claims generation plus tenant/community scope. Policies may opt into entity-free candidate evaluation only through the explicit complete projected-policy contract whose exact Protected input set matches the generation-bound EntityReadLayout; stale/incomplete projections fail closed and every non-opted policy retains hydrated evaluation. Canonical details: entity-field-read-boundary.md. -->
 <!-- Spec reviewed 2026-07-18 - #2064 WP3 adds the immutable-principal User V2 read policies: status is the exact non-recursive entity/name authorization input; active profiles require access user profiles, inactive profiles/names are admin-only, and direct status is self/admin only. Internal identity/credential fields are never released by these account policies. Activation wiring remains WP4. Canonical contract: entity-field-read-boundary.md. -->
@@ -274,6 +275,24 @@ final class TeamAccessPolicy implements AccessPolicyInterface { ... }
 `EntityAccessHandler` keeps a parallel `$bundleFilters` array, populated from the attribute at registration time via `resolveBundles()` (reflection over `#[AccessPolicy]`). The filter is applied at every gate the handler exposes: `check()`, `checkCreateAccess()`, and `checkFieldAccess()`. A policy whose `bundles` list is non-empty is skipped when the resolved bundle does not match; a policy with an empty list is always considered. No ordering or combinator changes — the filter runs before `appliesTo($entityTypeId)`, and the rest of the evaluation algorithm is unchanged.
 
 For the storage-side contract this surfaces (how bundle membership is resolved from per-bundle subtables and field registration), see `docs/specs/bundle-scoped-fields.md §Access`.
+
+### Purpose-scoped relationship authorization
+
+Generic entity access remains RBAC/policy-composed. The member-directory ReBAC
+operation is a separate domain authority with a closed output, not a new
+`AccessResult` combination rule. If generic source group view is Allowed, only
+the broad source/edge/endpoint branch runs. If it is not Allowed, the scoped
+branch may run only for an authenticated principal, a strict exact-group
+opt-in, and a live direct membership edge for that principal and group. The
+branches never merge or fall back per edge.
+
+The scoped result cannot be reused as a permission, policy result, field-read
+context, relationship predicate, or grant for another group. It returns only
+the fixed member-directory DTO and leaves every later access decision
+unchanged. Principal authentication/provenance remains the responsibility of
+the established middleware/factory boundary; the domain operation derives the
+claimant id from that immutable principal and accepts no caller-supplied member
+identity.
 
 ## Gate System
 

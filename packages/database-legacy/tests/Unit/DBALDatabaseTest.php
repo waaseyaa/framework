@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Waaseyaa\Database\Tests\Unit;
 
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\TransactionIsolationLevel;
+use Waaseyaa\Database\ConsistentReadDatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Database\DeleteInterface;
 use Waaseyaa\Database\InsertInterface;
@@ -95,6 +97,18 @@ final class DBALDatabaseTest extends TestCase
         $this->assertInstanceOf(TransactionInterface::class, $transaction);
         // Clean up: commit the transaction so SQLite doesn't complain.
         $transaction->commit();
+    }
+
+    public function testConsistentReadTransactionUsesRepeatableReadAndRestoresIsolation(): void
+    {
+        $connection = $this->db->getConnection();
+        $before = $connection->getTransactionIsolation();
+        $transaction = $this->db->consistentReadTransaction();
+
+        $this->assertInstanceOf(ConsistentReadDatabaseInterface::class, $this->db);
+        $this->assertSame(TransactionIsolationLevel::REPEATABLE_READ, $connection->getTransactionIsolation());
+        $transaction->commit();
+        $this->assertSame($before, $connection->getTransactionIsolation());
     }
 
     public function testQueryExecutesRawSql(): void

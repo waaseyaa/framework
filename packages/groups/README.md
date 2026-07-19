@@ -2,7 +2,7 @@
 
 **Layer 2 — Content Types**
 
-Multi-bundle `group` content entity type for Waaseyaa applications. The package defines two entity types — `group` (the bundle-aware content entity, keyed by `gid`/`uuid`, labeled by `name`, partitioned by `type`) and `group_type` (the config entity that declares bundle identities) — and ships with **zero pre-registered bundles and zero bundle-scoped fields**. Consuming applications declare their own `GroupType` bundles and register bundle-scoped fields; those field values land in per-bundle subtables named `group__{bundle}`, while the core keys plus the `FieldStorage::Data` universals (`status`, `created_at`, `updated_at`) live on the base `group` table. The package is framework-agnostic: it targets no single product domain. See `docs/specs/bundle-scoped-storage.md`.
+Multi-bundle `group` content entity type for Waaseyaa applications. The package defines two entity types — `group` (the bundle-aware content entity, keyed by `gid`/`uuid`, labeled by `name`, partitioned by `type`) and `group_type` (the config entity that declares bundle identities) — and ships with **zero pre-registered bundles and zero bundle-scoped fields**. Consuming applications declare their own `GroupType` bundles and register bundle-scoped fields; those field values land in per-bundle subtables named `group__{bundle}`, while the core keys and `FieldStorage::Data` universals live on the base `group` table. The Protected `members_can_view_directory` universal defaults to `false`; setting it to strict `true` opts that exact active group into the relationship-authorized member-directory contract. The package is framework-agnostic: it targets no single product domain. See `docs/specs/bundle-scoped-storage.md`.
 
 ## API exposure
 
@@ -11,6 +11,12 @@ and appear in authenticated API discovery. `GroupAccessPolicy` gates create,
 view, update, and delete operations on both types with the `administer groups`
 permission. Accounts without that permission receive no grant from the groups
 package policy and are denied for those operations.
+
+That generic CRUD policy is separate from the member-directory purpose.
+`AuthorizedRelationshipTraversal::memberDirectory()` may return the exact
+opted-in group's fixed `{userId, displayName}` projection to a principal whose
+own live direct `group_membership` edge is verified from relationship storage.
+It does not grant generic group, relationship, or user-profile access.
 
 ## Install
 

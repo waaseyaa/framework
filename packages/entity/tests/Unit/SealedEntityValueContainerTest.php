@@ -200,6 +200,25 @@ final class SealedEntityValueContainerTest extends TestCase
         $comparator->matchingSubmittedFieldNames($stale, ['uid' => 15], ['uid']);
     }
 
+    #[Test]
+    public function fixed_raw_projection_releases_only_the_named_closed_shape(): void
+    {
+        $entity = $this->sealedEntity([
+            'uid' => 15,
+            'name' => 'Member',
+            'status' => true,
+            'mail' => 'member@example.test',
+        ]);
+        $reader = \Closure::bind(
+            static fn(EntityBase $subject): array => $subject->valueContainer->rawProjection(['uid', 'name']),
+            null,
+            EntityBase::class,
+        );
+
+        self::assertSame(['uid' => 15, 'name' => 'Member'], $reader($entity));
+        self::assertArrayNotHasKey('mail', $reader($entity));
+    }
+
     /** @param array<string, mixed> $values */
     private function sealedEntity(
         array $values,
