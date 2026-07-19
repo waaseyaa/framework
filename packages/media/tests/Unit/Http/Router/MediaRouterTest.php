@@ -64,6 +64,20 @@ final class MediaRouterTest extends TestCase
     }
 
     #[Test]
+    public function resolve_files_root_dir_uses_canonical_files_dir_config(): void
+    {
+        $router = $this->createRouter(config: ['files_dir' => '/canonical/files']);
+        self::assertSame('/canonical/files', $router->resolveFilesRootDir());
+    }
+
+    #[Test]
+    public function legacy_files_root_takes_precedence_when_both_are_set(): void
+    {
+        $router = $this->createRouter(config: ['files_root' => '/legacy/files', 'files_dir' => '/canonical/files']);
+        self::assertSame('/legacy/files', $router->resolveFilesRootDir());
+    }
+
+    #[Test]
     public function resolve_upload_max_bytes_defaults_to_ten_megabytes(): void
     {
         $router = $this->createRouter();

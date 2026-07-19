@@ -40,7 +40,8 @@ final class MediaServiceProvider extends ServiceProvider implements HasHttpDomai
 
     private function resolveFilesRoot(HttpKernel $httpKernel): string
     {
-        $configured = $httpKernel->getConfig()['files_root'] ?? null;
+        $config = $httpKernel->getConfig();
+        $configured = $config['files_root'] ?? $config['files_dir'] ?? null;
 
         return is_string($configured) && $configured !== ''
             ? $configured

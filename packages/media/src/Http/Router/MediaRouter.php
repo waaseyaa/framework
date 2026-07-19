@@ -206,7 +206,7 @@ final class MediaRouter implements DomainRouterInterface
 
     public function resolveFilesRootDir(): string
     {
-        $configured = $this->config['files_root'] ?? null;
+        $configured = $this->config['files_root'] ?? $this->config['files_dir'] ?? null;
         if (is_string($configured) && $configured !== '') {
             return $configured;
         }
