@@ -408,6 +408,7 @@ return [
 
     // Layer 2: Content Types — public
     'Waaseyaa\Media\FileRepositoryInterface' => 'public',
+    'Waaseyaa\Media\Http\MediaDownloadSourceReaderInterface' => 'public',
     'Waaseyaa\Relationship\EntityVisibilityFilterInterface' => 'public',
     'Waaseyaa\Relationship\VisibilityFilterInterface' => 'public',
     'Waaseyaa\NorthCloud\Sync\NcHitToEntityMapperInterface' => 'public',

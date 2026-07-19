@@ -15,6 +15,7 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScope;
+use Waaseyaa\Access\Capability\InMemoryCapabilityRegistry;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldReadGuard;
 use Waaseyaa\Entity\EntityInterface;
@@ -24,15 +25,23 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
 use Waaseyaa\Media\Http\Router\MediaDownloadRouter;
+use Waaseyaa\Media\Http\AuditedMediaDownloadSourceReader;
+use Waaseyaa\Media\Http\MediaDownloadSourceReaderInterface;
 use Waaseyaa\Media\Media;
 use Waaseyaa\Media\MediaAccessPolicy;
 use Waaseyaa\User\User;
+use Waaseyaa\Audit\AuditedFieldRead;
+use Waaseyaa\Audit\Contract\PrivilegedReadDescriptor;
+use Waaseyaa\Audit\Contract\PrivilegedReadOutcome;
+use Waaseyaa\Audit\Contract\PrivilegedReadReceipt;
+use Waaseyaa\Audit\Contract\StrictPrivilegedReadLedgerInterface;
 
 #[CoversClass(MediaDownloadRouter::class)]
 final class MediaDownloadRouterTest extends TestCase
 {
     private string $filesRoot;
     private AccountFieldReadScope $fieldReadScope;
+    private MediaDownloadSourceReaderInterface $sourceReader;
 
     protected function setUp(): void
     {
@@ -45,6 +54,20 @@ final class MediaDownloadRouterTest extends TestCase
             $this->fieldReadScope,
             $accessHandler->checkProtectedFieldRead(...),
         ));
+        $capabilities = new InMemoryCapabilityRegistry();
+        $ledger = new class implements StrictPrivilegedReadLedgerInterface {
+            public function reserve(PrivilegedReadDescriptor $descriptor): PrivilegedReadReceipt
+            {
+                return new PrivilegedReadReceipt('media-download-test');
+            }
+            public function finalize(PrivilegedReadReceipt $receipt, PrivilegedReadOutcome $outcome): void {}
+        };
+        $this->sourceReader = new AuditedMediaDownloadSourceReader(
+            new AuditedFieldRead($capabilities, $ledger),
+            $capabilities,
+            'test-classification',
+            'test-policy',
+        );
     }
 
     protected function tearDown(): void
@@ -162,7 +185,7 @@ final class MediaDownloadRouterTest extends TestCase
         $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getRepository')->with('media')->willReturn(new StorageBackedStubRepository($storage));
 
-        return new MediaDownloadRouter($manager, new EntityAccessHandler([$policy]), $this->filesRoot, $this->fieldReadScope);
+        return new MediaDownloadRouter($manager, new EntityAccessHandler([$policy]), $this->filesRoot, $this->sourceReader);
     }
 
     private function request(int $accountId): Request
@@ -181,7 +204,7 @@ final class MediaDownloadRouterTest extends TestCase
             $account->id(),
             $account->isAuthenticated(),
             $account->getRoles(),
-            ['access media'],
+            [],
             'media-download-test',
         ));
 

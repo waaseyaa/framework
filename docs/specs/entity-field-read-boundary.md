@@ -1,5 +1,6 @@
 # Entity Field-Read Boundary
 
+<!-- Spec reviewed 2026-07-19 - Sheguiandah gap batch: MediaDownloadRouter retains its entity-view gate, then resolves only Protected media.source_uri through MediaDownloadSourceReaderInterface. The production reader opens a short-lived account-bound capability boundary, performs the strict audited one-field read, and revokes the boundary in finally; the router exposes no field selector or capability handle and retains concealed 404 behavior. -->
 <!-- Spec reviewed 2026-07-19 - #2079 adds a purpose-scoped ReBAC directory projection without changing field classifications or missing-context behavior. Group.members_can_view_directory is a Protected default-false authorization setting with admin-only generic release. AuthorizedRelationshipTraversal privately reads only exact group opt-in/status and active User id/status/name after verifying the immutable principal's live direct membership to that exact group in one graph snapshot. The readonly DTO contains only userId/displayName; User.mail and every other Internal/Protected field remain unavailable to ordinary reads and are never selected by the directory projector. -->
 <!-- Spec reviewed 2026-07-19 - #2079 confirms that relationship endpoint selectors remain Protected because topology can itself disclose sensitive membership or affiliation. Principal-facing consumers traverse through the fixed-shape AuthorizedRelationshipTraversal domain seam, which owns the account scope and source/edge/endpoint view gates and returns immutable AuthorizedRelationshipEdge projections; consumers receive no raw entity value bag, arbitrary field selector, capability handle, or status bypass. -->
 <!-- Spec reviewed 2026-07-19 - #2064 alpha.269 closes the post-activation mutable-account convergence class: request composition passes the validated immutable principal to every entity/field access decision; EntityAccessHandler and policy PHPDoc narrow decision accounts to AuthorizationPrincipalInterface under PHPStan; and EntityAccessHandler centrally rejects a live entity-backed account before any policy can call hasPermission()/getRoles(). An architecture test pins the static and runtime gates. This does not unseal a field or create a missing-context fallback. -->
@@ -573,11 +574,13 @@ The relationship type is simultaneously the relationship bundle and label
 selector, so it is structurally Public; endpoint and visibility content remain
 Protected.
 `MediaDownloadRouter` requires the request's immutable authorization principal
-to match its account and runs policy evaluation plus the Protected `source_uri`
-read inside the kernel-shared account scope. Direct dispatch without that
-principal fails closed. `MediaProtectedFieldReadPolicy` releases `source_uri`
-to an immutable principal holding the same `access media` capability that
-admits published media view, while `uid` remains owner/admin-only; response MIME type and filename are derived from the
+to match its account and runs the media entity policy evaluation before any
+Protected `source_uri` read. Direct dispatch without that principal fails
+closed. After an Allowed view decision, the typed, field-selector-free
+`MediaDownloadSourceReaderInterface` opens a short-lived account-bound
+capability boundary, reads only `media.source_uri` through the strict audited
+field-read seam, and revokes the boundary in `finally`; callers receive only
+the URI string, never the capability. `uid` remains owner/admin-only; response MIME type and filename are derived from the
 resolved contained file, so the download path does not acquire authority for
 unclassified metadata fields.
 Media ownership remains Protected: `uid` is the exact compiled authorization
