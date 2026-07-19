@@ -37,7 +37,7 @@ final class SearchRouterTest extends TestCase
         $db = \Waaseyaa\Database\DBALDatabase::createSqlite();
         $router = new SearchRouter([], $db);
 
-        $account = $this->createStub(\Waaseyaa\Access\AccountInterface::class);
+        $account = $this->createStub(\Waaseyaa\Access\AuthorizationPrincipalInterface::class);
         $broadcastStorage = new \Waaseyaa\Api\Controller\BroadcastStorage($db);
 
         $request = Request::create('/api/search');

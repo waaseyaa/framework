@@ -30,5 +30,6 @@ final readonly class AppInvocationContext
         public array $query,
         public ?\Waaseyaa\Access\Gate\GateInterface $gate,
         public ?HttpServiceResolverInterface $serviceResolver,
+        public ?AccountInterface $decisionAccount = null,
     ) {}
 }

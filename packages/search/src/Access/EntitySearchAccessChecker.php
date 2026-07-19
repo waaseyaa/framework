@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Search\Access;
 
 use Waaseyaa\Access\Context\AccountContextInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 
@@ -29,6 +30,7 @@ final class EntitySearchAccessChecker implements SearchAccessChecker
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly EntityAccessHandler $accessHandler,
         private readonly AccountContextInterface $accountContext,
+        private readonly ?AccountFieldReadScopeInterface $fieldReadScope = null,
     ) {}
 
     public function canView(string $documentId, string $entityType): bool
@@ -44,6 +46,14 @@ final class EntitySearchAccessChecker implements SearchAccessChecker
         if ($account === null) {
             return false;
         }
+        $principal = $this->fieldReadScope?->current();
+        if ($principal !== null && (string) $principal->id() !== (string) $account->id()) {
+            return false;
+        }
+        $authorizationAccount = $principal ?? ($account instanceof \Waaseyaa\Access\AuthorizationPrincipalInterface ? $account : null);
+        if ($authorizationAccount === null) {
+            return false;
+        }
 
         $id = $this->entityIdFromDocumentId($documentId, $entityType);
         if ($id === '') {
@@ -57,7 +67,7 @@ final class EntitySearchAccessChecker implements SearchAccessChecker
             return false;
         }
 
-        return $this->accessHandler->check($entity, 'view', $account)->isAllowed();
+        return $this->accessHandler->check($entity, 'view', $authorizationAccount)->isAllowed();
     }
 
     /**

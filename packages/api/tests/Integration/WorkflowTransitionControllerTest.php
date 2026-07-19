@@ -11,6 +11,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Controller\WorkflowTransitionController;
 use Waaseyaa\Config\ConfigFactoryInterface;
@@ -423,13 +424,7 @@ final class WorkflowTransitionControllerTest extends TestCase
 
     private function account(int $id, array $permissions): AccountInterface
     {
-        return new class ($id, $permissions) implements AccountInterface {
-            public function __construct(private readonly int $accountId, private readonly array $permissions) {}
-            public function id(): int|string { return $this->accountId; }
-            public function hasPermission(string $permission): bool { return \in_array($permission, $this->permissions, true); }
-            public function getRoles(): array { return ['authenticated']; }
-            public function isAuthenticated(): bool { return true; }
-        };
+        return new AuthorizationPrincipal($id, true, ['authenticated'], $permissions, 'test-' . $id);
     }
 
     private function requestWithAccount(string $method, string $uri, AccountInterface $account): Request

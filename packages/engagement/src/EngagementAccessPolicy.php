@@ -115,6 +115,7 @@ final class EngagementAccessPolicy implements AccessPolicyInterface, FieldAccess
         return in_array($entityTypeId, self::TYPES, true);
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
     {
         if ($account->hasPermission('administer content')) {
@@ -147,6 +148,7 @@ final class EngagementAccessPolicy implements AccessPolicyInterface, FieldAccess
      * to its owner. Anything we cannot positively confirm as viewable is
      * denied (Neutral), so the default is fail-closed.
      */
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     private function viewAccess(EntityInterface $entity, AccountInterface $account): AccessResult
     {
         // Comment moderation: a non-published comment is withheld from everyone
@@ -166,6 +168,7 @@ final class EngagementAccessPolicy implements AccessPolicyInterface, FieldAccess
      * Cascade visibility from the parent content: the caller may view the
      * engagement only if they may view the entity it targets.
      */
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     private function parentViewAccess(EntityInterface $entity, AccountInterface $account): AccessResult
     {
         if ($this->entityTypeManager === null || $this->accessHandler === null) {
@@ -261,6 +264,7 @@ final class EngagementAccessPolicy implements AccessPolicyInterface, FieldAccess
         return AccessResult::neutral("No field-edit opinion on '$fieldName'.");
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     private function ownerCheck(EntityInterface $entity, AccountInterface $account): AccessResult
     {
         if ($this->isOwner($entity, $account)) {
@@ -285,6 +289,7 @@ final class EngagementAccessPolicy implements AccessPolicyInterface, FieldAccess
         return in_array($subject->get('status'), [true, 1, '1', 'true', 'published', 'yes'], true);
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     private function parentViewAccessForSubject(PolicySubjectViewInterface $subject, AccountInterface $account): AccessResult
     {
         if ($this->entityTypeManager === null || $this->accessHandler === null) {

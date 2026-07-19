@@ -12,6 +12,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Attachment\Attachment;
 use Waaseyaa\Attachment\Http\AttachmentDownloadMetadata;
@@ -320,7 +321,15 @@ final class AttachmentDownloadRouterTest extends TestCase
     {
         $request = Request::create('/attachment/' . $attachmentId . '/download');
         $request->attributes->set('id', $attachmentId);
-        $request->attributes->set('_account', $this->account($accountId));
+        $account = $this->account($accountId);
+        $request->attributes->set('_account', $account);
+        $request->attributes->set('_authorization_principal', new AuthorizationPrincipal(
+            $accountId,
+            true,
+            [],
+            [],
+            'attachment-download-test',
+        ));
 
         return $request;
     }

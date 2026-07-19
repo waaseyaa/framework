@@ -83,6 +83,7 @@ final class RelationshipEndpointVisibilityPolicy implements AccessPolicyInterfac
         return $entityTypeId === 'relationship';
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
     {
         if ($operation === 'view' && $entity instanceof Relationship) {
@@ -111,6 +112,7 @@ final class RelationshipEndpointVisibilityPolicy implements AccessPolicyInterfac
         return AccessResult::neutral();
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     public function fieldAccess(
         EntityInterface $entity,
         string $fieldName,
@@ -132,6 +134,7 @@ final class RelationshipEndpointVisibilityPolicy implements AccessPolicyInterfac
         return AccessResult::neutral();
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     private function redactIfEndpointHidden(
         Relationship $edge,
         string $typeField,
@@ -147,6 +150,7 @@ final class RelationshipEndpointVisibilityPolicy implements AccessPolicyInterfac
             : AccessResult::forbidden('Endpoint entity is hidden from this account.');
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     private function isEndpointViewable(string $entityTypeId, string $id, AccountInterface $account): bool
     {
         if ($entityTypeId === '' || $id === '' || !$this->entityTypeManager->hasDefinition($entityTypeId)) {

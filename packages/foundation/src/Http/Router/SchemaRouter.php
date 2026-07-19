@@ -41,7 +41,7 @@ final class SchemaRouter implements DomainRouterInterface
 
         $ctx = WaaseyaaContext::fromRequest($request);
         $schemaPresenter = new SchemaPresenter($this->fieldDefinitionRegistry);
-        $schemaController = new SchemaController($this->entityTypeManager, $schemaPresenter, $this->accessHandler, $ctx->account);
+        $schemaController = new SchemaController($this->entityTypeManager, $schemaPresenter, $this->accessHandler, $ctx->principal);
         $bundle = $request->query->get('bundle');
         $document = $schemaController->show(
             $request->attributes->get('entity_type'),

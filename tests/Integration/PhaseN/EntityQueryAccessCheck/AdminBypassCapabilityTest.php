@@ -11,6 +11,7 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
@@ -126,33 +127,7 @@ final class AdminBypassCapabilityTest extends TestCase
      */
     private function makeAccount(int $id, array $permissions): AccountInterface
     {
-        return new class ($id, $permissions) implements AccountInterface {
-            /** @param list<string> $permissions */
-            public function __construct(
-                private readonly int $accountId,
-                private readonly array $permissions,
-            ) {}
-
-            public function id(): int|string
-            {
-                return $this->accountId;
-            }
-
-            public function hasPermission(string $permission): bool
-            {
-                return in_array($permission, $this->permissions, true);
-            }
-
-            public function getRoles(): array
-            {
-                return [];
-            }
-
-            public function isAuthenticated(): bool
-            {
-                return $this->accountId !== 0;
-            }
-        };
+        return new AuthorizationPrincipal($id, $id !== 0, [], $permissions, 'test-' . $id);
     }
 
     /**

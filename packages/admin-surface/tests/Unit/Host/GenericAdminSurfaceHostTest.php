@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AdminSurface\Action\SurfaceActionHandlerInterface;
 use Waaseyaa\AdminSurface\Catalog\CatalogBuilder;
@@ -171,7 +172,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
 
         $host = new GenericAdminSurfaceHost($etm, $accessHandler);
 
-        $account = $this->createStub(AccountInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);
@@ -234,7 +235,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     #[Test]
     public function resolve_session_returns_null_for_non_admin(): void
     {
-        $account = $this->createStub(AccountInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturn(false);
         $account->method('getRoles')->willReturn(['authenticated']);
@@ -249,7 +250,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     #[Test]
     public function resolve_session_returns_data_for_admin(): void
     {
-        $account = $this->createStub(AccountInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn(42);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);
@@ -275,7 +276,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     #[Test]
     public function resolve_session_includes_ui_from_buildAdminUi(): void
     {
-        $account = $this->createStub(AccountInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn(7);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);
@@ -305,7 +306,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     #[Test]
     public function resolve_session_uses_custom_permission(): void
     {
-        $account = $this->createStub(AccountInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturnCallback(
             fn(string $perm) => $perm === 'manage site',
@@ -497,7 +498,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
                 : [],
         );
 
-        $account = $this->createStub(AccountInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);
@@ -650,7 +651,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $host = new GenericAdminSurfaceHost($etm, $accessHandler);
 
         // Simulate resolveSession to set currentAccount
-        $account = $this->createStub(AccountInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['authenticated']);
@@ -701,7 +702,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
 
         $host = new GenericAdminSurfaceHost($etm, $accessHandler);
 
-        $account = $this->createStub(AccountInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);
@@ -772,7 +773,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $host = new GenericAdminSurfaceHost($etm, $accessHandler);
 
         // Simulate resolveSession
-        $account = $this->createStub(AccountInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['authenticated']);

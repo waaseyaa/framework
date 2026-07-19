@@ -38,6 +38,7 @@ final class SchemaController
 {
     private readonly LoggerInterface $logger;
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface|null $account */
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly SchemaPresenter $schemaPresenter,

@@ -57,6 +57,7 @@ final class EntityMarkdownPresenter
      *                                           known by the caller (the SSR
      *                                           layer); recorded in front matter.
      */
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     public function present(
         EntityInterface $entity,
         string $viewMode,

@@ -39,6 +39,7 @@ final class FormDescriptorBuilder
      * registered for the bundle — never throws.
      *
      * @return list<FormFieldDescriptor>
+     * @param \Waaseyaa\Access\AuthorizationPrincipalInterface|null $account
      */
     public function build(
         EntityInterface $entity,

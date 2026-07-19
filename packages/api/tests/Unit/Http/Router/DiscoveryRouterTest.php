@@ -12,6 +12,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
@@ -788,35 +789,13 @@ final class DiscoveryRouterTest extends TestCase
      */
     private function createAccount(bool $authenticated, array $permissions = []): AccountInterface
     {
-        return new class($authenticated, $permissions) implements AccountInterface {
-            /**
-             * @param list<string> $permissions
-             */
-            public function __construct(
-                private readonly bool $authenticated,
-                private readonly array $permissions = [],
-            ) {}
-
-            public function id(): int|string
-            {
-                return $this->authenticated ? 1 : 0;
-            }
-
-            public function hasPermission(string $permission): bool
-            {
-                return in_array($permission, $this->permissions, true);
-            }
-
-            public function getRoles(): array
-            {
-                return [$this->authenticated ? 'authenticated' : 'anonymous'];
-            }
-
-            public function isAuthenticated(): bool
-            {
-                return $this->authenticated;
-            }
-        };
+        return new AuthorizationPrincipal(
+            $authenticated ? 1 : 0,
+            $authenticated,
+            [$authenticated ? 'authenticated' : 'anonymous'],
+            $permissions,
+            'test',
+        );
     }
 }
 

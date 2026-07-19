@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\User;
 
-use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 
 /**
  * Represents a non-authenticated (anonymous) visitor.
@@ -13,7 +13,7 @@ use Waaseyaa\Access\AccountInterface;
  * and carries the 'anonymous' role. A fixed set of permissions
  * can be granted to anonymous visitors at construction time.
  */
-final class AnonymousUser implements AccountInterface
+final class AnonymousUser implements AuthorizationPrincipalInterface
 {
     /**
      * @param string[] $permissions Permissions granted to anonymous visitors.
@@ -41,5 +41,20 @@ final class AnonymousUser implements AccountInterface
     public function isAuthenticated(): bool
     {
         return false;
+    }
+
+    public function claimsGeneration(): string
+    {
+        return hash('sha256', serialize($this->permissions));
+    }
+
+    public function tenantId(): ?string
+    {
+        return null;
+    }
+
+    public function communityId(): ?string
+    {
+        return null;
     }
 }

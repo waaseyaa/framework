@@ -62,6 +62,7 @@ final class EntityEmbedder
      * entity has been deleted (load returns null), or whose view check does
      * not resolve to Allowed is dropped silently.
      *
+     * @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account
      * @return SimilarityResult[]
      */
     public function searchSimilar(string $query, AccountInterface $account, int $limit = 10, ?string $entityTypeId = null): array
@@ -76,6 +77,7 @@ final class EntityEmbedder
         ));
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     private function isViewable(SimilarityResult $result, AccountInterface $account): bool
     {
         $entityTypeId = $result->embedding->entityTypeId;

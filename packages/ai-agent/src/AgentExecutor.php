@@ -124,6 +124,7 @@ final class AgentExecutor
      * @param int $maxIterations Iteration budget (FR-026).
      * @param int $maxTokens Provider per-call token budget.
      * @param list<string> $allowedToolNames Agent-definition tool names authorized for this run.
+     * @param \Waaseyaa\Access\AuthorizationPrincipalInterface $initiatorAccount
      */
     public function executeRun(
         AgentRun $run,
@@ -178,6 +179,7 @@ final class AgentExecutor
      *
      * @param array<int, array<string, mixed>> $messages Initial messages.
      * @param array<int, array<string, mixed>> $tools     Tool descriptors to advertise to the provider.
+     * @param \Waaseyaa\Access\AuthorizationPrincipalInterface $initiatorAccount
      */
     private function doExecuteRun(
         AgentRun $run,
@@ -485,6 +487,7 @@ final class AgentExecutor
      * written when a `$runId` is supplied.
      *
      * @param array<string, mixed> $arguments
+     * @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account
      */
     public function executeTool(
         string $toolName,

@@ -14,6 +14,7 @@ use Twig\Loader\ArrayLoader;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
@@ -112,7 +113,7 @@ final class SsrNodeViewAccessGateTest extends TestCase
 
     private function anon(): AccountInterface
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createMock(AuthorizationPrincipalInterface::class);
         $account->method('isAuthenticated')->willReturn(false);
         $account->method('hasPermission')->willReturn(false);
 
@@ -121,7 +122,7 @@ final class SsrNodeViewAccessGateTest extends TestCase
 
     private function anonWithAccessContent(): AccountInterface
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createMock(AuthorizationPrincipalInterface::class);
         $account->method('isAuthenticated')->willReturn(false);
         $account->method('hasPermission')->willReturnCallback(
             static fn(string $permission): bool => $permission === 'access content',

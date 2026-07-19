@@ -68,6 +68,7 @@ final class ParentDelegatedAccessPolicy implements AccessPolicyInterface, Protec
         return new ParentDelegatedFieldReadPolicy($this->entityTypeManager, $this->accessHandler);
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
     {
         if (!$entity instanceof Attachment) {

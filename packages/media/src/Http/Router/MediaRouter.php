@@ -67,7 +67,7 @@ final class MediaRouter implements DomainRouterInterface
         } catch (\Throwable) {
             $bundleIsRegistered = false;
         }
-        $createAccess = $this->accessHandler?->checkCreateAccess('media', $bundle, $ctx->account);
+        $createAccess = $this->accessHandler?->checkCreateAccess('media', $bundle, $ctx->principal);
         if (!$bundleIsRegistered || $createAccess === null || !$createAccess->isAllowed()) {
             return $this->jsonApiResponse(403, [
                 'jsonapi' => ['version' => '1.1'],

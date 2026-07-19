@@ -29,6 +29,7 @@ interface AgentToolInterface
      * capability against {@see $account}.
      *
      * @param array<string, mixed> $arguments
+     * @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account
      */
     public function execute(array $arguments, AccountInterface $account): AgentToolResult;
 
@@ -42,6 +43,7 @@ interface AgentToolInterface
      * {@see AbstractAgentTool::dryRun()} does the latter.
      *
      * @param array<string, mixed> $arguments
+     * @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account
      */
     public function dryRun(array $arguments, AccountInterface $account): AgentToolResult;
 

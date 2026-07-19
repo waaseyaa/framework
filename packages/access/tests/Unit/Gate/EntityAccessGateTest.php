@@ -7,6 +7,7 @@ namespace Waaseyaa\Access\Tests\Unit\Gate;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\Gate\AccessDeniedException;
 use Waaseyaa\Access\Gate\EntityAccessGate;
@@ -240,9 +241,9 @@ final class EntityAccessGateTest extends TestCase
         return $entity;
     }
 
-    private function createAccount(array $roles): AccountInterface
+    private function createAccount(array $roles): AuthorizationPrincipalInterface
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createMock(AuthorizationPrincipalInterface::class);
         $account->method('getRoles')->willReturn($roles);
         return $account;
     }

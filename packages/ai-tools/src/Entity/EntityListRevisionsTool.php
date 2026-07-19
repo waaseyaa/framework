@@ -50,6 +50,8 @@ final class EntityListRevisionsTool extends AbstractAgentTool
         ];
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
+
     public function execute(array $arguments, AccountInterface $account): AgentToolResult
     {
         $denied = $this->requireCapability('tool.entity.read', $account);
@@ -113,6 +115,8 @@ final class EntityListRevisionsTool extends AbstractAgentTool
             summary: sprintf('%d revision(s) for %s/%s', count($rows), $entityType, (string) $id),
         );
     }
+
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
 
     public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
     {

@@ -14,6 +14,7 @@ use Twig\Loader\ArrayLoader;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\Policy\PublishedContentAccessPolicy;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
@@ -87,7 +88,7 @@ final class SsrEntityViewGateAllTypesTest extends TestCase
         $this->registerEntityType(new EntityType(
             id: 'restricted_widget',
             label: 'Restricted Widget',
-            class: GenericSsrContentEntity::class,
+            class: GenericSsrTermEntity::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title'],
             group: 'widgets',
         ));
@@ -109,7 +110,7 @@ final class SsrEntityViewGateAllTypesTest extends TestCase
         $this->registerEntityType(new EntityType(
             id: 'taxonomy_term',
             label: 'Taxonomy term',
-            class: GenericSsrContentEntity::class,
+            class: GenericSsrTermEntity::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title'],
             group: 'taxonomy',
         ));
@@ -141,7 +142,7 @@ final class SsrEntityViewGateAllTypesTest extends TestCase
 
     private function anon(): AccountInterface
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createMock(AuthorizationPrincipalInterface::class);
         $account->method('isAuthenticated')->willReturn(false);
         $account->method('hasPermission')->willReturn(false);
 
@@ -329,6 +330,16 @@ final class SsrEntityViewGateAllTypesTest extends TestCase
 
 /** Explicit public fields for the generic non-Node SSR surface fixture. */
 final class GenericSsrContentEntity extends ContentEntityBase
+{
+    #[Field(required: false, read: FieldReadLevel::Public)]
+    public string $title = '';
+
+    #[Field(type: 'boolean', required: false, settings: ['authorizationInput' => true], read: FieldReadLevel::Protected)]
+    public bool $status = false;
+}
+
+/** Taxonomy fixture keeps status public because the legacy TermAccessPolicy reads it directly. */
+final class GenericSsrTermEntity extends ContentEntityBase
 {
     #[Field(required: false, read: FieldReadLevel::Public)]
     public string $title = '';

@@ -97,7 +97,7 @@ final readonly class RevisionPolicyComposition
      * @param EntityInterface                   $entity    The entity being accessed. For
      *                                                     two-axis entities this is typically
      *                                                     a translation instance.
-     * @param AccountInterface                  $account   The account requesting access.
+     * @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account Immutable principal.
      * @param string                            $operation The operation, e.g. `view`,
      *                                                     `edit`, `delete`, `translate`,
      *                                                     `view_revision`.

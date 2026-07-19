@@ -57,6 +57,8 @@ final class RelationshipTraverseTool extends AbstractAgentTool
         ];
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
+
     public function execute(array $arguments, AccountInterface $account): AgentToolResult
     {
         $denied = $this->requireCapability('tool.relationship.traverse', $account);
@@ -179,6 +181,7 @@ final class RelationshipTraverseTool extends AbstractAgentTool
      *
      * @return array<string, mixed>
      */
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     private function extractValues(EntityInterface $row, AccountInterface $account): array
     {
         if ($row instanceof EntityBase) {
@@ -187,7 +190,7 @@ final class RelationshipTraverseTool extends AbstractAgentTool
 
             return EntityValues::toCastAwareMap(
                 $row,
-                array_keys($allowed),
+                array_values(array_filter(array_keys($allowed), is_string(...))),
             );
         }
 
@@ -213,6 +216,7 @@ final class RelationshipTraverseTool extends AbstractAgentTool
      * this allows, preserving prior behavior; enforced-with-no-handler fails
      * closed.
      */
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     private function canViewSource(string $sourceType, string|int $sourceId, AccountInterface $account): bool
     {
         if ($sourceType === '' || (string) $sourceId === '') {
@@ -263,6 +267,7 @@ final class RelationshipTraverseTool extends AbstractAgentTool
      *
      * @param array<string, mixed> $values
      */
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     private function canViewEndpoint(array $values, AccountInterface $account): bool
     {
         $endpointType = $values['to_entity_type'] ?? null;
@@ -289,6 +294,8 @@ final class RelationshipTraverseTool extends AbstractAgentTool
 
         return $this->canViewEntity($endpoint, $account);
     }
+
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
 
     public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
     {

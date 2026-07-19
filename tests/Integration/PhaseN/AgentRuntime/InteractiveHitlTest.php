@@ -12,6 +12,8 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Messenger\MessageBus;
 use Symfony\Component\Uid\Uuid;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\AI\Agent\Access\AgentRunAccessPolicy;
 use Waaseyaa\AI\Agent\AgentDefinitionRegistry;
 use Waaseyaa\AI\Agent\Broadcast\AgentRunBroadcaster;
@@ -184,7 +186,7 @@ final class InteractiveHitlTest extends TestCase
         ], \JSON_THROW_ON_ERROR));
 
         $database = $this->database;
-        $request->attributes->set('_account', new class ($database, $runId, $replacementCallId) implements AccountInterface {
+        $request->attributes->set('_account', new class ($database, $runId, $replacementCallId) implements AuthorizationPrincipalInterface {
             private bool $raced = false;
 
             public function __construct(
@@ -219,6 +221,19 @@ final class InteractiveHitlTest extends TestCase
             public function isAuthenticated(): bool
             {
                 return true;
+            }
+
+            public function claimsGeneration(): string
+            {
+                return 'test-race';
+            }
+            public function tenantId(): ?string
+            {
+                return null;
+            }
+            public function communityId(): ?string
+            {
+                return null;
             }
         });
 
@@ -282,29 +297,7 @@ final class InteractiveHitlTest extends TestCase
 
     private function account(int $id): AccountInterface
     {
-        return new class ($id) implements AccountInterface {
-            public function __construct(private readonly int $accountId) {}
-
-            public function id(): int|string
-            {
-                return $this->accountId;
-            }
-
-            public function hasPermission(string $permission): bool
-            {
-                return \in_array($permission, ['agent.run', 'agent.run.approve'], strict: true);
-            }
-
-            public function getRoles(): array
-            {
-                return ['authenticated'];
-            }
-
-            public function isAuthenticated(): bool
-            {
-                return true;
-            }
-        };
+        return new AuthorizationPrincipal($id, true, ['authenticated'], ['agent.run', 'agent.run.approve'], 'test-' . $id);
     }
 
     private function buildController(): AgentRunController

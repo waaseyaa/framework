@@ -9,6 +9,7 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
+use Waaseyaa\Access\DecisionAccountResolver;
 use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\Bridge\AgentToolRegistryBridge;
@@ -102,11 +103,22 @@ final readonly class McpEndpoint
                 statusCode: 401,
             );
         }
+        $principal = DecisionAccountResolver::resolve($authenticated, $authenticated);
+        if ($principal === null) {
+            return new McpResponse(
+                body: \json_encode([
+                    'jsonrpc' => '2.0',
+                    'error' => ['code' => -32001, 'message' => 'Unauthorized'],
+                    'id' => null,
+                ], \JSON_THROW_ON_ERROR),
+                statusCode: 401,
+            );
+        }
 
         // Construct the per-request bridge with the auth-resolved account.
         // The bridge forwards $authenticated into every tool->execute() call,
         // so per-tool capability gates run against the correct identity.
-        $bridge = new AgentToolRegistryBridge($this->agentRegistry, $authenticated);
+        $bridge = new AgentToolRegistryBridge($this->agentRegistry, $principal);
 
         // Scope the acting-account context to the bearer-auth account
         // (research D1 writer 2, FR-002). The MCP account deliberately
@@ -114,7 +126,7 @@ final readonly class McpEndpoint
         // prior value is captured and restored in `finally` — including
         // when a routed handler throws.
         $previousActor = $this->accountContext?->current();
-        $this->accountContext?->set($authenticated);
+        $this->accountContext?->set($principal);
 
         try {
             // Parse JSON-RPC request.

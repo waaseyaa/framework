@@ -42,7 +42,7 @@ final class RelationshipTraversalService
      *        SsrPageHandler::canViewRelatedEndpoint()). Fail-closed when
      *        engaged: an endpoint with an empty id/type, an unregistered
      *        entity type, or that fails to load is treated as NOT viewable.
-     * @param ?AccountInterface $account The account the $accessHandler gate
+     * @param \Waaseyaa\Access\AuthorizationPrincipalInterface|null $account The principal the $accessHandler gate
      *        checks 'view' access against. Required together with
      *        $accessHandler to engage the gate.
      */

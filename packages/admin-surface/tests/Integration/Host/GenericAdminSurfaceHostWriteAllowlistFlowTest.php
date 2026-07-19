@@ -164,25 +164,7 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
      */
     private function account(int $id, array $permissions): AccountInterface
     {
-        return new class ($id, $permissions) implements AccountInterface {
-            public function __construct(private readonly int $accountId, private readonly array $permissions) {}
-            public function id(): int|string
-            {
-                return $this->accountId;
-            }
-            public function hasPermission(string $permission): bool
-            {
-                return \in_array($permission, $this->permissions, true);
-            }
-            public function getRoles(): array
-            {
-                return [];
-            }
-            public function isAuthenticated(): bool
-            {
-                return true;
-            }
-        };
+        return new AuthorizationPrincipal($id, true, [], $permissions, 'test-' . $id);
     }
 
     /**

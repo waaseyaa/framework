@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Migration\Account;
 
-use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 
 /**
  * First-class, least-privilege system account for production migration runs.
@@ -78,7 +78,7 @@ use Waaseyaa\Access\AccountInterface;
  *
  * @api
  */
-final class MigrationSystemAccount implements AccountInterface
+final class MigrationSystemAccount implements AuthorizationPrincipalInterface
 {
     /**
      * The permission `ContentAdminAccessPolicy` requires to grant manage +
@@ -117,5 +117,20 @@ final class MigrationSystemAccount implements AccountInterface
     public function isAuthenticated(): bool
     {
         return true;
+    }
+
+    public function claimsGeneration(): string
+    {
+        return hash('sha256', serialize($this->permissions));
+    }
+
+    public function tenantId(): ?string
+    {
+        return null;
+    }
+
+    public function communityId(): ?string
+    {
+        return null;
     }
 }

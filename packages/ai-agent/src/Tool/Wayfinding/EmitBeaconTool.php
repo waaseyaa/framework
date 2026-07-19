@@ -66,6 +66,8 @@ final class EmitBeaconTool extends AbstractAgentTool
         ];
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
+
     public function execute(array $arguments, AccountInterface $account): AgentToolResult
     {
         $denied = $this->requireCapability(EmitBeaconController::CAPABILITY, $account);

@@ -153,6 +153,7 @@ abstract class AbstractAgentTool implements AgentToolInterface
      * the capability; concrete tools can call this from {@see execute()}
      * to short-circuit cleanly.
      */
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     protected function requireCapability(string $capability, AccountInterface $account): ?AgentToolResult
     {
         if (!$account->hasPermission($capability)) {
@@ -172,6 +173,8 @@ abstract class AbstractAgentTool implements AgentToolInterface
      * required). When enforcement is required but no handler is present the
      * guard fails closed (deny) — a wiring gap must never read as "allow".
      */
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     protected function requireEntityAccess(EntityInterface $entity, string $operation, AccountInterface $account): ?AgentToolResult
     {
         if ($this->accessHandler === null) {
@@ -202,6 +205,8 @@ abstract class AbstractAgentTool implements AgentToolInterface
      * existence) or substring match — the same per-entity gate
      * {@see EntityReadTool} applies to single reads.
      */
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     protected function canViewEntity(EntityInterface $entity, AccountInterface $account): bool
     {
         if ($this->accessHandler === null) {
@@ -229,6 +234,8 @@ abstract class AbstractAgentTool implements AgentToolInterface
      * applied there and entity-level access is the caller's responsibility.
      * Enforced mode with no handler fails closed (`null`), matching
      * {@see canViewEntity()}'s wiring-gap contract.
+     *
+     * @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account
      */
     protected function viewableLabel(
         EntityInterface $entity,
@@ -270,13 +277,16 @@ abstract class AbstractAgentTool implements AgentToolInterface
      * @param array<string, mixed> $values
      * @return array<string, mixed>
      */
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     protected function applyFieldAccessFilter(EntityInterface $entity, array $values, AccountInterface $account): array
     {
         if ($this->accessHandler === null || $values === []) {
             return $values;
         }
 
-        $allowed = $this->accessHandler->filterFields($entity, array_keys($values), 'view', $account);
+        $fieldNames = array_values(array_filter(array_keys($values), is_string(...)));
+        $allowed = $this->accessHandler->filterFields($entity, $fieldNames, 'view', $account);
 
         return array_intersect_key($values, array_flip($allowed));
     }
@@ -288,6 +298,8 @@ abstract class AbstractAgentTool implements AgentToolInterface
      * required). When enforcement is required but no handler is present the
      * guard fails closed (deny).
      */
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     protected function requireCreateAccess(string $entityTypeId, string $bundle, AccountInterface $account): ?AgentToolResult
     {
         if ($this->accessHandler === null) {
@@ -319,7 +331,9 @@ abstract class AbstractAgentTool implements AgentToolInterface
      * Non-string keys are skipped (they are never field names).
      *
      * @param array<array-key, mixed> $values
+     * @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account
      */
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     protected function requireFieldEditAccess(EntityInterface $entity, array $values, AccountInterface $account): ?AgentToolResult
     {
         if ($this->accessHandler === null) {
@@ -347,6 +361,7 @@ abstract class AbstractAgentTool implements AgentToolInterface
      * agent) cannot distinguish "policy said no" from "could not check" — no
      * existence/identity oracle leaks through the difference.
      */
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     private function accessUnenforceableError(AccountInterface $account, string $operation, string $entityTypeId): AgentToolResult
     {
         return AgentToolResult::error(

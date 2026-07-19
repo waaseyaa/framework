@@ -10,6 +10,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Api\Controller\MediaVersionController;
 use Waaseyaa\Api\Http\Router\MediaVersionApiRouter;
@@ -57,43 +58,8 @@ final class ForbiddenVersionIntegrationTest extends TestCase
         $this->seedVersion($this->mediaUuid, 2, str_repeat('b', 64));
         $this->seedVersion($this->mediaUuid, 3, str_repeat('c', 64));
 
-        $this->adminAccount = new class implements AccountInterface {
-            public function id(): int|string
-            {
-                return 1;
-            }
-            public function isAuthenticated(): bool
-            {
-                return true;
-            }
-            public function getRoles(): array
-            {
-                return ['administrator'];
-            }
-            public function hasPermission(string $permission): bool
-            {
-                return true;
-            }
-        };
-
-        $this->nonAdminAccount = new class implements AccountInterface {
-            public function id(): int|string
-            {
-                return 2;
-            }
-            public function isAuthenticated(): bool
-            {
-                return true;
-            }
-            public function getRoles(): array
-            {
-                return ['authenticated'];
-            }
-            public function hasPermission(string $permission): bool
-            {
-                return false;
-            }
-        };
+        $this->adminAccount = new AuthorizationPrincipal(1, true, ['administrator'], [], 'test-admin');
+        $this->nonAdminAccount = new AuthorizationPrincipal(2, true, ['authenticated'], [], 'test-member');
     }
 
     private function createSchema(): void

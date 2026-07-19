@@ -6,6 +6,7 @@ namespace Waaseyaa\Search;
 
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
@@ -37,6 +38,7 @@ final class SearchServiceProvider extends ServiceProvider
                 $this->resolve(EntityTypeManagerInterface::class),
                 $this->resolve(EntityAccessHandler::class),
                 $this->resolve(AccountContextInterface::class),
+                $this->resolveOptional(AccountFieldReadScopeInterface::class),
             );
         });
 

@@ -11,6 +11,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Access\Context\RequestAccountContext;
 use Waaseyaa\Access\EntityAccessHandler;
@@ -185,13 +186,7 @@ final class WorkflowTransitionEndToEndTest extends TestCase
 
     private function account(int $id, array $permissions): AccountInterface
     {
-        return new class ($id, $permissions) implements AccountInterface {
-            public function __construct(private readonly int $accountId, private readonly array $permissions) {}
-            public function id(): int|string { return $this->accountId; }
-            public function hasPermission(string $permission): bool { return \in_array($permission, $this->permissions, true); }
-            public function getRoles(): array { return []; }
-            public function isAuthenticated(): bool { return $this->accountId !== 0; }
-        };
+        return new AuthorizationPrincipal($id, $id !== 0, [], $permissions, 'test-' . $id);
     }
 
     /**

@@ -60,6 +60,8 @@ final class ResourceSerializer
      *
      * When an access handler and account are provided, fields that the account
      * cannot view are omitted from the attributes.
+     *
+     * @param \Waaseyaa\Access\AuthorizationPrincipalInterface|null $account
      */
     public function serialize(
         EntityInterface $entity,
@@ -126,6 +128,7 @@ final class ResourceSerializer
      * Serialize a collection of entities to an array of JsonApiResource objects.
      *
      * @param array<EntityInterface> $entities
+     * @param \Waaseyaa\Access\AuthorizationPrincipalInterface|null $account
      * @return array<JsonApiResource>
      */
     public function serializeCollection(

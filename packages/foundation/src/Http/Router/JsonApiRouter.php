@@ -48,7 +48,7 @@ final class JsonApiRouter implements DomainRouterInterface
             $this->entityTypeManager,
             $serializer,
             $this->accessHandler,
-            $ctx->account,
+            $ctx->principal,
         );
 
         $entityTypeId = $params['_entity_type'] ?? '';

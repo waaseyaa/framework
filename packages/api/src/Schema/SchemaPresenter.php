@@ -140,7 +140,7 @@ final class SchemaPresenter
      * @param array<string, FieldDefinitionInterface|array<string, mixed>>  $fieldDefinitions Optional field definitions keyed by field name.
      * @param EntityInterface|null                 $entity           Optional entity for field access checking.
      * @param EntityAccessHandler|null             $accessHandler    Optional access handler for field filtering.
-     * @param AccountInterface|null                $account          Optional account for access checks.
+     * @param \Waaseyaa\Access\AuthorizationPrincipalInterface|null $account Immutable principal for access checks.
      *   When all three optional parameters are provided, view-denied fields are removed
      *   and edit-denied fields are marked readOnly with x-access-restricted.
      *

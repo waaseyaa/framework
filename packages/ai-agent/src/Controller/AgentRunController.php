@@ -8,7 +8,8 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Uid\Uuid;
-use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
+use Waaseyaa\Access\DecisionAccountResolver;
 use Waaseyaa\AI\Agent\Access\AgentRunAccessPolicy;
 use Waaseyaa\AI\Agent\AgentDefinitionRegistry;
 use Waaseyaa\AI\Agent\Broadcast\AgentRunBroadcasterInterface;
@@ -307,12 +308,15 @@ final class AgentRunController
     }
 
     /**
-     * Read the `_account` request attribute (constitution: `_account`, not `account`).
+     * Read the immutable authorization principal established by middleware.
      */
-    private function requireAccount(Request $request): ?AccountInterface
+    private function requireAccount(Request $request): ?AuthorizationPrincipalInterface
     {
-        $account = $request->attributes->get('_account');
-        if (!$account instanceof AccountInterface) {
+        $account = DecisionAccountResolver::resolve(
+            $request->attributes->get('_authorization_principal'),
+            $request->attributes->get('_account'),
+        );
+        if ($account === null) {
             return null;
         }
 

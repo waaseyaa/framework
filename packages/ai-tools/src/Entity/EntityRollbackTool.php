@@ -53,6 +53,8 @@ final class EntityRollbackTool extends AbstractAgentTool
         ];
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
+
     public function execute(array $arguments, AccountInterface $account): AgentToolResult
     {
         $denied = $this->requireCapability('tool.entity.update', $account);
@@ -109,6 +111,8 @@ final class EntityRollbackTool extends AbstractAgentTool
             summary: sprintf('Rolled %s/%s back to revision %d', $entityType, (string) $id, $targetRevisionId),
         );
     }
+
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
 
     public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
     {

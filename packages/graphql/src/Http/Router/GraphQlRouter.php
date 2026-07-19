@@ -6,7 +6,6 @@ namespace Waaseyaa\GraphQL\Http\Router;
 
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Http\JsonApiResponseTrait;
@@ -36,17 +35,10 @@ final class GraphQlRouter implements DomainRouterInterface
     {
         $ctx = WaaseyaaContext::fromRequest($request);
 
-        // Prefer the middleware-resolved session account over the
-        // route-level $account, which is AnonymousUser on allowAll() routes.
-        $resolvedAccount = $request->attributes->get('_account');
-        $graphqlAccount = ($resolvedAccount instanceof AccountInterface && $resolvedAccount->isAuthenticated())
-            ? $resolvedAccount
-            : $ctx->account;
-
         $endpoint = new GraphQlEndpoint(
             entityTypeManager: $this->entityTypeManager,
             accessHandler: $this->accessHandler,
-            account: $graphqlAccount,
+            account: $ctx->principal,
         );
 
         if ($this->mutationOverrides !== []) {

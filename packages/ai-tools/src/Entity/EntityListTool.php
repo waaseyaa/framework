@@ -50,6 +50,8 @@ final class EntityListTool extends AbstractAgentTool
         ];
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
+
     public function execute(array $arguments, AccountInterface $account): AgentToolResult
     {
         $denied = $this->requireCapability('tool.entity.list', $account);
@@ -120,6 +122,8 @@ final class EntityListTool extends AbstractAgentTool
             summary: sprintf('Listed %d %s entities', count($items), $entityType),
         );
     }
+
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
 
     public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
     {

@@ -6,6 +6,7 @@ namespace Waaseyaa\Api\Controller;
 
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\DecisionAccountResolver;
 use Waaseyaa\Api\Media\MediaVersionReadModelInterface;
 
 /**
@@ -132,8 +133,11 @@ final class MediaVersionController
 
     private function extractAccount(Request $request): AccountInterface
     {
-        $account = $request->attributes->get('_account');
-        if (!$account instanceof AccountInterface) {
+        $account = DecisionAccountResolver::resolve(
+            $request->attributes->get('_authorization_principal'),
+            $request->attributes->get('_account'),
+        );
+        if ($account === null) {
             // Fallback: anonymous. Route is _authenticated so this should never
             // happen in production; safe guard for unit-test scenarios.
             throw new \LogicException('MediaVersionController requires an authenticated account on request (_account attribute).');

@@ -411,7 +411,8 @@ final class UserSqlEntityQueryPrincipalTest extends TestCase
             'permissions' => ['access user profiles'],
         ]);
 
-        $this->expectException(FieldReadDenied::class);
+        $this->expectException(QueryAccountPrincipalMismatchException::class);
+        $this->expectExceptionMessage('query account does not match the active immutable authorization principal');
         $this->repository->getQuery()
             ->setAccount($sessionUser)
             ->execute();

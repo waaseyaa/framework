@@ -149,6 +149,7 @@ final class GenealogyPedigreeService
      * exploit — see CHANGELOG R7 WP1 "Tracked-for-R8 residuals (R8-b)".
      *
      * @param list<string> $personIds
+     * @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account
      * @return list<array{redacted: bool, label: string, id: ?string}>
      */
     public function neighborSlots(array $personIds, AccountInterface $account, GateInterface $gate): array
@@ -191,6 +192,7 @@ final class GenealogyPedigreeService
     }
 
     /**
+     * @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account
      * @return list<list<array{redacted: bool, label: string, id: ?string}>>
      */
     public function ancestorGenerationsRedacted(

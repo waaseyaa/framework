@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\AgentToolResult;
@@ -230,7 +231,7 @@ final class AuthenticatedMcpEndpointTest extends TestCase
 
     private function account(int $id, bool $hasCapability): AccountInterface
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createMock(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn($id);
         $account->method('isAuthenticated')->willReturn($id > 0);
         $account->method('hasPermission')->willReturnCallback(

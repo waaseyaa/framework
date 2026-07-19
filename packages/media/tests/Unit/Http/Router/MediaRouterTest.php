@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Database\DBALDatabase;
@@ -136,24 +137,7 @@ final class MediaRouterTest extends TestCase
         $parameters = $bundle === null ? [] : ['bundle' => $bundle];
         $request = Request::create('/api/media/upload', 'POST', $parameters, server: ['CONTENT_TYPE' => 'multipart/form-data']);
         $request->attributes->set('_controller', 'media.upload');
-        $request->attributes->set('_account', $account ?? new class implements AccountInterface {
-            public function id(): string|int
-            {
-                return 1;
-            }
-            public function isAuthenticated(): bool
-            {
-                return true;
-            }
-            public function hasPermission(string $permission): bool
-            {
-                return true;
-            }
-            public function getRoles(): array
-            {
-                return [];
-            }
-        });
+        $request->attributes->set('_account', $account ?? new AuthorizationPrincipal(1, true, ['administrator'], [], 'test'));
         $request->attributes->set('_broadcast_storage', new BroadcastStorage(DBALDatabase::createSqlite()));
         $request->files->set('file', $uploadedFile);
 
@@ -162,29 +146,7 @@ final class MediaRouterTest extends TestCase
 
     private function accountWithPermissions(array $permissions): AccountInterface
     {
-        return new class ($permissions) implements AccountInterface {
-            public function __construct(private readonly array $permissions) {}
-
-            public function id(): string|int
-            {
-                return 7;
-            }
-
-            public function isAuthenticated(): bool
-            {
-                return true;
-            }
-
-            public function hasPermission(string $permission): bool
-            {
-                return in_array($permission, $this->permissions, true);
-            }
-
-            public function getRoles(): array
-            {
-                return [];
-            }
-        };
+        return new AuthorizationPrincipal(7, true, [], $permissions, 'test');
     }
 
     private function makeUploadWorkspace(): array

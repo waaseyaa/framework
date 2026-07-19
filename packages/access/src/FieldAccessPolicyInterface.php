@@ -27,7 +27,7 @@ interface FieldAccessPolicyInterface
      * @param EntityInterface  $entity    The entity being accessed.
      * @param string           $fieldName The field name being checked.
      * @param string           $operation The operation: 'view' or 'edit'.
-     * @param AccountInterface $account   The account requesting access.
+     * @param AuthorizationPrincipalInterface $account The immutable principal requesting access.
      */
     public function fieldAccess(
         EntityInterface $entity,

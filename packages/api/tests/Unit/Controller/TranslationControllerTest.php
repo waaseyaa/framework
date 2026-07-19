@@ -12,6 +12,8 @@ use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Controller\TranslationController;
 use Waaseyaa\Api\ResourceSerializer;
@@ -481,31 +483,9 @@ final class TranslationControllerTest extends TestCase
      *
      * @param string[] $roles
      */
-    private function makeAccount(int $id, array $roles = ['authenticated']): AccountInterface
+    private function makeAccount(int $id, array $roles = ['authenticated']): AuthorizationPrincipalInterface
     {
-        return new class ($id, $roles) implements AccountInterface {
-            public function __construct(private int $id, private array $roles) {}
-
-            public function id(): int|string
-            {
-                return $this->id;
-            }
-
-            public function hasPermission(string $permission): bool
-            {
-                return false;
-            }
-
-            public function getRoles(): array
-            {
-                return $this->roles;
-            }
-
-            public function isAuthenticated(): bool
-            {
-                return true;
-            }
-        };
+        return new AuthorizationPrincipal($id, true, $roles, [], 'test');
     }
 
     /**

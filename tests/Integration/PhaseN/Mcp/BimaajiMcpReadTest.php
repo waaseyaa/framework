@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\AI\Agent\Tool\Bimaaji\GeneratePatchTool;
 use Waaseyaa\AI\Agent\Tool\Bimaaji\IntrospectGraphTool;
 use Waaseyaa\AI\Agent\Tool\Bimaaji\IntrospectSectionTool;
@@ -152,30 +153,7 @@ final class BimaajiMcpReadTest extends TestCase
      */
     private function accountWith(array $permissions): AccountInterface
     {
-        return new class ($permissions) implements AccountInterface {
-            /** @param list<string> $permissions */
-            public function __construct(private readonly array $permissions) {}
-
-            public function id(): int
-            {
-                return 42;
-            }
-
-            public function hasPermission(string $permission): bool
-            {
-                return in_array($permission, $this->permissions, true);
-            }
-
-            public function getRoles(): array
-            {
-                return [];
-            }
-
-            public function isAuthenticated(): bool
-            {
-                return true;
-            }
-        };
+        return new AuthorizationPrincipal(42, true, [], $permissions, 'test');
     }
 
     private function stubRegistryWithAllFiveTools(): AgentToolRegistryInterface

@@ -8,6 +8,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Attachment\Attachment;
 use Waaseyaa\Attachment\Storage\PrivateFileStore;
@@ -50,6 +51,7 @@ final class AttachmentDownloadRouter implements DomainRouterInterface
     {
         $id = (string) $request->attributes->get('id', '');
         $account = $request->attributes->get('_account');
+        $principal = $request->attributes->get('_authorization_principal');
 
         // C-22 WP3: read path now goes through the canonical repository.
         $attachment = $id !== ''
@@ -62,12 +64,14 @@ final class AttachmentDownloadRouter implements DomainRouterInterface
         if (
             !$attachment instanceof Attachment
             || !$account instanceof AccountInterface
-            || !$this->accessHandler->check($attachment, 'view', $account)->isAllowed()
+            || !$principal instanceof AuthorizationPrincipalInterface
+            || (string) $principal->id() !== (string) $account->id()
+            || !$this->accessHandler->check($attachment, 'view', $principal)->isAllowed()
         ) {
             return $this->notFound();
         }
 
-        $metadata = $this->metadataReader->read($attachment, $account);
+        $metadata = $this->metadataReader->read($attachment, $principal);
         $path = $this->privateStore->resolve($metadata->storageUri);
         if ($path === null) {
             // Not a private-scheme file, escapes the root, or bytes are missing.

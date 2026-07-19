@@ -54,6 +54,8 @@ final class EntitySearchTool extends AbstractAgentTool
         ];
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
+
     public function execute(array $arguments, AccountInterface $account): AgentToolResult
     {
         $denied = $this->requireCapability('tool.entity.search', $account);
@@ -106,10 +108,14 @@ final class EntitySearchTool extends AbstractAgentTool
         );
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
+
     public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
     {
         return $this->execute($arguments, $account);
     }
+
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
 
     private function matches(EntityInterface $entity, string $needle, AccountInterface $account): bool
     {
@@ -117,7 +123,10 @@ final class EntitySearchTool extends AbstractAgentTool
             $names = EntityFieldRedaction::ordinaryFieldNames($this->entityTypeManager, $entity);
             $allowed = $this->applyFieldAccessFilter($entity, array_fill_keys($names, true), $account);
 
-            return $this->haystackMatches(EntityValues::toCastAwareMap($entity, array_keys($allowed)), $needle);
+            return $this->haystackMatches(
+                EntityValues::toCastAwareMap($entity, array_values(array_filter(array_keys($allowed), is_string(...)))),
+                $needle,
+            );
         }
 
         // Use a curated getValues() when present, else the guaranteed toArray(),

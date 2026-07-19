@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\User;
 
-use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 
 /**
  * Dev-only admin account with all permissions.
@@ -20,7 +20,7 @@ use Waaseyaa\Access\AccountInterface;
  *
  * MUST NOT be used in production.
  */
-final class DevAdminAccount implements AccountInterface
+final class DevAdminAccount implements AuthorizationPrincipalInterface
 {
     /** SAPIs under which a dev fallback account may be constructed. */
     private const array ALLOWED_SAPIS = ['cli-server', 'cli', 'frankenphp'];
@@ -54,5 +54,20 @@ final class DevAdminAccount implements AccountInterface
     public function isAuthenticated(): bool
     {
         return true;
+    }
+
+    public function claimsGeneration(): string
+    {
+        return 'dev-admin';
+    }
+
+    public function tenantId(): ?string
+    {
+        return null;
+    }
+
+    public function communityId(): ?string
+    {
+        return null;
     }
 }

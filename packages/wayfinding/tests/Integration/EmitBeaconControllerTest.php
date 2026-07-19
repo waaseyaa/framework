@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
@@ -160,7 +161,7 @@ final class EmitBeaconControllerTest extends TestCase
 
     private function account(bool $hasCapability): AccountInterface
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createMock(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn(42);
         $account->method('hasPermission')->willReturnCallback(
             static fn(string $permission): bool => $hasCapability && $permission === EmitBeaconController::CAPABILITY,

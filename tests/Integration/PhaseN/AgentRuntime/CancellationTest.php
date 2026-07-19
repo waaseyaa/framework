@@ -14,6 +14,7 @@ use Symfony\Component\Messenger\Handler\HandlersLocator;
 use Symfony\Component\Messenger\MessageBus;
 use Symfony\Component\Messenger\Middleware\HandleMessageMiddleware;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\AI\Agent\Access\AgentRunAccessPolicy;
 use Waaseyaa\AI\Agent\Account\StubInitiatorAccountLoader;
 use Waaseyaa\AI\Agent\AgentDefinitionRegistry;
@@ -176,29 +177,7 @@ final class CancellationTest extends TestCase
 
     private function account(int $id): AccountInterface
     {
-        return new class ($id) implements AccountInterface {
-            public function __construct(private readonly int $accountId) {}
-
-            public function id(): int|string
-            {
-                return $this->accountId;
-            }
-
-            public function hasPermission(string $permission): bool
-            {
-                return \in_array($permission, ['agent.run', 'agent.run.approve'], strict: true);
-            }
-
-            public function getRoles(): array
-            {
-                return ['authenticated'];
-            }
-
-            public function isAuthenticated(): bool
-            {
-                return true;
-            }
-        };
+        return new AuthorizationPrincipal($id, true, ['authenticated'], ['agent.run', 'agent.run.approve'], 'test-' . $id);
     }
 
     private function buildController(): AgentRunController

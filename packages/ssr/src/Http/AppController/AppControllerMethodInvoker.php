@@ -106,6 +106,9 @@ final class AppControllerMethodInvoker
         if (is_a($ctx->request, $serviceClass, true)) {
             return $ctx->request;
         }
+        if ($ctx->decisionAccount !== null && is_a($ctx->decisionAccount, $serviceClass, true)) {
+            return $ctx->decisionAccount;
+        }
         if (is_a($ctx->account, $serviceClass, true)) {
             return $ctx->account;
         }
@@ -250,7 +253,10 @@ final class AppControllerMethodInvoker
         // Entity injection is a read boundary, not merely type conversion.
         // Fail closed when no gate is wired, and collapse a denied row to the
         // same 404 as a missing row so binding cannot become an existence oracle.
-        if ($ctx->gate === null || !$ctx->gate->allows(GateInterface::VIEW, $entity, $ctx->account)) {
+        if ($ctx->gate === null
+            || $ctx->decisionAccount === null
+            || !$ctx->gate->allows(GateInterface::VIEW, $entity, $ctx->decisionAccount)
+        ) {
             throw new ResourceNotFoundException(sprintf('No %s entity for route key %s.', $entityTypeId, $key));
         }
 

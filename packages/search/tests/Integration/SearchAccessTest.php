@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\Context\RequestAccountContext;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DBALDatabase;
@@ -112,7 +113,7 @@ final class SearchAccessTest extends TestCase
         );
 
         $context = new RequestAccountContext();
-        $context->set($this->createMock(AccountInterface::class));
+        $context->set($this->createMock(AuthorizationPrincipalInterface::class));
 
         return new EntitySearchAccessChecker(
             $etm,

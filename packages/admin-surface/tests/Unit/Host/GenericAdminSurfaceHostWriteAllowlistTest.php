@@ -11,6 +11,7 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
 use Waaseyaa\Api\Schema\SchemaPresenter;
@@ -81,7 +82,7 @@ final class GenericAdminSurfaceHostWriteAllowlistTest extends TestCase
             $accessHandler,
             new SchemaPresenter($registry),
         );
-        $account = $this->createStub(AccountInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);
@@ -121,7 +122,7 @@ final class GenericAdminSurfaceHostWriteAllowlistTest extends TestCase
 
         $host = new GenericAdminSurfaceHost($entityTypeManager, $accessHandler);
 
-        $account = $this->createStub(AccountInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn(1);
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);

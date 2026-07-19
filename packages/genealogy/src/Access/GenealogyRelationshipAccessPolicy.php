@@ -32,6 +32,7 @@ final class GenealogyRelationshipAccessPolicy implements AccessPolicyInterface
         return $entityTypeId === 'relationship';
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
     {
         if (!$entity instanceof Relationship) {
@@ -54,6 +55,7 @@ final class GenealogyRelationshipAccessPolicy implements AccessPolicyInterface
         return AccessResult::neutral();
     }
 
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
     private function viewEdge(Relationship $edge, AccountInterface $account): AccessResult
     {
         $topology = $this->topologyReader->read($edge);

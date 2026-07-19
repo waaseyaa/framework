@@ -12,6 +12,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AccountPrincipalFactory;
 use Waaseyaa\Access\Context\AccountFieldReadScope;
+use Waaseyaa\Access\Context\RequestAccountContext;
 use Waaseyaa\Access\Middleware\FieldReadContextMiddleware;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
@@ -50,7 +51,8 @@ final class FieldReadContextMiddlewareTest extends TestCase
     public function principal_is_installed_for_dispatch_and_cleared_afterward(): void
     {
         $scope = new AccountFieldReadScope();
-        $middleware = new FieldReadContextMiddleware(new AccountPrincipalFactory(), $scope);
+        $accountContext = new RequestAccountContext();
+        $middleware = new FieldReadContextMiddleware(new AccountPrincipalFactory(), $scope, $accountContext);
         $request = Request::create('/members');
         $request->attributes->set('_account', new class implements AccountInterface {
             public function id(): int|string { return 42; }
@@ -58,11 +60,15 @@ final class FieldReadContextMiddlewareTest extends TestCase
             public function getRoles(): array { return ['member']; }
             public function isAuthenticated(): bool { return true; }
         });
-        $handler = new class($scope) implements HttpHandlerInterface {
-            public function __construct(private readonly AccountFieldReadScope $scope) {}
+        $handler = new class($scope, $accountContext) implements HttpHandlerInterface {
+            public function __construct(
+                private readonly AccountFieldReadScope $scope,
+                private readonly RequestAccountContext $accountContext,
+            ) {}
             public function handle(Request $request): Response
             {
                 TestCase::assertSame(42, $this->scope->current()?->id());
+                TestCase::assertSame($this->scope->current(), $this->accountContext->current());
 
                 return new Response('ok');
             }
@@ -70,6 +76,7 @@ final class FieldReadContextMiddlewareTest extends TestCase
 
         self::assertSame('ok', $middleware->process($request, $handler)->getContent());
         self::assertNull($scope->current());
+        self::assertNull($accountContext->current());
     }
 
     #[Test]

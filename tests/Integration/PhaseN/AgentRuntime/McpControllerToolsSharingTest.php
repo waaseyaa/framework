@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\AgentToolInterface;
 use Waaseyaa\AI\Tools\AgentToolResult;
@@ -158,29 +159,7 @@ final class McpControllerToolsSharingTest extends TestCase
 
     private function stubAccount(int $id): AccountInterface
     {
-        return new class ($id) implements AccountInterface {
-            public function __construct(private readonly int $accountId) {}
-
-            public function id(): int
-            {
-                return $this->accountId;
-            }
-
-            public function hasPermission(string $permission): bool
-            {
-                return true;
-            }
-
-            public function getRoles(): array
-            {
-                return ['administrator'];
-            }
-
-            public function isAuthenticated(): bool
-            {
-                return true;
-            }
-        };
+        return new AuthorizationPrincipal($id, true, ['administrator'], [], 'test-' . $id);
     }
 
     /**

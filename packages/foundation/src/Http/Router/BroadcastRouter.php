@@ -136,12 +136,9 @@ final class BroadcastRouter implements DomainRouterInterface
         $ctx = WaaseyaaContext::fromRequest($request);
         $broadcastStorage = $ctx->broadcastStorage;
 
-        // Resolve the account from the request attribute set by SessionMiddleware.
-        // Falls back to accountId=0 (anonymous) when no account is present.
-        // Done here (before resolveSubscriberChannels) so the per-channel ACL can
-        // use it to gate privileged channels (Layer-2 enforcement).
-        $account = $request->attributes->get('_account');
-        $mayAccessPrivileged = self::accountMayAccessPrivilegedChannels($account);
+        // Use only the immutable claims snapshot established by authorization
+        // middleware; the live User entity has sealed role/permission fields.
+        $mayAccessPrivileged = self::accountMayAccessPrivilegedChannels($ctx->principal);
 
         // Strip any client-supplied private `session:*` channel and auto-subscribe
         // this connection to its OWN session channel (derived server-side). A
@@ -165,17 +162,8 @@ final class BroadcastRouter implements DomainRouterInterface
         $connectedSince = microtime(true);
         $connectionId = substr(hash('sha256', $connectedSince . ':' . getmypid()), 0, 16);
 
-        $accountId = 0;
+        $accountId = (int) $ctx->principal->id();
         $accountLabel = null;
-        if (is_object($account) && method_exists($account, 'id')) {
-            $accountId = (int) $account->id();
-        }
-        if (is_object($account) && method_exists($account, 'label')) {
-            $accountLabel = (string) $account->label();
-            if ($accountLabel === '') {
-                $accountLabel = null;
-            }
-        }
 
         $subscribersPath = $this->subscribersJsonPath;
 

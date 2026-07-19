@@ -7,6 +7,7 @@ namespace Waaseyaa\Tests\Integration\GraphQL;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
@@ -214,33 +215,6 @@ abstract class GraphQlIntegrationTestBase extends TestCase
 
     protected function createAccount(int|string $id, array $roles = ['authenticated'], array $permissions = []): AccountInterface
     {
-        return new class ($id, $roles, $permissions) implements AccountInterface {
-            /** @param string[] $roles @param string[] $permissions */
-            public function __construct(
-                private readonly int|string $id,
-                private readonly array $roles,
-                private readonly array $permissions,
-            ) {}
-
-            public function id(): int|string
-            {
-                return $this->id;
-            }
-
-            public function hasPermission(string $permission): bool
-            {
-                return in_array($permission, $this->permissions, true);
-            }
-
-            public function getRoles(): array
-            {
-                return $this->roles;
-            }
-
-            public function isAuthenticated(): bool
-            {
-                return $this->id !== 0;
-            }
-        };
+        return new AuthorizationPrincipal($id, $id !== 0, $roles, $permissions, 'test-' . (string) $id);
     }
 }
