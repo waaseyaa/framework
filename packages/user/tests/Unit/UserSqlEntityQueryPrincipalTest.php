@@ -12,6 +12,7 @@ use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AuthorizationPrincipal;
+use Waaseyaa\Access\ClassifiedProtectedEntityReadPolicyInterface;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\EntityAccessHandler;
@@ -381,6 +382,28 @@ final class UserSqlEntityQueryPrincipalTest extends TestCase
     }
 
     #[Test]
+    public function application_public_classification_denial_matches_projected_query_and_hydrated_detail(): void
+    {
+        $rht = $this->repository->create(['name' => 'rht', 'uuid' => 'rht-uuid', 'status' => 1, 'roles' => ['authenticated']]);
+        $this->repository->save($rht, validate: false);
+        $nonMember = $this->profileViewer();
+        $member = new AuthorizationPrincipal(1, true, ['authenticated'], ['access user profiles', 'view members-only pages'], 'member-v1');
+        $handler = new EntityAccessHandler([new UserAccessPolicy(), new ClassifiedUserPagePolicy()]);
+        self::assertSame(['status', 'uuid'], $handler->protectedEntityReadProjectionPlan('user', 'user')?->authorizationInputs);
+
+        $projected = $this->queryWithHandler($handler, $nonMember, false);
+        self::assertSame([1, 2], $this->scope->run($nonMember, static fn(): array => $projected->execute()));
+
+        $memberQuery = $this->queryWithHandler($handler, $member, false);
+        self::assertSame([1, 2, 4], $this->scope->run($member, static fn(): array => $memberQuery->execute()));
+
+        $entity = $this->repository->find((string) $rht->id());
+        self::assertNotNull($entity);
+        self::assertTrue($handler->check($entity, 'view', $member)->isAllowed());
+        self::assertFalse($handler->check($entity, 'view', $nonMember)->isAllowed());
+    }
+
+    #[Test]
     public function candidate_filter_rejects_a_bound_account_from_another_active_identity(): void
     {
         $sessionUser = new User(['uid' => 1, 'status' => 1]);
@@ -576,6 +599,32 @@ final class IncompleteProjectedUserEntityReadPolicy implements ProjectedProtecte
         string $operation,
     ): AccessResult {
         return new UserEntityReadPolicy()->access($principal, $structure, $subject, $operation);
+    }
+}
+
+final class ClassifiedUserPagePolicy implements AccessPolicyInterface, ProtectedReadPolicyProviderInterface
+{
+    public function appliesTo(string $entityTypeId): bool { return $entityTypeId === 'user'; }
+    public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult { return AccessResult::neutral(); }
+    public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult { return AccessResult::neutral(); }
+    public function protectedEntityReadPolicy(): ClassifiedProtectedEntityReadPolicyInterface { return new ClassifiedUserPageReadPolicy(); }
+    public function protectedFieldReadPolicy(): ?ProtectedFieldReadPolicyInterface { return null; }
+}
+
+final class ClassifiedUserPageReadPolicy implements ClassifiedProtectedEntityReadPolicyInterface
+{
+    public function classificationInputs(): array { return ['uuid']; }
+    public function access(AuthorizationPrincipalInterface $principal, EntityStructure $structure, PolicySubjectViewInterface $subject, string $operation): AccessResult
+    {
+        if ($subject->fields() !== ['uuid']) {
+            return AccessResult::forbidden('The exact public page classification input is required.');
+        }
+        if ((int) $structure->id !== 4) {
+            return AccessResult::neutral('The page is public.');
+        }
+        return $principal->hasPermission('view members-only pages')
+            ? AccessResult::allowed('The principal is a member.')
+            : AccessResult::forbidden('The page is members-only.');
     }
 }
 
