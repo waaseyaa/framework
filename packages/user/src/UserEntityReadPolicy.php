@@ -22,6 +22,11 @@ final class UserEntityReadPolicy implements ProjectedProtectedEntityReadPolicyIn
         return ['status'];
     }
 
+    public function classificationInputs(): array
+    {
+        return $this->authorizationInputs();
+    }
+
     public function access(
         AuthorizationPrincipalInterface $principal,
         EntityStructure $structure,

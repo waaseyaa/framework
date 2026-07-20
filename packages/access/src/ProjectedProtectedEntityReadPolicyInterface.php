@@ -14,4 +14,5 @@ interface ProjectedProtectedEntityReadPolicyInterface extends ProtectedEntityRea
 {
     /** @return list<string> Exact authorization-input field names. */
     public function authorizationInputs(): array;
+
 }

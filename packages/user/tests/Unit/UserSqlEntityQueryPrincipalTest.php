@@ -13,6 +13,7 @@ use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
+use Waaseyaa\Access\ClassifiedProtectedEntityReadPolicyInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldReadGuard;
@@ -27,7 +28,6 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityStructure;
 use Waaseyaa\Entity\EntityType;
-use Waaseyaa\Entity\Exception\FieldReadDenied;
 use Waaseyaa\Entity\Exception\StaleEntityReadLayout;
 use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
@@ -38,6 +38,7 @@ use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Exception\ProtectedEntityReadProjectionException;
 use Waaseyaa\EntityStorage\Exception\QueryAccountPrincipalMismatchException;
 use Waaseyaa\EntityStorage\SqlEntityQuery;
+use Waaseyaa\EntityStorage\SqlEntityQueryResultCache;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory;
 use Waaseyaa\Field\FieldDefinitionRegistry;
@@ -381,6 +382,117 @@ final class UserSqlEntityQueryPrincipalTest extends TestCase
     }
 
     #[Test]
+    public function application_public_classification_denial_matches_projected_query_and_hydrated_detail(): void
+    {
+        $rht = $this->repository->create(['name' => 'rht', 'uuid' => 'rht-uuid', 'status' => 1, 'roles' => ['authenticated']]);
+        $this->repository->save($rht, validate: false);
+        $nonMember = $this->profileViewer();
+        $member = new AuthorizationPrincipal(1, true, ['authenticated'], ['access user profiles', 'view members-only pages'], 'member-v1');
+        $handler = new EntityAccessHandler([new UserAccessPolicy(), new ClassifiedUserPagePolicy()]);
+        self::assertSame(['status', 'uuid'], $handler->protectedEntityReadProjectionPlan('user', 'user')?->authorizationInputs);
+
+        $projected = $this->queryWithHandler($handler, $nonMember, false);
+        self::assertSame([1, 2], $this->scope->run($nonMember, static fn(): array => $projected->execute()));
+
+        $memberQuery = $this->queryWithHandler($handler, $member, false);
+        self::assertSame([1, 2, 4], $this->scope->run($member, static fn(): array => $memberQuery->execute()));
+
+        $entity = $this->repository->find((string) $rht->id());
+        self::assertNotNull($entity);
+        self::assertTrue($handler->check($entity, 'view', $member)->isAllowed());
+        self::assertFalse($handler->check($entity, 'view', $nonMember)->isAllowed());
+    }
+
+    #[Test]
+    public function application_classification_filters_before_pagination_and_count(): void
+    {
+        $rht = $this->repository->create(['name' => 'rht', 'uuid' => 'rht-uuid', 'status' => 1, 'roles' => ['authenticated']]);
+        $this->repository->save($rht, validate: false);
+        $nonMember = $this->profileViewer();
+        $handler = new EntityAccessHandler([new UserAccessPolicy(), new ClassifiedUserPagePolicy()]);
+
+        $page = new SqlEntityQuery(
+            $this->entityType,
+            $this->database,
+            fieldRegistry: $this->fieldRegistry,
+            fieldReadScope: $this->scope,
+        )
+            ->withAccessHandler($handler)
+            ->withEntityLoader(static function (array $ids): array {
+                self::fail('A complete Protected projection must not hydrate candidate User entities.');
+            })
+            ->setAccount($nonMember)
+            ->sort('uid', 'DESC')
+            ->range(0, 1);
+        self::assertSame([2], $this->scope->run($nonMember, static fn(): array => $page->execute()));
+
+        $count = $this->queryWithHandler($handler, $nonMember, false)->count();
+        self::assertSame([2], $this->scope->run($nonMember, static fn(): array => $count->execute()));
+    }
+
+    #[Test]
+    public function application_classification_filters_before_pagination_with_hydrated_workflow_shaped_policy(): void
+    {
+        $rht = $this->repository->create(['name' => 'rht', 'uuid' => 'rht-uuid', 'status' => 1, 'roles' => ['authenticated']]);
+        $this->repository->save($rht, validate: false);
+        $nonMember = $this->profileViewer();
+        $handler = new EntityAccessHandler([new HydratedOnlyUserAccessPolicy(), new ClassifiedUserPagePolicy()]);
+        self::assertNull($handler->protectedEntityReadProjectionPlan('user', 'user'));
+
+        $page = new SqlEntityQuery(
+            $this->entityType,
+            $this->database,
+            fieldRegistry: $this->fieldRegistry,
+            fieldReadScope: $this->scope,
+        )
+            ->withAccessHandler($handler)
+            ->withEntityLoader(function (array $ids): array {
+                $entities = [];
+                foreach ($this->repository->findMany($ids) as $entity) {
+                    if ($entity->id() !== null) {
+                        $entities[$entity->id()] = $entity;
+                    }
+                }
+
+                return $entities;
+            })
+            ->setAccount($nonMember)
+            ->sort('uid', 'DESC')
+            ->range(0, 1);
+
+        self::assertSame([2], $this->scope->run($nonMember, static fn(): array => $page->execute()));
+    }
+
+    #[Test]
+    public function application_classification_cannot_reuse_another_projection_cache_entry(): void
+    {
+        $rht = $this->repository->create(['name' => 'rht', 'uuid' => 'rht-uuid', 'status' => 1, 'roles' => ['authenticated']]);
+        $this->repository->save($rht, validate: false);
+        $nonMember = $this->profileViewer();
+        $cache = new SqlEntityQueryResultCache();
+
+        $query = fn(EntityAccessHandler $handler): SqlEntityQuery => new SqlEntityQuery(
+            $this->entityType,
+            $this->database,
+            $cache,
+            $this->fieldRegistry,
+            $this->scope,
+        )
+            ->withAccessHandler($handler)
+            ->withEntityLoader(static function (array $ids): array {
+                self::fail('A complete Protected projection must not hydrate candidate User entities.');
+            })
+            ->setAccount($nonMember)
+            ->sort('uid', 'ASC');
+
+        $frameworkOnly = $query(new EntityAccessHandler([new UserAccessPolicy()]));
+        self::assertSame([1, 2, 4], $this->scope->run($nonMember, static fn(): array => $frameworkOnly->execute()));
+
+        $classified = $query(new EntityAccessHandler([new UserAccessPolicy(), new ClassifiedUserPagePolicy()]));
+        self::assertSame([1, 2], $this->scope->run($nonMember, static fn(): array => $classified->execute()));
+    }
+
+    #[Test]
     public function candidate_filter_rejects_a_bound_account_from_another_active_identity(): void
     {
         $sessionUser = new User(['uid' => 1, 'status' => 1]);
@@ -576,6 +688,50 @@ final class IncompleteProjectedUserEntityReadPolicy implements ProjectedProtecte
         string $operation,
     ): AccessResult {
         return new UserEntityReadPolicy()->access($principal, $structure, $subject, $operation);
+    }
+}
+
+final class ClassifiedUserPagePolicy implements AccessPolicyInterface, ProtectedReadPolicyProviderInterface
+{
+    public function appliesTo(string $entityTypeId): bool
+    {
+        return $entityTypeId === 'user';
+    }
+    public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
+    {
+        return AccessResult::neutral();
+    }
+    public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+    {
+        return AccessResult::neutral();
+    }
+    public function protectedEntityReadPolicy(): ClassifiedProtectedEntityReadPolicyInterface
+    {
+        return new ClassifiedUserPageReadPolicy();
+    }
+    public function protectedFieldReadPolicy(): ?ProtectedFieldReadPolicyInterface
+    {
+        return null;
+    }
+}
+
+final class ClassifiedUserPageReadPolicy implements ClassifiedProtectedEntityReadPolicyInterface
+{
+    public function classificationInputs(): array
+    {
+        return ['uuid'];
+    }
+    public function access(AuthorizationPrincipalInterface $principal, EntityStructure $structure, PolicySubjectViewInterface $subject, string $operation): AccessResult
+    {
+        if ($subject->fields() !== ['uuid']) {
+            return AccessResult::forbidden('The exact public page classification input is required.');
+        }
+        if ((int) $structure->id !== 4) {
+            return AccessResult::neutral('The page is public.');
+        }
+        return $principal->hasPermission('view members-only pages')
+            ? AccessResult::allowed('The principal is a member.')
+            : AccessResult::forbidden('The page is members-only.');
     }
 }
 
