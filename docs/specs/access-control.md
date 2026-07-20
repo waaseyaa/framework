@@ -190,6 +190,8 @@ Entity access uses **deny-by-default** with `isAllowed()`:
 
 This is intentionally asymmetric with field-level access, which uses `!isForbidden()`. See `docs/specs/field-access.md`.
 
+**Workflow-derived node visibility (#2081).** Workflow authority is an additive entity-view opinion, not a role or mutation grant. For a bound node, an authenticated principal is Allowed only when `loadWorkingCopy()` resolves the exact requested type/bundle/id and `TransitionService::getAvailableTransitions()` finds at least one permission- and group-valid outgoing edge from that working copy's current state. Every non-match and every create/update/delete check is Neutral, never Forbidden, preserving Forbidden-wins composition and ordinary published/owner access. The protected companion deliberately stays on hydrated evaluation rather than `ProjectedProtectedEntityReadPolicyInterface`, because a served/base-row projection cannot establish current tip state. It supplies no protected field policy, so field sealing is unchanged.
+
 ## Entity Access Handler
 
 **File:** `packages/access/src/EntityAccessHandler.php`

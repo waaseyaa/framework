@@ -78,6 +78,9 @@
     },
     "extra": {
         "waaseyaa": {
+            "policies": [
+                "Waaseyaa\\Workflows\\Access\\WorkflowAuthorityAccessPolicy"
+            ],
             "providers": [
                 "Waaseyaa\\Workflows\\WorkflowServiceProvider"
             ]
