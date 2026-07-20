@@ -11,6 +11,8 @@ use Waaseyaa\Field\FieldDefinitionInterface;
 use Waaseyaa\Groups\Group;
 use Waaseyaa\Groups\GroupsServiceProvider;
 use Waaseyaa\Groups\GroupType;
+use Waaseyaa\Groups\StaffDirectory\CapabilityScopedStaffDirectoryAccessPolicy;
+use Waaseyaa\Groups\StaffDirectory\StaffDirectoryReaderInterface;
 
 /**
  * Docblock @covers is indexed by tools/audit/GenerateLayerAudit.php; #[CoversClass] alone is not.
@@ -22,6 +24,24 @@ use Waaseyaa\Groups\GroupType;
 #[CoversClass(GroupsServiceProvider::class)]
 final class GroupsServiceProviderTest extends TestCase
 {
+    #[Test]
+    public function declares_the_optional_staff_policy_and_reader_contract(): void
+    {
+        $provider = new GroupsServiceProvider();
+        $provider->register();
+        self::assertArrayHasKey(StaffDirectoryReaderInterface::class, $provider->getBindings());
+
+        $manifest = json_decode(
+            (string) file_get_contents(dirname(__DIR__, 2) . '/composer.json'),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
+        self::assertContains(
+            CapabilityScopedStaffDirectoryAccessPolicy::class,
+            $manifest['extra']['waaseyaa']['policies'] ?? [],
+        );
+    }
+
     #[Test]
     public function registersGroupAndGroupType(): void
     {
