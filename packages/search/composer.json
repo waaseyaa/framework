@@ -6,11 +6,11 @@
     "require": {
         "php": ">=8.5",
         "twig/twig": "^3.0",
-        "waaseyaa/foundation": "^0.1.0-alpha.270",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.270",
-        "waaseyaa/entity": "^0.1.0-alpha.270",
-        "waaseyaa/entity-storage": "^0.1.0-alpha.270",
-        "waaseyaa/access": "^0.1.0-alpha.270",
+        "waaseyaa/foundation": "^0.1.0-alpha.271",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.271",
+        "waaseyaa/entity": "^0.1.0-alpha.271",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.271",
+        "waaseyaa/access": "^0.1.0-alpha.271",
         "symfony/event-dispatcher": "^7.0"
     },
     "require-dev": {

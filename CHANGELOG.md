@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.271] - 2026-07-20
+
 ### Fixed
 
 - **Current workflow authority now makes its working copy reachable without broadening field or write access (#2081).** An authenticated principal authorized for at least one permission- and group-valid outgoing transition from a node's current working-copy state receives an additive entity-view grant, allowing admin detail, coherent list/count, edit-load under existing edit permission, and transition discovery/execution to form one editorial loop. Other-state permissions, anonymous or unauthorized principals, missing/failed group constraints, and unbound content remain hidden; `uid`, `status`, `workflow_state`, PII, and every other sealed field keep their existing field policy, while ordinary published `access content` visibility remains unchanged.

@@ -40,15 +40,15 @@
         "symfony/polyfill-intl-normalizer": "^1.30",
         "symfony/polyfill-mbstring": "^1.30",
         "symfony/uid": "^7.0",
-        "waaseyaa/cache": "^0.1.0-alpha.270",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.270",
-        "waaseyaa/queue": "^0.1.0-alpha.270"
+        "waaseyaa/cache": "^0.1.0-alpha.271",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.271",
+        "waaseyaa/queue": "^0.1.0-alpha.271"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5",
-        "waaseyaa/entity": "^0.1.0-alpha.270",
-        "waaseyaa/error-handler": "^0.1.0-alpha.270",
-        "waaseyaa/routing": "^0.1.0-alpha.270"
+        "waaseyaa/entity": "^0.1.0-alpha.271",
+        "waaseyaa/error-handler": "^0.1.0-alpha.271",
+        "waaseyaa/routing": "^0.1.0-alpha.271"
     },
     "autoload": {
         "files": [
