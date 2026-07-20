@@ -12,7 +12,7 @@ use Waaseyaa\Database\Query\DBALSelect;
 use Waaseyaa\Database\Query\DBALUpdate;
 use Waaseyaa\Database\Schema\DBALSchema;
 
-final class DBALDatabase implements DatabaseInterface
+final class DBALDatabase implements ConsistentReadDatabaseInterface
 {
     public function __construct(
         private readonly Connection $connection,
@@ -66,6 +66,11 @@ final class DBALDatabase implements DatabaseInterface
     public function transaction(string $name = ''): TransactionInterface
     {
         return new DBALTransaction($this->connection);
+    }
+
+    public function consistentReadTransaction(string $name = ''): TransactionInterface
+    {
+        return new DBALConsistentReadTransaction($this->connection);
     }
 
     public function query(string $sql, array $args = []): \Traversable

@@ -1,5 +1,7 @@
 # API Layer
 
+<!-- Spec reviewed 2026-07-19 - Sheguiandah Gap 1 (#2078): JsonApiController's UUID lookup is identity resolution, not authorization. It now uses an explicit accessCheck(false) query, matching numeric repository find(); show/update/destroy then apply their existing view/update/delete checks respectively. This lets edit-any/delete-any principals target view-hidden drafts without weakening the read-path 404 oracle. -->
+
 <!-- Spec reviewed 2026-07-18 - #2064 WP4 retains only bounded structural route templates and stable priority buckets as route-build optimizations. JsonApiRouteProvider keys templates by base path, exact entity-type exposure shape, and base/workflow mode, then clones every Route into a fresh WaaseyaaRouter. No request, account, entity, authorization decision, provider/service instance, runtime controller capture, or mutable RouteCollection is cached. WaaseyaaRouter preserves descending priority and registration-order ties while reading each priority once. -->
 
 <!-- Spec reviewed 2026-07-15 - #2050: SchemaPresenter maps authoritative field type date to JSON Schema string/format date/x-widget date and projects date settings min/max as x-min/x-max presentation bounds; timestamp/datetime and ordinary strings remain distinct. -->
@@ -363,7 +365,7 @@ The `$accessHandler` and `$account` follow the **paired nullable** pattern: both
 
 1. Validates `data.type` matches `$entityTypeId`.
 2. **Write-side field allowlist (CW-v1 option-1 PR-4, see the dedicated subsection below)**: `EntityWritePayloadGuard::refusedKeys()` runs over `array_keys($attributes)` — any refused key → 422, before `create()` is even called.
-3. Creates entity via `$storage->create($attributes)`.
+3. Creates entity via `$storage->create($attributes)`. For `node` creates by an authenticated principal, an omitted `uid` is filled from that principal before save; an explicitly supplied create-time author remains unchanged for authorized create-on-behalf flows.
 4. Checks create access via `$accessHandler->checkCreateAccess()`.
 5. Checks **field edit access** for each submitted attribute via `$accessHandler->checkFieldAccess($entity, $fieldName, 'edit', $account)`. Uses `isForbidden()` (field-level semantics).
 6. Saves entity. `EntityValidationException` maps to 422; it never escapes as HTTP 500.
@@ -686,7 +688,7 @@ differing-value refusal), `GenericAdminSurfaceHostWriteAllowlistTest` +
 
 ### ID Resolution
 
-`loadByIdOrUuid()` accepts `int|string`. If the entity type has a UUID key and the value matches UUID regex (`/^[0-9a-f]{8}-...-[0-9a-f]{12}$/i`), it queries by UUID. Otherwise it loads by primary key.
+`loadByIdOrUuid()` accepts `int|string`. If the entity type has a UUID key and the value matches UUID regex (`/^[0-9a-f]{8}-...-[0-9a-f]{12}$/i`), it queries by UUID with `accessCheck(false)`; otherwise it loads by primary key. Both branches perform identity resolution only and return the same underlying entity regardless of locator form. The caller then applies the operation-specific authorization gate: `show()` checks `view` and collapses denial to the canonical 404, `update()` checks `update`, and `destroy()` checks `delete`. A mutation target is never pre-filtered through the query layer's `view` decision.
 
 ## Resource Serialization
 
@@ -925,6 +927,8 @@ The user-facing surface of the content-workflow engine (`docs/specs/content-work
 **Controller**: `Waaseyaa\Api\Controller\WorkflowTransitionController` (deps: `EntityTypeManagerInterface`, `?EntityAccessHandler`, `TransitionService`), dispatched by `WorkflowTransitionApiRouter` (`DomainRouterInterface`, same shape as the other resolveOptional-gated admin routers).
 
 **View access is enforced in the controller, not via a route `_gate` option** — a deliberate deviation from the original CW-v1 sketch: both endpoints apply the R8 oracle standard, so an entity the account cannot `view` (entity-level `isAllowed()`, deny on Neutral) returns the **same canonical 404 document, byte-identical**, as a missing id — one private factory serves both branches; a route-option gate's 403 would break that. Fails closed (404) when no `EntityAccessHandler` is wired: these are workflow-state-revealing surfaces, not generic reads.
+
+The view gate includes the additive workflow-authority policy (#2081): an authenticated principal who has at least one currently outgoing transition after permission and group checks may reach the exact working copy. A permission for another state's transition, a failed/missing group constraint, an unbound entity, or an anonymous principal grants nothing. This changes no endpoint-specific authorization code; detail/list/edit-load and these endpoints consume the same entity-access policy. Field filtering remains separate, including the `meta.workflow_state` gate below.
 
 **Tip-state semantics (CW-v1 option-1, #1920 PR-3):** the R8 view gate above stays pinned to the `find()`-loaded gate entity, byte-identical to WP-4's shipped shape. Once it passes, the WORKFLOW POSITION comes from `loadWorkingCopy()`, not the gate entity: `meta.workflow_state` (still subject to the field-level gate below), `TransitionService::getAvailableTransitions()`'s argument, and the POST's `transition()` target all resolve `$workingCopy = $repository->loadWorkingCopy((string) $entity->id()) ?? $entity` and use it in place of the gate entity. Under default-revision discipline the gate entity always reports the PUBLISHED pointer's state while a forward draft is in flight, so sourcing the position from it would report a stale state (and, for the GET, an empty or wrong transition list — see `WorkflowTransitionControllerWorkingCopyTest`). Passing the working copy explicitly to `TransitionService::transition()` also means the passed object's revision id trivially agrees with what the service's own internal `loadWorkingCopy()` resolves, avoiding `RevisionConflictException` for this first-party caller (the service still re-resolves and re-validates independently — see `docs/specs/content-workflow.md` "TransitionService" — so a genuine race between the controller's and the service's `loadWorkingCopy()` calls still 409s, see `WorkflowTransitionControllerRevisionConflictTest`). `loadWorkingCopy()` is mechanically safe on any entity/type — an undisciplined one (or a disciplined one with no draft) degrades to `find()`, so unbound/undrafted entities see no behavior change.
 

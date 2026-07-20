@@ -25,6 +25,6 @@ create the media entity or activate the parked media-version/CAS subsystem.
 
 ## Access scope (important)
 
-`MediaAccessPolicy` gates both the media record and the entity-keyed byte route. `GET /media/{id}/download` reads the media entity's explicit `source_uri`, accepts only contained `public://` paths under `files_root`, and streams bytes only after a deny-by-default `view` decision. Missing, denied, malformed, non-public, and absent-byte requests all collapse to 404. Hosts must use this route—not a public `/files/` symlink—when entity access is intended to protect bytes.
+`MediaAccessPolicy` gates both the media record and the entity-keyed byte route. After an Allowed `view` decision, `GET /media/{id}/download` resolves only the media entity's explicit `source_uri` through the typed audited download reader, accepts only contained `public://` paths under the configured file root, and streams the bytes. The canonical root key is `files_dir`; legacy `files_root` remains supported and takes precedence when both are set. Missing, denied, malformed, non-public, and absent-byte requests all collapse to 404. Hosts must use this route—not a public `/files/` symlink—when entity access is intended to protect bytes.
 
 The `MediaType.source` plugin id (`file`/`image`/`oembed`) remains **metadata only**; this narrow download route does not add a source-plugin system, derivatives, or private storage.

@@ -541,6 +541,7 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
             'packages/node/src/NodeAuthorizationSnapshotReader.php',
             'packages/note/src/Ingestion/NoteIngestionMetadataReader.php',
             'packages/oidc/src/ClientRegistry/OidcClientSystemReader.php',
+            'packages/relationship/src/AuthorizedRelationshipTraversal.php',
             'packages/relationship/src/RelationshipMaintenanceReader.php',
             'packages/relationship/src/RelationshipTopologyReader.php',
             'packages/wayfinding/src/Access/TrailAccessPolicy.php',

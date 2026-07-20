@@ -877,8 +877,9 @@ final class PackageManifestCompilerTest extends TestCase
 
         $manifest = (new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage'))->compile();
 
-        $this->assertCount(25, $manifest->policies);
+        $this->assertCount(26, $manifest->policies);
         $this->assertArrayHasKey('Waaseyaa\\Node\\NodeAccessPolicy', $manifest->policies);
+        $this->assertArrayHasKey('Waaseyaa\\Workflows\\Access\\WorkflowAuthorityAccessPolicy', $manifest->policies);
         $this->assertArrayHasKey('Waaseyaa\\Groups\\GroupAccessPolicy', $manifest->policies);
         $this->assertArrayHasKey('Waaseyaa\\Field\\Classification\\Policy\\RetentionPolicyAccessPolicy', $manifest->policies);
         for ($i = 1; $i <= 4; ++$i) {

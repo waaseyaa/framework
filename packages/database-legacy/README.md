@@ -15,6 +15,10 @@ Despite the package directory being `database-legacy`, the PHP namespace is **`W
 - `select() / insert() / update() / delete()` — query builders (`DBALSelect`, `DBALInsert`, `DBALUpdate`, `DBALDelete`)
 - `schema()` — DDL via `DBALSchema`
 - `transaction()` — `DBALTransaction`
+- `ConsistentReadDatabaseInterface::consistentReadTransaction()` — a
+  repeatable-read transaction for authorization decisions that span multiple
+  storage reads; `DBALDatabase` restores the prior connection isolation when
+  the transaction finishes
 - `query()`, `quoteIdentifier()` — raw escape hatch + identifier quoting
 
 `DBALDatabase` is the concrete implementation. `DBALDatabase::createSqlite()` builds an in-memory SQLite instance for tests.

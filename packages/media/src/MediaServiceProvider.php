@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Media;
 
-use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
+use Waaseyaa\Access\Capability\CapabilityRegistryInterface;
+use Waaseyaa\Audit\AuditedFieldRead;
+use Waaseyaa\Audit\Contract\StrictPrivilegedReadLedgerInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\Media\Http\AuditedMediaDownloadSourceReader;
+use Waaseyaa\Media\Http\MediaDownloadSourceReaderInterface;
 use Waaseyaa\Media\Http\Router\MediaDownloadRouter;
 use Waaseyaa\Media\Http\Router\MediaRouter;
 use Waaseyaa\Media\Version\MediaVersionType;
@@ -18,9 +22,6 @@ final class MediaServiceProvider extends ServiceProvider implements HasHttpDomai
     public function httpDomainRouters(HttpKernel $httpKernel): iterable
     {
         $mediaTypeRepository = $httpKernel->getEntityTypeManager()->getRepository('media_type');
-        $fieldReadScope = $this->resolve(AccountFieldReadScopeInterface::class);
-        assert($fieldReadScope instanceof AccountFieldReadScopeInterface);
-
         return [
             new MediaRouter(
                 $httpKernel->getProjectRoot(),
@@ -32,14 +33,15 @@ final class MediaServiceProvider extends ServiceProvider implements HasHttpDomai
                 $httpKernel->getEntityTypeManager(),
                 $httpKernel->getAccessHandler(),
                 $this->resolveFilesRoot($httpKernel),
-                $fieldReadScope,
+                $this->resolve(MediaDownloadSourceReaderInterface::class),
             ),
         ];
     }
 
     private function resolveFilesRoot(HttpKernel $httpKernel): string
     {
-        $configured = $httpKernel->getConfig()['files_root'] ?? null;
+        $config = $httpKernel->getConfig();
+        $configured = $config['files_root'] ?? $config['files_dir'] ?? null;
 
         return is_string($configured) && $configured !== ''
             ? $configured
@@ -48,6 +50,20 @@ final class MediaServiceProvider extends ServiceProvider implements HasHttpDomai
 
     public function register(): void
     {
+        $this->singleton(MediaDownloadSourceReaderInterface::class, function (): MediaDownloadSourceReaderInterface {
+            $capabilities = $this->resolve(CapabilityRegistryInterface::class);
+            $ledger = $this->resolve(StrictPrivilegedReadLedgerInterface::class);
+            assert($capabilities instanceof CapabilityRegistryInterface);
+            assert($ledger instanceof StrictPrivilegedReadLedgerInterface);
+
+            return new AuditedMediaDownloadSourceReader(
+                new AuditedFieldRead($capabilities, $ledger),
+                $capabilities,
+                'field-read-active',
+                'field-read-active',
+            );
+        });
+
         $this->singleton(UploadHandler::class, fn() => new UploadHandler(
             basePath: $this->config['media']['upload_path'] ?? 'public/uploads',
             allowedMimeTypes: $this->config['media']['allowed_types'] ?? UploadHandler::DEFAULT_ALLOWED_TYPES,

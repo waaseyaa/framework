@@ -8,15 +8,28 @@ use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Gate\PolicyAttribute;
+use Waaseyaa\Access\ProtectedEntityReadPolicyInterface;
+use Waaseyaa\Access\ProtectedFieldReadPolicyInterface;
+use Waaseyaa\Access\ProtectedReadPolicyProviderInterface;
 use Waaseyaa\Entity\EntityInterface;
 
 #[PolicyAttribute(entityType: ['group', 'group_type'])]
-final class GroupAccessPolicy implements AccessPolicyInterface
+final class GroupAccessPolicy implements AccessPolicyInterface, ProtectedReadPolicyProviderInterface
 {
     public const string ADMIN_PERMISSION = 'administer groups';
 
     private const array ENTITY_TYPES = ['group', 'group_type'];
     private const array MANAGED_OPERATIONS = ['view', 'update', 'delete'];
+
+    public function protectedEntityReadPolicy(): ?ProtectedEntityReadPolicyInterface
+    {
+        return null;
+    }
+
+    public function protectedFieldReadPolicy(): ProtectedFieldReadPolicyInterface
+    {
+        return new GroupProtectedFieldReadPolicy();
+    }
 
     public function appliesTo(string $entityTypeId): bool
     {

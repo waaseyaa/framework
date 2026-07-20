@@ -16,6 +16,7 @@ use Waaseyaa\Access\Context\RequestAccountContext;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldReadGuard;
 use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
+use Waaseyaa\Api\Controller\WorkflowTransitionController;
 use Waaseyaa\Config\ConfigFactory;
 use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\Storage\MemoryStorage;
@@ -34,9 +35,12 @@ use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Node\Node;
 use Waaseyaa\Node\NodeAccessPolicy;
+use Waaseyaa\Node\NodeAuthorizationSnapshotReader;
 use Waaseyaa\Node\NodeServiceProvider;
 use Waaseyaa\Node\NodeType;
+use Waaseyaa\Workflows\Access\WorkflowAuthorityAccessPolicy;
 use Waaseyaa\Workflows\Transition\TransitionService;
+use Waaseyaa\Workflows\Workflow;
 use Waaseyaa\Workflows\WorkflowServiceProvider;
 
 /**
@@ -53,6 +57,293 @@ use Waaseyaa\Workflows\WorkflowServiceProvider;
 #[CoversNothing]
 final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
 {
+    #[Test]
+    public function workflow_visibility_is_current_state_authenticated_view_only_and_additive(): void
+    {
+        [$entityTypeManager, , $transitionService, $accountContext] = $this->bootWiredProviders();
+        $repository = $entityTypeManager->getRepository('node');
+
+        $publisher = $this->account(90, ['use editorial transition publish']);
+        $accountContext->set($publisher);
+        $published = new Node([
+            'title' => 'Published control',
+            'type' => 'article',
+            'slug' => 'published-control',
+            'uid' => 90,
+        ]);
+        $published->enforceIsNew();
+        $repository->save($published);
+        $transitionService->transition($published, 'publish', $publisher);
+
+        $draft = new Node([
+            'title' => 'Draft controls',
+            'type' => 'article',
+            'slug' => 'draft-controls',
+            'uid' => 42,
+        ]);
+        $draft->enforceIsNew();
+        $repository->save($draft);
+
+        $handler = new EntityAccessHandler([
+            new NodeAccessPolicy(),
+            new WorkflowAuthorityAccessPolicy($transitionService, $entityTypeManager),
+        ]);
+
+        $transitionOnly = $this->account(42, ['use editorial transition submit_for_review']);
+        self::assertTrue($handler->check($draft, 'view', $transitionOnly)->isAllowed());
+        self::assertFalse($handler->check($draft, 'update', $transitionOnly)->isAllowed());
+        self::assertFalse($handler->check($draft, 'delete', $transitionOnly)->isAllowed());
+
+        $wrongState = $this->account(43, ['use editorial transition archive']);
+        self::assertFalse(
+            $handler->check($draft, 'view', $wrongState)->isAllowed(),
+            'a permission whose transition is outgoing only from published must not reveal a draft',
+        );
+
+        $forgedAnonymous = new AuthorizationPrincipal(
+            0,
+            false,
+            ['editor'],
+            ['use editorial transition submit_for_review'],
+            'forged-anonymous',
+        );
+        self::assertFalse($handler->check($draft, 'view', $forgedAnonymous)->isAllowed());
+
+        $ordinaryPublishedReader = $this->account(44, ['access content']);
+        $reloadedPublished = $repository->find((string) $published->id());
+        self::assertInstanceOf(Node::class, $reloadedPublished);
+        self::assertTrue(
+            $handler->check($reloadedPublished, 'view', $ordinaryPublishedReader)->isAllowed(),
+            'the workflow policy must stay Neutral so ordinary published access remains additive',
+        );
+    }
+
+    #[Test]
+    public function unsatisfied_group_constraint_does_not_turn_transition_permission_into_visibility(): void
+    {
+        [$entityTypeManager, , $transitionService, $accountContext, , $configStorage] = $this->bootWiredProviders();
+
+        $entityTypeManager->getRepository('workflow')->save(new Workflow([
+            'id' => 'grouped_editorial',
+            'label' => 'Grouped editorial',
+            'initial_state' => 'draft',
+            'states' => [
+                'draft' => ['label' => 'Draft', 'published' => false, 'default_revision' => false],
+                'review' => ['label' => 'Review', 'published' => false, 'default_revision' => false],
+            ],
+            'transitions' => [
+                'submit' => [
+                    'label' => 'Submit',
+                    'from' => ['draft'],
+                    'to' => 'review',
+                    'permission' => 'review grouped content',
+                    'group_constraint' => 'content_groups',
+                ],
+            ],
+        ]));
+        $configStorage->write('workflows.assignments', ['node.article' => 'grouped_editorial']);
+
+        $reviewer = $this->account(42, ['review grouped content']);
+        $accountContext->set($reviewer);
+        $draft = new Node([
+            'title' => 'Department draft',
+            'type' => 'article',
+            'slug' => 'department-draft',
+            'uid' => 7,
+        ]);
+        $draft->enforceIsNew();
+        $entityTypeManager->getRepository('node')->save($draft);
+
+        $handler = new EntityAccessHandler([
+            new NodeAccessPolicy(),
+            new WorkflowAuthorityAccessPolicy($transitionService, $entityTypeManager),
+        ]);
+
+        self::assertFalse(
+            $handler->check($draft, 'view', $reviewer)->isAllowed(),
+            'a missing group checker/content membership must fail closed even when the permission matches',
+        );
+    }
+
+    #[Test]
+    public function editor_can_complete_the_admin_create_view_list_edit_transition_loop_without_unsealing_fields(): void
+    {
+        [$entityTypeManager, , $transitionService, $accountContext, $setAccessHandler] = $this->bootWiredProviders();
+        $nodeRepository = $entityTypeManager->getRepository('node');
+
+        $publisher = $this->account(90, [
+            'use editorial transition publish',
+        ]);
+        $accountContext->set($publisher);
+        $migrated = new Node([
+            'title' => 'Migrated published article',
+            'type' => 'article',
+            'slug' => 'migrated-published-article',
+            'uid' => 90,
+        ]);
+        $migrated->enforceIsNew();
+        $nodeRepository->save($migrated);
+        $transitionService->transition($migrated, 'publish', $publisher);
+
+        $editor = $this->account(42, [
+            'administer content',
+            'access content',
+            'create article content',
+            'edit own article content',
+            'use editorial transition submit_for_review',
+            'use editorial transition publish',
+        ]);
+        $accountContext->set($editor);
+
+        $accessHandler = new EntityAccessHandler([
+            new NodeAccessPolicy(),
+            new WorkflowAuthorityAccessPolicy($transitionService, $entityTypeManager),
+        ]);
+        $setAccessHandler($accessHandler);
+        $host = new GenericAdminSurfaceHost($entityTypeManager, $accessHandler);
+        $sessionRequest = Request::create('/admin/_surface/session');
+        $sessionRequest->attributes->set('_account', $editor);
+        self::assertNotNull($host->resolveSession($sessionRequest));
+
+        $scope = new AccountFieldReadScope();
+        $principal = new AuthorizationPrincipal(
+            42,
+            true,
+            ['editor'],
+            [
+                'administer content',
+                'access content',
+                'create article content',
+                'edit own article content',
+                'use editorial transition submit_for_review',
+                'use editorial transition publish',
+            ],
+            'editor-loop-test',
+        );
+        EntityReadRuntime::installGuard(new FieldReadGuard($scope, $accessHandler->checkProtectedFieldRead(...)));
+
+        try {
+            $created = $scope->run($principal, fn() => $host->action('node', 'create', [
+                'attributes' => [
+                    'title' => 'Editor draft',
+                    'type' => 'article',
+                    'slug' => 'editor-draft',
+                ],
+            ]));
+            self::assertTrue($created->ok, 'create: ' . json_encode($created->error));
+            $draftUuid = (string) $created->data['id'];
+            self::assertArrayNotHasKey('uid', $created->data['attributes']);
+            self::assertArrayNotHasKey('status', $created->data['attributes']);
+            self::assertArrayNotHasKey('workflow_state', $created->data['attributes']);
+
+            $detail = $scope->run($principal, fn() => $host->get('node', $draftUuid));
+            self::assertTrue($detail->ok, 'detail: ' . json_encode($detail->error));
+            self::assertSame('Editor draft', $detail->data['attributes']['title']);
+
+            $list = $scope->run($principal, fn() => $host->list('node'));
+            self::assertTrue($list->ok, 'list: ' . json_encode($list->error));
+            self::assertSame(2, $list->data['total']);
+            self::assertEqualsCanonicalizing(
+                [$draftUuid, $migrated->uuid()],
+                array_column($list->data['entities'], 'id'),
+                'the current draft and ordinary access-content published node must both be listed',
+            );
+
+            $schema = $scope->run($principal, fn() => $host->action('node', 'schema', ['id' => $draftUuid]));
+            self::assertTrue($schema->ok, 'edit schema: ' . json_encode($schema->error));
+
+            $edited = $scope->run($principal, fn() => $host->action('node', 'update', [
+                'id' => $draftUuid,
+                'attributes' => ['title' => 'Editor draft revised'],
+            ]));
+            self::assertTrue($edited->ok, 'edit: ' . json_encode($edited->error));
+
+            $workflowController = new WorkflowTransitionController($entityTypeManager, $accessHandler, $transitionService);
+            $discoveryRequest = Request::create("/api/node/{$draftUuid}/workflow/transitions", 'GET');
+            $discoveryRequest->attributes->set('_account', $editor);
+            $discovery = $scope->run($principal, fn() => $workflowController->transitions($discoveryRequest, 'node', $draftUuid));
+            self::assertSame(200, $discovery->getStatusCode());
+            $discoveryBody = json_decode((string) $discovery->getContent(), true, 16, JSON_THROW_ON_ERROR);
+            self::assertContains('submit_for_review', array_column($discoveryBody['data'], 'id'));
+            self::assertNull($discoveryBody['meta']['workflow_state'], 'sealed workflow state must remain omitted');
+
+            $submitRequest = Request::create(
+                "/api/node/{$draftUuid}/workflow/transition",
+                'POST',
+                server: ['CONTENT_TYPE' => 'application/json'],
+                content: '{"transition":"submit_for_review"}',
+            );
+            $submitRequest->attributes->set('_account', $editor);
+            $submitted = $scope->run($principal, fn() => $workflowController->transition($submitRequest, 'node', $draftUuid));
+            self::assertSame(200, $submitted->getStatusCode());
+
+            $reviewDiscoveryRequest = Request::create("/api/node/{$draftUuid}/workflow/transitions", 'GET');
+            $reviewDiscoveryRequest->attributes->set('_account', $editor);
+            $reviewDiscovery = $scope->run($principal, fn() => $workflowController->transitions($reviewDiscoveryRequest, 'node', $draftUuid));
+            $reviewBody = json_decode((string) $reviewDiscovery->getContent(), true, 16, JSON_THROW_ON_ERROR);
+            self::assertSame(['publish'], array_column($reviewBody['data'], 'id'));
+
+            $publishRequest = Request::create(
+                "/api/node/{$draftUuid}/workflow/transition",
+                'POST',
+                server: ['CONTENT_TYPE' => 'application/json'],
+                content: '{"transition":"publish"}',
+            );
+            $publishRequest->attributes->set('_account', $editor);
+            $published = $scope->run($principal, fn() => $workflowController->transition($publishRequest, 'node', $draftUuid));
+            self::assertSame(200, $published->getStatusCode());
+
+            $final = $scope->run($principal, fn() => $host->get('node', $draftUuid));
+            self::assertTrue($final->ok, 'published detail: ' . json_encode($final->error));
+            self::assertSame('Editor draft revised', $final->data['attributes']['title']);
+            self::assertArrayNotHasKey('uid', $final->data['attributes']);
+            self::assertArrayNotHasKey('status', $final->data['attributes']);
+            self::assertArrayNotHasKey('workflow_state', $final->data['attributes']);
+        } finally {
+            EntityReadRuntime::installGuard(null);
+        }
+    }
+
+    #[Test]
+    public function admin_created_draft_is_attributed_to_the_authenticated_creator(): void
+    {
+        [$entityTypeManager, , , $accountContext] = $this->bootWiredProviders();
+
+        $creator = $this->account(42, [
+            'administer content',
+            'create article content',
+            'view own unpublished content',
+        ]);
+        $accountContext->set($creator);
+
+        $accessHandler = new EntityAccessHandler([new NodeAccessPolicy()]);
+        $host = new GenericAdminSurfaceHost($entityTypeManager, $accessHandler);
+        $request = Request::create('/');
+        $request->attributes->set('_account', $creator);
+        self::assertNotNull($host->resolveSession($request));
+
+        $created = $host->action('node', 'create', [
+            'attributes' => [
+                'title' => 'Creator-owned draft',
+                'type' => 'article',
+            ],
+        ]);
+
+        self::assertTrue($created->ok, 'admin create must succeed: ' . json_encode($created->error));
+        $ids = $entityTypeManager->getRepository('node')->getQuery()
+            ->accessCheck(false)
+            ->condition('uuid', (string) $created->data['id'])
+            ->execute();
+        self::assertCount(1, $ids);
+        $draft = $entityTypeManager->getRepository('node')->find((string) $ids[0]);
+        self::assertInstanceOf(Node::class, $draft);
+        self::assertSame(
+            42,
+            (int) (new NodeAuthorizationSnapshotReader())->read($draft)->authorId,
+            'the authenticated creator must own the persisted draft',
+        );
+    }
+
     #[Test]
     public function full_attribute_round_trip_through_the_host_persists_the_changed_title_and_the_pointer_stays_self_consistent(): void
     {
@@ -171,12 +462,13 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
      * Boot pattern copied from
      * {@see \Waaseyaa\Api\Tests\Integration\WriteAllowlistPointerBypassFlowTest::bootWiredProviders()}.
      *
-     * @return array{0: EntityTypeManager, 1: DBALDatabase, 2: TransitionService, 3: RequestAccountContext}
+     * @return array{0: EntityTypeManager, 1: DBALDatabase, 2: TransitionService, 3: RequestAccountContext, 4: \Closure(EntityAccessHandler): void, 5: MemoryStorage}
      */
     private function bootWiredProviders(): array
     {
         $dispatcher = new SymfonyEventDispatcherAdapter();
         $db = DBALDatabase::createSqlite();
+        $liveAccessHandler = null;
 
         $configStorage = new MemoryStorage();
         $configStorage->write('workflows.assignments', [
@@ -184,7 +476,7 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
         ]);
         $configFactory = new ConfigFactory($configStorage, $dispatcher);
 
-        $repositoryFactory = static function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $db): EntityRepositoryInterface {
+        $repositoryFactory = static function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, $db, &$liveAccessHandler): EntityRepositoryInterface {
             $schemaHandler = new SqlSchemaHandler($definition, $db);
             $schemaHandler->ensureTable();
             if ($definition->isRevisionable()) {
@@ -199,6 +491,9 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
                 $dispatcher,
                 $definition->isRevisionable() ? new RevisionableStorageDriver($resolver, $definition) : null,
                 $db,
+                accessHandlerResolver: static function () use (&$liveAccessHandler): ?EntityAccessHandler {
+                    return $liveAccessHandler;
+                },
             );
         };
 
@@ -249,6 +544,10 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
         /** @var TransitionService $transitionService */
         $transitionService = $workflowProvider->resolve(TransitionService::class);
 
-        return [$entityTypeManager, $db, $transitionService, $accountContext];
+        $setAccessHandler = static function (EntityAccessHandler $handler) use (&$liveAccessHandler): void {
+            $liveAccessHandler = $handler;
+        };
+
+        return [$entityTypeManager, $db, $transitionService, $accountContext, $setAccessHandler, $configStorage];
     }
 }

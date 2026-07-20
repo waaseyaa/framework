@@ -9,10 +9,10 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
-use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Http\Router\DomainRouterInterface;
+use Waaseyaa\Media\Http\MediaDownloadSourceReaderInterface;
 use Waaseyaa\Media\Media;
 
 // Symfony HTTP types are required by the L0 DomainRouterInterface boundary; allowlisted with the sibling upload router.
@@ -25,7 +25,7 @@ final class MediaDownloadRouter implements DomainRouterInterface
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly EntityAccessHandler $accessHandler,
         private readonly string $filesRoot,
-        private readonly AccountFieldReadScopeInterface $fieldReadScope,
+        private readonly MediaDownloadSourceReaderInterface $sourceReader,
     ) {}
 
     public function supports(Request $request): bool
@@ -46,13 +46,7 @@ final class MediaDownloadRouter implements DomainRouterInterface
             return $this->notFound();
         }
 
-        /** @var Response $response */
-        $response = $this->fieldReadScope->run(
-            $principal,
-            fn(): Response => $this->handleAuthorized($id, $principal),
-        );
-
-        return $response;
+        return $this->handleAuthorized($id, $principal);
     }
 
     private function handleAuthorized(string $id, AuthorizationPrincipalInterface $principal): Response
@@ -66,7 +60,7 @@ final class MediaDownloadRouter implements DomainRouterInterface
             return $this->notFound();
         }
 
-        $path = $this->resolvePublicPath((string) $media->get('source_uri'));
+        $path = $this->resolvePublicPath($this->sourceReader->sourceUri($media, $principal));
         if ($path === null) {
             return $this->notFound();
         }

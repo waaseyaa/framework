@@ -13,6 +13,8 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
@@ -21,7 +23,10 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
+use Waaseyaa\Relationship\AuthorizedRelationshipEdge;
+use Waaseyaa\Relationship\AuthorizedRelationshipTraversal;
 use Waaseyaa\Relationship\Relationship;
+use Waaseyaa\Relationship\RelationshipAccessPolicy;
 use Waaseyaa\Relationship\RelationshipTraversalService;
 use Waaseyaa\Relationship\VisibilityFilterInterface;
 
@@ -759,6 +764,147 @@ final class RelationshipTraversalServiceTest extends TestCase
         $this->assertSame([], $result, 'Published-but-access-restricted endpoint must not leak via traverse() either');
     }
 
+    public function testAuthorizedTraversalReturnsOnlyLiveViewableMembershipEdgesWithoutConsumerCapabilities(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $this->createRelationshipTable($database);
+
+        $this->insertRelationship($database, 1, 'user', '7', 'group', '10', 1, 'group_membership');
+        $this->insertRelationship($database, 2, 'user', '8', 'group', '10', 1, 'group_membership');
+        $this->insertRelationship($database, 3, 'user', '9', 'group', '10', 0, 'group_membership');
+        $this->insertRelationship($database, 4, 'user', '11', 'group', '10', 1, 'group_membership');
+
+        $relationshipStorage = new TraversalRelationshipStorage([
+            1 => $this->membership(1, '7', 1),
+            2 => $this->membership(2, '8', 1),
+            3 => $this->membership(3, '9', 0),
+            4 => $this->membership(4, '11', 1),
+        ]);
+        $groupStorage = new TraversalEntityStorage([
+            '10' => new TraversalTestEntity('group', 'department', 10, 'Language Department', ['id' => 10]),
+        ]);
+        $userStorage = new TraversalEntityStorage([
+            '7' => new TraversalTestEntity('user', 'user', 7, 'Visible Member', ['uid' => 7]),
+            '8' => new TraversalTestEntity('user', 'user', 8, 'Hidden Member', ['uid' => 8]),
+            '9' => new TraversalTestEntity('user', 'user', 9, 'Former Member', ['uid' => 9]),
+            '11' => new TraversalTestEntity('user', 'user', 11, 'Hidden Edge Member', ['uid' => 11]),
+        ]);
+        $manager = new TraversalEntityTypeManager([
+            'relationship' => $relationshipStorage,
+            'group' => $groupStorage,
+            'user' => $userStorage,
+        ]);
+        $principal = new AuthorizationPrincipal(
+            accountId: 42,
+            authenticated: true,
+            roles: ['member-manager'],
+            permissions: ['access content'],
+            claimsGeneration: 'gap-2-test',
+        );
+        $accessHandler = new EntityAccessHandler([
+            new class implements AccessPolicyInterface {
+                public function appliesTo(string $entityTypeId): bool
+                {
+                    return $entityTypeId === 'group' || $entityTypeId === 'user';
+                }
+
+                public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
+                {
+                    if ($operation !== 'view') {
+                        return AccessResult::neutral();
+                    }
+
+                    return $entity->getEntityTypeId() === 'user' && (string) $entity->id() === '8'
+                        ? AccessResult::forbidden('Hidden member.')
+                        : AccessResult::allowed('Source or member is viewable.');
+                }
+
+                public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+                {
+                    return AccessResult::neutral();
+                }
+            },
+            new class implements AccessPolicyInterface {
+                public function appliesTo(string $entityTypeId): bool
+                {
+                    return $entityTypeId === 'relationship';
+                }
+
+                public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
+                {
+                    return $operation === 'view' && (string) $entity->id() === '4'
+                        ? AccessResult::forbidden('Relationship edge is hidden.')
+                        : AccessResult::neutral();
+                }
+
+                public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+                {
+                    return AccessResult::neutral();
+                }
+            },
+            new RelationshipAccessPolicy(),
+        ]);
+        $scope = new AccountFieldReadScope();
+        $service = new AuthorizedRelationshipTraversal($manager, $database, $accessHandler, $scope);
+
+        $edges = $service->edges($principal, 'group', '10', [
+            'direction' => 'inbound',
+            'relationship_types' => ['group_membership'],
+        ]);
+
+        self::assertCount(1, $edges);
+        self::assertContainsOnlyInstancesOf(AuthorizedRelationshipEdge::class, $edges);
+        self::assertSame('7', $edges[0]->relatedEntityId);
+        self::assertSame('Visible Member', $edges[0]->relatedEntityLabel);
+        self::assertNull($scope->current(), 'The facade must restore account scope after traversal.');
+    }
+
+    public function testAuthorizedTraversalConcealsViewDeniedSourceAsEmpty(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $this->createRelationshipTable($database);
+        $this->insertRelationship($database, 1, 'user', '7', 'group', '10', 1, 'group_membership');
+
+        $manager = new TraversalEntityTypeManager([
+            'relationship' => new TraversalRelationshipStorage([1 => $this->membership(1, '7', 1)]),
+            'group' => new TraversalEntityStorage([
+                '10' => new TraversalTestEntity('group', 'department', 10, 'Hidden Department', ['id' => 10]),
+            ]),
+            'user' => new TraversalEntityStorage([
+                '7' => new TraversalTestEntity('user', 'user', 7, 'Member', ['uid' => 7]),
+            ]),
+        ]);
+        $principal = new AuthorizationPrincipal(42, true, ['authenticated'], ['access content'], 'gap-2-test');
+        $accessHandler = new EntityAccessHandler([
+            new class implements AccessPolicyInterface {
+                public function appliesTo(string $entityTypeId): bool
+                {
+                    return $entityTypeId === 'group' || $entityTypeId === 'user';
+                }
+
+                public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
+                {
+                    return $operation === 'view' && $entity->getEntityTypeId() === 'user'
+                        ? AccessResult::allowed('Member is viewable.')
+                        : AccessResult::forbidden('Source is hidden.');
+                }
+
+                public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+                {
+                    return AccessResult::neutral();
+                }
+            },
+            new RelationshipAccessPolicy(),
+        ]);
+
+        $service = new AuthorizedRelationshipTraversal($manager, $database, $accessHandler, new AccountFieldReadScope());
+
+        self::assertSame([], $service->edges($principal, 'group', '10', [
+            'direction' => 'inbound',
+            'relationship_types' => ['group_membership'],
+        ]));
+    }
+
     private function createRelationshipTable(DBALDatabase $database): void
     {
         $database->getConnection()->getNativeConnection()->exec(<<<SQL
@@ -787,11 +933,26 @@ final class RelationshipTraversalServiceTest extends TestCase
         string $toType,
         string $toId,
         int $status,
+        string $relationshipType = 'references',
     ): void {
         $database->query(
             'INSERT INTO relationship (rid, relationship_type, from_entity_type, from_entity_id, to_entity_type, to_entity_id, directionality, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [$rid, 'references', $fromType, $fromId, $toType, $toId, 'directed', $status],
+            [$rid, $relationshipType, $fromType, $fromId, $toType, $toId, 'directed', $status],
         );
+    }
+
+    private function membership(int $rid, string $userId, int $status): Relationship
+    {
+        return new Relationship([
+            'rid' => $rid,
+            'relationship_type' => 'group_membership',
+            'from_entity_type' => 'user',
+            'from_entity_id' => $userId,
+            'to_entity_type' => 'group',
+            'to_entity_id' => '10',
+            'directionality' => 'directed',
+            'status' => $status,
+        ]);
     }
 }
 

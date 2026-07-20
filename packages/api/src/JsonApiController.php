@@ -555,6 +555,23 @@ final class JsonApiController
         $repository = $this->entityTypeManager->getRepository($entityTypeId);
         $entity = $repository->create($attributes);
 
+        // Authored content created through JSON:API (including the generic
+        // admin host, which delegates here) belongs to the authenticated
+        // creator when the client did not explicitly choose an author. Keep
+        // explicit create-time uid assignment intact for administrator
+        // create-on-behalf workflows; existing-node authorship remains
+        // protected by NodeAccessPolicy's update-time field gate.
+        if ($entityTypeId === 'node'
+            && !\array_key_exists('uid', $attributes)
+            && $entity instanceof FieldableInterface
+            && $this->account?->isAuthenticated() === true
+        ) {
+            $accountId = $this->account->id();
+            if (\is_int($accountId) || \ctype_digit($accountId)) {
+                $entity->set('uid', (int) $accountId);
+            }
+        }
+
         // Check create access.
         if ($this->accessHandler !== null && $this->account !== null) {
             // Pre-existing bug fix, found while adding the guard above: this
@@ -1029,15 +1046,14 @@ final class JsonApiController
         $keys = $definition->getKeys();
 
         // If the entity type has a uuid key and the ID looks like a UUID, query by uuid.
+        // This is identity resolution only: query access is a VIEW filter, while
+        // update/delete callers authorize the resolved entity for their own
+        // operation. Numeric find() is likewise unfiltered. Every caller applies
+        // its operation-specific access check after this method returns.
         if (isset($keys['uuid']) && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', (string) $id)) {
-            $query = $repository->getQuery();
-            if ($this->account !== null) {
-                $query->setAccount($this->account);
-            } else {
-                // system context: controller invoked without an account in scope
-                $query->accessCheck(false);
-            }
-            $query->condition($keys['uuid'], (string) $id);
+            $query = $repository->getQuery()
+                ->accessCheck(false)
+                ->condition($keys['uuid'], (string) $id);
             $ids = $query->execute();
             if ($ids === []) {
                 return null;
