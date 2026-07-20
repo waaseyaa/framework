@@ -46,11 +46,18 @@ final class MediaDownloadRouter implements DomainRouterInterface
             return $this->notFound();
         }
 
-        return $this->handleAuthorized($id, $principal);
+        return $this->handleAuthorized($id, $principal, $request);
     }
 
-    private function handleAuthorized(string $id, AuthorizationPrincipalInterface $principal): Response
+    private function handleAuthorized(string $id, AuthorizationPrincipalInterface $principal, Request $request): Response
     {
+        // This endpoint deliberately serves one complete representation. Do
+        // not let a client Range header reach a downstream worker/server layer
+        // that may attempt a partial response after authorization has passed.
+        // The response advertises Accept-Ranges: none below and remains 200.
+        // This is especially important for browser download navigations.
+        // (The request object is local to this authorized delivery path.)
+        $request->headers->remove('Range');
         $media = $id !== '' ? $this->entityTypeManager->getRepository('media')->find($id) : null;
 
         if (

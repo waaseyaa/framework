@@ -80,8 +80,11 @@ final class MediaDownloadRouterTest extends TestCase
     #[Test]
     public function authorized_caller_streams_public_scheme_bytes(): void
     {
-        $response = $this->router('public://teaching.txt', allowedAccountId: 7)
-            ->handle($this->request(accountId: 7));
+        $request = $this->request(accountId: 7);
+        $request->headers->set('Range', 'bytes=0-');
+        $request->headers->set('User-Agent', 'Mozilla/5.0 Edg/131.0.0.0');
+        $request->headers->set('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8');
+        $response = $this->router('public://teaching.txt', allowedAccountId: 7)->handle($request);
 
         self::assertSame(200, $response->getStatusCode());
         self::assertInstanceOf(StreamedResponse::class, $response);
@@ -90,6 +93,7 @@ final class MediaDownloadRouterTest extends TestCase
         self::assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
         self::assertSame('none', $response->headers->get('Accept-Ranges'));
         self::assertSame('6', $response->headers->get('Content-Length'));
+        self::assertFalse($request->headers->has('Range'));
     }
 
     #[Test]
