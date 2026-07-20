@@ -88,6 +88,8 @@ final class MediaDownloadRouterTest extends TestCase
         self::assertSame('AANIIN', $this->capture($response));
         self::assertSame('text/plain', $response->headers->get('Content-Type'));
         self::assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
+        self::assertSame('none', $response->headers->get('Accept-Ranges'));
+        self::assertSame('6', $response->headers->get('Content-Length'));
     }
 
     #[Test]
