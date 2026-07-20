@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Application protected-read classification now participates in query, list, and detail access (#2082).** Applications can declare exact public or reviewed Protected fields for private classification projection; incomplete or Internal inputs fail closed, per-policy projected and hydrated subjects agree, and Forbidden application decisions override framework Allows without changing public field sealing.
+
 ## [0.1.0-alpha.271] - 2026-07-20
 
 ### Fixed

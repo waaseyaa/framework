@@ -206,9 +206,26 @@ final class EntityValueContainer
     }
 
     /** @internal Closed entity-policy evaluation only; reachable through a bound EntityBase authority. */
-    public function entityPolicySubjectView(): PolicySubjectViewInterface
+    /** @param list<string> $additionalFields */
+    public function entityPolicySubjectView(array $additionalFields = []): PolicySubjectViewInterface
     {
-        return $this->policySubjectView('', $this->viewIdentity);
+        if ($additionalFields === []) {
+            return $this->policySubjectView('', $this->viewIdentity);
+        }
+
+        $this->layout->assertCurrent();
+        $values = [];
+        foreach ($additionalFields as $field) {
+            if ($this->layout->level($field) === FieldReadLevel::Internal) {
+                throw new \LogicException(sprintf('Internal field "%s" cannot be a protected entity classification input.', $field));
+            }
+            if (!array_key_exists($field, $this->values)) {
+                continue;
+            }
+            $values[$field] = $this->comparableValue($field);
+        }
+
+        return new CompiledPolicySubjectView($values);
     }
 
     /** @return array<string, mixed> */

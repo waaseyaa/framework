@@ -306,6 +306,7 @@ return [
     // Closed query-optimization declaration for reviewed framework policies;
     // it is not a consumer policy extension surface.
     'Waaseyaa\Access\ProjectedProtectedEntityReadPolicyInterface' => 'internal',
+    'Waaseyaa\Access\ClassifiedProtectedEntityReadPolicyInterface' => 'internal',
     'Waaseyaa\Access\ProtectedFieldReadPolicyInterface' => 'public',
     'Waaseyaa\Access\ProtectedReadPolicyProviderInterface' => 'public',
     'Waaseyaa\Access\User\UserInternalFieldReaderInterface' => 'public',

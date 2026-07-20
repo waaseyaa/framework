@@ -30,7 +30,7 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
  */
 class EntityAccessHandler
 {
-    /** @var \Closure(EntityBase): PolicySubjectViewInterface */
+    /** @var \Closure(EntityBase, list<string>): PolicySubjectViewInterface */
     private readonly \Closure $entityPolicySubjectAuthority;
 
     /**
@@ -59,7 +59,7 @@ class EntityAccessHandler
     public function __construct(array $policies = [])
     {
         $authority = \Closure::bind(
-            static fn(EntityBase $entity): PolicySubjectViewInterface => $entity->valueContainer->entityPolicySubjectView(),
+            static fn(EntityBase $entity, array $fields = []): PolicySubjectViewInterface => $entity->valueContainer->entityPolicySubjectView($fields),
             null,
             EntityBase::class,
         );
@@ -108,7 +108,7 @@ class EntityAccessHandler
             && $this->isAuthorizationPrincipal($account)
             && $this->hasProtectedEntityReadPolicy($entity->getEntityTypeId(), $entity->bundle())
         ) {
-            $subject = ($this->entityPolicySubjectAuthority)($entity);
+            $subject = ($this->entityPolicySubjectAuthority)($entity, $this->protectedEntityReadInputs($entity->getEntityTypeId(), $entity->bundle()));
 
             return $this->checkProtectedEntityRead($account, $entity->entityStructure(), $subject, $operation);
         }
@@ -166,7 +166,21 @@ class EntityAccessHandler
             if ($entityPolicy === null) {
                 continue;
             }
-            $result = $result->orIf($entityPolicy->access($principal, $structure, $subject, $operation));
+            $policySubject = $subject;
+            if ($entityPolicy instanceof ClassifiedProtectedEntityReadPolicyInterface || $entityPolicy instanceof ProjectedProtectedEntityReadPolicyInterface) {
+                $declaredInputs = $entityPolicy instanceof ClassifiedProtectedEntityReadPolicyInterface
+                    ? $entityPolicy->classificationInputs()
+                    : $entityPolicy->authorizationInputs();
+                $values = [];
+                foreach ($declaredInputs as $field) {
+                    if (!in_array($field, $policySubject->fields(), true)) {
+                        return AccessResult::forbidden(sprintf('Protected entity-read subject is missing required field "%s".', $field));
+                    }
+                    $values[$field] = $policySubject->get($field);
+                }
+                $policySubject = new CompiledPolicySubjectView($values);
+            }
+            $result = $result->orIf($entityPolicy->access($principal, $structure, $policySubject, $operation));
             if ($result->isForbidden()) {
                 return $result;
             }
@@ -201,11 +215,20 @@ class EntityAccessHandler
                 continue;
             }
             $foundProtectedPolicy = true;
-            if (!$entityPolicy instanceof ProjectedProtectedEntityReadPolicyInterface) {
+            if (!$entityPolicy instanceof ClassifiedProtectedEntityReadPolicyInterface
+                && !$entityPolicy instanceof ProjectedProtectedEntityReadPolicyInterface
+            ) {
                 return null;
             }
-            $policies[] = $entityPolicy;
-            foreach ($entityPolicy->authorizationInputs() as $fieldName) {
+            $inputsForPolicy = $entityPolicy instanceof ClassifiedProtectedEntityReadPolicyInterface
+                ? $entityPolicy->classificationInputs()
+                : $entityPolicy->authorizationInputs();
+            if (array_filter($inputsForPolicy, static fn(string $field): bool => $field === '') !== []) {
+                throw new \LogicException('Protected entity-read policy classification inputs must be non-empty strings.');
+            }
+            sort($inputsForPolicy);
+            $policies[] = ['policy' => $entityPolicy, 'inputs' => $inputsForPolicy];
+            foreach ($inputsForPolicy as $fieldName) {
                 $inputs[$fieldName] = true;
             }
         }
@@ -432,6 +455,32 @@ class EntityAccessHandler
         }
 
         return false;
+    }
+
+    /** @return list<string> */
+    private function protectedEntityReadInputs(string $entityTypeId, string $bundle): array
+    {
+        $inputs = [];
+        foreach ($this->policies as $index => $policy) {
+            if (!$policy->appliesTo($entityTypeId)
+                || !$this->matchesBundle($this->bundleFilters[$index] ?? [], $bundle)
+                || !$policy instanceof ProtectedReadPolicyProviderInterface
+            ) {
+                continue;
+            }
+            $entityPolicy = $policy->protectedEntityReadPolicy();
+            if ($entityPolicy instanceof ClassifiedProtectedEntityReadPolicyInterface || $entityPolicy instanceof ProjectedProtectedEntityReadPolicyInterface) {
+                $declaredInputs = $entityPolicy instanceof ClassifiedProtectedEntityReadPolicyInterface
+                    ? $entityPolicy->classificationInputs()
+                    : $entityPolicy->authorizationInputs();
+                foreach ($declaredInputs as $field) {
+                    $inputs[$field] = true;
+                }
+            }
+        }
+        $fields = array_keys($inputs);
+        sort($fields);
+        return $fields;
     }
 
     /**

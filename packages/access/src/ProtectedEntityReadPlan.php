@@ -18,7 +18,7 @@ use Waaseyaa\Entity\EntityStructure;
 final readonly class ProtectedEntityReadPlan
 {
     /**
-     * @param non-empty-list<ProjectedProtectedEntityReadPolicyInterface> $policies
+     * @param non-empty-list<array{policy: ProtectedEntityReadPolicyInterface, inputs: list<string>}> $policies
      * @param list<string> $authorizationInputs
      */
     public function __construct(
@@ -39,8 +39,16 @@ final readonly class ProtectedEntityReadPlan
         }
 
         $result = AccessResult::neutral('No protected entity-read policy provided an opinion.');
-        foreach ($this->policies as $policy) {
-            $result = $result->orIf($policy->access($principal, $structure, $subject, $operation));
+        foreach ($this->policies as $spec) {
+            $policy = $spec['policy'];
+            $values = [];
+            foreach ($spec['inputs'] as $field) {
+                if (!in_array($field, $subject->fields(), true)) {
+                    return AccessResult::forbidden(sprintf('Protected entity-read projection is missing required field "%s".', $field));
+                }
+                $values[$field] = $subject->get($field);
+            }
+            $result = $result->orIf($policy->access($principal, $structure, new CompiledPolicySubjectView($values), $operation));
             if ($result->isForbidden()) {
                 return $result;
             }

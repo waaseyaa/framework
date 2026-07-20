@@ -532,6 +532,8 @@ metadata and candidate IDs remain bound parameters. Legacy policies,
 non-opted-in V2 policies, and unresolved bundle plans retain the existing
 full-entity loader evaluation.
 
+Application classification policies use the parallel `ClassifiedProtectedEntityReadPolicyInterface` contract. Their exact inputs are private policy material: Public fields such as routing slugs and parent identifiers may be selected without becoming Protected, while Protected inputs remain subject to the authorization-input declaration. The planner validates every field and evaluates a per-policy subject; absent, malformed, or incomplete inputs fail closed. The same policy-specific subject shapes and composition are used by hydrated detail evaluation, preserving projection parity and deny-overrides.
+
 The projected path is fail-closed at both compilation and execution. An
 unclassified or non-Protected declared input, a non-framework definition, an
 unsupported storage backend, a policy/layout input mismatch, an obsolete layout

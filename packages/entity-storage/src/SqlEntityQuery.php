@@ -512,10 +512,10 @@ final class SqlEntityQuery implements EntityQueryInterface
             $this->entityType->getFieldDefinitions(),
         );
         $layoutInputs = $layout->authorizationInputsFor('');
-        if ($layoutInputs !== $policy->authorizationInputs) {
+        if (array_diff($layoutInputs, $policy->authorizationInputs) !== []) {
             throw ProtectedEntityReadProjectionException::cannotCompile(
                 $entityTypeId,
-                'the reviewed policy input set does not match the compiled entity-read layout',
+                'the reviewed policy input set does not match the compiled entity-read layout (it omits a compiled protected authorization input)',
             );
         }
 
@@ -539,16 +539,13 @@ final class SqlEntityQuery implements EntityQueryInterface
                     sprintf('authorization input "%s" is not a closed framework definition', $name),
                 );
             }
-            if ($definition->getSetting('authorizationInput') !== true) {
+            $level = $layout->level($name);
+            if ($level === FieldReadLevel::Internal
+                || ($level === FieldReadLevel::Protected && $definition->getSetting('authorizationInput') !== true)
+            ) {
                 throw ProtectedEntityReadProjectionException::cannotCompile(
                     $entityTypeId,
-                    sprintf('policy input "%s" is not declared as an authorization input', $name),
-                );
-            }
-            if ($layout->level($name) !== FieldReadLevel::Protected) {
-                throw ProtectedEntityReadProjectionException::cannotCompile(
-                    $entityTypeId,
-                    sprintf('authorization input "%s" is not Protected', $name),
+                    sprintf('policy input "%s" is not a public field or reviewed Protected authorization input', $name),
                 );
             }
             $backendId = $definition->getBackendId()
