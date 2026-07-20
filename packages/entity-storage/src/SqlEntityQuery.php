@@ -1098,7 +1098,11 @@ final class SqlEntityQuery implements EntityQueryInterface
         $hasClassifiedProtectedRead = $protectedPrincipal !== null
             && $accessHandler->hasClassifiedProtectedEntityReadPolicy(
                 $this->entityType->id(),
-                $this->bundleKey === null ? $this->entityType->id() : '',
+                $this->bundleKey === null
+                    ? $this->entityType->id()
+                    : ($this->fieldRegistry !== null
+                        ? $this->determineImpliedBundle($this->fieldRegistry->bundleNamesFor($this->entityType->id()))
+                        : null),
             );
         $fingerprint = $this->resultCache !== null
             && !($hasClassifiedProtectedRead && $protectedProjection === null)

@@ -174,9 +174,7 @@ class EntityAccessHandler
             $policySubject = $legacySubject ?? $subject;
             if ($entityPolicy instanceof ClassifiedProtectedEntityReadPolicyInterface || $entityPolicy instanceof ProjectedProtectedEntityReadPolicyInterface) {
                 $policySubject = $subject;
-                $declaredInputs = $entityPolicy instanceof ClassifiedProtectedEntityReadPolicyInterface
-                    ? $entityPolicy->classificationInputs()
-                    : $entityPolicy->authorizationInputs();
+                $declaredInputs = $this->declaredProtectedEntityReadInputs($entityPolicy);
                 $values = [];
                 foreach ($declaredInputs as $field) {
                     if (!in_array($field, $policySubject->fields(), true)) {
@@ -226,16 +224,7 @@ class EntityAccessHandler
             ) {
                 return null;
             }
-            $inputsForPolicy = $entityPolicy instanceof ClassifiedProtectedEntityReadPolicyInterface
-                ? $entityPolicy->classificationInputs()
-                : $entityPolicy->authorizationInputs();
-            if (array_filter($inputsForPolicy, static fn(string $field): bool => $field === '') !== []) {
-                throw new \LogicException('Protected entity-read policy classification inputs must be non-empty strings.');
-            }
-            if (count(array_unique($inputsForPolicy)) !== count($inputsForPolicy)) {
-                throw new \LogicException('Protected entity-read policy classification inputs must not contain duplicate fields.');
-            }
-            sort($inputsForPolicy);
+            $inputsForPolicy = $this->declaredProtectedEntityReadInputs($entityPolicy);
             $policies[] = ['policy' => $entityPolicy, 'inputs' => $inputsForPolicy];
             foreach ($inputsForPolicy as $fieldName) {
                 $inputs[$fieldName] = true;
@@ -253,11 +242,11 @@ class EntityAccessHandler
     }
 
     /** @internal Query ordering and cache safety for application classification policies. */
-    public function hasClassifiedProtectedEntityReadPolicy(string $entityTypeId, string $bundle): bool
+    public function hasClassifiedProtectedEntityReadPolicy(string $entityTypeId, ?string $bundle): bool
     {
         foreach ($this->policies as $index => $policy) {
             if (!$policy->appliesTo($entityTypeId)
-                || !$this->matchesBundle($this->bundleFilters[$index] ?? [], $bundle)
+                || ($bundle !== null && !$this->matchesBundle($this->bundleFilters[$index] ?? [], $bundle))
                 || !$policy instanceof ProtectedReadPolicyProviderInterface
             ) {
                 continue;
@@ -497,9 +486,7 @@ class EntityAccessHandler
             }
             $entityPolicy = $policy->protectedEntityReadPolicy();
             if ($entityPolicy instanceof ClassifiedProtectedEntityReadPolicyInterface || $entityPolicy instanceof ProjectedProtectedEntityReadPolicyInterface) {
-                $declaredInputs = $entityPolicy instanceof ClassifiedProtectedEntityReadPolicyInterface
-                    ? $entityPolicy->classificationInputs()
-                    : $entityPolicy->authorizationInputs();
+                $declaredInputs = $this->declaredProtectedEntityReadInputs($entityPolicy);
                 foreach ($declaredInputs as $field) {
                     $inputs[$field] = true;
                 }
@@ -508,6 +495,37 @@ class EntityAccessHandler
         $fields = array_keys($inputs);
         sort($fields);
         return $fields;
+    }
+
+    /** @return list<string> */
+    private function declaredProtectedEntityReadInputs(
+        ClassifiedProtectedEntityReadPolicyInterface|ProjectedProtectedEntityReadPolicyInterface $policy,
+    ): array {
+        $inputs = $policy instanceof ClassifiedProtectedEntityReadPolicyInterface
+            ? $policy->classificationInputs()
+            : $policy->authorizationInputs();
+
+        return $this->normalizeDeclaredProtectedEntityReadInputs($inputs);
+    }
+
+    /** @return list<string> */
+    private function normalizeDeclaredProtectedEntityReadInputs(mixed $inputs): array
+    {
+        if (!is_array($inputs) || !array_is_list($inputs)) {
+            throw new \LogicException('Protected entity-read policy classification inputs must be a list.');
+        }
+        foreach ($inputs as $field) {
+            if (!is_string($field) || $field === '') {
+                throw new \LogicException('Protected entity-read policy classification inputs must be non-empty strings.');
+            }
+        }
+        if (count(array_unique($inputs)) !== count($inputs)) {
+            throw new \LogicException('Protected entity-read policy classification inputs must not contain duplicate fields.');
+        }
+
+        sort($inputs);
+
+        return $inputs;
     }
 
     /**
