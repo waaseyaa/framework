@@ -34,6 +34,7 @@ use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Node\Node;
 use Waaseyaa\Node\NodeAccessPolicy;
+use Waaseyaa\Node\NodeAuthorizationSnapshotReader;
 use Waaseyaa\Node\NodeServiceProvider;
 use Waaseyaa\Node\NodeType;
 use Waaseyaa\Workflows\Transition\TransitionService;
@@ -53,6 +54,46 @@ use Waaseyaa\Workflows\WorkflowServiceProvider;
 #[CoversNothing]
 final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
 {
+    #[Test]
+    public function admin_created_draft_is_attributed_to_the_authenticated_creator(): void
+    {
+        [$entityTypeManager, , , $accountContext] = $this->bootWiredProviders();
+
+        $creator = $this->account(42, [
+            'administer content',
+            'create article content',
+            'view own unpublished content',
+        ]);
+        $accountContext->set($creator);
+
+        $accessHandler = new EntityAccessHandler([new NodeAccessPolicy()]);
+        $host = new GenericAdminSurfaceHost($entityTypeManager, $accessHandler);
+        $request = Request::create('/');
+        $request->attributes->set('_account', $creator);
+        self::assertNotNull($host->resolveSession($request));
+
+        $created = $host->action('node', 'create', [
+            'attributes' => [
+                'title' => 'Creator-owned draft',
+                'type' => 'article',
+            ],
+        ]);
+
+        self::assertTrue($created->ok, 'admin create must succeed: ' . json_encode($created->error));
+        $ids = $entityTypeManager->getRepository('node')->getQuery()
+            ->accessCheck(false)
+            ->condition('uuid', (string) $created->data['id'])
+            ->execute();
+        self::assertCount(1, $ids);
+        $draft = $entityTypeManager->getRepository('node')->find((string) $ids[0]);
+        self::assertInstanceOf(Node::class, $draft);
+        self::assertSame(
+            42,
+            (int) (new NodeAuthorizationSnapshotReader())->read($draft)->authorId,
+            'the authenticated creator must own the persisted draft',
+        );
+    }
+
     #[Test]
     public function full_attribute_round_trip_through_the_host_persists_the_changed_title_and_the_pointer_stays_self_consistent(): void
     {

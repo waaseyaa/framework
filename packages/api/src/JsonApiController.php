@@ -555,6 +555,23 @@ final class JsonApiController
         $repository = $this->entityTypeManager->getRepository($entityTypeId);
         $entity = $repository->create($attributes);
 
+        // Authored content created through JSON:API (including the generic
+        // admin host, which delegates here) belongs to the authenticated
+        // creator when the client did not explicitly choose an author. Keep
+        // explicit create-time uid assignment intact for administrator
+        // create-on-behalf workflows; existing-node authorship remains
+        // protected by NodeAccessPolicy's update-time field gate.
+        if ($entityTypeId === 'node'
+            && !\array_key_exists('uid', $attributes)
+            && $entity instanceof FieldableInterface
+            && $this->account?->isAuthenticated() === true
+        ) {
+            $accountId = $this->account->id();
+            if (\is_int($accountId) || \ctype_digit($accountId)) {
+                $entity->set('uid', (int) $accountId);
+            }
+        }
+
         // Check create access.
         if ($this->accessHandler !== null && $this->account !== null) {
             // Pre-existing bug fix, found while adding the guard above: this

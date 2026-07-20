@@ -365,7 +365,7 @@ The `$accessHandler` and `$account` follow the **paired nullable** pattern: both
 
 1. Validates `data.type` matches `$entityTypeId`.
 2. **Write-side field allowlist (CW-v1 option-1 PR-4, see the dedicated subsection below)**: `EntityWritePayloadGuard::refusedKeys()` runs over `array_keys($attributes)` — any refused key → 422, before `create()` is even called.
-3. Creates entity via `$storage->create($attributes)`.
+3. Creates entity via `$storage->create($attributes)`. For `node` creates by an authenticated principal, an omitted `uid` is filled from that principal before save; an explicitly supplied create-time author remains unchanged for authorized create-on-behalf flows.
 4. Checks create access via `$accessHandler->checkCreateAccess()`.
 5. Checks **field edit access** for each submitted attribute via `$accessHandler->checkFieldAccess($entity, $fieldName, 'edit', $account)`. Uses `isForbidden()` (field-level semantics).
 6. Saves entity. `EntityValidationException` maps to 422; it never escapes as HTTP 500.
