@@ -989,8 +989,10 @@ final class SqlEntityQuery implements EntityQueryInterface
      * top of execute() guarantees accessCheckEnabled is never true with a null
      * account, so the discriminator is always present when it matters.
      */
-    private function buildCacheFingerprint(?AccountInterface $authorizationAccount): string
-    {
+    private function buildCacheFingerprint(
+        ?AccountInterface $authorizationAccount,
+        ?string $protectedProjectionDimension,
+    ): string {
         $payload = [
             'conditions' => $this->conditions,
             'sorts' => $this->sorts,
@@ -1001,6 +1003,7 @@ final class SqlEntityQuery implements EntityQueryInterface
             'account' => $this->accessCheckEnabled && $authorizationAccount !== null
                 ? $this->accountCacheDimension($authorizationAccount)
                 : null,
+            'protectedProjection' => $protectedProjectionDimension,
         ];
 
         return hash('xxh128', json_encode($payload, JSON_THROW_ON_ERROR));
@@ -1082,7 +1085,30 @@ final class SqlEntityQuery implements EntityQueryInterface
             : null;
 
         $entityTypeId = $this->entityType->id();
-        $fingerprint = $this->resultCache !== null ? $this->buildCacheFingerprint($authorizationAccount) : null;
+        $routed = $this->routeFields();
+        $routing = $routed['routing'];
+        $requiredJoins = $routed['requiredJoins'];
+        $protectedPrincipal = $authorizationAccount instanceof AuthorizationPrincipalInterface
+            ? $authorizationAccount
+            : null;
+        $accessHandler = $this->resolveAccessHandler();
+        $protectedProjection = $protectedPrincipal !== null
+            ? $this->compileProtectedEntityReadProjection($accessHandler)
+            : null;
+        $hasClassifiedProtectedRead = $protectedPrincipal !== null
+            && $accessHandler->hasClassifiedProtectedEntityReadPolicy(
+                $this->entityType->id(),
+                $this->bundleKey === null ? $this->entityType->id() : '',
+            );
+        $fingerprint = $this->resultCache !== null
+            && !($hasClassifiedProtectedRead && $protectedProjection === null)
+            ? $this->buildCacheFingerprint(
+                $authorizationAccount,
+                $protectedProjection !== null
+                    ? $protectedProjection['policy']->cacheDimension()
+                    : null,
+            )
+            : null;
 
         if ($fingerprint !== null) {
             $cached = $this->resultCache->get($entityTypeId, $fingerprint);
@@ -1091,15 +1117,9 @@ final class SqlEntityQuery implements EntityQueryInterface
             }
         }
 
-        $routed = $this->routeFields();
-        $routing = $routed['routing'];
-        $requiredJoins = $routed['requiredJoins'];
-        $protectedPrincipal = $authorizationAccount instanceof AuthorizationPrincipalInterface
-            ? $authorizationAccount
-            : null;
-        $protectedProjection = $protectedPrincipal !== null
-            ? $this->compileProtectedEntityReadProjection($this->resolveAccessHandler())
-            : null;
+        $deferRangeUntilAfterAccess = $this->accessCheckEnabled
+            && $hasClassifiedProtectedRead
+            && $this->rangeLimit !== null;
 
         $select = $this->database->select($this->tableName);
 
@@ -1203,7 +1223,7 @@ final class SqlEntityQuery implements EntityQueryInterface
         }
 
         // Apply range.
-        if ($this->rangeLimit !== null) {
+        if ($this->rangeLimit !== null && !$deferRangeUntilAfterAccess) {
             $select = $select->range($this->rangeOffset ?? 0, $this->rangeLimit);
         }
 
@@ -1258,6 +1278,10 @@ final class SqlEntityQuery implements EntityQueryInterface
             // per-row EntityAccessHandler::check(), and retain only explicitly
             // Allowed rows. count() reuses this machinery (FR-006).
             $filtered = $this->filterCandidates($ids, $authorizationAccount);
+        }
+
+        if ($deferRangeUntilAfterAccess && !$this->isCount) {
+            $filtered = array_slice($filtered, $this->rangeOffset ?? 0, $this->rangeLimit);
         }
 
         if ($fingerprint !== null) {

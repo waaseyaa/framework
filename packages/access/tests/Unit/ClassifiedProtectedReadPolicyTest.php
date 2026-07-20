@@ -37,6 +37,38 @@ final class ClassifiedProtectedReadPolicyTest extends TestCase
 
         $denied = $plan->access($principal, $structure, new CompiledPolicySubjectView(['slug' => 'rht', 'parent_id' => 0]), 'view');
         self::assertTrue($denied->isForbidden());
+
+        $mutation = $handler->checkProtectedEntityRead(
+            $principal,
+            $structure,
+            new CompiledPolicySubjectView(['slug' => 'rht', 'parent_id' => 0]),
+            'update',
+        );
+        self::assertTrue($mutation->isNeutral(), 'A protected-read classification must not alter mutation authority.');
+    }
+
+    #[Test]
+    public function duplicate_application_classification_inputs_are_rejected(): void
+    {
+        $policy = new ClassifiedPolicyProvider(new class implements ClassifiedProtectedEntityReadPolicyInterface {
+            public function classificationInputs(): array
+            {
+                return ['slug', 'slug'];
+            }
+
+            public function access(
+                \Waaseyaa\Access\AuthorizationPrincipalInterface $principal,
+                EntityStructure $structure,
+                PolicySubjectViewInterface $subject,
+                string $operation,
+            ): AccessResult {
+                return AccessResult::neutral();
+            }
+        });
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('duplicate');
+        new EntityAccessHandler([$policy])->protectedEntityReadProjectionPlan('page', 'page');
     }
 }
 
@@ -44,7 +76,10 @@ final class ClassifiedPolicyProvider implements AccessPolicyInterface, Protected
 {
     public function __construct(private ClassifiedProtectedEntityReadPolicyInterface $readPolicy) {}
 
-    public function appliesTo(string $entityTypeId): bool { return $entityTypeId === 'page'; }
+    public function appliesTo(string $entityTypeId): bool
+    {
+        return $entityTypeId === 'page';
+    }
 
     public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
     {
@@ -69,7 +104,10 @@ final class ClassifiedPolicyProvider implements AccessPolicyInterface, Protected
 
 final class ApplicationPageReadPolicy implements ClassifiedProtectedEntityReadPolicyInterface
 {
-    public function classificationInputs(): array { return ['slug', 'parent_id']; }
+    public function classificationInputs(): array
+    {
+        return ['slug', 'parent_id'];
+    }
 
     public function access(
         \Waaseyaa\Access\AuthorizationPrincipalInterface $principal,

@@ -108,9 +108,10 @@ class EntityAccessHandler
             && $this->isAuthorizationPrincipal($account)
             && $this->hasProtectedEntityReadPolicy($entity->getEntityTypeId(), $entity->bundle())
         ) {
+            $legacySubject = ($this->entityPolicySubjectAuthority)($entity, []);
             $subject = ($this->entityPolicySubjectAuthority)($entity, $this->protectedEntityReadInputs($entity->getEntityTypeId(), $entity->bundle()));
 
-            return $this->checkProtectedEntityRead($account, $entity->entityStructure(), $subject, $operation);
+            return $this->checkProtectedEntityRead($account, $entity->entityStructure(), $subject, $operation, $legacySubject);
         }
 
         $result = AccessResult::neutral('No policy provided an opinion.');
@@ -153,6 +154,7 @@ class EntityAccessHandler
         EntityStructure $structure,
         PolicySubjectViewInterface $subject,
         string $operation = GateInterface::VIEW,
+        ?PolicySubjectViewInterface $legacySubject = null,
     ): AccessResult {
         $result = AccessResult::neutral('No protected entity-read policy provided an opinion.');
         foreach ($this->policies as $index => $policy) {
@@ -166,8 +168,12 @@ class EntityAccessHandler
             if ($entityPolicy === null) {
                 continue;
             }
-            $policySubject = $subject;
+            if ($entityPolicy instanceof ClassifiedProtectedEntityReadPolicyInterface && $operation !== GateInterface::VIEW) {
+                continue;
+            }
+            $policySubject = $legacySubject ?? $subject;
             if ($entityPolicy instanceof ClassifiedProtectedEntityReadPolicyInterface || $entityPolicy instanceof ProjectedProtectedEntityReadPolicyInterface) {
+                $policySubject = $subject;
                 $declaredInputs = $entityPolicy instanceof ClassifiedProtectedEntityReadPolicyInterface
                     ? $entityPolicy->classificationInputs()
                     : $entityPolicy->authorizationInputs();
@@ -226,6 +232,9 @@ class EntityAccessHandler
             if (array_filter($inputsForPolicy, static fn(string $field): bool => $field === '') !== []) {
                 throw new \LogicException('Protected entity-read policy classification inputs must be non-empty strings.');
             }
+            if (count(array_unique($inputsForPolicy)) !== count($inputsForPolicy)) {
+                throw new \LogicException('Protected entity-read policy classification inputs must not contain duplicate fields.');
+            }
             sort($inputsForPolicy);
             $policies[] = ['policy' => $entityPolicy, 'inputs' => $inputsForPolicy];
             foreach ($inputsForPolicy as $fieldName) {
@@ -241,6 +250,24 @@ class EntityAccessHandler
         sort($inputNames);
 
         return new ProtectedEntityReadPlan($entityTypeId, $bundle, $inputNames, $policies);
+    }
+
+    /** @internal Query ordering and cache safety for application classification policies. */
+    public function hasClassifiedProtectedEntityReadPolicy(string $entityTypeId, string $bundle): bool
+    {
+        foreach ($this->policies as $index => $policy) {
+            if (!$policy->appliesTo($entityTypeId)
+                || !$this->matchesBundle($this->bundleFilters[$index] ?? [], $bundle)
+                || !$policy instanceof ProtectedReadPolicyProviderInterface
+            ) {
+                continue;
+            }
+            if ($policy->protectedEntityReadPolicy() instanceof ClassifiedProtectedEntityReadPolicyInterface) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
