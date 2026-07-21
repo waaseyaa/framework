@@ -38,6 +38,6 @@ final readonly class ContentModel
 
     public function isEmpty(): bool
     {
-        return $this->types === [];
+        return $this->types === [] && $this->vocabularies === [];
     }
 }

@@ -61,6 +61,15 @@ final class MenuLinkTest extends TestCase
         $this->assertSame('footer', $link->getMenuName());
     }
 
+    public function testGetSetTarget(): void
+    {
+        $link = new MenuLink(['id' => 1, 'title' => 'External', 'menu_name' => 'main', 'target' => '_blank']);
+
+        $this->assertSame('_blank', $link->getTarget());
+        $link->setTarget('_self');
+        $this->assertSame('_self', $link->getTarget());
+    }
+
     public function testBundleReturnsMenuName(): void
     {
         $link = new MenuLink(['id' => 1, 'title' => 'Home', 'menu_name' => 'main']);
@@ -199,6 +208,7 @@ final class MenuLinkTest extends TestCase
             'parent_id' => null,
             'enabled' => true,
             'expanded' => false,
+            'target' => '_blank',
         ]);
 
         $array = $link->toArray();
@@ -211,6 +221,7 @@ final class MenuLinkTest extends TestCase
         $this->assertNull($array['parent_id']);
         $this->assertTrue($array['enabled']);
         $this->assertFalse($array['expanded']);
+        $this->assertSame('_blank', $array['target']);
         $this->assertArrayHasKey('uuid', $array);
     }
 

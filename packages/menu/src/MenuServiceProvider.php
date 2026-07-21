@@ -21,14 +21,10 @@ final class MenuServiceProvider extends ServiceProvider
             api: true,
         ));
 
-        $this->entityType(new EntityType(
-            id: 'menu_link',
-            label: 'Menu Link',
-            description: 'Individual links within navigation menus',
-            class: MenuLink::class,
-            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'menu_name'],
+        $this->entityType(EntityType::fromClass(
+            MenuLink::class,
+            bundleEntityType: 'menu',
             group: 'structure',
-            api: true,
         ));
     }
 }

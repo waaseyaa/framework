@@ -15,6 +15,7 @@ const saving = ref(false)
 const error = ref<string | null>(null)
 const revealedSecret = ref<string | null>(null)
 const regenerating = ref(false)
+const confirmRegenerateOpen = ref(false)
 
 // Form fields
 const form = ref<OidcClientInput>({
@@ -78,7 +79,7 @@ async function save() {
 }
 
 async function doRegenerateSecret() {
-  if (!confirm(t('oidc.clients.confirmRegenerate'))) return
+  confirmRegenerateOpen.value = false
   regenerating.value = true
   revealedSecret.value = null
   try {
@@ -155,9 +156,15 @@ onMounted(load)
     <div v-if="!isNew && !loading" class="mt-8 pt-6 border-t">
       <h2 class="text-lg font-semibold mb-2">{{ t('oidc.clients.dangerZone') }}</h2>
       <p class="text-sm text-gray-600 mb-3">{{ t('oidc.clients.regenerateHint') }}</p>
-      <button class="btn-danger" :disabled="regenerating" @click="doRegenerateSecret">
+      <button class="btn-danger" :disabled="regenerating" @click="confirmRegenerateOpen = true">
         {{ regenerating ? t('common.working') : t('oidc.clients.regenerateSecret') }}
       </button>
     </div>
+    <CommonConfirmDialog
+      :open="confirmRegenerateOpen"
+      :message="t('oidc.clients.confirmRegenerate')"
+      @cancel="confirmRegenerateOpen = false"
+      @confirm="doRegenerateSecret"
+    />
   </div>
 </template>

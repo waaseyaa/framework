@@ -37,6 +37,48 @@ use Waaseyaa\Field\FieldDefinitionRegistry;
 final class GenericAdminSurfaceHostTest extends TestCase
 {
     #[Test]
+    public function config_entity_lists_use_bounded_hydrated_access_and_keep_rows_read_only(): void
+    {
+        $configClass = get_class(new class(['type' => 'page', 'name' => 'Page']) extends ConfigEntityBase {
+            public function __construct(array $values = [])
+            {
+                parent::__construct($values, 'test_config', ['id' => 'type', 'label' => 'name']);
+            }
+        });
+        $entity = $this->createMock(EntityInterface::class);
+        $entity->method('getEntityTypeId')->willReturn('test_config');
+        $entity->method('id')->willReturn('page');
+        $entity->method('uuid')->willReturn('');
+        $entity->method('toArray')->willReturn(['type' => 'page', 'name' => 'Page']);
+
+        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository->expects(self::once())->method('findBy')->with([])->willReturn([$entity]);
+        $repository->expects(self::never())->method('getQuery');
+
+        $definition = new EntityType(
+            id: 'test_config',
+            label: 'Test config',
+            class: $configClass,
+            keys: ['id' => 'type', 'label' => 'name'],
+            _fieldDefinitions: ['name' => ['type' => 'string']],
+        );
+        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm->method('hasDefinition')->willReturn(true);
+        $etm->method('getDefinition')->willReturn($definition);
+        $etm->method('resolveFieldDefinitions')->willReturn([
+            'name' => new FieldDefinition(name: 'name', type: 'string'),
+        ]);
+        $etm->method('getRepository')->willReturn($repository);
+
+        $result = $this->permissiveHost($etm)->list('test_config');
+
+        self::assertTrue($result->ok);
+        self::assertSame(1, $result->data['total']);
+        self::assertSame('page', $result->data['entities'][0]['id']);
+        self::assertSame(['view' => true, 'edit' => false, 'delete' => false], $result->data['entities'][0]['capabilities']);
+    }
+
+    #[Test]
     public function configured_read_only_types_reject_every_crud_action(): void
     {
         $etm = $this->createStub(EntityTypeManagerInterface::class);

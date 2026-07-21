@@ -14,6 +14,7 @@ use Waaseyaa\Migration\ContentModel\ContentModelRegistrar;
 use Waaseyaa\Migration\ContentModel\ContentTypeModel;
 use Waaseyaa\Migration\Exception\ContentModelRegistrationException;
 use Waaseyaa\Migration\Tests\Fixtures\ContentModelTestKit;
+use Waaseyaa\Taxonomy\TaxonomyServiceProvider;
 
 /**
  * G-026 (#1940) — blessing + failure-semantics coverage for
@@ -64,6 +65,32 @@ final class ContentModelRegistrarTest extends TestCase
 
         $repository = $kit->typeManager->getRepository('migration_test_content_type');
         self::assertCount(0, $repository->findBy([]));
+    }
+
+    #[Test]
+    public function it_materializes_every_source_vocabulary_as_a_bundle_config_entity(): void
+    {
+        $kit = ContentModelTestKit::build();
+        $provider = new TaxonomyServiceProvider();
+        $provider->register();
+        foreach ($provider->getEntityTypes() as $entityType) {
+            $kit->typeManager->registerEntityType($entityType);
+        }
+
+        $registrar = new ContentModelRegistrar($kit->typeManager);
+        $registrar->register(new ContentModel(
+            vocabularies: ['category', 'post_tag', 'tribe_events_cat'],
+        ));
+
+        $vocabularies = $kit->typeManager->getRepository('taxonomy_vocabulary')->findBy([]);
+        self::assertSame(
+            ['category', 'post_tag', 'tribe_events_cat'],
+            array_map(static fn ($vocabulary): string => (string) $vocabulary->id(), $vocabularies),
+        );
+        self::assertSame(
+            ['category', 'post_tag', 'tribe_events_cat'],
+            $kit->fieldRegistry->bundleNamesFor('taxonomy_term'),
+        );
     }
 
     #[Test]

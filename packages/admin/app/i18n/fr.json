@@ -87,6 +87,8 @@
   "disable_type_warning": "C'est le dernier type de contenu activé. Le désactiver peut bloquer la publication jusqu'à l'activation d'un autre type.",
   "disable_anyway": "Désactiver quand même",
   "cancel": "Annuler",
+  "confirm": "Confirmer",
+  "confirm_action": "Confirmer l’action",
   "autocomplete_placeholder": "Commencez à taper pour rechercher...",
   "autocomplete_no_results": "Aucun résultat.",
   "autocomplete_loading": "Recherche...",

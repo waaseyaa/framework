@@ -1,5 +1,7 @@
 # Admin SPA
 
+<!-- Spec reviewed 2026-07-20 - #2088: destructive SPA actions use the reusable accessible ConfirmDialog instead of browser-native confirm; config-entity listings use bounded hydrated access so persisted content-type rows remain visible on the dashboard. -->
+
 <!-- Spec reviewed 2026-07-16 - #2052: optional validated x-list metadata declares inert columns, closed framework formatters, labelled search/filters, and allowed/default sort pairs. Hosts enforce caller filters/operators/sorts server-side through SurfaceQueryPolicy before delegation. Generic list resources expose access-derived view/edit/delete booleans without policy reasons and mutations remain authoritatively checked. SchemaList protects against stale responses, synchronizes declared query state with the URL, resets pagination on control changes, and keeps legacy x-list-display behavior only when x-list is absent. Session UI navigationMode defaults to full; catalog-only suppresses static operational/governance links as presentation only. -->
 
 <!-- Spec reviewed 2026-07-16 - #2053: one --admin-target-size token gives ordinary authenticated-admin links, buttons, inputs, selects, date controls, autocomplete controls/options, rich-text controls, toggle labels, disclosures, actions, and pagination effective 44 by 44 CSS-pixel targets. Autocomplete clear is an adjacent non-overlapping control; the toggle label owns the effective target while focus and state remain on its native checkbox. Geometry is pinned at 360/768/1024/1440 and 200% text enlargement. -->
@@ -441,6 +443,11 @@ The form rendering pipeline:
 4. Each widget receives `modelValue`, `label`, `description`, `required`, `disabled`, `schema`
 
 ### List-View Column Policy (`packages/admin/app/components/schema/SchemaList.vue`)
+
+Destructive actions open the application-owned `ConfirmDialog` alert dialog.
+The dialog provides explicit confirm/cancel controls, initial safe focus, Escape
+and backdrop cancellation, and dangerous-action styling. Native
+`window.confirm()` is not part of the admin interaction contract.
 
 #### Host-declared `x-list`
 

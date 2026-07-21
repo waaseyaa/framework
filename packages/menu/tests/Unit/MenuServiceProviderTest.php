@@ -27,5 +27,10 @@ final class MenuServiceProviderTest extends TestCase
         $this->assertSame(Menu::class, $entityTypes[0]->getClass());
         $this->assertSame('menu_link', $entityTypes[1]->id());
         $this->assertSame(MenuLink::class, $entityTypes[1]->getClass());
+        $this->assertSame('menu', $entityTypes[1]->getBundleEntityType());
+        $this->assertSame(
+            ['title', 'url', 'menu_name', 'target', 'parent_id', 'weight', 'enabled', 'expanded'],
+            array_keys($entityTypes[1]->getFieldDefinitions()),
+        );
     }
 }
