@@ -7,6 +7,7 @@ namespace Waaseyaa\Menu\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Menu\Menu;
 use Waaseyaa\Menu\MenuLink;
 use Waaseyaa\Menu\MenuServiceProvider;
@@ -28,9 +29,14 @@ final class MenuServiceProviderTest extends TestCase
         $this->assertSame('menu_link', $entityTypes[1]->id());
         $this->assertSame(MenuLink::class, $entityTypes[1]->getClass());
         $this->assertSame('menu', $entityTypes[1]->getBundleEntityType());
+        $definitions = $entityTypes[1]->getFieldDefinitions();
         $this->assertSame(
-            ['title', 'url', 'menu_name', 'target', 'parent_id', 'weight', 'enabled', 'expanded'],
-            array_keys($entityTypes[1]->getFieldDefinitions()),
+            ['title', 'url', 'target_entity_type', 'target_entity_id', 'menu_name', 'target', 'parent_id', 'weight', 'enabled', 'expanded'],
+            array_keys($definitions),
         );
+        $this->assertSame('string', $definitions['target_entity_type']->getType());
+        $this->assertSame('string', $definitions['target_entity_id']->getType());
+        $this->assertSame(FieldReadLevel::Public, $definitions['target_entity_type']->getReadLevel());
+        $this->assertSame(FieldReadLevel::Public, $definitions['target_entity_id']->getReadLevel());
     }
 }

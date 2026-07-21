@@ -6,6 +6,7 @@
 
 <!-- Spec reviewed 2026-07-14 - #2018 authoring spine: integer fields with settings.subtype=timestamp now derive AtLeastOneOf(Type(int), Type(DateTimeInterface)) so unix-backed storage values and cast-aware domain values are both valid while unrelated scalar/container types remain rejected. This corrects the documented cast-aware validation contract; no validation path is disabled. -->
 <!-- Spec reviewed 2026-07-14 - R21 #2010: taxonomy hierarchy is guarded at EntityRepository's PRE_SAVE persistence boundary. TermHierarchyGuard rejects self-parenting, cycles, missing parents, and cross-vocabulary parent edges before any tree walk can consume persisted hierarchy. -->
+<!-- Spec reviewed 2026-07-20 - #2089: menu_link object destinations are stored independently from presentation title as optional public target_entity_type + target_entity_id fields; title-only JSON:API updates must preserve both fields, while URL links and the browsing-context target field remain unchanged. -->
 <!-- Spec reviewed 2026-07-20 - #2088: menu_link now declares menu as its bundle config entity and exposes its complete authoring fields, including browsing-context target; explicitly empty bundle registrations remain visible to schema consumers. -->
 
 <!-- Spec reviewed 2026-07-13 - CW-v1 option-1 PR-4 (#1920, security): new `Waaseyaa\Entity\Write\EntityWritePayloadGuard` (`packages/entity/src/Write/EntityWritePayloadGuard.php`, `@api`) — the write-side field allowlist shared by JSON:API/admin-surface/GraphQL. No entity-system storage/save-load contract changes; it is a pure, stateless read of `EntityTypeInterface::getKeys()` + `EntityTypeManagerInterface::resolveFieldDefinitions()` (both pre-existing, unchanged read paths documented elsewhere in this spec). Full contract documented in `docs/specs/api-layer.md` "Write-side field allowlist (CW-v1 option-1 PR-4)", the surface that actually calls it. -->
@@ -607,6 +608,15 @@ $this->entityType(EntityType::fromClass(Note::class));
 `EntityType::fromClass(string $class, ...$overrides): self` reads the class-level `#[ContentEntityType]` and `#[ContentEntityKeys]` plus all `#[Field]`-decorated properties, infers the field shape from each property's PHP type (with `FieldTypeInferrer`), and returns a fully-formed `EntityType`. Named arguments after `$class` override any inferred slot (`storageClass`, `keys`, `revisionable`, `bundleEntityType`, `constraints`, etc.).
 
 `#[Field]` accepts a `stored: FieldStorage` parameter (default `FieldStorage::Column`) that `EntityMetadataReader::resolveFields()` forwards verbatim into `FieldDefinition`. Properties that should live in the `_data` JSON blob (low-traffic universals like `status`, `created_at`, `updated_at` on bundle-partitioned entities) declare `#[Field(stored: FieldStorage::Data)]` directly — no fallback to raw `EntityType()` construction is needed.
+
+**Menu-link object targets.** `menu_link` keeps presentation and destination
+identity separate. `title` is only the rendered label. An object-backed link
+stores its optional polymorphic destination in the public scalar fields
+`target_entity_type` and `target_entity_id`; a title-only JSON:API update must
+round-trip both values unchanged. Consumers resolve object-backed hrefs from
+that pair rather than deriving a slug from `title`. Custom links continue to
+use `url`. The existing `target` field remains the browser browsing-context
+target (`_self`, `_blank`, and similar) and is not an entity reference.
 
 ### Static analysis of `#[Field]`
 

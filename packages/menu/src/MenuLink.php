@@ -25,6 +25,12 @@ final class MenuLink extends ContentEntityBase
     #[Field(required: false, label: 'URL', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public string $url = '';
 
+    #[Field(required: false, label: 'Target entity type', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
+    public string $target_entity_type = '';
+
+    #[Field(type: 'string', required: false, label: 'Target entity ID', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
+    public int|string|null $target_entity_id = null;
+
     #[Field(required: false, label: 'Menu', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public string $menu_name = '';
 
@@ -59,6 +65,8 @@ final class MenuLink extends ContentEntityBase
             'expanded' => false,
             'weight' => 0,
             'parent_id' => null,
+            'target_entity_type' => '',
+            'target_entity_id' => null,
         ];
 
         parent::__construct($values, $entityTypeId, $entityKeys, $fieldDefinitions);
@@ -96,6 +104,32 @@ final class MenuLink extends ContentEntityBase
     public function setUrl(string $url): static
     {
         $this->set('url', $url);
+
+        return $this;
+    }
+
+    /** Get the entity type for an object-backed destination. */
+    public function getTargetEntityType(): string
+    {
+        return (string) ($this->get('target_entity_type') ?? '');
+    }
+
+    public function setTargetEntityType(string $entityType): static
+    {
+        $this->set('target_entity_type', $entityType);
+
+        return $this;
+    }
+
+    /** Get the entity ID for an object-backed destination. */
+    public function getTargetEntityId(): int|string|null
+    {
+        return $this->get('target_entity_id');
+    }
+
+    public function setTargetEntityId(int|string|null $entityId): static
+    {
+        $this->set('target_entity_id', $entityId);
 
         return $this;
     }

@@ -61,6 +61,32 @@ final class MenuLinkTest extends TestCase
         $this->assertSame('footer', $link->getMenuName());
     }
 
+    public function testGetSetObjectTarget(): void
+    {
+        $link = new MenuLink([
+            'id' => 1,
+            'title' => 'About',
+            'menu_name' => 'main',
+            'target_entity_type' => 'node',
+            'target_entity_id' => 42,
+        ]);
+
+        $this->assertSame('node', $link->getTargetEntityType());
+        $this->assertSame(42, $link->getTargetEntityId());
+
+        $link->setTargetEntityType('taxonomy_term')->setTargetEntityId('community');
+        $this->assertSame('taxonomy_term', $link->getTargetEntityType());
+        $this->assertSame('community', $link->getTargetEntityId());
+    }
+
+    public function testObjectTargetDefaultsToEmpty(): void
+    {
+        $link = new MenuLink(['id' => 1, 'title' => 'External', 'url' => 'https://example.com', 'menu_name' => 'main']);
+
+        $this->assertSame('', $link->getTargetEntityType());
+        $this->assertNull($link->getTargetEntityId());
+    }
+
     public function testGetSetTarget(): void
     {
         $link = new MenuLink(['id' => 1, 'title' => 'External', 'menu_name' => 'main', 'target' => '_blank']);
@@ -209,6 +235,8 @@ final class MenuLinkTest extends TestCase
             'enabled' => true,
             'expanded' => false,
             'target' => '_blank',
+            'target_entity_type' => 'node',
+            'target_entity_id' => '42',
         ]);
 
         $array = $link->toArray();
@@ -222,6 +250,8 @@ final class MenuLinkTest extends TestCase
         $this->assertTrue($array['enabled']);
         $this->assertFalse($array['expanded']);
         $this->assertSame('_blank', $array['target']);
+        $this->assertSame('node', $array['target_entity_type']);
+        $this->assertSame('42', $array['target_entity_id']);
         $this->assertArrayHasKey('uuid', $array);
     }
 
@@ -246,6 +276,8 @@ final class MenuLinkTest extends TestCase
         $result = $link
             ->setTitle('Updated')
             ->setUrl('/new')
+            ->setTargetEntityType('node')
+            ->setTargetEntityId(42)
             ->setParentId(5)
             ->setWeight(10)
             ->setEnabled(false)
@@ -254,6 +286,8 @@ final class MenuLinkTest extends TestCase
         $this->assertSame($link, $result);
         $this->assertSame('Updated', $link->getTitle());
         $this->assertSame('/new', $link->getUrl());
+        $this->assertSame('node', $link->getTargetEntityType());
+        $this->assertSame(42, $link->getTargetEntityId());
         $this->assertSame(5, $link->getParentId());
         $this->assertSame(10, $link->getWeight());
         $this->assertFalse($link->isEnabled());
