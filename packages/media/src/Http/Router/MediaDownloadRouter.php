@@ -79,9 +79,16 @@ final class MediaDownloadRouter implements DomainRouterInterface
         $sanitizedFilename = preg_replace('/[^A-Za-z0-9._-]/', '_', basename($filename));
         $safeFilename = $sanitizedFilename !== null && $sanitizedFilename !== '' ? $sanitizedFilename : 'download';
         $fileSize = filesize($path);
+        $isDocumentNavigation = strtolower((string) $request->headers->get('Sec-Fetch-Dest')) === 'document'
+            && strtolower((string) $request->headers->get('Sec-Fetch-Mode')) === 'navigate';
+        $disposition = $isDocumentNavigation ? 'inline' : 'attachment';
         $headers = [
             'Content-Type' => $contentType,
-            'Content-Disposition' => sprintf('attachment; filename="%s"', $safeFilename),
+            // A real document navigation must remain a renderer response.
+            // Turning it into a browser download aborts the navigation; some
+            // browser-extension drivers surface that abort as a synthetic 503
+            // even though FrankenPHP emitted a complete 200 response.
+            'Content-Disposition' => sprintf('%s; filename="%s"', $disposition, $safeFilename),
             'X-Content-Type-Options' => 'nosniff',
             // Serve one complete authorized representation and prevent
             // browser download managers from retrying it as parallel ranges.
