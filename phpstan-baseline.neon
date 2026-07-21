@@ -667,12 +667,6 @@ parameters:
 			path: packages/foundation/src/Discovery/PackageManifestCompiler.php
 
 		-
-			message: '#^Short ternary operator is not allowed\. Use null coalesce operator if applicable or consider using long ternary\.$#'
-			identifier: ternary.shortNotAllowed
-			count: 1
-			path: packages/foundation/src/Http/ControllerDispatcher.php
-
-		-
 			message: '#^Casting to string something that''s already string\.$#'
 			identifier: cast.useless
 			count: 2

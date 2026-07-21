@@ -545,7 +545,6 @@ final class HttpKernel extends AbstractKernel
 
         return new ControllerDispatcher(
             $routers,
-            $this->config,
             $this->logger,
             $this->resolveInertiaFullPageRenderer(),
         );

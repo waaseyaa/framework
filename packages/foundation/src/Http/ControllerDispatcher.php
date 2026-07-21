@@ -38,13 +38,9 @@ final class ControllerDispatcher
 
     private readonly ?InertiaFullPageRendererInterface $inertiaFullPageRenderer;
 
-    /**
-     * @param iterable<DomainRouterInterface> $routers
-     * @param array<string, mixed> $config
-     */
+    /** @param iterable<DomainRouterInterface> $routers */
     public function __construct(
         private readonly iterable $routers,
-        private readonly array $config = [],
         ?LoggerInterface $logger = null,
         ?InertiaFullPageRendererInterface $inertiaFullPageRenderer = null,
     ) {
@@ -158,23 +154,11 @@ final class ControllerDispatcher
             $e->getTraceAsString(),
         ));
 
-        $debug = filter_var($this->config['debug'] ?? getenv('WAASEYAA_DEBUG') ?: false, FILTER_VALIDATE_BOOLEAN);
-        $detail = $debug
-            ? sprintf('%s in %s:%d', $e->getMessage(), $e->getFile(), $e->getLine())
-            : 'An unexpected error occurred.';
-
         $error = [
             'status' => '500',
             'title' => 'Internal Server Error',
-            'detail' => $detail,
+            'detail' => 'An unexpected error occurred.',
         ];
-
-        if ($debug) {
-            $error['meta'] = [
-                'exception' => $e::class,
-                'trace' => array_slice(explode("\n", $e->getTraceAsString()), 0, 20),
-            ];
-        }
 
         return $this->jsonApiResponse(500, [
             'jsonapi' => ['version' => '1.1'],
