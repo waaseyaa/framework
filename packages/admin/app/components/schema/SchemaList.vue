@@ -31,6 +31,7 @@ const listError = ref<string | null>(null)
 // non-blocking "delete failed" notice ABOVE the table rather than replacing the
 // whole list with what looked like a "Not found" page (D7).
 const deleteError = ref<string | null>(null)
+const pendingDelete = ref<JsonApiResource | null>(null)
 const bundleFilter = ref<string | null>(null)
 const searchValue = ref('')
 const filterValues = reactive<Record<string, string | number | boolean | null>>({})
@@ -286,7 +287,6 @@ function onEditNavigate(entity: JsonApiResource, event: MouseEvent) {
 }
 
 async function deleteEntity(entity: JsonApiResource) {
-  if (!confirm(t('confirm_delete'))) return
   deleteError.value = null
   try {
     await remove(props.entityType, entity.id)
@@ -299,6 +299,16 @@ async function deleteEntity(entity: JsonApiResource) {
     const detail = e.data?.errors?.[0]?.detail ?? e.message
     deleteError.value = detail ? `${t('error_deleting')} ${detail}` : t('error_deleting')
   }
+}
+
+function requestDelete(entity: JsonApiResource) {
+  pendingDelete.value = entity
+}
+
+async function confirmDelete() {
+  const entity = pendingDelete.value
+  pendingDelete.value = null
+  if (entity) await deleteEntity(entity)
 }
 
 function getCellValue(entity: JsonApiResource, fieldName: string, fieldSchema: Record<string, unknown>): unknown {
@@ -657,7 +667,7 @@ watch(messages, (msgs) => {
                 class="btn btn-sm btn-danger touch-target"
                 :aria-label="t('delete') + ': ' + getEntityLabel(entity)"
                 :data-anchor="`action:${entityType}:delete`"
-                @click="deleteEntity(entity)"
+                @click="requestDelete(entity)"
               >
                 {{ t('delete') }}
               </button>
@@ -701,6 +711,14 @@ watch(messages, (msgs) => {
         {{ t('showing') }} {{ offset + 1 }}–{{ Math.min(offset + limit, total) }} {{ t('of') }} {{ total }}
       </div>
     </template>
+    <CommonConfirmDialog
+      :open="pendingDelete !== null"
+      :message="t('confirm_delete')"
+      :confirm-label="t('delete')"
+      dangerous
+      @cancel="pendingDelete = null"
+      @confirm="confirmDelete"
+    />
   </section>
 </template>
 

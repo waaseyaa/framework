@@ -73,7 +73,7 @@ async function mountList() {
   const { default: SchemaList } = await import('~/components/schema/SchemaList.vue')
   const wrapper = await mountSuspended(SchemaList, {
     props: { entityType: 'node' },
-    global: { stubs: { NuxtLink: NuxtLinkStub } },
+    global: { stubs: { NuxtLink: NuxtLinkStub, teleport: true } },
   })
   await flushPromises()
   return wrapper
@@ -129,11 +129,12 @@ describe('SchemaList Wayfinding anchor groundwork', () => {
 
 describe('SchemaList delete error surfacing (D7)', () => {
   it('shows a delete failure inline without blanking the table', async () => {
-    vi.stubGlobal('confirm', () => true)
     removeMock.mockRejectedValueOnce({ message: 'Not found' })
 
     const wrapper = await mountList()
     await wrapper.get('button.btn-danger').trigger('click')
+    expect(wrapper.find('[role="alertdialog"]').exists()).toBe(true)
+    await wrapper.get('[data-testid="confirm-dialog-confirm"]').trigger('click')
     await flushPromises()
 
     // Inline delete-error notice is shown, framed as a delete failure...
@@ -142,7 +143,5 @@ describe('SchemaList delete error surfacing (D7)', () => {
     expect(notice.text()).toContain('error_deleting')
     // ...and the table is NOT replaced by a full-page error (the D7 symptom).
     expect(wrapper.find('.entity-table').exists()).toBe(true)
-
-    vi.unstubAllGlobals()
   })
 })

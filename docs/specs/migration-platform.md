@@ -4,6 +4,7 @@
 <!-- Spec reviewed 2026-07-13 - #1981 fixed-bundle source and split id-map composition (§3.1, §3.5, §6.1, §16) -->
 <!-- Spec reviewed 2026-07-17 - #2064 WP1 adds capability/preflight data contracts only. Migration plugins and runners are unchanged; exact migration manifests and AuditedFieldRead use begin in WP2. Canonical contract: entity-field-read-boundary.md. -->
 <!-- Spec reviewed 2026-07-17 - #2064 WP2 adds exact MigrationFieldReadManifest metadata and NoActingContext MigrationImport capability issuance bound to an explicit live execution-boundary proof. Privileged migration reads remain explicit at MigrationAuditedFieldReader -> AuditedFieldRead::read; import writes do not imply read authority. -->
+<!-- Spec reviewed 2026-07-20 - #2088: import-derived vocabularies now materialize taxonomy_vocabulary config rows and explicit empty bundle declarations, so later worker rehydration and schema validation recognize migrated term bundles. -->
 
 # Migration Platform
 
@@ -641,6 +642,12 @@ declarations for bundle config entities that a completed import persisted.
   auto-materializes the per-bundle subtable with real typed columns). Both
   steps are idempotent — a repeated registration for an existing bundle/field
   is a silent no-op, not an error.
+- Every id in `ContentModel::$vocabularies` is treated as an explicit
+  `taxonomy_term` bundle: registration materializes the corresponding
+  `taxonomy_vocabulary` config entity and records the bundle even when it adds
+  no bundle-specific fields. Rehydration restores those empty declarations in
+  later HTTP/worker processes, so persisted terms never fail schema validation
+  as an unknown bundle.
 
 **Invocation point — the pass-1 fix.** Discovery/collection happens at boot,
 exactly like `HasMigrationsInterface` in §9 step 2:

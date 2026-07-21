@@ -111,10 +111,32 @@ final readonly class ContentModelRegistrar
             $this->logger->info('[content-model] ' . $note);
         }
 
+        // Taxonomy vocabularies are bundles too. ContentModel has always
+        // carried the source vocabulary ids, but the registrar previously
+        // ignored them, leaving imported terms with bundle values that had no
+        // corresponding taxonomy_vocabulary config entity. Route them through
+        // the same generic bundle-config mechanism as every other derived
+        // content type so validation and schema presentation agree with the
+        // imported data.
+        foreach ($model->vocabularies as $vocabulary) {
+            $type = new ContentTypeModel(
+                entityTypeId: 'taxonomy_term',
+                bundle: $vocabulary,
+                label: $this->humanizeMachineName($vocabulary),
+            );
+            $this->ensureBundleConfigEntity($type);
+            $this->declareFields($type);
+        }
+
         foreach ($model->types as $type) {
             $this->ensureBundleConfigEntity($type);
             $this->declareFields($type);
         }
+    }
+
+    private function humanizeMachineName(string $machineName): string
+    {
+        return ucwords(str_replace(['_', '-'], ' ', $machineName));
     }
 
     /**
@@ -131,7 +153,16 @@ final readonly class ContentModelRegistrar
             return;
         }
 
-        foreach ($model->types as $type) {
+        $types = $model->types;
+        foreach ($model->vocabularies as $vocabulary) {
+            $types[] = new ContentTypeModel(
+                entityTypeId: 'taxonomy_term',
+                bundle: $vocabulary,
+                label: $this->humanizeMachineName($vocabulary),
+            );
+        }
+
+        foreach ($types as $type) {
             if (!$this->bundleConfigExists($type)) {
                 continue;
             }
@@ -253,10 +284,6 @@ final readonly class ContentModelRegistrar
      */
     private function declareFields(ContentTypeModel $type): void
     {
-        if ($type->fields === []) {
-            return;
-        }
-
         try {
             $registry = $this->entityTypeManager->getFieldRegistry();
         } catch (\Throwable $e) {
@@ -268,6 +295,26 @@ final readonly class ContentModelRegistrar
         }
 
         $existing = $registry->bundleFieldsFor($type->entityTypeId, $type->bundle);
+
+        if ($type->fields === []) {
+            if ($this->entityTypeManager->getDefinition($type->entityTypeId)->getBundleEntityType() === null) {
+                return;
+            }
+            if (!in_array($type->bundle, $registry->bundleNamesFor($type->entityTypeId), true)) {
+                try {
+                    $this->entityTypeManager->addBundleFields($type->entityTypeId, $type->bundle, []);
+                } catch (\Throwable $e) {
+                    throw new ContentModelRegistrationException(\sprintf(
+                        '[content-model] failed to register empty bundle "%s" on %s: %s',
+                        $type->bundle,
+                        $type->entityTypeId,
+                        $e->getMessage(),
+                    ), previous: $e);
+                }
+            }
+
+            return;
+        }
 
         $toAdd = [];
         foreach ($type->fields as $field) {

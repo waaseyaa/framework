@@ -224,6 +224,52 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
 
         $repository = $this->entityTypeManager->getRepository($type);
 
+        // Config entities are small, identity-keyed sets. Their query-level
+        // access projection is intentionally content-oriented and can return
+        // an empty survivor set for role-gated config policies even when the
+        // authoritative hydrated policy allows the administrator. Evaluate
+        // these bounded rows in memory through the same entity/field access
+        // checks used after ordinary queries so dashboard bundle definitions
+        // remain visible without weakening authorization.
+        if (is_a($this->entityTypeManager->getDefinition($type)->getClass(), ConfigEntityBase::class, true)) {
+            $entities = array_values(array_filter(
+                $repository->findBy([]),
+                fn($entity): bool => $this->accessHandler->check($entity, 'view', $this->currentAccount)->isAllowed(),
+            ));
+            foreach ($query->filters as $filter) {
+                $entities = array_values(array_filter(
+                    $entities,
+                    fn($entity): bool => $this->applyFilter($entity, $filter['field'], $filter['operator'], $filter['value']),
+                ));
+            }
+            if ($query->sortField !== null) {
+                foreach ($entities as $entity) {
+                    if ($this->isFieldViewForbidden($entity, $query->sortField)) {
+                        return AdminSurfaceResultData::error(400, 'Invalid sort field', "Cannot sort by field '{$query->sortField}'.");
+                    }
+                }
+                self::sortEntities($entities, $query->sortField, $query->sortDirection === 'DESC');
+            }
+            $total = count($entities);
+            $entities = array_slice($entities, $query->offset, $query->limit);
+            $serializer = $this->serializer();
+            $rows = [];
+            foreach ($entities as $entity) {
+                $row = $this->jsonApiResourceToSurfaceEntity(
+                    $serializer->serialize($entity, $this->accessHandler, $this->currentAccount),
+                );
+                $row['capabilities'] = ['view' => true, 'edit' => false, 'delete' => false];
+                $rows[] = $row;
+            }
+
+            return AdminSurfaceResultData::success([
+                'entities' => $rows,
+                'total' => $total,
+                'offset' => $query->offset,
+                'limit' => $query->limit,
+            ]);
+        }
+
         // Field access can vary per entity, so resolve the set of IDs whose
         // queried fields are viewable before caller-controlled conditions,
         // ordering, or pagination shape SQL. A Forbidden filter field excludes
@@ -883,9 +929,11 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
     {
         $repository = $this->entityTypeManager->getRepository($type);
 
-        if (is_numeric($id)) {
+        $definition = $this->entityTypeManager->getDefinition($type);
+        $isConfigEntity = is_a($definition->getClass(), ConfigEntityBase::class, true);
+        if (is_numeric($id) || $isConfigEntity) {
             $entity = $repository->find($id);
-            if ($entity !== null) {
+            if ($entity !== null || $isConfigEntity) {
                 return $entity;
             }
         }

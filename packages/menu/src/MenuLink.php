@@ -28,6 +28,9 @@ final class MenuLink extends ContentEntityBase
     #[Field(required: false, label: 'Menu', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public string $menu_name = '';
 
+    #[Field(required: false, label: 'Target', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
+    public string $target = '';
+
     #[Field(type: 'string', required: false, label: 'Parent', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public int|string|null $parent_id = null;
 
@@ -103,6 +106,19 @@ final class MenuLink extends ContentEntityBase
     public function getMenuName(): string
     {
         return $this->bundle();
+    }
+
+    /** Browser browsing-context target, such as `_self` or `_blank`. */
+    public function getTarget(): string
+    {
+        return (string) ($this->get('target') ?? '');
+    }
+
+    public function setTarget(string $target): static
+    {
+        $this->set('target', $target);
+
+        return $this;
     }
 
     /**

@@ -123,6 +123,14 @@ final class FieldDefinitionRegistry implements FieldDefinitionRegistryInterface,
     }
     public function registerBundleFields(string $entityTypeId, string $bundle, array $fields): void
     {
+        // Bundle identity is meaningful even when a bundle adds no fields of
+        // its own. Schema consumers use bundleNamesFor() to validate a bundle
+        // selected in an authoring request, so preserve the explicit empty
+        // declaration instead of making it indistinguishable from unknown.
+        if (!isset($this->bundleFields[$entityTypeId][$bundle])) {
+            $this->bundleFields[$entityTypeId][$bundle] = [];
+        }
+
         $byName = [];
         foreach ($fields as $key => $field) {
             if (!$field instanceof FieldDefinitionInterface) {
@@ -180,7 +188,7 @@ final class FieldDefinitionRegistry implements FieldDefinitionRegistryInterface,
             }
         }
 
-        $existing = $this->bundleFields[$entityTypeId][$bundle] ?? [];
+        $existing = $this->bundleFields[$entityTypeId][$bundle];
         foreach ($byName as $name => $_field) {
             if (isset($existing[$name])) {
                 throw new \InvalidArgumentException(\sprintf(

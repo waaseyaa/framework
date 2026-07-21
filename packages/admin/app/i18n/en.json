@@ -87,6 +87,8 @@
   "disable_type_warning": "This is the last enabled content type. Disabling it may block publishing until another type is enabled.",
   "disable_anyway": "Disable anyway",
   "cancel": "Cancel",
+  "confirm": "Confirm",
+  "confirm_action": "Confirm action",
   "autocomplete_placeholder": "Start typing to search...",
   "autocomplete_no_results": "No results found.",
   "autocomplete_loading": "Searching...",

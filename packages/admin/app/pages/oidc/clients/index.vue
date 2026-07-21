@@ -9,6 +9,7 @@ const clients = ref<OidcClient[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
 const deletingId = ref<string | null>(null)
+const pendingDeleteId = ref<string | null>(null)
 
 async function loadClients() {
   loading.value = true
@@ -23,7 +24,6 @@ async function loadClients() {
 }
 
 async function deleteClient(id: string) {
-  if (!confirm(t('oidc.clients.confirmDelete'))) return
   deletingId.value = id
   try {
     await remove(id)
@@ -33,6 +33,12 @@ async function deleteClient(id: string) {
   } finally {
     deletingId.value = null
   }
+}
+
+async function confirmDeleteClient() {
+  const id = pendingDeleteId.value
+  pendingDeleteId.value = null
+  if (id) await deleteClient(id)
 }
 
 onMounted(loadClients)
@@ -71,7 +77,7 @@ onMounted(loadClients)
             <button
               class="link text-red-600"
               :disabled="deletingId === client.id"
-              @click="deleteClient(client.id)"
+              @click="pendingDeleteId = client.id"
             >
               {{ t('common.delete') }}
             </button>
@@ -81,5 +87,13 @@ onMounted(loadClients)
     </table>
 
     <p v-else class="text-gray-500">{{ t('oidc.clients.empty') }}</p>
+    <CommonConfirmDialog
+      :open="pendingDeleteId !== null"
+      :message="t('oidc.clients.confirmDelete')"
+      :confirm-label="t('common.delete')"
+      dangerous
+      @cancel="pendingDeleteId = null"
+      @confirm="confirmDeleteClient"
+    />
   </div>
 </template>
