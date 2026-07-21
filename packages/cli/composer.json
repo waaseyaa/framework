@@ -10,10 +10,6 @@
         },
         {
             "type": "path",
-            "url": "../ai-agent"
-        },
-        {
-            "type": "path",
             "url": "../audit"
         },
         {
@@ -78,10 +74,6 @@
         },
         {
             "type": "path",
-            "url": "../oidc"
-        },
-        {
-            "type": "path",
             "url": "../plugin"
         },
         {
@@ -101,7 +93,6 @@
         "php": ">=8.5",
         "symfony/console": "^8.0",
         "waaseyaa/access": "^0.1.0-alpha.271",
-        "waaseyaa/ai-agent": "^0.1.0-alpha.271",
         "waaseyaa/audit": "^0.1.0-alpha.271",
         "waaseyaa/cache": "^0.1.0-alpha.271",
         "waaseyaa/config": "^0.1.0-alpha.271",
@@ -118,7 +109,6 @@
         "waaseyaa/database-legacy": "^0.1.0-alpha.271",
         "waaseyaa/field": "^0.1.0-alpha.271",
         "waaseyaa/foundation": "^0.1.0-alpha.271",
-        "waaseyaa/oidc": "^0.1.0-alpha.271",
         "waaseyaa/plugin": "^0.1.0-alpha.271",
         "waaseyaa/routing": "^0.1.0-alpha.271",
         "waaseyaa/search": "^0.1.0-alpha.271",
@@ -126,7 +116,9 @@
     },
     "suggest": {
         "ext-intl": "For ICU transliteration of diacritic titles to readable Latin ingest keys; a deterministic hash key is used otherwise",
-        "ext-pcntl": "Required for clean SIGINT handling in --watch mode"
+        "ext-pcntl": "Required for clean SIGINT handling in --watch mode",
+        "waaseyaa/ai-agent": "Provides the optional ai:* operator commands",
+        "waaseyaa/oidc": "Provides the optional oidc:* operator commands"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"

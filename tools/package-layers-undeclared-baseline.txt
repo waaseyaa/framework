@@ -6,10 +6,10 @@
 #   the dep to that package's require, then delete the line. New undeclared edges NOT in this
 #   list fail CI (PL007, fail-on-new). Regenerate: php bin/check-package-layers --generate-baseline
 #
-# STATUS: empty. The 48 historical edges (W4-3 sweep) were all resolved by declaring
-# the dependency in the importing package's composer.json require (issue #1806,
-# batches 1-4). PL007 is now a strict zero-tolerance gate — any new undeclared
-# same/lower-layer use-edge fails CI. Keep this file (do not delete it): the gate
-# reads it, and a future legitimate can't-declare exception would be listed here
-# with a rationale comment.
-
+# The following edges are deliberate optional integrations. Making them hard
+# requirements would restore the domain coupling tracked by #2091.
+ai-agent wayfinding  # Trail-tool source remains an optional Wayfinding integration.
+api oidc  # Client administration must not install OIDC for every API consumer.
+cli ai-agent  # AI console integration must not install Agent for every CLI consumer.
+cli oidc  # OIDC console integration must not install OIDC for every CLI consumer.
+routing oidc  # Issuer integration must not install OIDC for every routing consumer.

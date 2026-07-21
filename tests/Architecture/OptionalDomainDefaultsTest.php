@@ -46,4 +46,41 @@ final class OptionalDomainDefaultsTest extends TestCase
             }
         }
     }
+
+    #[Test]
+    public function reusable_packages_do_not_force_unrelated_optional_domains(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $forbiddenEdges = [
+            'waaseyaa/cli' => [
+                'manifest' => $root . '/packages/cli/composer.json',
+                'domains' => ['waaseyaa/ai-agent', 'waaseyaa/oidc'],
+            ],
+            'waaseyaa/api' => [
+                'manifest' => $root . '/packages/api/composer.json',
+                'domains' => ['waaseyaa/oidc'],
+            ],
+            'waaseyaa/routing' => [
+                'manifest' => $root . '/packages/routing/composer.json',
+                'domains' => ['waaseyaa/oidc'],
+            ],
+            'waaseyaa/ai-agent' => [
+                'manifest' => $root . '/packages/ai-agent/composer.json',
+                'domains' => ['waaseyaa/wayfinding'],
+            ],
+        ];
+
+        foreach ($forbiddenEdges as $package => $expectation) {
+            $manifest = json_decode((string) file_get_contents($expectation['manifest']), true, 512, JSON_THROW_ON_ERROR);
+            $requires = array_keys((array) ($manifest['require'] ?? []));
+
+            foreach ($expectation['domains'] as $optionalDomain) {
+                self::assertNotContains(
+                    $optionalDomain,
+                    $requires,
+                    sprintf('%s must not force optional domain %s.', $package, $optionalDomain),
+                );
+            }
+        }
+    }
 }
