@@ -47,7 +47,7 @@ final class MetapackageSmokeTest extends TestCase
     {
         return [
             'ai tools agent tool' => [\Waaseyaa\AI\Tools\AgentTool::class],
-            'mcp endpoint'        => [\Waaseyaa\Mcp\McpEndpoint::class],
+            'structured import'   => [\Waaseyaa\StructuredImport\Gfm\GfmTableImporter::class],
         ];
     }
 
