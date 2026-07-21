@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Framework and curated metapackage defaults no longer select site-specific domains (#2091).** Genealogy, AI-agent execution, OIDC, MCP, Wayfinding, messaging, and social engagement are explicit Composer opt-ins; the expanded `full` metapackage advertises agent and MCP support without installing them, and the monorepo's AI-observability companion no longer re-selects the agent runtime.
+- **Reusable package edges no longer force unrelated optional domains (#2091).** CLI, API, and routing advertise their AI-agent and OIDC integrations through Composer suggestions, while AI-agent advertises its Wayfinding trail tools; installing any reusable package alone therefore leaves those domains absent.
+- **Framework and curated metapackage defaults no longer select site-specific domains (#2091).** Genealogy, AI-agent execution, OIDC, MCP, Wayfinding, messaging, and social engagement are explicit Composer opt-ins; the expanded `full` metapackage advertises agent and MCP support without installing them, while the monorepo root retains optional packages only as development dependencies for their own test suites.
 
 ### Fixed
 

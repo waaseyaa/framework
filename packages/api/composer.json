@@ -50,10 +50,6 @@
         },
         {
             "type": "path",
-            "url": "../oidc"
-        },
-        {
-            "type": "path",
             "url": "../queue"
         },
         {
@@ -91,12 +87,14 @@
         "waaseyaa/mail": "^0.1.0-alpha.271",
         "waaseyaa/media": "^0.1.0-alpha.271",
         "waaseyaa/notification": "^0.1.0-alpha.271",
-        "waaseyaa/oidc": "^0.1.0-alpha.271",
         "waaseyaa/queue": "^0.1.0-alpha.271",
         "waaseyaa/relationship": "^0.1.0-alpha.271",
         "waaseyaa/routing": "^0.1.0-alpha.271",
         "waaseyaa/scheduler": "^0.1.0-alpha.271",
         "waaseyaa/workflows": "^0.1.0-alpha.271"
+    },
+    "suggest": {
+        "waaseyaa/oidc": "Provides optional OIDC client administration routes"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5",
