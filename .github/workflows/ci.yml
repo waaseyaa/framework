@@ -275,6 +275,9 @@ jobs:
           test "$(php -r '$m=require $argv[1]; echo count(array_filter(array_keys($m), static fn(string $c): bool => str_starts_with($c, "Waaseyaa\\")));' "$work/vendor/composer/autoload_classmap.php")" = 0
           php "$GITHUB_WORKSPACE/tools/policy-discovery-smoke.php" "$work"
 
+      - name: Minimal and full installs expose only installed optional domains
+        run: tools/optional-domain-install-shapes.sh
+
   packaged-form:
     name: packaged-form
     runs-on: ubuntu-latest
