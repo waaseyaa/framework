@@ -199,12 +199,14 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
             ),
         );
 
-        $mcpRegistry = $this->resolveOptional(ToolRegistryReadModelInterface::class);
-        $mcpConfig = $this->resolveOptional(ServerConfigReadModelInterface::class);
-        $routers[] = new McpAdminApiRouter(new McpAdminController(
-            registry: $mcpRegistry instanceof ToolRegistryReadModelInterface ? $mcpRegistry : null,
-            config: $mcpConfig instanceof ServerConfigReadModelInterface ? $mcpConfig : null,
-        ));
+        if (self::mcpInstalled()) {
+            $mcpRegistry = $this->resolveOptional(ToolRegistryReadModelInterface::class);
+            $mcpConfig = $this->resolveOptional(ServerConfigReadModelInterface::class);
+            $routers[] = new McpAdminApiRouter(new McpAdminController(
+                registry: $mcpRegistry instanceof ToolRegistryReadModelInterface ? $mcpRegistry : null,
+                config: $mcpConfig instanceof ServerConfigReadModelInterface ? $mcpConfig : null,
+            ));
+        }
 
         // DIR-005 (versioned-blob-media-abstraction-01KSEFTJ): media version
         // read API. The read-model is bound in register() above; if the media
@@ -219,10 +221,10 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
         );
 
         // WP05: OIDC client CRUD admin API. The oidc_client entity type is
-        // registered by OidcServiceProvider (L6 oidc) which boots before api.
-        // We add unconditionally — EntityTypeManager will throw clearly if
-        // the entity type is missing, which is a configuration error.
-        $routers[] = new OidcClientApiRouter(new OidcClientController($httpKernel->getEntityTypeManager()));
+        // registered by OidcServiceProvider when the opt-in domain is installed.
+        if ($httpKernel->getEntityTypeManager()->hasDefinition('oidc_client')) {
+            $routers[] = new OidcClientApiRouter(new OidcClientController($httpKernel->getEntityTypeManager()));
+        }
 
         return $routers;
     }
@@ -398,87 +400,92 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
                 ->build(),
         );
 
-        // M5C WP01: MCP endpoint admin — read-only tool registry + server config.
-        // All three endpoints gated by `_role: admin`; controller does NOT
-        // re-check role (NFR-001 / DIR-004). Refs C-L6-01, DIR-004.
-        $mcpAdminController = 'Waaseyaa\\Api\\Controller\\McpAdminController';
-        $router->addRoute(
-            'api.mcp.admin.tools.index',
-            RouteBuilder::create('/api/mcp/tools')
-                ->controller($mcpAdminController . '::tools')
-                ->requireRole('admin')
-                ->methods('GET')
-                ->build(),
-        );
-        $router->addRoute(
-            'api.mcp.admin.tools.show',
-            RouteBuilder::create('/api/mcp/tools/{name}')
-                ->controller($mcpAdminController . '::tool')
-                ->requireRole('admin')
-                ->methods('GET')
-                ->build(),
-        );
-        $router->addRoute(
-            'api.mcp.admin.server-config',
-            RouteBuilder::create('/api/mcp/server-config')
-                ->controller($mcpAdminController . '::serverConfig')
-                ->requireRole('admin')
-                ->methods('GET')
-                ->build(),
-        );
+        if (self::mcpInstalled()) {
+            // M5C WP01: MCP endpoint admin — read-only tool registry + server config.
+            // All three endpoints gated by `_role: admin`; controller does NOT
+            // re-check role (NFR-001 / DIR-004). Refs C-L6-01, DIR-004.
+            $mcpAdminController = 'Waaseyaa\\Api\\Controller\\McpAdminController';
+            $router->addRoute(
+                'api.mcp.admin.tools.index',
+                RouteBuilder::create('/api/mcp/tools')
+                    ->controller($mcpAdminController . '::tools')
+                    ->requireRole('admin')
+                    ->methods('GET')
+                    ->build(),
+            );
+            $router->addRoute(
+                'api.mcp.admin.tools.show',
+                RouteBuilder::create('/api/mcp/tools/{name}')
+                    ->controller($mcpAdminController . '::tool')
+                    ->requireRole('admin')
+                    ->methods('GET')
+                    ->build(),
+            );
+            $router->addRoute(
+                'api.mcp.admin.server-config',
+                RouteBuilder::create('/api/mcp/server-config')
+                    ->controller($mcpAdminController . '::serverConfig')
+                    ->requireRole('admin')
+                    ->methods('GET')
+                    ->build(),
+            );
+        }
 
         // WP05 (oidc-flows-completion-01KSEFTP): OIDC client admin CRUD API.
-        // All endpoints require admin role. client_secret is returned once on
+        // The entity definition is the installation/activation signal. All
+        // endpoints require admin role. client_secret is returned once on
         // create/regenerate; omitted on all other responses.
-        $oidcClientController = 'Waaseyaa\\Api\\Controller\\OidcClientController';
-        $router->addRoute(
-            'api.oidc-clients.index',
-            RouteBuilder::create('/api/oidc-clients')
+        if ($entityTypeManager->hasDefinition('oidc_client')) {
+            $oidcClientController = 'Waaseyaa\\Api\\Controller\\OidcClientController';
+            $router->addRoute(
+                'api.oidc-clients.index',
+                RouteBuilder::create('/api/oidc-clients')
                 ->controller($oidcClientController . '::index')
                 ->requireRole('admin')
                 ->methods('GET')
                 ->build(),
-        );
-        $router->addRoute(
-            'api.oidc-clients.create',
-            RouteBuilder::create('/api/oidc-clients')
+            );
+            $router->addRoute(
+                'api.oidc-clients.create',
+                RouteBuilder::create('/api/oidc-clients')
                 ->controller($oidcClientController . '::create')
                 ->requireRole('admin')
                 ->methods('POST')
                 ->build(),
-        );
-        $router->addRoute(
-            'api.oidc-clients.show',
-            RouteBuilder::create('/api/oidc-clients/{id}')
+            );
+            $router->addRoute(
+                'api.oidc-clients.show',
+                RouteBuilder::create('/api/oidc-clients/{id}')
                 ->controller($oidcClientController . '::show')
                 ->requireRole('admin')
                 ->methods('GET')
                 ->build(),
-        );
-        $router->addRoute(
-            'api.oidc-clients.update',
-            RouteBuilder::create('/api/oidc-clients/{id}')
+            );
+            $router->addRoute(
+                'api.oidc-clients.update',
+                RouteBuilder::create('/api/oidc-clients/{id}')
                 ->controller($oidcClientController . '::update')
                 ->requireRole('admin')
                 ->methods('PATCH')
                 ->build(),
-        );
-        $router->addRoute(
-            'api.oidc-clients.delete',
-            RouteBuilder::create('/api/oidc-clients/{id}')
+            );
+            $router->addRoute(
+                'api.oidc-clients.delete',
+                RouteBuilder::create('/api/oidc-clients/{id}')
                 ->controller($oidcClientController . '::delete')
                 ->requireRole('admin')
                 ->methods('DELETE')
                 ->build(),
-        );
-        $router->addRoute(
-            'api.oidc-clients.regenerate-secret',
-            RouteBuilder::create('/api/oidc-clients/{id}/regenerate-secret')
+            );
+            $router->addRoute(
+                'api.oidc-clients.regenerate-secret',
+                RouteBuilder::create('/api/oidc-clients/{id}/regenerate-secret')
                 ->controller($oidcClientController . '::regenerateSecret')
                 ->requireRole('admin')
                 ->methods('POST')
                 ->build(),
-        );
+            );
+        }
 
         // Classification retention-engine (classification-retention-engine-01KSEFTH WP02).
         // Friendly URLs for the RetentionPolicy entity served via the framework's
@@ -534,5 +541,10 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
                 ->default('_entity_type', 'retention_policy')
                 ->build(),
         );
+    }
+
+    private static function mcpInstalled(): bool
+    {
+        return class_exists('Waaseyaa\\Mcp\\McpServiceProvider');
     }
 }

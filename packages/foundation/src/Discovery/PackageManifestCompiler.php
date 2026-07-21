@@ -126,6 +126,8 @@ final class PackageManifestCompiler
             }
         }
 
+        $installedPackageNames = array_fill_keys(array_filter(array_column($packages, 'name'), 'is_string'), true);
+
         $packageDeclarations = $this->collectPackageDeclarations($packages);
 
         $this->warnIfLegacyComposerCommandsOrRoutes($packages);
@@ -194,6 +196,9 @@ final class PackageManifestCompiler
 
             foreach ($ref->getAttributes(self::AGENT_TOOL_ATTRIBUTE) as $attr) {
                 $instance = $attr->newInstance();
+                if ($instance->requiresPackage !== null && !isset($installedPackageNames[$instance->requiresPackage])) {
+                    continue;
+                }
                 $agentTools[] = [
                     'class' => $class,
                     'name' => $instance->name,

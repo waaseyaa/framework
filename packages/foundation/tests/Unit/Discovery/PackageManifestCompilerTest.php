@@ -95,6 +95,44 @@ final class PackageManifestCompilerTest extends TestCase
     }
 
     #[Test]
+    public function compile_discovers_conditional_agent_tools_only_with_their_package(): void
+    {
+        $fixtureClass = 'Waaseyaa\\TestFixtures\\ConditionalAgentTool';
+        $fixtureFile = $this->tempDir . '/ConditionalAgentTool.php';
+        file_put_contents($fixtureFile, <<<'PHP'
+            <?php
+            declare(strict_types=1);
+            namespace Waaseyaa\TestFixtures;
+            #[\Waaseyaa\AI\Tools\Attribute\AsAgentTool(
+                name: 'conditional_tool',
+                capability: 'use conditional tool',
+                requiresPackage: 'waaseyaa/wayfinding',
+            )]
+            final class ConditionalAgentTool {}
+            PHP);
+        require_once $fixtureFile;
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/autoload_classmap.php',
+            '<?php return [' . var_export($fixtureClass, true) . ' => ' . var_export($fixtureFile, true) . '];',
+        );
+        file_put_contents($this->tempDir . '/vendor/composer/autoload_psr4.php', '<?php return [];');
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode(['packages' => []], JSON_THROW_ON_ERROR),
+        );
+
+        $withoutPackage = (new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage'))->compile();
+        self::assertNotContains($fixtureClass, array_column($withoutPackage->agentTools, 'class'));
+
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode(['packages' => [['name' => 'waaseyaa/wayfinding']]], JSON_THROW_ON_ERROR),
+        );
+        $withPackage = (new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage'))->compile();
+        self::assertContains($fixtureClass, array_column($withPackage->agentTools, 'class'));
+    }
+
+    #[Test]
     public function compile_collects_normalized_package_declarations(): void
     {
         $installed = [

@@ -4,10 +4,11 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import NavBuilder from '~/components/layout/NavBuilder.vue'
 
-const { catalogRef, uiRef, runActionSpy } = vi.hoisted(() => {
+const { catalogRef, featuresRef, uiRef, runActionSpy } = vi.hoisted(() => {
   const { ref } = require('vue') as typeof import('vue')
   return {
     catalogRef: ref<CatalogEntry[]>([]),
+    featuresRef: ref<Record<string, boolean>>({ mcp: true }),
     uiRef: ref<{ headerLinks: unknown[]; sidebarItems: unknown[]; navigationMode?: 'full' | 'catalog-only' }>({
       headerLinks: [],
       sidebarItems: [],
@@ -19,6 +20,7 @@ const { catalogRef, uiRef, runActionSpy } = vi.hoisted(() => {
 vi.mock('~/composables/useAdmin', () => ({
   useAdmin: () => ({
     catalog: catalogRef.value,
+    features: featuresRef.value,
     ui: uiRef.value,
   }),
 }))
@@ -46,6 +48,7 @@ function entry(overrides: Partial<CatalogEntry> & Pick<CatalogEntry, 'id' | 'lab
 describe('NavBuilder', () => {
   beforeEach(() => {
     runActionSpy.mockReset()
+    featuresRef.value = { mcp: true }
     uiRef.value = { headerLinks: [], sidebarItems: [] }
     catalogRef.value = [
       entry({ id: 'user', label: 'User', group: 'system' }),
@@ -99,6 +102,16 @@ describe('NavBuilder', () => {
     // 3 sections; links: dashboard + 2 (MCP) + 5 (Operations) + 1 (Governance) = 9.
     expect(wrapper.findAll('.nav-section')).toHaveLength(3)
     expect(wrapper.findAll('a')).toHaveLength(9)
+  })
+
+  it('omits the MCP menu group when the MCP package is not installed', async () => {
+    featuresRef.value = { mcp: false }
+
+    const wrapper = await mountSuspended(NavBuilder)
+
+    expect(wrapper.find('[data-testid="nav-section-mcp"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="nav-mcp-tools"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="nav-mcp-server-config"]').exists()).toBe(false)
   })
 
   it('renders the pipeline link when the catalog entry declares board-config', async () => {

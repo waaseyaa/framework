@@ -6,10 +6,11 @@ import { groupEntityTypes } from '~/composables/useNavGroups'
 import { adminNavLinkIsExternal } from '~/runtime/navLinkExternal'
 
 const { t, entityLabel } = useLanguage()
-const { catalog, ui } = useAdmin()
+const { catalog, features, ui } = useAdmin()
 
 const navGroups = computed(() => groupEntityTypes(catalog))
 const showOperationalNavigation = computed(() => ui.navigationMode !== 'catalog-only')
+const showMcpNavigation = computed(() => showOperationalNavigation.value && features?.mcp === true)
 
 /** Group key → items (sorted by weight). Empty key = default “custom” bucket. */
 const customNavSections = computed((): Array<[string, AdminSurfaceSidebarItem[]]> => {
@@ -93,10 +94,12 @@ function customSectionHeading(groupKey: string): string {
         </NuxtLink>
       </template>
     </template>
-    <template v-if="showOperationalNavigation">
+    <template v-if="showMcpNavigation">
       <div class="nav-section" data-testid="nav-section-mcp">{{ t('nav_group_mcp') }}</div>
       <NuxtLink to="/mcp/tools" class="nav-item touch-target" data-testid="nav-mcp-tools">{{ t('mcp_tools_title') }}</NuxtLink>
       <NuxtLink to="/mcp/server-config" class="nav-item touch-target" data-testid="nav-mcp-server-config">{{ t('mcp_server_config_title') }}</NuxtLink>
+    </template>
+    <template v-if="showOperationalNavigation">
       <div class="nav-section" data-testid="nav-section-operations">{{ t('nav_group_operations') }}</div>
       <NuxtLink to="/workflows" class="nav-item touch-target">{{ t('workflows') }}</NuxtLink>
       <NuxtLink to="/queue" class="nav-item touch-target" data-testid="nav-queue">{{ t('queue_title') }}</NuxtLink>

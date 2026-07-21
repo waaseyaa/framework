@@ -111,6 +111,9 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
             workflowBindingResolver: $workflowBindingResolver instanceof WorkflowBindingResolver
                 ? $workflowBindingResolver
                 : null,
+            features: [
+                'mcp' => class_exists('Waaseyaa\\Mcp\\McpServiceProvider'),
+            ],
         );
 
         self::registerRoutes($router, $host);

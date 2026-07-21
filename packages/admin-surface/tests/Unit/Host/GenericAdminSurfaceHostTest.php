@@ -259,6 +259,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             $this->createMock(EntityTypeManagerInterface::class),
             tenantId: 'myapp',
             tenantName: 'My App',
+            features: ['mcp' => true],
         );
         $request = Request::create('/admin/surface/session');
         $request->attributes->set('_account', $account);
@@ -270,6 +271,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $this->assertSame('myapp', $session->tenantId);
         $this->assertSame('My App', $session->tenantName);
         $this->assertContains('administrator', $session->roles);
+        $this->assertSame(['mcp' => true], $session->features);
         $this->assertNull($session->ui);
     }
 

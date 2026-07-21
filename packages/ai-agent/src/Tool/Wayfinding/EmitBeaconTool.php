@@ -35,6 +35,7 @@ use Waaseyaa\Wayfinding\Http\EmitBeaconController;
     destructive: true,
     dryRunSupported: false,
     category: 'wayfinding',
+    requiresPackage: 'waaseyaa/wayfinding',
 )]
 final class EmitBeaconTool extends AbstractAgentTool
 {

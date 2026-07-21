@@ -1,5 +1,6 @@
 # Package Discovery
 
+<!-- Spec reviewed 2026-07-21 - #2091 modularity: Composer installation is the activation boundary; optional routes, admin navigation, entity/catalogue definitions, and conditional agent tools are absent until their owning or required package is installed. -->
 <!-- Spec reviewed 2026-07-14 - #2020 security: attribute discovery unions Composer's classmap with every eligible PSR-4 namespace, so optimization cannot change enforcement or catalogues. Installed packages declare their access-policy inventory in extra.waaseyaa.policies; a missing declared class or manifest entry is a hard boot failure. -->
 <!-- Spec reviewed 2026-05-01 - extra.waaseyaa is the authoritative registration path for providers, commands, and routes. waaseyaa/cli, waaseyaa/api, waaseyaa/graphql, waaseyaa/mcp, waaseyaa/telescope all declare their service providers via extra.waaseyaa.providers; root composer.json reserves extra.waaseyaa.providers as an extension point for app-level providers. ConsoleKernel must not introduce new string-literal command lists; commands belong in the owning package's HasCommandsInterface implementation (mission #824 WP08 surface A, closes #854) -->
 
@@ -111,6 +112,11 @@ consumers, so this does not activate them in a scratch framework install.
 
 This boundary is installation-level only. Per-site API exposure overrides are a
 separate concern and cannot make an uninstalled package discoverable.
+
+Fine-grained agent tools may declare `requiresPackage` on `#[AsAgentTool]` when
+the tool is an integration with another opt-in domain. The compiler includes
+that tool only when the named Composer package is present in `installed.json`;
+ordinary tools omit the argument and retain unconditional discovery.
 
 ### Package composer.json format
 

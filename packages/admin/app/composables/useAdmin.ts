@@ -6,6 +6,7 @@ import { requireAdminRuntime } from './useAdminRuntime'
 export function useAdmin(): {
   catalog: CatalogEntry[]
   tenant: AdminTenant
+  features?: Record<string, boolean>
   ui: AdminRuntime['ui']
   hasCapability: (entityType: string, cap: keyof CatalogCapabilities) => boolean
   getEntity: (type: string) => CatalogEntry | undefined
@@ -24,6 +25,7 @@ export function useAdmin(): {
   return {
     catalog: $admin.catalog,
     tenant: $admin.tenant,
+    features: $admin.features,
     ui: $admin.ui,
     hasCapability,
     getEntity,
