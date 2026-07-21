@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Framework and curated metapackage defaults no longer select site-specific domains (#2091).** Genealogy, AI-agent execution, OIDC, MCP, Wayfinding, messaging, and social engagement are explicit Composer opt-ins; the expanded `full` metapackage advertises agent and MCP support without installing them, and the monorepo's AI-observability companion no longer re-selects the agent runtime.
+
 ### Fixed
 
 - **Application protected-read classification now participates in query, list, and detail access (#2082).** Applications can declare exact public or reviewed Protected fields for private classification projection; incomplete or Internal inputs fail closed, per-policy projected and hydrated subjects agree, and Forbidden application decisions override framework Allows without changing public field sealing.

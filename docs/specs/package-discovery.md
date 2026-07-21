@@ -93,6 +93,25 @@ public function provides(): array
 
 ## Composer Manifest
 
+### Default composition and opt-in domains
+
+Composer installation is the activation boundary for domain packages. The root
+`waaseyaa/framework` package and the curated `core`, `cms`, and `full`
+metapackages must not select genealogy, AI-agent execution, OIDC issuer, MCP
+endpoint, Wayfinding, messaging, or social engagement. Applications install
+those packages explicitly by name. `suggest` entries may advertise a compatible
+integration, but must not change the solved package graph.
+
+Provider, entity-type, route, command, and attribute discovery operates only on
+packages present in Composer's `installed.json`. Source availability in the
+monorepo and a path-repository declaration are not activation. The monorepo may
+retain opt-in domains in its root `require-dev` so their package suites run;
+Composer does not propagate a dependency package's development requirements to
+consumers, so this does not activate them in a scratch framework install.
+
+This boundary is installation-level only. Per-site API exposure overrides are a
+separate concern and cannot make an uninstalled package discoverable.
+
 ### Package composer.json format
 
 `extra.waaseyaa` is the **only authoritative registration path** for providers, commands, and routes. Hidden registration channels (kernel-internal hard-coded lists, side imports, manual `Application::add()` calls outside of `HasCommandsInterface`) are forbidden — every active framework package surfaces its providers and commands through this manifest entry, and `PackageManifestCompiler` is the single source the kernel reads. Active framework packages with this declaration include `waaseyaa/foundation`, `waaseyaa/api`, `waaseyaa/graphql`, `waaseyaa/mcp`, `waaseyaa/cli`, `waaseyaa/telescope`, `waaseyaa/admin-surface`, `waaseyaa/routing`, and the various entity-package providers.

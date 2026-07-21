@@ -1,24 +1,24 @@
 {
     "name": "waaseyaa/full",
-    "description": "Waaseyaa full platform — CMS + AI + SSR + MCP.",
+    "description": "Waaseyaa expanded platform — CMS plus reusable content and AI tooling.",
     "type": "metapackage",
     "license": "GPL-2.0-or-later",
     "require": {
-        "waaseyaa/ai-agent": "^0.1.0-alpha.271",
         "waaseyaa/ai-pipeline": "^0.1.0-alpha.271",
         "waaseyaa/ai-schema": "^0.1.0-alpha.271",
         "waaseyaa/ai-tools": "^0.1.0-alpha.271",
         "waaseyaa/ai-vector": "^0.1.0-alpha.271",
         "waaseyaa/attachment": "^0.1.0-alpha.271",
         "waaseyaa/cms": "^0.1.0-alpha.271",
-        "waaseyaa/mcp": "^0.1.0-alpha.271",
         "waaseyaa/relationship": "^0.1.0-alpha.271",
         "waaseyaa/search": "^0.1.0-alpha.271",
         "waaseyaa/structured-import": "^0.1.0-alpha.271"
     },
     "suggest": {
+        "waaseyaa/ai-agent": "^0.1.0-alpha.271 for agent execution and orchestration",
         "waaseyaa/graphql": "^0.1.0-alpha.261",
-        "waaseyaa/inertia": "^0.1.0-alpha.261"
+        "waaseyaa/inertia": "^0.1.0-alpha.261",
+        "waaseyaa/mcp": "^0.1.0-alpha.271 for the remote MCP endpoint"
     },
     "minimum-stability": "stable",
     "extra": {
@@ -31,10 +31,6 @@
         "sort-packages": true
     },
     "repositories": [
-        {
-            "type": "path",
-            "url": "../ai-agent"
-        },
         {
             "type": "path",
             "url": "../ai-pipeline"
@@ -58,10 +54,6 @@
         {
             "type": "path",
             "url": "../cms"
-        },
-        {
-            "type": "path",
-            "url": "../mcp"
         },
         {
             "type": "path",
