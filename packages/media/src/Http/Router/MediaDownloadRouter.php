@@ -6,7 +6,6 @@ namespace Waaseyaa\Media\Http\Router;
 
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\EntityAccessHandler;
@@ -46,11 +45,18 @@ final class MediaDownloadRouter implements DomainRouterInterface
             return $this->notFound();
         }
 
-        return $this->handleAuthorized($id, $principal);
+        return $this->handleAuthorized($id, $principal, $request);
     }
 
-    private function handleAuthorized(string $id, AuthorizationPrincipalInterface $principal): Response
+    private function handleAuthorized(string $id, AuthorizationPrincipalInterface $principal, Request $request): Response
     {
+        // This endpoint deliberately serves one complete representation. Do
+        // not let a client Range header reach a downstream worker/server layer
+        // that may attempt a partial response after authorization has passed.
+        // The response advertises Accept-Ranges: none below and remains 200.
+        // This is especially important for browser download navigations.
+        // (The request object is local to this authorized delivery path.)
+        $request->headers->remove('Range');
         $media = $id !== '' ? $this->entityTypeManager->getRepository('media')->find($id) : null;
 
         if (
@@ -73,9 +79,16 @@ final class MediaDownloadRouter implements DomainRouterInterface
         $sanitizedFilename = preg_replace('/[^A-Za-z0-9._-]/', '_', basename($filename));
         $safeFilename = $sanitizedFilename !== null && $sanitizedFilename !== '' ? $sanitizedFilename : 'download';
         $fileSize = filesize($path);
+        $isDocumentNavigation = strtolower((string) $request->headers->get('Sec-Fetch-Dest')) === 'document'
+            && strtolower((string) $request->headers->get('Sec-Fetch-Mode')) === 'navigate';
+        $disposition = $isDocumentNavigation ? 'inline' : 'attachment';
         $headers = [
             'Content-Type' => $contentType,
-            'Content-Disposition' => sprintf('attachment; filename="%s"', $safeFilename),
+            // A real document navigation must remain a renderer response.
+            // Turning it into a browser download aborts the navigation; some
+            // browser-extension drivers surface that abort as a synthetic 503
+            // even though FrankenPHP emitted a complete 200 response.
+            'Content-Disposition' => sprintf('%s; filename="%s"', $disposition, $safeFilename),
             'X-Content-Type-Options' => 'nosniff',
             // Serve one complete authorized representation and prevent
             // browser download managers from retrying it as parallel ranges.
@@ -86,18 +99,17 @@ final class MediaDownloadRouter implements DomainRouterInterface
             $headers['Content-Length'] = (string) $fileSize;
         }
 
-        return new StreamedResponse(
-            static function () use ($path): void {
-                $handle = fopen($path, 'rb');
-                if ($handle === false) {
-                    return;
-                }
-                fpassthru($handle);
-                fclose($handle);
-            },
-            200,
-            $headers,
-        );
+        $bytes = file_get_contents($path);
+        if ($bytes === false) {
+            return $this->notFound();
+        }
+
+        // A normal response is intentional here. FrankenPHP's worker can
+        // emit StreamedResponse callbacks differently for a top-level browser
+        // download navigation than for fetch/XHR. The bytes have already been
+        // authorized and path-confined, so buffering this protected document
+        // gives every browser request the same complete 200 representation.
+        return new Response($bytes, 200, $headers);
     }
 
     private function resolvePublicPath(string $uri): ?string

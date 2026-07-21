@@ -8,7 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
@@ -78,18 +78,36 @@ final class MediaDownloadRouterTest extends TestCase
     }
 
     #[Test]
-    public function authorized_caller_streams_public_scheme_bytes(): void
+    public function authorized_document_navigation_returns_complete_inline_bytes(): void
     {
-        $response = $this->router('public://teaching.txt', allowedAccountId: 7)
-            ->handle($this->request(accountId: 7));
+        $request = $this->request(accountId: 7);
+        $request->headers->set('Range', 'bytes=0-');
+        $request->headers->set('User-Agent', 'Mozilla/5.0 Edg/131.0.0.0');
+        $request->headers->set('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8');
+        $request->headers->set('Sec-Fetch-Dest', 'document');
+        $request->headers->set('Sec-Fetch-Mode', 'navigate');
+        $response = $this->router('public://teaching.txt', allowedAccountId: 7)->handle($request);
 
         self::assertSame(200, $response->getStatusCode());
-        self::assertInstanceOf(StreamedResponse::class, $response);
+        self::assertSame(Response::class, $response::class);
         self::assertSame('AANIIN', $this->capture($response));
         self::assertSame('text/plain', $response->headers->get('Content-Type'));
+        self::assertSame('inline; filename="teaching.txt"', $response->headers->get('Content-Disposition'));
         self::assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
         self::assertSame('none', $response->headers->get('Accept-Ranges'));
         self::assertSame('6', $response->headers->get('Content-Length'));
+        self::assertFalse($request->headers->has('Range'));
+    }
+
+    #[Test]
+    public function non_navigation_request_remains_an_attachment(): void
+    {
+        $response = $this->router('public://teaching.txt', allowedAccountId: 7)->handle($this->request(accountId: 7));
+
+        self::assertSame(Response::class, $response::class);
+        self::assertSame('attachment; filename="teaching.txt"', $response->headers->get('Content-Disposition'));
+        self::assertSame('6', $response->headers->get('Content-Length'));
+        self::assertSame('AANIIN', $response->getContent());
     }
 
     #[Test]
@@ -235,11 +253,8 @@ final class MediaDownloadRouterTest extends TestCase
         }
     }
 
-    private function capture(StreamedResponse $response): string
+    private function capture(Response $response): string
     {
-        ob_start();
-        $response->sendContent();
-
-        return (string) ob_get_clean();
+        return (string) $response->getContent();
     }
 }
