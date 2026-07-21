@@ -6,7 +6,6 @@ namespace Waaseyaa\Media\Http\Router;
 
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\EntityAccessHandler;
@@ -93,18 +92,17 @@ final class MediaDownloadRouter implements DomainRouterInterface
             $headers['Content-Length'] = (string) $fileSize;
         }
 
-        return new StreamedResponse(
-            static function () use ($path): void {
-                $handle = fopen($path, 'rb');
-                if ($handle === false) {
-                    return;
-                }
-                fpassthru($handle);
-                fclose($handle);
-            },
-            200,
-            $headers,
-        );
+        $bytes = file_get_contents($path);
+        if ($bytes === false) {
+            return $this->notFound();
+        }
+
+        // A normal response is intentional here. FrankenPHP's worker can
+        // emit StreamedResponse callbacks differently for a top-level browser
+        // download navigation than for fetch/XHR. The bytes have already been
+        // authorized and path-confined, so buffering this protected document
+        // gives every browser request the same complete 200 representation.
+        return new Response($bytes, 200, $headers);
     }
 
     private function resolvePublicPath(string $uri): ?string

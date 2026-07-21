@@ -8,7 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
@@ -87,7 +87,6 @@ final class MediaDownloadRouterTest extends TestCase
         $response = $this->router('public://teaching.txt', allowedAccountId: 7)->handle($request);
 
         self::assertSame(200, $response->getStatusCode());
-        self::assertInstanceOf(StreamedResponse::class, $response);
         self::assertSame('AANIIN', $this->capture($response));
         self::assertSame('text/plain', $response->headers->get('Content-Type'));
         self::assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
@@ -239,11 +238,8 @@ final class MediaDownloadRouterTest extends TestCase
         }
     }
 
-    private function capture(StreamedResponse $response): string
+    private function capture(Response $response): string
     {
-        ob_start();
-        $response->sendContent();
-
-        return (string) ob_get_clean();
+        return (string) $response->getContent();
     }
 }
