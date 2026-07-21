@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Admin and API discovery now expose only installed opt-in domains (#2091).** OIDC and MCP routes are absent without their packages, the MCP admin menu follows an installed capability flag, and Wayfinding agent tools are discovered only when Wayfinding is installed; entity-driven catalogue and JSON:API discovery continue to follow registered definitions.
 - **Reusable package edges no longer force unrelated optional domains (#2091).** CLI, API, and routing advertise their AI-agent and OIDC integrations through Composer suggestions, while AI-agent advertises its Wayfinding trail tools; installing any reusable package alone therefore leaves those domains absent.
 - **Framework and curated metapackage defaults no longer select site-specific domains (#2091).** Genealogy, AI-agent execution, OIDC, MCP, Wayfinding, messaging, and social engagement are explicit Composer opt-ins; the expanded `full` metapackage advertises agent and MCP support without installing them, while the monorepo root retains optional packages only as development dependencies for their own test suites.
 

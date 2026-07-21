@@ -205,6 +205,10 @@ final class AuthOidcRouteServiceProvider extends ServiceProvider
 
     private function registerOidcRoutes(WaaseyaaRouter $router): void
     {
+        if (!class_exists(AuthorizeController::class)) {
+            return;
+        }
+
         $authorizeController = null;
         try {
             $authorizeController = $this->resolve(AuthorizeController::class);

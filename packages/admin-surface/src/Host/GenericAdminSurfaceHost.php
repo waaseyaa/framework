@@ -53,7 +53,8 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
     protected array $actions = [];
 
     /**
-     * @param string[] $readOnlyTypes Entity type IDs that should be read-only in the admin
+     * @param string[]          $readOnlyTypes Entity type IDs that should be read-only in the admin
+     * @param array<string, bool> $features Installed capabilities exposed to the SPA session
      */
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
@@ -64,6 +65,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         private readonly string $adminPermission = 'administer content',
         private readonly array $readOnlyTypes = [],
         private readonly ?WorkflowBindingResolver $workflowBindingResolver = null,
+        private readonly array $features = [],
     ) {}
 
     public function resolveSession(Request $request): ?AdminSurfaceSessionData
@@ -91,6 +93,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             policies: [],
             tenantId: $this->tenantId,
             tenantName: $this->tenantName,
+            features: $this->features,
             ui: $this->buildAdminUi($principal),
         );
     }

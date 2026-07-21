@@ -6,12 +6,12 @@ import type { EntitySchema } from '~/composables/useSchema'
 
 const DEV_ADMIN_ID = String(Number.MAX_SAFE_INTEGER)
 
-export async function mockAdminBootstrapRoutes(page: Page) {
+export async function mockAdminBootstrapRoutes(page: Page, features: Record<string, boolean> = {}) {
   const session = {
     account: { id: DEV_ADMIN_ID, name: 'dev-admin', email: '', roles: ['admin'] },
     tenant: { id: 'default', name: 'Waaseyaa' },
     policies: [],
-    features: {},
+    features,
   }
   const catalog = entityTypes.map((entry) => ({
     id: entry.id,

@@ -30,6 +30,7 @@ use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
     destructive: true,
     dryRunSupported: false,
     category: 'wayfinding',
+    requiresPackage: 'waaseyaa/wayfinding',
 )]
 final class EditTrailTool extends AbstractTrailTool
 {

@@ -24,6 +24,7 @@ use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
     destructive: false,
     dryRunSupported: false,
     category: 'wayfinding',
+    requiresPackage: 'waaseyaa/wayfinding',
 )]
 final class GetTrailTool extends AbstractTrailTool
 {

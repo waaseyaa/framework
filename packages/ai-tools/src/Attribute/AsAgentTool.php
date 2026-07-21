@@ -22,5 +22,6 @@ final class AsAgentTool
         public readonly bool $destructive = false,
         public readonly bool $dryRunSupported = false,
         public readonly string $category = 'general',
+        public readonly ?string $requiresPackage = null,
     ) {}
 }

@@ -9,7 +9,9 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Api\ApiServiceProvider;
+use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Oidc\Entity\OidcClient;
 use Waaseyaa\Routing\WaaseyaaRouter;
 
 /**
@@ -120,13 +122,32 @@ final class ApiServiceProviderAdminRoutesTest extends TestCase
     #[Test]
     public function registers_oidc_client_crud_routes(): void
     {
-        $routes = $this->router->getRouteCollection();
+        $entityTypeManager = new EntityTypeManager(new EventDispatcher());
+        $entityTypeManager->registerEntityType(EntityType::fromClass(OidcClient::class));
+        $router = new WaaseyaaRouter();
+        (new ApiServiceProvider())->routes($router, $entityTypeManager);
+        $routes = $router->getRouteCollection();
         $this->assertNotNull($routes->get('api.oidc-clients.index'));
         $this->assertNotNull($routes->get('api.oidc-clients.create'));
         $this->assertNotNull($routes->get('api.oidc-clients.show'));
         $this->assertNotNull($routes->get('api.oidc-clients.update'));
         $this->assertNotNull($routes->get('api.oidc-clients.delete'));
         $this->assertNotNull($routes->get('api.oidc-clients.regenerate-secret'));
+    }
+
+    #[Test]
+    public function omits_oidc_client_routes_when_the_domain_is_not_registered(): void
+    {
+        $router = new WaaseyaaRouter();
+        (new ApiServiceProvider())->routes($router, new EntityTypeManager(new EventDispatcher()));
+
+        $routes = $router->getRouteCollection();
+        $this->assertNull($routes->get('api.oidc-clients.index'));
+        $this->assertNull($routes->get('api.oidc-clients.create'));
+        $this->assertNull($routes->get('api.oidc-clients.show'));
+        $this->assertNull($routes->get('api.oidc-clients.update'));
+        $this->assertNull($routes->get('api.oidc-clients.delete'));
+        $this->assertNull($routes->get('api.oidc-clients.regenerate-secret'));
     }
 
     #[Test]
