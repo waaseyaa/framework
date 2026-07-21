@@ -110,6 +110,7 @@
             "providers": [
                 "Waaseyaa\\AI\\Agent\\AiAgentEntityServiceProvider",
                 "Waaseyaa\\AI\\Agent\\AiAgentServiceProvider",
+                "Waaseyaa\\AI\\Agent\\Routing\\AgentRouteServiceProvider",
                 "Waaseyaa\\AI\\Agent\\Mcp\\McpServiceProvider",
                 "Waaseyaa\\AI\\Agent\\MessagingServiceProvider",
                 "Waaseyaa\\AI\\Agent\\Broadcast\\AgentRunBroadcasterServiceProvider"
