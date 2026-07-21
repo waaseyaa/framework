@@ -6,12 +6,12 @@ namespace Waaseyaa\Media;
 
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
+use Waaseyaa\Access\EntityViewProtectedFieldReadPolicyInterface;
 use Waaseyaa\Access\PolicySubjectViewInterface;
-use Waaseyaa\Access\ProtectedFieldReadPolicyInterface;
 use Waaseyaa\Entity\EntityStructure;
 
-/** Closed owner/admin and authorized-download policy for protected Media fields. @internal */
-final class MediaProtectedFieldReadPolicy implements ProtectedFieldReadPolicyInterface
+/** Delegates Protected media release to the complete entity-view policy set. @internal */
+final class MediaProtectedFieldReadPolicy implements EntityViewProtectedFieldReadPolicyInterface
 {
     public function access(
         AuthorizationPrincipalInterface $principal,
@@ -19,19 +19,8 @@ final class MediaProtectedFieldReadPolicy implements ProtectedFieldReadPolicyInt
         PolicySubjectViewInterface $subject,
         string $fieldName,
     ): AccessResult {
-        if ($structure->entityTypeId !== 'media' || !in_array($fieldName, ['uid', 'source_uri'], true)) {
-            return AccessResult::forbidden('Media protected policy applies only to protected media fields.');
-        }
-        if ($principal->hasPermission('administer media')) {
-            return AccessResult::allowed('Media administrators may read protected media fields.');
-        }
-        if ($fieldName === 'source_uri' && $principal->hasPermission('access media')) {
-            return AccessResult::allowed('Authorized media viewers may resolve the protected download source.');
-        }
-        $ownerId = in_array('uid', $subject->fields(), true) ? $subject->get('uid') : null;
-
-        return $principal->isAuthenticated() && $ownerId !== null && (string) $principal->id() === (string) $ownerId
-            ? AccessResult::allowed('Media owners may read protected media fields.')
-            : AccessResult::forbidden('Protected media fields require owner or administrator access.');
+        return $structure->entityTypeId === 'media'
+            ? AccessResult::neutral('Protected media fields delegate to the complete entity view decision.')
+            : AccessResult::forbidden('Media protected policy applies only to protected media fields.');
     }
 }

@@ -118,6 +118,7 @@ final class EntityRenderer
                         $entity->entityStructure(),
                         new CompiledPolicySubjectView([]),
                         $fieldName,
+                        $entity,
                     )->isAllowed();
                 },
             ));

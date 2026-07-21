@@ -310,6 +310,7 @@ return [
     'Waaseyaa\Access\ProjectedProtectedEntityReadPolicyInterface' => 'internal',
     'Waaseyaa\Access\ClassifiedProtectedEntityReadPolicyInterface' => 'internal',
     'Waaseyaa\Access\ProtectedFieldReadPolicyInterface' => 'public',
+    'Waaseyaa\Access\EntityViewProtectedFieldReadPolicyInterface' => 'internal',
     'Waaseyaa\Access\ProtectedReadPolicyProviderInterface' => 'public',
     'Waaseyaa\Groups\StaffDirectory\StaffDirectoryPage' => 'public',
     'Waaseyaa\Groups\StaffDirectory\StaffDirectoryReadDeclaration' => 'public',

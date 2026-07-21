@@ -1,5 +1,6 @@
 # API Layer
 
+<!-- Spec reviewed 2026-07-21 - #2064 media hotfix: controller-dispatched JSON:API 500 responses are generic in every environment. Debug mode may add debug headers and rich HTML error pages on their separate surfaces, but API error bodies never include exception classes, messages, source paths/lines, or stack traces. Full exception detail remains server-side in the configured logger. -->
 <!-- Spec reviewed 2026-07-19 - Sheguiandah Gap 1 (#2078): JsonApiController's UUID lookup is identity resolution, not authorization. It now uses an explicit accessCheck(false) query, matching numeric repository find(); show/update/destroy then apply their existing view/update/delete checks respectively. This lets edit-any/delete-any principals target view-hidden drafts without weakening the read-path 404 oracle. -->
 
 <!-- Spec reviewed 2026-07-18 - #2064 WP4 retains only bounded structural route templates and stable priority buckets as route-build optimizations. JsonApiRouteProvider keys templates by base path, exact entity-type exposure shape, and base/workflow mode, then clones every Route into a fresh WaaseyaaRouter. No request, account, entity, authorization decision, provider/service instance, runtime controller capture, or mutable RouteCollection is cached. WaaseyaaRouter preserves descending priority and registration-order ties while reading each priority once. -->
@@ -1373,6 +1374,8 @@ final class TranslationController
 Creating a translation requires `MutableTranslatableInterface`. Deleting the original language returns 422.
 
 ### Error Handling Pattern
+
+Unhandled exceptions caught by `ControllerDispatcher` produce a JSON:API 500 with the fixed detail `An unexpected error occurred.` This response shape is environment-independent: `APP_DEBUG`/`WAASEYAA_DEBUG` must not add the exception class, exception message, filesystem path or line, or stack frames to an API response. The dispatcher logs the complete exception and trace server-side before returning the generic document. Rich debug HTML is owned by the separate error-page renderer and does not authorize response-body trace disclosure on JSON:API routes.
 
 `TranslationController::loadTranslatableEntity()` throws `JsonApiDocumentException` when the entity cannot be loaded or is not translatable, rather than returning a union type. Each CRUD method catches the exception once and returns the error document. This eliminates repeated `instanceof JsonApiDocument` dispatch checks and keeps the return type narrow (`TranslatableInterface`).
 

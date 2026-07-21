@@ -22,7 +22,7 @@ use Waaseyaa\Entity\FieldReadLevel;
  */
 final class FieldReadGuard implements EntityValueReadGuardInterface
 {
-    /** @var \Closure(AuthorizationPrincipalInterface, EntityStructure, PolicySubjectViewInterface, string): AccessResult */
+    /** @var \Closure(AuthorizationPrincipalInterface, EntityStructure, PolicySubjectViewInterface, string, EntityInterface): AccessResult */
     private \Closure $protectedDecision;
 
     /** @var \Closure(EntityBase, string, object): PolicySubjectViewInterface */
@@ -35,7 +35,7 @@ final class FieldReadGuard implements EntityValueReadGuardInterface
     private readonly ?AccountFieldReadScope $concreteScope;
 
     /**
-     * @param callable(AuthorizationPrincipalInterface, EntityStructure, PolicySubjectViewInterface, string): AccessResult $protectedDecision
+     * @param callable(AuthorizationPrincipalInterface, EntityStructure, PolicySubjectViewInterface, string, EntityInterface): AccessResult $protectedDecision
      */
     public function __construct(
         private readonly AccountFieldReadScopeInterface $scope,
@@ -79,6 +79,7 @@ final class FieldReadGuard implements EntityValueReadGuardInterface
                 $this->structure($entity, $field),
                 $policySubject ?? $this->emptySubject(),
                 $field,
+                $entity,
             ))->isAllowed()) {
                 throw new FieldReadDenied(sprintf('Field %s.%s is not readable in this account context.', $entity->getEntityTypeId(), $field));
             }
@@ -97,6 +98,7 @@ final class FieldReadGuard implements EntityValueReadGuardInterface
                 $this->structure($entity, $field),
                 $policySubject ?? $this->emptySubject(),
                 $field,
+                $entity,
             ))->isAllowed();
             $context->remember($entity, $field, $allowed);
         }

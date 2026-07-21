@@ -1,5 +1,6 @@
 # Field-Level Access
 
+<!-- Spec reviewed 2026-07-21 - #2064 media hotfix: Media Protected fields now compose with the complete hydrated entity-view decision. Application contextual grants can release bundle-defined Protected media metadata, application Forbidden results still win, and a missing/mismatched hydrated entity fails closed. This does not change legacy open-by-default FieldAccessPolicyInterface filtering or Internal-field sealing. -->
 <!-- Spec reviewed 2026-07-19 - #2064 alpha.270 boolean-field hotfix: resolved boolean/bool field definitions now canonicalize values to native PHP bool while the private entity value container is sealed and on every write. Closed validation, persistence extraction, guarded reads, and public projections observe that same type. Protected/Internal sealing and missing-context denial are unchanged. -->
 
 <!-- Spec reviewed 2026-07-17 - #2064 WP1 adds dormant entity-boundary field-read contracts. The existing FieldAccessPolicyInterface remains unchanged and open-by-default for surface/edit filtering. ProtectedFieldReadPolicyInterface is a separate future fail-closed read seam over an immutable principal and structural subject view. No accessor or output behavior changes in WP1. Canonical contract: entity-field-read-boundary.md. -->
@@ -81,6 +82,8 @@ When `EntityAccessHandler::checkFieldAccess()` runs:
 6. Returns result.
 
 When no policy implements `FieldAccessPolicyInterface` for the entity type, the result is Neutral. Neutral is not Forbidden, so all fields pass through. This ensures zero behavioral change when no field policies exist.
+
+This legacy presentation/edit filtering is distinct from accessor-level Protected reads. A first-party `ProtectedFieldReadPolicyInterface` may implement the internal `EntityViewProtectedFieldReadPolicyInterface` marker. At that point the handler requires the exact hydrated entity and composes the field opinion with the complete entity-level `view` decision. Field Forbidden and any entity Forbidden remain deny-overrides-allow; Neutral is released only by an Allowed entity view. Without the matching entity the read is denied. Media uses this mechanism for core and application-defined Protected fields, allowing a contextual consumer media policy to govern serialized API/admin metadata consistently with downloads and other entity-level views.
 
 ```php
 // EntityAccessHandler::checkFieldAccess() excerpt:

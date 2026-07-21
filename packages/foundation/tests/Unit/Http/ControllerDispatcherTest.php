@@ -129,4 +129,24 @@ final class ControllerDispatcherTest extends TestCase
         $decoded = json_decode($response->getContent(), true);
         $this->assertSame('500', $decoded['errors'][0]['status']);
     }
+
+    #[Test]
+    public function debug_error_response_never_discloses_exception_or_stack_trace(): void
+    {
+        $request = Request::create('/debug-error');
+        $request->attributes->set('_controller', fn(Request $r) => throw new \RuntimeException('sensitive failure'));
+
+        $dispatcher = new ControllerDispatcher([]);
+        $response = $dispatcher->dispatch($request);
+
+        $this->assertSame(500, $response->getStatusCode());
+        $body = (string) $response->getContent();
+        $decoded = json_decode($body, true, flags: JSON_THROW_ON_ERROR);
+        $error = $decoded['errors'][0];
+        $this->assertArrayNotHasKey('meta', $error);
+        $this->assertSame('An unexpected error occurred.', $error['detail']);
+        $this->assertStringNotContainsString('RuntimeException', $body);
+        $this->assertStringNotContainsString(__FILE__, $body);
+        $this->assertStringNotContainsString('sensitive failure', $body);
+    }
 }

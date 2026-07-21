@@ -445,6 +445,7 @@ class EntityAccessHandler
         EntityStructure $structure,
         PolicySubjectViewInterface $subject,
         string $fieldName,
+        ?EntityInterface $entity = null,
     ): AccessResult {
         $result = AccessResult::neutral('No protected field-read policy provided an opinion.');
         foreach ($this->policies as $index => $policy) {
@@ -458,7 +459,19 @@ class EntityAccessHandler
             if ($fieldPolicy === null) {
                 continue;
             }
-            $result = $result->orIf($fieldPolicy->access($principal, $structure, $subject, $fieldName));
+            $policyResult = $fieldPolicy->access($principal, $structure, $subject, $fieldName);
+            if ($fieldPolicy instanceof EntityViewProtectedFieldReadPolicyInterface) {
+                if ($entity === null
+                    || $entity->getEntityTypeId() !== $structure->entityTypeId
+                    || $entity->bundle() !== $structure->bundleId
+                    || (string) $entity->id() !== (string) $structure->id
+                ) {
+                    $policyResult = AccessResult::forbidden('Entity-view field policy requires the matching hydrated entity.');
+                } else {
+                    $policyResult = $policyResult->orIf($this->check($entity, GateInterface::VIEW, $principal));
+                }
+            }
+            $result = $result->orIf($policyResult);
             if ($result->isForbidden()) {
                 return $result;
             }
