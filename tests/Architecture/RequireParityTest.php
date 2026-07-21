@@ -20,7 +20,8 @@ use PHPUnit\Framework\TestCase;
  *
  * This test asserts require-parity for the packages remediated in this work
  * package. Each imported sibling package that sits at the same layer or below
- * (i.e. a legal, declarable dependency) MUST appear in `require`. Higher-layer
+ * (i.e. a legal, declarable dependency) MUST appear in `require` unless the
+ * shared PL007 baseline records a reviewed optional integration. Higher-layer
  * imports are layer violations owned by `check-package-layers` and are out of
  * scope here.
  */
@@ -84,10 +85,11 @@ final class RequireParityTest extends TestCase
 
         $selfLayer = $layerByPackage[$package] ?? null;
         self::assertNotNull($selfLayer, "Package {$package} has no known layer.");
+        $allowedOptionalEdges = self::optionalEdges($root);
 
         $undeclared = [];
         foreach (self::importsForPackage($packagesDir, $package, $namespaceToPackage) as $dep => $exampleFile) {
-            if ($dep === $package || isset($declared[$dep])) {
+            if ($dep === $package || isset($declared[$dep]) || isset($allowedOptionalEdges[$package][$dep])) {
                 continue;
             }
             $depLayer = $layerByPackage[$dep] ?? null;
@@ -108,6 +110,21 @@ final class RequireParityTest extends TestCase
                 json_encode($undeclared, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
             ),
         );
+    }
+
+    /** @return array<string, array<string, true>> */
+    private static function optionalEdges(string $root): array
+    {
+        $edges = [];
+        $lines = file($root . '/tools/package-layers-undeclared-baseline.txt', FILE_IGNORE_NEW_LINES) ?: [];
+        foreach ($lines as $line) {
+            if (preg_match('/^([a-z0-9-]+)\s+([a-z0-9-]+)\s+#/', $line, $matches) !== 1) {
+                continue;
+            }
+            $edges[$matches[1]][$matches[2]] = true;
+        }
+
+        return $edges;
     }
 
     /**
