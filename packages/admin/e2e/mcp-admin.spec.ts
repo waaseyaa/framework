@@ -10,7 +10,7 @@ import { mockAdminBootstrapRoutes } from './fixtures/routes'
 // stubbed with empty payloads so the registry empty-state and the server-config
 // transport/protocol banners render deterministically without a live backend.
 test.beforeEach(async ({ page }) => {
-  await mockAdminBootstrapRoutes(page)
+  await mockAdminBootstrapRoutes(page, { mcp: true })
 
   await page.route('**/api/mcp/tools', (route) =>
     route.fulfill({ json: { data: { rows: [] } } }),
