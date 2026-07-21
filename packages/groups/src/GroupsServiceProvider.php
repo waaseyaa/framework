@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Groups;
 
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Groups\Membership\GroupMembershipService;
+use Waaseyaa\Groups\StaffDirectory\StaffDirectoryReadDeclaration;
+use Waaseyaa\Groups\StaffDirectory\StaffDirectoryReader;
+use Waaseyaa\Groups\StaffDirectory\StaffDirectoryReaderInterface;
 
 /**
  * Registers the `group` content entity type and its `group_type` bundle
@@ -62,6 +66,23 @@ final class GroupsServiceProvider extends ServiceProvider
             $manager = $this->resolve(EntityTypeManager::class);
 
             return new GroupMembershipService($manager);
+        });
+
+        // The host supplies StaffDirectoryReadDeclaration. Resolution remains
+        // lazy so products without a staff roster keep the feature dormant,
+        // while configured products receive the final discovered handler.
+        $this->singleton(StaffDirectoryReaderInterface::class, function (): StaffDirectoryReader {
+            $manager = $this->resolve(EntityTypeManager::class);
+            $handler = $this->resolve(EntityAccessHandler::class);
+            $declaration = $this->resolve(StaffDirectoryReadDeclaration::class);
+            if (!$manager instanceof EntityTypeManager
+                || !$handler instanceof EntityAccessHandler
+                || !$declaration instanceof StaffDirectoryReadDeclaration
+            ) {
+                throw new \LogicException('Staff directory service dependencies have invalid types.');
+            }
+
+            return new StaffDirectoryReader($manager, $handler, $declaration);
         });
     }
 }

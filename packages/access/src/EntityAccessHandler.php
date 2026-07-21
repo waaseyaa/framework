@@ -241,6 +241,106 @@ class EntityAccessHandler
         return new ProtectedEntityReadPlan($entityTypeId, $bundle, $inputNames, $policies);
     }
 
+    /**
+     * Resolve the complete Protected policy set when at least one policy needs
+     * consistent-snapshot batch authorization.
+     *
+     * @internal
+     */
+    public function contextualProtectedEntityReadPlan(string $entityTypeId, string $bundle): ?ContextualProtectedEntityReadPlan
+    {
+        $policies = [];
+        $inputs = [];
+        $boundary = null;
+        $found = false;
+        $contextKeys = [];
+        foreach ($this->policies as $index => $policy) {
+            if (!$policy->appliesTo($entityTypeId)
+                || !$this->matchesBundle($this->bundleFilters[$index] ?? [], $bundle)
+                || !$policy instanceof ProtectedReadPolicyProviderInterface
+            ) {
+                continue;
+            }
+            $entityPolicy = $policy->protectedEntityReadPolicy();
+            if ($entityPolicy === null) {
+                continue;
+            }
+            if ($entityPolicy instanceof ContextualProtectedEntityReadPolicyInterface) {
+                $found = true;
+                $policyBoundary = $entityPolicy->authorizationBoundary();
+                if ($boundary !== null && $boundary !== $policyBoundary) {
+                    throw new \LogicException('Contextual entity-read policies must share one authorization boundary.');
+                }
+                $boundary = $policyBoundary;
+                $contextKey = $entityPolicy->contextKey();
+                if ($contextKey === '' || isset($contextKeys[$contextKey])) {
+                    throw new \LogicException('Contextual entity-read policy keys must be non-empty and unique.');
+                }
+                $contextKeys[$contextKey] = true;
+            }
+            if ($entityPolicy instanceof ContextualProtectedEntityReadPolicyInterface) {
+                $policyInputs = [];
+            } elseif ($entityPolicy instanceof ClassifiedProtectedEntityReadPolicyInterface
+                || $entityPolicy instanceof ProjectedProtectedEntityReadPolicyInterface
+            ) {
+                $policyInputs = $this->declaredProtectedEntityReadInputs($entityPolicy);
+            } else {
+                $policyInputs = null;
+            }
+            $policies[] = ['policy' => $entityPolicy, 'inputs' => $policyInputs];
+            if ($policyInputs !== null) {
+                foreach ($policyInputs as $input) {
+                    $inputs[$input] = true;
+                }
+            }
+        }
+
+        if (!$found || $boundary === null) {
+            return null;
+        }
+        foreach ($policies as $entry) {
+            if ($entry['inputs'] === null) {
+                throw new \LogicException('Contextual entity reads cannot compose an undeclared hydrated policy input shape.');
+            }
+        }
+        $inputNames = array_keys($inputs);
+        sort($inputNames);
+
+        return new ContextualProtectedEntityReadPlan(
+            $entityTypeId,
+            $bundle,
+            $boundary,
+            $inputNames,
+            array_keys($contextKeys),
+            $policies,
+        );
+    }
+
+    /** Build the exact immutable subject shape declared by a contextual plan. @internal */
+    public function contextualProtectedReadCandidate(
+        EntityBase $entity,
+        ContextualProtectedEntityReadPlan $plan,
+    ): ContextualProtectedReadCandidate {
+        $structure = $entity->entityStructure();
+        if ($structure->entityTypeId !== $plan->entityTypeId || $structure->bundleId !== $plan->bundle) {
+            throw new \LogicException('Contextual read candidate does not match its policy plan.');
+        }
+        $subject = ($this->entityPolicySubjectAuthority)($entity, $plan->authorizationInputs);
+        $values = [];
+        foreach ($plan->authorizationInputs as $field) {
+            if (!in_array($field, $subject->fields(), true)) {
+                throw new \LogicException(sprintf('Contextual read candidate is missing required field "%s".', $field));
+            }
+            $values[$field] = $subject->get($field);
+        }
+
+        return new ContextualProtectedReadCandidate(
+            (string) $structure->id,
+            $structure,
+            new CompiledPolicySubjectView($values),
+        );
+    }
+
     /** @internal Query ordering and cache safety for application classification policies. */
     public function hasClassifiedProtectedEntityReadPolicy(string $entityTypeId, ?string $bundle): bool
     {

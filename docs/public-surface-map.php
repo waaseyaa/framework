@@ -303,12 +303,17 @@ return [
     'Waaseyaa\Access\Middleware\FieldReadContextMiddleware' => 'public',
     'Waaseyaa\Access\PolicySubjectViewInterface' => 'public',
     'Waaseyaa\Access\ProtectedEntityReadPolicyInterface' => 'public',
+    'Waaseyaa\Access\ContextualProtectedEntityReadPolicyInterface' => 'internal',
+    'Waaseyaa\EntityStorage\ContextualEntityLoaderInterface' => 'internal',
     // Closed query-optimization declaration for reviewed framework policies;
     // it is not a consumer policy extension surface.
     'Waaseyaa\Access\ProjectedProtectedEntityReadPolicyInterface' => 'internal',
     'Waaseyaa\Access\ClassifiedProtectedEntityReadPolicyInterface' => 'internal',
     'Waaseyaa\Access\ProtectedFieldReadPolicyInterface' => 'public',
     'Waaseyaa\Access\ProtectedReadPolicyProviderInterface' => 'public',
+    'Waaseyaa\Groups\StaffDirectory\StaffDirectoryPage' => 'public',
+    'Waaseyaa\Groups\StaffDirectory\StaffDirectoryReadDeclaration' => 'public',
+    'Waaseyaa\Groups\StaffDirectory\StaffDirectoryReaderInterface' => 'public',
     'Waaseyaa\Access\User\UserInternalFieldReaderInterface' => 'public',
     'Waaseyaa\Access\User\UserIdentityLookupInterface' => 'public',
     'Waaseyaa\Access\User\UserCredentialSnapshot' => 'public',

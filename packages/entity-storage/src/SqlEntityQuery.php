@@ -8,9 +8,13 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\CompiledPolicySubjectView;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
+use Waaseyaa\Access\ContextualProtectedEntityReadPlan;
+use Waaseyaa\Access\ContextualProtectedReadEvaluation;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\ProtectedEntityReadPlan;
+use Waaseyaa\Database\ConsistentReadDatabaseInterface;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityReadLayout;
 use Waaseyaa\Entity\EntityReadRuntime;
@@ -113,6 +117,19 @@ final class SqlEntityQuery implements EntityQueryInterface
      */
     private ?EntityAccessHandler $accessHandler = null;
 
+    /** Invocation-local only; non-null exclusively inside a consistent read. */
+    private ?ContextualProtectedEntityReadPlan $activeContextualPlan = null;
+
+    /** Invocation-local only; captured immediately after the snapshot begins. */
+    private ?ContextualProtectedReadEvaluation $activeContextualEvaluation = null;
+
+    private bool $materializeContextualPage = false;
+
+    /** @var array<string, EntityInterface> */
+    private array $contextualSurvivorEntities = [];
+
+    private int $contextualSurvivorCount = 0;
+
     /**
      * Optional hydrator callable used by {@see execute()} to materialize
      * candidate rows into entity objects for the per-row access check. The
@@ -129,6 +146,13 @@ final class SqlEntityQuery implements EntityQueryInterface
      */
     private $entityLoader = null;
 
+    private ?ContextualEntityLoaderInterface $contextualEntityLoader = null;
+
+    private ?string $requiredContextualPolicyKey = null;
+
+    /** @var \Closure(): int Framework-owned temporal source. */
+    private \Closure $contextualEvaluationClock;
+
     public function __construct(
         private readonly EntityTypeInterface $entityType,
         private readonly DatabaseInterface $database,
@@ -140,6 +164,7 @@ final class SqlEntityQuery implements EntityQueryInterface
         $keys = $this->entityType->getKeys();
         $this->idKey = $keys['id'] ?? 'id';
         $this->bundleKey = $keys['bundle'] ?? null;
+        $this->contextualEvaluationClock = static fn(): int => time();
     }
 
     public function condition(string $field, mixed $value, string $operator = '='): static
@@ -261,6 +286,56 @@ final class SqlEntityQuery implements EntityQueryInterface
         $this->entityLoader = $loader;
 
         return $this;
+    }
+
+    /** Bind a hydrator proven to share the contextual authority boundary. @internal */
+    public function withContextualEntityLoader(ContextualEntityLoaderInterface $loader): static
+    {
+        $this->contextualEntityLoader = $loader;
+        $this->entityLoader = $loader->loadMultiple(...);
+
+        return $this;
+    }
+
+    /** Require one exact contextual policy to allow every returned candidate. @internal */
+    public function requireContextualPolicy(string $contextKey): static
+    {
+        if ($contextKey === '') {
+            throw new \InvalidArgumentException('A required contextual policy key cannot be empty.');
+        }
+        $this->requiredContextualPolicyKey = $contextKey;
+
+        return $this;
+    }
+
+    /**
+     * Execute a contextual access-checked query and materialize its authorized
+     * entities before the consistent snapshot closes.
+     *
+     * @api
+     */
+    public function executeEntityPage(): ContextualEntityReadPage
+    {
+        $this->clearContextualPageCapture();
+        if (!$this->accessCheckEnabled) {
+            return new ContextualEntityReadPage([], 0);
+        }
+        $this->materializeContextualPage = true;
+        try {
+            $ids = $this->execute();
+            $entities = [];
+            foreach ($ids as $id) {
+                $entity = $this->contextualSurvivorEntities[(string) $id] ?? null;
+                if ($entity instanceof EntityInterface) {
+                    $entities[] = $entity;
+                }
+            }
+
+            return new ContextualEntityReadPage($entities, $this->contextualSurvivorCount);
+        } finally {
+            $this->materializeContextualPage = false;
+            $this->clearContextualPageCapture();
+        }
     }
 
     /**
@@ -1080,6 +1155,58 @@ final class SqlEntityQuery implements EntityQueryInterface
             throw MissingQueryAccountException::forQuery($this->entityType);
         }
 
+        if ($this->accessCheckEnabled && $this->activeContextualPlan === null) {
+            $principal = $this->authorizationAccount();
+            $handler = $this->resolveAccessHandler();
+            $bundle = $this->bundleKey === null ? $this->entityType->id() : null;
+            $plan = $bundle !== null
+                ? $handler->contextualProtectedEntityReadPlan($this->entityType->id(), $bundle)
+                : null;
+            if ($this->requiredContextualPolicyKey !== null
+                && ($plan === null || !in_array($this->requiredContextualPolicyKey, $plan->contextKeys, true))
+            ) {
+                return $this->isCount ? [0] : [];
+            }
+            if ($plan !== null) {
+                $this->contextualSurvivorEntities = [];
+                $this->contextualSurvivorCount = 0;
+                if (!$this->database instanceof ConsistentReadDatabaseInterface
+                    || $plan->authorizationBoundary !== $this->database
+                    || $this->contextualEntityLoader === null
+                    || $this->contextualEntityLoader->authorizationBoundary() !== $this->database
+                ) {
+                    return $this->isCount ? [0] : [];
+                }
+                $transaction = null;
+                try {
+                    $transaction = $this->beginContextualRead($this->database);
+                    $this->activeContextualPlan = $plan;
+                    $result = $this->execute();
+                    $transaction->commit();
+
+                    return $result;
+                } catch (\Throwable) {
+                    if ($transaction !== null) {
+                        try {
+                            $transaction->rollBack();
+                        } catch (\Throwable) {
+                            // No result escapes a failed consistent read.
+                        }
+                    }
+                    $this->contextualSurvivorEntities = [];
+                    $this->contextualSurvivorCount = 0;
+
+                    return $this->isCount ? [0] : [];
+                } finally {
+                    if ($this->activeContextualPlan !== null && $this->activeContextualEvaluation !== null) {
+                        $this->activeContextualPlan->closeEvaluation($this->activeContextualEvaluation);
+                    }
+                    $this->activeContextualPlan = null;
+                    $this->activeContextualEvaluation = null;
+                }
+            }
+        }
+
         $authorizationAccount = $this->accessCheckEnabled
             ? $this->authorizationAccount()
             : null;
@@ -1105,6 +1232,7 @@ final class SqlEntityQuery implements EntityQueryInterface
                         : null),
             );
         $fingerprint = $this->resultCache !== null
+            && $this->activeContextualPlan === null
             && !($hasClassifiedProtectedRead && $protectedProjection === null)
             ? $this->buildCacheFingerprint(
                 $authorizationAccount,
@@ -1122,7 +1250,7 @@ final class SqlEntityQuery implements EntityQueryInterface
         }
 
         $deferRangeUntilAfterAccess = $this->accessCheckEnabled
-            && $hasClassifiedProtectedRead
+            && ($hasClassifiedProtectedRead || $this->activeContextualPlan !== null)
             && $this->rangeLimit !== null;
 
         $select = $this->database->select($this->tableName);
@@ -1233,6 +1361,17 @@ final class SqlEntityQuery implements EntityQueryInterface
 
         $result = $select->execute();
 
+        if ($this->activeContextualPlan !== null) {
+            // DBALSelect is lazy. Materializing the candidate read establishes
+            // deferred database snapshots before evaluation time, hydration,
+            // or authority SQL can observe another state.
+            $result = iterator_to_array($result, false);
+            if ($this->activeContextualEvaluation === null) {
+                $evaluatedAt = ($this->contextualEvaluationClock)();
+                $this->activeContextualEvaluation = $this->activeContextualPlan->beginEvaluation($this->database, $evaluatedAt);
+            }
+        }
+
         if ($useSqlCount) {
             // Bypass fast path: SQL COUNT(*) without hydration. C-004 / FR-004.
             $countResult = [0];
@@ -1270,7 +1409,14 @@ final class SqlEntityQuery implements EntityQueryInterface
             return $ids;
         }
 
-        if ($protectedProjection !== null) {
+        if ($this->activeContextualPlan !== null) {
+            $filtered = $this->filterContextualCandidates(
+                $ids,
+                $protectedPrincipal,
+                $accessHandler,
+                $this->activeContextualPlan,
+            );
+        } elseif ($protectedProjection !== null) {
             $projectedRows = $this->selectProtectedEntityReadProjection($ids, $protectedProjection);
             $filtered = $this->filterProjectedCandidates(
                 $projectedRows,
@@ -1293,5 +1439,88 @@ final class SqlEntityQuery implements EntityQueryInterface
         }
 
         return $filtered;
+    }
+
+    /**
+     * @param list<int|string> $candidateIds
+     * @return list<int|string>
+     */
+    private function filterContextualCandidates(
+        array $candidateIds,
+        AuthorizationPrincipalInterface $principal,
+        EntityAccessHandler $handler,
+        ContextualProtectedEntityReadPlan $plan,
+    ): array {
+        $loader = $this->contextualEntityLoader;
+        if ($loader === null || $candidateIds === []) {
+            $this->contextualSurvivorCount = 0;
+
+            return $this->isCount ? [0] : [];
+        }
+        $loaded = $loader->loadMultiple($candidateIds);
+        $candidates = [];
+        $entities = [];
+        $expectedKeys = [];
+        foreach ($candidateIds as $id) {
+            $key = (string) $id;
+            if (isset($expectedKeys[$key])) {
+                return $this->isCount ? [0] : [];
+            }
+            $expectedKeys[$key] = true;
+        }
+        if (count($loaded) !== count($expectedKeys)) {
+            return $this->isCount ? [0] : [];
+        }
+        foreach ($candidateIds as $id) {
+            $entity = $loaded[$id] ?? $loaded[(string) $id] ?? null;
+            if (!$entity instanceof EntityBase) {
+                return $this->isCount ? [0] : [];
+            }
+            $candidate = $handler->contextualProtectedReadCandidate($entity, $plan);
+            if ($candidate->key !== (string) $id) {
+                return $this->isCount ? [0] : [];
+            }
+            $candidates[] = $candidate;
+            $entities[$candidate->key] = $entity;
+        }
+        $evaluation = $this->activeContextualEvaluation;
+        if ($evaluation === null) {
+            return $this->isCount ? [0] : [];
+        }
+        $decisions = $plan->accessBatch(
+            $principal,
+            $candidates,
+            $evaluation,
+            requiredContextKey: $this->requiredContextualPolicyKey,
+        );
+        $survivors = [];
+        if ($this->materializeContextualPage) {
+            $this->contextualSurvivorEntities = [];
+        }
+        foreach ($candidates as $candidate) {
+            if (!isset($decisions[$candidate->key]) || !$decisions[$candidate->key]->isAllowed()) {
+                continue;
+            }
+            $survivors[] = $candidate->structure->id;
+            if ($this->materializeContextualPage) {
+                $this->contextualSurvivorEntities[$candidate->key] = $entities[$candidate->key];
+            }
+        }
+        if ($this->materializeContextualPage) {
+            $this->contextualSurvivorCount = count($survivors);
+        }
+
+        return $this->isCount ? [count($survivors)] : $survivors;
+    }
+
+    private function beginContextualRead(ConsistentReadDatabaseInterface $database): \Waaseyaa\Database\TransactionInterface
+    {
+        return $database->consistentReadTransaction('contextual-protected-entity-read');
+    }
+
+    private function clearContextualPageCapture(): void
+    {
+        $this->contextualSurvivorEntities = [];
+        $this->contextualSurvivorCount = 0;
     }
 }

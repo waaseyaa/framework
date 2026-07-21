@@ -30,12 +30,17 @@
         },
         {
             "type": "path",
+            "url": "../database-legacy"
+        },
+        {
+            "type": "path",
             "url": "../user"
         }
     ],
     "require": {
         "php": ">=8.5",
         "waaseyaa/access": "^0.1.0-alpha.271",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.271",
         "waaseyaa/entity": "^0.1.0-alpha.271",
         "waaseyaa/entity-storage": "^0.1.0-alpha.271",
         "waaseyaa/field": "^0.1.0-alpha.271",
@@ -65,7 +70,8 @@
                 }
             },
             "policies": [
-                "Waaseyaa\\Groups\\GroupAccessPolicy"
+                "Waaseyaa\\Groups\\GroupAccessPolicy",
+                "Waaseyaa\\Groups\\StaffDirectory\\CapabilityScopedStaffDirectoryAccessPolicy"
             ],
             "providers": [
                 "Waaseyaa\\Groups\\GroupsServiceProvider"

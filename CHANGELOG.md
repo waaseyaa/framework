@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Capability-scoped staff member-directory reads now fail closed across list and detail (#2086).** Hosts bind a permission and exact roster-group bundle; the framework discovers the contextual User policy and exposes one reader for snapshot-consistent list/count/detail authorization. Only authenticated capability holders receive active direct roster members; ordinary members, unrelated view-only permissions, non-members, inactive or malformed memberships, ambiguous groups, missing policies, and failed authority snapshots return no rows. Pagination follows authorized survivors, contextual results are never cached, the peer-directory path remains independent, and the entity grant adds no field-read authority, leaving User names, email, claims, and credentials sealed by their existing policies.
 - **Application protected-read classification now participates in query, list, and detail access (#2082).** Applications can declare exact public or reviewed Protected fields for private classification projection; incomplete or Internal inputs fail closed, per-policy projected and hydrated subjects agree, and Forbidden application decisions override framework Allows without changing public field sealing.
 
 ## [0.1.0-alpha.271] - 2026-07-20

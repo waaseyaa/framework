@@ -562,10 +562,11 @@ final class EntityRepository implements EntityRepositoryInterface
             $query = $query->withAccessHandler($handler);
         }
 
-        return $query->withEntityLoader(
+        return $query->withContextualEntityLoader(new ContextualEntityLoader(
+            $this->database,
             /** @param list<int|string> $ids */
             fn(array $ids): array => $this->hydrateByIdForQuery($ids),
-        );
+        ));
     }
 
     /**
