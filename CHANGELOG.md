@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Optional-domain install smoke now exercises the real public surfaces (#2091).** The two-shape regression protects the retained core package set, invokes authenticated API discovery, and reads admin catalogue and MCP capability payloads through the registered admin-surface routes.
 - **Fresh-install CI now verifies minimal and opt-in domain shapes (#2091).** Isolated Composer installs assert that Genealogy, AI-agent, OIDC, MCP, Wayfinding, Messaging, and social engagement are absent from the minimal package graph, admin catalogue/navigation capability, discovery manifest, and route table, and restored when explicitly required; the AI-agent package now declares its existing HTTP route provider so explicit installs restore the documented executor endpoints.
 - **Admin and API discovery now expose only installed opt-in domains (#2091).** OIDC and MCP routes are absent without their packages, the MCP admin menu follows an installed capability flag, and Wayfinding agent tools are discovered only when Wayfinding is installed; entity-driven catalogue and JSON:API discovery continue to follow registered definitions.
 - **Reusable package edges no longer force unrelated optional domains (#2091).** CLI, API, and routing advertise their AI-agent and OIDC integrations through Composer suggestions, while AI-agent advertises its Wayfinding trail tools; installing any reusable package alone therefore leaves those domains absent.
