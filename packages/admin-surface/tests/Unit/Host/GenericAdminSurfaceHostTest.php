@@ -22,6 +22,7 @@ use Waaseyaa\Entity\ConfigEntityBase;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\FieldReadLevel;
 use Waaseyaa\Entity\Tests\Helper\TestEntityType;
 use Waaseyaa\AdminSurface\Query\SurfaceFilterOperator;
 use Waaseyaa\AdminSurface\Query\SurfaceQuery;
@@ -628,6 +629,39 @@ final class GenericAdminSurfaceHostTest extends TestCase
         self::assertTrue($result->ok);
         self::assertArrayHasKey('title', $result->data['properties']);
         self::assertArrayNotHasKey('wp_status', $result->data['properties']);
+    }
+
+    #[Test]
+    public function directHostConstructionOmitsShippedMigrationResidueFromPostForms(): void
+    {
+        $definition = new EntityType(
+            id: 'node',
+            label: 'Content',
+            class: BundleSchemaTestEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type'],
+        );
+        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm->method('hasDefinition')->willReturn(true);
+        $etm->method('getDefinition')->willReturn($definition);
+        $etm->method('resolveFieldDefinitions')->willReturn([
+            'title' => new FieldDefinition(name: 'title', type: 'string'),
+            'source_status' => new FieldDefinition(
+                name: 'source_status',
+                type: 'string',
+                settings: ['weight' => 7],
+                targetEntityTypeId: 'node',
+                targetBundle: 'post',
+                label: 'WordPress status',
+                read: FieldReadLevel::Public,
+            ),
+        ]);
+
+        // Mirrors the application-owned host that serves the real browser
+        // route: direct construction, with no provider-owned exclusion list.
+        $result = (new GenericAdminSurfaceHost($etm))->action('node', 'schema');
+
+        self::assertTrue($result->ok);
+        self::assertArrayNotHasKey('source_status', $result->data['properties']);
     }
 
     #[Test]

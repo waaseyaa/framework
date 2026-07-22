@@ -39,6 +39,19 @@ use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
 {
     /**
+     * Shipped migration bookkeeping that is never part of node authoring.
+     *
+     * This floor belongs to the generic host rather than its service provider:
+     * applications may own the admin routes and construct this host directly.
+     * Host-supplied additions are merged with it below.
+     *
+     * @var array<string, list<string>>
+     */
+    private const array DEFAULT_INTERNAL_FIELDS_BY_TYPE = [
+        'node' => ['source_status', 'wp_status'],
+    ];
+
+    /**
      * Structural filter/sort floor, mirrored from
      * {@see \Waaseyaa\Api\ResourceSerializer::ALWAYS_INTERNAL_FIELDS} and
      * {@see \Waaseyaa\Api\JsonApiController::ALWAYS_INTERNAL_FIELDS}. Credential
@@ -63,7 +76,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
     /**
      * @param string[]          $readOnlyTypes Entity type IDs that should be read-only in the admin
      * @param array<string, bool> $features Installed capabilities exposed to the SPA session
-     * @param array<string, list<string>> $internalFieldsByType Host-owned migration or operational fields omitted from forms
+     * @param array<string, list<string>> $internalFieldsByType Additional host-owned migration or operational fields omitted from forms
      */
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
@@ -738,7 +751,11 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             return AdminSurfaceResultData::error(500, 'Internal error', 'Schema payload missing.');
         }
 
-        foreach ($this->internalFieldsByType[$type] ?? [] as $internalField) {
+        $internalFields = array_values(array_unique(array_merge(
+            self::DEFAULT_INTERNAL_FIELDS_BY_TYPE[$type] ?? [],
+            $this->internalFieldsByType[$type] ?? [],
+        )));
+        foreach ($internalFields as $internalField) {
             if ($internalField === '') {
                 continue;
             }
