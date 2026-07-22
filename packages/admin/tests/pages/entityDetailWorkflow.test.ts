@@ -3,15 +3,18 @@ import { flushPromises } from '@vue/test-utils'
 import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { schemaRef, fetchSchemaMock } = vi.hoisted(() => {
+const { schemaRef, fetchSchemaMock, removeMock, navigateMock } = vi.hoisted(() => {
   const { ref } = require('vue') as typeof import('vue')
   return {
     schemaRef: ref<EntitySchema | null>(null),
     fetchSchemaMock: vi.fn(),
+    removeMock: vi.fn(),
+    navigateMock: vi.fn(),
   }
 })
 
 mockNuxtImport('useRoute', () => () => ({ params: { entityType: 'node', id: '5' } }))
+mockNuxtImport('navigateTo', () => navigateMock)
 mockNuxtImport('useAdminConfig', () => () => ({ appName: 'Test admin' }))
 
 vi.mock('~/composables/useLanguage', () => ({
@@ -26,6 +29,14 @@ vi.mock('~/composables/useSchema', () => ({
     schema: schemaRef,
     fetch: fetchSchemaMock,
   }),
+}))
+
+vi.mock('~/composables/useAdmin', () => ({
+  useAdmin: () => ({ hasCapability: (_type: string, capability: string) => capability === 'delete' }),
+}))
+
+vi.mock('~/composables/useEntity', () => ({
+  useEntity: () => ({ remove: removeMock }),
 }))
 
 const baseSchema = {
@@ -49,6 +60,7 @@ async function mountPage() {
         SchemaView: { template: '<div />' },
         SchemaForm: { template: '<div />' },
         NuxtLink: { template: '<a><slot /></a>' },
+        teleport: true,
       },
     },
   })
@@ -60,6 +72,9 @@ describe('entity detail workflow binding', () => {
   beforeEach(() => {
     schemaRef.value = null
     fetchSchemaMock.mockReset()
+    removeMock.mockReset()
+    removeMock.mockResolvedValue(undefined)
+    navigateMock.mockReset()
   })
 
   it('requests an entity-scoped schema and renders workflow UI only when bound', async () => {
@@ -78,5 +93,18 @@ describe('entity detail workflow binding', () => {
     expect(wrapper.find('[data-testid="workflow-controls"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="workflow-history"]').exists()).toBe(false)
     expect(wrapper.find('button.btn-primary').exists()).toBe(true)
+  })
+
+  it('deletes from the detail page through the standard confirmation modal', async () => {
+    schemaRef.value = { ...baseSchema, 'x-workflow': { bound: false, id: null } }
+    const wrapper = await mountPage()
+
+    await wrapper.get('[data-testid="detail-delete"]').trigger('click')
+    expect(wrapper.find('[role="alertdialog"]').exists()).toBe(true)
+    await wrapper.get('[data-testid="confirm-dialog-confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(removeMock).toHaveBeenCalledWith('node', '5')
+    expect(navigateMock).toHaveBeenCalledWith('/node')
   })
 })

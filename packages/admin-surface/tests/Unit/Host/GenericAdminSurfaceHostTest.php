@@ -603,6 +603,48 @@ final class GenericAdminSurfaceHostTest extends TestCase
     }
 
     #[Test]
+    public function hostDeclaredInternalFieldsAreAbsentFromForms(): void
+    {
+        $definition = new EntityType(
+            id: 'node',
+            label: 'Content',
+            class: BundleSchemaTestEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type'],
+        );
+        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm->method('hasDefinition')->willReturn(true);
+        $etm->method('getDefinition')->willReturn($definition);
+        $etm->method('resolveFieldDefinitions')->willReturn([
+            'title' => new FieldDefinition(name: 'title', type: 'string'),
+            'wp_status' => new FieldDefinition(name: 'wp_status', type: 'string'),
+        ]);
+
+        $host = new GenericAdminSurfaceHost(
+            $etm,
+            internalFieldsByType: ['node' => ['wp_status']],
+        );
+        $result = $host->action('node', 'schema');
+
+        self::assertTrue($result->ok);
+        self::assertArrayHasKey('title', $result->data['properties']);
+        self::assertArrayNotHasKey('wp_status', $result->data['properties']);
+    }
+
+    #[Test]
+    public function generateSlugActionUsesUnicodePreservingFrameworkGenerator(): void
+    {
+        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm->method('hasDefinition')->with('node')->willReturn(true);
+
+        $result = (new GenericAdminSurfaceHost($etm))->action('node', 'generate-slug', [
+            'value' => 'Anishinaabemowin Ākí ᐊᓂᔑᓈᐯᒧᐎᓐ',
+        ]);
+
+        self::assertTrue($result->ok);
+        self::assertSame('anishinaabemowin-ākí-ᐊᓂᔑᓈᐯᒧᐎᓐ', $result->data['slug']);
+    }
+
+    #[Test]
     public function build_catalog_adds_delete_action_for_content_entities(): void
     {
         $etm = $this->createMock(EntityTypeManagerInterface::class);

@@ -21,6 +21,7 @@ use Waaseyaa\Api\Schema\SchemaPresenter;
 use Waaseyaa\Entity\ConfigEntityBase;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Foundation\SlugGenerator;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 
 /**
@@ -58,6 +59,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
     /**
      * @param string[]          $readOnlyTypes Entity type IDs that should be read-only in the admin
      * @param array<string, bool> $features Installed capabilities exposed to the SPA session
+     * @param array<string, list<string>> $internalFieldsByType Host-owned migration or operational fields omitted from forms
      */
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
@@ -69,6 +71,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         private readonly array $readOnlyTypes = [],
         private readonly ?WorkflowBindingResolver $workflowBindingResolver = null,
         private readonly array $features = [],
+        private readonly array $internalFieldsByType = [],
     ) {}
 
     public function resolveSession(Request $request): ?AdminSurfaceSessionData
@@ -687,6 +690,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             'create' => $this->handleCreate($type, $payload),
             'update' => $this->handleUpdate($type, $payload),
             'delete' => $this->handleDelete($type, $payload),
+            'generate-slug' => $this->handleGenerateSlug($payload),
             default => AdminSurfaceResultData::error(400, 'Unknown action', "Action '{$action}' is not supported."),
         };
     }
@@ -727,6 +731,19 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             return AdminSurfaceResultData::error(500, 'Internal error', 'Schema payload missing.');
         }
 
+        foreach ($this->internalFieldsByType[$type] ?? [] as $internalField) {
+            if ($internalField === '') {
+                continue;
+            }
+            unset($schema['properties'][$internalField]);
+            if (isset($schema['required']) && is_array($schema['required'])) {
+                $schema['required'] = array_values(array_filter(
+                    $schema['required'],
+                    static fn(mixed $field): bool => $field !== $internalField,
+                ));
+            }
+        }
+
         if ($this->workflowBindingResolver !== null) {
             $definition = $this->entityTypeManager->getDefinition($type);
             $bindingBundle = $bundle
@@ -749,6 +766,17 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         }
 
         return AdminSurfaceResultData::success($schema);
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function handleGenerateSlug(array $payload): AdminSurfaceResultData
+    {
+        $value = $payload['value'] ?? null;
+        if (!is_string($value)) {
+            return AdminSurfaceResultData::error(422, 'Invalid slug source', 'Slug source must be a string.');
+        }
+
+        return AdminSurfaceResultData::success(['slug' => SlugGenerator::generate($value)]);
     }
 
     /** @param array<string, mixed> $payload */

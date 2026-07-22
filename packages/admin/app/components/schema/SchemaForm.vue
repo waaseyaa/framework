@@ -203,6 +203,8 @@ async function onSubmit() {
     return
   }
   saving.value = true
+  const submittedBundleKey = bundleKey.value
+  const submittedBundle = submittedBundleKey ? formData.value[submittedBundleKey] : undefined
   try {
     // Entity reads include structural attributes needed for display and
     // identity, but the schema is the write contract. Submit only declared,
@@ -219,6 +221,12 @@ async function onSubmit() {
       : await create(props.entityType, writableData)
     emit('saved', resource)
   } catch (e: any) {
+    // A failed create must retain the bundle that scoped the current schema.
+    // This also defends against transport/plugin error handling replacing the
+    // reactive payload while the request is in flight.
+    if (!props.entityId && submittedBundleKey && typeof submittedBundle === 'string') {
+      formData.value[submittedBundleKey] = submittedBundle
+    }
     const normalized = normalizeValidationFailure(e, new Set(editableFields.value.map(([name]) => name)))
     fieldErrors.value = normalized.fieldErrors
     globalErrors.value = normalized.globalErrors

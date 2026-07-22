@@ -38,6 +38,7 @@ const widgetMap: Record<string, Component> = {
   // hidden field so it round-trips on save instead of rendering as raw JSON.
   blocks: resolveComponent('WidgetsHiddenField') as Component,
   machine_name: resolveComponent('WidgetsMachineNameInput') as Component,
+  slug: resolveComponent('WidgetsSlugInput') as Component,
   password: resolveComponent('WidgetsTextInput') as Component,
   image: resolveComponent('WidgetsFileUpload') as Component,
   file: resolveComponent('WidgetsFileUpload') as Component,

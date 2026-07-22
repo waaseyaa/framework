@@ -176,6 +176,101 @@ describe('SchemaForm loading and error states', () => {
 })
 
 describe('SchemaForm submit — create mode (no entityId)', () => {
+  it('generates an editable Unicode slug and stops regenerating after manual edits', async () => {
+    const schema = {
+      ...bundledNodeDiscoverySchema,
+      'x-entity-type': 'node_form_quality',
+      properties: {
+        ...bundledNodeDiscoverySchema.properties,
+        slug: {
+          type: 'string',
+          'x-widget': 'slug',
+          'x-source-field': 'title',
+          'x-label': 'Slug',
+          'x-required': true,
+        },
+      },
+      required: ['type', 'title', 'slug'],
+    }
+    registerEndpoint('/admin/_surface/node_form_quality/action/schema', {
+      method: 'POST',
+      handler: () => ({ ok: true, data: schema }),
+    })
+    registerEndpoint('/admin/_surface/node_form_quality/action/generate-slug', {
+      method: 'POST',
+      handler: async event => {
+        const payload = await readBody<{ value: string }>(event)
+        return { ok: true, data: { slug: payload.value === 'Anishinaabemowin Ākí' ? 'anishinaabemowin-ākí' : '' } }
+      },
+    })
+    const { default: SchemaFormFresh } = await import('~/components/schema/SchemaForm.vue')
+    const wrapper = await mountSuspended(SchemaFormFresh, { props: { entityType: 'node_form_quality' } })
+    await flushPromises()
+
+    const bundle = wrapper.get('select')
+    await bundle.setValue('post')
+    const textInputs = wrapper.findAll('input[type="text"]')
+    const title = textInputs.find(input => !input.classes().includes('field-input--slug'))!
+    await title.setValue('Anishinaabemowin Ākí')
+    await flushPromises()
+
+    const slug = wrapper.get('.field-input--slug')
+    await vi.waitFor(() => expect((slug.element as HTMLInputElement).value).toBe('anishinaabemowin-ākí'))
+    await slug.setValue('anishinaabemowin-ākí-edited')
+    await title.setValue('A changed title')
+    await flushPromises()
+
+    expect((slug.element as HTMLInputElement).value).toBe('anishinaabemowin-ākí-edited')
+  })
+
+  it('retains the selected bundle after bundle-scoped server validation fails', async () => {
+    const schemaPayloads: Array<Record<string, unknown>> = []
+    let createPayload: Record<string, any> | null = null
+    const postSchema = {
+      ...bundledNodeDiscoverySchema,
+      title: 'Post',
+      properties: {
+        ...bundledNodeDiscoverySchema.properties,
+        body: { type: 'string', 'x-widget': 'textarea', 'x-label': 'Body' },
+      },
+    }
+    registerEndpoint('/admin/_surface/node_validation_bundle/action/schema', {
+      method: 'POST',
+      handler: async (event) => {
+        const payload = await readBody<Record<string, unknown>>(event)
+        schemaPayloads.push(payload)
+        return { ok: true, data: payload.bundle === 'post' ? postSchema : bundledNodeDiscoverySchema }
+      },
+    })
+    registerEndpoint('/admin/_surface/node_validation_bundle/action/create', {
+      method: 'POST',
+      handler: async (event) => {
+        createPayload = await readBody<Record<string, any>>(event)
+        return {
+          ok: false,
+          error: { status: 422, title: 'Validation failed', detail: 'Body is required.', source: { pointer: '/data/attributes/body' } },
+        }
+      },
+    })
+
+    const { default: SchemaFormFresh } = await import('~/components/schema/SchemaForm.vue')
+    const wrapper = await mountSuspended(SchemaFormFresh, { props: { entityType: 'node_validation_bundle' } })
+    await flushPromises()
+    await vi.waitFor(() => expect(wrapper.find('form').exists()).toBe(true))
+
+    const bundle = wrapper.get('[data-anchor="field:node_validation_bundle:type"] select')
+    await bundle.setValue('post')
+    await flushPromises()
+    await wrapper.get('input[type="text"]').setValue('Validation failure post')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Body is required.'))
+
+    expect(schemaPayloads).toContainEqual({ bundle: 'post' })
+    expect(createPayload).toMatchObject({ attributes: { type: 'post', title: 'Validation failure post' } })
+    expect(wrapper.get('[data-anchor="field:node_validation_bundle:type"] select').element).toHaveProperty('value', 'post')
+  })
+
   it('loads a bundle-specific schema after selection and submits the selected bundle', async () => {
     const schemaPayloads: Array<Record<string, unknown>> = []
     let createPayload: Record<string, any> | null = null

@@ -392,15 +392,19 @@ final class SchemaPresenter
      */
     private function buildFieldSchema(string $fieldName, string $fieldType, FieldDefinitionInterface $definition): array
     {
+        $isIntegerTimestamp = in_array($fieldType, ['integer', 'int'], true)
+            && $definition->getSetting('subtype') === 'timestamp';
         $schema = [
-            'type' => self::TYPE_MAP[$fieldType] ?? 'string',
+            'type' => $isIntegerTimestamp ? 'string' : (self::TYPE_MAP[$fieldType] ?? 'string'),
             // Preserve the canonical FieldDefinition cardinality so generic
             // widgets can distinguish scalar and multi-value authoring.
             'x-cardinality' => $definition->getCardinality(),
         ];
 
         // Add format if applicable.
-        if (isset(self::FORMAT_MAP[$fieldType])) {
+        if ($isIntegerTimestamp) {
+            $schema['format'] = 'date-time';
+        } elseif (isset(self::FORMAT_MAP[$fieldType])) {
             $schema['format'] = self::FORMAT_MAP[$fieldType];
         }
 
@@ -411,7 +415,13 @@ final class SchemaPresenter
         }
 
         // Widget hint.
-        $schema['x-widget'] = $definition->getSetting('widget') ?? self::WIDGET_MAP[$fieldType] ?? 'text';
+        $schema['x-widget'] = $definition->getSetting('widget')
+            ?? ($isIntegerTimestamp ? 'datetime' : (self::WIDGET_MAP[$fieldType] ?? 'text'));
+
+        $sourceField = $definition->getSetting('source_field');
+        if (is_string($sourceField) && $sourceField !== '') {
+            $schema['x-source-field'] = $sourceField;
+        }
 
         // Human-readable label.
         $label = $definition->getLabel();
