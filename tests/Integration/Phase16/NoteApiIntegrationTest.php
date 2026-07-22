@@ -8,6 +8,8 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Waaseyaa\Access\AccessPolicyInterface;
+use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\JsonApiController;
@@ -17,12 +19,16 @@ use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\Exception\MissingFieldReadContext;
 use Waaseyaa\Field\FieldDefinition;
+use Waaseyaa\Media\Media;
+use Waaseyaa\Node\Node;
 use Waaseyaa\Note\Note;
 use Waaseyaa\Note\NoteAccessPolicy;
 use Waaseyaa\Note\NoteServiceProvider;
 use Waaseyaa\Tests\Support\AuthorizationPrincipalFactory;
 use Waaseyaa\User\AnonymousUser;
+use Waaseyaa\User\User;
 
 /**
  * Integration tests for the core.note entity type API layer.
@@ -30,7 +36,7 @@ use Waaseyaa\User\AnonymousUser;
  * Covers:
  * - NoteServiceProvider registers the 'note' entity type
  * - POST /api/note with valid payload → 201
- * - DELETE /api/note/{id} → always 403 (core.note is non-deletable)
+ * - DELETE /api/note/{id} → row-policy controlled (the core type remains immutable)
  */
 #[CoversNothing]
 final class NoteApiIntegrationTest extends TestCase
@@ -113,6 +119,72 @@ final class NoteApiIntegrationTest extends TestCase
         $this->assertSame('My First Note', $array['data']['attributes']['title']);
     }
 
+    #[Test]
+    public function creatorAttributionNeverUsesTheUserIdentityKeyAsAuthorship(): void
+    {
+        $storage = new UserInMemoryStorage('user');
+        $manager = new EntityTypeManager(
+            new EventDispatcher(),
+            fn() => $storage,
+            fn() => new InMemoryEntityRepository($storage),
+        );
+        $manager->registerEntityType(EntityType::fromClass(User::class));
+        $allowUserCreate = new class implements AccessPolicyInterface {
+            public function appliesTo(string $entityTypeId): bool
+            {
+                return $entityTypeId === 'user';
+            }
+
+            public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
+            {
+                return AccessResult::allowed();
+            }
+
+            public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+            {
+                return AccessResult::allowed();
+            }
+        };
+        $controller = new JsonApiController(
+            $manager,
+            new ResourceSerializer($manager),
+            new EntityAccessHandler([$allowUserCreate]),
+            account: $this->makeUser(id: 73),
+        );
+
+        try {
+            $doc = $controller->store('user', [
+                'data' => [
+                    'type' => 'user',
+                    'attributes' => ['name' => 'new-user', 'mail' => 'new-user@example.test'],
+                ],
+            ]);
+            self::assertSame(201, $doc->statusCode);
+            self::assertNotSame('73', $doc->data?->id);
+        } catch (MissingFieldReadContext) {
+            // This narrow storage fixture has no request read scope. The save
+            // occurs before response serialization, which is sufficient to
+            // pin the identity-overwrite regression below.
+        }
+        self::assertNull($storage->load(73), 'User.uid must never be copied from the acting principal.');
+    }
+
+    #[Test]
+    public function authoredQuickEntryShapesRemainEligibleWithoutMatchingUserIdentity(): void
+    {
+        foreach ([Node::class, Media::class, Note::class] as $class) {
+            $definition = EntityType::fromClass($class);
+            $uid = $definition->getFieldDefinitions()['uid'] ?? null;
+
+            self::assertNotNull($uid, $class);
+            self::assertTrue($uid->getSetting('authorizationInput') === true, $class);
+            self::assertNotSame('uid', $definition->getKeys()['id'] ?? 'id', $class);
+        }
+
+        $user = EntityType::fromClass(User::class);
+        self::assertSame('uid', $user->getKeys()['id']);
+    }
+
     // -----------------------------------------------------------------------
     // Update access — NoteAccessPolicy returns neutral; deny-by-default applies
     // -----------------------------------------------------------------------
@@ -140,7 +212,7 @@ final class NoteApiIntegrationTest extends TestCase
     }
 
     // -----------------------------------------------------------------------
-    // DELETE guard — core.note is non-deletable
+    // DELETE access — note rows are distinct from the immutable core.note type
     // -----------------------------------------------------------------------
 
     #[Test]
@@ -170,7 +242,7 @@ final class NoteApiIntegrationTest extends TestCase
     }
 
     #[Test]
-    public function deleteByAdminStillReturns403(): void
+    public function deleteByAdminReturns204(): void
     {
         $note = $this->seedNote('Admin Note');
         $admin = $this->makeUser(id: PHP_INT_MAX, permissions: ['administer notes', 'delete any note content']);
@@ -178,8 +250,8 @@ final class NoteApiIntegrationTest extends TestCase
 
         $doc = $controller->destroy('note', $note->id());
 
-        // core.note is unconditionally non-deletable
-        $this->assertSame(403, $doc->statusCode);
+        $this->assertSame(204, $doc->statusCode);
+        $this->assertNull($this->storage->load($note->id()));
     }
 
     // -----------------------------------------------------------------------
@@ -285,5 +357,14 @@ class NoteInMemoryStorage extends InMemoryEntityStorage
     public function getEntityTypeId(): string
     {
         return 'note';
+    }
+}
+
+/** In-memory API storage that constructs the real User identity shape. */
+final class UserInMemoryStorage extends InMemoryEntityStorage
+{
+    public function create(array $values = []): EntityInterface
+    {
+        return new User($values);
     }
 }

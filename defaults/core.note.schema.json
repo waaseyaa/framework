@@ -29,6 +29,11 @@
       "description": "Note body. Plain text or Markdown.",
       "default": ""
     },
+    "uid": {
+      "type": "integer",
+      "description": "Server-attributed author user ID. Read-only.",
+      "readOnly": true
+    },
     "created_at": {
       "type": "string",
       "format": "date-time",

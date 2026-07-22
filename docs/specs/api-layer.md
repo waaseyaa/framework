@@ -1,5 +1,7 @@
 # API Layer
 
+<!-- Spec reviewed 2026-07-21 - #2101 WP-2: JSON:API create attributes an authenticated creator when an entity type declares a non-identity uid authorization-input field and the client omits it. The shape-based rule covers node, media, note, and future authored quick-entry types without a type-id allowlist, while explicitly excluding User.uid and any other identity key. Explicit uid remains subject to the entity type's field policy. -->
+
 <!-- Spec reviewed 2026-07-21 - #2064 media hotfix: controller-dispatched JSON:API 500 responses are generic in every environment. Debug mode may add debug headers and rich HTML error pages on their separate surfaces, but API error bodies never include exception classes, messages, source paths/lines, or stack traces. Full exception detail remains server-side in the configured logger. -->
 <!-- Spec reviewed 2026-07-19 - Sheguiandah Gap 1 (#2078): JsonApiController's UUID lookup is identity resolution, not authorization. It now uses an explicit accessCheck(false) query, matching numeric repository find(); show/update/destroy then apply their existing view/update/delete checks respectively. This lets edit-any/delete-any principals target view-hidden drafts without weakening the read-path 404 oracle. -->
 
