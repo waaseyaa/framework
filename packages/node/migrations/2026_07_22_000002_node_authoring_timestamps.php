@@ -21,35 +21,57 @@ return new class extends Migration {
         }
 
         $connection = $schema->getConnection();
-        $platform = $connection->getDatabasePlatform();
-        $node = $platform->quoteIdentifier('node');
-        $nid = $platform->quoteIdentifier('nid');
-        $dataColumn = $platform->quoteIdentifier('_data');
         $backfillTimestamp = time();
+        $this->repairTable($connection, 'node', ['nid'], $backfillTimestamp);
 
-        foreach ($connection->fetchAllAssociative(sprintf('SELECT %s, %s FROM %s', $nid, $dataColumn, $node)) as $row) {
+        if ($schema->hasTable('node_revision')
+            && $schema->hasColumn('node_revision', '_data')
+            && $schema->hasColumn('node_revision', 'entity_id')
+            && $schema->hasColumn('node_revision', 'revision_id')) {
+            $this->repairTable($connection, 'node_revision', ['entity_id', 'revision_id'], $backfillTimestamp);
+        }
+    }
+
+    /** @param list<string> $identityColumns */
+    private function repairTable(\Doctrine\DBAL\Connection $connection, string $tableName, array $identityColumns, int $backfillTimestamp): void
+    {
+        $platform = $connection->getDatabasePlatform();
+        $table = $platform->quoteIdentifier($tableName);
+        $dataColumn = $platform->quoteIdentifier('_data');
+        $quotedIdentity = array_map($platform->quoteIdentifier(...), $identityColumns);
+        $selectColumns = implode(', ', [...$quotedIdentity, $dataColumn]);
+
+        foreach ($connection->fetchAllAssociative(sprintf('SELECT %s FROM %s', $selectColumns, $table)) as $row) {
             $data = json_decode((string) ($row['_data'] ?? '{}'), true);
             if (!is_array($data)) {
                 continue;
             }
 
-            $changed = false;
-            foreach (['created', 'changed'] as $field) {
-                $value = $data[$field] ?? null;
-                if ($value === null || $value === '' || $value === 0 || $value === '0') {
-                    $data[$field] = $backfillTimestamp;
-                    $changed = true;
-                }
-            }
-            if (!$changed) {
+            $hasCreated = $this->hasTimestamp($data['created'] ?? null);
+            $hasChanged = $this->hasTimestamp($data['changed'] ?? null);
+            if ($hasCreated && $hasChanged) {
                 continue;
             }
 
+            if (!$hasCreated) {
+                $data['created'] = $hasChanged ? $data['changed'] : $backfillTimestamp;
+            }
+            if (!$hasChanged) {
+                $data['changed'] = $data['created'];
+            }
+
+            $where = implode(' AND ', array_map(static fn(string $column): string => $column . ' = ?', $quotedIdentity));
+            $identityValues = array_map(static fn(string $column): mixed => $row[$column], $identityColumns);
             $connection->executeStatement(
-                sprintf('UPDATE %s SET %s = ? WHERE %s = ?', $node, $dataColumn, $nid),
-                [json_encode($data, JSON_THROW_ON_ERROR), $row['nid']],
+                sprintf('UPDATE %s SET %s = ? WHERE %s', $table, $dataColumn, $where),
+                [json_encode($data, JSON_THROW_ON_ERROR), ...$identityValues],
             );
         }
+    }
+
+    private function hasTimestamp(mixed $value): bool
+    {
+        return $value !== null && $value !== '' && $value !== 0 && $value !== '0';
     }
 
     public function down(SchemaBuilder $schema): void
