@@ -56,6 +56,13 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
 {
     public function register(): void
     {
+        $this->singleton(EntityTypeApiExposurePolicy::class, function (): EntityTypeApiExposurePolicy {
+            $manager = $this->resolve(EntityTypeManager::class);
+            \assert($manager instanceof EntityTypeManager);
+
+            return EntityTypeApiExposurePolicy::fromConfig($manager, $this->config);
+        });
+
         // OCAP audit log substrate (ocap-audit-log-substrate-01KSEFTF WP03).
         // Bind the api-local read-model interface to the adapter that bridges
         // L0 audit contracts (AuditQueryInterface) into L4 DTOs.
@@ -90,12 +97,21 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
         }
     }
 
+    public function boot(): void
+    {
+        // Resolve after every provider/app entity registration has completed so
+        // strict allowlist validation fails during kernel boot, before routing.
+        $this->resolve(EntityTypeApiExposurePolicy::class);
+    }
+
     public function httpDomainRouters(HttpKernel $httpKernel): iterable
     {
+        $exposurePolicy = $this->exposurePolicy($httpKernel->getEntityTypeManager());
         $routers = [
             new DiscoveryRouter(
                 $httpKernel->getDiscoveryApiHandler(),
                 $httpKernel->getEntityTypeManager(),
+                $exposurePolicy,
             ),
         ];
 
@@ -231,7 +247,8 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
 
     public function routes(WaaseyaaRouter $router, EntityTypeManager $entityTypeManager): void
     {
-        $jsonApiRouteProvider = new JsonApiRouteProvider($entityTypeManager);
+        $exposurePolicy = $this->exposurePolicy($entityTypeManager);
+        $jsonApiRouteProvider = new JsonApiRouteProvider($entityTypeManager, exposurePolicy: $exposurePolicy);
         $jsonApiRouteProvider->registerRoutes($router);
 
         // CW-v1 WP-4 (#1920): gated on TransitionService resolving — see the
@@ -541,6 +558,19 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
                 ->default('_entity_type', 'retention_policy')
                 ->build(),
         );
+    }
+
+    private function exposurePolicy(EntityTypeManager $entityTypeManager): EntityTypeApiExposurePolicy
+    {
+        $resolved = $this->resolveOptional(EntityTypeApiExposurePolicy::class);
+        if ($resolved instanceof EntityTypeApiExposurePolicy) {
+            return $resolved;
+        }
+
+        // Bare unit construction may invoke routes() without the provider
+        // registration pass. Preserve that supported construction site while
+        // production boot resolves the registered singleton above.
+        return EntityTypeApiExposurePolicy::fromConfig($entityTypeManager, $this->config);
     }
 
     private static function mcpInstalled(): bool

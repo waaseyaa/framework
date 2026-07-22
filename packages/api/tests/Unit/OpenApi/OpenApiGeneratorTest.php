@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Api\Tests\Unit\OpenApi;
 
 use Waaseyaa\Api\OpenApi\OpenApiGenerator;
+use Waaseyaa\Api\EntityTypeApiExposurePolicy;
 use Waaseyaa\Api\OpenApi\SchemaBuilder;
 use Waaseyaa\Api\Tests\Fixtures\NodeContentTestEntity;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
@@ -106,6 +107,38 @@ final class OpenApiGeneratorTest extends TestCase
 
         self::assertInstanceOf(\stdClass::class, $spec['paths']);
         self::assertArrayNotHasKey('FetchLogResource', $spec['components']['schemas']);
+    }
+
+    #[Test]
+    public function application_allowlist_omits_paths_and_components_for_suppressed_types(): void
+    {
+        foreach (['article', 'tag'] as $id) {
+            $this->entityTypeManager->registerEntityType(new EntityType(
+                id: $id,
+                label: ucfirst($id),
+                class: TestEntity::class,
+                keys: TestEntity::definitionKeys(),
+                api: true,
+                _fieldDefinitions: $id === 'article' ? [
+                    'tag' => [
+                        'type' => 'entity_reference',
+                        'settings' => ['target_entity_type_id' => 'tag'],
+                    ],
+                ] : [],
+            ));
+        }
+        $policy = EntityTypeApiExposurePolicy::fromConfig($this->entityTypeManager, [
+            'api' => ['entity_type_allowlist' => ['article']],
+        ]);
+
+        $spec = (new OpenApiGenerator($this->entityTypeManager, exposurePolicy: $policy))->generate();
+        $encoded = json_encode($spec, JSON_THROW_ON_ERROR);
+
+        self::assertArrayHasKey('/api/article', $spec['paths']);
+        self::assertArrayNotHasKey('/api/tag', $spec['paths']);
+        self::assertStringNotContainsString('TagResource', $encoded);
+        self::assertStringNotContainsString('"$ref":"#/components/schemas/Tag', $encoded);
+        self::assertStringNotContainsString('"x-target-type":"tag"', $encoded);
     }
 
     #[Test]

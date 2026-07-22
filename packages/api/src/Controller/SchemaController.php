@@ -6,6 +6,7 @@ namespace Waaseyaa\Api\Controller;
 
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Api\EntityTypeApiExposurePolicy;
 use Waaseyaa\Api\JsonApiDocument;
 use Waaseyaa\Api\JsonApiError;
 use Waaseyaa\Api\Schema\SchemaPresenter;
@@ -45,6 +46,7 @@ final class SchemaController
         private readonly ?EntityAccessHandler $accessHandler = null,
         private readonly ?AccountInterface $account = null,
         ?LoggerInterface $logger = null,
+        private readonly ?EntityTypeApiExposurePolicy $exposurePolicy = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -57,6 +59,13 @@ final class SchemaController
     public function show(string $entityTypeId, ?string $bundle = null): JsonApiDocument
     {
         if (!$this->entityTypeManager->hasDefinition($entityTypeId)) {
+            return JsonApiDocument::fromErrors(
+                [JsonApiError::notFound("Unknown entity type: {$entityTypeId}.")],
+                statusCode: 404,
+            );
+        }
+
+        if ($this->exposurePolicy !== null && !$this->exposurePolicy->isExposed($entityTypeId)) {
             return JsonApiDocument::fromErrors(
                 [JsonApiError::notFound("Unknown entity type: {$entityTypeId}.")],
                 statusCode: 404,

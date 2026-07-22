@@ -25,10 +25,39 @@ new EntityType(
 );
 ```
 
-Requests to a registered type without the opt-in return a JSON:API `404` error
-with code `entity_type_not_api_exposed`; the detail names the missing `api: true`
-flag. Discovery links, workflow sub-routes, and generated OpenAPI paths use the
-same exposure decision.
+Applications may narrow those declarations with an exact closed-world list:
+
+```php
+'api' => [
+    'entity_type_allowlist' => ['event', 'event_type'],
+],
+```
+
+When the key is absent, declaration-only behavior is unchanged. When present,
+only registered, declared-`api: true`, exact listed ids are exposed; `[]`
+suppresses every generic entity route. Unknown, duplicate, malformed, stale, or
+declared-false entries fail boot. The list is intentionally deployment/install-
+shape specific: a full installation and a minimal installation should use
+different lists, and reusing the full list after removing a package is expected
+to fail rather than silently ignore stale ids.
+
+Anonymous and authenticated API requests to registered-but-unexposed types are
+ordinary not-found responses, byte-identical to unregistered types. The complete
+installed-type catalogue is available only to administrators at
+`GET /api/entity-types`. CRUD, field auto-save, translations, workflow sub-
+routes, discovery, entity schema, and OpenAPI share the effective decision.
+Query/include relationship traversal into a suppressed type fails as an unknown
+path before storage.
+
+### Package declaration downgrade
+
+Changing a shipped type from `api: true` to `api: false` can make a consumer's
+strict allowlist fail boot. A framework/package release making that change must
+carry a consumer-breaking `[Unreleased]` changelog entry naming the type and
+upgrade guidance instructing consumers to remove the id before or with the
+dependency upgrade. The stale entry is not ignored: strict failure is the guard
+against an operator believing a route remains exposed when its package withdrew
+support.
 
 ## In-house consumer migration
 

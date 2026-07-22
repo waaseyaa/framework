@@ -9,8 +9,14 @@ use Waaseyaa\Entity\EntityTypeInterface;
 
 final class EntityTypeApiExposure
 {
-    public static function isExposed(EntityTypeInterface $entityType): bool
-    {
+    public static function isExposed(
+        EntityTypeInterface $entityType,
+        ?EntityTypeApiExposurePolicy $policy = null,
+    ): bool {
+        if ($policy !== null) {
+            return $policy->isExposed($entityType);
+        }
+
         return $entityType instanceof ApiExposableEntityTypeInterface
             && $entityType->isApiExposed();
     }

@@ -30,6 +30,8 @@ final class BuiltinRouteRegistrarTest extends TestCase
         $this->assertNull($routes->get('api.schema.show'), 'api.schema.show belongs to the api package now, not to the bare registrar.');
         $this->assertNotNull($routes->get('api.openapi'));
         $this->assertNotNull($routes->get('api.entity_types'));
+        $this->assertSame('admin', $routes->get('api.entity_types')?->getOption('_role'));
+        $this->assertFalse((bool) $routes->get('api.entity_types')?->getOption('_public'));
         $this->assertNotNull($routes->get('api.entity_types.disable'));
         $this->assertNotNull($routes->get('api.entity_types.enable'));
         $this->assertNotNull($routes->get('api.broadcast'));

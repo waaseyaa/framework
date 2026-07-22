@@ -1252,6 +1252,7 @@ final class JsonApiRouteProvider
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly string $basePath = '/api',
+        private readonly ?EntityTypeApiExposurePolicy $exposurePolicy = null,
     ) {}
 
     public function registerRoutes(WaaseyaaRouter $router): void;
@@ -1259,13 +1260,45 @@ final class JsonApiRouteProvider
 ```
 
 Registers a single public discovery route plus generic routes only for entity
-types that deliberately opt in through `ApiExposableEntityTypeInterface`.
-`EntityType` sources that value from `api: true` on `#[ContentEntityType]` or
-the imperative constructor. The default is false. Registered unexposed types
-receive diagnostic-only routes that return `entity_type_not_api_exposed` and
-name the required flag; they receive no CRUD, field auto-save, translation, or
-workflow routes. Discovery and OpenAPI apply the same predicate. The discovery
-route is always registered, even when no entity types are exposed.
+types that deliberately opt in through `ApiExposableEntityTypeInterface` and
+remain enabled by the boot-scoped `EntityTypeApiExposurePolicy`. `EntityType`
+sources the capability ceiling from `api: true` on `#[ContentEntityType]` or the
+imperative constructor; the default is false. If `api.entity_type_allowlist` is
+absent, behavior is unchanged. If present (including `[]`), it is a closed-world
+exact-id list and the effective predicate is `registered && declared api:true &&
+allowlisted`. It may narrow but never elevate package/app metadata.
+
+The allowlist is validated after provider/app entity registration and before
+HTTP serving. It must be a duplicate-free list of non-empty registered ids whose
+canonical declaration is `api: true`; unknown, malformed, duplicate, stale, or
+declared-false entries abort boot with one bounded id/reason diagnostic. This is
+intentionally per install shape: removing an optional package requires removing
+its ids from that deployment's list. Reusing a full-install config unchanged on
+a minimal install is expected to fail.
+
+Effectively unexposed types receive no CRUD, field auto-save, translation, or
+workflow controller routes. Anonymous and authenticated API callers receive the
+ordinary not-found response byte-identically to an unregistered type; no
+exposure-specific code or package-registration fact appears on the generic API.
+Operator visibility belongs to the admin-only entity-type catalogue. Discovery,
+entity schema, and OpenAPI apply the same predicate. The discovery envelope
+remains registered even when the effective exposed set is empty.
+
+Filter, sort, and include validation runs before storage. Dotted relationship
+paths are currently unsupported and rejected generically; include paths are
+resolved segment-by-segment and a path reaching an unknown or effectively
+unexposed target is byte-indistinguishable from an unknown relationship path on
+both collection and single-resource reads. Before reading any field value, the
+resource serializer omits entity-reference fields whose target type is not
+effectively exposed; this prevents an attribute, linkage object, type, id, link,
+count, or existence flag from disclosing the suppressed target. Entity schema
+likewise omits `x-target-type` for such reference edges.
+The adapter currently ships no related-resource or relationship-linkage route,
+so both remain ordinary route-not-found surfaces and cannot hydrate linkage.
+If those route families or compound serialization are added later, every target
+edge must reapply the same effective policy before load and serialization.
+OpenAPI starts only from effective roots and emits no paths or components for a
+suppressed target.
 
 Route construction may reuse a bounded process-lifetime structural template.
 The key contains the configured base path, the sorted exact map of entity type
@@ -1274,10 +1307,10 @@ requested. A changed id, exposure decision, base path, or route family is a
 cache miss. The cache retains at most two template sets and every registration
 clones each `Route` into a fresh `WaaseyaaRouter` and fresh mutable route
 collection, so one kernel cannot mutate another kernel's routes. Templates may
-contain controller strings and diagnostic closures whose only capture is the
-entity type id; they contain no request, account, entity, authorization
-decision, provider/service instance, runtime-bound controller, router, matcher,
-generator, or mutable route collection. Route access options are cloned
+contain controller strings and opaque not-found closures, but the closures
+capture no state and templates contain no request, account, entity,
+authorization decision, provider/service instance, runtime-bound controller,
+router, matcher, generator, or mutable route collection. Route access options are cloned
 unchanged, so template reuse does not weaken route authorization or turn a
 missing/changed structural key into a permissive fallback.
 
@@ -1302,6 +1335,7 @@ final class ApiDiscoveryController
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly string $basePath = '/api',
         private readonly ?AccountInterface $account = null,
+        private readonly ?EntityTypeApiExposurePolicy $exposurePolicy = null,
     ) {}
 
     /**
@@ -1323,7 +1357,8 @@ Returns a JSON:API-style discovery document. Since mission request-surface-harde
 Visibility decision per type:
 
 ```
-listed(type, account) = isDiscoverableDuckTyped(type)   // false → hidden from EVERYONE, admin included
+listed(type, account) = effectivelyApiExposed(type)
+                      ∧ isDiscoverableDuckTyped(type)   // false → hidden from EVERYONE, admin included
                       ∧ account !== null
                       ∧ account->isAuthenticated()      // anonymous/absent → zero type links (fail closed)
 ```
@@ -1336,7 +1371,7 @@ listed(type, account) = isDiscoverableDuckTyped(type)   // false → hidden from
 Invariants enforced by the integration test (`tests/Integration/Phase7/ApiDiscoveryIntegrationTest.php`):
 - `links.self` is always present, for every caller.
 - `links.{type}.href` always equals the collection path served by `api.{type}.index`.
-- For an **authenticated** caller, the entry set in `links` (excluding `self`) is exactly the set of registered *discoverable* entity type ids — no more, no less.
+- For an **authenticated** caller, the entry set in `links` (excluding `self`) is exactly the set of effectively exposed, registered *discoverable* entity type ids — no more, no less.
 - For an **anonymous** caller, `links` collapses to `['self' => $basePath]` regardless of registered types.
 - When zero entity types are registered, `links` collapses to `['self' => $basePath]` for every caller.
 - The route shape (`_public`, path, methods) is unchanged.
@@ -1345,9 +1380,9 @@ The route is dispatched by `JsonApiRouteProvider`'s `api.discovery` registration
 
 #### Schema self-description surface requires authentication
 
-`GET /api/openapi.json` and `GET /api/schema/{entity_type}` **require authentication** (`_authenticated`), so `AccessChecker` returns `unauthenticated` and `AuthorizationMiddleware` 401s an anonymous caller. `/api/openapi.json` is registered by foundation's `BuiltinRouteRegistrar`; `/api/schema/{entity_type}` is registered by `ApiServiceProvider::routes()` (moved in WP5). They are the self-description of an API whose data routes are already auth-gated, and (per the field-access caveat below) they over-disclosed instance-state-gated field *definitions* to anonymous; gating them closes that for unauthenticated callers and is consistent with #1649's auth-gating of the `GET /api` discovery index. Pinned by `tests/Integration/SchemaSurfaceRequiresAuthTest`.
+`GET /api/openapi.json` and `GET /api/schema/{entity_type}` **require authentication** (`_authenticated`), so `AccessChecker` returns `unauthenticated` and `AuthorizationMiddleware` 401s an anonymous caller. `/api/openapi.json` is registered by foundation's `BuiltinRouteRegistrar`; `/api/schema/{entity_type}` is registered by `ApiServiceProvider::routes()` (moved in WP5). They are also constrained by the effective exposure policy: OpenAPI omits suppressed roots/components and schema treats a suppressed type exactly like an unregistered type. They are the self-description of an API whose data routes are already auth-gated, and (per the field-access caveat below) they over-disclosed instance-state-gated field *definitions* to anonymous; gating them closes that for unauthenticated callers and is consistent with #1649's auth-gating of the `GET /api` discovery index. Pinned by `tests/Integration/SchemaSurfaceRequiresAuthTest` and the #2115 exposure-policy tests.
 
-`/api/entity-types` remains registered option-less (anonymous-reachable, enumerates entity type ids only — no field definitions); it is the remaining adjacent enumeration surface and a separate, narrower decision (type-id secrecy) left for a follow-up. Do not assume anonymous type-id secrecy on `/api/entity-types` until that lands.
+`/api/entity-types` is an operator catalogue and requires the `admin` role. It is not an anonymous package-enumeration surface; suppressed and unregistered type probes remain indistinguishable to unauthenticated callers. Operator diagnostics and the complete installed-type catalogue belong on this admin surface, not in anonymous JSON:API responses.
 
 **Schema field-access caveat (D-16).** `GET /api/schema/{entity_type}` filters field visibility (`x-access-restricted`, view-denied removal) by running `SchemaPresenter::present()` against a *prototype* entity — `SchemaController::show()` constructs a bare `new $class([...])` carrying only the requested bundle key, with no field values. The rendered field set therefore reflects only **static, type/bundle-level** `FieldAccessPolicy` decisions; instance-level gates (owner-only fields, row-state/workflow gates) cannot be evaluated and are not represented. The surface is now authenticated (above), so this static-contract exposure is limited to authenticated callers — but consumers (admin SPA, agents) must still treat the schema's field visibility as a static contract, not a per-record access oracle: actual per-record field access is enforced separately at the JSON:API serializer boundary.
 

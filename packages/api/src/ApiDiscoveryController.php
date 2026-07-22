@@ -21,6 +21,7 @@ final class ApiDiscoveryController
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly string $basePath = '/api',
         private readonly ?AccountInterface $account = null,
+        private readonly ?EntityTypeApiExposurePolicy $exposurePolicy = null,
     ) {}
 
     /**
@@ -38,7 +39,7 @@ final class ApiDiscoveryController
 
         if ($this->account?->isAuthenticated() === true) {
             foreach ($this->entityTypeManager->getDefinitions() as $id => $definition) {
-                if (!EntityTypeApiExposure::isExposed($definition)) {
+                if (!EntityTypeApiExposure::isExposed($definition, $this->exposurePolicy)) {
                     continue;
                 }
                 if (method_exists($definition, 'isDiscoverable') && !$definition->isDiscoverable()) {

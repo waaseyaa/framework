@@ -690,8 +690,12 @@ valid and wins before auto-registration. `#[AsEntityType]` plus
 
 The attribute's `api` flag defaults to `false`. `EntityType` implements
 `ApiExposableEntityTypeInterface`; generic API routing is enabled only when that
-capability returns true. Raw `new EntityType(..., api: true)` registration is the
-imperative escape hatch for dynamic or conditional definitions.
+capability returns true and the application-level API exposure policy does not
+narrow it. Raw `new EntityType(..., api: true)` registration is the imperative
+escape hatch for dynamic or conditional definitions; it is still only a
+capability ceiling, never a bypass of `api.entity_type_allowlist`. The effective
+policy belongs to the API adapter and does not mutate or replace the canonical
+entity definition.
 
 ## Known Transitional Gaps (M1)
 

@@ -29,7 +29,21 @@ final class QueryParser
             offset: $this->parseOffset($query),
             limit: $this->parseLimit($query),
             sparseFieldsets: $this->parseSparseFieldsets($query),
+            includes: $this->parseIncludes($query),
         );
+    }
+
+    /** @return list<string> */
+    private function parseIncludes(array $query): array
+    {
+        if (!isset($query['include']) || !is_string($query['include'])) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_map('trim', explode(',', $query['include'])),
+            static fn(string $path): bool => $path !== '',
+        ));
     }
 
     /**

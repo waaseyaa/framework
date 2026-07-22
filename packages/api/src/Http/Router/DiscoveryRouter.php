@@ -7,6 +7,7 @@ namespace Waaseyaa\Api\Http\Router;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Api\ApiDiscoveryController;
+use Waaseyaa\Api\EntityTypeApiExposurePolicy;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityValues;
@@ -21,6 +22,7 @@ final class DiscoveryRouter implements DomainRouterInterface
     public function __construct(
         private readonly DiscoveryApiHandler $discoveryHandler,
         private readonly EntityTypeManager $entityTypeManager,
+        private readonly ?EntityTypeApiExposurePolicy $exposurePolicy = null,
     ) {}
 
     /**
@@ -68,7 +70,11 @@ final class DiscoveryRouter implements DomainRouterInterface
         $params = $request->attributes->all();
 
         if (str_contains($controller, 'ApiDiscoveryController')) {
-            $discoveryController = new ApiDiscoveryController($this->entityTypeManager, account: $ctx->principal);
+            $discoveryController = new ApiDiscoveryController(
+                $this->entityTypeManager,
+                account: $ctx->principal,
+                exposurePolicy: $this->exposurePolicy,
+            );
             $result = $discoveryController->discover();
 
             return $this->jsonApiResponse(200, ['jsonapi' => ['version' => '1.1'], ...$result]);

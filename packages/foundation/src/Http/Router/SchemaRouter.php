@@ -8,6 +8,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Controller\SchemaController;
+use Waaseyaa\Api\EntityTypeApiExposurePolicy;
 use Waaseyaa\Api\OpenApi\OpenApiGenerator;
 use Waaseyaa\Api\Schema\SchemaPresenter;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -22,6 +23,7 @@ final class SchemaRouter implements DomainRouterInterface
         private readonly EntityTypeManager $entityTypeManager,
         private readonly EntityAccessHandler $accessHandler,
         private readonly ?FieldDefinitionRegistryInterface $fieldDefinitionRegistry = null,
+        private readonly ?EntityTypeApiExposurePolicy $exposurePolicy = null,
     ) {}
 
     public function supports(Request $request): bool
@@ -35,13 +37,19 @@ final class SchemaRouter implements DomainRouterInterface
         $controller = $request->attributes->get('_controller', '');
 
         if ($controller === 'openapi') {
-            $openApi = new OpenApiGenerator($this->entityTypeManager);
+            $openApi = new OpenApiGenerator($this->entityTypeManager, exposurePolicy: $this->exposurePolicy);
             return $this->jsonApiResponse(200, $openApi->generate());
         }
 
         $ctx = WaaseyaaContext::fromRequest($request);
-        $schemaPresenter = new SchemaPresenter($this->fieldDefinitionRegistry);
-        $schemaController = new SchemaController($this->entityTypeManager, $schemaPresenter, $this->accessHandler, $ctx->principal);
+        $schemaPresenter = new SchemaPresenter($this->fieldDefinitionRegistry, $this->exposurePolicy);
+        $schemaController = new SchemaController(
+            $this->entityTypeManager,
+            $schemaPresenter,
+            $this->accessHandler,
+            $ctx->principal,
+            exposurePolicy: $this->exposurePolicy,
+        );
         $bundle = $request->query->get('bundle');
         $document = $schemaController->show(
             $request->attributes->get('entity_type'),

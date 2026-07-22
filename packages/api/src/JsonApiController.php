@@ -45,6 +45,7 @@ final class JsonApiController
         private readonly ResourceSerializer $serializer,
         private readonly ?EntityAccessHandler $accessHandler = null,
         private readonly ?AccountInterface $account = null,
+        private readonly ?EntityTypeApiExposurePolicy $exposurePolicy = null,
     ) {}
 
     /**
@@ -55,10 +56,9 @@ final class JsonApiController
      */
     public function index(string $entityTypeId, array $query = []): JsonApiDocument
     {
-        if (!$this->entityTypeManager->hasDefinition($entityTypeId)) {
-            return $this->errorDocument(
-                JsonApiError::notFound("Unknown entity type: {$entityTypeId}."),
-            );
+        $exposureError = $this->entityTypeExposureError($entityTypeId);
+        if ($exposureError !== null) {
+            return $exposureError;
         }
 
         // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
@@ -357,10 +357,15 @@ final class JsonApiController
      */
     public function show(string $entityTypeId, int|string $id, array $query = []): JsonApiDocument
     {
-        if (!$this->entityTypeManager->hasDefinition($entityTypeId)) {
-            return $this->errorDocument(
-                JsonApiError::notFound("Unknown entity type: {$entityTypeId}."),
-            );
+        $exposureError = $this->entityTypeExposureError($entityTypeId);
+        if ($exposureError !== null) {
+            return $exposureError;
+        }
+
+        $parsedQuery = new QueryParser()->parse($query);
+        $queryFieldError = $this->validateQueryFields($parsedQuery, $entityTypeId);
+        if ($queryFieldError !== null) {
+            return $queryFieldError;
         }
 
         $entity = $this->loadByIdOrUuid($entityTypeId, $id);
@@ -405,7 +410,6 @@ final class JsonApiController
         $resource = $this->serializer->serialize($entity, $this->accessHandler, $this->account);
 
         // Apply sparse fieldsets per JSON:API spec (attributes and relationships).
-        $parsedQuery = new QueryParser()->parse($query);
         if (isset($parsedQuery->sparseFieldsets[$entityTypeId])) {
             $allowedFields = $parsedQuery->sparseFieldsets[$entityTypeId];
             $resource = SparseFieldsetApplicator::apply($resource, $allowedFields);
@@ -450,10 +454,9 @@ final class JsonApiController
      */
     public function store(string $entityTypeId, array $data): JsonApiDocument
     {
-        if (!$this->entityTypeManager->hasDefinition($entityTypeId)) {
-            return $this->errorDocument(
-                JsonApiError::notFound("Unknown entity type: {$entityTypeId}."),
-            );
+        $exposureError = $this->entityTypeExposureError($entityTypeId);
+        if ($exposureError !== null) {
+            return $exposureError;
         }
 
         // Validate request data structure.
@@ -660,10 +663,9 @@ final class JsonApiController
      */
     public function update(string $entityTypeId, int|string $id, array $data): JsonApiDocument
     {
-        if (!$this->entityTypeManager->hasDefinition($entityTypeId)) {
-            return $this->errorDocument(
-                JsonApiError::notFound("Unknown entity type: {$entityTypeId}."),
-            );
+        $exposureError = $this->entityTypeExposureError($entityTypeId);
+        if ($exposureError !== null) {
+            return $exposureError;
         }
 
         $entity = $this->loadByIdOrUuid($entityTypeId, $id);
@@ -1006,10 +1008,9 @@ final class JsonApiController
      */
     public function destroy(string $entityTypeId, int|string $id): JsonApiDocument
     {
-        if (!$this->entityTypeManager->hasDefinition($entityTypeId)) {
-            return $this->errorDocument(
-                JsonApiError::notFound("Unknown entity type: {$entityTypeId}."),
-            );
+        $exposureError = $this->entityTypeExposureError($entityTypeId);
+        if ($exposureError !== null) {
+            return $exposureError;
         }
 
         $entity = $this->loadByIdOrUuid($entityTypeId, $id);
@@ -1113,18 +1114,67 @@ final class JsonApiController
         };
 
         foreach ($parsedQuery->filters as $filter) {
+            if (str_contains($filter->field, '.')) {
+                return $this->errorDocument(JsonApiError::badRequest('Cannot filter by the requested field path.'));
+            }
             if ($isRejected($filter->field)) {
                 return $this->errorDocument(JsonApiError::badRequest("Cannot filter by field '{$filter->field}'."));
             }
         }
 
         foreach ($parsedQuery->sorts as $sort) {
+            if (str_contains($sort->field, '.')) {
+                return $this->errorDocument(JsonApiError::badRequest('Cannot sort by the requested field path.'));
+            }
             if ($isRejected($sort->field)) {
                 return $this->errorDocument(JsonApiError::badRequest("Cannot sort by field '{$sort->field}'."));
             }
         }
 
+        foreach ($parsedQuery->includes as $include) {
+            if (!$this->isAllowedIncludePath($entityTypeId, $include)) {
+                return $this->errorDocument(JsonApiError::badRequest('Cannot include the requested relationship path.'));
+            }
+        }
+
         return null;
+    }
+
+    private function isAllowedIncludePath(string $sourceTypeId, string $path): bool
+    {
+        $currentTypeId = $sourceTypeId;
+        foreach (explode('.', $path) as $segment) {
+            if ($segment === '') {
+                return false;
+            }
+            $definitions = $this->entityTypeManager->resolveFieldDefinitions($currentTypeId);
+            $definition = $definitions[$segment] ?? null;
+            if ($definition === null || $definition->getType() !== 'entity_reference') {
+                return false;
+            }
+            $target = $definition->getSetting('target_entity_type_id')
+                ?? $definition->getSetting('target_type');
+            if (!is_string($target) || $target === '' || !$this->entityTypeManager->hasDefinition($target)) {
+                return false;
+            }
+            if ($this->exposurePolicy !== null && !$this->exposurePolicy->isExposed($target)) {
+                return false;
+            }
+            $currentTypeId = $target;
+        }
+
+        return true;
+    }
+
+    private function entityTypeExposureError(string $entityTypeId): ?JsonApiDocument
+    {
+        if (!$this->entityTypeManager->hasDefinition($entityTypeId)) {
+            return $this->errorDocument(JsonApiError::notFound("Unknown entity type: {$entityTypeId}."));
+        }
+        if ($this->exposurePolicy === null || $this->exposurePolicy->isExposed($entityTypeId)) {
+            return null;
+        }
+        return $this->errorDocument(JsonApiError::notFound("Unknown entity type: {$entityTypeId}."));
     }
 
     /**

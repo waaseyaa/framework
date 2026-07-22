@@ -46,7 +46,7 @@ final class BuiltinRouteRegistrar
             RouteBuilder::create('/api/entity-types')
                 ->controller('entity_types')
                 ->methods('GET')
-                ->allowAll()
+                ->requireRole('admin')
                 ->build(),
         );
 

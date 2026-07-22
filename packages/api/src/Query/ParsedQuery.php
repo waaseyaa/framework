@@ -15,6 +15,7 @@ final readonly class ParsedQuery
      * @param int|null               $offset          Pagination offset.
      * @param int|null               $limit           Pagination limit.
      * @param array<string, list<string>> $sparseFieldsets Sparse fieldsets keyed by resource type.
+     * @param list<string> $includes Relationship paths requested for compound documents.
      */
     public function __construct(
         public array $filters = [],
@@ -22,5 +23,6 @@ final readonly class ParsedQuery
         public ?int $offset = null,
         public ?int $limit = null,
         public array $sparseFieldsets = [],
+        public array $includes = [],
     ) {}
 }

@@ -40,6 +40,16 @@ return [
     'jwt_secret' => getenv('WAASEYAA_JWT_SECRET') ?: '',
     // API key map: raw key => uid. Example: ['dev-machine-key' => 1].
     'api_keys' => [],
+
+    // Optional closed-world generic JSON:API entity-type policy. When this key
+    // is absent, package/app `api: true` declarations retain their current
+    // behavior. To narrow a deployment, uncomment it and list every exact
+    // registered type the generic adapter may expose. The list cannot elevate
+    // `api: false`, and stale/unknown ids fail boot intentionally.
+    // 'api' => [
+    //     'entity_type_allowlist' => ['node', 'node_type', 'media'],
+    // ],
+
     // Dev-only fallback account for local built-in server workflows.
     // Must remain false outside local development.
     'auth' => [

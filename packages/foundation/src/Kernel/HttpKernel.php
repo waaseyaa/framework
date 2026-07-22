@@ -14,6 +14,7 @@ use Waaseyaa\Access\ErrorPageRendererInterface;
 use Waaseyaa\Access\Gate\EntityAccessGate;
 use Waaseyaa\Access\Middleware\AuthorizationMiddleware;
 use Waaseyaa\Api\Controller\BroadcastStorage;
+use Waaseyaa\Api\EntityTypeApiExposurePolicy;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\Cache\Backend\DatabaseBackend;
 use Waaseyaa\Cache\CacheBackendInterface;
@@ -508,11 +509,19 @@ final class HttpKernel extends AbstractKernel
      */
     private function buildRouterChain(): ControllerDispatcher
     {
+        $resolvedExposurePolicy = $this->getHttpServiceResolver()->resolve(EntityTypeApiExposurePolicy::class);
+        $exposurePolicy = $resolvedExposurePolicy instanceof EntityTypeApiExposurePolicy
+            ? $resolvedExposurePolicy
+            : null;
         $foundationRouters = [
-            new HttpRouter\TranslationRouter($this->entityTypeManager, $this->accessHandler),
-            new HttpRouter\JsonApiRouter($this->entityTypeManager, $this->accessHandler),
+            new HttpRouter\TranslationRouter($this->entityTypeManager, $this->accessHandler, $exposurePolicy),
+            new HttpRouter\JsonApiRouter(
+                $this->entityTypeManager,
+                $this->accessHandler,
+                exposurePolicy: $exposurePolicy,
+            ),
             new HttpRouter\EntityTypeLifecycleRouter($this->entityTypeManager, $this->lifecycleManager),
-            new HttpRouter\SchemaRouter($this->entityTypeManager, $this->accessHandler, $this->fieldRegistry),
+            new HttpRouter\SchemaRouter($this->entityTypeManager, $this->accessHandler, $this->fieldRegistry, $exposurePolicy),
             new HttpRouter\WorkflowDefinitionsApiRouter(),
             new HttpRouter\SearchRouter($this->config, $this->database, $this->entityTypeManager, $this->accessHandler),
         ];

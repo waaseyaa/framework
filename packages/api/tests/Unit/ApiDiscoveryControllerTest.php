@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Api\ApiDiscoveryController;
+use Waaseyaa\Api\EntityTypeApiExposurePolicy;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 
@@ -30,6 +31,25 @@ final class ApiDiscoveryControllerTest extends TestCase
         $this->assertArrayHasKey('tag', $doc['links']);
         $this->assertSame('/api/tag', $doc['links']['tag']['href']);
         $this->assertArrayHasKey('self', $doc['links']);
+    }
+
+    #[Test]
+    public function discover_uses_the_application_allowlist(): void
+    {
+        $manager = $this->createManagerWithArticleAndTag();
+        $policy = EntityTypeApiExposurePolicy::fromConfig($manager, [
+            'api' => ['entity_type_allowlist' => ['article']],
+        ]);
+
+        $doc = (new ApiDiscoveryController(
+            $manager,
+            '/api',
+            $this->authenticatedAccount(),
+            $policy,
+        ))->discover();
+
+        self::assertArrayHasKey('article', $doc['links']);
+        self::assertArrayNotHasKey('tag', $doc['links']);
     }
 
     #[Test]

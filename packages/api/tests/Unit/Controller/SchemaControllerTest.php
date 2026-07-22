@@ -10,6 +10,7 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Api\Controller\SchemaController;
+use Waaseyaa\Api\EntityTypeApiExposurePolicy;
 use Waaseyaa\Api\Schema\SchemaPresenter;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Api\Tests\Fixtures\NodeNidContentTestEntity;
@@ -73,6 +74,37 @@ final class SchemaControllerTest extends TestCase
         $this->assertSame('object', $schema['type']);
         $this->assertSame('article', $schema['x-entity-type']);
         $this->assertTrue($schema['x-translatable']);
+    }
+
+    #[Test]
+    public function application_suppressed_type_is_indistinguishable_from_an_unknown_type(): void
+    {
+        $this->entityTypeManager->registerEntityType(new EntityType(
+            id: 'tag',
+            label: 'Tag',
+            class: TestEntity::class,
+            keys: TestEntity::definitionKeys(),
+            api: true,
+        ));
+        $policy = EntityTypeApiExposurePolicy::fromConfig($this->entityTypeManager, [
+            'api' => ['entity_type_allowlist' => ['tag']],
+        ]);
+        $controller = new SchemaController(
+            $this->entityTypeManager,
+            new SchemaPresenter(),
+            exposurePolicy: $policy,
+        );
+
+        $doc = $controller->show('article');
+        $unregistered = new SchemaController(
+            new EntityTypeManager(new EventDispatcher()),
+            new SchemaPresenter(),
+        );
+        $unknown = $unregistered->show('article');
+
+        self::assertSame(404, $doc->statusCode);
+        self::assertSame($unknown->toArray(), $doc->toArray());
+        self::assertArrayNotHasKey('code', $doc->toArray()['errors'][0]);
     }
 
     #[Test]
