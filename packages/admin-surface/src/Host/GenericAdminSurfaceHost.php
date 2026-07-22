@@ -19,6 +19,8 @@ use Waaseyaa\Api\JsonApiResource;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Api\Schema\SchemaPresenter;
 use Waaseyaa\Entity\ConfigEntityBase;
+use Waaseyaa\Entity\DateTime\EntityClockInterface;
+use Waaseyaa\Entity\DateTime\UtcEntityClock;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\SlugGenerator;
@@ -56,6 +58,8 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
     /** @var array<string, SurfaceActionHandlerInterface> */
     protected array $actions = [];
 
+    private readonly EntityClockInterface $clock;
+
     /**
      * @param string[]          $readOnlyTypes Entity type IDs that should be read-only in the admin
      * @param array<string, bool> $features Installed capabilities exposed to the SPA session
@@ -72,7 +76,10 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         private readonly ?WorkflowBindingResolver $workflowBindingResolver = null,
         private readonly array $features = [],
         private readonly array $internalFieldsByType = [],
-    ) {}
+        ?EntityClockInterface $clock = null,
+    ) {
+        $this->clock = $clock ?? new UtcEntityClock();
+    }
 
     public function resolveSession(Request $request): ?AdminSurfaceSessionData
     {
@@ -843,6 +850,16 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         $attributes = $payload['attributes'] ?? [];
         if (!is_array($attributes)) {
             return AdminSurfaceResultData::error(422, 'Unprocessable', 'Create attributes must be an object.');
+        }
+
+        if ($type === 'node') {
+            $now = $this->clock->now()->getTimestamp();
+            if (!isset($attributes['created']) || $attributes['created'] === '' || $attributes['created'] === 0 || $attributes['created'] === '0') {
+                $attributes['created'] = $now;
+            }
+            // Last-updated is server-owned at creation even if a client echoes
+            // a stale/default value from a schema-generated form.
+            $attributes['changed'] = $now;
         }
 
         $presenter = $this->schemaPresenter ?? new SchemaPresenter();

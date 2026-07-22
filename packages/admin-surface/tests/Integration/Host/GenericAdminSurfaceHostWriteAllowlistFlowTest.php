@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AdminSurface\Tests\Integration\Host;
 
+use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -22,6 +23,7 @@ use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\Storage\MemoryStorage;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityReadRuntime;
+use Waaseyaa\Entity\DateTime\FixedEntityClock;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
@@ -57,6 +59,67 @@ use Waaseyaa\Workflows\WorkflowServiceProvider;
 #[CoversNothing]
 final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
 {
+    #[Test]
+    public function browserCreatedNodeReceivesServerTimestampsAndSortsFirst(): void
+    {
+        [$entityTypeManager, , , $accountContext, $setAccessHandler] = $this->bootWiredProviders();
+        $admin = $this->account(42, ['administer content', 'administer nodes', 'access content']);
+        $accountContext->set($admin);
+        $accessHandler = new EntityAccessHandler([new NodeAccessPolicy()]);
+        $setAccessHandler($accessHandler);
+
+        $older = new Node([
+            'title' => 'Older imported post',
+            'type' => 'article',
+            'slug' => 'older-imported-post',
+            'created' => 1_700_000_000,
+            'changed' => 1_700_000_000,
+        ]);
+        $older->enforceIsNew();
+        $entityTypeManager->getRepository('node')->save($older);
+
+        $host = new GenericAdminSurfaceHost(
+            $entityTypeManager,
+            $accessHandler,
+            clock: new FixedEntityClock(new DateTimeImmutable('2026-07-22T14:15:16+00:00')),
+        );
+        $sessionRequest = Request::create('/admin');
+        $sessionRequest->attributes->set('_account', $admin);
+        self::assertNotNull($host->resolveSession($sessionRequest));
+
+        $scope = new AccountFieldReadScope();
+        EntityReadRuntime::installGuard(new FieldReadGuard($scope, $accessHandler->checkProtectedFieldRead(...)));
+        try {
+            $created = $scope->run($admin, fn() => $host->action('node', 'create', ['attributes' => [
+                'title' => 'Fresh browser post',
+                'type' => 'article',
+                'slug' => 'fresh-browser-post',
+            ]]));
+
+            self::assertTrue($created->ok, json_encode($created->error));
+            self::assertSame('2026-07-22T14:15:16+00:00', $created->data['attributes']['created']);
+            self::assertSame('2026-07-22T14:15:16+00:00', $created->data['attributes']['changed']);
+
+            $listRequest = Request::create('/admin/_surface/node?sort=-created', 'GET');
+            $listRequest->attributes->set('_account', $admin);
+            $listed = $scope->run($admin, fn(): array => $host->handleList($listRequest, 'node'));
+            self::assertTrue($listed['ok'], json_encode($listed));
+            self::assertSame('Fresh browser post', $listed['data']['entities'][0]['attributes']['title']);
+
+            $backdated = $scope->run($admin, fn() => $host->action('node', 'create', ['attributes' => [
+                'title' => 'Backdated browser post',
+                'type' => 'article',
+                'slug' => 'backdated-browser-post',
+                'created' => '2020-01-02T03:04:05+00:00',
+            ]]));
+            self::assertTrue($backdated->ok, json_encode($backdated->error));
+            self::assertSame('2020-01-02T03:04:05+00:00', $backdated->data['attributes']['created']);
+            self::assertSame('2026-07-22T14:15:16+00:00', $backdated->data['attributes']['changed']);
+        } finally {
+            EntityReadRuntime::installGuard(null);
+        }
+    }
+
     #[Test]
     public function browserShapedNodeListQueryPagesSortsAndFiltersMigratedRows(): void
     {
