@@ -140,8 +140,11 @@ describe('SchemaList Wayfinding anchor groundwork', () => {
 })
 
 describe('SchemaList delete error surfacing (D7)', () => {
-  it('shows a delete failure inline without blanking the table', async () => {
-    removeMock.mockRejectedValueOnce({ message: 'Not found' })
+  it('shows the real admin-surface refusal detail inline without blanking the table', async () => {
+    removeMock.mockRejectedValueOnce({
+      message: 'Conflict',
+      detail: 'Vocabulary cannot be deleted because it contains terms.',
+    })
 
     const wrapper = await mountList()
     await wrapper.get('button.btn-danger').trigger('click')
@@ -153,6 +156,7 @@ describe('SchemaList delete error surfacing (D7)', () => {
     const notice = wrapper.find('.error--inline')
     expect(notice.exists()).toBe(true)
     expect(notice.text()).toContain('error_deleting')
+    expect(notice.text()).toContain('Vocabulary cannot be deleted because it contains terms.')
     // ...and the table is NOT replaced by a full-page error (the D7 symptom).
     expect(wrapper.find('.entity-table').exists()).toBe(true)
   })

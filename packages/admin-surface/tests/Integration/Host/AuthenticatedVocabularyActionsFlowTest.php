@@ -198,9 +198,25 @@ final class AuthenticatedVocabularyActionsFlowTest extends TestCase
         $create = $this->request($router, '/admin/_surface/taxonomy_vocabulary/action/create', 'POST', [
             'attributes' => ['vid' => 'bypass', 'name' => 'Bypass'],
         ]);
+        $loaded = $this->request($router, '/admin/_surface/taxonomy_vocabulary/renamed', 'GET');
+        $schema = $this->request($router, '/admin/_surface/taxonomy_vocabulary/action/schema', 'POST', [
+            'id' => 'renamed',
+        ]);
+        $browserAttributes = array_intersect_key(
+            $loaded['data']['attributes'] ?? [],
+            $schema['data']['properties'] ?? [],
+        );
+        foreach ($schema['data']['properties'] ?? [] as $fieldName => $property) {
+            if (($property['readOnly'] ?? false) === true) {
+                unset($browserAttributes[$fieldName]);
+            }
+        }
+        $browserAttributes['name'] = 'Audit vocabulary';
         $updated = $this->request($router, '/admin/_surface/taxonomy_vocabulary/action/update', 'POST', [
             'id' => 'renamed',
-            'attributes' => ['name' => 'Audit vocabulary'],
+            // Mirror SchemaForm's schema-declared writable projection after
+            // loading the complete migrated row and changing only its title.
+            'attributes' => $browserAttributes,
         ]);
         $list = $this->request($router, '/admin/_surface/taxonomy_vocabulary', 'GET');
         $emptyDelete = $this->request($router, '/admin/_surface/taxonomy_vocabulary/action/delete', 'POST', ['id' => 'empty']);
@@ -209,6 +225,8 @@ final class AuthenticatedVocabularyActionsFlowTest extends TestCase
         $body = [
             'catalog' => $entry,
             'create' => $create,
+            'loaded' => $loaded,
+            'schema' => $schema,
             'updated' => $updated,
             'list' => $list,
             'emptyDelete' => $emptyDelete,
@@ -220,6 +238,8 @@ final class AuthenticatedVocabularyActionsFlowTest extends TestCase
         self::assertTrue($body['catalog']['capabilities']['delete'] ?? false, json_encode($body));
         self::assertContains('delete', array_column($body['catalog']['actions'] ?? [], 'id'));
         self::assertFalse($body['create']['ok'], json_encode($body));
+        self::assertSame('', $body['loaded']['data']['attributes']['bundle'] ?? null, json_encode($body));
+        self::assertArrayNotHasKey('bundle', $body['schema']['data']['properties'] ?? [], json_encode($body));
         self::assertTrue($body['updated']['ok'], json_encode($body));
         $names = array_map(
             static fn(array $row): mixed => $row['attributes']['name'] ?? null,
