@@ -1,1 +1,0 @@
-import{r as u}from"./BFxMQVUU.js";function s(){const t=u();function i(n,a){return t.catalog.find(r=>r.id===n)?.capabilities[a]??!1}function e(n){return t.catalog.find(a=>a.id===n)}return{catalog:t.catalog,tenant:t.tenant,features:t.features,ui:t.ui,hasCapability:i,getEntity:e}}export{s as u};

@@ -24,8 +24,11 @@ const loading = ref(false)
 const total = ref(0)
 const offset = ref(0)
 const limit = ref(25)
-const sortField = ref<string | null>(null)
-const sortAsc = ref(true)
+// Content authoring is recency-oriented: a successful create must be visible
+// immediately on page 1. Other entity lists keep their existing unsorted
+// default unless a host declares x-list metadata.
+const sortField = ref<string | null>(props.entityType === 'node' ? 'created' : null)
+const sortAsc = ref(props.entityType !== 'node')
 const listError = ref<string | null>(null)
 // Delete failures are surfaced separately from listError so they read as a
 // non-blocking "delete failed" notice ABOVE the table rather than replacing the
@@ -138,7 +141,10 @@ async function fetchEntities() {
         }
       }
     } else if (bundleKey.value && bundleFilter.value) {
-      query.filter = { ...(query.filter ?? {}), [bundleKey.value]: bundleFilter.value }
+      query.filter = {
+        ...(query.filter ?? {}),
+        [bundleKey.value]: { operator: 'EQUALS', value: bundleFilter.value },
+      }
     }
     const result = await list(props.entityType, query)
     if (requestId !== latestListRequest) return

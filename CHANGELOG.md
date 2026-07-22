@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Content listings now apply their visible query state (#2108).** Node pages send pagination and bundle filters through the admin-surface query contract, default to newest-authored content first, and keep freshly created content on page 1 instead of repeating the first page under advanced pager text.
 - **Authenticated note creation now completes under the activated protected-read policy set (#2101).** Notes provide a closed protected entity-view decision alongside their protected authorship decision, so the live kernel's published-content policy no longer turns a successful migrated-shape insert into a response-serialization 500; the administrator SPA loop can create, list, read, and delete the attributed row.
 - **Migrated vocabulary edits and guarded deletes now complete in the admin SPA (#2101).** Full-object title edits tolerate and strip the unchanged empty structural bundle returned by migrated config rows, while occupied-vocabulary delete refusals display the backend's term-reference reason inline after the confirmation closes.
 - **Vocabulary rows now have complete admin edit/delete behavior (#2101).** Vocabulary machine names and display names are declared schema fields, saved names render in lists, empty rows can be deleted, and deletion is refused with a clear message while taxonomy terms still reference the vocabulary; a migrated-table restrictive foreign key also guards direct, batch, and concurrent repository paths.

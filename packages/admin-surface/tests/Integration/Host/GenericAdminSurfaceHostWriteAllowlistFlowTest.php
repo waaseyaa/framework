@@ -58,6 +58,102 @@ use Waaseyaa\Workflows\WorkflowServiceProvider;
 final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
 {
     #[Test]
+    public function browserShapedNodeListQueryPagesSortsAndFiltersMigratedRows(): void
+    {
+        [$entityTypeManager, $db, , $accountContext, $setAccessHandler] = $this->bootWiredProviders();
+        $entityTypeManager->getRepository('node_type')->save(new NodeType(['type' => 'page', 'name' => 'Page']));
+
+        $admin = $this->account(42, ['administer content', 'administer nodes', 'access content']);
+        $accountContext->set($admin);
+        $accessHandler = new EntityAccessHandler([new NodeAccessPolicy()]);
+        $setAccessHandler($accessHandler);
+        $repository = $entityTypeManager->getRepository('node');
+
+        for ($index = 0; $index < 30; ++$index) {
+            $bundle = $index < 10 ? 'article' : 'page';
+            $node = new Node([
+                'title' => sprintf('Imported %s %02d', $bundle, $index),
+                'type' => $bundle,
+                'slug' => sprintf('imported-%s-%02d', $bundle, $index),
+                'uid' => 42,
+                'created' => 1_700_000_000 + $index,
+            ]);
+            $node->enforceIsNew();
+            $repository->save($node);
+        }
+        $fresh = new Node([
+            'title' => 'Fresh browser article',
+            'type' => 'article',
+            'slug' => 'fresh-browser-article',
+            'uid' => 42,
+            'created' => 1_800_000_000,
+        ]);
+        $fresh->enforceIsNew();
+        $repository->save($fresh);
+
+        // Mirror the imported database shape that exposed this regression:
+        // host-unknown WordPress residue is retained in the base row's JSON bag.
+        $connection = $db->getConnection();
+        $raw = $connection->fetchOne('SELECT _data FROM node WHERE nid = ?', [$fresh->id()]);
+        self::assertIsString($raw);
+        $migratedData = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($migratedData);
+        $migratedData['wp_status'] = 'publish';
+        $connection->executeStatement(
+            'UPDATE node SET _data = ? WHERE nid = ?',
+            [json_encode($migratedData, JSON_THROW_ON_ERROR), $fresh->id()],
+        );
+
+        $host = new GenericAdminSurfaceHost($entityTypeManager, $accessHandler);
+        $scope = new AccountFieldReadScope();
+        EntityReadRuntime::installGuard(new FieldReadGuard($scope, $accessHandler->checkProtectedFieldRead(...)));
+
+        $request = static function (string $query) use ($admin): Request {
+            $request = Request::create('/admin/_surface/node?' . $query, 'GET');
+            $request->attributes->set('_account', $admin);
+
+            return $request;
+        };
+
+        try {
+            $pageOne = $scope->run($admin, fn(): array => $host->handleList(
+                $request('page%5Boffset%5D=0&page%5Blimit%5D=25&sort=-created'),
+                'node',
+            ));
+            $pageTwo = $scope->run($admin, fn(): array => $host->handleList(
+                $request('page%5Boffset%5D=25&page%5Blimit%5D=25&sort=-created'),
+                'node',
+            ));
+            $articles = $scope->run($admin, fn(): array => $host->handleList(
+                $request('page%5Boffset%5D=0&page%5Blimit%5D=25&sort=-created&filter%5Btype%5D%5Boperator%5D=EQUALS&filter%5Btype%5D%5Bvalue%5D=article'),
+                'node',
+            ));
+        } finally {
+            EntityReadRuntime::installGuard(null);
+        }
+
+        self::assertTrue($pageOne['ok'], json_encode($pageOne));
+        self::assertTrue($pageTwo['ok'], json_encode($pageTwo));
+        self::assertTrue($articles['ok'], json_encode($articles));
+        self::assertSame(31, $pageOne['data']['total']);
+        self::assertSame('Fresh browser article', $pageOne['data']['entities'][0]['attributes']['title']);
+        self::assertSame(25, $pageTwo['data']['offset']);
+        self::assertSame(
+            [],
+            array_values(array_intersect(
+                array_column($pageOne['data']['entities'], 'id'),
+                array_column($pageTwo['data']['entities'], 'id'),
+            )),
+            'The second browser-shaped page request must not repeat page-one node rows.',
+        );
+        self::assertSame(11, $articles['data']['total']);
+        self::assertSame(
+            ['article'],
+            array_values(array_unique(array_column(array_column($articles['data']['entities'], 'attributes'), 'type'))),
+        );
+    }
+
+    #[Test]
     public function workflow_visibility_is_current_state_authenticated_view_only_and_additive(): void
     {
         [$entityTypeManager, , $transitionService, $accountContext] = $this->bootWiredProviders();
