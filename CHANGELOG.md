@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Vocabulary rows now have complete admin edit/delete behavior (#2101).** Vocabulary machine names and display names are declared schema fields, saved names render in lists, empty rows can be deleted, and deletion is refused with a clear message while taxonomy terms still reference the vocabulary; a migrated-table restrictive foreign key also guards direct, batch, and concurrent repository paths.
+- **Admin quick-entry defaults and empty lists are consistent (#2101).** New menu links now receive the entity contract's `enabled: true` schema default, and relationship empty-state coverage pins the table cell to the complete rendered column count.
+
 - **Canonical administrators can access legacy admin-gated operational pages (#2101).** Authenticated accounts holding `administrator` now satisfy the older `_role: admin` route requirement used by workflows, queue, scheduler, notifications, Mercure monitoring, and classification policy APIs, while the existing `admin` role remains valid and does not gain reverse superuser implication.
 
 - **Admin-created notes no longer lock out their creator (#2101).** JSON:API now attributes any declared `uid` authored entity to the authenticated creator when omitted, notes apply exact-owner view/edit/delete permissions, administrators may manage note rows, and note instances can be deleted without weakening the immutable built-in type definition.

@@ -71,6 +71,25 @@ return [
         class: \stdClass::class,
         keys: ['id' => 'id', 'label' => 'label'],
     ),
+    new \Waaseyaa\Entity\EntityType(
+        id: 'kernel_test_child',
+        label: 'Child',
+        class: \stdClass::class,
+        keys: ['id' => 'cid', 'uuid' => 'uuid', 'bundle' => 'parent_id', 'label' => 'name'],
+        _foreignKeys: [[
+            'name' => 'kernel_test_child_parent_fk',
+            'columns' => ['parent_id'],
+            'table' => 'kernel_test_parent',
+            'references' => ['parent_id'],
+            'options' => ['onDelete' => 'RESTRICT'],
+        ]],
+    ),
+    new \Waaseyaa\Entity\EntityType(
+        id: 'kernel_test_parent',
+        label: 'Parent',
+        class: \stdClass::class,
+        keys: ['id' => 'parent_id', 'label' => 'name'],
+    ),
 ];
 PHP,
         );
@@ -176,5 +195,27 @@ PHP,
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'kernel_test_widget'",
         );
         self::assertSame(1, $baseExists, 'Base table must still be created independent of any bundle registration.');
+    }
+
+    #[Test]
+    public function lazyReferencedTableCreationRetriesDeferredForeignKeys(): void
+    {
+        $kernel = new class($this->projectRoot) extends AbstractKernel {
+            public function publicBoot(): void
+            {
+                $this->boot();
+            }
+        };
+        $kernel->publicBoot();
+
+        $manager = $kernel->getEntityTypeManager();
+        $manager->getRepository('kernel_test_child');
+        $manager->getRepository('kernel_test_parent');
+
+        $database = $kernel->getDatabase();
+        self::assertInstanceOf(DBALDatabase::class, $database);
+        $foreignKeys = $database->getConnection()->fetchAllAssociative('PRAGMA foreign_key_list(kernel_test_child)');
+
+        self::assertContains('kernel_test_parent', array_column($foreignKeys, 'table'));
     }
 }

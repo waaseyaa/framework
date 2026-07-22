@@ -6,6 +6,8 @@ namespace Waaseyaa\EntityStorage;
 
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Database\ForeignKeySchemaInterface;
+use Waaseyaa\Entity\EntityTypeForeignKeyDefinitionInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
@@ -115,6 +117,8 @@ final class SqlSchemaHandler
             }
         }
 
+        $this->ensureDeclaredForeignKeys();
+
         if (!$this->shouldProcessBundles()) {
             return;
         }
@@ -125,6 +129,35 @@ final class SqlSchemaHandler
                 continue;
             }
             $this->ensureBundleSubtable($bundle, $bundleFields);
+        }
+    }
+
+    /** Add declared restrictive relationships once both participating tables exist. */
+    public function ensureDeclaredForeignKeys(): void
+    {
+        if (!$this->entityType instanceof EntityTypeForeignKeyDefinitionInterface) {
+            return;
+        }
+        $schema = $this->database->schema();
+        if (!$schema instanceof ForeignKeySchemaInterface) {
+            return;
+        }
+        if (!$schema->tableExists($this->tableName)) {
+            return;
+        }
+
+        foreach ($this->entityType->getStorageForeignKeys() as $definition) {
+            if (!$schema->tableExists($definition['table'])) {
+                continue;
+            }
+            $schema->addForeignKey(
+                $this->tableName,
+                $definition['name'],
+                $definition['columns'],
+                $definition['table'],
+                $definition['references'],
+                $definition['options'] ?? [],
+            );
         }
     }
 

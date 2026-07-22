@@ -74,16 +74,27 @@ final class EntityTypeManagerFactory
             ? EntityValidator::createDefault(new DatabaseValidationReadLedger($database))
             : null;
 
-        return new EntityTypeManager(
+        $manager = null;
+        $manager = new EntityTypeManager(
             $dispatcher,
             // C-22 WP4: the legacy SqlEntityStorage engine is removed. getStorage()
             // is no longer wired to any first-party persistence engine at boot —
             // it remains a "bring your own EntityStorageInterface" extension seam
             // for entity types that explicitly declare a storageClass.
             null,
-            function (string $_entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry, $logger, $validator, $communityScoreResolver, $accountContextAttacher, $accessHandlerResolver, $fieldReadScope): EntityRepositoryInterface {
+            function (string $_entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry, $logger, $validator, $communityScoreResolver, $accountContextAttacher, $accessHandlerResolver, $fieldReadScope, &$manager): EntityRepositoryInterface {
                 $schemaHandler = new SqlSchemaHandler($definition, $database, $fieldRegistry, null, $logger);
                 $schemaHandler->ensureTable();
+                // Creating a referenced table can make an earlier dependant's
+                // deferred FK declaration installable. Retry every registered
+                // definition so lazy materialization reaches the same shape as
+                // schema:sync regardless of repository access order.
+                if ($manager instanceof EntityTypeManager) {
+                    foreach ($manager->getDefinitions() as $registeredDefinition) {
+                        new SqlSchemaHandler($registeredDefinition, $database, $fieldRegistry, null, $logger)
+                            ->ensureDeclaredForeignKeys();
+                    }
+                }
                 if ($definition->isRevisionable()) {
                     $schemaHandler->ensureRevisionTable();
                 }
@@ -179,5 +190,7 @@ final class EntityTypeManagerFactory
                 $handler->ensureTable();
             },
         );
+
+        return $manager;
     }
 }

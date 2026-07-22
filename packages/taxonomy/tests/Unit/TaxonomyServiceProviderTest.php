@@ -11,6 +11,8 @@ use Waaseyaa\Field\FieldDefinitionInterface;
 use Waaseyaa\Taxonomy\TaxonomyServiceProvider;
 use Waaseyaa\Taxonomy\Term;
 use Waaseyaa\Taxonomy\Vocabulary;
+use Waaseyaa\Entity\EntityTypeForeignKeyDefinitionInterface;
+use Waaseyaa\Taxonomy\VocabularyReferenceConstraint;
 
 #[CoversClass(TaxonomyServiceProvider::class)]
 final class TaxonomyServiceProviderTest extends TestCase
@@ -26,6 +28,8 @@ final class TaxonomyServiceProviderTest extends TestCase
         $this->assertCount(2, $entityTypes);
         $this->assertSame('taxonomy_term', $entityTypes[0]->id());
         $this->assertSame(Term::class, $entityTypes[0]->getClass());
+        self::assertInstanceOf(EntityTypeForeignKeyDefinitionInterface::class, $entityTypes[0]);
+        self::assertSame(VocabularyReferenceConstraint::NAME, $entityTypes[0]->getStorageForeignKeys()[0]['name']);
         $this->assertSame('taxonomy_vocabulary', $entityTypes[1]->id());
         $this->assertSame(Vocabulary::class, $entityTypes[1]->getClass());
     }
@@ -52,6 +56,8 @@ final class TaxonomyServiceProviderTest extends TestCase
 
         $fields = $provider->getEntityTypes()[1]->getFieldDefinitions();
 
+        $this->assertArrayHasKey('vid', $fields);
+        $this->assertArrayHasKey('name', $fields);
         $this->assertArrayHasKey('description', $fields);
         $this->assertArrayHasKey('weight', $fields);
     }

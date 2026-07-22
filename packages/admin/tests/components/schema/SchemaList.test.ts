@@ -14,7 +14,7 @@ const sampleEntity = { type: 'node', id: '7', attributes: { title: 'Hello' } }
 
 // Hoisted so the useEntity mock factory can reference it; lets a test make
 // remove() reject to exercise the delete-error surfacing (D7).
-const { removeMock } = vi.hoisted(() => ({ removeMock: vi.fn() }))
+const { listMock, removeMock } = vi.hoisted(() => ({ listMock: vi.fn(), removeMock: vi.fn() }))
 
 vi.mock('~/composables/useAdmin', () => ({
   useAdmin: () => ({ hasCapability: () => true }),
@@ -52,12 +52,14 @@ vi.mock('~/composables/useSchema', () => ({
 
 vi.mock('~/composables/useEntity', () => ({
   useEntity: () => ({
-    list: vi.fn().mockResolvedValue({ data: [sampleEntity], meta: { total: 1 } }),
+    list: listMock,
     remove: removeMock,
   }),
 }))
 
 beforeEach(() => {
+  listMock.mockReset()
+  listMock.mockResolvedValue({ data: [sampleEntity], meta: { total: 1 } })
   removeMock.mockReset()
   removeMock.mockResolvedValue(undefined)
 })
@@ -69,15 +71,25 @@ const NuxtLinkStub = {
   template: '<a :href="to"><slot /></a>',
 }
 
-async function mountList() {
+async function mountList(entityType = 'node') {
   const { default: SchemaList } = await import('~/components/schema/SchemaList.vue')
   const wrapper = await mountSuspended(SchemaList, {
-    props: { entityType: 'node' },
+    props: { entityType },
     global: { stubs: { NuxtLink: NuxtLinkStub, teleport: true } },
   })
   await flushPromises()
   return wrapper
 }
+
+describe('SchemaList empty relationship table', () => {
+  it('spans every rendered column in the empty state', async () => {
+    listMock.mockResolvedValueOnce({ data: [], meta: { total: 0 } })
+
+    const wrapper = await mountList('relationship')
+
+    expect(Number(wrapper.get('td.empty').attributes('colspan'))).toBe(wrapper.findAll('thead th').length)
+  })
+})
 
 describe('SchemaList Edit link busy state', () => {
   it('renders the Edit link idle before activation', async () => {

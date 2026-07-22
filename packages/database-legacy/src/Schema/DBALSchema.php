@@ -9,12 +9,12 @@ use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Doctrine\DBAL\Platforms\SQLitePlatform;
 use Doctrine\DBAL\Schema\AbstractSchemaManager;
 use Doctrine\DBAL\Schema\Schema;
-use Waaseyaa\Database\SchemaInterface;
+use Waaseyaa\Database\ForeignKeySchemaInterface;
 
 /**
  * @api
  */
-final class DBALSchema implements SchemaInterface
+final class DBALSchema implements ForeignKeySchemaInterface
 {
     private readonly AbstractSchemaManager $sm;
 
@@ -238,6 +238,45 @@ final class DBALSchema implements SchemaInterface
 
         $diff = $this->sm->createComparator()
             ->compareSchemas($currentSchema, $newSchema);
+        foreach ($this->platform->getAlterSchemaSQL($diff) as $sql) {
+            $this->connection->executeStatement($sql);
+        }
+    }
+
+    public function foreignKeyExists(string $table, string $name): bool
+    {
+        foreach ($this->sm->listTableForeignKeys($table) as $foreignKey) {
+            if ($foreignKey->getName() === $name) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function addForeignKey(
+        string $table,
+        string $name,
+        array $columns,
+        string $referencedTable,
+        array $referencedColumns,
+        array $options = [],
+    ): void {
+        if ($this->foreignKeyExists($table, $name)) {
+            return;
+        }
+
+        $currentSchema = $this->sm->introspectSchema();
+        $newSchema = clone $currentSchema;
+        $newSchema->getTable($table)->addForeignKeyConstraint(
+            $referencedTable,
+            $columns,
+            $referencedColumns,
+            $options,
+            $name,
+        );
+
+        $diff = $this->sm->createComparator()->compareSchemas($currentSchema, $newSchema);
         foreach ($this->platform->getAlterSchemaSQL($diff) as $sql) {
             $this->connection->executeStatement($sql);
         }

@@ -46,6 +46,9 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
      */
     private const array ALWAYS_INTERNAL_FIELDS = ['pass', 'password', 'password_hash'];
 
+    /** Config rows with an explicitly reviewed generic edit/delete lifecycle. */
+    private const array MUTABLE_CONFIG_ROW_TYPES = ['taxonomy_vocabulary'];
+
     /** @var \Waaseyaa\Access\AuthorizationPrincipalInterface|null */
     private ?AccountInterface $currentAccount = null;
 
@@ -143,7 +146,9 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             }
 
             $isConfig = is_subclass_of($definition->getClass(), ConfigEntityBase::class);
-            $isReadOnly = $isConfig || in_array($definition->id(), $this->readOnlyTypes, true);
+            $isMutableConfigRow = $isConfig && in_array($definition->id(), self::MUTABLE_CONFIG_ROW_TYPES, true);
+            $isReadOnly = in_array($definition->id(), $this->readOnlyTypes, true)
+                || ($isConfig && !$isMutableConfigRow);
 
             if ($isReadOnly) {
                 $entity->capabilities([
@@ -152,6 +157,9 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
                     'delete' => false,
                 ]);
             } else {
+                if ($isMutableConfigRow) {
+                    $entity->capabilities(['create' => false]);
+                }
                 $entity->action('delete', 'Delete')
                     ->confirm('Are you sure you want to delete this item?')
                     ->dangerous();
@@ -258,7 +266,18 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
                 $row = $this->jsonApiResourceToSurfaceEntity(
                     $serializer->serialize($entity, $this->accessHandler, $this->currentAccount),
                 );
-                $row['capabilities'] = ['view' => true, 'edit' => false, 'delete' => false];
+                $isMutableConfigRow = in_array($type, self::MUTABLE_CONFIG_ROW_TYPES, true)
+                    && !in_array($type, $this->readOnlyTypes, true);
+                $row['capabilities'] = [
+                    'view' => true,
+                    'edit' => $isMutableConfigRow
+                        && $this->accessHandler->check($entity, 'update', $this->currentAccount)->isAllowed(),
+                    // Mutable config rows keep the delete affordance visible even
+                    // when an entity-state guard (for example, referenced terms)
+                    // will refuse this particular attempt with an actionable reason.
+                    // The action endpoint remains the authoritative access boundary.
+                    'delete' => $isMutableConfigRow,
+                ];
                 $rows[] = $row;
             }
 
@@ -654,6 +673,10 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             return AdminSurfaceResultData::error(403, 'Read-only entity type', "Type '{$type}' does not allow write actions.");
         }
 
+        if ($action === 'create' && in_array($type, self::MUTABLE_CONFIG_ROW_TYPES, true)) {
+            return AdminSurfaceResultData::error(403, 'Create disabled', "Type '{$type}' does not allow create actions from the admin surface.");
+        }
+
         // Check custom actions first
         if (isset($this->actions[$action])) {
             return $this->actions[$action]->handle($type, $payload);
@@ -905,12 +928,16 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
 
         // Fail closed: deny unless an access handler AND account are present and
         // the handler allows the delete.
-        if (
-            $this->accessHandler === null
-            || $this->currentAccount === null
-            || !$this->accessHandler->check($entity, 'delete', $this->currentAccount)->isAllowed()
-        ) {
+        if ($this->accessHandler === null || $this->currentAccount === null) {
             return AdminSurfaceResultData::error(403, 'Access denied', 'You do not have permission to delete this entity.');
+        }
+        $deleteAccess = $this->accessHandler->check($entity, 'delete', $this->currentAccount);
+        if (!$deleteAccess->isAllowed()) {
+            $detail = $deleteAccess->isForbidden() && $deleteAccess->reason !== ''
+                ? $deleteAccess->reason
+                : 'You do not have permission to delete this entity.';
+
+            return AdminSurfaceResultData::error(403, 'Access denied', $detail);
         }
 
         // C-22 WP3: delete path now goes through the canonical repository.

@@ -43,7 +43,7 @@ final class MenuLink extends ContentEntityBase
     #[Field(type: 'integer', required: false, label: 'Weight', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public int $weight = 0;
 
-    #[Field(type: 'boolean', required: false, label: 'Enabled', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
+    #[Field(type: 'boolean', required: false, default: true, label: 'Enabled', read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public bool $enabled = true;
 
     #[Field(type: 'boolean', required: false, label: 'Expanded', read: \Waaseyaa\Entity\FieldReadLevel::Public)]

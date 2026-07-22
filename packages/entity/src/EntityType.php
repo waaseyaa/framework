@@ -22,7 +22,7 @@ use Waaseyaa\Field\FieldStorage;
  * `#[Field]` attributes. The constructor's `$_fieldDefinitions` slot is
  * `@internal` and is reserved for that factory plus the test stub helper.
  */
-final readonly class EntityType implements EntityTypeInterface, ApiExposableEntityTypeInterface
+final readonly class EntityType implements EntityTypeInterface, ApiExposableEntityTypeInterface, EntityTypeForeignKeyDefinitionInterface
 {
     /**
      * Canonical scope identifier for community-scoped tenancy.
@@ -79,6 +79,7 @@ final readonly class EntityType implements EntityTypeInterface, ApiExposableEnti
         private bool $discoverable = true,
         private bool $api = false,
         private array $_fieldDefinitions = [],
+        private array $_foreignKeys = [],
     ) {
         // T036: revisionable entity types must declare a non-empty revision key.
         if ($this->revisionable) {
@@ -113,6 +114,11 @@ final readonly class EntityType implements EntityTypeInterface, ApiExposableEnti
         if ($this->tenancy !== null) {
             $this->validateTenancy($this->tenancy);
         }
+    }
+
+    public function getStorageForeignKeys(): array
+    {
+        return $this->_foreignKeys;
     }
 
     /**
