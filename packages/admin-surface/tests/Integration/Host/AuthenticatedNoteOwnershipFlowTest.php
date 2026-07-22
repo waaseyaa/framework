@@ -10,9 +10,10 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Routing\Matcher\UrlMatcher;
+use Symfony\Component\Routing\RequestContext;
 use Waaseyaa\Access\AccessChecker;
 use Waaseyaa\Access\AccountPrincipalFactory;
-use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\Capability\CapabilityActorSemantics;
 use Waaseyaa\Access\Capability\CapabilityDeclaration;
 use Waaseyaa\Access\Capability\CapabilityReason;
@@ -22,6 +23,9 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldReadGuard;
 use Waaseyaa\Access\Middleware\AuthorizationMiddleware;
 use Waaseyaa\Access\Middleware\FieldReadContextMiddleware;
+use Waaseyaa\Access\Policy\ContentAdminAccessPolicy;
+use Waaseyaa\Access\Policy\PublishedContentAccessPolicy;
+use Waaseyaa\AdminSurface\AdminSurfaceServiceProvider;
 use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
 use Waaseyaa\Audit\AuditedFieldRead;
 use Waaseyaa\Audit\Bootstrap\IdentityBootstrapReader;
@@ -36,13 +40,13 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
-use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpPipeline;
 use Waaseyaa\Note\Note;
 use Waaseyaa\Note\NoteAccessPolicy;
+use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\User\Middleware\SessionMiddleware;
 use Waaseyaa\User\User;
 
@@ -66,7 +70,7 @@ final class AuthenticatedNoteOwnershipFlowTest extends TestCase
             $dispatcher,
             null,
             function (string $entityTypeId, EntityTypeInterface $definition) use ($dispatcher, &$liveAccessHandler): EntityRepositoryInterface {
-                (new SqlSchemaHandler($definition, $this->database))->ensureTable();
+                new SqlSchemaHandler($definition, $this->database)->ensureTable();
 
                 return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
                     $definition,
@@ -81,6 +85,7 @@ final class AuthenticatedNoteOwnershipFlowTest extends TestCase
         );
         $this->entityTypeManager->registerEntityType(EntityType::fromClass(User::class));
         $this->entityTypeManager->registerEntityType(EntityType::fromClass(Note::class, group: 'content'));
+        $this->entityTypeManager->getRepository('note');
 
         $admin = new User([
             'uid' => 73,
@@ -93,14 +98,18 @@ final class AuthenticatedNoteOwnershipFlowTest extends TestCase
         $admin->enforceIsNew();
         $this->entityTypeManager->getRepository('user')->save($admin, validate: false);
 
-        $this->accessHandler = new EntityAccessHandler([new NoteAccessPolicy()]);
+        $this->accessHandler = new EntityAccessHandler([
+            new NoteAccessPolicy(),
+            new PublishedContentAccessPolicy($this->entityTypeManager),
+            new ContentAdminAccessPolicy($this->entityTypeManager),
+        ]);
         $liveAccessHandler = $this->accessHandler;
         $this->scope = new AccountFieldReadScope();
         EntityReadRuntime::installGuard(new FieldReadGuard(
             $this->scope,
             $this->accessHandler->checkProtectedFieldRead(...),
         ));
-        (new AuditEventSchemaHandler($this->database))->ensureSchema();
+        new AuditEventSchemaHandler($this->database)->ensureSchema();
     }
 
     protected function tearDown(): void
@@ -112,71 +121,84 @@ final class AuthenticatedNoteOwnershipFlowTest extends TestCase
     public function administrator_can_create_read_list_and_delete_their_own_note(): void
     {
         $columns = array_column(iterator_to_array($this->database->query('PRAGMA table_info(note)')), 'name');
-        self::assertNotContains('uid', $columns, 'Ownership must round-trip through migrated-shape `_data`.');
+        self::assertSame(
+            ['id', 'uuid', 'bundle', 'title', 'langcode', '_data'],
+            $columns,
+            'The regression must retain the six-column migrated note shape where uid round-trips through `_data`.',
+        );
 
-        $request = Request::create('/admin/_surface/note', 'POST');
+        $router = new WaaseyaaRouter(new RequestContext('', 'GET'));
+        AdminSurfaceServiceProvider::registerRoutes(
+            $router,
+            new GenericAdminSurfaceHost($this->entityTypeManager, $this->accessHandler),
+        );
+
+        $created = $this->request($router, '/admin/_surface/note/action/create', 'POST', [
+            'attributes' => ['title' => 'Session-owned note', 'body' => 'Browser audit regression'],
+        ]);
+        $uuid = (string) ($created['data']['id'] ?? '');
+        $detail = $this->request($router, "/admin/_surface/note/$uuid", 'GET');
+        $list = $this->request($router, '/admin/_surface/note', 'GET');
+        $row = $this->database->getConnection()->fetchAssociative('SELECT _data FROM note WHERE uuid = :uuid', ['uuid' => $uuid]);
+        $deleted = $this->request($router, '/admin/_surface/note/action/delete', 'POST', ['id' => $uuid]);
+        $remaining = (int) $this->database->getConnection()->fetchOne('SELECT COUNT(*) FROM note WHERE uuid = :uuid', ['uuid' => $uuid]);
+
+        self::assertTrue($created['ok'], json_encode($created));
+        self::assertNotSame('', $uuid);
+        self::assertTrue($detail['ok'], json_encode($detail));
+        self::assertSame('Session-owned note', $detail['data']['attributes']['title'] ?? null);
+        self::assertTrue($list['ok'], json_encode($list));
+        self::assertSame(1, $list['data']['total'] ?? null);
+        self::assertContains('Session-owned note', array_map(
+            static fn(array $entity): mixed => $entity['attributes']['title'] ?? null,
+            $list['data']['entities'] ?? [],
+        ));
+        $stored = is_array($row) ? json_decode((string) $row['_data'], true, flags: JSON_THROW_ON_ERROR) : null;
+        self::assertSame(73, $stored['uid'] ?? null, 'The session principal must be persisted as note owner.');
+        self::assertTrue($deleted['ok'], json_encode($deleted));
+        self::assertSame(0, $remaining);
+    }
+
+    /** @param array<string, mixed> $payload @return array<string, mixed> */
+    private function request(WaaseyaaRouter $router, string $path, string $method, array $payload = []): array
+    {
+        $request = Request::create(
+            $path,
+            $method,
+            content: $payload === [] ? null : json_encode($payload, JSON_THROW_ON_ERROR),
+        );
         $request->attributes->set('_session', ['waaseyaa_uid' => 73]);
+        $match = new UrlMatcher($router->getRouteCollection(), new RequestContext('', $method))->match($path);
+        $route = $router->getRouteCollection()->get($match['_route']);
+        self::assertNotNull($route);
+        $request->attributes->set('_route_object', $route);
+        $controller = $route->getDefault('_controller');
+        self::assertIsCallable($controller);
 
         $pipeline = new HttpPipeline()
             ->withMiddleware(new SessionMiddleware($this->entityTypeManager->getRepository('user')))
             ->withMiddleware(new FieldReadContextMiddleware($this->principalFactory(), $this->scope))
             ->withMiddleware(new AuthorizationMiddleware(new AccessChecker()));
 
-        $response = $pipeline->handle($request, new class ($this->entityTypeManager, $this->accessHandler, $this->database) implements HttpHandlerInterface {
-            public function __construct(
-                private readonly EntityTypeManager $entityTypeManager,
-                private readonly EntityAccessHandler $accessHandler,
-                private readonly DBALDatabase $database,
-            ) {}
+        $response = $pipeline->handle($request, new class ($controller, $match) implements HttpHandlerInterface {
+            public function __construct(private readonly mixed $controller, private readonly array $match) {}
 
             public function handle(Request $request): Response
             {
-                $principal = $request->attributes->get('_authorization_principal');
-                if (!$principal instanceof AuthorizationPrincipalInterface) {
-                    return new JsonResponse(['error' => 'missing principal'], 500);
+                $args = [$request];
+                foreach (['type', 'id', 'action'] as $name) {
+                    if (isset($this->match[$name])) {
+                        $args[] = $this->match[$name];
+                    }
                 }
 
-                $host = new GenericAdminSurfaceHost($this->entityTypeManager, $this->accessHandler);
-                $host->resolveSession($request);
-                $created = $host->action('note', 'create', [
-                    'attributes' => ['title' => 'Session-owned note', 'body' => 'Browser audit regression'],
-                ]);
-                $uuid = (string) ($created->data['id'] ?? '');
-                $detail = $host->get('note', $uuid);
-                $list = $host->list('note');
-                $row = $this->database->getConnection()->fetchAssociative('SELECT _data FROM note WHERE uuid = :uuid', ['uuid' => $uuid]);
-                $deleted = $host->action('note', 'delete', ['id' => $uuid]);
-                $remaining = (int) $this->database->getConnection()->fetchOne('SELECT COUNT(*) FROM note WHERE uuid = :uuid', ['uuid' => $uuid]);
-
-                return new JsonResponse([
-                    'created' => ['ok' => $created->ok, 'status' => is_array($created->error) ? ($created->error['status'] ?? null) : null],
-                    'detail' => ['ok' => $detail->ok, 'title' => $detail->data['attributes']['title'] ?? null],
-                    'list' => [
-                        'ok' => $list->ok,
-                        'total' => $list->data['total'] ?? null,
-                        'titles' => array_map(
-                            static fn(array $entity): mixed => $entity['attributes']['title'] ?? null,
-                            $list->data['entities'] ?? [],
-                        ),
-                    ],
-                    'stored' => is_array($row) ? json_decode((string) $row['_data'], true, flags: JSON_THROW_ON_ERROR) : null,
-                    'deleted' => ['ok' => $deleted->ok, 'status' => is_array($deleted->error) ? ($deleted->error['status'] ?? null) : null],
-                    'remaining' => $remaining,
-                ]);
+                return new JsonResponse(($this->controller)(...$args));
             }
         });
 
-        self::assertSame(Response::HTTP_OK, $response->getStatusCode());
-        $body = json_decode((string) $response->getContent(), true, flags: JSON_THROW_ON_ERROR);
-        self::assertTrue($body['created']['ok'], json_encode($body));
-        self::assertTrue($body['detail']['ok'], json_encode($body));
-        self::assertSame('Session-owned note', $body['detail']['title']);
-        self::assertTrue($body['list']['ok'], json_encode($body));
-        self::assertSame(1, $body['list']['total']);
-        self::assertContains('Session-owned note', $body['list']['titles']);
-        self::assertSame(73, $body['stored']['uid'] ?? null, 'The session principal must be persisted as note owner.');
-        self::assertTrue($body['deleted']['ok'], json_encode($body));
-        self::assertSame(0, $body['remaining']);
+        self::assertSame(Response::HTTP_OK, $response->getStatusCode(), (string) $response->getContent());
+
+        return json_decode((string) $response->getContent(), true, flags: JSON_THROW_ON_ERROR);
     }
 
     private function principalFactory(): AccountPrincipalFactory
