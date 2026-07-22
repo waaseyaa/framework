@@ -1,5 +1,6 @@
 # Admin SPA
 
+<!-- Spec reviewed 2026-07-22 - #2108 WP-2: schema metadata can declare an editable slug widget with x-source-field; the widget requests the host's generate-slug action, which delegates to Foundation SlugGenerator so Indigenous orthography is preserved. Integer fields with subtype=timestamp project as string/date-time + datetime widgets. GenericAdminSurfaceHost accepts host-declared per-type internal form fields (the shipped host hides migrated node.wp_status). Failed create validation retains bundle state, and entity detail uses the standard confirmation modal for capability-gated deletion. -->
 <!-- Spec reviewed 2026-07-22 - #2108 WP-1: the legacy bundled-list path now emits the same closed {operator,value} filter condition consumed by AdminSurfaceTransportAdapter as host-declared x-list controls. Node lists default to created DESC, retain offset/limit on every request, and therefore keep new content on page 1 while pagination and bundle totals reflect distinct server results. Browser-shaped coverage uses migrated UUID/data-shaped rows. -->
 <!-- Spec reviewed 2026-07-21 - #2101 WP-3: taxonomy_vocabulary is the first explicitly mutable generic config-row surface. Its catalog advertises edit/delete (but not create), and mutable list rows retain the delete affordance so state-dependent refusals can surface an operator-readable message at the authoritative action boundary. The schema declares vid/name so saved titles render. Empty vocabulary rows may be deleted; a vocabulary referenced by any taxonomy_term is Forbidden and protected by a restrictive storage foreign key. Other config entity types retain their read-only generic catalog posture. -->
 <!-- Spec reviewed 2026-07-21 - #2101 minor sweep: create forms honor declared boolean defaults, including menu_link enabled=true; relationship empty lists span the exact rendered header count. The R2 JSON:API structural filter allowlist remains unchanged and rejects undeclared keys with 400. -->
@@ -583,6 +584,7 @@ distribution").
 | `boolean`            | `WidgetsToggle`            | `<input type="checkbox">` |
 | `select`             | `WidgetsSelect`            | `<select>`           |
 | `datetime`           | `WidgetsDateTimeInput`     | `<input type="datetime-local">` |
+| `slug`               | `WidgetsSlugInput`         | `<input type="text">` |
 | `date`               | `WidgetsDateInput`         | `<input type="date">` |
 | `entity_autocomplete`| `WidgetsEntityAutocomplete`| `<input type="text">` + dropdown |
 | `hidden`             | `WidgetsHiddenField`       | (renders nothing)    |

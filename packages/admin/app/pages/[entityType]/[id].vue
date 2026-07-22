@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { useLanguage } from '~/composables/useLanguage'
 import { useSchema } from '~/composables/useSchema'
+import { useAdmin } from '~/composables/useAdmin'
+import { useEntity } from '~/composables/useEntity'
 
 const route = useRoute()
 const { t, entityLabel: translateEntityLabel } = useLanguage()
+const { hasCapability } = useAdmin()
+const { remove } = useEntity()
 
 const entityType = computed(() => route.params.entityType as string)
 const entityId = computed(() => route.params.id as string)
@@ -19,6 +23,10 @@ const errorMessage = ref('')
 // Bumped on a successful workflow transition to force SchemaView to re-fetch
 // the entity (its cache key is `view-${entityId}`, unchanged by a transition).
 const viewRefreshKey = ref(0)
+const showDeleteConfirm = ref(false)
+const deleting = ref(false)
+const deleteError = ref('')
+const canDelete = computed(() => hasCapability(entityType.value, 'delete'))
 
 useHead({ title: computed(() => {
   const titleKey = mode.value === 'edit' ? 'edit_entity' : 'view_entity'
@@ -39,6 +47,21 @@ function onTransitioned() {
   successMessage.value = t('workflow_transitioned')
   viewRefreshKey.value++
   setTimeout(() => { successMessage.value = '' }, 3000)
+}
+
+async function confirmDelete() {
+  if (deleting.value) return
+  deleting.value = true
+  deleteError.value = ''
+  try {
+    await remove(entityType.value, entityId.value)
+    await navigateTo(`/${entityType.value}`)
+  } catch (e: any) {
+    deleteError.value = e?.detail ?? e?.data?.errors?.[0]?.detail ?? e?.message ?? t('error_deleting')
+  } finally {
+    deleting.value = false
+    showDeleteConfirm.value = false
+  }
 }
 </script>
 
@@ -68,6 +91,17 @@ function onTransitioned() {
         >
           {{ t('cancel') }}
         </button>
+        <button
+          v-if="mode === 'view' && canDelete"
+          type="button"
+          class="btn btn-danger"
+          data-testid="detail-delete"
+          :data-anchor="`action:${entityType}:delete`"
+          :disabled="deleting"
+          @click="showDeleteConfirm = true"
+        >
+          {{ t('delete') }}
+        </button>
         <NuxtLink :to="`/${entityType}`" class="btn">
           {{ t('back_to_list') }}
         </NuxtLink>
@@ -76,6 +110,7 @@ function onTransitioned() {
 
     <div v-if="successMessage" class="success">{{ successMessage }}</div>
     <div v-if="errorMessage" class="error">{{ errorMessage }}</div>
+    <div v-if="deleteError" class="error" role="alert">{{ deleteError }}</div>
 
     <SchemaView
       v-if="mode === 'view'"
@@ -97,6 +132,14 @@ function onTransitioned() {
       :key="`history-${entityType}-${entityId}`"
       :entity-type="entityType"
       :entity-id="entityId"
+    />
+    <CommonConfirmDialog
+      :open="showDeleteConfirm"
+      :message="t('confirm_delete')"
+      :confirm-label="t('delete')"
+      dangerous
+      @cancel="showDeleteConfirm = false"
+      @confirm="confirmDelete"
     />
   </div>
 </template>

@@ -114,6 +114,11 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
             features: [
                 'mcp' => class_exists('Waaseyaa\\Mcp\\McpServiceProvider'),
             ],
+            internalFieldsByType: [
+                // WordPress-import bookkeeping is retained in migrated rows,
+                // but is not an authoring field in the canonical node model.
+                'node' => ['wp_status'],
+            ],
         );
 
         self::registerRoutes($router, $host);

@@ -57,7 +57,7 @@ final class Node extends ContentEntityBase implements HydratableFromStorageInter
     #[Field(label: 'Content type', description: 'The bundle (content type) of this node.', required: true, readOnly: true, settings: ['weight' => 1], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public string $type = '';
 
-    #[Field(label: 'Slug', description: 'The URL-friendly identifier for this content.', required: true, settings: ['weight' => 2], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
+    #[Field(label: 'Slug', description: 'The URL-friendly identifier for this content.', required: true, settings: ['weight' => 2, 'widget' => 'slug', 'source_field' => 'title'], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public string $slug = '';
 
     #[Field(type: 'boolean', label: 'Published', description: 'Whether the content is published.', default: false, settings: ['weight' => 10, 'authorizationInput' => true], read: \Waaseyaa\Entity\FieldReadLevel::Protected)]

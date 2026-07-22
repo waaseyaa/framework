@@ -520,6 +520,22 @@ final class SchemaPresenterTest extends TestCase
     }
 
     #[Test]
+    public function presentIntegerTimestampSubtypeAsDateTimeWidget(): void
+    {
+        $schema = $this->presenter->present($this->createEntityType(), [
+            'created' => [
+                'type' => 'integer',
+                'label' => 'Authored on',
+                'settings' => ['subtype' => 'timestamp'],
+            ],
+        ]);
+
+        $this->assertSame('string', $schema['properties']['created']['type']);
+        $this->assertSame('date-time', $schema['properties']['created']['format']);
+        $this->assertSame('datetime', $schema['properties']['created']['x-widget']);
+    }
+
+    #[Test]
     public function presentConfigEntityIdAsMachineNameWidget(): void
     {
         // Config entities have no uuid key.
