@@ -9,10 +9,12 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Access\Gate\PolicyAttribute;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Note\NoteAccessPolicy;
+use Waaseyaa\Note\Note;
 
 #[CoversClass(NoteAccessPolicy::class)]
 final class NoteAccessPolicyTest extends TestCase
@@ -61,15 +63,15 @@ final class NoteAccessPolicyTest extends TestCase
     }
 
     #[Test]
-    public function deleteIsAlwaysForbidden(): void
+    public function deleteWithoutAuthorityIsNeutral(): void
     {
         $result = $this->policy->access($this->entity, 'delete', $this->account);
 
-        $this->assertTrue($result->isForbidden());
+        $this->assertTrue($result->isNeutral());
     }
 
     #[Test]
-    public function deleteIsForbiddenEvenForAdmin(): void
+    public function deleteIsAllowedForAdministrator(): void
     {
         $admin = new class implements AccountInterface {
             public function id(): int { return PHP_INT_MAX; }
@@ -80,7 +82,7 @@ final class NoteAccessPolicyTest extends TestCase
 
         $result = $this->policy->access($this->entity, 'delete', $admin);
 
-        $this->assertTrue($result->isForbidden());
+        $this->assertTrue($result->isAllowed());
     }
 
     #[Test]
@@ -192,11 +194,42 @@ final class NoteAccessPolicyTest extends TestCase
     }
 
     #[Test]
-    public function deleteIsForbiddenForPlatformAdmin(): void
+    public function deleteIsAllowedForPlatformAdmin(): void
     {
         $admin = $this->accountWithRoles(['platform.admin']);
         $result = $this->policy->access($this->entity, 'delete', $admin);
-        $this->assertTrue($result->isForbidden());
+        $this->assertTrue($result->isAllowed());
+    }
+
+    #[Test]
+    public function ownerPermissionsApplyOnlyToTheMatchingNoteAuthor(): void
+    {
+        $note = new Note(['uid' => 42, 'title' => 'Owned note']);
+        $owner = new AuthorizationPrincipal(42, true, ['authenticated'], [
+            'view own note content',
+            'edit own note content',
+            'delete own note content',
+        ], 'owner-claims');
+        $other = new AuthorizationPrincipal(99, true, ['authenticated'], [
+            'view own note content',
+            'edit own note content',
+            'delete own note content',
+        ], 'other-claims');
+
+        foreach (['view', 'update', 'delete'] as $operation) {
+            self::assertTrue($this->policy->access($note, $operation, $owner)->isAllowed());
+            self::assertTrue($this->policy->access($note, $operation, $other)->isNeutral());
+        }
+    }
+
+    #[Test]
+    public function noteAuthorshipIsServerManagedExceptForAdministrators(): void
+    {
+        $member = new AuthorizationPrincipal(42, true, ['authenticated'], [], 'member-claims');
+        $admin = new AuthorizationPrincipal(1, true, ['administrator'], [], 'admin-claims');
+
+        self::assertTrue($this->policy->fieldAccess($this->entity, 'uid', 'edit', $member)->isForbidden());
+        self::assertTrue($this->policy->fieldAccess($this->entity, 'uid', 'edit', $admin)->isNeutral());
     }
 
     // -----------------------------------------------------------------------

@@ -555,13 +555,16 @@ final class JsonApiController
         $repository = $this->entityTypeManager->getRepository($entityTypeId);
         $entity = $repository->create($attributes);
 
-        // Authored content created through JSON:API (including the generic
-        // admin host, which delegates here) belongs to the authenticated
-        // creator when the client did not explicitly choose an author. Keep
-        // explicit create-time uid assignment intact for administrator
-        // create-on-behalf workflows; existing-node authorship remains
-        // protected by NodeAccessPolicy's update-time field gate.
-        if ($entityTypeId === 'node'
+        // Authored entities created through JSON:API (including the generic
+        // admin host, which delegates here) belong to the authenticated
+        // creator when their declared shape has a `uid` owner field and the
+        // client did not explicitly choose an author. This covers node, media,
+        // note, and future authored quick-entry types without a type-id list.
+        // Explicit create-time uid assignment remains subject to each type's
+        // field policy (for administrator create-on-behalf workflows).
+        $uidDefinition = $definition->getFieldDefinitions()['uid'] ?? null;
+        if ($uidDefinition?->getSetting('authorizationInput') === true
+            && ($keys['id'] ?? 'id') !== 'uid'
             && !\array_key_exists('uid', $attributes)
             && $entity instanceof FieldableInterface
             && $this->account?->isAuthenticated() === true

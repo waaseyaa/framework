@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Canonical administrators can access legacy admin-gated operational pages (#2101).** Authenticated accounts holding `administrator` now satisfy the older `_role: admin` route requirement used by workflows, queue, scheduler, notifications, Mercure monitoring, and classification policy APIs, while the existing `admin` role remains valid and does not gain reverse superuser implication.
+
+- **Admin-created notes no longer lock out their creator (#2101).** JSON:API now attributes any declared `uid` authored entity to the authenticated creator when omitted, notes apply exact-owner view/edit/delete permissions, administrators may manage note rows, and note instances can be deleted without weakening the immutable built-in type definition.
+
 - **Object-backed menu links retain their destination when retitled (#2089).** `menu_link` now exposes optional public `target_entity_type` and `target_entity_id` fields independently from its presentation title, so a title-only JSON:API PATCH preserves the stored object reference; custom `url` links and the browsing-context `target` field are unchanged.
 
 - **Imported taxonomy, menu authoring, dashboard config listings, and destructive confirmations now work through the admin SPA (#2088).** Content-model registration materializes and rehydrates vocabulary and explicitly empty bundle declarations; menu links declare their menu bundle plus URL, target, parent, order, and visibility fields; config rows use bounded hydrated access for dashboard listings and string identities; and SPA destructive actions use an accessible in-app confirmation dialog instead of `window.confirm()`.

@@ -6,6 +6,8 @@ Note entity type for Waaseyaa applications.
 
 Defines the `note` entity type for lightweight, unstructured content entries (e.g. editorial annotations, internal notes). Simpler than `node` — no bundles, no editorial workflow. See `docs/specs/ingestion-defaults.md` for ingestion context.
 
+Admin/API-created notes carry a server-attributed `uid`. Administrators and authorized owners can read, list, update, and delete note rows; the immutable `core.note` type definition itself remains non-deletable.
+
 Key classes: `Note`, `NoteAccessPolicy`, `NoteServiceProvider`.
 
 ## Ingestion (`Note\Ingestion\*`) — experimental, not wired

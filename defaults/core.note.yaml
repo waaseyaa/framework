@@ -45,6 +45,12 @@ fields:
     type: text
     label: Body
     required: false
+  uid:
+    type: entity_reference
+    label: Author
+    target_type: user
+    system: true
+    writable: false
   created_at:
     type: timestamp
     label: Created At
@@ -64,7 +70,10 @@ access_control:
   write:
     - tenant.admin
     - platform.admin
-  delete: []
+  delete:
+    - tenant.admin
+    - platform.admin
+    - owner: delete own note content
   field_overrides:
     id:
       read: [tenant.member, tenant.admin, platform.admin]
@@ -73,7 +82,8 @@ access_control:
       read: [tenant.member, tenant.admin, platform.admin]
       write: []
 lifecycle:
-  deletable: false
+  deletable: false  # The built-in type definition cannot be deleted.
+  instances_deletable: true
   disableable: true
   disable_requires_audit_log: true
   disable_requires_replacement: false

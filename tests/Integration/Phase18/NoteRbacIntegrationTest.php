@@ -229,11 +229,11 @@ final class NoteRbacIntegrationTest extends TestCase
     }
 
     // -----------------------------------------------------------------------
-    // DELETE — always forbidden (verified in Phase16; one regression guard here)
+    // DELETE — tenant administrators can manage note rows.
     // -----------------------------------------------------------------------
 
     #[Test]
-    public function tenantAdminCannotDeleteNote(): void
+    public function tenantAdminCanDeleteNote(): void
     {
         $note = $this->seedNote('Delete Guard Test');
         $user = $this->makeUser(roles: ['tenant.admin']);
@@ -241,7 +241,7 @@ final class NoteRbacIntegrationTest extends TestCase
 
         $doc = $controller->destroy('note', $note->id());
 
-        $this->assertSame(403, $doc->statusCode);
+        $this->assertSame(204, $doc->statusCode);
     }
 
     // -----------------------------------------------------------------------

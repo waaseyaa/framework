@@ -8,12 +8,14 @@ use Waaseyaa\Entity\Attribute\ContentEntityKeys;
 use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\FieldReadLevel;
 
 /**
  * Represents a built-in Note entity (core.note).
  *
  * A Note is the minimal default content type shipped with Waaseyaa.
- * It is non-deletable via API — use NoteAccessPolicy to enforce that.
+ * The built-in type definition is immutable; individual note rows are
+ * deletable when NoteAccessPolicy grants row-level access.
  */
 #[ContentEntityType(id: 'note', label: 'Note', description: 'Quick-entry content items with minimal structure', api: true)]
 #[ContentEntityKeys(label: 'title')]
@@ -24,6 +26,9 @@ final class Note extends ContentEntityBase
 
     #[Field(type: 'text', label: 'Body', description: 'Note body. Plain text or Markdown.', required: false, settings: ['weight' => 1], read: \Waaseyaa\Entity\FieldReadLevel::Public)]
     public ?string $body = null;
+
+    #[Field(type: 'entity_reference', label: 'Author', required: false, settings: ['target_type' => 'user', 'weight' => 2, 'authorizationInput' => true], read: FieldReadLevel::Protected)]
+    public ?int $uid = null;
 
     public function getTitle(): string
     {
