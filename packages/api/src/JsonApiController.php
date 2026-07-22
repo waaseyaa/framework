@@ -11,6 +11,7 @@ use Waaseyaa\Api\Query\PaginationLinks;
 use Waaseyaa\Api\Query\ParsedQuery;
 use Waaseyaa\Api\Query\QueryApplier;
 use Waaseyaa\Api\Query\QueryParser;
+use Waaseyaa\Entity\ConfigEntityInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\FieldableInterface;
@@ -815,7 +816,7 @@ final class JsonApiController
         }
 
         // Apply attribute updates to the WORKING COPY.
-        if (!$target instanceof FieldableInterface) {
+        if (!$target instanceof FieldableInterface && !$target instanceof ConfigEntityInterface) {
             return $this->errorDocument(
                 JsonApiError::unprocessable("Entity type '{$entityTypeId}' does not support field updates."),
             );

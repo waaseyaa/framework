@@ -54,6 +54,7 @@ final class EntitySchemaSync
      */
     public function syncAll(iterable $entityTypes): void
     {
+        $handlers = [];
         foreach ($entityTypes as $entityType) {
             $backend = $this->resolveBackend($entityType);
             // For sql-column translatable types, the primary table carries
@@ -81,6 +82,7 @@ final class EntitySchemaSync
                 entityLevelFields: $entityLevelFields,
             );
             $handler->ensureTable();
+            $handlers[] = $handler;
 
             // sql-blob translatable: per-langcode rows live IN the base table
             // (FR-020). No side-table is materialised.
@@ -112,6 +114,14 @@ final class EntitySchemaSync
                 // single-axis types, so their schema is unchanged.
                 $handler->ensureTranslationRevisionTable();
             }
+        }
+
+        // Referenced tables may sort after their dependants (taxonomy_term is
+        // registered before taxonomy_vocabulary). Retry declarations only after
+        // every base table exists so a fresh schema gets the same constraints as
+        // a migrated one.
+        foreach ($handlers as $handler) {
+            $handler->ensureDeclaredForeignKeys();
         }
     }
 

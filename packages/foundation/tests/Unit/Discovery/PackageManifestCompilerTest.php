@@ -915,10 +915,11 @@ final class PackageManifestCompilerTest extends TestCase
 
         $manifest = (new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage'))->compile();
 
-        $this->assertCount(27, $manifest->policies);
+        $this->assertCount(28, $manifest->policies);
         $this->assertArrayHasKey('Waaseyaa\\Node\\NodeAccessPolicy', $manifest->policies);
         $this->assertArrayHasKey('Waaseyaa\\Workflows\\Access\\WorkflowAuthorityAccessPolicy', $manifest->policies);
         $this->assertArrayHasKey('Waaseyaa\\Groups\\GroupAccessPolicy', $manifest->policies);
+        $this->assertArrayHasKey('Waaseyaa\\Taxonomy\\VocabularyAccessPolicy', $manifest->policies);
         $this->assertArrayHasKey(
             'Waaseyaa\\Groups\\StaffDirectory\\CapabilityScopedStaffDirectoryAccessPolicy',
             $manifest->policies,

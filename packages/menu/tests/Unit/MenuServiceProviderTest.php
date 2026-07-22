@@ -39,4 +39,15 @@ final class MenuServiceProviderTest extends TestCase
         $this->assertSame(FieldReadLevel::Public, $definitions['target_entity_type']->getReadLevel());
         $this->assertSame(FieldReadLevel::Public, $definitions['target_entity_id']->getReadLevel());
     }
+
+    #[Test]
+    public function menu_link_schema_defaults_enabled_to_true(): void
+    {
+        $provider = new MenuServiceProvider();
+        $provider->register();
+
+        $definitions = $provider->getEntityTypes()[1]->getFieldDefinitions();
+
+        self::assertTrue($definitions['enabled']->getDefaultValue());
+    }
 }

@@ -6,11 +6,15 @@
     "repositories": [
         {
             "type": "path",
-            "url": "../entity"
+            "url": "../access"
         },
         {
             "type": "path",
-            "url": "../access"
+            "url": "../database-legacy"
+        },
+        {
+            "type": "path",
+            "url": "../entity"
         },
         {
             "type": "path",
@@ -23,8 +27,9 @@
     ],
     "require": {
         "php": ">=8.5",
-        "waaseyaa/entity": "^0.1.0-alpha.271",
         "waaseyaa/access": "^0.1.0-alpha.271",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.271",
+        "waaseyaa/entity": "^0.1.0-alpha.271",
         "waaseyaa/field": "^0.1.0-alpha.271",
         "waaseyaa/foundation": "^0.1.0-alpha.271"
     },
@@ -44,7 +49,8 @@
     "extra": {
         "waaseyaa": {
             "policies": [
-                "Waaseyaa\\Taxonomy\\TermAccessPolicy"
+                "Waaseyaa\\Taxonomy\\TermAccessPolicy",
+                "Waaseyaa\\Taxonomy\\VocabularyAccessPolicy"
             ],
             "providers": [
                 "Waaseyaa\\Taxonomy\\TaxonomyServiceProvider"
