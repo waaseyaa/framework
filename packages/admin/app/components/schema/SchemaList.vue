@@ -296,7 +296,7 @@ async function deleteEntity(entity: JsonApiResource) {
     // Frame as a delete failure rather than echoing the raw backend title (a
     // bare "Not found" read like the list itself was missing). Keep the table
     // visible — deleteError renders as an inline notice, not a full-page error.
-    const detail = e.data?.errors?.[0]?.detail ?? e.message
+    const detail = e.data?.errors?.[0]?.detail ?? e.detail ?? e.message
     deleteError.value = detail ? `${t('error_deleting')} ${detail}` : t('error_deleting')
   }
 }

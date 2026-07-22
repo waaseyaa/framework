@@ -204,9 +204,19 @@ async function onSubmit() {
   }
   saving.value = true
   try {
+    // Entity reads include structural attributes needed for display and
+    // identity, but the schema is the write contract. Submit only declared,
+    // non-read-only properties; migrated config rows can return structural
+    // values (such as bundle/langcode) that their write schema omits.
+    const writableData = Object.fromEntries(
+      Object.entries(formData.value).filter(([fieldName]) => {
+        const property = schema.value?.properties?.[fieldName]
+        return property !== undefined && property.readOnly !== true
+      }),
+    )
     const resource = props.entityId
-      ? await update(props.entityType, props.entityId, formData.value)
-      : await create(props.entityType, formData.value)
+      ? await update(props.entityType, props.entityId, writableData)
+      : await create(props.entityType, writableData)
     emit('saved', resource)
   } catch (e: any) {
     const normalized = normalizeValidationFailure(e, new Set(editableFields.value.map(([name]) => name)))

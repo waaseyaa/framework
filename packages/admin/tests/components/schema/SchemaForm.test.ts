@@ -369,6 +369,57 @@ describe('SchemaForm submit — create mode (no entityId)', () => {
 })
 
 describe('SchemaForm submit — edit mode (with entityId)', () => {
+  it('omits migrated vocabulary attributes absent from the write schema when saving a title change', async () => {
+    const vocabularySchema = {
+      ...userSchema,
+      'x-entity-type': 'taxonomy_vocabulary_browser_edit',
+      properties: {
+        name: { type: 'string', 'x-widget': 'text', 'x-label': 'Title' },
+      },
+      required: ['name'],
+    }
+    let submitted: any = null
+    registerEndpoint('/admin/_surface/taxonomy_vocabulary_browser_edit/action/schema', {
+      method: 'POST',
+      handler: () => ({ ok: true, data: vocabularySchema }),
+    })
+    registerEndpoint('/admin/_surface/taxonomy_vocabulary_browser_edit/renamed', {
+      method: 'GET',
+      handler: () => ({
+        ok: true,
+        data: {
+          type: 'taxonomy_vocabulary',
+          id: 'renamed',
+          attributes: { bundle: '', langcode: 'en', name: '' },
+        },
+      }),
+    })
+    registerEndpoint('/admin/_surface/taxonomy_vocabulary_browser_edit/action/update', {
+      method: 'POST',
+      handler: async (event) => {
+        submitted = await readBody(event)
+        if ('bundle' in submitted.attributes) {
+          throw createError({ statusCode: 422, statusMessage: 'The following attribute(s) are not writable: bundle.' })
+        }
+        return {
+          ok: true,
+          data: { type: 'taxonomy_vocabulary', id: 'renamed', attributes: submitted.attributes },
+        }
+      },
+    })
+
+    const { default: SchemaFormFresh } = await import('~/components/schema/SchemaForm.vue')
+    const wrapper = await mountSuspended(SchemaFormFresh, {
+      props: { entityType: 'taxonomy_vocabulary_browser_edit', entityId: 'renamed' },
+    })
+    await flushPromises()
+    await wrapper.get('input[type="text"]').setValue('Audit vocabulary')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(submitted).toEqual({ id: 'renamed', attributes: { name: 'Audit vocabulary' } })
+  })
+
   it('loads existing entity attributes into form', async () => {
     registerEndpoint('/admin/_surface/user_edit/3', {
       method: 'GET',
