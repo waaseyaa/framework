@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Authenticated note creation now completes under the activated protected-read policy set (#2101).** Notes provide a closed protected entity-view decision alongside their protected authorship decision, so the live kernel's published-content policy no longer turns a successful migrated-shape insert into a response-serialization 500; the administrator SPA loop can create, list, read, and delete the attributed row.
 - **Vocabulary rows now have complete admin edit/delete behavior (#2101).** Vocabulary machine names and display names are declared schema fields, saved names render in lists, empty rows can be deleted, and deletion is refused with a clear message while taxonomy terms still reference the vocabulary; a migrated-table restrictive foreign key also guards direct, batch, and concurrent repository paths.
 - **Admin quick-entry defaults and empty lists are consistent (#2101).** New menu links now receive the entity contract's `enabled: true` schema default, and relationship empty-state coverage pins the table cell to the complete rendered column count.
 

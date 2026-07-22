@@ -63,9 +63,9 @@ final class NoteAccessPolicy implements AccessPolicyInterface, FieldAccessPolicy
         return $entityTypeId === 'note';
     }
 
-    public function protectedEntityReadPolicy(): ?ProtectedEntityReadPolicyInterface
+    public function protectedEntityReadPolicy(): ProtectedEntityReadPolicyInterface
     {
-        return null;
+        return new NoteProtectedFieldReadPolicy();
     }
 
     public function protectedFieldReadPolicy(): ProtectedFieldReadPolicyInterface
