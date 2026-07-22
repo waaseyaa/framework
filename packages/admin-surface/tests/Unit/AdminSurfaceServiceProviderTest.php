@@ -9,6 +9,8 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\RequestContext;
+use Waaseyaa\Access\AuthorizationPrincipal;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AdminSurface\AdminSpaFallback;
 use Waaseyaa\AdminSurface\AdminSurfaceRoutePaths;
 use Waaseyaa\AdminSurface\AdminSurfaceServiceProvider;
@@ -16,6 +18,15 @@ use Waaseyaa\AdminSurface\Catalog\CatalogBuilder;
 use Waaseyaa\AdminSurface\Host\AbstractAdminSurfaceHost;
 use Waaseyaa\AdminSurface\Host\AdminSurfaceResultData;
 use Waaseyaa\AdminSurface\Host\AdminSurfaceSessionData;
+use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
+use Waaseyaa\Entity\FieldReadLevel;
+use Waaseyaa\Field\FieldDefinition;
+use Waaseyaa\Field\FieldDefinitionRegistry;
+use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
+use Waaseyaa\Node\NodeAccessPolicy;
 use Waaseyaa\Routing\WaaseyaaRouter;
 
 #[CoversClass(AdminSurfaceServiceProvider::class)]
@@ -74,6 +85,89 @@ final class AdminSurfaceServiceProviderTest extends TestCase
         $this->assertSame(AdminSurfaceRoutePaths::PATH_LIST, $collection->get('admin_surface.list')->getPath());
         $this->assertSame(AdminSurfaceRoutePaths::PATH_GET, $collection->get('admin_surface.get')->getPath());
         $this->assertSame(AdminSurfaceRoutePaths::PATH_ACTION, $collection->get('admin_surface.action')->getPath());
+    }
+
+    #[Test]
+    public function migratedPostCreateFormOmitsTheRealSourceStatusField(): void
+    {
+        $definition = new EntityType(
+            id: 'node',
+            label: 'Content',
+            class: MigratedPostSchemaTestEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type'],
+        );
+        $registry = new FieldDefinitionRegistry();
+        $registry->registerCoreFields('node', [
+            'title' => new FieldDefinition('title', 'string', targetEntityTypeId: 'node', label: 'Title'),
+            'type' => new FieldDefinition('type', 'string', targetEntityTypeId: 'node', label: 'Content type'),
+        ]);
+        $registry->registerBundleFields('node', 'post', [
+            // Exact key/label/target shape declared by the WordPress import consumer.
+            new FieldDefinition(
+                'source_status',
+                'string',
+                settings: ['weight' => 7],
+                targetEntityTypeId: 'node',
+                targetBundle: 'post',
+                label: 'WordPress status',
+                read: FieldReadLevel::Public,
+            ),
+        ]);
+
+        $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
+        $entityTypeManager->method('hasDefinition')->with('node')->willReturn(true);
+        $entityTypeManager->method('getDefinition')->with('node')->willReturn($definition);
+        $entityTypeManager->method('resolveFieldDefinitions')->willReturnCallback(
+            fn(string $type, ?string $bundle = null): array => $registry->coreFieldsFor($type)
+                + ($bundle === null ? [] : $registry->bundleFieldsFor($type, $bundle)),
+        );
+
+        $accessHandler = new EntityAccessHandler([new NodeAccessPolicy()]);
+        $provider = new AdminSurfaceServiceProvider();
+        $provider->setKernelServices(new class ($registry, $accessHandler) implements KernelServicesInterface {
+            public function __construct(
+                private readonly FieldDefinitionRegistryInterface $registry,
+                private readonly EntityAccessHandler $accessHandler,
+            ) {}
+
+            public function get(string $abstract): ?object
+            {
+                return match ($abstract) {
+                    FieldDefinitionRegistryInterface::class => $this->registry,
+                    EntityAccessHandler::class => $this->accessHandler,
+                    default => null,
+                };
+            }
+        });
+
+        $router = new WaaseyaaRouter();
+        $provider->routes($router, $entityTypeManager);
+        $route = $router->getRouteCollection()->get('admin_surface.action');
+        self::assertNotNull($route);
+        $controller = $route->getDefault('_controller');
+        self::assertIsCallable($controller);
+
+        $request = Request::create(
+            '/admin/_surface/node/action/schema',
+            'POST',
+            content: json_encode(['bundle' => 'post'], JSON_THROW_ON_ERROR),
+        );
+        $request->attributes->set('_account', new AuthorizationPrincipal(
+            42,
+            true,
+            [],
+            ['administer content', 'administer nodes'],
+            'operator',
+        ));
+        $result = $controller($request, 'node', 'schema');
+
+        self::assertTrue($result['ok'], json_encode($result));
+        self::assertArrayHasKey('title', $result['data']['properties']);
+        self::assertArrayNotHasKey(
+            'source_status',
+            $result['data']['properties'],
+            'The browser form must not render the migrated “WordPress status” input.',
+        );
     }
 
     #[Test]
@@ -435,5 +529,17 @@ final class AdminSurfaceServiceProviderTest extends TestCase
                 ]);
             }
         };
+    }
+}
+
+final class MigratedPostSchemaTestEntity extends ContentEntityBase
+{
+    public function __construct(array $values = [])
+    {
+        parent::__construct(
+            $values,
+            'node',
+            ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type'],
+        );
     }
 }
