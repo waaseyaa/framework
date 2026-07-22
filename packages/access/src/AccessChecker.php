@@ -92,6 +92,13 @@ final class AccessChecker
             $hasRequirement = true;
             $requiredRoles = array_map('trim', explode(',', $role));
             $accountRoles = $account->getRoles();
+            // `administrator` is the framework's canonical superuser role.
+            // Older operational routes use the shorter `admin` role id; keep
+            // that role valid while ensuring a canonical administrator can
+            // reach every admin-only operation.
+            if (in_array('administrator', $accountRoles, true) && !in_array('admin', $accountRoles, true)) {
+                $accountRoles[] = 'admin';
+            }
             $hasRole = !empty(array_intersect($requiredRoles, $accountRoles));
             $roleResult = $hasRole
                 ? AccessResult::allowed()

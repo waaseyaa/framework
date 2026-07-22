@@ -101,6 +101,30 @@ final class AccessCheckerTest extends TestCase
     }
 
     #[Test]
+    public function canonicalAdministratorSatisfiesLegacyAdminRouteRole(): void
+    {
+        $route = new Route('/admin/operations');
+        $route->setOption('_role', 'admin');
+
+        $account = $this->createMock(AccountInterface::class);
+        $account->method('getRoles')->willReturn(['administrator']);
+
+        $this->assertTrue($this->checker->check($route, $account)->isAllowed());
+    }
+
+    #[Test]
+    public function legacyAdminRoleDoesNotImplyCanonicalAdministrator(): void
+    {
+        $route = new Route('/admin/superuser');
+        $route->setOption('_role', 'administrator');
+
+        $account = $this->createMock(AccountInterface::class);
+        $account->method('getRoles')->willReturn(['admin']);
+
+        $this->assertTrue($this->checker->check($route, $account)->isForbidden());
+    }
+
+    #[Test]
     public function roleMismatchReturnsForbidden(): void
     {
         $route = new Route('/admin');
