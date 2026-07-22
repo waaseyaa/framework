@@ -7,6 +7,7 @@ namespace Waaseyaa\Api\Schema;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\Exception\PartialAccessContextException;
+use Waaseyaa\Api\EntityTypeApiExposurePolicy;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
@@ -43,6 +44,7 @@ final class SchemaPresenter
      */
     public function __construct(
         private readonly ?FieldDefinitionRegistryInterface $fieldDefinitionRegistry = null,
+        private readonly ?EntityTypeApiExposurePolicy $exposurePolicy = null,
     ) {}
 
     /**
@@ -481,15 +483,17 @@ final class SchemaPresenter
             }
 
             // Handle target_type for entity_reference fields (legacy settings format).
-            if (isset($settings['target_type'])) {
+            if ($this->exposurePolicy === null && isset($settings['target_type']) && $this->mayExposeTargetType($settings['target_type'])) {
                 $schema['x-target-type'] = $settings['target_type'];
             }
         }
 
-        // Handle top-level target_entity_type_id for entity_reference fields.
-        $targetType = $definition->getSetting('target_entity_type_id')
-            ?? $definition->getSetting('targetEntityTypeId');
-        if (is_string($targetType) && $targetType !== '') {
+        // Handle target metadata for entity_reference fields. With an active
+        // exposure policy, malformed or conflicting metadata fails closed.
+        $targetType = $this->exposurePolicy === null
+            ? ($definition->getSetting('target_entity_type_id') ?? $definition->getSetting('targetEntityTypeId'))
+            : $this->resolvedExposedTargetType($definition);
+        if (is_string($targetType) && $targetType !== '' && $this->mayExposeTargetType($targetType)) {
             $schema['x-target-type'] = $targetType;
         }
 
@@ -504,5 +508,34 @@ final class SchemaPresenter
         }
 
         return $schema;
+    }
+
+    private function mayExposeTargetType(mixed $targetType): bool
+    {
+        return is_string($targetType)
+            && $targetType !== ''
+            && ($this->exposurePolicy === null || $this->exposurePolicy->isExposed($targetType));
+    }
+
+    private function resolvedExposedTargetType(FieldDefinitionInterface $definition): ?string
+    {
+        $targets = [];
+        foreach (['target_entity_type_id', 'targetEntityTypeId', 'target_type'] as $setting) {
+            $target = $definition->getSetting($setting);
+            if ($target === null) {
+                continue;
+            }
+            if (!is_string($target) || $target === '') {
+                return null;
+            }
+            $targets[$target] = true;
+        }
+        if (count($targets) !== 1) {
+            return null;
+        }
+
+        $target = array_key_first($targets);
+
+        return $this->exposurePolicy?->isExposed($target) === true ? $target : null;
     }
 }

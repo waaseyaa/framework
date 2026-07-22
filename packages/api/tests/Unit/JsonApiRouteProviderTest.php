@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Waaseyaa\Api\Tests\Unit;
 
 use Waaseyaa\Api\JsonApiRouteProvider;
+use Waaseyaa\Api\EntityTypeApiExposurePolicy;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Api\Tests\Fixtures\UserNameContentTestEntity;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Routing\Exception\RouteNotFoundException;
 use Waaseyaa\Routing\WaaseyaaRouter;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -100,7 +102,7 @@ final class JsonApiRouteProviderTest extends TestCase
     }
 
     #[Test]
-    public function structural_cache_is_bounded_and_diagnostic_closures_capture_only_the_type_id(): void
+    public function structural_cache_is_bounded_and_opaque_not_found_closures_capture_no_state(): void
     {
         $representativeTypes = [];
         for ($index = 0; $index < 45; ++$index) {
@@ -122,7 +124,7 @@ final class JsonApiRouteProviderTest extends TestCase
         self::assertNotNull($route);
         $controller = $route->getDefault('_controller');
         self::assertInstanceOf(\Closure::class, $controller);
-        self::assertSame(['entityTypeId' => 'hidden'], (new \ReflectionFunction($controller))->getStaticVariables());
+        self::assertSame([], (new \ReflectionFunction($controller))->getStaticVariables());
     }
 
     #[Test]
@@ -151,7 +153,106 @@ final class JsonApiRouteProviderTest extends TestCase
     }
 
     #[Test]
-    public function unexposedFeedTypesReceiveOnlyLoudDiagnosticRoutesByDefault(): void
+    public function application_allowlist_drives_routes_and_account_independent_not_found_responses(): void
+    {
+        $manager = $this->managerWith(['article' => true, 'tag' => true]);
+        $policy = EntityTypeApiExposurePolicy::fromConfig($manager, [
+            'api' => ['entity_type_allowlist' => ['article']],
+        ]);
+        $router = new WaaseyaaRouter(new \Symfony\Component\Routing\RequestContext('', 'GET'));
+        new JsonApiRouteProvider($manager, exposurePolicy: $policy)->registerRoutes($router);
+
+        self::assertNotNull($router->getRouteCollection()->get('api.article.index'));
+        self::assertNull($router->getRouteCollection()->get('api.tag.index'));
+
+        $diagnostic = $router->getRouteCollection()->get('api.tag.not_exposed');
+        self::assertNotNull($diagnostic);
+        $controller = $diagnostic->getDefault('_controller');
+
+        $anonymous = Request::create('/api/tag', 'GET');
+        $anonymous->attributes->set('_account', new class implements \Waaseyaa\Access\AccountInterface {
+            public function id(): int|string { return 0; }
+            public function hasPermission(string $permission): bool { return false; }
+            public function getRoles(): array { return []; }
+            public function isAuthenticated(): bool { return false; }
+        });
+        $anonymousResult = $controller($anonymous);
+        self::assertSame([
+            'statusCode' => 404,
+            'body' => [
+                'jsonapi' => ['version' => '1.1'],
+                'errors' => [[
+                    'status' => '404',
+                    'title' => 'Not Found',
+                    'detail' => 'No route matches the requested path.',
+                ]],
+            ],
+        ], $anonymousResult);
+
+        $authenticated = clone $anonymous;
+        $authenticated->attributes->set('_account', new class implements \Waaseyaa\Access\AccountInterface {
+            public function id(): int|string { return 1; }
+            public function hasPermission(string $permission): bool { return false; }
+            public function getRoles(): array { return ['authenticated']; }
+            public function isAuthenticated(): bool { return true; }
+        });
+        $authenticatedResult = $controller($authenticated);
+        self::assertSame($anonymousResult, $authenticatedResult);
+        self::assertArrayNotHasKey('code', $authenticatedResult['body']['errors'][0]);
+        self::assertStringNotContainsString('tag', json_encode($authenticatedResult, JSON_THROW_ON_ERROR));
+
+        self::assertSame($authenticatedResult, $controller($authenticated));
+        self::assertSame($authenticatedResult, $controller($anonymous));
+
+        self::assertNull($router->getRouteCollection()->get('api.article.related'));
+        self::assertNull($router->getRouteCollection()->get('api.article.relationships'));
+    }
+
+    #[Test]
+    public function sequential_allowlist_shapes_do_not_reuse_structural_routes(): void
+    {
+        $manager = $this->managerWith(['article' => true, 'tag' => true]);
+        $articlePolicy = EntityTypeApiExposurePolicy::fromConfig($manager, [
+            'api' => ['entity_type_allowlist' => ['article']],
+        ]);
+        $tagPolicy = EntityTypeApiExposurePolicy::fromConfig($manager, [
+            'api' => ['entity_type_allowlist' => ['tag']],
+        ]);
+        $articleRouter = new WaaseyaaRouter();
+        $tagRouter = new WaaseyaaRouter();
+
+        new JsonApiRouteProvider($manager, exposurePolicy: $articlePolicy)->registerRoutes($articleRouter);
+        new JsonApiRouteProvider($manager, exposurePolicy: $tagPolicy)->registerRoutes($tagRouter);
+
+        self::assertNotNull($articleRouter->getRouteCollection()->get('api.article.index'));
+        self::assertNull($articleRouter->getRouteCollection()->get('api.tag.index'));
+        self::assertNull($tagRouter->getRouteCollection()->get('api.article.index'));
+        self::assertNotNull($tagRouter->getRouteCollection()->get('api.tag.index'));
+    }
+
+    #[Test]
+    public function related_and_relationship_linkage_paths_remain_ordinary_unknown_routes(): void
+    {
+        $router = new WaaseyaaRouter(new \Symfony\Component\Routing\RequestContext('', 'GET'));
+        new JsonApiRouteProvider($this->managerWith(['article' => true]))->registerRoutes($router);
+
+        foreach ([
+            '/api/article/1/author',
+            '/api/article/1/relationships/author',
+            '/api/article/1/missing',
+            '/api/article/1/relationships/missing',
+        ] as $path) {
+            try {
+                $router->match($path);
+                self::fail("Expected {$path} to remain outside the route table.");
+            } catch (RouteNotFoundException) {
+                self::addToAssertionCount(1);
+            }
+        }
+    }
+
+    #[Test]
+    public function unexposedFeedTypesReceiveOnlyOpaqueNotFoundRoutesByDefault(): void
     {
         foreach (['feed_source', 'feed_item', 'fetch_log'] as $entityTypeId) {
             $this->entityTypeManager->registerEntityType(new EntityType(
@@ -175,15 +276,23 @@ final class JsonApiRouteProviderTest extends TestCase
             self::assertNotNull($diagnostic);
             self::assertSame('/api/' . $entityTypeId, $diagnostic->getPath());
 
-            $response = ($diagnostic->getDefault('_controller'))();
+            $request = Request::create('/api/' . $entityTypeId);
+            $request->attributes->set('_account', new class implements \Waaseyaa\Access\AccountInterface {
+                public function id(): int|string { return 1; }
+                public function hasPermission(string $permission): bool { return false; }
+                public function getRoles(): array { return ['authenticated']; }
+                public function isAuthenticated(): bool { return true; }
+            });
+            $response = ($diagnostic->getDefault('_controller'))($request);
             self::assertSame(404, $response['statusCode']);
-            self::assertSame('entity_type_not_api_exposed', $response['body']['errors'][0]['code']);
-            self::assertStringContainsString('api: true', $response['body']['errors'][0]['detail']);
+            self::assertArrayNotHasKey('code', $response['body']['errors'][0]);
+            self::assertSame('No route matches the requested path.', $response['body']['errors'][0]['detail']);
+            self::assertStringNotContainsString($entityTypeId, json_encode($response, JSON_THROW_ON_ERROR));
         }
     }
 
     #[Test]
-    public function unexposedTypeRequestReturnsNamedApiExposureDiagnostic(): void
+    public function anonymousUnexposedTypeRequestIsIndistinguishableFromAnUnknownRoute(): void
     {
         $this->entityTypeManager->registerEntityType(new EntityType(
             id: 'feed_source',
@@ -202,9 +311,9 @@ final class JsonApiRouteProviderTest extends TestCase
         $document = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
 
         self::assertSame(404, $response->getStatusCode());
-        self::assertSame('entity_type_not_api_exposed', $document['errors'][0]['code']);
-        self::assertStringContainsString('feed_source', $document['errors'][0]['detail']);
-        self::assertStringContainsString('api: true', $document['errors'][0]['detail']);
+        self::assertArrayNotHasKey('code', $document['errors'][0]);
+        self::assertSame('No route matches the requested path.', $document['errors'][0]['detail']);
+        self::assertStringNotContainsString('feed_source', json_encode($document, JSON_THROW_ON_ERROR));
     }
 
     #[Test]

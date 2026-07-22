@@ -12,6 +12,7 @@ use Waaseyaa\Api\ApiServiceProvider;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Routing\WaaseyaaRouter;
 
 #[CoversClass(ApiServiceProvider::class)]
@@ -36,5 +37,28 @@ final class ApiServiceProviderTest extends TestCase
         $this->assertNotNull($routes->get('api.article.index'));
         $this->assertNotNull($routes->get('api.article.show'));
         $this->assertNotNull($routes->get('api.discovery'));
+    }
+
+    #[Test]
+    public function boot_fails_fast_when_the_install_shape_does_not_register_an_allowlisted_type(): void
+    {
+        $manager = new EntityTypeManager(new EventDispatcher());
+        $provider = new ApiServiceProvider();
+        $provider->setKernelContext('/tmp/test-project', [
+            'api' => ['entity_type_allowlist' => ['removed_package_type']],
+        ], []);
+        $provider->setKernelServices(new class ($manager) implements KernelServicesInterface {
+            public function __construct(private readonly EntityTypeManager $manager) {}
+
+            public function get(string $abstract): ?object
+            {
+                return $abstract === EntityTypeManager::class ? $this->manager : null;
+            }
+        });
+        $provider->register();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('removed_package_type');
+        $provider->boot();
     }
 }

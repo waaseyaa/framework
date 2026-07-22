@@ -32,6 +32,7 @@ final class JsonApiRouteProvider
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly string $basePath = '/api',
+        private readonly ?EntityTypeApiExposurePolicy $exposurePolicy = null,
     ) {}
 
     /**
@@ -48,7 +49,7 @@ final class JsonApiRouteProvider
         $definitions = $this->entityTypeManager->getDefinitions();
         $exposure = [];
         foreach ($definitions as $entityTypeId => $definition) {
-            $exposure[$entityTypeId] = EntityTypeApiExposure::isExposed($definition);
+            $exposure[$entityTypeId] = EntityTypeApiExposure::isExposed($definition, $this->exposurePolicy);
         }
         ksort($exposure);
         $key = $this->basePath . "\0" . ($workflow ? 'workflow' : 'base') . "\0"
@@ -112,21 +113,19 @@ final class JsonApiRouteProvider
 
     private function registerNotExposedRoutes(WaaseyaaRouter $router, string $entityTypeId): void
     {
-        $diagnostic = static fn(): array => [
-            'statusCode' => 404,
-            'body' => [
-                'jsonapi' => ['version' => '1.1'],
-                'errors' => [[
-                    'status' => '404',
-                    'code' => 'entity_type_not_api_exposed',
-                    'title' => 'Entity type is not API-exposed',
-                    'detail' => sprintf(
-                        'Entity type "%s" is registered but not API-exposed. Set api: true on #[ContentEntityType] or the imperative EntityType definition.',
-                        $entityTypeId,
-                    ),
-                ]],
-            ],
-        ];
+        $diagnostic = static function (): array {
+            return [
+                'statusCode' => 404,
+                'body' => [
+                    'jsonapi' => ['version' => '1.1'],
+                    'errors' => [[
+                        'status' => '404',
+                        'title' => 'Not Found',
+                        'detail' => 'No route matches the requested path.',
+                    ]],
+                ],
+            ];
+        };
 
         foreach ([
             "api.{$entityTypeId}.not_exposed" => $this->basePath . '/' . $entityTypeId,

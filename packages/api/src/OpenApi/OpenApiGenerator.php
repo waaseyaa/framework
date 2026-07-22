@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Api\OpenApi;
 
 use Waaseyaa\Api\EntityTypeApiExposure;
+use Waaseyaa\Api\EntityTypeApiExposurePolicy;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 
@@ -23,6 +24,7 @@ final class OpenApiGenerator
         private string $basePath = '/api',
         private string $title = 'Waaseyaa API',
         private string $version = '0.1.0',
+        private readonly ?EntityTypeApiExposurePolicy $exposurePolicy = null,
     ) {
         $this->schemaBuilder = new SchemaBuilder();
     }
@@ -57,7 +59,7 @@ final class OpenApiGenerator
             $schemas = $spec['components']['schemas'];
 
             foreach ($definitions as $entityTypeId => $entityType) {
-                if (!EntityTypeApiExposure::isExposed($entityType)) {
+                if (!EntityTypeApiExposure::isExposed($entityType, $this->exposurePolicy)) {
                     continue;
                 }
                 $paths = array_merge($paths, $this->buildPathsForEntityType($entityType));

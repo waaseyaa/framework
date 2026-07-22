@@ -7,10 +7,12 @@ namespace Waaseyaa\Foundation\Http\Router;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Api\EntityTypeApiExposurePolicy;
 use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\JsonApiDocument;
 use Waaseyaa\Api\JsonApiError;
 use Waaseyaa\Api\ResourceSerializer;
+use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Http\JsonApiResponseTrait;
 
@@ -21,7 +23,13 @@ final class JsonApiRouter implements DomainRouterInterface
     public function __construct(
         private readonly EntityTypeManager $entityTypeManager,
         private readonly EntityAccessHandler $accessHandler,
-    ) {}
+        ?DatabaseInterface $database = null,
+        private readonly ?EntityTypeApiExposurePolicy $exposurePolicy = null,
+    ) {
+        // Retained for positional compatibility with existing construction
+        // sites; JSON:API storage is resolved through EntityTypeManager.
+        unset($database);
+    }
 
     public function supports(Request $request): bool
     {
@@ -42,13 +50,14 @@ final class JsonApiRouter implements DomainRouterInterface
     {
         $ctx = WaaseyaaContext::fromRequest($request);
         $params = $request->attributes->all();
-        $serializer = new ResourceSerializer($this->entityTypeManager);
+        $serializer = new ResourceSerializer($this->entityTypeManager, exposurePolicy: $this->exposurePolicy);
 
         $jsonApiController = new JsonApiController(
             $this->entityTypeManager,
             $serializer,
             $this->accessHandler,
             $ctx->principal,
+            exposurePolicy: $this->exposurePolicy,
         );
 
         $entityTypeId = $params['_entity_type'] ?? '';

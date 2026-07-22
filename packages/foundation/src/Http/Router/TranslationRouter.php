@@ -8,6 +8,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Controller\TranslationController;
+use Waaseyaa\Api\EntityTypeApiExposurePolicy;
 use Waaseyaa\Api\JsonApiDocument;
 use Waaseyaa\Api\JsonApiError;
 use Waaseyaa\Api\ResourceSerializer;
@@ -33,6 +34,7 @@ final class TranslationRouter implements DomainRouterInterface
     public function __construct(
         private readonly EntityTypeManager $entityTypeManager,
         private readonly EntityAccessHandler $accessHandler,
+        private readonly ?EntityTypeApiExposurePolicy $exposurePolicy = null,
     ) {}
 
     public function supports(Request $request): bool
@@ -52,7 +54,7 @@ final class TranslationRouter implements DomainRouterInterface
     {
         $ctx = WaaseyaaContext::fromRequest($request);
         $params = $request->attributes->all();
-        $serializer = new ResourceSerializer($this->entityTypeManager);
+        $serializer = new ResourceSerializer($this->entityTypeManager, exposurePolicy: $this->exposurePolicy);
 
         $translationController = new TranslationController(
             $this->entityTypeManager,

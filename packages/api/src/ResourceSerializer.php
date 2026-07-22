@@ -47,6 +47,7 @@ final class ResourceSerializer
         private readonly EntityTypeManagerInterface $entityTypeManager,
         private readonly string $basePath = '/api',
         ?RichTextSanitizer $richTextSanitizer = null,
+        private readonly ?EntityTypeApiExposurePolicy $exposurePolicy = null,
     ) {
         // PHP 8.4 constructor-default gotcha (see CLAUDE.md): resolve the
         // default in the body rather than as a parameter default, so every
@@ -97,6 +98,10 @@ final class ResourceSerializer
         // had a chance to conceal the field.
         $fieldNames = EntityValues::ordinaryFieldNames($entity);
         $fieldNames = array_keys($this->filterInternalFields(array_fill_keys($fieldNames, true), $fieldDefinitions));
+        $fieldNames = array_values(array_filter(
+            $fieldNames,
+            fn(string $fieldName): bool => !$this->referencesUnexposedType($fieldDefinitions[$fieldName] ?? null),
+        ));
 
         // Filter out fields the account cannot view.
         if ($accessHandler !== null && $account !== null) {
@@ -122,6 +127,30 @@ final class ResourceSerializer
             attributes: $attributes,
             links: ['self' => $selfLink],
         );
+    }
+
+    private function referencesUnexposedType(?FieldDefinitionInterface $definition): bool
+    {
+        if ($this->exposurePolicy === null || $definition === null || $definition->getType() !== 'entity_reference') {
+            return false;
+        }
+
+        $targets = [];
+        foreach (['target_entity_type_id', 'targetEntityTypeId', 'target_type'] as $setting) {
+            $target = $definition->getSetting($setting);
+            if ($target === null) {
+                continue;
+            }
+            if (!is_string($target) || $target === '') {
+                return true;
+            }
+            $targets[$target] = true;
+        }
+        if (count($targets) !== 1) {
+            return true;
+        }
+
+        return !$this->exposurePolicy->isExposed(array_key_first($targets));
     }
 
     /**

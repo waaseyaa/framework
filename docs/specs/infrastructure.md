@@ -1424,7 +1424,7 @@ This kernel-adjacent registrar runs once at boot (called from `HttpKernel`) and 
 | Group | Paths | Access gate |
 |-------|-------|-------------|
 | OpenAPI schema doc | `GET /api/openapi.json` | `_authenticated` |
-| Entity-type catalog + lifecycle | `GET /api/entity-types`; `POST /api/entity-types/{entity_type}/{enable,disable}` | default / `_role: admin` |
+| Entity-type catalog + lifecycle | `GET /api/entity-types`; `POST /api/entity-types/{entity_type}/{enable,disable}` | `_role: admin` |
 | Broadcast (SSE) | `GET /api/broadcast` | default |
 | Media upload/download | `POST /api/media/upload`; `GET /media/{id}/download` | `access media`; `allowAll` transport posture + download handler entity-view enforcement |
 | Attachment download | `GET /attachment/{id}/download` | option-less (handler enforces) |
