@@ -7,6 +7,9 @@ namespace Waaseyaa\Foundation\Http;
 /**
  * Optional resolver capability for callers that must distinguish an absent
  * binding from a bound service whose factory failed.
+ *
+ * @internal Kernel/SSR coordination detail; applications bind the public
+ *           EntityPageComposerInterface instead.
  */
 interface BindingAwareHttpServiceResolverInterface extends HttpServiceResolverInterface
 {
