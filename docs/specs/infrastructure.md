@@ -679,7 +679,7 @@ Invalidation:
   - `mcp_read:entity:{type}:{id}`
 - Fallback path (non tag-aware backends): `deleteAll()`.
 
-## SSR Render Cache Variant Contract (v1.1)
+## SSR Render Cache Variant Contract (v1.2)
 
 SSR render cache keys include a deterministic variant suffix built from:
 
@@ -688,6 +688,9 @@ SSR render cache keys include a deterministic variant suffix built from:
 - preview/public mode (`preview`)
 - workflow state (`workflow_visibility.state`)
 - graph-context hash (normalized `relationship_navigation`)
+- HTML page composition (absent for the legacy/no-binding case, or
+  deterministic hashes of the registered `EntityPageComposerInterface`
+  implementation class and normalized inbound request path)
 - contract version
 
 The variant payload is normalized and hashed, then emitted with a readable prefix:
@@ -701,6 +704,31 @@ Security boundary:
 - preview requests and public requests resolve to distinct variant keys,
 - preview render paths are not persisted to shared public cache storage,
 - public cache reads/writes remain restricted to unauthenticated, non-preview requests.
+- Markdown ignores composer identity and keeps its independent representation
+  variant because page composition is an HTML-only contract.
+- A composer exception or invalid response falls back to framework rendering
+  as `private, no-store`, without surrogate keys or a render-cache write; a
+  deliberate `null` composer decline is deterministic and remains cacheable
+  in the registered composer's class-and-path variant.
+- Accepted composed documents are also `private, no-store`, have no public
+  surrogate keys, and are not written to `RenderCache`: application chrome
+  dependencies are opaque to the entity-only tagging model. Shared caching
+  requires a future explicit dependency-metadata contract.
+- With no composer binding, the pre-contract HTML variant payload and complete
+  hash remain byte-for-byte unchanged.
+- `HttpKernelServiceResolver` exposes a non-instantiating binding probe and a
+  failure-propagating bound resolution path. This preserves zero field
+  formatting on a legacy cache hit, exactly one formatting pass on a miss,
+  runs an application composer factory only after the authorized payload is
+  built, and distinguishes a missing binding from a broken factory.
+- Registered composer decline/failure fallback reuses the one request-local
+  authorized formatter result through a private handler-only path; no public
+  caller-supplied render-bag API exists.
+
+`RenderCache::SCHEMA_VERSION` is `v6` for the page-composition contract. This
+makes every pre-contract `v5` document unreachable and prevents cached generic
+framework HTML from surviving the first deployment that registers an
+application shell. See [ssr-page-composition.md](./ssr-page-composition.md).
 
 Render cache invalidation is broadened for relationship-aware pages:
 

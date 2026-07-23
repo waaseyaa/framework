@@ -67,6 +67,9 @@ return [
     'Waaseyaa\Foundation\Ingestion\TraceIdGeneratorInterface' => 'public',
     'Waaseyaa\Foundation\Exception\WaaseyaaException' => 'public',
     'Waaseyaa\Foundation\Http\HttpServiceResolverInterface' => 'public',
+    // Kernel-only capability used to distinguish an absent app binding from a
+    // bound factory failure without constructing application code.
+    'Waaseyaa\Foundation\Http\BindingAwareHttpServiceResolverInterface' => 'internal',
     'Waaseyaa\Foundation\Http\JsonApiResponseTrait' => 'public',
     'Waaseyaa\Foundation\Http\Inbound\InboundHttpRequestInterface' => 'public',
     'Waaseyaa\Foundation\Http\Router\DomainRouterInterface' => 'public',
@@ -523,6 +526,8 @@ return [
     'Waaseyaa\Api\MercureMonitor\EventStreamReadModelInterface' => 'public',
     'Waaseyaa\Api\MercureMonitor\SubscriberObserverInterface' => 'public',
     'Waaseyaa\Routing\Language\LanguageNegotiatorInterface' => 'public',
+    // Generic SSR app-shell composition extension point (#2117).
+    'Waaseyaa\SSR\PageComposition\EntityPageComposerInterface' => 'public',
 
     // Layer 5: AI — public
     'Waaseyaa\AI\Agent\Account\InitiatorAccountLoaderInterface' => 'public',

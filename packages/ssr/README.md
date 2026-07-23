@@ -14,9 +14,11 @@ The `?raw` / `Accept: text/markdown` representation renders via `SsrPageHandler:
 
 `RenderCache` keys are versioned via `RenderCache::SCHEMA_VERSION` (folded into `RenderCache::buildKey()`) so a payload-shape change like the field-filtering fix above makes every previously-cached entry unreachable under the new key, forcing a re-render through the fixed path instead of continuing to serve stale cached HTML.
 
+Applications may bind `Waaseyaa\SSR\PageComposition\EntityPageComposerInterface` to wrap an authorized generic entity page in application chrome. The composer receives only an immutable `EntityPageRenderPayload`: the access-checked title, normalized inbound path, type/bundle/view/language metadata, schema.org JSON-LD, and formatter-produced strings for fields that survived field access. Its one structure-preserving channel, `bodyCompositionHtml`, is created after field access and sanitized while retaining safe CSS classes and relative media/link URLs; forbidden, missing, array, and object bodies yield an empty string. It never receives an entity, account, arbitrary raw field bag, repository, or template name. The seam is HTML-only and runs after alias resolution and all existing editorial/entity access gates. No binding or a deliberate `null` return uses the framework renderer. Resolution failure, exceptions, empty content, redirects, non-200 output, and explicitly non-HTML output fall back to that complete renderer as `private, no-store`; accepted composed documents are also non-shareable until the contract can represent app-shell cache dependencies. See `docs/specs/ssr-page-composition.md`.
+
 Twig functions: `asset()`, `env()`, `config()` (when wired), `csrf_token()` (when User middleware present).
 
-Key classes: `SsrPageHandler`, `RenderController`, `ThemeServiceProvider`, `EntityRenderer`, `WaaseyaaExtension`.
+Key classes: `SsrPageHandler`, `RenderController`, `ThemeServiceProvider`, `EntityRenderer`, `EntityPageComposerInterface`, `EntityPageRenderPayload`, `WaaseyaaExtension`.
 
 Typed app-controller entity parameters are an access boundary: the invoker
 accepts `HttpKernel`'s upcast entity (or repository-loads a raw id for direct

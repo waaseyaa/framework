@@ -20,13 +20,15 @@ final class RenderCache
      * or the R8-a fix that generalized the entity-level view gate
      * ({@see \Waaseyaa\SSR\SsrPageHandler::shouldDenyEntityRender()}) from the
      * `content` group to every entity type reachable via SSR render
-     * (see CHANGELOG "Security"). Folding this into {@see buildKey()} makes
+     * (see CHANGELOG "Security"), or the #2117 application page-composition
+     * contract that changes which full HTML document owns the entity body.
+     * Folding this into {@see buildKey()} makes
      * every pre-fix cache entry unreachable under the new key, so already-
      * cached leaky pages — including any non-content-group entity that leaked
      * whole-entity to anonymous before the R8-a fix — are re-rendered through
      * the fixed path instead of continuing to serve stale, unfiltered HTML.
      */
-    public const string SCHEMA_VERSION = 'v5';
+    public const string SCHEMA_VERSION = 'v6';
 
     public function __construct(
         private readonly CacheBackendInterface $backend,

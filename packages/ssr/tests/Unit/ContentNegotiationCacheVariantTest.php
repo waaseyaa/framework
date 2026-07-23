@@ -81,10 +81,112 @@ final class ContentNegotiationCacheVariantTest extends TestCase
     #[Test]
     public function variant_preserves_legacy_prefix_for_default_html(): void
     {
-        // The historical prefix must remain stable (existing CDN keys / tests).
+        // No composer binding must preserve the complete historical variant,
+        // not merely its readable prefix.
         $variant = $this->handler()->buildSsrCacheVariantLangcode('en', 'full', false, $this->context());
-        self::assertStringStartsWith('v2:en:full:public:published:', $variant);
-        self::assertStringEndsWith(':html', $variant);
+        self::assertSame('v2:en:full:public:published:356f502b0ac31cc2:html', $variant);
+    }
+
+    #[Test]
+    public function registered_and_framework_composition_use_distinct_html_cache_variants(): void
+    {
+        $handler = $this->handler();
+
+        $framework = $handler->buildSsrCacheVariantLangcode(
+            'en',
+            'full',
+            false,
+            $this->context(),
+            self::HTML,
+            null,
+        );
+        $composed = $handler->buildSsrCacheVariantLangcode(
+            'en',
+            'full',
+            false,
+            $this->context(),
+            self::HTML,
+            'App\\Rendering\\SiteEntityPageComposer',
+            '/news/one',
+        );
+
+        self::assertNotSame($framework, $composed);
+        self::assertSame(
+            $composed,
+            $handler->buildSsrCacheVariantLangcode(
+                'en',
+                'full',
+                false,
+                $this->context(),
+                self::HTML,
+                'App\\Rendering\\SiteEntityPageComposer',
+                '/news/one',
+            ),
+        );
+    }
+
+    #[Test]
+    public function composed_html_variants_include_the_inbound_path_while_framework_variants_do_not(): void
+    {
+        $handler = $this->handler();
+
+        $composedOne = $handler->buildSsrCacheVariantLangcode(
+            'en',
+            'full',
+            false,
+            $this->context(),
+            self::HTML,
+            'App\\Rendering\\SiteEntityPageComposer',
+            '/news/one',
+        );
+        $composedTwo = $handler->buildSsrCacheVariantLangcode(
+            'en',
+            'full',
+            false,
+            $this->context(),
+            self::HTML,
+            'App\\Rendering\\SiteEntityPageComposer',
+            '/news/two',
+        );
+        $frameworkOne = $handler->buildSsrCacheVariantLangcode(
+            'en',
+            'full',
+            false,
+            $this->context(),
+            self::HTML,
+            null,
+            '/news/one',
+        );
+        $frameworkTwo = $handler->buildSsrCacheVariantLangcode(
+            'en',
+            'full',
+            false,
+            $this->context(),
+            self::HTML,
+            null,
+            '/news/two',
+        );
+
+        self::assertNotSame($composedOne, $composedTwo);
+        self::assertSame($frameworkOne, $frameworkTwo);
+    }
+
+    #[Test]
+    public function composer_identity_does_not_change_the_markdown_variant(): void
+    {
+        $handler = $this->handler();
+
+        self::assertSame(
+            $handler->buildSsrCacheVariantLangcode('en', 'full', false, $this->context(), self::MD, null),
+            $handler->buildSsrCacheVariantLangcode(
+                'en',
+                'full',
+                false,
+                $this->context(),
+                self::MD,
+                'App\\Rendering\\SiteEntityPageComposer',
+            ),
+        );
     }
 
     #[Test]
