@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Waaseyaa\SSR;
 
+use Symfony\Component\HtmlSanitizer\HtmlSanitizer;
+use Symfony\Component\HtmlSanitizer\HtmlSanitizerConfig;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Symfony\Component\Routing\Route;
+use Twig\Error\LoaderError;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AccountPrincipalFactoryInterface;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
@@ -19,6 +22,7 @@ use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityValues;
+use Waaseyaa\Foundation\Http\BindingAwareHttpServiceResolverInterface;
 use Waaseyaa\Foundation\Http\ContentNegotiation\MediaTypeAcceptNegotiator;
 use Waaseyaa\Foundation\Http\HttpServiceResolverInterface;
 use Waaseyaa\Foundation\Http\Inertia\InertiaFullPageRendererInterface;
@@ -33,6 +37,9 @@ use Waaseyaa\Seo\SchemaOrg\EntitySchemaOrgMapper;
 use Waaseyaa\SSR\Http\AppController\AppControllerArgumentResolver;
 use Waaseyaa\SSR\Http\AppController\AppControllerMethodInvoker;
 use Waaseyaa\SSR\Http\AppController\AppInvocationContext;
+use Waaseyaa\SSR\PageComposition\EntityPageComposerInterface;
+use Waaseyaa\SSR\PageComposition\EntityPageField;
+use Waaseyaa\SSR\PageComposition\EntityPageRenderPayload;
 use Waaseyaa\Workflows\EditorialVisibilityResolver;
 use Waaseyaa\Workflows\WorkflowVisibilityFilter;
 
@@ -88,9 +95,9 @@ final class SsrPageHandler
      *   'type' => 'html' or 'json'
      *   'status' => int
      *   'content' => string (for html) or array (for json)
-     *   'headers' => array<string, string>
+     *   'headers' => array<string, string|list<string>>
      *
-     * @return array{type: string, status: int, content: string|array, headers: array<string, string>}
+     * @return array{type: string, status: int, content: string|array, headers: array<string, string|list<string>>}
      */
     public function handleRenderPage(
         string $path,
@@ -114,7 +121,7 @@ final class SsrPageHandler
     }
 
     /**
-     * @return array{type: string, status: int, content: string|array, headers: array<string, string>}
+     * @return array{type: string, status: int, content: string|array, headers: array<string, string|list<string>>}
      */
     private function renderPage(
         string $path,
@@ -281,12 +288,70 @@ final class SsrPageHandler
             $relationshipContext = $this->buildRelationshipRenderContext($entity, $authorizationAccount);
             $renderContext = $relationshipContext;
             $renderContext['workflow_visibility'] = $visibilityResolver->buildRenderContext($entity, $previewRequested);
+
+            // Access-checked label/title for the entity (R7 WP1): the entity-level
+            // view gate above and the fields-bag filter in EntityRenderer/
+            // ResourceSerializer both leave a gap where the SSR <title>, the
+            // schema.org JSON-LD `name`, and the Markdown H1 read
+            // EntityInterface::label() directly, bypassing field-level access.
+            $viewableLabel = $this->accessHandler?->viewableLabel($entity, $authorizationAccount, $this->entityTypeManager);
+            $safeTitle = ($viewableLabel !== null && $viewableLabel !== '') ? $viewableLabel : $entityTypeId;
+
+            $twigEntityContext = $renderContext;
+            $twigEntityContext['account'] = $account;
+            $twigEntityContext['title'] = $safeTitle;
+            $twigEntityContext['schema_org_jsonld'] = $this->buildSchemaOrgScript($entity, $normalizedPath, $safeTitle);
+
+            // Resolve only the code-owned binding after every route/entity
+            // access gate. Field filtering and formatting remain lazy: an
+            // unregistered production resolver must not defeat a cache hit or
+            // format twice on a miss. The composer method itself is invoked
+            // only after the authorized payload exists. Markdown never
+            // resolves the composer.
+            $pagePayload = null;
+            $pageBag = null;
+            [$pageComposer, $compositionResolutionFailed] = [null, false];
+            if ($mediaType === MediaTypeAcceptNegotiator::HTML && $this->serviceResolver !== null) {
+                $bindingAware = $this->serviceResolver instanceof BindingAwareHttpServiceResolverInterface;
+                $bindingPresent = true;
+                if ($bindingAware) {
+                    try {
+                        $bindingPresent = $this->serviceResolver->hasBinding(EntityPageComposerInterface::class);
+                    } catch (\Throwable $e) {
+                        $bindingPresent = false;
+                        $compositionResolutionFailed = true;
+                        $this->logger->error(sprintf(
+                            'Entity page composer binding probe failed (%s); using framework rendering.',
+                            $e::class,
+                        ));
+                    }
+                }
+                if ($bindingPresent) {
+                    if ($this->accessHandler === null) {
+                        throw new \LogicException('Entity page composer requires the field-access handler.');
+                    }
+                    $pageBag = $entityRenderer->render($entity, $viewMode, $authorizationAccount);
+                    $pagePayload = $this->buildEntityPageRenderPayload(
+                        $pageBag,
+                        $twigEntityContext,
+                        $normalizedPath,
+                        $contentLangcode,
+                    );
+                    // For the production binding-aware resolver this factory
+                    // executes only after the authorized/filtered payload has
+                    // been built. The preceding hasBinding() probe never
+                    // constructs application code.
+                    [$pageComposer, $compositionResolutionFailed] = $this->resolveEntityPageComposer($bindingAware);
+                }
+            }
             $cacheVariantLangcode = $this->buildSsrCacheVariantLangcode(
                 $contentLangcode,
                 $viewMode->name,
                 $previewRequested,
                 $renderContext,
                 $mediaType,
+                $pageComposer !== null ? $pageComposer::class : null,
+                $pageComposer !== null ? $normalizedPath : null,
             );
             $surrogateHeaders = (
                 !$account->isAuthenticated()
@@ -307,6 +372,7 @@ final class SsrPageHandler
             if (
                 !$account->isAuthenticated()
                 && !$previewRequested
+                && !$compositionResolutionFailed
                 && $this->renderCache !== null
                 && $entity->id() !== null
             ) {
@@ -319,40 +385,45 @@ final class SsrPageHandler
                 if ($cached !== null) {
                     $headers = array_merge($this->extractHeaders($cached), $surrogateHeaders);
                     $headers['Cache-Control'] = $cacheControlHeader;
-                    $headers['Vary'] = 'Accept';
+                    $vary = $this->headerLine($headers['vary'] ?? $headers['Vary'] ?? '');
+                    unset($headers['vary'], $headers['Vary']);
+                    $headers['Vary'] = $this->mergeVaryHeader($vary, 'Accept');
                     return $this->htmlResult($cached->getStatusCode(), (string) $cached->getContent(), $headers);
                 }
             }
 
-            // Access-checked label/title for the entity (R7 WP1): the entity-level
-            // view gate above and the fields-bag filter in EntityRenderer/
-            // ResourceSerializer both leave a gap where the SSR <title>, the
-            // schema.org JSON-LD `name`, and the Markdown H1 read
-            // EntityInterface::label() directly, bypassing field-level access.
-            // Resolve once here and thread it into every site that would
-            // otherwise read the raw label. Fails closed: no access handler, or
-            // a Forbidden label field, falls back to the entity type id — never
-            // the raw label — while a genuinely public/unrestricted label still
-            // renders for real (see EntityAccessHandler::viewableLabel()).
-            $viewableLabel = $this->accessHandler?->viewableLabel($entity, $authorizationAccount, $this->entityTypeManager);
-            $safeTitle = ($viewableLabel !== null && $viewableLabel !== '') ? $viewableLabel : $entityTypeId;
-
-            $twigEntityContext = $renderContext;
-            $twigEntityContext['account'] = $account;
-            $twigEntityContext['title'] = $safeTitle;
-            // schema.org JSON-LD for the HTML <head> (FR-014); ignored by the
-            // Markdown branch.
-            $twigEntityContext['schema_org_jsonld'] = $this->buildSchemaOrgScript($entity, $normalizedPath, $safeTitle);
-
-            $response = $mediaType === MediaTypeAcceptNegotiator::MARKDOWN
-                ? $this->renderEntityMarkdown($entity, $viewMode, $viewModeConfig, $normalizedPath, $authorizationAccount)
-                : $this->renderEntityHtml($entity, $viewMode, $entityRenderer, $twig, $twigEntityContext, $authorizationAccount);
+            $compositionCacheable = true;
+            $compositionRequiresPrivate = false;
+            if ($mediaType === MediaTypeAcceptNegotiator::MARKDOWN) {
+                $response = $this->renderEntityMarkdown(
+                    $entity,
+                    $viewMode,
+                    $viewModeConfig,
+                    $normalizedPath,
+                    $authorizationAccount,
+                );
+            } else {
+                [$response, $compositionCacheable, $compositionRequiresPrivate] = $this->renderEntityHtmlWithComposition(
+                    $entity,
+                    $viewMode,
+                    $entityRenderer,
+                    $twig,
+                    $twigEntityContext,
+                    $authorizationAccount,
+                    $pageComposer,
+                    $pagePayload,
+                    $pageBag,
+                );
+                $compositionCacheable = $compositionCacheable && !$compositionResolutionFailed;
+                $compositionRequiresPrivate = $compositionRequiresPrivate || $compositionResolutionFailed;
+            }
             if (
                 !$account->isAuthenticated()
                 && !$previewRequested
                 && $this->renderCache !== null
                 && $entity->id() !== null
                 && $response->getStatusCode() === 200
+                && $compositionCacheable
             ) {
                 $this->renderCache->set(
                     $entityTypeId,
@@ -364,9 +435,18 @@ final class SsrPageHandler
                 );
             }
 
+            // A composed document or failure fallback cannot carry public
+            // entity-only surrogate metadata: application chrome has opaque
+            // dependencies, and transient failure output must never become a
+            // shared CDN/browser representation.
+            if ($compositionRequiresPrivate) {
+                $surrogateHeaders = [];
+            }
             $headers = array_merge($this->extractHeaders($response), $surrogateHeaders);
-            $headers['Cache-Control'] = $cacheControlHeader;
-            $headers['Vary'] = 'Accept';
+            $headers['Cache-Control'] = $compositionRequiresPrivate ? 'private, no-store' : $cacheControlHeader;
+            $vary = $this->headerLine($headers['vary'] ?? $headers['Vary'] ?? '');
+            unset($headers['vary'], $headers['Vary']);
+            $headers['Vary'] = $this->mergeVaryHeader($vary, 'Accept');
             return $this->htmlResult($response->getStatusCode(), (string) $response->getContent(), $headers);
         } catch (\Throwable $e) {
             $this->logger->error(sprintf('Render pipeline failed: %s in %s:%d', $e->getMessage(), $e->getFile(), $e->getLine()));
@@ -388,7 +468,7 @@ final class SsrPageHandler
      * resolved via reflection. Action methods use typed parameters only
      * (see docs/specs/app-controller-invocation.md).
      *
-     * @return array{type: string, status: int, content: string|array, headers: array<string, string>}|HttpResponse
+     * @return array{type: string, status: int, content: string|array, headers: array<string, string|list<string>>}|HttpResponse
      */
     public function dispatchAppController(
         string $controller,
@@ -842,6 +922,8 @@ final class SsrPageHandler
         bool $previewRequested,
         array $renderContext,
         string $mediaType = MediaTypeAcceptNegotiator::HTML,
+        ?string $pageComposerClass = null,
+        ?string $pageCompositionPath = null,
     ): string {
         $workflowState = 'unknown';
         if (is_array($renderContext['workflow_visibility'] ?? null)) {
@@ -870,6 +952,12 @@ final class SsrPageHandler
             'graph_hash' => $graphHash,
             'media_type' => $mediaToken,
         ];
+        if ($mediaToken === 'html' && $pageComposerClass !== null) {
+            $variantPayload['page_composition'] = [
+                'class' => hash('sha256', $pageComposerClass),
+                'path' => hash('sha256', $pageCompositionPath ?? ''),
+            ];
+        }
         $serializedVariantPayload = json_encode($this->discoveryHandler->normalizeForCacheKey($variantPayload), JSON_THROW_ON_ERROR);
         $variantHash = substr(sha1((string) $serializedVariantPayload), 0, 16);
 
@@ -1153,6 +1241,14 @@ final class SsrPageHandler
      * of SsrPageHandler without it.
      *
      * @param array<string, mixed> $context
+     * @param array{
+     *   entity: EntityInterface,
+     *   entity_type: string,
+     *   bundle: string,
+     *   view_mode: string,
+     *   template_suggestions: list<string>,
+     *   fields: array<string, array{raw: mixed, formatted: string, type: string}>
+     * }|null $authorizedBag
      */
     /** @param AuthorizationPrincipalInterface $account */
     private function renderEntityHtml(
@@ -1162,6 +1258,7 @@ final class SsrPageHandler
         \Twig\Environment $twig,
         array $context,
         AccountInterface $account,
+        ?array $authorizedBag = null,
     ): HttpResponse {
         if ($this->accessHandler === null) {
             $this->logger->error('HTML render requested with no access handler wired; refusing to render unfiltered content.');
@@ -1173,7 +1270,241 @@ final class SsrPageHandler
             );
         }
 
+        if ($authorizedBag !== null) {
+            return $this->renderAuthorizedEntityBagHtml($authorizedBag, $twig, $context);
+        }
+
         return new RenderController($twig, $entityRenderer)->renderEntity($entity, $viewMode, $context, $account);
+    }
+
+    /**
+     * Render the one request-local bag produced by EntityRenderer after field
+     * access. This remains private so callers cannot supply formatted values
+     * or template suggestions around the public entity/account boundary.
+     *
+     * @param array{
+     *   entity: EntityInterface,
+     *   entity_type: string,
+     *   bundle: string,
+     *   view_mode: string,
+     *   template_suggestions: list<string>,
+     *   fields: array<string, array{raw: mixed, formatted: string, type: string}>
+     * } $bag
+     * @param array<string, mixed> $context
+     */
+    private function renderAuthorizedEntityBagHtml(
+        array $bag,
+        \Twig\Environment $twig,
+        array $context,
+    ): HttpResponse {
+        foreach ($context as $key => $value) {
+            if ($key !== '') {
+                $bag[$key] = $value;
+            }
+        }
+        foreach ($bag['template_suggestions'] as $template) {
+            try {
+                return new HttpResponse($twig->render($template, $bag));
+            } catch (LoaderError) {
+                continue;
+            }
+        }
+
+        return new HttpResponse('<h1>Render template missing</h1>', 500);
+    }
+
+    /**
+     * @return array{0: EntityPageComposerInterface|null, 1: bool} Composer and
+     *                                                               resolution-failed flag.
+     */
+    private function resolveEntityPageComposer(bool $bindingKnown = false): array
+    {
+        if ($this->serviceResolver === null) {
+            return [null, false];
+        }
+
+        try {
+            if ($this->serviceResolver instanceof BindingAwareHttpServiceResolverInterface) {
+                if (!$bindingKnown && !$this->serviceResolver->hasBinding(EntityPageComposerInterface::class)) {
+                    return [null, false];
+                }
+                $resolved = $this->serviceResolver->resolveBound(EntityPageComposerInterface::class);
+            } else {
+                $resolved = $this->serviceResolver->resolve(EntityPageComposerInterface::class);
+            }
+        } catch (\Throwable $e) {
+            $this->logger->error(sprintf(
+                'Entity page composer resolution failed (%s); using framework rendering.',
+                $e::class,
+            ));
+
+            return [null, true];
+        }
+        if ($resolved === null) {
+            return [null, false];
+        }
+        if (!$resolved instanceof EntityPageComposerInterface) {
+            $this->logger->error(sprintf(
+                'Entity page composer binding must implement %s; using framework rendering.',
+                EntityPageComposerInterface::class,
+            ));
+
+            return [null, true];
+        }
+
+        return [$resolved, false];
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @param array{
+     *   entity: EntityInterface,
+     *   entity_type: string,
+     *   bundle: string,
+     *   view_mode: string,
+     *   template_suggestions: list<string>,
+     *   fields: array<string, array{raw: mixed, formatted: string, type: string}>
+     * }|null $pageBag
+     * @return array{0: HttpResponse, 1: bool, 2: bool} Response, render-cache
+     *                                                         persistence, private/no-store.
+     */
+    private function renderEntityHtmlWithComposition(
+        EntityInterface $entity,
+        ViewMode $viewMode,
+        EntityRenderer $entityRenderer,
+        \Twig\Environment $twig,
+        array $context,
+        AuthorizationPrincipalInterface $account,
+        ?EntityPageComposerInterface $pageComposer,
+        ?EntityPageRenderPayload $pagePayload,
+        ?array $pageBag,
+    ): array {
+        if ($pageComposer === null) {
+            return [
+                $this->renderEntityHtml($entity, $viewMode, $entityRenderer, $twig, $context, $account, $pageBag),
+                true,
+                false,
+            ];
+        }
+
+        try {
+            if ($pagePayload === null) {
+                throw new \LogicException('Resolved entity page composer has no authorized render payload.');
+            }
+
+            $composed = $pageComposer->compose($pagePayload);
+            if ($composed === null) {
+                return [
+                    $this->renderEntityHtml($entity, $viewMode, $entityRenderer, $twig, $context, $account, $pageBag),
+                    true,
+                    false,
+                ];
+            }
+
+            $content = $composed->getContent();
+            $contentType = strtolower(trim(explode(';', (string) $composed->headers->get('Content-Type', ''), 2)[0]));
+            $declaresNonHtml = $contentType !== ''
+                && $contentType !== 'text/html'
+                && $contentType !== 'application/xhtml+xml';
+            if (
+                $composed->getStatusCode() !== HttpResponse::HTTP_OK
+                || !is_string($content)
+                || trim($content) === ''
+                || $declaresNonHtml
+            ) {
+                $this->logger->error(sprintf(
+                    'Entity page composer %s returned invalid output; using framework rendering.',
+                    $pageComposer::class,
+                ));
+
+                return [
+                    $this->renderEntityHtml($entity, $viewMode, $entityRenderer, $twig, $context, $account, $pageBag),
+                    false,
+                    true,
+                ];
+            }
+
+            // The app shell can depend on navigation, theme config, or response
+            // decorators that the entity-only RenderCache cannot tag or vary
+            // safely. Until the public contract carries explicit dependency
+            // metadata, accepted composed documents are never shared/persisted.
+            return [$composed, false, true];
+        } catch (\Throwable $e) {
+            $this->logger->error(sprintf(
+                'Entity page composer %s failed (%s); using framework rendering.',
+                $pageComposer::class,
+                $e::class,
+            ));
+
+            return [
+                $this->renderEntityHtml($entity, $viewMode, $entityRenderer, $twig, $context, $account, $pageBag),
+                false,
+                true,
+            ];
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     */
+    private function buildEntityPageRenderPayload(
+        array $bag,
+        array $context,
+        string $requestPath,
+        string $langcode,
+    ): EntityPageRenderPayload {
+        $fields = [];
+        foreach ($bag['fields'] as $name => $field) {
+            $fields[$name] = new EntityPageField(
+                name: $name,
+                type: $field['type'],
+                formatted: $field['formatted'],
+            );
+        }
+        $bodySource = $bag['fields']['body']['raw'] ?? null;
+
+        return new EntityPageRenderPayload(
+            title: is_string($context['title'] ?? null) ? $context['title'] : $bag['entity_type'],
+            requestPath: $requestPath,
+            entityType: $bag['entity_type'],
+            bundle: $bag['bundle'],
+            viewMode: $bag['view_mode'],
+            langcode: $langcode,
+            fields: $fields,
+            schemaOrgJsonLd: is_string($context['schema_org_jsonld'] ?? null) ? $context['schema_org_jsonld'] : '',
+            bodyCompositionHtml: is_string($bodySource) ? $this->sanitizeCompositionBodyHtml($bodySource) : '',
+        );
+    }
+
+    private function sanitizeCompositionBodyHtml(string $html): string
+    {
+        $config = new HtmlSanitizerConfig()
+            ->allowSafeElements()
+            ->allowAttribute('class', '*')
+            ->allowRelativeLinks()
+            ->allowRelativeMedias()
+            ->forceHttpsUrls();
+
+        return new HtmlSanitizer($config)->sanitize($html);
+    }
+
+    private function mergeVaryHeader(string $current, string $required): string
+    {
+        $tokens = [];
+        foreach (explode(',', $current . ',' . $required) as $token) {
+            $trimmed = trim($token);
+            if ($trimmed !== '') {
+                $tokens[strtolower($trimmed)] = $trimmed;
+            }
+        }
+
+        return implode(', ', array_values($tokens));
+    }
+
+    /** @param string|list<string> $value */
+    private function headerLine(string|array $value): string
+    {
+        return is_array($value) ? implode(', ', $value) : $value;
     }
 
     public function sanitizeCacheToken(string $value, string $fallback): string
@@ -1234,7 +1565,8 @@ final class SsrPageHandler
     }
 
     /**
-     * @return array{type: 'html', status: int, content: string, headers: array<string, string>}
+     * @param array<string, string|list<string>> $headers
+     * @return array{type: 'html', status: int, content: string, headers: array<string, string|list<string>>}
      */
     private function htmlResult(int $status, string $content, array $headers = []): array
     {
@@ -1242,7 +1574,8 @@ final class SsrPageHandler
     }
 
     /**
-     * @return array{type: 'json', status: int, content: array, headers: array<string, string>}
+     * @param array<string, string|list<string>> $headers
+     * @return array{type: 'json', status: int, content: array, headers: array<string, string|list<string>>}
      */
     private function jsonResult(int $status, array $content, array $headers = []): array
     {
@@ -1250,16 +1583,20 @@ final class SsrPageHandler
     }
 
     /**
-     * Extract headers from a Symfony Response as a flat string-keyed array.
+     * Extract headers without flattening repeatable values such as Set-Cookie.
      *
-     * @return array<string, string>
+     * @return array<string, string|list<string>>
      */
     private function extractHeaders(HttpResponse $response): array
     {
         $headers = [];
         foreach ($response->headers->all() as $name => $values) {
-            if (is_array($values) && $values !== []) {
-                $headers[$name] = $values[0];
+            $presentValues = array_values(array_filter(
+                $values,
+                static fn(?string $value): bool => $value !== null,
+            ));
+            if ($presentValues !== []) {
+                $headers[$name] = count($presentValues) === 1 ? $presentValues[0] : $presentValues;
             }
         }
 

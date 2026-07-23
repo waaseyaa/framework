@@ -235,6 +235,11 @@ final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttp
         return self::$formatterRegistry;
     }
 
+    public static function setFormatterRegistry(?FieldFormatterRegistry $formatterRegistry): void
+    {
+        self::$formatterRegistry = $formatterRegistry;
+    }
+
     /**
      * @param array<string, mixed> $config
      */

@@ -34,7 +34,7 @@ final class RenderCacheTest extends TestCase
     #[Test]
     public function keyMatchesRequiredFormat(): void
     {
-        $this->assertSame('render:v5:node:12:teaser:fr', RenderCache::buildKey('node', 12, 'teaser', 'fr'));
+        $this->assertSame('render:v6:node:12:teaser:fr', RenderCache::buildKey('node', 12, 'teaser', 'fr'));
     }
 
     #[Test]

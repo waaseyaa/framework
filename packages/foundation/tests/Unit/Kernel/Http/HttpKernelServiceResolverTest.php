@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Foundation\Http\BindingAwareHttpServiceResolverInterface;
 use Waaseyaa\Foundation\Http\HttpServiceResolverInterface;
 use Waaseyaa\Foundation\Kernel\Http\HttpKernelServiceResolver;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -112,6 +113,28 @@ final class HttpKernelServiceResolverTest extends TestCase
     }
 
     #[Test]
+    public function binding_aware_resolution_distinguishes_absent_bindings_from_factory_failures(): void
+    {
+        $provider = $this->makeProvider(
+            bindings: [\stdClass::class => 'sentinel'],
+            resolveCallback: static function (): never {
+                throw new \RuntimeException('bound factory failed');
+            },
+        );
+        $resolver = new HttpKernelServiceResolver(
+            providersAccessor: static fn(): array => [$provider],
+            kernelServices: $this->makeKernelServices($this->makeDatabaseStub()),
+            logger: new NullLogger(),
+        );
+
+        self::assertTrue($resolver->hasBinding(\stdClass::class));
+        self::assertFalse($resolver->hasBinding('Some\\Unknown\\Class'));
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('bound factory failed');
+        $resolver->resolveBound(\stdClass::class);
+    }
+
+    #[Test]
     public function returns_default_implementation_class(): void
     {
         $resolver = new HttpKernelServiceResolver(
@@ -121,6 +144,7 @@ final class HttpKernelServiceResolverTest extends TestCase
         );
 
         self::assertInstanceOf(HttpServiceResolverInterface::class, $resolver);
+        self::assertInstanceOf(BindingAwareHttpServiceResolverInterface::class, $resolver);
     }
 
     private function makeKernelServices(DatabaseInterface $database): KernelServicesInterface

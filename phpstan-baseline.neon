@@ -985,12 +985,6 @@ parameters:
 			path: packages/ssr/src/RenderController.php
 
 		-
-			message: '#^Call to function is_array\(\) with list\<string\|null\> will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: packages/ssr/src/SsrPageHandler.php
-
-		-
 			message: '#^Call to function is_bool\(\) with string\|null will always evaluate to false\.$#'
 			identifier: function.impossibleType
 			count: 1

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Foundation\Kernel\Http;
 
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Foundation\Http\BindingAwareHttpServiceResolverInterface;
 use Waaseyaa\Foundation\Http\HttpServiceResolverInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
@@ -25,7 +26,7 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
  * separate because the lookup semantics differ (finite/internal vs
  * open/user-driven).
  */
-final class HttpKernelServiceResolver implements HttpServiceResolverInterface
+final class HttpKernelServiceResolver implements HttpServiceResolverInterface, BindingAwareHttpServiceResolverInterface
 {
     /** @var \Closure(): list<ServiceProvider> */
     private \Closure $providersAccessor;
@@ -65,5 +66,34 @@ final class HttpKernelServiceResolver implements HttpServiceResolverInterface
         }
 
         return null;
+    }
+
+    public function hasBinding(string $className): bool
+    {
+        foreach (($this->providersAccessor)() as $provider) {
+            if (isset($provider->getBindings()[$className])) {
+                return true;
+            }
+        }
+
+        return $className === DatabaseInterface::class;
+    }
+
+    public function resolveBound(string $className): object
+    {
+        foreach (($this->providersAccessor)() as $provider) {
+            if (isset($provider->getBindings()[$className])) {
+                return $provider->resolve($className);
+            }
+        }
+
+        if ($className === DatabaseInterface::class) {
+            $resolved = $this->kernelServices->get(DatabaseInterface::class);
+            if ($resolved instanceof DatabaseInterface) {
+                return $resolved;
+            }
+        }
+
+        throw new \LogicException(sprintf('Service %s is not bound.', $className));
     }
 }
