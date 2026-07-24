@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Framework-owned entity fields now carry one runtime/preflight classification default (#2064).** Applications no longer have to classify universal language/bundle selectors, first-party config labels, relationship infrastructure, parked media-version internals, or legacy User account infrastructure. Explicit metadata must agree with the shared default source. Credential hashes remain Internal and outward-denied even to administrators; consent/reset/disabled state is administrator-only Protected; application directory fields remain deliberately unclassified.
+
 ## [0.1.0-alpha.272] - 2026-07-24
 
 ### Changed

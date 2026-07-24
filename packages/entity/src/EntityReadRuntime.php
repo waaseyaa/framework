@@ -144,7 +144,12 @@ final class EntityReadRuntime
         $definitions = self::mergeReadDefinitions($entityTypeId, ...$definitionSources);
         $classificationInputs = [];
         foreach ($definitions as $name => $definition) {
-            $level = self::metadataResolver()->resolve($definition)->level ?? FieldReadLevel::Internal;
+            $level = self::metadataResolver()->resolve(
+                $definition,
+                frameworkDefaultLevel: $registeredEntityType
+                    ? FrameworkFieldReadDefaults::resolve($entityTypeId, $bundle, $name)
+                    : null,
+            )->level ?? FieldReadLevel::Internal;
             $classificationInputs[] = $name . ':' . $level->value . ':'
                 . self::canonicalDefinitionType($definition->getType()) . ':'
                 . ($definition->getSetting('authorizationInput') === true ? 'auth' : 'ordinary');
@@ -173,7 +178,12 @@ final class EntityReadRuntime
         $authorizationInputs = [];
         $booleanFields = [];
         foreach ($definitions as $name => $definition) {
-            $level = self::metadataResolver()->resolve($definition)->level ?? FieldReadLevel::Internal;
+            $level = self::metadataResolver()->resolve(
+                $definition,
+                frameworkDefaultLevel: $registeredEntityType
+                    ? FrameworkFieldReadDefaults::resolve($entityTypeId, $bundle, $name)
+                    : null,
+            )->level ?? FieldReadLevel::Internal;
             $levels[$name] = $level;
             if ($definition->getSetting('authorizationInput') === true) {
                 if ($level !== FieldReadLevel::Protected) {
@@ -183,6 +193,15 @@ final class EntityReadRuntime
             }
             if (in_array(strtolower($definition->getType()), ['bool', 'boolean'], true)) {
                 $booleanFields[] = $name;
+            }
+        }
+
+        if ($registeredEntityType) {
+            foreach ($fieldNames as $field) {
+                $default = FrameworkFieldReadDefaults::resolve($entityTypeId, $bundle, $field);
+                if ($default !== null) {
+                    $levels[$field] = $default;
+                }
             }
         }
 

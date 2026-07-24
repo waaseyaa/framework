@@ -30,6 +30,8 @@ final class UserProtectedFieldReadPolicy implements ProtectedFieldReadPolicyInte
         return match ($fieldName) {
             'status' => $this->statusAccess($principal, $structure, $subject),
             'name' => $this->nameAccess($principal, $subject),
+            'consent_date', 'consent_on_file', 'must_reset_password', 'disabled'
+                => $this->administrativeStateAccess($principal, $subject),
             default => AccessResult::forbidden(sprintf("User field '%s' is not a Protected release surface.", $fieldName)),
         };
     }
@@ -75,5 +77,19 @@ final class UserProtectedFieldReadPolicy implements ProtectedFieldReadPolicyInte
         }
 
         return AccessResult::forbidden('Reading a User name requires profile-view permission.');
+    }
+
+    private function administrativeStateAccess(
+        AuthorizationPrincipalInterface $principal,
+        PolicySubjectViewInterface $subject,
+    ): AccessResult {
+        if ($subject->fields() !== []) {
+            return AccessResult::forbidden('Administrative User state reads accept no policy subject inputs.');
+        }
+        if ($principal->hasPermission('administer users')) {
+            return AccessResult::allowed('User has "administer users" permission.');
+        }
+
+        return AccessResult::forbidden('Administrative User state requires "administer users".');
     }
 }

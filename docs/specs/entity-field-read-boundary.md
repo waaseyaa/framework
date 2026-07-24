@@ -332,6 +332,13 @@ legacy payloads remain blockers. `--write-artifact` atomically writes the exact
 checksum-bound candidate result. Classification, package-lock, definition, or
 schema changes produce a different artifact identity.
 
+Framework-owned defaults are not a preflight-only waiver. The exact table in
+`field-access.md` is resolved by the same source during sealed runtime layout
+compilation and preflight scanning. Explicit definitions and classification
+artifacts must agree with that source or produce a blocker. This keeps
+applications responsible only for their bundle fields while preventing a green
+artifact from widening or narrowing runtime visibility.
+
 The reusable `FieldReadGuard` decision/cache path is exercised only by WP3
 fixtures and benchmarks. `EntityBase`, queries, serialization, and normal boot
 do not install it in this tranche; WP4 performs that single no-shim activation.

@@ -112,6 +112,26 @@ final class ResourceSerializerFieldAccessTest extends TestCase
     }
 
     #[Test]
+    public function administrator_context_cannot_serialize_a_password_hash(): void
+    {
+        $accessHandler = new EntityAccessHandler([
+            $this->createViewDenyPolicy('article', []),
+        ]);
+        $account = $this->createAccount();
+        $account->method('hasPermission')->with('administer users')->willReturn(true);
+        $entity = new TestEntity([
+            'id' => 1,
+            'uuid' => 'uuid-1',
+            'title' => 'Test',
+            'password_hash' => '$2y$12$NEVER_LEAK',
+        ]);
+
+        $resource = $this->serializer->serialize($entity, $accessHandler, $account);
+
+        self::assertArrayNotHasKey('password_hash', $resource->attributes);
+    }
+
+    #[Test]
     public function serializeOmitsMultipleViewDeniedFields(): void
     {
         $policy = $this->createViewDenyPolicy('article', ['secret', 'internal_notes']);

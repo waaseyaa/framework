@@ -35,6 +35,7 @@ final class FieldReadMetadataResolver
     public function resolve(
         FieldDefinitionInterface $definition,
         ?FieldReadLevel $artifactLevel = null,
+        ?FieldReadLevel $frameworkDefaultLevel = null,
     ): FieldReadMetadata {
         $declared = $definition instanceof FieldReadDefinitionInterface
             ? $definition->getReadLevel()
@@ -43,7 +44,7 @@ final class FieldReadMetadataResolver
             ? FieldReadLevel::Internal
             : null;
 
-        $levels = array_values(array_filter([$declared, $legacy, $artifactLevel]));
+        $levels = array_values(array_filter([$declared, $legacy, $frameworkDefaultLevel, $artifactLevel]));
         foreach ($levels as $level) {
             if ($level !== $levels[0]) {
                 throw new \LogicException(sprintf(
@@ -58,6 +59,9 @@ final class FieldReadMetadataResolver
         }
         if ($legacy !== null) {
             return new FieldReadMetadata($legacy, FieldReadMetadataSource::LegacyInternal);
+        }
+        if ($frameworkDefaultLevel !== null) {
+            return new FieldReadMetadata($frameworkDefaultLevel, FieldReadMetadataSource::FrameworkDefault);
         }
         if ($artifactLevel !== null) {
             return new FieldReadMetadata($artifactLevel, FieldReadMetadataSource::ClassificationArtifact);
