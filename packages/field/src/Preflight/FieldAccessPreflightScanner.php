@@ -6,6 +6,7 @@ namespace Waaseyaa\Field\Preflight;
 
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\FieldReadLevel;
+use Waaseyaa\Entity\FrameworkFieldReadDefaults;
 use Waaseyaa\Entity\Preflight\FieldAccessPreflightData;
 use Waaseyaa\Entity\Preflight\FieldAccessPreflightResult;
 use Waaseyaa\Field\FieldDefinitionInterface;
@@ -42,7 +43,16 @@ final readonly class FieldAccessPreflightScanner
                     continue;
                 }
                 $key = self::key($entityType, '*', $definition->getName());
-                $this->classify($definition, $inventory, $key, isset($structuralNames[$definition->getName()]), $fields, $conflicts, $unclassified);
+                $this->classify(
+                    $definition,
+                    $inventory,
+                    $key,
+                    isset($structuralNames[$definition->getName()]),
+                    FrameworkFieldReadDefaults::resolve($entityType, '*', $definition->getName()),
+                    $fields,
+                    $conflicts,
+                    $unclassified,
+                );
             }
 
             foreach ($registry->bundleNamesFor($entityType) as $bundle) {
@@ -52,7 +62,16 @@ final readonly class FieldAccessPreflightScanner
                         continue;
                     }
                     $key = self::key($entityType, $bundle, $definition->getName());
-                    $this->classify($definition, $inventory, $key, false, $fields, $conflicts, $unclassified);
+                    $this->classify(
+                        $definition,
+                        $inventory,
+                        $key,
+                        false,
+                        FrameworkFieldReadDefaults::resolve($entityType, $bundle, $definition->getName()),
+                        $fields,
+                        $conflicts,
+                        $unclassified,
+                    );
                 }
             }
         }
@@ -60,6 +79,17 @@ final readonly class FieldAccessPreflightScanner
         foreach ($inventory->liveKeys as $key) {
             [$entityType, $bundle, $field] = self::parseKey($key);
             $coreKey = self::key($entityType, '*', $field);
+            $default = FrameworkFieldReadDefaults::resolve($entityType, $bundle, $field);
+            $defaultKey = FrameworkFieldReadDefaults::canonicalKey($entityType, $bundle, $field);
+            if ($default !== null && $defaultKey !== null) {
+                $artifact = $inventory->artifactLevels[$key] ?? $inventory->artifactLevels[$defaultKey] ?? null;
+                if ($artifact !== null && $artifact !== $default) {
+                    $conflicts[] = $defaultKey;
+                } else {
+                    $fields[$defaultKey] = $default->value . ':framework_default';
+                }
+                continue;
+            }
             if (!isset($fields[$key]) && !isset($fields[$coreKey]) && !in_array($key, $conflicts, true) && !in_array($coreKey, $conflicts, true)) {
                 $unclassified[] = self::key($entityType, $bundle, $field);
             }
@@ -90,12 +120,17 @@ final readonly class FieldAccessPreflightScanner
         FieldAccessLiveInventory $inventory,
         string $key,
         bool $structural,
+        ?FieldReadLevel $frameworkDefault,
         array &$fields,
         array &$conflicts,
         array &$unclassified,
     ): void {
         try {
-            $metadata = $this->metadata->resolve($definition, $inventory->artifactLevels[$key] ?? null);
+            $metadata = $this->metadata->resolve(
+                $definition,
+                $inventory->artifactLevels[$key] ?? null,
+                $frameworkDefault,
+            );
         } catch (\LogicException) {
             $conflicts[] = $key;
             return;

@@ -112,8 +112,30 @@ final class UserV2ReadPolicyTest extends TestCase
         $policy = new UserProtectedFieldReadPolicy();
         $admin = $this->principal(1, ['administer users']);
 
-        foreach (['mail', 'pass', 'roles', 'permissions', 'email_verified', 'two_factor_secret', 'two_factor_recovery_codes_hash', 'two_factor_last_used_step'] as $field) {
+        foreach (['mail', 'pass', 'password_hash', 'role', 'roles', 'permissions', 'email_verified', 'two_factor_secret', 'two_factor_recovery_codes_hash', 'two_factor_last_used_step'] as $field) {
             self::assertTrue($policy->access($admin, $this->structure(5), $this->subject([]), $field)->isForbidden(), $field);
+        }
+    }
+
+    #[Test]
+    public function legacy_administrative_account_state_is_admin_only_and_requires_an_empty_subject(): void
+    {
+        $policy = new UserProtectedFieldReadPolicy();
+        $structure = $this->structure(5);
+
+        foreach (['consent_date', 'consent_on_file', 'must_reset_password', 'disabled'] as $field) {
+            self::assertTrue(
+                $policy->access($this->principal(1, ['administer users']), $structure, $this->subject([]), $field)->isAllowed(),
+                $field . ' admin',
+            );
+            self::assertTrue(
+                $policy->access($this->principal(5), $structure, $this->subject([]), $field)->isForbidden(),
+                $field . ' self',
+            );
+            self::assertTrue(
+                $policy->access($this->principal(1, ['administer users']), $structure, $this->subject(['status' => true]), $field)->isForbidden(),
+                $field . ' polluted subject',
+            );
         }
     }
 

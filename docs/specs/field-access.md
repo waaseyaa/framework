@@ -1,5 +1,6 @@
 # Field-Level Access
 
+<!-- Spec reviewed 2026-07-24 - #2064 framework-owned field defaults: one shared default-classification source is consumed by both sealed runtime layout compilation and activation preflight. It covers universal structural selectors plus the exact first-party config labels, relationship infrastructure, parked media-version internals, and legacy User account-infrastructure fields listed below. Explicit metadata that disagrees with a framework default is a hard conflict. Application bundle fields and directory-exposure policy remain consumer-owned. -->
 <!-- Spec reviewed 2026-07-21 - #2064 media hotfix: Media Protected fields now compose with the complete hydrated entity-view decision. Application contextual grants can release bundle-defined Protected media metadata, application Forbidden results still win, and a missing/mismatched hydrated entity fails closed. This does not change legacy open-by-default FieldAccessPolicyInterface filtering or Internal-field sealing. -->
 <!-- Spec reviewed 2026-07-19 - #2064 alpha.270 boolean-field hotfix: resolved boolean/bool field definitions now canonicalize values to native PHP bool while the private entity value container is sealed and on every write. Closed validation, persistence extraction, guarded reads, and public projections observe that same type. Protected/Internal sealing and missing-context denial are unchanged. -->
 
@@ -84,6 +85,35 @@ When `EntityAccessHandler::checkFieldAccess()` runs:
 When no policy implements `FieldAccessPolicyInterface` for the entity type, the result is Neutral. Neutral is not Forbidden, so all fields pass through. This ensures zero behavioral change when no field policies exist.
 
 This legacy presentation/edit filtering is distinct from accessor-level Protected reads. A first-party `ProtectedFieldReadPolicyInterface` may implement the internal `EntityViewProtectedFieldReadPolicyInterface` marker. At that point the handler requires the exact hydrated entity and composes the field opinion with the complete entity-level `view` decision. Field Forbidden and any entity Forbidden remain deny-overrides-allow; Neutral is released only by an Allowed entity view. Without the matching entity the read is denied. Media uses this mechanism for core and application-defined Protected fields, allowing a contextual consumer media policy to govern serialized API/admin metadata consistently with downloads and other entity-level views.
+
+## Framework-owned default classifications
+
+Applications classify fields they add. They do not repeat classifications for
+storage and account infrastructure defined by first-party framework packages.
+`FrameworkFieldReadDefaults` is the single source consumed by both
+`EntityReadRuntime` and `FieldAccessPreflightScanner`; a green preflight can
+therefore never describe a different level than sealed runtime compilation.
+An explicit definition or application artifact may restate a default only at
+the same level. A disagreement is a hard conflict.
+
+All registered entity types receive Public `bundle`, `langcode`, and
+`default_langcode` structural defaults, matching the runtime's existing
+structural treatment. The remaining exact defaults are:
+
+| Entity fields | Default | Newly readable channel and role | Safety basis |
+|---|---|---|---|
+| Config labels: `classification_label_definition.display_name`, `group_type.label`, `group.name`, `media_type.label`, `menu.label` | Public | Ordinary entity/API presentation after entity-level view succeeds | These are the framework-defined human labels used to identify already-viewable configuration or groups; they contain no credential, membership, or storage authority. |
+| `retention_policy.name` | Protected | Only a principal admitted by the classification-retention governance policy | Even its operator-facing label identifies governance configuration, so the default preserves the field's existing Protected level instead of broadening it. |
+| `relationship.{confidence,directionality,end_date,from_entity_id,from_entity_type,notes,source_ref,start_date,status,to_entity_id,to_entity_type,weight}` | Protected | Only an account allowed by the relationship Protected-read policy and entity view | These values describe relationship topology and lifecycle. They are never anonymous-by-default and remain subject to endpoint/entity visibility. |
+| `media_version.{blob_uri,created_at,created_by,label,media_uuid,mime,sha256,size,vid}` | Internal | No account-facing role or channel | Parked content-addressed storage metadata is available only to typed, audited system/admin infrastructure; ordinary and administrator API reads cannot release it. |
+| `user.password_hash`, `user.role` | Internal | No account-facing role or channel | Credential and authorization material never enters an outward projection. `password_hash` is also covered by serializer/schema deny floors, including administrator requests. |
+| `user.{consent_date,consent_on_file,must_reset_password,disabled}` | Protected | Authenticated principals with `administer users`, after User entity view | These are administrative account-state facts. The exact User policy rejects every other role and any unexpected policy-subject input. |
+
+User `display_name`, `first_name`, `last_name`, and
+`member_directory_visible` intentionally have no framework default. Directory
+exposure is application policy. The canonical framework login identifier
+`name` retains its existing Protected profile policy; it is not a consumer
+directory-field default and is not widened by this table.
 
 ```php
 // EntityAccessHandler::checkFieldAccess() excerpt:
