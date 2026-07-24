@@ -115,6 +115,30 @@ exposure is application policy. The canonical framework login identifier
 `name` retains its existing Protected profile policy; it is not a consumer
 directory-field default and is not widened by this table.
 
+## Legacy entity-data payload upgrade
+
+Entity storage requires `_data` to be a JSON object. Historical config rows may
+instead contain the empty JSON list `[]`; preflight reports each such row as an
+`entity-data` legacy payload blocker.
+
+`field-access:upgrade-legacy-entity-data` is the idempotent one-shot migration
+for Stage-1 and operator use. It runs through the restricted field-access
+bootstrap so a blocker-bearing database can be repaired before normal
+production boot. For registered entity tables that contain `_data`, it:
+
+1. reads the stored payload as a string;
+2. rewrites it to `{}` only when optional JSON whitespace surrounds exactly
+   the empty list `[]`;
+3. includes the original byte string in the update predicate, so a concurrent
+   change is not overwritten; and
+4. reports scanned and changed row counts without creating or writing a
+   readiness artifact.
+
+The command deliberately preserves existing `{}` objects, non-empty arrays,
+JSON scalars, malformed JSON, and null/empty values. A second run changes zero
+rows. This is a payload-shape migration, not field-access activation, and it
+never force-activates the boundary.
+
 ```php
 // EntityAccessHandler::checkFieldAccess() excerpt:
 $result = AccessResult::neutral('No field access policy provided an opinion.');

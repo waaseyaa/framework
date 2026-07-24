@@ -12,6 +12,7 @@ use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\FieldAccessPreflightHandler;
 use Waaseyaa\CLI\Handler\HealthCheckHandler;
 use Waaseyaa\CLI\Handler\HealthReportHandler;
+use Waaseyaa\CLI\Handler\LegacyEntityDataPayloadUpgradeHandler;
 use Waaseyaa\CLI\Handler\RevisionsEnableHandler;
 use Waaseyaa\CLI\Handler\SchemaCheckHandler;
 use Waaseyaa\CLI\Handler\SchemaListHandler;
@@ -19,6 +20,7 @@ use Waaseyaa\CLI\Handler\SchemaSyncHandler;
 use Waaseyaa\CLI\Security\DatabaseFieldAccessInventoryScanner;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\EntityStorage\Migration\LegacyEntityDataPayloadUpgrader;
 use Waaseyaa\Field\Preflight\FieldAccessPreflightScanner;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -46,11 +48,22 @@ final class HealthSchemaServiceProvider extends ServiceProvider implements Provi
                 $this->projectRoot,
             );
         });
+        $this->singleton(LegacyEntityDataPayloadUpgradeHandler::class, function (): LegacyEntityDataPayloadUpgradeHandler {
+            $database = $this->resolve(DatabaseInterface::class);
+            $manager = $this->resolve(EntityTypeManager::class);
+            assert($database instanceof DatabaseInterface);
+            assert($manager instanceof EntityTypeManager);
+
+            return new LegacyEntityDataPayloadUpgradeHandler(
+                new LegacyEntityDataPayloadUpgrader($database, $manager),
+            );
+        });
     }
 
     public function consoleCommands(): iterable
     {
         yield self::fieldAccessPreflightCommand();
+        yield self::legacyEntityDataPayloadUpgradeCommand();
 
         yield new HandlerCommand(
             name: 'health:check',
@@ -157,6 +170,16 @@ final class HealthSchemaServiceProvider extends ServiceProvider implements Provi
                 ),
             ],
             handler: [FieldAccessPreflightHandler::class, 'execute'],
+        );
+    }
+
+    /** Restricted-bootstrap descriptor; constructing it resolves no application service. */
+    public static function legacyEntityDataPayloadUpgradeCommand(): HandlerCommand
+    {
+        return new HandlerCommand(
+            name: 'field-access:upgrade-legacy-entity-data',
+            description: 'Idempotently rewrite legacy empty-list entity _data payloads to empty objects.',
+            handler: [LegacyEntityDataPayloadUpgradeHandler::class, 'execute'],
         );
     }
 }

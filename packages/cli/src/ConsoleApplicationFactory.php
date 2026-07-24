@@ -47,6 +47,21 @@ final class ConsoleApplicationFactory
         return $application;
     }
 
+    public function createFieldAccessMaintenanceOnly(string $command): WaaseyaaConsoleApplication
+    {
+        $logger = $this->logger ?? new NullLogger();
+        $versionResolver = $this->versionResolver ?? new VersionResolver($this->kernel->getProjectRoot());
+        $application = new WaaseyaaConsoleApplication($versionResolver->resolve(), $logger);
+        $descriptor = match ($command) {
+            'field-access:preflight' => HealthSchemaServiceProvider::fieldAccessPreflightCommand(),
+            'field-access:upgrade-legacy-entity-data' => HealthSchemaServiceProvider::legacyEntityDataPayloadUpgradeCommand(),
+            default => throw new \InvalidArgumentException(sprintf('Unsupported restricted field-access command "%s".', $command)),
+        };
+        $application->addCommand($descriptor->withContainer($this->container));
+
+        return $application;
+    }
+
     /** @param list<string>|null $allowedCommands */
     private function createFiltered(?array $allowedCommands): WaaseyaaConsoleApplication
     {
