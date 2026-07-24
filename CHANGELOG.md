@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.272] - 2026-07-24
+
 ### Changed
 
 - **Applications can compose the shell around generic SSR entity pages without shadow-routing framework access logic (#2117).** An optional `EntityPageComposerInterface` receives an immutable payload of the access-checked title, formatter-produced authorized field fragments, request path, entity metadata, safe schema.org JSON-LD, and one field-access-filtered, structure-preserving sanitized body channel after the existing alias, editorial, entity-view, preview, and field-access decisions pass. A non-instantiating production binding probe preserves zero formatting on a legacy cache hit and one pass on a miss; bound factories run only after the safe payload exists, and factory failure remains distinguishable from no binding. Missing, denied, Markdown, and unregistered paths retain their framework behavior; throwing, empty, redirecting, error, or non-HTML composers fall back to the complete framework document. Accepted composed documents and failure fallbacks are `private, no-store`, carry no public surrogate keys, and bypass render persistence because application-shell dependencies are not representable by the entity cache; deliberate `null` declines remain cacheable. No-binding cache variants retain their exact prior hash, while registered composer class and inbound path partition deliberate-decline variants; repeatable response headers survive the router boundary, and the render-cache schema advances to `v6`.
