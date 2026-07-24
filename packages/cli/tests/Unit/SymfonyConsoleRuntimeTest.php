@@ -261,7 +261,7 @@ final class SymfonyConsoleRuntimeTest extends TestCase
             kernel: $this->kernel(),
             container: $this->container(),
             providers: [$provider],
-        )->createFieldAccessPreflightOnly();
+        )->createFieldAccessMaintenanceOnly('field-access:preflight');
 
         self::assertTrue($application->has('field-access:preflight'));
         self::assertFalse($application->has('app:mutating-command'));

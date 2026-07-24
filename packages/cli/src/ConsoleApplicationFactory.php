@@ -37,16 +37,6 @@ final class ConsoleApplicationFactory
         return $this->createFiltered(null);
     }
 
-    public function createFieldAccessPreflightOnly(): WaaseyaaConsoleApplication
-    {
-        $logger = $this->logger ?? new NullLogger();
-        $versionResolver = $this->versionResolver ?? new VersionResolver($this->kernel->getProjectRoot());
-        $application = new WaaseyaaConsoleApplication($versionResolver->resolve(), $logger);
-        $application->addCommand(HealthSchemaServiceProvider::fieldAccessPreflightCommand()->withContainer($this->container));
-
-        return $application;
-    }
-
     public function createFieldAccessMaintenanceOnly(string $command): WaaseyaaConsoleApplication
     {
         $logger = $this->logger ?? new NullLogger();
