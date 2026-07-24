@@ -79,6 +79,27 @@ final class FieldAccessPreflightScannerTest extends TestCase
         self::assertSame(['legacy.profile'], $result->data->v1Drivers);
     }
 
+    public function test_classification_artifact_classifies_an_application_owned_live_key_without_a_registered_definition(): void
+    {
+        $manager = new EntityTypeManager(new EventDispatcher(), fieldRegistry: new FieldDefinitionRegistry());
+        $manager->registerEntityType(new EntityType(
+            id: 'profile',
+            label: 'Profile',
+            class: PreflightProfile::class,
+        ));
+
+        $result = (new FieldAccessPreflightScanner())->scan($manager, new FieldAccessLiveInventory(
+            frameworkVersion: 'candidate',
+            schemaFingerprint: 'schema',
+            liveKeys: ['profile|member|directory_visible'],
+            artifactLevels: ['profile|member|directory_visible' => FieldReadLevel::Internal],
+        ));
+
+        self::assertTrue($result->ready);
+        self::assertSame('internal:classification_artifact', $result->data->fields['profile|member|directory_visible']);
+        self::assertSame([], $result->data->unclassifiedEntries);
+    }
+
     public function test_candidate_schema_and_definition_changes_each_invalidate_the_checksum(): void
     {
         $registry = new FieldDefinitionRegistry();

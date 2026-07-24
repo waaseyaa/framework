@@ -12,6 +12,8 @@ use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\EntityValues;
+use Waaseyaa\Entity\Exception\FieldReadDenied;
+use Waaseyaa\Entity\Exception\MissingFieldReadContext;
 use Waaseyaa\Field\FieldDefinitionInterface;
 
 /**
@@ -213,11 +215,19 @@ final class ResourceSerializer
         $excluded = array_flip($this->getExcludedFields($keys));
         $attributes = [];
 
-        foreach (EntityValues::toCastAwareMap($entity, $fieldNames) as $fieldName => $value) {
+        foreach ($fieldNames as $fieldName) {
             if (isset($excluded[$fieldName])) {
                 continue;
             }
-            $attributes[$fieldName] = $value;
+            try {
+                $attributes[$fieldName] = $entity->get($fieldName);
+            } catch (FieldReadDenied | MissingFieldReadContext) {
+                // The V2 accessor is the final Protected-read authority. A
+                // legacy field-access policy may be Neutral while that
+                // authority denies; omit the field rather than turning an
+                // otherwise authorized entity response into a 500.
+                continue;
+            }
         }
 
         return $attributes;
