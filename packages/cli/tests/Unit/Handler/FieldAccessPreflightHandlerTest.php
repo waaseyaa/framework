@@ -12,15 +12,53 @@ use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\CLI\Handler\FieldAccessPreflightHandler;
+use Waaseyaa\CLI\Handler\LegacyEntityDataPayloadUpgradeHandler;
 use Waaseyaa\CLI\Provider\HealthSchemaServiceProvider;
 use Waaseyaa\CLI\Security\DatabaseFieldAccessInventoryScanner;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\EntityStorage\Migration\LegacyEntityDataPayloadUpgrader;
 use Waaseyaa\Foundation\Kernel\Preflight\FieldAccessActivationPreflight;
 use Waaseyaa\Field\FieldDefinitionRegistry;
 
 final class FieldAccessPreflightHandlerTest extends TestCase
 {
+    public function test_legacy_payload_upgrade_command_is_registered_for_idempotent_stage_one_use(): void
+    {
+        $command = null;
+        foreach ((new HealthSchemaServiceProvider())->consoleCommands() as $candidate) {
+            if ($candidate->name === 'field-access:upgrade-legacy-entity-data') {
+                $command = $candidate;
+                break;
+            }
+        }
+
+        self::assertNotNull($command);
+        self::assertSame('field-access:upgrade-legacy-entity-data', $command->name);
+    }
+
+    public function test_legacy_payload_upgrade_handler_prints_honest_counts_and_no_readiness_artifact(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $database->query("CREATE TABLE config_item (id TEXT PRIMARY KEY, _data TEXT NOT NULL DEFAULT '{}')");
+        $database->query("INSERT INTO config_item (id, _data) VALUES ('legacy', '[]')");
+        $manager = new EntityTypeManager(new EventDispatcher());
+        $manager->registerEntityType(new \Waaseyaa\Entity\EntityType(
+            id: 'config_item',
+            label: 'Config item',
+            class: \Waaseyaa\Entity\EntityBase::class,
+            keys: ['id' => 'id'],
+        ));
+        $output = new BufferedOutput();
+
+        $code = (new LegacyEntityDataPayloadUpgradeHandler(
+            new LegacyEntityDataPayloadUpgrader($database, $manager),
+        ))->execute(new SymfonyCommandIO(new ArrayInput([]), $output));
+
+        self::assertSame(0, $code);
+        self::assertStringContainsString('scanned=1 changed=1', $output->fetch());
+    }
+
     public function test_exact_preflight_command_is_registered_with_read_only_default(): void
     {
         $command = null;

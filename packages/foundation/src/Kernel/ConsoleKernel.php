@@ -29,7 +29,11 @@ final class ConsoleKernel extends AbstractKernel
             return $application->run($input, $output);
         }
 
-        if ($input->getFirstArgument() === 'field-access:preflight') {
+        $restrictedFieldAccessCommand = $input->getFirstArgument();
+        if (in_array($restrictedFieldAccessCommand, [
+            'field-access:preflight',
+            'field-access:upgrade-legacy-entity-data',
+        ], true)) {
             try {
                 $this->bootForFieldAccessPreflight();
             } catch (\Throwable $e) {
@@ -46,7 +50,7 @@ final class ConsoleKernel extends AbstractKernel
                 container: $this->buildHandlerContainer(),
                 providers: $this->getProviders(),
                 logger: $this->logger,
-            )->createFieldAccessPreflightOnly()->run($input, $output);
+            )->createFieldAccessMaintenanceOnly($restrictedFieldAccessCommand)->run($input, $output);
         }
 
         try {

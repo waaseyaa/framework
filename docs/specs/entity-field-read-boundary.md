@@ -339,6 +339,12 @@ artifacts must agree with that source or produce a blocker. This keeps
 applications responsible only for their bundle fields while preventing a green
 artifact from widening or narrowing runtime visibility.
 
+Legacy `_data = []` config rows are upgraded only through the idempotent
+`field-access:upgrade-legacy-entity-data` command specified in
+`field-access.md`. The command is available through the restricted bootstrap,
+rewrites no other payload shape, emits no readiness artifact, and performs no
+activation.
+
 The reusable `FieldReadGuard` decision/cache path is exercised only by WP3
 fixtures and benchmarks. `EntityBase`, queries, serialization, and normal boot
 do not install it in this tranche; WP4 performs that single no-shim activation.
