@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Framework-owned entity fields now carry one runtime/preflight classification default (#2064).** Applications no longer have to classify universal language/bundle selectors, first-party config labels, relationship infrastructure, parked media-version internals, or legacy User account infrastructure. Explicit metadata must agree with the shared default source. Credential hashes remain Internal and outward-denied even to administrators; consent/reset/disabled state is administrator-only Protected; application directory fields remain deliberately unclassified.
 - **Legacy empty-list entity payloads have an idempotent object-shape upgrade (#2064).** `field-access:upgrade-legacy-entity-data` runs before activation through the restricted bootstrap, compare-and-swaps only whitespace-wrapped `[]` values to `{}`, reports its work, and leaves objects, non-empty arrays, scalars, malformed JSON, and readiness artifacts untouched.
 
+### Fixed
+
+- **Application classification artifacts now classify live database keys that have no restricted-bootstrap definition (#2064).** The preflight records the exact artifact level instead of leaving such consumer-owned fields unclassified, while registered definitions and framework defaults retain their existing conflict checks.
+- **JSON:API serialization now omits accessor-denied Protected fields instead of failing an otherwise authorized entity response (#2064).** The activated accessor remains the final authority when the legacy field policy is Neutral; denied values are never read or emitted.
+
 ## [0.1.0-alpha.272] - 2026-07-24
 
 ### Changed

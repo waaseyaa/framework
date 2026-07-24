@@ -90,6 +90,15 @@ final readonly class FieldAccessPreflightScanner
                 }
                 continue;
             }
+            $artifactKey = isset($inventory->artifactLevels[$key])
+                ? $key
+                : (isset($inventory->artifactLevels[$coreKey]) ? $coreKey : null);
+            if ($artifactKey !== null) {
+                if (!isset($fields[$key]) && !isset($fields[$coreKey])) {
+                    $fields[$artifactKey] = $inventory->artifactLevels[$artifactKey]->value . ':classification_artifact';
+                }
+                continue;
+            }
             if (!isset($fields[$key]) && !isset($fields[$coreKey]) && !in_array($key, $conflicts, true) && !in_array($coreKey, $conflicts, true)) {
                 $unclassified[] = self::key($entityType, $bundle, $field);
             }

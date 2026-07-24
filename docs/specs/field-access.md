@@ -1,5 +1,6 @@
 # Field-Level Access
 
+<!-- Spec reviewed 2026-07-24 - #2064 activation follow-up: the deployment classification artifact is authoritative for a live application-owned field even when restricted bootstrap cannot reconstruct that field's runtime definition. The preflight records the artifact level for that exact live key; registered definitions and framework defaults still undergo the existing equality/conflict checks. Runtime/artifact parity for consumer fields remains an application test obligation. -->
 <!-- Spec reviewed 2026-07-24 - #2064 framework-owned field defaults: one shared default-classification source is consumed by both sealed runtime layout compilation and activation preflight. It covers universal structural selectors plus the exact first-party config labels, relationship infrastructure, parked media-version internals, and legacy User account-infrastructure fields listed below. Explicit metadata that disagrees with a framework default is a hard conflict. Application bundle fields and directory-exposure policy remain consumer-owned. -->
 <!-- Spec reviewed 2026-07-21 - #2064 media hotfix: Media Protected fields now compose with the complete hydrated entity-view decision. Application contextual grants can release bundle-defined Protected media metadata, application Forbidden results still win, and a missing/mismatched hydrated entity fails closed. This does not change legacy open-by-default FieldAccessPolicyInterface filtering or Internal-field sealing. -->
 <!-- Spec reviewed 2026-07-19 - #2064 alpha.270 boolean-field hotfix: resolved boolean/bool field definitions now canonicalize values to native PHP bool while the private entity value container is sealed and on every write. Closed validation, persistence extraction, guarded reads, and public projections observe that same type. Protected/Internal sealing and missing-context denial are unchanged. -->
@@ -95,6 +96,15 @@ storage and account infrastructure defined by first-party framework packages.
 therefore never describe a different level than sealed runtime compilation.
 An explicit definition or application artifact may restate a default only at
 the same level. A disagreement is a hard conflict.
+
+For application-owned fields, the deployment classification artifact is also
+the restricted-bootstrap source of truth. If a field key is live in storage
+but its definition cannot be reconstructed in restricted bootstrap, an exact
+artifact entry still classifies that key at the declared level. This is not a
+runtime bypass: activated boot still seals the runtime definitions, and the
+consumer must test that every artifact entry equals the application's runtime
+classification. Registered definitions and framework defaults continue to
+conflict on any unequal artifact level.
 
 All registered entity types receive Public `bundle`, `langcode`, and
 `default_langcode` structural defaults, matching the runtime's existing

@@ -1,5 +1,6 @@
 # API Layer
 
+<!-- Spec reviewed 2026-07-24 - #2064 activation follow-up: ResourceSerializer now treats the activated entity accessor as the final Protected-read authority. If legacy field filtering is Neutral but the accessor denies or lacks a read context, the field is omitted without reading its value; an otherwise authorized entity response does not become a 500. Internal fields retain their unconditional outward-denial floors. -->
 <!-- Spec reviewed 2026-07-21 - #2101 WP-2: JSON:API create attributes an authenticated creator when an entity type declares a non-identity uid authorization-input field and the client omits it. The shape-based rule covers node, media, note, and future authored quick-entry types without a type-id allowlist, while explicitly excluding User.uid and any other identity key. Explicit uid remains subject to the entity type's field policy. -->
 <!-- Spec reviewed 2026-07-21 - #2101 WP-3: the update path accepts ConfigEntityInterface targets after the same declared-field allowlist and access checks used for FieldableInterface targets. This activates bounded PATCH support for explicitly surfaced config rows without changing identity/bookkeeping rejection. -->
 
@@ -723,7 +724,7 @@ final class ResourceSerializer
 ### Serialization Logic
 
 1. Uses UUID as resource ID if available, otherwise falls back to numeric ID (config entities: string machine name when UUID is empty).
-2. Builds attributes via **`EntityValues::toCastAwareMap($entity)`**, then drops keys that map to entity keys `id` and `uuid` (storage column names from `EntityType::getKeys()`), so every attribute value passes through `EntityInterface::get()` and `EntityBase::$casts` apply (#1181 ST-7 / ST-9). See `docs/specs/jsonapi.md` for the pipeline diagram.
+2. Iterates the resolved field names, drops keys that map to entity keys `id` and `uuid` (storage column names from `EntityType::getKeys()`), and reads each remaining value through `EntityInterface::get()`, so `EntityBase::$casts` apply (#1181 ST-7 / ST-9). If the activated accessor denies a Protected read (or no read context is available), that field is omitted without reading its value. This accessor check is the final authority when the legacy field policy is Neutral and cannot turn an otherwise authorized entity response into a 500. See `docs/specs/jsonapi.md` for the pipeline diagram.
 3. **Filters internal/credential fields** (#1531). Two layers, both applied **before** the per-account access handler so credentials never reach policy code:
    - `ResourceSerializer::ALWAYS_INTERNAL_FIELDS = ['pass', 'password', 'password_hash']` — dropped unconditionally even when no `FieldDefinition` exists. Covers raw `_data` keys that hold credential material (e.g. `User::$pass` is set via `setRawPassword()` with no `#[Field]` attribute).
    - Any `FieldDefinition` whose `getSetting('internal') === true` is dropped (e.g. `User::two_factor_secret`, `User::two_factor_recovery_codes_hash`). New sensitive fields opt in via `#[Field(... settings: ['internal' => true])]`.
