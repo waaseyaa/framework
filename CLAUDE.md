@@ -184,6 +184,14 @@ Substantive work follows the **design-first flow** — brainstorm → spec in `d
 3. **PRs must be traceable** — `Closes #N` / `Part of #N` plus `#N` in the title, per `docs/specs/workflow.md` and `.github/pull_request_template.md`.
 4. **Session context** — under an ongoing effort, read the anchor issue (including its comment trail) and the relevant specs before generating work.
 
+### Commit & PR hygiene (imperative)
+
+- Add changelog entries under `## [Unreleased]`.
+- After design review, carry a `spec-reviewed:` trailer on the commit (lowercase — the drift detector parses that exact key).
+- Never `git stash`. Commit to a branch instead.
+- `composer test` must pass before any commit.
+- Open PRs via `gh`; require CI green on the exact pushed head before merge.
+
 ## Agent context
 
 - **Constitution (this file):** Session-hot rules — orchestration table, layer graph, checklists, gotchas.
