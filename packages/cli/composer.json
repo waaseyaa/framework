@@ -153,6 +153,7 @@
                 "Waaseyaa\\CLI\\Provider\\GroupsCliServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\HealthSchemaServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\ImportServiceProvider",
+                "Waaseyaa\\CLI\\Provider\\MaintenanceServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\WorkflowsServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\MakeServiceProviderA",
                 "Waaseyaa\\CLI\\Provider\\MakeServiceProviderB",

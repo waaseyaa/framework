@@ -152,6 +152,12 @@ The production HTTP pipeline in `HttpKernel::serveHttpRequest()` wires middlewar
 SecurityHeadersMiddleware -> SessionMiddleware -> CsrfMiddleware -> AuthorizationMiddleware -> provider middleware -> controller/domain-router dispatch
 ```
 
+### Pre-boot maintenance gate (outside this pipeline)
+
+`MaintenanceModeMiddleware` (`waaseyaa/foundation`) is the one HTTP middleware NOT wired into the pipeline above. It is invoked once, explicitly, at the very top of `HttpKernel::handle()` — **before** `boot()` — via `maintenanceGate()`. This is deliberate: `boot()` runs migrations and schema validation against the database, so a maintenance 503 has to be decided before any DB work to survive a database that is mid-swap (the SFN live-SQLite-swap incident, #2122). Because the branded 503 short-circuits before the pipeline exists, the middleware applies its own security headers via `SecurityHeadersMiddleware::applyResponseDefaults()`.
+
+To keep exactly one invocation path, `MaintenanceModeMiddleware` deliberately carries **no** `#[AsMiddleware]` attribute, so `PackageManifestCompiler` never discovers it into any pipeline stack — it cannot run twice per request. See `docs/specs/operations-playbooks.md` "Playbook I: Maintenance Mode (quiesce for deploys / DB swaps)".
+
 ### Wiring code (from HttpKernel::serveHttpRequest())
 
 ```php

@@ -762,6 +762,65 @@ the framework prunes it automatically. What ships today:
   against the `docs/specs/revision-system-unified.md` follow-up work before
   relying on retention limits in a high-write-volume deployment.
 
+### Playbook I: Maintenance Mode (quiesce for deploys / DB swaps)
+
+Framework-owned quiesce primitive (#2122). Replaces host-side improvisation
+(the `.htaccess` 503 hack used during the SFN staging live-SQLite-swap on
+2026-07-24), which is a silent no-op under the built-in server and FrankenPHP.
+Behaviour is identical under `php -S`, FrankenPHP worker mode, and PHP-FPM
+because the gate lives in `HttpKernel::handle()`, not the host server.
+
+**Mechanism.** A single JSON state file — `storage/maintenance.flag` by
+default — is the canonical flag. It is read **before** `boot()` (see
+`docs/specs/middleware-pipeline.md` "Pre-boot maintenance gate"), so a
+maintenance 503 is served without opening or querying the database. This is
+what lets maintenance mode survive a database that is mid-swap.
+
+**Semantics.**
+- When active, every non-exempt HTTP request gets `503 Service Unavailable`
+  with a `Retry-After` header and a branded page (HTML for browsers, JSON:API
+  for `Accept: application/json`), carrying the standard security headers.
+- **Fail-closed:** if the flag exists but is unreadable, non-JSON, or missing
+  its `active` key, the app is treated as IN maintenance (503) with a safe
+  default `Retry-After`. Only a present, valid `active:false`, or an absent
+  flag, reads as "up". `maintenance:off` clears the flag entirely.
+- **Exemptions:** loopback clients (`127.0.0.1`/`::1`) and the configured
+  health path(s) bypass the gate so operators and orchestrators can still probe
+  during a swap.
+
+**Environment knobs** (resolved by `MaintenanceSettings::fromEnvironment()`):
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `WAASEYAA_MAINTENANCE_FLAG` | `storage/maintenance.flag` | Flag file path. |
+| `WAASEYAA_MAINTENANCE_HEALTH_PATH` | `/health` | Comma-separated exempt paths; empty disables the health exemption. |
+| `WAASEYAA_MAINTENANCE_TRUST_LOCALHOST` | `true` | Exempt loopback clients. **Set to `false` behind a same-host reverse proxy.** |
+| `WAASEYAA_MAINTENANCE_PAGE` | — | Path to a consumer-supplied branded HTML page. |
+
+> ⚠️ **Same-host reverse-proxy hazard.** The localhost exemption keys on
+> `REMOTE_ADDR` only (no `X-Forwarded-For` parsing — that is spoofable if done
+> casually). A deployment that fronts the app with a proxy on the same host
+> (nginx/Apache `ProxyPass` to `127.0.0.1`, a documented FrankenPHP topology
+> and our parked staging vhost) makes **every** external request arrive with
+> `REMOTE_ADDR` = 127.0.0.1 — so the whole internet would be exempt and
+> maintenance mode would silently never engage. Such deployments MUST set
+> `WAASEYAA_MAINTENANCE_TRUST_LOCALHOST=false`.
+
+**Deploy recipe (DB swap).** Commands are idempotent and return script-friendly
+exit codes (`maintenance:on`/`off` → 0 on desired state reached, non-zero only
+on I/O failure; `maintenance:status` → 0 serving, 1 in maintenance):
+
+```bash
+bin/waaseyaa maintenance:on --retry-after=120 --message="Database maintenance" \
+  && swap_the_database \
+  && bin/waaseyaa maintenance:off
+# assert each step's exit code; `maintenance:status` gates verification.
+```
+
+The SFN Deployer recipe replaces its `.htaccess` quiesce with exactly this:
+`maintenance:on` → atomic SQLite file swap → `maintenance:off`, each step
+asserted via exit code, portable across every supported runtime.
+
 ## CLI Command Reference
 
 ### Queue Operations
@@ -792,6 +851,14 @@ the framework prunes it automatically. What ships today:
 | Command | Description | Key Options |
 |---------|-------------|-------------|
 | `serve` | Start the single-worker `php -S` dev server (not for production or the admin SPA's concurrent SSE — for those, launch FrankenPHP natively against `config/frankenphp/Caddyfile`) | `--host` (default: 0.0.0.0), `--port` / `-p` (default: 8080) |
+
+### Maintenance (quiesce — Playbook I)
+
+| Command | Description | Key Options |
+|---------|-------------|-------------|
+| `maintenance:on` | Enable maintenance mode (branded 503 + `Retry-After`). Idempotent. | `--retry-after` (default 120), `--message` |
+| `maintenance:off` | Clear the flag and restore service. Idempotent. | — |
+| `maintenance:status` | Report state. Exit 0 = serving, 1 = in maintenance (incl. fail-closed). | `--json` |
 | `sync-rules` | Sync framework rules from Waaseyaa to app | `--force` / `-f`, `--dry-run` |
 
 ## Queue Operations Playbook
