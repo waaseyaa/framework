@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.274] - 2026-07-25
+
 ### Added
 
 - **First-class maintenance-mode quiesce primitive (#2122).** `maintenance:on` / `maintenance:off` / `maintenance:status` CLI commands drive a single canonical state file (`storage/maintenance.flag`, atomic write-then-rename), and a pre-boot gate in `HttpKernel::handle()` serves a branded `503 Service Unavailable` + `Retry-After` (HTML for browsers, JSON:API for `Accept: application/json`) to non-exempt traffic. The gate runs **before** `boot()`, so the 503 is rendered without opening or querying the database — maintenance mode survives a database that is mid-swap, replacing the non-portable host-side `.htaccess` quiesce hack (SFN staging live-SQLite-swap, 2026-07-24). Ambiguous/corrupt flag state **fails closed** into maintenance; loopback clients and a configurable health path are exempt. The localhost exemption keys on `REMOTE_ADDR` and can be disabled with `WAASEYAA_MAINTENANCE_TRUST_LOCALHOST=false` for same-host reverse-proxy topologies (where every external request would otherwise arrive as 127.0.0.1). The commands are idempotent with script-friendly exit codes so deploy tooling can bracket a DB swap with `maintenance:on` → swap → `maintenance:off`. Behaviour is identical under the built-in server, FrankenPHP worker mode, and PHP-FPM because the gate lives in the kernel, not the host server. See `docs/specs/operations-playbooks.md` "Playbook I".
