@@ -34,9 +34,12 @@ use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistryKernelServices;
 use Waaseyaa\Foundation\Kernel\Http\HttpKernelServiceResolver;
 use Waaseyaa\Foundation\Log\LogManager;
 use Waaseyaa\Foundation\Log\Processor\RequestContextProcessor;
+use Waaseyaa\Foundation\Maintenance\MaintenanceSettings;
+use Waaseyaa\Foundation\Maintenance\MaintenanceState;
 use Waaseyaa\Foundation\Middleware\DebugHeaderMiddleware;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpPipeline;
+use Waaseyaa\Foundation\Middleware\MaintenanceModeMiddleware;
 use Waaseyaa\Foundation\Middleware\SecurityHeadersMiddleware;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ConfiguresHttpKernelInterface;
@@ -78,6 +81,16 @@ final class HttpKernel extends AbstractKernel
 
     public function handle(): HttpResponse
     {
+        // Quiesce gate — runs BEFORE boot() so a maintenance 503 is served
+        // without opening or querying the database (boot() runs migrations and
+        // schema validation). This is the single, deterministic invocation of
+        // the maintenance middleware; it is never wired into the post-boot
+        // pipeline. See MaintenanceModeMiddleware and #2122.
+        $maintenanceResponse = $this->maintenanceGate();
+        if ($maintenanceResponse !== null) {
+            return $maintenanceResponse;
+        }
+
         try {
             $this->boot();
         } catch (\Throwable $e) {
@@ -102,6 +115,48 @@ final class HttpKernel extends AbstractKernel
                 'errors' => [['status' => '500', 'title' => 'Internal Server Error', 'detail' => 'An unexpected error occurred.']],
             ]);
         }
+    }
+
+    /**
+     * Evaluate the maintenance flag before boot and return a branded 503 when
+     * the app is quiesced, otherwise null to proceed with normal boot + serve.
+     *
+     * The gate request is built via `HttpRequest::create()` from `$_SERVER`
+     * (NOT `createFromGlobals()`), so `php://input` is never consumed — POST
+     * bodies survive for the real request built later in matchRoute().
+     *
+     * Fail-closed discipline: the flag read is fully defensive inside
+     * {@see MaintenanceState::read()} (ambiguity → 503). The ONLY throw risk is
+     * `HttpRequest::create()` on a malformed request URI; that is caught and
+     * replaced with a synthetic NON-exempt request, so an active flag still
+     * yields a 503 (never a bypass), while an inactive flag still proceeds to
+     * boot. There is deliberately no broad fail-open catch.
+     */
+    private function maintenanceGate(): ?HttpResponse
+    {
+        $settings = MaintenanceSettings::fromEnvironment($this->projectRoot);
+
+        try {
+            $request = HttpRequest::create(
+                is_string($_SERVER['REQUEST_URI'] ?? null) ? $_SERVER['REQUEST_URI'] : '/',
+                is_string($_SERVER['REQUEST_METHOD'] ?? null) ? $_SERVER['REQUEST_METHOD'] : 'GET',
+                server: $_SERVER,
+            );
+        } catch (\Throwable $e) {
+            $this->logger->error(sprintf('Maintenance gate: request construction failed, failing closed: %s', $e->getMessage()));
+            // Synthetic, non-loopback, non-health request: an active flag serves
+            // a 503; an inactive flag still returns null and boots normally.
+            $request = HttpRequest::create('/', 'GET', server: ['REMOTE_ADDR' => '0.0.0.0']);
+        }
+
+        $middleware = new MaintenanceModeMiddleware(
+            new MaintenanceState($settings->flagPath),
+            $settings->healthPaths,
+            $settings->trustLocalhost,
+            $settings->customPagePath,
+        );
+
+        return $middleware->maintenanceResponse($request);
     }
 
     protected function finalizeBoot(): void
