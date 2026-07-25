@@ -23,6 +23,14 @@ abstract class ServiceProvider implements ServiceProviderInterface
     /** @var array<string, object> */
     private array $resolved = [];
 
+    /**
+     * When this provider has been merged into a "stack" provider via
+     * {@see mergeChildProvider()}, this points at the merge root so all
+     * resolution funnels through a single {@see resolve()}/{@see $resolved}
+     * cache. Null for a standalone (never-merged) provider.
+     */
+    private ?ServiceProvider $mergeRoot = null;
+
     /** @var array<string, list<string>> */
     private array $tags = [];
 
@@ -81,9 +89,34 @@ abstract class ServiceProvider implements ServiceProviderInterface
      * Run {@see register()} on a child provider and merge its bindings, entity types, and tags into this provider.
      *
      * Used by application "stack" providers to preserve a single composer entry while delegating to focused classes.
+     * This is a register/compose-time operation.
+     *
+     * Resolution-root guarantee: after merge, the child is re-rooted to this provider
+     * (transitively for nested merges). All resolution — including calls to
+     * {@see resolve()} made from inside the child's own binding closures, which capture
+     * the child's `$this` — funnels through, and caches in, the single merge root. A
+     * binding declared via {@see singleton()} therefore yields exactly one shared
+     * instance across the composed stack, never a per-provider copy. Any entries the
+     * child resolved before it was merged are adopted into the root; a genuine conflict
+     * (the same abstract already resolved to a different instance in the root) throws
+     * rather than silently forking.
      */
     final protected function mergeChildProvider(ServiceProvider $child): void
     {
+        // Re-root to the ultimate merge root so a shared binding is one instance
+        // across the composed stack. When this provider is itself a merged child, use
+        // its root so nested grandchildren reach the same ultimate root.
+        $root = $this->mergeRoot ?? $this;
+
+        // Precondition guards run before register() so a mistake fails loudly instead
+        // of recursing forever or half-wiring a child.
+        if ($child === $root) {
+            throw new \RuntimeException('mergeChildProvider: a provider cannot merge itself.');
+        }
+        if ($child->mergeRoot !== null && $child->mergeRoot !== $root) {
+            throw new \RuntimeException('mergeChildProvider: child provider is already merged into a different root.');
+        }
+
         $child->setKernelContext($this->projectRoot, $this->config, $this->manifestFormatters);
         if ($this->kernelServices !== null) {
             $child->setKernelServices($this->kernelServices);
@@ -100,6 +133,19 @@ abstract class ServiceProvider implements ServiceProviderInterface
                 $this->tag($abstract, $tag);
             }
         }
+
+        // Adopt anything the child resolved before merge; a genuine conflict fails loud
+        // rather than leaving two live instances of a shared binding.
+        foreach ($child->resolved as $abstract => $instance) {
+            if (isset($root->resolved[$abstract]) && $root->resolved[$abstract] !== $instance) {
+                throw new \RuntimeException(
+                    "mergeChildProvider: split-brain — '{$abstract}' is already resolved to a different instance in the merge root.",
+                );
+            }
+            $root->resolved[$abstract] = $instance;
+        }
+
+        $child->mergeRoot = $root;
     }
 
     protected function singleton(string $abstract, string|callable $concrete): void
@@ -135,6 +181,14 @@ abstract class ServiceProvider implements ServiceProviderInterface
 
     public function resolve(string $abstract): object
     {
+        // A merged child re-roots resolution to its merge root so that a shared
+        // binding is one instance across the composed stack — including when it is
+        // consumed from inside another binding's closure (which captured the
+        // child's $this). Recurses up the chain for nested merges.
+        if ($this->mergeRoot !== null) {
+            return $this->mergeRoot->resolve($abstract);
+        }
+
         if (isset($this->resolved[$abstract])) {
             return $this->resolved[$abstract];
         }

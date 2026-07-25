@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`ServiceProvider::mergeChildProvider()` no longer duplicates singletons across the merge root (#2124).** A "stack" provider that merges focused child providers previously copied only binding definitions, leaving each provider with its own singleton cache; a child binding closure captures the child's `$this`, so `$this->resolve('A')` inside one binding forked a second instance of a `singleton`-declared service away from the one external consumers saw. Merged children are now re-rooted to the single merge root (transitively for nested grandchildren), so every resolution — including those inside a child's own binding closures — resolves against and caches in one place; a shared binding is exactly one instance across the composed stack. Pre-merge-resolved entries are adopted, and a genuine conflict (or a self-merge) fails loudly instead of forking silently. Standalone, never-merged providers are unchanged.
+
 ## [0.1.0-alpha.273] - 2026-07-24
 
 ### Changed
