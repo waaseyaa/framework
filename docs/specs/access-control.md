@@ -354,7 +354,12 @@ Ability delegation: `$gate->allows('update', $node)` calls `$policy->update($use
 ```php
 final class EntityAccessGate implements GateInterface
 {
-    public function __construct(private readonly EntityAccessHandler $handler)
+    public function __construct(
+        private readonly EntityAccessHandler $handler,
+        ?LoggerInterface $logger = null,
+        private readonly ?AccountFieldReadScopeInterface $fieldReadScope = null,
+        private readonly ?AccountContextInterface $accountContext = null,
+    )
 }
 ```
 
@@ -364,11 +369,13 @@ Adapter that bridges `GateInterface` to `EntityAccessHandler`, reusing existing 
 - `allows('create', string $entityTypeId, AccountInterface $user)` → `$handler->checkCreateAccess($entityTypeId, '', $user)->isAllowed()` — the bundle-less form, bundle `''`, kept for backward compatibility
 - `allows('create', ['entity_type' => string, 'bundle' => string], AccountInterface $user)` → `$handler->checkCreateAccess($entityType, $bundle, $user)->isAllowed()` — the bundle-aware form (GitHub #1946). Both `entity_type` and `bundle` must be strings and `entity_type` non-empty, or the array subject is treated as malformed (see below). `EntityDestination::buildCreateSubject()` (`packages/migration/src/Plugin/Destination/EntityDestination.php`) is the framework's own caller of this form, deriving the bundle from the destination entity's bundle-key value when the entity type declares one.
 - String subject + non-`create` ability, or a malformed array subject → `false` (instance required for view/update/delete; array subject must match the `['entity_type' => ..., 'bundle' => ...]` shape)
-- Non-`AccountInterface` user or unsupported subject type → `false` with `error_log()` diagnostic
+- Non-null, non-`AuthorizationPrincipalInterface` user or unsupported subject type → `false` with a logged warning
+
+**Null-user resolution (GateInterface contract: "Null means the current/anonymous user").** A `null` `$user` is resolved to the current principal, never blanket-denied: first the middleware-established immutable principal from the optional `AccountFieldReadScopeInterface` (installed per-request by `FieldReadContextMiddleware`); else a non-entity `AuthorizationPrincipalInterface` held by the optional `AccountContextInterface` acting-account context; else the anonymous principal `new AuthorizationPrincipal(0, false, [], [], 'anonymous')` (same shape `FieldReadContextMiddleware` builds for account-less requests). Entity-backed context accounts are never handed to a policy directly — they must cross the audited principal factory (see `DecisionAccountResolver`) — and degrade to the anonymous principal here. `denies()`/`authorize()` inherit this via delegation to `allows()`. This is what makes contract-correct `allows($op, $row, null)` callers (e.g. `ListingResolver`'s per-row FR-029 filter) return anonymous-viewable rows instead of an empty listing. The convention-based `Gate` needs no equivalent: it passes `$user` (including `null`) through to the policy method, which owns guest semantics.
 
 Wired in `public/index.php`: wraps `EntityAccessHandler` and is passed to `AccessChecker(gate: $gate)`. Policy exceptions are caught, logged, and treated as denial.
 
-**Kernel-services bus binding (G-014 / #1940).** `ProviderRegistryKernelServices::get(GateInterface::class)` (`packages/foundation/src/Kernel/Bootstrap/ProviderRegistryKernelServices.php`) now resolves a shared `EntityAccessGate` built from the same lazy `EntityAccessHandler` accessor used for `EntityAccessHandler::class` resolution — memoized per handler instance, so repeated resolves within a request return the same adapter. This closes a gap where consumers resolving `GateInterface` off the kernel bus outside the `public/index.php` HTTP wiring (e.g. `packages/listing/src/ServiceProvider.php`) got `null` and fell back to a deny-all `Gate([])`, the root cause of the Sheguiandah pass-1 512/512 `entity_create_denied` failure. Resolution is still `null` before `AbstractKernel::discoverAccessPolicies()` runs (the handler accessor is not yet available). The `public/index.php` HTTP middleware wiring is unchanged — it continues to construct its own `EntityAccessGate` directly.
+**Kernel-services bus binding (G-014 / #1940).** `ProviderRegistryKernelServices::get(GateInterface::class)` (`packages/foundation/src/Kernel/Bootstrap/ProviderRegistryKernelServices.php`) now resolves a shared `EntityAccessGate` built from the same lazy `EntityAccessHandler` accessor used for `EntityAccessHandler::class` resolution — memoized per handler instance, so repeated resolves within a request return the same adapter. This closes a gap where consumers resolving `GateInterface` off the kernel bus outside the `public/index.php` HTTP wiring (e.g. `packages/listing/src/ServiceProvider.php`) got `null` and fell back to a deny-all `Gate([])`, the root cause of the Sheguiandah pass-1 512/512 `entity_create_denied` failure. Resolution is still `null` before `AbstractKernel::discoverAccessPolicies()` runs (the handler accessor is not yet available). The HTTP middleware wiring (`HttpKernel::buildMiddlewareStack()`) continues to construct its own `EntityAccessGate` directly. All three production construction sites — the kernel bus, `HttpKernel::buildMiddlewareStack()`, and `SsrServiceProvider::configureHttpKernel()` — pass the kernel's shared field-read scope and acting-account context so null-user resolution works everywhere.
 
 ### PolicyAttribute
 

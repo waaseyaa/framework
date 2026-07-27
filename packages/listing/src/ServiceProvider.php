@@ -14,6 +14,7 @@ use Waaseyaa\Cache\ContextResolver;
 use Waaseyaa\Cache\TaggedCacheInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\EntityStorage\Event\AfterDeleteEvent;
 use Waaseyaa\EntityStorage\Event\AfterSaveEvent;
 use Waaseyaa\Foundation\Http\RequestContext;
@@ -134,6 +135,7 @@ final class ServiceProvider extends FoundationServiceProvider
                 cache: $this->resolveTaggedCache(),
                 keyBuilder: $this->resolve(ListingCacheKeyBuilder::class),
                 logger: $this->resolveLogger(),
+                fieldRegistry: $this->resolveFieldRegistry(),
             ),
         );
     }
@@ -270,6 +272,22 @@ final class ServiceProvider extends FoundationServiceProvider
         }
 
         return null;
+    }
+
+    /**
+     * Resolve the {@see FieldDefinitionRegistryInterface} from the kernel bus
+     * so the resolver can demote filters/sorts on bundle-attached fields to
+     * the in-PHP refinement path (they live in per-bundle subtables the base
+     * query never joins). The bus serves the canonical registry held by
+     * EntityTypeManager; `null` (no kernel context, or a manager without a
+     * registry) keeps the legacy all-native query plan — correct for hosts
+     * without bundle fields.
+     */
+    private function resolveFieldRegistry(): ?FieldDefinitionRegistryInterface
+    {
+        $candidate = $this->kernelServices?->get(FieldDefinitionRegistryInterface::class);
+
+        return $candidate instanceof FieldDefinitionRegistryInterface ? $candidate : null;
     }
 
     private function resolveEntityTypeManager(): EntityTypeManager

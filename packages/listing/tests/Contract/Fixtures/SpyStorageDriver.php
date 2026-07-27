@@ -32,6 +32,12 @@ final class SpyStorageDriver implements EntityStorageDriverInterface
     /** @var list<int|null> the `$limit` argument of each findBy() call, in order */
     public array $findByLimits = [];
 
+    /** @var list<array<string, mixed>> the `$criteria` argument of each findBy() call, in order */
+    public array $findByCriteria = [];
+
+    /** @var list<array<string, string>|null> the `$orderBy` argument of each findBy() call, in order */
+    public array $findByOrderBys = [];
+
     public function __construct(private readonly EntityStorageDriverInterface $inner) {}
 
     public function toV2(StorageBoundary $boundary): EntityStorageDriverV2Interface
@@ -91,6 +97,8 @@ final class SpyStorageDriver implements EntityStorageDriverInterface
             public function findBy(string $entityType, array $criteria = [], ?array $orderBy = null, ?int $limit = null): StorageRowSet
             {
                 $this->spy->findByLimits[] = $limit;
+                $this->spy->findByCriteria[] = $criteria;
+                $this->spy->findByOrderBys[] = $orderBy;
 
                 return $this->inner->findBy($entityType, $criteria, $orderBy, $limit);
             }
@@ -116,6 +124,8 @@ final class SpyStorageDriver implements EntityStorageDriverInterface
         ?int $limit = null,
     ): array {
         $this->findByLimits[] = $limit;
+        $this->findByCriteria[] = $criteria;
+        $this->findByOrderBys[] = $orderBy;
 
         return $this->inner->findBy($entityType, $criteria, $orderBy, $limit);
     }

@@ -498,7 +498,7 @@ final class HttpKernel extends AbstractKernel
     {
         // C-22 WP3: read path now goes through the canonical repository.
         $userRepository = $this->entityTypeManager->getRepository('user');
-        $gate = new EntityAccessGate($this->accessHandler);
+        $gate = new EntityAccessGate($this->accessHandler, null, $this->fieldReadScope(), $this->accountContext());
         $accessChecker = new AccessChecker(gate: $gate);
         $errorPageRenderer = $this->resolveErrorPageRenderer();
 
