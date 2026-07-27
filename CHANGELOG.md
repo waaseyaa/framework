@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Schema operations no longer crash kernel boot on SQLite databases containing an FTS5 search index (#2056).** Every diff-based `DBALSchema` operation (`addField()` and six siblings) introspects the entire catalog, and DBAL's `SQLiteSchemaManager` cannot parse the typeless columns FTS5 virtual tables and their shadow tables expose — so the first schema evolution against a real app database (e.g. alpha.266's `thread_participant.thread_id` add) threw `strtolower(null)` and 500'd every request, blocking the whole SQLite portfolio from upgrading past alpha.250. `DBALDatabase` now installs a connection-level DBAL schema-assets filter that hides SQLite internals (`sqlite_*`) and virtual/shadow tables (classified precisely via `pragma_table_list`, with a `sqlite_master` heuristic fallback for SQLite < 3.37) from all DBAL introspection. The exclusion snapshot self-refreshes when an unknown table appears, so virtual tables created mid-process (long-running FrankenPHP workers; the search indexer materializes `search_index` lazily) are still filtered. Consequence, by design: virtual/shadow tables are invisible to `tableExists()`/`listTableNames()` — they are not manageable through DBAL, and the search package already uses raw `sqlite_master` probes. Non-SQLite platforms are untouched (the filter passes everything through; platform detection is deferred into the filter so lazy connections stay lazy).
+
 ## [0.1.0-alpha.275] - 2026-07-27
 
 ### Fixed
