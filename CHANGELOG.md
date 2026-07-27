@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.275] - 2026-07-27
+
 ### Fixed
 
 - **Listing filters and sorts on bundle-attached fields no longer disappear into the base storage query (#2133).** `ListingResolver::buildQueryPlan()` pushed every scalar EQ filter — and every sort field — into the driver's `findBy()` criteria/order-by, but bundle-attached fields (e.g. CMS article fields registered via `FieldDefinitionRegistry::registerBundleFields()`) are persisted in per-bundle subtables that `findBy()` never joins; the pushed entry degraded to a `json_extract(_data, ...)` that can never match the partitioned value, so bundle-field-filtered listings returned zero/wrong rows while unfiltered listings were fine. The resolver now takes an optional `FieldDefinitionRegistryInterface` (wired from the kernel-services bus by the listing `ServiceProvider`) and demotes bundle-attached filters to the in-PHP refinement path (hydrated rows carry the subtable values back), re-applies the complete sort chain in-PHP when any sort field is bundle-attached (stable, with the FR-014 id tie-break), and disables the FR-031/FR-032 pagination push in both cases so `totalRows` still reflects the refined, access-filtered set. Base-table fields (real columns or `_data`-blob values) keep the native pushdown; hosts without a wired registry keep the legacy all-native plan.

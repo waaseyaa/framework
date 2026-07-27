@@ -76,32 +76,32 @@
     "require": {
         "php": ">=8.5",
         "symfony/html-sanitizer": "^8.0",
-        "waaseyaa/access": "^0.1.0-alpha.274",
-        "waaseyaa/audit": "^0.1.0-alpha.274",
-        "waaseyaa/cache": "^0.1.0-alpha.274",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.274",
-        "waaseyaa/entity": "^0.1.0-alpha.274",
-        "waaseyaa/entity-storage": "^0.1.0-alpha.274",
-        "waaseyaa/field": "^0.1.0-alpha.274",
-        "waaseyaa/foundation": "^0.1.0-alpha.274",
-        "waaseyaa/mail": "^0.1.0-alpha.274",
-        "waaseyaa/media": "^0.1.0-alpha.274",
-        "waaseyaa/notification": "^0.1.0-alpha.274",
-        "waaseyaa/queue": "^0.1.0-alpha.274",
-        "waaseyaa/relationship": "^0.1.0-alpha.274",
-        "waaseyaa/routing": "^0.1.0-alpha.274",
-        "waaseyaa/scheduler": "^0.1.0-alpha.274",
-        "waaseyaa/workflows": "^0.1.0-alpha.274"
+        "waaseyaa/access": "^0.1.0-alpha.275",
+        "waaseyaa/audit": "^0.1.0-alpha.275",
+        "waaseyaa/cache": "^0.1.0-alpha.275",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.275",
+        "waaseyaa/entity": "^0.1.0-alpha.275",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.275",
+        "waaseyaa/field": "^0.1.0-alpha.275",
+        "waaseyaa/foundation": "^0.1.0-alpha.275",
+        "waaseyaa/mail": "^0.1.0-alpha.275",
+        "waaseyaa/media": "^0.1.0-alpha.275",
+        "waaseyaa/notification": "^0.1.0-alpha.275",
+        "waaseyaa/queue": "^0.1.0-alpha.275",
+        "waaseyaa/relationship": "^0.1.0-alpha.275",
+        "waaseyaa/routing": "^0.1.0-alpha.275",
+        "waaseyaa/scheduler": "^0.1.0-alpha.275",
+        "waaseyaa/workflows": "^0.1.0-alpha.275"
     },
     "suggest": {
         "waaseyaa/oidc": "Provides optional OIDC client administration routes"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5",
-        "waaseyaa/audit": "^0.1.0-alpha.274",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.274",
-        "waaseyaa/media": "^0.1.0-alpha.274",
-        "waaseyaa/telescope": "^0.1.0-alpha.274"
+        "waaseyaa/audit": "^0.1.0-alpha.275",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.275",
+        "waaseyaa/media": "^0.1.0-alpha.275",
+        "waaseyaa/telescope": "^0.1.0-alpha.275"
     },
     "autoload": {
         "psr-4": {
