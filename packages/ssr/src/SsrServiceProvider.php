@@ -194,7 +194,12 @@ final class SsrServiceProvider extends ServiceProvider implements ConfiguresHttp
             manifest: $kernel->getManifest(),
             serviceResolver: $kernel->getHttpServiceResolver(),
             logger: $this->resolve(LoggerInterface::class),
-            gate: new EntityAccessGate($kernel->getAccessHandler()),
+            gate: new EntityAccessGate(
+                $kernel->getAccessHandler(),
+                null,
+                $this->resolve(AccountFieldReadScopeInterface::class),
+                $kernel->accountContext(),
+            ),
             inertiaFullPageRenderer: $kernel->getInertiaFullPageRenderer(),
             accessHandler: $kernel->getAccessHandler(),
             fieldReadScope: $this->resolve(AccountFieldReadScopeInterface::class),

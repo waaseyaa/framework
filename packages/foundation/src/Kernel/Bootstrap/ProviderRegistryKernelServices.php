@@ -148,7 +148,7 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
                 return null;
             }
             if ($this->gate === null || $this->gateHandler !== $handler) {
-                $this->gate = new EntityAccessGate($handler, $this->logger);
+                $this->gate = new EntityAccessGate($handler, $this->logger, $this->fieldReadScope, $this->accountContext);
                 $this->gateHandler = $handler;
             }
             return $this->gate;
