@@ -12,6 +12,7 @@ use Waaseyaa\Cache\ContextResolver;
 use Waaseyaa\Cache\TaggedCacheInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Foundation\Http\RequestContext;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
@@ -83,6 +84,7 @@ final class ListingResolver
         private readonly ?TaggedCacheInterface $cache = null,
         private readonly ?ListingCacheKeyBuilder $keyBuilder = null,
         ?LoggerInterface $logger = null,
+        private readonly ?FieldDefinitionRegistryInterface $fieldRegistry = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -117,7 +119,7 @@ final class ListingResolver
         }
 
         // §7.1 step 6 — translate filters into driver criteria + in-PHP refinement.
-        [$criteria, $orderBy, $remaining] = $this->buildQueryPlan($def, $exposed, $entityType);
+        [$criteria, $orderBy, $remaining, $phpSorts] = $this->buildQueryPlan($def, $exposed, $entityType);
 
         // §7.1 step 6-9 fast path (FR-031/FR-032 perf): when no per-row access
         // decision filters rows AND no in-PHP refinement runs post-fetch, the
@@ -127,7 +129,7 @@ final class ListingResolver
         // filters rows (access ops present, non-EQ operators refined in-PHP,
         // approximateTotal escape hatch, unpaged listings) keeps the exact
         // hydrate-everything-then-filter semantics required for correctness.
-        if ($this->canPushPagination($def, $remaining)) {
+        if ($this->canPushPagination($def, $remaining, $phpSorts)) {
             return $this->resolvePushedPage(
                 $def,
                 $entityType,
@@ -142,7 +144,7 @@ final class ListingResolver
 
         // §7.1 step 7 — execute query (full criteria-narrowed set; pagination
         // applied post-access because the paths below filter rows).
-        $allRows = $this->executeQuery($criteria, $orderBy, $remaining, $def);
+        $allRows = $this->executeQuery($criteria, $orderBy, $remaining, $phpSorts, $def);
 
         // §7.1 step 8 — access policy filter per row (FR-029 + FR-032 fast-path)
         $accessRows = $this->applyAccessPolicy($allRows, $def);
@@ -376,10 +378,19 @@ final class ListingResolver
     /**
      * Translate a definition (+ exposed overrides) into a driver query plan:
      * the storage-native EQ criteria, the order-by map (with the FR-014 stable
-     * id tie-break appended), and the list of non-native filters that must be
-     * refined in-PHP post-fetch.
+     * id tie-break appended), the list of non-native filters that must be
+     * refined in-PHP post-fetch, and the full sort list to re-apply in-PHP
+     * when any sort field cannot be ordered by the driver.
      *
-     * @return array{0: array<string, scalar>, 1: array<string, string>, 2: list<FilterDefinition>}
+     * Bundle-attached fields (registered via FieldDefinitionRegistry
+     * `registerBundleFields()`) are persisted in per-bundle subtables that
+     * `findBy()` never joins — a pushed criteria/order-by entry degrades to a
+     * `json_extract(_data, ...)` that can never match the partitioned value.
+     * Filters and sorts on such fields are therefore demoted to the in-PHP
+     * paths, which operate on hydrated rows (hydration merges the subtable
+     * values back onto the entity).
+     *
+     * @return array{0: array<string, scalar>, 1: array<string, string>, 2: list<FilterDefinition>, 3: list<SortDefinition>}
      */
     private function buildQueryPlan(
         ListingDefinition $def,
@@ -389,13 +400,14 @@ final class ListingResolver
         $effective = $this->effectiveFilters($def, $exposed, $entityType);
 
         // Storage-native EQ criteria (per FR-019: filters that the driver can
-        // satisfy natively pass through; non-EQ operators are refined in-PHP
-        // post-fetch).
+        // satisfy natively pass through; non-EQ operators and bundle-attached
+        // fields are refined in-PHP post-fetch).
         $criteria = [];
         $remaining = [];
         foreach ($effective as $filter) {
             if (in_array($filter->op, self::STORAGE_NATIVE_OPS, true)
                 && is_scalar($filter->value)
+                && !$this->isBundleAttachedField($def->entityType, $filter->field, $def->bundle)
             ) {
                 $criteria[$filter->field] = $filter->value;
             } else {
@@ -409,16 +421,50 @@ final class ListingResolver
         }
 
         // FR-014: stable secondary sort on id key after user-declared sorts.
+        // A sort on a bundle-attached field cannot be ordered driver-side; the
+        // COMPLETE sort chain is then re-applied in-PHP post-fetch (sort
+        // priority interleaves native and demoted fields, so a partial driver
+        // order would be meaningless).
         $orderBy = [];
+        $phpSorts = [];
         foreach ($def->sorts as $sort) {
-            $orderBy[$sort->field] = strtoupper($sort->direction->value);
+            if ($this->isBundleAttachedField($def->entityType, $sort->field, $def->bundle)) {
+                $phpSorts = $def->sorts;
+            } else {
+                $orderBy[$sort->field] = strtoupper($sort->direction->value);
+            }
         }
         $idKey = $entityType->getKeys()['id'] ?? 'id';
         if (!array_key_exists($idKey, $orderBy)) {
             $orderBy[$idKey] = 'ASC';
         }
 
-        return [$criteria, $orderBy, $remaining];
+        return [$criteria, $orderBy, $remaining, $phpSorts];
+    }
+
+    /**
+     * Whether `$field` is a bundle-attached field of `$entityTypeId` for the
+     * listing's bundle scope — registered via `registerBundleFields()` and
+     * therefore persisted in a per-bundle subtable the base query never sees.
+     *
+     * A bundle-scoped listing checks its own bundle; an unscoped listing
+     * treats a field registered against ANY bundle as non-native (rows of
+     * those bundles carry the value only in their subtable). Without a wired
+     * registry no field can be identified as bundle-attached (hosts without
+     * bundle fields keep the legacy all-native plan).
+     */
+    private function isBundleAttachedField(string $entityTypeId, string $field, ?string $bundle): bool
+    {
+        if ($this->fieldRegistry === null) {
+            return false;
+        }
+
+        $bundles = $this->fieldRegistry->bundlesDefiningField($entityTypeId, $field);
+        if ($bundles === []) {
+            return false;
+        }
+
+        return $bundle === null || in_array($bundle, $bundles, true);
     }
 
     /**
@@ -429,12 +475,14 @@ final class ListingResolver
      * @param  array<string, scalar>   $criteria
      * @param  array<string, string>   $orderBy
      * @param  list<FilterDefinition>  $remaining
+     * @param  list<SortDefinition>    $phpSorts
      * @return list<EntityInterface>
      */
     private function executeQuery(
         array $criteria,
         array $orderBy,
         array $remaining,
+        array $phpSorts,
         ListingDefinition $def,
     ): array {
         $repository = $this->repositories->for($def->entityType);
@@ -452,6 +500,23 @@ final class ListingResolver
             ));
         }
 
+        // Re-sort in-PHP when any sort field is bundle-attached: hydrated rows
+        // carry the subtable values the driver could not order by. usort() is
+        // stable (PHP 8+), and the id tie-break keeps FR-014 determinism.
+        if ($phpSorts !== []) {
+            $idKey = $this->entityTypes->getDefinition($def->entityType)->getKeys()['id'] ?? 'id';
+            usort($rows, function (EntityInterface $a, EntityInterface $b) use ($phpSorts, $idKey): int {
+                foreach ($phpSorts as $sort) {
+                    $cmp = $this->readField($a, $sort->field) <=> $this->readField($b, $sort->field);
+                    if ($cmp !== 0) {
+                        return $sort->direction === SortDirection::DESC ? -$cmp : $cmp;
+                    }
+                }
+
+                return $this->readField($a, $idKey) <=> $this->readField($b, $idKey);
+            });
+        }
+
         return $rows;
     }
 
@@ -464,17 +529,21 @@ final class ListingResolver
      *   the access-filtered count equals the raw SQL count (FR-031 invariant);
      * - no non-native operators remain (no in-PHP `matchesAll` refinement that
      *   would shrink the result post-fetch — a pushed LIMIT would over-count);
+     * - no sorts are deferred to in-PHP re-sorting (a driver LIMIT against an
+     *   un-orderable bundle-attached sort would slice the wrong page);
      * - exact totals are wanted (`approximateTotal === false`); the approximate
      *   escape hatch already slices without a real total;
      * - the listing is paged (`pageSize !== null`); a null page size means
      *   "all rows in one page", so there is nothing to bound.
      *
      * @param list<FilterDefinition> $remaining
+     * @param list<SortDefinition>   $phpSorts
      */
-    private function canPushPagination(ListingDefinition $def, array $remaining): bool
+    private function canPushPagination(ListingDefinition $def, array $remaining, array $phpSorts): bool
     {
         return $this->canUseAccessFastPath($def)
             && $remaining === []
+            && $phpSorts === []
             && $def->approximateTotal === false
             && $def->pageSize !== null;
     }
