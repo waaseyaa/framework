@@ -77,11 +77,17 @@ final class McpServiceProvider extends ServiceProvider
                     PublicAnonymousAuth::DEFAULT_READ_CAPABILITIES,
                 );
 
+                [$limiter, $maxRequests, $windowSeconds] = $this->rateLimitSettings();
+
                 return new McpEndpoint(
                     auth: $this->resolve(McpAuthInterface::class),
                     agentRegistry: $readOnlyRegistry,
                     dispatcher: $dispatcher instanceof EventDispatcherInterface ? $dispatcher : null,
                     accountContext: $accountContext instanceof AccountContextInterface ? $accountContext : null,
+                    rateLimiter: $limiter,
+                    rateLimitMaxRequests: $maxRequests,
+                    rateLimitWindowSeconds: $windowSeconds,
+                    rateLimitTier: 'public',
                 );
             },
         );
@@ -116,11 +122,17 @@ final class McpServiceProvider extends ServiceProvider
                     $this->writeTierCapabilities(),
                 );
 
+                [$limiter, $maxRequests, $windowSeconds] = $this->rateLimitSettings();
+
                 $inner = new McpEndpoint(
                     auth: $this->resolveWriteTierAuth(),
                     agentRegistry: $writeRegistry,
                     dispatcher: $dispatcher instanceof EventDispatcherInterface ? $dispatcher : null,
                     accountContext: $accountContext instanceof AccountContextInterface ? $accountContext : null,
+                    rateLimiter: $limiter,
+                    rateLimitMaxRequests: $maxRequests,
+                    rateLimitWindowSeconds: $windowSeconds,
+                    rateLimitTier: 'write',
                 );
 
                 return new AuthenticatedMcpEndpoint($inner);
@@ -206,6 +218,36 @@ final class McpServiceProvider extends ServiceProvider
         }
 
         return $resolved !== [] ? $resolved : ['present guided content'];
+    }
+
+    /**
+     * Per-principal rate limiting for both MCP tiers (#2136 WP3).
+     *
+     * Config `mcp.rate_limit.{max_requests, window_seconds}`; DEFAULT OFF
+     * (`max_requests` absent or <= 0). When enabled, a shared
+     * {@see \Waaseyaa\Auth\DatabaseRateLimiter} is built over the kernel
+     * database; when no database resolves, limiting stays off (the endpoint
+     * fails open by contract — limiter availability is not endpoint
+     * availability).
+     *
+     * @return array{0: ?\Waaseyaa\Auth\RateLimiterInterface, 1: int, 2: int}
+     */
+    private function rateLimitSettings(): array
+    {
+        $mcp = $this->config['mcp'] ?? null;
+        $settings = \is_array($mcp) && \is_array($mcp['rate_limit'] ?? null) ? $mcp['rate_limit'] : [];
+        $maxRequests = (int) ($settings['max_requests'] ?? 0);
+        $windowSeconds = max(1, (int) ($settings['window_seconds'] ?? 60));
+        if ($maxRequests <= 0) {
+            return [null, 0, $windowSeconds];
+        }
+
+        $database = $this->resolveOptional(\Waaseyaa\Database\DatabaseInterface::class);
+        if (!$database instanceof \Waaseyaa\Database\DatabaseInterface) {
+            return [null, 0, $windowSeconds];
+        }
+
+        return [new \Waaseyaa\Auth\DatabaseRateLimiter($database), $maxRequests, $windowSeconds];
     }
 
     /**

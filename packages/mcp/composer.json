@@ -35,6 +35,14 @@
         {
             "type": "path",
             "url": "../user"
+        },
+        {
+            "type": "path",
+            "url": "../auth"
+        },
+        {
+            "type": "path",
+            "url": "../database-legacy"
         }
     ],
     "require": {
@@ -42,6 +50,8 @@
         "waaseyaa/access": "^0.1.0-alpha.276",
         "waaseyaa/ai-tools": "^0.1.0-alpha.276",
         "waaseyaa/api": "^0.1.0-alpha.276",
+        "waaseyaa/auth": "^0.1.0-alpha.276",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.276",
         "waaseyaa/entity": "^0.1.0-alpha.276",
         "waaseyaa/foundation": "^0.1.0-alpha.276",
         "waaseyaa/routing": "^0.1.0-alpha.276",
