@@ -206,6 +206,73 @@ final class ContentPublisherTest extends TestCase
         $this->publisher->createDraft($this->actor, $this->draftValues(['slug' => 'other-slug']), 'same-key');
     }
 
+    #[Test]
+    public function replaying_publish_with_the_same_note_does_not_execute_twice(): void
+    {
+        $draft = $this->publisher->createDraft($this->actor, $this->draftValues(), 'draft-key');
+        $first = $this->publisher->publish($this->actor, (string) $draft['id'], $draft['revision_id'], 'publish-key', 'Go live');
+        $replay = $this->publisher->publish($this->actor, (string) $draft['id'], $draft['revision_id'], 'publish-key', 'Go live');
+
+        self::assertSame($first, $replay);
+        self::assertCount(2, $this->publisher->revisions($this->actor, (string) $draft['id']));
+    }
+
+    #[Test]
+    public function reusing_publish_key_with_a_different_note_conflicts(): void
+    {
+        $draft = $this->publisher->createDraft($this->actor, $this->draftValues(), 'draft-key');
+        $this->publisher->publish($this->actor, (string) $draft['id'], $draft['revision_id'], 'publish-key', 'First note');
+
+        $this->expectException(IdempotencyConflictException::class);
+        $this->publisher->publish($this->actor, (string) $draft['id'], $draft['revision_id'], 'publish-key', 'Changed note');
+    }
+
+    #[Test]
+    public function replaying_unpublish_with_the_same_note_does_not_execute_twice(): void
+    {
+        $draft = $this->publisher->createDraft($this->actor, $this->draftValues(), 'draft-key');
+        $published = $this->publisher->publish($this->actor, (string) $draft['id'], $draft['revision_id'], 'publish-key');
+        $first = $this->publisher->unpublish($this->actor, (string) $draft['id'], $published['revision_id'], 'unpublish-key', 'Take down');
+        $replay = $this->publisher->unpublish($this->actor, (string) $draft['id'], $published['revision_id'], 'unpublish-key', 'Take down');
+
+        self::assertSame($first, $replay);
+        self::assertCount(3, $this->publisher->revisions($this->actor, (string) $draft['id']));
+    }
+
+    #[Test]
+    public function reusing_unpublish_key_with_a_different_note_conflicts(): void
+    {
+        $draft = $this->publisher->createDraft($this->actor, $this->draftValues(), 'draft-key');
+        $published = $this->publisher->publish($this->actor, (string) $draft['id'], $draft['revision_id'], 'publish-key');
+        $this->publisher->unpublish($this->actor, (string) $draft['id'], $published['revision_id'], 'unpublish-key', 'First note');
+
+        $this->expectException(IdempotencyConflictException::class);
+        $this->publisher->unpublish($this->actor, (string) $draft['id'], $published['revision_id'], 'unpublish-key', 'Changed note');
+    }
+
+    #[Test]
+    public function replaying_rollback_with_the_same_note_does_not_execute_twice(): void
+    {
+        $draft = $this->publisher->createDraft($this->actor, $this->draftValues(['title' => 'Original']), 'draft-key');
+        $this->publisher->updateDraft($this->actor, (string) $draft['id'], ['title' => 'Edited'], $draft['revision_id'], 'update-key');
+        $first = $this->publisher->rollback($this->actor, (string) $draft['id'], $draft['revision_id'], 'rollback-key', 'Restore original');
+        $replay = $this->publisher->rollback($this->actor, (string) $draft['id'], $draft['revision_id'], 'rollback-key', 'Restore original');
+
+        self::assertSame($first, $replay);
+        self::assertCount(3, $this->publisher->revisions($this->actor, (string) $draft['id']));
+    }
+
+    #[Test]
+    public function reusing_rollback_key_with_a_different_note_conflicts(): void
+    {
+        $draft = $this->publisher->createDraft($this->actor, $this->draftValues(['title' => 'Original']), 'draft-key');
+        $this->publisher->updateDraft($this->actor, (string) $draft['id'], ['title' => 'Edited'], $draft['revision_id'], 'update-key');
+        $this->publisher->rollback($this->actor, (string) $draft['id'], $draft['revision_id'], 'rollback-key', 'First note');
+
+        $this->expectException(IdempotencyConflictException::class);
+        $this->publisher->rollback($this->actor, (string) $draft['id'], $draft['revision_id'], 'rollback-key', 'Changed note');
+    }
+
     // --- optimistic concurrency ---
 
     #[Test]
