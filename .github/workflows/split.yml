@@ -356,16 +356,17 @@ jobs:
             elif [ "${code}" = "404" ]; then
               # Package not yet registered on Packagist — first release of a new
               # split package (e.g. waaseyaa/publishing, alpha.277). Register it
-              # via create-package, which requires the MAIN API token as a
-              # Bearer header and a plain-string repository payload (per
-              # packagist.org/apidoc), then falls through to Packagist's own
-              # initial crawl. Idempotent by construction: once registered, the
-              # update-package call above succeeds and this branch never runs.
+              # via create-package with the same username/apiToken query-param
+              # auth the update-package call above provably authenticates with
+              # (the Bearer-header form from the apidoc example was rejected 406
+              # "Missing or invalid username/apiToken" on the alpha.277 cut).
+              # Payload is a plain-string repository URL per packagist.org/apidoc.
+              # Idempotent by construction: once registered, the update-package
+              # call above succeeds and this branch never runs.
               echo "::notice::${pkg}: not registered on Packagist yet — creating."
               ccode=$(curl -sS -o /tmp/create.json -w '%{http_code}' -X POST \
-                "https://packagist.org/api/create-package" \
+                "https://packagist.org/api/create-package?username=${PACKAGIST_USERNAME}&apiToken=${PACKAGIST_TOKEN}" \
                 -H 'Content-Type: application/json' \
-                -H "Authorization: Bearer ${PACKAGIST_USERNAME}:${PACKAGIST_TOKEN}" \
                 -d "{\"repository\":\"${repo_url}\"}" || echo "000")
               if [ "${ccode}" = "200" ] || [ "${ccode}" = "202" ]; then
                 echo "::notice::${pkg}: create-package accepted (HTTP ${ccode})."
