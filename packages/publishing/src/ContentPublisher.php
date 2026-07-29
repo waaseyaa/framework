@@ -212,7 +212,11 @@ final class ContentPublisher
     {
         $this->requireCapability($actor);
 
-        $request = ['id' => $id, 'target_revision_id' => $targetRevisionId];
+        $request = [
+            'id' => $id,
+            'target_revision_id' => $targetRevisionId,
+            'note' => $note,
+        ];
 
         return $this->idempotency->execute($idempotencyKey, 'rollback', $request, function () use ($actor, $id, $targetRevisionId, $note): array {
             $entity = $this->load($id);
@@ -250,7 +254,12 @@ final class ContentPublisher
     ): array {
         $this->requireCapability($actor);
 
-        $request = ['id' => $id, 'expected_revision_id' => $expectedRevisionId, 'published' => $published];
+        $request = [
+            'id' => $id,
+            'expected_revision_id' => $expectedRevisionId,
+            'published' => $published,
+            'note' => $note,
+        ];
 
         return $this->idempotency->execute($idempotencyKey, $operation, $request, function () use ($actor, $id, $published, $expectedRevisionId, $note, $kind, $operation): array {
             $entity = $this->load($id);
