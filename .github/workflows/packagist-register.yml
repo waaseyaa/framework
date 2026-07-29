@@ -1,0 +1,69 @@
+name: Packagist Register Package
+
+# One-shot manual registration of a waaseyaa/* package on Packagist.
+#
+# Normal releases never need this: split.yml's publish-packagist step
+# self-registers a brand-new split package via its create-package fallback.
+# This dispatchable workflow exists for recovery — when that fallback failed
+# mid-release (as on the alpha.277 cut, where the Bearer-auth form was
+# rejected) the tag is already pushed and split, so re-running the whole tag
+# pipeline just to retry one HTTP call is disproportionate. Dispatch this with
+# the package name instead; it performs the same idempotent
+# update-package -> 404 -> create-package dance with the same secrets.
+#
+#   gh workflow run packagist-register.yml -f package=waaseyaa/publishing
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'Package name to register (waaseyaa/<name>)'
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  register:
+    name: Register ${{ inputs.package }} on Packagist
+    runs-on: ubuntu-latest
+    steps:
+      - name: Register (update-package, create-package on 404)
+        env:
+          PACKAGIST_USERNAME: ${{ secrets.PACKAGIST_USERNAME }}
+          PACKAGIST_TOKEN: ${{ secrets.PACKAGIST_TOKEN }}
+          PKG: ${{ inputs.package }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          if [ -z "${PACKAGIST_USERNAME}" ] || [ -z "${PACKAGIST_TOKEN}" ]; then
+            echo "::error::PACKAGIST_USERNAME / PACKAGIST_TOKEN secret not set."
+            exit 1
+          fi
+          if ! printf '%s' "${PKG}" | grep -Eq '^waaseyaa/[a-z0-9][a-z0-9-]*$'; then
+            echo "::error::package must match waaseyaa/<name> (got: ${PKG})"
+            exit 1
+          fi
+          repo_url="https://github.com/${REPO_OWNER}/${PKG#waaseyaa/}"
+          code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' -X POST \
+            "https://packagist.org/api/update-package?username=${PACKAGIST_USERNAME}&apiToken=${PACKAGIST_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            -d "{\"repository\":{\"url\":\"${repo_url}\"}}" || echo "000")
+          if [ "${code}" = "200" ] || [ "${code}" = "202" ]; then
+            echo "::notice::${PKG}: already registered — update-package accepted (HTTP ${code})."
+            exit 0
+          fi
+          if [ "${code}" != "404" ]; then
+            echo "::error::${PKG}: update-package failed (HTTP ${code}): $(cat /tmp/resp.json 2>/dev/null)"
+            exit 1
+          fi
+          echo "::notice::${PKG}: not registered yet — calling create-package."
+          ccode=$(curl -sS -o /tmp/create.json -w '%{http_code}' -X POST \
+            "https://packagist.org/api/create-package?username=${PACKAGIST_USERNAME}&apiToken=${PACKAGIST_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            -d "{\"repository\":\"${repo_url}\"}" || echo "000")
+          if [ "${ccode}" = "200" ] || [ "${ccode}" = "202" ]; then
+            echo "::notice::${PKG}: create-package accepted (HTTP ${ccode})."
+          else
+            echo "::error::${PKG}: create-package failed (HTTP ${ccode}): $(cat /tmp/create.json 2>/dev/null)"
+            exit 1
+          fi

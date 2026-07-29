@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Packagist create-package fallback now authenticates (#2136).** The alpha.277 cut proved the Bearer-header auth form from the Packagist apidoc example is rejected (HTTP 406 "Missing or invalid username/apiToken"); the `split.yml` fallback now uses the same `username`/`apiToken` query-param auth the adjacent `update-package` call provably works with. Added a dispatchable `packagist-register.yml` recovery workflow that registers a single named package (the same idempotent update→404→create dance) so a mid-release registration failure never requires re-running a tag pipeline.
+
 ## [0.1.0-alpha.277] - 2026-07-29
 
 ### Added
