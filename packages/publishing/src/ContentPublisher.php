@@ -100,6 +100,29 @@ final class ContentPublisher
         return $out;
     }
 
+    /**
+     * Issue a short-lived signed preview grant for the (possibly unpublished)
+     * content. Mutates nothing; the grant issuance is audited. The transport
+     * layer turns the grant into a URL for the app's preview route.
+     *
+     * @return array{id: int|string|null, entity_type: string, expires_at: int, signature: string}
+     */
+    public function preview(AuthorizationPrincipalInterface $actor, string $idOrSlug, Preview\PreviewLinkService $links, int $ttlSeconds = 1800): array
+    {
+        $this->requireCapability($actor);
+        $entity = $this->load($idOrSlug);
+
+        $token = $links->issue($this->descriptor->entityTypeId, (string) $entity->id(), $ttlSeconds);
+        $this->auditRecord(AuditEventKind::ContentPreviewIssued, $actor, $entity, ['expires_at' => $token->expiresAt]);
+
+        return [
+            'id' => $entity->id(),
+            'entity_type' => $this->descriptor->entityTypeId,
+            'expires_at' => $token->expiresAt,
+            'signature' => $token->signature,
+        ];
+    }
+
     // ------------------------------------------------------------------
     // Mutations (capability + entity gate + validation + idempotency)
     // ------------------------------------------------------------------

@@ -486,6 +486,7 @@ return [
     // Content publishing v1 (#2136): app-facing editorial contract + structured error base.
     'Waaseyaa\Publishing\ContentValidatorInterface' => 'public',
     'Waaseyaa\Publishing\Exception\ContentPublishingException' => 'public',
+    'Waaseyaa\AI\Tools\Content\AssetStoreInterface' => 'public',
 
     // Listing pipeline value objects (mission listing-pipeline-v1-01KRMN0B WP01; charter §5.6).
     'Waaseyaa\Listing\ListingDefinition' => 'public',
