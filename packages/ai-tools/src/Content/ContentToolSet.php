@@ -155,7 +155,7 @@ final readonly class ContentToolSet
                 $noRedaction,
             ],
             "$prefix.rollback" => [
-                'Restore a prior revision AS A NEW revision. History is never deleted.',
+                'Restore a prior revision\'s CONTENT as a new revision (history is never deleted). Publication status is deliberately unchanged: publish/unpublish remain their own decisions.',
                 $this->schema([
                     'id' => ['type' => 'string', 'minLength' => 1],
                     'target_revision_id' => ['type' => 'integer', 'minimum' => 1],

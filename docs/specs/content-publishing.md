@@ -55,7 +55,7 @@ All mutations require: (1) the descriptor's `publishCapability` on the acting pr
 | `updateDraft(id, values, expectedRevisionId, idemKey)` | Optimistic concurrency via `SaveContext::withExpectedRevisionId` → `RevisionConflictException` maps to a structured `REVISION_CONFLICT` error carrying expected/current. Slug change re-checked for uniqueness. |
 | `publish(id, expectedRevisionId, idemKey, note)` | Atomic: one revision-cutting save setting `status=true` with the revision note. Listings/search/render-cache update via the existing POST_SAVE listeners (best-effort, outside the write transaction — publish never blocks on ingestion). |
 | `unpublish(id, expectedRevisionId, idemKey, note)` | `status=false` save; record + full history preserved. |
-| `rollback(id, targetRevisionId, idemKey, note)` | `EntityRepository::rollback()` — a NEW revision restoring the target; history never deleted. Published visibility follows the restored `status` value. |
+| `rollback(id, targetRevisionId, idemKey, note)` | `EntityRepository::rollback()` — a NEW revision restoring the target; history never deleted. Publication status is DELIBERATELY untouched (framework rollback never moves `status`/pointers — CW-v1 decision 2); restoring a published look requires an explicit `publish()` after rollback. |
 
 Sanitization is **lossy-at-input by design** for this surface (unlike the read-boundary `RichTextSanitizer`): HTML fields are sanitized against the descriptor's allowlist *before* persistence, so unsanitized markup never enters storage from an agent. (The read boundary still sanitizes on output; belt and braces.)
 
