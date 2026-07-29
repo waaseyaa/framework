@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.278] - 2026-07-29
+
 ### Fixed
 
 - **A production field-access preflight is no longer invalidated by lazily-created framework tables (#2143).** The deployment schema fingerprint hashed every physical table, but first-party services materialize non-entity tables on first production use — the authenticated MCP rate limiter (`rate_limits`), the publishing idempotency store (`publishing_idempotency`), SSE broadcast storage, OIDC token stores, and more — so the first request after deploy changed the fingerprint and every subsequent request failed boot with "Field-read activation preflight is stale" until an operator regenerated the artifact. The fingerprint (scanner v2) now covers entity-storage tables only — each registered type's base table plus its `<type>__*` subtables, canonicalized by the shared `EntityStorageSchemaShape` helper consumed by both the `field-access:preflight` scanner and the kernel boot guard (`LiveEntitySchemaFingerprint`) — so the exclusion is structural (the entity-id predicate, not a curated allowlist) and a future lazily-created table cannot reintroduce the failure, while a new or reshaped entity table still correctly stales the artifact. The scanner's queue/cache/state serialized-payload blocker sweeps still run over every physical table. Production-shaped regression: one deploy-time artifact stays byte-identical and boot-valid across first-use rate-limited `tools/list`, `article.createDraft`, its identical idempotent replay, and a later independent request.

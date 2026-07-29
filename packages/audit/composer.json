@@ -31,16 +31,16 @@
     ],
     "require": {
         "php": ">=8.5",
-        "waaseyaa/access": "^0.1.0-alpha.277",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.277",
-        "waaseyaa/entity": "^0.1.0-alpha.277",
-        "waaseyaa/entity-storage": "^0.1.0-alpha.277",
-        "waaseyaa/foundation": "^0.1.0-alpha.277",
-        "waaseyaa/scheduler": "^0.1.0-alpha.277"
+        "waaseyaa/access": "^0.1.0-alpha.278",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.278",
+        "waaseyaa/entity": "^0.1.0-alpha.278",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.278",
+        "waaseyaa/foundation": "^0.1.0-alpha.278",
+        "waaseyaa/scheduler": "^0.1.0-alpha.278"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5",
-        "waaseyaa/entity-storage": "^0.1.0-alpha.277"
+        "waaseyaa/entity-storage": "^0.1.0-alpha.278"
     },
     "autoload": {
         "psr-4": {
