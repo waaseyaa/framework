@@ -78,6 +78,7 @@ jobs:
           - { local: 'packages/bimaaji', remote: 'bimaaji' }
           # Layer 3: Services
           - { local: 'packages/listing', remote: 'listing' }
+          - { local: 'packages/publishing', remote: 'publishing' }
           - { local: 'packages/migration', remote: 'migration' }
           - { local: 'packages/search', remote: 'search' }
           - { local: 'packages/seo', remote: 'seo' }

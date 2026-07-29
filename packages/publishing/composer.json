@@ -1,0 +1,66 @@
+{
+    "name": "waaseyaa/publishing",
+    "description": "Agent-operable editorial content publishing: draft/preview/publish/rollback service, idempotency, signed preview links.",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../foundation"
+        },
+        {
+            "type": "path",
+            "url": "../entity"
+        },
+        {
+            "type": "path",
+            "url": "../entity-storage"
+        },
+        {
+            "type": "path",
+            "url": "../access"
+        },
+        {
+            "type": "path",
+            "url": "../audit"
+        },
+        {
+            "type": "path",
+            "url": "../database-legacy"
+        }
+    ],
+    "require": {
+        "php": ">=8.5",
+        "symfony/html-sanitizer": "^8.0",
+        "waaseyaa/access": "^0.1.0-alpha.276",
+        "waaseyaa/audit": "^0.1.0-alpha.276",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.276",
+        "waaseyaa/entity": "^0.1.0-alpha.276",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.276",
+        "waaseyaa/foundation": "^0.1.0-alpha.276"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Waaseyaa\\Publishing\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Waaseyaa\\Publishing\\Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.1.x-dev",
+            "dev-develop/v1.1": "0.1.x-dev"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

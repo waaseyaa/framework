@@ -14,6 +14,10 @@
         },
         {
             "type": "path",
+            "url": "packages/publishing"
+        },
+        {
+            "type": "path",
             "url": "packages/typed-data"
         },
         {
@@ -355,6 +359,7 @@
         "waaseyaa/oauth-provider": "self.version",
         "waaseyaa/path": "self.version",
         "waaseyaa/plugin": "self.version",
+        "waaseyaa/publishing": "self.version",
         "waaseyaa/queue": "self.version",
         "waaseyaa/relationship": "self.version",
         "waaseyaa/routing": "self.version",
@@ -392,6 +397,7 @@
     },
     "autoload-dev": {
         "psr-4": {
+            "Waaseyaa\\Publishing\\Tests\\": "packages/publishing/tests/",
             "Waaseyaa\\Tools\\PHPStan\\": "tools/phpstan/",
             "Waaseyaa\\CLI\\Io\\": "packages/cli/tests/Io/",
             "Waaseyaa\\CLI\\Testing\\": "packages/cli/tests/Testing/",

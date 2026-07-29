@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`waaseyaa/publishing` (Layer 3): agent-operable editorial content publishing (#2136).** New package providing the editorial contract every CMS consumer previously re-derived, composing only existing primitives (repository revisions, `SaveContext::withExpectedRevisionId()` optimistic concurrency, `EntityAccessHandler`, the append-only audit writer): `ContentTypeDescriptor` (app-owned bundle-scoped writable schema + explicit Symfony HTML-sanitizer allowlist + `ContentValidatorInterface` editorial rules + publish capability), `ContentPublisher` (the single mutation door — capability + entity-gate authorization, field-specific validation, input-side HTML sanitization, slug uniqueness, idempotent createDraft/updateDraft/publish/unpublish/rollback where drafts are never public, publish is one revision-cutting save, and rollback/unpublish never delete history), `IdempotencyStore` (Stripe-shaped key+request-hash replay/conflict store, self-creating table), and `PreviewLinkService` (HMAC-SHA256 short-lived signed preview grants over a purpose-derived secret; constant-time verification; apps wire the route and must serve previews noindex). Structured error codes: `VALIDATION_FAILED` (field-specific), `SLUG_TAKEN`, `REVISION_CONFLICT` (framework exception passthrough), `IDEMPOTENCY_CONFLICT`, `NOT_FOUND`, `UNAUTHORIZED`. Five additive audit kinds: `content.draft_saved`/`content.published`/`content.unpublished`/`content.rolled_back`/`content.preview_issued`. Origin: the 2026-07-28 rhtcircle publish that turned one article into an application release; spec `docs/specs/content-publishing.md`.
+
 ## [0.1.0-alpha.276] - 2026-07-27
 
 ### Fixed

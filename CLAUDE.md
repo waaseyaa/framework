@@ -76,6 +76,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/notification/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md` |
 | `packages/migration/*` | — | `docs/specs/migration-platform.md` |
 | `packages/listing/*` | — | `docs/specs/listing-pipeline-v1.md`, `docs/conventions/cache-tags-and-contexts.md`, `docs/cookbook/listing-first-cut.md` |
+| `packages/publishing/*` (agent-operable editorial CRUD: ContentPublisher, idempotency, signed preview links) | — | `docs/specs/content-publishing.md` |
 | `packages/cms/*`, `packages/core/*`, `packages/full/*` | — (consumer metapackages) | `docs/roadmap/packagist-publishing-plan.md`, `docs/adr/004-framework-package-collapse.md`, `tests/PackagedForm/README.md` |
 
 | Workflow, GitHub (PRs/issues), roadmap | — | `docs/specs/workflow.md`, `docs/specs/per-site-convergence-audit.md`, `docs/specs/v1.5-verification-gate-contract.md` |
@@ -93,7 +94,7 @@ When the mapping is not obvious, search under `docs/specs/` (e.g. `rg -n "TopicO
 | 0 | Foundation | analytics, cache, database-legacy, error-handler, foundation, geo, http-client, i18n, ingestion, mail, mercure, oauth-provider, plugin, queue, scheduler, state, typed-data, validation |
 | 1 | Core Data | entity, entity-storage, access, audit, user, config, field, auth, oidc, testing |
 | 2 | Content Types | node, taxonomy, media, path, menu, note, relationship, groups, engagement |
-| 3 | Services | workflows, search, seo, notification, billing, github, migration, northcloud, listing, messaging |
+| 3 | Services | workflows, search, seo, notification, billing, github, migration, northcloud, listing, messaging, publishing |
 | 4 | API | api, bimaaji, routing, wayfinding |
 | 5 | AI | ai-agent, ai-observability, ai-pipeline, ai-schema, ai-vector |
 | 6 | Interfaces | cli, frankenphp, admin-surface, graphql, mcp, ssr, telescope, deployer, inertia, debug, workspace |
