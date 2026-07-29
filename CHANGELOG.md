@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **First release of a new split package now self-registers on Packagist (#2136).** `split.yml`'s single-crawl publish step only ever called `update-package`, which 404s for a package that was never registered — so onboarding a new split package (like `waaseyaa/publishing` in this release) required a manual packagist.org/packages/submit step nobody could automate. On a 404 the step now falls back to exactly one `create-package` call (main-API-token Bearer auth, per the Packagist apidoc), registering the package and triggering its initial crawl; once registered, later releases take the normal `update-package` path and the fallback never fires.
 - **Publishing idempotency now distinguishes operator notes (#2136).** Publish, unpublish, and rollback include the operator `note` in their canonical idempotency request hashes, so an identical retry replays the stored result while reusing a key with a changed note raises `IdempotencyConflictException` instead of silently returning the first operation's result.
 
 ## [0.1.0-alpha.276] - 2026-07-27

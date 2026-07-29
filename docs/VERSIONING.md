@@ -120,7 +120,10 @@ not adopt a moved tag (anti-tamper). Therefore:
   2-3x (audit alpha.245 §1). Publishing is instead a single idempotent
   `POST /api/update-package` per package, run by the `publish-packagist` job in
   `split.yml` **after** split + tag-parity + require-parity succeed. That POST is
-  the only crawl trigger, so each package is published exactly once.
+  the only crawl trigger, so each package is published exactly once. If
+  `update-package` returns 404 (a brand-new split package's first release), the
+  step falls back to exactly one `create-package` call to register the package;
+  subsequent releases take the normal `update-package` path.
 
   Requires repo secrets `PACKAGIST_USERNAME` + `PACKAGIST_TOKEN`. The
   invariant is enforced in CI by `bin/check-release-publish-shape`.
