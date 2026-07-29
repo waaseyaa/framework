@@ -20,6 +20,12 @@ final class IdempotencyStoreTest extends TestCase
     protected function setUp(): void
     {
         $this->db = DBALDatabase::createSqlite();
+        $this->db->schema()->createTable('idempotency_effects', [
+            'fields' => [
+                'effect_key' => ['type' => 'varchar', 'length' => 64, 'not null' => true],
+            ],
+            'primary key' => ['effect_key'],
+        ]);
     }
 
     private function store(int $ttl = 3600): IdempotencyStore
@@ -89,6 +95,42 @@ final class IdempotencyStoreTest extends TestCase
         }
 
         self::assertSame(['ok' => true], $store->execute('k', 'op', ['a' => 1], fn(): array => ['ok' => true]));
+    }
+
+    #[Test]
+    public function a_post_mutation_failure_rolls_back_the_mutation_with_the_missing_replay_record(): void
+    {
+        $store = $this->store();
+
+        try {
+            $store->execute('k', 'op', ['a' => 1], function (): array {
+                $this->db->query(
+                    'INSERT INTO idempotency_effects (effect_key) VALUES (?)',
+                    ['first-attempt'],
+                );
+                throw new \RuntimeException('serialization failed after mutation');
+            });
+            self::fail('Expected the post-mutation failure to propagate.');
+        } catch (\RuntimeException) {
+        }
+
+        self::assertSame([], iterator_to_array(
+            $this->db->select('idempotency_effects')->execute(),
+        ));
+
+        $response = $store->execute('k', 'op', ['a' => 1], function (): array {
+            $this->db->query(
+                'INSERT INTO idempotency_effects (effect_key) VALUES (?)',
+                ['retry'],
+            );
+
+            return ['ok' => true];
+        });
+
+        self::assertSame(['ok' => true], $response);
+        self::assertCount(1, iterator_to_array(
+            $this->db->select('idempotency_effects')->execute(),
+        ));
     }
 
     #[Test]

@@ -61,36 +61,46 @@ final class IdempotencyStore
         $this->sweep();
 
         $requestHash = $this->hashRequest($operationName, $request);
+        $transaction = $this->database->transaction('publishing_idempotency');
 
-        $existing = $this->fetch($idempotencyKey);
-        if ($existing !== null) {
-            if (!hash_equals($existing['request_hash'], $requestHash)) {
-                throw new IdempotencyConflictException($idempotencyKey);
+        try {
+            $existing = $this->fetch($idempotencyKey);
+            if ($existing !== null) {
+                if (!hash_equals($existing['request_hash'], $requestHash)) {
+                    throw new IdempotencyConflictException($idempotencyKey);
+                }
+
+                /** @var array<string, mixed> $replay */
+                $replay = json_decode($existing['response_json'], true, 512, JSON_THROW_ON_ERROR);
+                $transaction->commit();
+
+                return $replay;
             }
 
-            /** @var array<string, mixed> $replay */
-            $replay = json_decode($existing['response_json'], true, 512, JSON_THROW_ON_ERROR);
+            $response = $operation();
 
-            return $replay;
+            // The mutation and its replay record share one database
+            // transaction. A projection or serialization failure after an entity
+            // save cannot strand persisted content outside the idempotency
+            // contract, and a racing duplicate-key insert rolls its mutation
+            // back with it.
+            $this->database->query(
+                'INSERT INTO ' . self::TABLE . ' (idem_key, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?)',
+                [
+                    $idempotencyKey,
+                    $operationName,
+                    $requestHash,
+                    json_encode($response, JSON_THROW_ON_ERROR),
+                    ($this->clock)(),
+                ],
+            );
+            $transaction->commit();
+
+            return $response;
+        } catch (\Throwable $exception) {
+            $transaction->rollBack();
+            throw $exception;
         }
-
-        $response = $operation();
-
-        // Parameterized statement instead of the insert builder: the builder's
-        // execute() reads lastInsertId(), which throws on string-primary-key
-        // tables (no identity column here).
-        $this->database->query(
-            'INSERT INTO ' . self::TABLE . ' (idem_key, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?)',
-            [
-                $idempotencyKey,
-                $operationName,
-                $requestHash,
-                json_encode($response, JSON_THROW_ON_ERROR),
-                ($this->clock)(),
-            ],
-        );
-
-        return $response;
     }
 
     /** @param array<string, mixed> $request */

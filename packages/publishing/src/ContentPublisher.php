@@ -38,13 +38,17 @@ use Waaseyaa\Publishing\Idempotency\IdempotencyStore;
  */
 final class ContentPublisher
 {
+    private readonly ContentMutationSnapshotReader $snapshotReader;
+
     public function __construct(
         private readonly ContentTypeDescriptor $descriptor,
         private readonly EntityRepository $repository,
         private readonly IdempotencyStore $idempotency,
         private readonly ?AuditWriterInterface $audit = null,
         private readonly ?EntityAccessHandler $accessHandler = null,
-    ) {}
+    ) {
+        $this->snapshotReader = new ContentMutationSnapshotReader($descriptor);
+    }
 
     // ------------------------------------------------------------------
     // Reads (capability-gated: this surface is for publishers)
@@ -88,7 +92,7 @@ final class ContentPublisher
                 'created_at' => $meta?->revisionCreatedAt->format(\DateTimeInterface::ATOM),
                 'author_uid' => $meta?->revisionAuthor,
                 'log' => $meta?->revisionLog,
-                'status' => (bool) (int) $revision->get($this->descriptor->statusField),
+                'status' => (bool) (int) $this->snapshotReader->field($revision, $this->descriptor->statusField),
             ];
         }
 
@@ -165,7 +169,8 @@ final class ContentPublisher
             $this->requireEntityUpdateAccess($actor, $entity);
 
             $clean = $this->validatePayload($values, existing: $entity);
-            $slug = (string) ($clean[$this->descriptor->slugField] ?? $entity->get($this->descriptor->slugField));
+            $slug = (string) ($clean[$this->descriptor->slugField]
+                ?? $this->snapshotReader->field($entity, $this->descriptor->slugField));
             $this->assertSlugFree($slug, excludeId: (string) $entity->id());
 
             foreach ($clean as $field => $value) {
@@ -359,7 +364,7 @@ final class ContentPublisher
             $provided = \array_key_exists($field, $clean);
             $effective = $provided
                 ? $clean[$field]
-                : ($existing?->get($field));
+                : ($existing !== null ? $this->snapshotReader->field($existing, $field) : null);
             if (($existing === null || $provided || $forPublish) && ($effective === null || $effective === '')) {
                 $errors->add($field, 'This field is required.');
             }
@@ -370,7 +375,7 @@ final class ContentPublisher
         if ($existing !== null) {
             foreach ($this->descriptor->writableFields as $field => $spec) {
                 if (!\array_key_exists($field, $effectiveDoc)) {
-                    $effectiveDoc[$field] = $existing->get($field);
+                    $effectiveDoc[$field] = $this->snapshotReader->field($existing, $field);
                 }
             }
         }
@@ -469,18 +474,7 @@ final class ContentPublisher
     /** @return array<string, mixed> */
     private function snapshot(EntityInterface $entity): array
     {
-        $snapshot = [
-            'id' => $entity->id(),
-            'uuid' => $entity->uuid(),
-            'status' => (bool) (int) $entity->get($this->descriptor->statusField),
-            'revision_id' => $entity instanceof RevisionableEntityInterface ? (int) $entity->revisionId() : null,
-        ];
-        foreach ($this->descriptor->writableFields as $field => $spec) {
-            $snapshot[$field] = $entity->get($field);
-        }
-        $snapshot['slug'] = (string) $entity->get($this->descriptor->slugField);
-
-        return $snapshot;
+        return $this->snapshotReader->snapshot($entity);
     }
 
     /** @return array<string, string> */
@@ -525,7 +519,7 @@ final class ContentPublisher
                 severity: 'info',
                 entityTypeId: $this->descriptor->entityTypeId,
                 attributes: $extra + [
-                    'slug' => (string) $entity->get($this->descriptor->slugField),
+                    'slug' => (string) $this->snapshotReader->field($entity, $this->descriptor->slugField),
                     'revision_id' => $entity instanceof RevisionableEntityInterface ? $entity->revisionId() : null,
                 ],
             ));

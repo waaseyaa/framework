@@ -9,6 +9,7 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\DecisionAccountResolver;
 use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
@@ -37,11 +38,10 @@ final readonly class McpEndpoint
      * @param ?EventDispatcherInterface $dispatcher     Optional — when absent the
      *                                                  `waaseyaa.mcp.dispatch` event is silently
      *                                                  not fired (best-effort audit semantics).
-     * @param ?AccountContextInterface  $accountContext Optional acting-account holder; when absent
-     *                                                  no context scoping happens (behavior
-     *                                                  identical to before the context existed).
-     */
-    /**
+     * @param ?AccountContextInterface        $accountContext Optional acting-account holder.
+     * @param ?AccountFieldReadScopeInterface $fieldReadScope Optional guarded-read scope. Authenticated
+     *                                                        MCP dispatch runs as the bearer principal,
+     *                                                        independently of the HTTP session account.
      * @param ?\Waaseyaa\Auth\RateLimiterInterface $rateLimiter Optional per-principal
      *        rate limiting (#2136 WP3). Enabled only when a limiter is supplied AND
      *        `$rateLimitMaxRequests > 0` (default off). Keys are
@@ -60,6 +60,7 @@ final readonly class McpEndpoint
         private int $rateLimitMaxRequests = 0,
         private int $rateLimitWindowSeconds = 60,
         private string $rateLimitTier = 'public',
+        private ?AccountFieldReadScopeInterface $fieldReadScope = null,
     ) {}
 
     /**
@@ -199,13 +200,21 @@ final readonly class McpEndpoint
                 // the JSON-RPC response (contract clause 19).
             }
 
-            return match ($request['method']) {
+            $route = fn(): McpResponse => match ($request['method']) {
                 'initialize' => $this->handleInitialize($id),
                 'ping' => $this->handlePing($id),
                 'tools/list' => $this->handleToolsList($id, $bridge),
                 'tools/call' => $this->handleToolsCall($id, $params, $bridge),
                 default => $this->jsonRpcError(-32601, "Method not found: {$request['method']}", $id),
             };
+
+            // The bearer principal is also the guarded entity-read principal.
+            // The HTTP session account is deliberately irrelevant on both MCP
+            // tiers, especially the authenticated write tier where a
+            // production request commonly has an anonymous session.
+            return $this->fieldReadScope !== null
+                ? $this->fieldReadScope->run($principal, $route)
+                : $route();
         } finally {
             $this->accountContext?->set($previousActor);
         }
