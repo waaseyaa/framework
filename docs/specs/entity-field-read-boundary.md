@@ -330,7 +330,27 @@ legacy persistent queue locations. Signed queue payloads are authenticated
 before their envelope type is inspected; malformed, unverifiable, or signed
 legacy payloads remain blockers. `--write-artifact` atomically writes the exact
 checksum-bound candidate result. Classification, package-lock, definition, or
-schema changes produce a different artifact identity.
+entity-storage schema changes produce a different artifact identity.
+
+The schema fingerprint (scanner v2, #2143) covers **entity-storage tables
+only** — each registered type's base table plus its `<type>__*`
+revision/translation/bundle subtables — canonicalized by the shared
+`Waaseyaa\Entity\Preflight\EntityStorageSchemaShape` helper that both the
+scanner and the boot guard consume. Non-entity first-party runtime tables are
+excluded by construction because they are created lazily on first use in
+production and carry no field-read surface; under the v1 all-table
+fingerprint, the first request that materialized one (the authenticated MCP
+rate limiter's `rate_limits`, publishing's `publishing_idempotency`, SSE's
+`_broadcast_log`/`_broadcast_retained`, `auth_tokens`, the `oidc_*` stores,
+`nc_api_cache`, `state`, `embeddings`, the cache `DatabaseBackend` table, the
+audit `audit_event`/`privileged_read_ledger`/`audit_retention_policy`/
+`audit_checkpoint` set, `migrations`, or the FTS5 `search_index` shadow
+family) staled the deployment artifact and 500'd every subsequent boot. The
+exclusion is structural — the entity-id predicate, not a curated allowlist —
+so a future lazily-created first-party table cannot reintroduce the failure.
+Narrowing the fingerprint does **not** narrow the blocker sweep: the
+queue/cache/state serialized-payload scans still run over every physical
+table at artifact-generation time.
 
 Framework-owned defaults are not a preflight-only waiver. The exact table in
 `field-access.md` is resolved by the same source during sealed runtime layout
@@ -577,11 +597,18 @@ releases the null value or any entity field.
 
 Production-equivalent normal boot consumes
 `.waaseyaa/field-access-preflight.json`, recomputes framework,
-classification-artifact, package-lock, and database-schema identities, verifies
-the canonical checksum/readiness flag, and calls
-`assertReadyForActivation()`. A missing, stale, malformed, or blocker-bearing
-artifact aborts normal boot before provider boot hooks. The restricted
-`field-access:preflight` command remains the sole producer of this artifact.
+classification-artifact, package-lock, and entity-storage schema identities
+(the boot side is `LiveEntitySchemaFingerprint::compute()`, in lockstep with
+the scanner via the shared `EntityStorageSchemaShape` canonicalization — see
+the scanner-v2 fingerprint scope above), verifies the canonical
+checksum/readiness flag, and calls `assertReadyForActivation()`. A missing,
+stale, malformed, or blocker-bearing artifact aborts normal boot before
+provider boot hooks. Lazily-materialized non-entity runtime tables never
+change this identity: one deploy-time artifact stays valid across first-use
+rate limiting, publishing mutations, and every subsequent request
+(regression: `tests/Integration/Preflight/LazyTableCreationPreflightStabilityTest.php`).
+The restricted `field-access:preflight` command remains the sole producer of
+this artifact.
 
 The semantic accessor inventory was reviewed under #2067. Remaining entries
 are classified activation-compatible guarded accessors, closed

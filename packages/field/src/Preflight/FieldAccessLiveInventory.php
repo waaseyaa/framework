@@ -30,7 +30,10 @@ final readonly class FieldAccessLiveInventory
         public array $v1Drivers = [],
         public array $serializedEntities = [],
         public array $legacyPayloads = [],
-        public int $scannerVersion = 1,
+        // v2 (#2143): schemaFingerprint narrowed from all physical tables to
+        // entity-storage tables only, so lazily-created runtime tables cannot
+        // stale a deployment preflight.
+        public int $scannerVersion = 2,
     ) {
         if ($frameworkVersion === '' || $schemaFingerprint === '' || $scannerVersion < 1) {
             throw new \InvalidArgumentException('Live inventory requires versioned framework, schema, and scanner identities.');

@@ -7,6 +7,7 @@ namespace Waaseyaa\CLI\Security;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\Preflight\EntityStorageSchemaShape;
 use Waaseyaa\Field\Preflight\FieldAccessLiveInventory;
 use Waaseyaa\Queue\Envelope\QueueEnvelopeV1;
 use Waaseyaa\Queue\Security\SignedQueuePayload;
@@ -73,7 +74,9 @@ final readonly class DatabaseFieldAccessInventoryScanner
         }
 
         $v1Drivers = [];
+        $entityTypeIds = [];
         foreach ($this->entityTypes->getDefinitions() as $entityType => $definition) {
+            $entityTypeIds[] = $entityType;
             foreach ($tables as $table) {
                 if ($table !== $entityType && !str_starts_with($table, $entityType . '__')) {
                     continue;
@@ -86,9 +89,16 @@ final readonly class DatabaseFieldAccessInventoryScanner
         sort($serialized);
         sort($legacyPayloads);
 
+        // The fingerprint covers entity storage only (#2143): lazily-created
+        // first-party runtime tables (rate limiting, idempotency, …) must not
+        // invalidate a deployment preflight. The queue/cache/state payload
+        // scans above still ran over EVERY table — narrowing the fingerprint
+        // does not narrow the serialized-entity blocker sweep.
         return new FieldAccessLiveInventory(
             frameworkVersion: $frameworkVersion,
-            schemaFingerprint: hash('sha256', json_encode($schemaShape, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)),
+            schemaFingerprint: EntityStorageSchemaShape::fingerprint(
+                EntityStorageSchemaShape::filter($schemaShape, $entityTypeIds),
+            ),
             liveKeys: array_values(array_unique($liveKeys)),
             artifactLevels: $artifactLevels,
             v1Drivers: array_values(array_unique($v1Drivers)),

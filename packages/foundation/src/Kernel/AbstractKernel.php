@@ -44,6 +44,7 @@ use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistry;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistryKernelServices;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ScheduleEntryRegistry;
 use Waaseyaa\Foundation\Kernel\Preflight\FieldAccessActivationPreflight;
+use Waaseyaa\Foundation\Kernel\Preflight\LiveEntitySchemaFingerprint;
 use Waaseyaa\Foundation\Log\Handler\ErrorLogHandler as HandlerErrorLogHandler;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\LogLevel;
@@ -540,16 +541,17 @@ abstract class AbstractKernel
         if (!$this->database instanceof DBALDatabase) {
             throw new \RuntimeException('Field-read activation preflight requires the portable DBAL schema manager.');
         }
-        $schema = $this->database->getConnection()->createSchemaManager();
-        $tables = $schema->listTableNames();
-        sort($tables);
-        $shape = [];
-        foreach ($tables as $table) {
-            $columns = array_keys($schema->listTableColumns($table));
-            sort($columns);
-            $shape[$table] = $columns;
-        }
-        $schemaFingerprint = hash('sha256', json_encode($shape, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+        // Only entity-storage tables participate in the fingerprint (#2143):
+        // first-party services materialize non-entity tables lazily on first
+        // use in production (rate limiting, publishing idempotency, …), and an
+        // all-table fingerprint made the request AFTER any such first use fail
+        // boot as stale. LiveEntitySchemaFingerprint stays in lockstep with the
+        // artifact side (DatabaseFieldAccessInventoryScanner) via the shared
+        // EntityStorageSchemaShape canonicalization.
+        $schemaFingerprint = LiveEntitySchemaFingerprint::compute(
+            $this->database,
+            array_keys($this->entityTypeManager->getDefinitions()),
+        );
 
         new FieldAccessActivationPreflight()->assertReady($this->projectRoot, $version, $schemaFingerprint);
     }
