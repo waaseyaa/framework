@@ -307,8 +307,10 @@ jobs:
   # per pushed ref -> 2-3 crawls/republishes per release). Instead we trigger
   # EXACTLY ONE idempotent update-package POST per package, AFTER split + tag
   # parity + require parity succeed. This is the only crawl trigger, so each
-  # package is published once per release. Requires repo secrets
-  # PACKAGIST_USERNAME + PACKAGIST_TOKEN.
+  # package is published once per release. A 404 from update-package means the
+  # package was never registered (first release of a new split package) — in
+  # that case we fall back to create-package once, which registers + crawls it.
+  # Requires repo secrets PACKAGIST_USERNAME + PACKAGIST_TOKEN.
   publish-packagist:
     name: Publish to Packagist (one crawl per package)
     needs: [split, verify-monorepo-main-intact, verify-tag-parity, verify-require-parity]
@@ -351,6 +353,26 @@ jobs:
               -d "{\"repository\":{\"url\":\"${repo_url}\"}}" || echo "000")
             if [ "${code}" = "200" ] || [ "${code}" = "202" ]; then
               echo "::notice::${pkg}: update-package accepted (HTTP ${code})."
+            elif [ "${code}" = "404" ]; then
+              # Package not yet registered on Packagist — first release of a new
+              # split package (e.g. waaseyaa/publishing, alpha.277). Register it
+              # via create-package, which requires the MAIN API token as a
+              # Bearer header and a plain-string repository payload (per
+              # packagist.org/apidoc), then falls through to Packagist's own
+              # initial crawl. Idempotent by construction: once registered, the
+              # update-package call above succeeds and this branch never runs.
+              echo "::notice::${pkg}: not registered on Packagist yet — creating."
+              ccode=$(curl -sS -o /tmp/create.json -w '%{http_code}' -X POST \
+                "https://packagist.org/api/create-package" \
+                -H 'Content-Type: application/json' \
+                -H "Authorization: Bearer ${PACKAGIST_USERNAME}:${PACKAGIST_TOKEN}" \
+                -d "{\"repository\":\"${repo_url}\"}" || echo "000")
+              if [ "${ccode}" = "200" ] || [ "${ccode}" = "202" ]; then
+                echo "::notice::${pkg}: create-package accepted (HTTP ${ccode})."
+              else
+                echo "::error::${pkg}: create-package failed (HTTP ${ccode}): $(cat /tmp/create.json 2>/dev/null)"
+                rc=1
+              fi
             else
               echo "::error::${pkg}: update-package failed (HTTP ${code}): $(cat /tmp/resp.json 2>/dev/null)"
               rc=1
