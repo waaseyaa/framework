@@ -20,12 +20,12 @@
     "require": {
         "php": ">=8.5",
         "symfony/messenger": "^7.0",
-        "waaseyaa/foundation": "^0.1.0-alpha.276",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.276"
+        "waaseyaa/foundation": "^0.1.0-alpha.277",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.277"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5",
-        "waaseyaa/entity": "^0.1.0-alpha.276"
+        "waaseyaa/entity": "^0.1.0-alpha.277"
     },
     "autoload": {
         "psr-4": {

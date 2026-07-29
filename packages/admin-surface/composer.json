@@ -44,18 +44,18 @@
     "require": {
         "php": ">=8.5",
         "symfony/http-foundation": "^7.0",
-        "waaseyaa/entity": "^0.1.0-alpha.276",
-        "waaseyaa/access": "^0.1.0-alpha.276",
-        "waaseyaa/routing": "^0.1.0-alpha.276",
-        "waaseyaa/foundation": "^0.1.0-alpha.276",
-        "waaseyaa/api": "^0.1.0-alpha.276",
-        "waaseyaa/workflows": "^0.1.0-alpha.276"
+        "waaseyaa/entity": "^0.1.0-alpha.277",
+        "waaseyaa/access": "^0.1.0-alpha.277",
+        "waaseyaa/routing": "^0.1.0-alpha.277",
+        "waaseyaa/foundation": "^0.1.0-alpha.277",
+        "waaseyaa/api": "^0.1.0-alpha.277",
+        "waaseyaa/workflows": "^0.1.0-alpha.277"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5",
-        "waaseyaa/config": "^0.1.0-alpha.276",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.276",
-        "waaseyaa/node": "^0.1.0-alpha.276"
+        "waaseyaa/config": "^0.1.0-alpha.277",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.277",
+        "waaseyaa/node": "^0.1.0-alpha.277"
     },
     "autoload": {
         "psr-4": {

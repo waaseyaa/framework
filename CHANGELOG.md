@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.277] - 2026-07-29
+
 ### Added
 
 - **Per-principal MCP rate limiting (#2136).** `McpEndpoint` gains optional rate limiting keyed `mcp:<tier>:<principal id>`, wired for both the public `/mcp` and authenticated `/mcp/write` tiers by `McpServiceProvider` from `mcp.rate_limit.{max_requests, window_seconds}` config (DEFAULT OFF). The limiter is consulted only AFTER successful authentication (anonymous 401s never consume budget); exceeding the budget yields JSON-RPC error `-32029` "Rate limit exceeded" with `retry_after_seconds` (HTTP 429); limiter infrastructure failures fail OPEN (limiter availability is never endpoint availability). Backed by the existing `DatabaseRateLimiter` (atomic increments) over the kernel database.
