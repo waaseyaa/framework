@@ -38,6 +38,18 @@ enum AuditEventKind: string
     case ApiRequest      = 'api.request';
     case AuditRetentionPruned = 'audit.retention_pruned';
 
+    // --- Added by content-publishing v1 (#2136) ---
+    /** A content draft was created or updated through the publishing surface. */
+    case ContentDraftSaved = 'content.draft_saved';
+    /** Content was published (made publicly visible). */
+    case ContentPublished = 'content.published';
+    /** Content was unpublished (record and history preserved). */
+    case ContentUnpublished = 'content.unpublished';
+    /** Content was rolled back to a prior revision (as a NEW revision). */
+    case ContentRolledBack = 'content.rolled_back';
+    /** A signed preview link was issued for unpublished content. */
+    case ContentPreviewIssued = 'content.preview_issued';
+
     // --- Added by versioned-blob-media-abstraction-01KSEFTJ ---
     /** A new MediaVersion row was created (blob written or dedup-hit). */
     case MediaVersionCreated = 'media.version.created';

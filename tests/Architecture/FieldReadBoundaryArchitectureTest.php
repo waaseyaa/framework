@@ -243,6 +243,7 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
         'packages/note/src/Note.php' => 'Note entity domain helper is reviewed activation-compatible through its classified canonical accessor.',
         'packages/oidc/src/Entity/OidcClient.php' => 'OIDC entity domain helper is reviewed activation-compatible through its classified canonical accessor.',
         'packages/path/src/PathAlias.php' => 'Path entity domain helper is reviewed activation-compatible through its classified canonical accessor.',
+        'packages/publishing/src/ContentPublisher.php' => 'Publisher snapshots read only descriptor-declared writable fields behind the publish capability; sealed classifications still govern each get() and the internal revision log is read via RevisionMetadata, never the entity (#2136).',
         'packages/relationship/src/RelationshipAccessPolicy.php' => 'Relationship policy input is reviewed activation-compatible through the canonical guarded accessor.',
         'packages/seo/src/SchemaOrg/EntitySchemaOrgMapper.php' => 'SEO label projection is reviewed activation-compatible through the canonical guarded accessor.',
         'packages/taxonomy/src/Term.php' => 'Taxonomy entity domain helper is reviewed activation-compatible through its classified canonical accessor.',

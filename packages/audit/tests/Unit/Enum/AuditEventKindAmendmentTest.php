@@ -46,7 +46,7 @@ final class AuditEventKindAmendmentTest extends TestCase
     }
 
     #[Test]
-    public function total_case_count_is_twenty_three(): void
+    public function total_case_count_is_twenty_eight(): void
     {
         // Originally 14 cases (OCAP substrate). Extended additively to 17
         // by versioned-blob-media-abstraction-01KSEFTJ (WP02), then to 19
@@ -55,8 +55,20 @@ final class AuditEventKindAmendmentTest extends TestCase
         // verify (audit.verify), then to 21 by WP4 fail-open marker+metric
         // (#1792, audit.write_degraded), then to 22 by CW-v1 WP-1
         // (#1920, workflow.transition), then to 23 by CW-v1 WP-2 task 2.5
-        // (#1920, revision.rollback).
-        self::assertCount(23, AuditEventKind::cases());
+        // (#1920, revision.rollback), then to 28 by content-publishing v1
+        // (#2136, content.draft_saved / content.published /
+        // content.unpublished / content.rolled_back / content.preview_issued).
+        self::assertCount(28, AuditEventKind::cases());
+    }
+
+    #[Test]
+    public function content_publishing_kinds_resolve_from_strings(): void
+    {
+        self::assertSame(AuditEventKind::ContentDraftSaved, AuditEventKind::tryFrom('content.draft_saved'));
+        self::assertSame(AuditEventKind::ContentPublished, AuditEventKind::tryFrom('content.published'));
+        self::assertSame(AuditEventKind::ContentUnpublished, AuditEventKind::tryFrom('content.unpublished'));
+        self::assertSame(AuditEventKind::ContentRolledBack, AuditEventKind::tryFrom('content.rolled_back'));
+        self::assertSame(AuditEventKind::ContentPreviewIssued, AuditEventKind::tryFrom('content.preview_issued'));
     }
 
     #[Test]

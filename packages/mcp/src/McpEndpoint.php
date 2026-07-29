@@ -41,11 +41,25 @@ final readonly class McpEndpoint
      *                                                  no context scoping happens (behavior
      *                                                  identical to before the context existed).
      */
+    /**
+     * @param ?\Waaseyaa\Auth\RateLimiterInterface $rateLimiter Optional per-principal
+     *        rate limiting (#2136 WP3). Enabled only when a limiter is supplied AND
+     *        `$rateLimitMaxRequests > 0` (default off). Keys are
+     *        `mcp:<tier>:<principal id>`; exceeding the budget yields JSON-RPC
+     *        error -32029 with `retry_after_seconds` (HTTP 429). The limiter is
+     *        consulted only AFTER successful authentication (anonymous 401s never
+     *        consume budget) and fails OPEN on limiter infrastructure errors —
+     *        limiter availability must never take down the endpoint.
+     */
     public function __construct(
         private McpAuthInterface $auth,
         private AgentToolRegistryInterface $agentRegistry,
         private ?EventDispatcherInterface $dispatcher = null,
         private ?AccountContextInterface $accountContext = null,
+        private ?\Waaseyaa\Auth\RateLimiterInterface $rateLimiter = null,
+        private int $rateLimitMaxRequests = 0,
+        private int $rateLimitWindowSeconds = 60,
+        private string $rateLimitTier = 'public',
     ) {}
 
     /**
@@ -113,6 +127,30 @@ final readonly class McpEndpoint
                 ], \JSON_THROW_ON_ERROR),
                 statusCode: 401,
             );
+        }
+
+        // Per-principal rate limiting (post-auth so 401s never consume budget).
+        if ($this->rateLimiter !== null && $this->rateLimitMaxRequests > 0) {
+            try {
+                $key = sprintf('mcp:%s:%s', $this->rateLimitTier, (string) $principal->id());
+                if ($this->rateLimiter->tooManyAttempts($key, $this->rateLimitMaxRequests)) {
+                    return new McpResponse(
+                        body: \json_encode([
+                            'jsonrpc' => '2.0',
+                            'error' => [
+                                'code' => -32029,
+                                'message' => 'Rate limit exceeded',
+                                'data' => ['retry_after_seconds' => $this->rateLimitWindowSeconds],
+                            ],
+                            'id' => null,
+                        ], \JSON_THROW_ON_ERROR),
+                        statusCode: 429,
+                    );
+                }
+                $this->rateLimiter->hit($key, $this->rateLimitWindowSeconds);
+            } catch (\Throwable) {
+                // Fail open: limiter availability is not endpoint availability.
+            }
         }
 
         // Construct the per-request bridge with the auth-resolved account.

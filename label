@@ -1,0 +1,152 @@
+1:diff --git a/packages/publishing/src/ContentPublisher.php b/packages/publishing/src/ContentPublisher.php
+4:--- /dev/null
+6:@@ -0,0 +1,532 @@
+34:+ * access handler, and the append-only audit writer. It adds the editorial
+35:+ * contract every CMS consumer otherwise re-derives: capability gating,
+36:+ * bundle-scoped writable schema, field-specific validation, input-side HTML
+57:+        $this->sanitizer = new HtmlSanitizer($descriptor->sanitizerConfig);
+60:+    // ------------------------------------------------------------------
+61:+    // Reads (capability-gated: this surface is for publishers)
+62:+    // ------------------------------------------------------------------
+67:+        $this->requireCapability($actor);
+69:+        $criteria = $this->bundleCriteria();
+71:+            $criteria[$this->descriptor->statusField] = 1;
+74:+        $entities = $this->repository->findBy($criteria, null, $limit + $offset);
+75:+        $entities = \array_slice($this->filterBundle($entities), $offset, $limit);
+77:+        return array_map($this->snapshot(...), $entities);
+83:+        $this->requireCapability($actor);
+85:+        return $this->snapshot($this->load($idOrSlug));
+91:+        $this->requireCapability($actor);
+92:+        $this->load($id); // NOT_FOUND if absent
+95:+        foreach ($this->repository->listRevisions($id) as $revision) {
+96:+            $meta = $revision instanceof RevisionableEntityInterface ? $revision->revisionMetadata() : null;
+98:+                'revision_id' => (int) ($revision instanceof RevisionableEntityInterface ? $revision->revisionId() : 0),
+99:+                'created_at' => $meta?->revisionCreatedAt->format(\DateTimeInterface::ATOM),
+100:+                'author_uid' => $meta?->revisionAuthor,
+101:+                'log' => $meta?->revisionLog,
+102:+                'status' => (bool) (int) $revision->get($this->descriptor->statusField),
+110:+     * Issue a short-lived signed preview grant for the (possibly unpublished)
+118:+        $this->requireCapability($actor);
+119:+        $entity = $this->load($idOrSlug);
+121:+        $token = $links->issue($this->descriptor->entityTypeId, (string) $entity->id(), $ttlSeconds);
+122:+        $this->auditRecord(AuditEventKind::ContentPreviewIssued, $actor, $entity, ['expires_at' => $token->expiresAt]);
+125:+            'id' => $entity->id(),
+126:+            'entity_type' => $this->descriptor->entityTypeId,
+127:+            'expires_at' => $token->expiresAt,
+128:+            'signature' => $token->signature,
+132:+    // ------------------------------------------------------------------
+134:+    // ------------------------------------------------------------------
+145:+        $this->requireCapability($actor);
+146:+        $this->requireEntityCreateAccess($actor);
+148:+        return $this->idempotency->execute($idempotencyKey, 'createDraft', $values, function () use ($actor, $values): array {
+149:+            $clean = $this->validatePayload($values, existing: null);
+150:+            $this->assertSlugFree((string) $clean[$this->descriptor->slugField], excludeId: null);
+152:+            $entity = $this->repository->create($clean + $this->bundleCriteria());
+153:+            $entity = $entity->set($this->descriptor->statusField, 0);
+154:+            $this->stampLog($entity, 'Draft created via publishing surface.');
+155:+            $this->repository->save($entity, true, $this->saveContext($actor));
+157:+            $saved = $this->reload($entity);
+158:+            $this->auditRecord(AuditEventKind::ContentDraftSaved, $actor, $saved);
+160:+            return $this->snapshot($saved);
+170:+        $this->requireCapability($actor);
+174:+        return $this->idempotency->execute($idempotencyKey, 'updateDraft', $request, function () use ($actor, $id, $values, $expectedRevisionId): array {
+175:+            $entity = $this->load($id);
+176:+            $this->requireEntityUpdateAccess($actor, $entity);
+178:+            $clean = $this->validatePayload($values, existing: $entity);
+179:+            $slug = (string) ($clean[$this->descriptor->slugField] ?? $entity->get($this->descriptor->slugField));
+180:+            $this->assertSlugFree($slug, excludeId: (string) $entity->id());
+183:+                $entity = $entity->set($field, $value);
+185:+            $this->stampLog($entity, 'Draft updated via publishing surface.');
+186:+            $this->repository->save($entity, true, $this->saveContext($actor, $expectedRevisionId));
+188:+            $saved = $this->reload($entity);
+189:+            $this->auditRecord(AuditEventKind::ContentDraftSaved, $actor, $saved);
+191:+            return $this->snapshot($saved);
+196:+     * Atomic publish: one revision-cutting save flips the status flag with the
+204:+        return $this->setPublicationStatus($actor, $id, true, $expectedRevisionId, $idempotencyKey, $note, AuditEventKind::ContentPublished, 'publish');
+214:+        return $this->setPublicationStatus($actor, $id, false, $expectedRevisionId, $idempotencyKey, $note, AuditEventKind::ContentUnpublished, 'unpublish');
+224:+        $this->requireCapability($actor);
+228:+        return $this->idempotency->execute($idempotencyKey, 'rollback', $request, function () use ($actor, $id, $targetRevisionId, $note): array {
+229:+            $entity = $this->load($id);
+230:+            $this->requireEntityUpdateAccess($actor, $entity);
+235:+            $restored = $this->repository->rollback($id, $targetRevisionId);
+237:+            $saved = $this->reload($restored);
+238:+            $this->auditRecord(AuditEventKind::ContentRolledBack, $actor, $saved, [
+243:+            return $this->snapshot($saved);
+247:+    // ------------------------------------------------------------------
+249:+    // ------------------------------------------------------------------
+262:+        $this->requireCapability($actor);
+266:+        return $this->idempotency->execute($idempotencyKey, $operation, $request, function () use ($actor, $id, $published, $expectedRevisionId, $note, $kind, $operation): array {
+267:+            $entity = $this->load($id);
+268:+            $this->requireEntityUpdateAccess($actor, $entity);
+271:+                // Publish re-validates the FULL effective document so an
+273:+                $this->validatePayload([], existing: $entity, forPublish: true);
+276:+            $entity = $entity->set($this->descriptor->statusField, $published ? 1 : 0);
+277:+            $this->stampLog($entity, $note !== '' ? $note : ucfirst($operation) . 'ed via publishing surface.');
+278:+            $this->repository->save($entity, true, $this->saveContext($actor, $expectedRevisionId));
+280:+            $saved = $this->reload($entity);
+281:+            $this->auditRecord($kind, $actor, $saved);
+283:+            return $this->snapshot($saved);
+289:+        if (!$actor->hasPermission($this->descriptor->publishCapability)) {
+292:+                $this->descriptor->publishCapability,
+299:+        if ($this->accessHandler === null) {
+302:+        $result = $this->accessHandler->checkCreateAccess($this->descriptor->entityTypeId, $this->descriptor->bundle ?? '', $actor);
+303:+        if (!$result->isAllowed()) {
+310:+        if ($this->accessHandler === null) {
+313:+        if (!$this->accessHandler->check($entity, 'update', $actor)->isAllowed()) {
+321:+     * not be blanked. With `$forPublish`, the merged document is re-checked
+322:+     * so publishing an incomplete draft fails field-specifically.
+333:+            if ($field === $this->descriptor->statusField) {
+334:+                $errors->add($field, 'The publication status is not writable; use publish/unpublish.');
+337:+            $spec = $this->descriptor->writableFields[$field] ?? null;
+339:+                $errors->add($field, 'This field is not part of the writable schema.');
+342:+            $typed = $this->coerce($field, $value, $spec, $errors);
+343:+            if ($typed === null && !\in_array($spec->type, ['bool', 'int'], true)) {
+346:+            if ($spec->html && \is_string($typed)) {
+347:+                $typed = $this->sanitizer->sanitize($typed);
+349:+            if ($spec->maxLength !== null && \is_string($typed) && mb_strlen($typed) > $spec->maxLength) {
+350:+                $errors->add($field, sprintf('Must be at most %d characters.', $spec->maxLength));
+356:+        // Required-field discipline.
+357:+        foreach ($this->descriptor->writableFields as $field => $spec) {
+358:+            if (!$spec->required) {
+364:+                : ($existing?->get($field));
+366:+                $errors->add($field, 'This field is required.');
+373:+            foreach ($this->descriptor->writableFields as $field => $spec) {
+375:+                    $effectiveDoc[$field] = $existing->get($field);
+379:+        foreach ($this->descriptor->validators as $validator) {
+380:+            $validator->validate($effectiveDoc, $errors);
+383:+        if (!$errors->isEmpty()) {
+384:+            throw new ContentValidationException($errors->toArray());
+392:+        switch ($spec->type) {
+396:+                    $errors->add($field, 'Must be a string.');
+404:+                    $errors->add($field, 'Must be a boolean.');
+410:+                    $errors->add($field, 'Must be an integer.');
+419:+        $matches = $this->filterBundle($this->repository->findBy([$this->descriptor->slugField => $slug], null, 2));
+421:+            if ($excludeId === null || (string) $match->id() !== $excludeId) {
+422:+                throw new SlugConflictException($this->descriptor->slugField, $slug);
+430:+            $entity = $this->repository->find($idOrSlug);
+431:+            if ($entity !== null && $this->matchesBundle($entity)) {
+435:+        $matches = $this->filterBundle($this->repository->findBy([$this->descriptor->slugField => $idOrSlug], null, 1));
+445:+        $reloaded = $this->repository->find((string) $entity->id());
+453:+        $uid = $actor->id();
+455:+            $context = $context->withActorUid((int) $uid);
+458:+            $context = $context->withExpectedRevisionId($expectedRevisionId);
+467:+            $entity->setRevisionLog($note);
+475:+            'id' => $entity->id(),
+476:+            'uuid' => $entity->uuid(),
+477:+            'status' => (bool) (int) $entity->get($this->descriptor->statusField),
+478:+            'revision_id' => $entity instanceof RevisionableEntityInterface ? (int) $entity->revisionId() : null,
+480:+        foreach ($this->descriptor->writableFields as $field => $spec) {
+481:+            $snapshot[$field] = $entity->get($field);
+483:+        $snapshot['slug'] = (string) $entity->get($this->descriptor->slugField);
+496:+        // node shape). Bundle-less descriptors return no criteria.
+497:+        return $this->descriptor->bundle === null ? [] : ['type' => $this->descriptor->bundle];
+506:+        return array_values(array_filter($entities, $this->matchesBundle(...)));
+511:+        return $this->descriptor->bundle === null || $entity->bundle() === $this->descriptor->bundle;
+517:+        if ($this->audit === null) {
+521:+            $uid = $actor->id();
+522:+            $this->audit->record(new AuditEventDescriptor(
+525:+                subjectUri: sprintf('/content/%s/%s', $this->descriptor->entityTypeId, (string) $entity->id()),
+528:+                entityTypeId: $this->descriptor->entityTypeId,
+530:+                    'slug' => (string) $entity->get($this->descriptor->slugField),
+531:+                    'revision_id' => $entity instanceof RevisionableEntityInterface ? $entity->revisionId() : null,
+535:+            // Audit is best-effort by contract; the mutation itself succeeded.
