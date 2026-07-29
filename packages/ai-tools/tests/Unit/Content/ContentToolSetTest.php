@@ -8,7 +8,6 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
-use Symfony\Component\HtmlSanitizer\HtmlSanitizerConfig;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\Content\ContentOperationTool;
 use Waaseyaa\AI\Tools\Content\ContentToolSet;
@@ -78,7 +77,7 @@ final class ContentToolSetTest extends TestCase
                 'body_html' => new FieldSpec(type: 'text', html: true),
                 'promote' => new FieldSpec(type: 'bool'),
             ],
-            sanitizerConfig: new HtmlSanitizerConfig()->allowElement('p'),
+            htmlSanitizer: new \Waaseyaa\Publishing\Tests\Fixtures\SymfonyTestSanitizer(['p']),
             validators: [],
             publishCapability: self::CAPABILITY,
         );

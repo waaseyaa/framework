@@ -8,7 +8,6 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
-use Symfony\Component\HtmlSanitizer\HtmlSanitizerConfig;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
@@ -98,9 +97,7 @@ final class ContentPublisherTest extends TestCase
                 'body_html' => new FieldSpec(type: 'text', html: true),
                 'promote' => new FieldSpec(type: 'bool'),
             ],
-            sanitizerConfig: new HtmlSanitizerConfig()
-                ->allowElement('p')
-                ->allowElement('strong'),
+            htmlSanitizer: new \Waaseyaa\Publishing\Tests\Fixtures\SymfonyTestSanitizer(['p', 'strong']),
             validators: [$noDigitsInTitle],
             publishCapability: self::CAPABILITY,
         );

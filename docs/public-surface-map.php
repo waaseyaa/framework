@@ -485,6 +485,7 @@ return [
     'Waaseyaa\Migration\Testing\DestinationConformanceTestCase' => 'public',
     // Content publishing v1 (#2136): app-facing editorial contract + structured error base.
     'Waaseyaa\Publishing\ContentValidatorInterface' => 'public',
+    'Waaseyaa\Publishing\ContentHtmlSanitizerInterface' => 'public',
     'Waaseyaa\Publishing\Exception\ContentPublishingException' => 'public',
     'Waaseyaa\AI\Tools\Content\AssetStoreInterface' => 'public',
 

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Publishing;
 
-use Symfony\Component\HtmlSanitizer\HtmlSanitizer;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Audit\Contract\AuditEventDescriptor;
@@ -39,17 +38,13 @@ use Waaseyaa\Publishing\Idempotency\IdempotencyStore;
  */
 final class ContentPublisher
 {
-    private readonly HtmlSanitizer $sanitizer;
-
     public function __construct(
         private readonly ContentTypeDescriptor $descriptor,
         private readonly EntityRepository $repository,
         private readonly IdempotencyStore $idempotency,
         private readonly ?AuditWriterInterface $audit = null,
         private readonly ?EntityAccessHandler $accessHandler = null,
-    ) {
-        $this->sanitizer = new HtmlSanitizer($descriptor->sanitizerConfig);
-    }
+    ) {}
 
     // ------------------------------------------------------------------
     // Reads (capability-gated: this surface is for publishers)
@@ -338,7 +333,7 @@ final class ContentPublisher
                 continue; // coercion already recorded the error
             }
             if ($spec->html && \is_string($typed)) {
-                $typed = $this->sanitizer->sanitize($typed);
+                $typed = $this->descriptor->htmlSanitizer?->sanitize($typed) ?? $typed;
             }
             if ($spec->maxLength !== null && \is_string($typed) && mb_strlen($typed) > $spec->maxLength) {
                 $errors->add($field, sprintf('Must be at most %d characters.', $spec->maxLength));
