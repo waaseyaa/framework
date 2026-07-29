@@ -1,5 +1,7 @@
 # Content Publishing v1 — agent-operable editorial CRUD over the entity substrate
 
+<!-- Spec reviewed 2026-07-29 - #2141: capability-authorized publisher results use a closed descriptor-defined internal projection rather than ambient FieldReadGuard authority, and each content mutation plus its idempotency replay record shares one database transaction. A post-save projection/serialization failure therefore rolls back the entity write and cannot strand a slug before the replay record exists. -->
+
 **Status:** DESIGN → in build (anchor issue filed at creation; see Traceability).
 **Audience:** framework maintainers; consuming-app authors (rhtcircle is the proving consumer).
 **Origin:** the 2026-07-28 rhtcircle Trespass By-law publish — one routine article required a seed-template commit, `ArticleSeedData` edits, hand-edited `sitemap.xml`, hardcoded test-count bumps, an OG-card CI cycle, a container rebuild, and a production field-access preflight refresh. Routine editorial publishing must be a data operation, not an application release.
@@ -48,6 +50,8 @@ final readonly class ContentTypeDescriptor {
 
 All mutations require: (1) the descriptor's `publishCapability` on the acting principal (`AccountInterface::hasPermission`), (2) the entity-level gate (`EntityAccessHandler` create/update) — defense in depth, (3) a non-empty **idempotency key**, (4) validation + sanitization pass. Every mutation stamps `revision_log` and cuts a revision (repository semantics); actor comes from the ambient `AccountContextInterface` (already scoped by the MCP endpoint).
 
+Publisher reads and mutation responses expose only a closed projection fixed by the descriptor: structural identity, publication status, slug, and the declared writable fields. First-party entities are projected through an internal reader after the publish capability and applicable entity gate have succeeded, so publishing does not require an unrelated broad ambient field-read permission such as `administer nodes`. Callers cannot choose additional fields. Third-party entity implementations retain the canonical guarded-accessor fallback.
+
 | Method | Semantics |
 |---|---|
 | `list(query)` / `get(idOrSlug)` / `revisions(id)` | Reads via repository + access filter; `get` returns `revision_id` (the concurrency token) and full payload. |
@@ -61,7 +65,7 @@ Sanitization is **lossy-at-input by design** for this surface (unlike the read-b
 
 ### IdempotencyStore
 
-Table `publishing_idempotency` (`idem_key` PK, `operation`, `request_hash` (sha256 of canonicalized args), `response_json`, `created_at`). Same key + same hash → replay the stored response without re-executing. Same key + different hash → `IDEMPOTENCY_CONFLICT` error. TTL sweep (default 48 h). Self-creating table (portable schema builder, mirrors `rate_limits`).
+Table `publishing_idempotency` (`idem_key` PK, `operation`, `request_hash` (sha256 of canonicalized args), `response_json`, `created_at`). Same key + same hash → replay the stored response without re-executing. Same key + different hash → `IDEMPOTENCY_CONFLICT` error. The content operation and replay-record insert execute in one database transaction; any later projection, serialization, or duplicate-key failure rolls back the mutation with the missing replay record. TTL sweep (default 48 h). Self-creating table (portable schema builder, mirrors `rate_limits`).
 
 ### PreviewLinkService
 

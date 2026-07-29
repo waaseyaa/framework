@@ -9,8 +9,8 @@ use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\FieldReadLevel;
 
 /**
- * Revisionable article-shaped fixture with explicit Public read levels so the
- * fail-closed field-read layout releases the values to test assertions.
+ * Revisionable article-shaped fixture whose content fields are Public while
+ * status is Protected, matching the production node publication boundary.
  */
 final class TestArticleEntity extends ContentEntityBase
 {
@@ -36,7 +36,7 @@ final class TestArticleEntity extends ContentEntityBase
     #[Field(type: 'boolean', required: false, read: FieldReadLevel::Public)]
     public bool $promote = false;
 
-    #[Field(type: 'integer', required: false, read: FieldReadLevel::Public)]
+    #[Field(type: 'integer', required: false, read: FieldReadLevel::Protected)]
     public int $status = 0;
 
     public function __construct(

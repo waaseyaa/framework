@@ -1,5 +1,7 @@
 # MCP Endpoint
 
+<!-- Spec reviewed 2026-07-29 - #2141: the account resolved from MCP bearer authentication now scopes both AccountContextInterface and AccountFieldReadScopeInterface. FieldReadGuard intentionally follows the latter, so a write-tier request must not inherit the unrelated HTTP-session principal. JSON-RPC routing runs inside AccountFieldReadScopeInterface::run($principal, ...) and restores the prior scope on every exit. Regression coverage uses a bearer principal with no session fallback. -->
+
 <!-- Spec reviewed 2026-07-14 - R22/R24 (#2020): server-card authentication is now honest about the shipped opaque-bearer model (`none` or `bearer`; legacy `oauth2` config normalizes to `bearer`, while real OAuth 2.1 remains a separate product decision). Opaque string account ids map deterministically to a non-zero 60-bit audit actor id instead of PHP-casting to the anonymous sentinel. Five unused runtime dependencies and the two unconsumed MCP-local bridge interfaces were removed; AgentToolRegistryBridge remains the direct per-request adapter over Waaseyaa\AI\Tools\ToolRegistryInterface. The `/mcp/write` public-router + CSRF-exempt wiring is now regression-pinned. -->
 
 <!-- Spec reviewed 2026-07-14 - R21 WP4 (#2010): the public-vs-destructive catalogue invariant is now pinned through a real AttributeToolRegistry hydrated from PackageManifest, then wrapped by the production ReadOnlyToolRegistry and CapabilityScopedToolRegistry boundaries; the regression no longer proves the invariant only against a handwritten registry double. No runtime contract change. -->
@@ -64,14 +66,16 @@ This means MCP route ownership no longer depends on foundation fallback registra
 
 ## McpEndpoint Class
 
-`McpEndpoint` is the main HTTP handler. It is a `final readonly class` that receives two required and two optional dependencies via constructor injection (the required pair per M3 `bimaaji-mcp-bridge-01KS5VS8` WP03; the optional pair per mission `revision-audit-provenance-01KTWY5V`):
+`McpEndpoint` is the main HTTP handler. It is a `final readonly class` with two required dependencies and optional dispatch-audit, acting-account, rate-limit, and guarded-field-read collaborators:
 
 - `McpAuthInterface $auth` -- authenticates the request.
 - `Waaseyaa\AI\Tools\ToolRegistryInterface $agentRegistry` -- the framework-wide agent tool registry, wrapped per-request by `AgentToolRegistryBridge` with the auth-resolved account.
 - `?EventDispatcherInterface $dispatcher = null` (Symfony contracts) -- optional; fires the `waaseyaa.mcp.dispatch` event (see "Dispatch event seam" below). When absent, the event is silently not fired (best-effort audit semantics).
 - `?AccountContextInterface $accountContext = null` -- optional acting-account holder (`Waaseyaa\Access\Context\`); when absent, no context scoping happens (behavior identical to before the context existed).
+- `?RateLimiterInterface $rateLimiter = null` plus its numeric configuration -- optional per-principal rate limiting; disabled when absent or configured with a non-positive maximum.
+- `?AccountFieldReadScopeInterface $fieldReadScope = null` -- optional guarded-read scope. When present, JSON-RPC routing runs as the bearer principal rather than the unrelated HTTP-session principal.
 
-`McpServiceProvider` binds `McpEndpoint` explicitly so `AppControllerRouter`'s controller resolution injects the kernel-services event dispatcher and acting-account context; both degrade to null when the kernel bus cannot supply them.
+`McpServiceProvider` binds `McpEndpoint` explicitly so `AppControllerRouter`'s controller resolution injects the kernel-services event dispatcher, acting-account context, rate limiter, and field-read scope. Optional collaborators degrade to null when the kernel bus cannot supply them.
 
 ### handle() Method
 
@@ -89,10 +93,10 @@ This follows the typed `AppControllerRouter` contract (see **`docs/specs/app-con
 The internal dispatch method processes requests in this order:
 
 1. **Authenticate** -- calls `$this->auth->authenticate($authorizationHeader)`. If null is returned, responds with HTTP 401 and a JSON-RPC error (code `-32001`, message "Unauthorized"). The 401 envelope is identical for every `null` cause — missing/malformed header, unknown token, or a token whose account is blocked (#1652) — so callers cannot distinguish a blocked token from an invalid one.
-2. **Scope the acting-account context** -- immediately after successful auth (before body parsing), the endpoint captures the prior `AccountContextInterface` value and sets the bearer-auth-resolved account. The prior value is restored in `finally` — including when a routed handler throws — because the MCP account deliberately differs from any session account. No-op when no context was injected.
+2. **Scope the acting-account context** -- immediately after successful auth (before body parsing), the endpoint captures the prior `AccountContextInterface` value and sets the bearer-auth-resolved account. The prior value is restored in `finally` -- including when a routed handler throws -- because the MCP account deliberately differs from any session account. No-op when no context was injected.
 3. **Parse JSON-RPC** -- decodes the body with `json_decode()`. On `JsonException`, returns parse error (code `-32700`). On missing `method` field, returns invalid request (code `-32600`).
 4. **Fire the dispatch event** -- see "Dispatch event seam" below. Fires exactly once per authenticated, well-formed request, immediately before method routing.
-5. **Dispatch** -- matches the JSON-RPC method to an internal handler:
+5. **Dispatch inside the bearer field-read scope** -- `AccountFieldReadScopeInterface::run()` scopes the guarded entity-read principal to the bearer identity for the complete routed call and restores the prior scope afterward. This is separate from `AccountContextInterface`: `FieldReadGuard` deliberately consults the immutable field-read scope, not the HTTP session or acting-account holder. The routed call then matches the JSON-RPC method to an internal handler:
    - `initialize` -- returns protocol version (`2025-03-26`), capabilities, and server info.
    - `ping` -- returns an empty result.
    - `tools/list` -- returns tool definitions via the per-request bridge.

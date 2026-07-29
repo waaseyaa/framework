@@ -12,6 +12,8 @@ use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\AgentToolInterface;
 use Waaseyaa\AI\Tools\AgentToolResult;
@@ -280,6 +282,68 @@ final class McpEndpointDispatchEventTest extends TestCase
     }
 
     #[Test]
+    public function toolsRunInsideTheBearerPrincipalsFieldReadScopeAndRestoreIt(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $scope = new AccountFieldReadScope();
+        $impl = new class ($scope) implements AgentToolInterface {
+            public function __construct(private readonly AccountFieldReadScopeInterface $scope) {}
+
+            public function execute(array $arguments, AccountInterface $account): AgentToolResult
+            {
+                return AgentToolResult::success([[
+                    'type' => 'text',
+                    'text' => json_encode([
+                        'scope_id' => $this->scope->current()?->id(),
+                        'tool_id' => $account->id(),
+                    ], JSON_THROW_ON_ERROR),
+                ]]);
+            }
+
+            public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
+            {
+                return AgentToolResult::error('dry_run_not_supported');
+            }
+
+            public function argumentsForAudit(array $arguments): array
+            {
+                return $arguments;
+            }
+
+            public function inputSchema(): array
+            {
+                return ['type' => 'object', 'properties' => []];
+            }
+
+            public function description(): string
+            {
+                return 'Field-read scope probe.';
+            }
+        };
+        $tool = new AgentTool(
+            name: 'scope_probe',
+            capability: 'tool.test',
+            destructive: false,
+            dryRunSupported: false,
+            category: 'test',
+            inputSchema: ['type' => 'object', 'properties' => []],
+            impl: $impl,
+        );
+        $endpoint = $this->makeEndpoint(fieldReadScope: $scope, tools: [$tool]);
+
+        $response = $this->dispatch(
+            $endpoint,
+            '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"scope_probe","arguments":[]}}',
+            'Bearer valid',
+        );
+        $decoded = json_decode($response->body, true, 512, JSON_THROW_ON_ERROR);
+        $payload = json_decode($decoded['result']['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame(['scope_id' => 7, 'tool_id' => 7], $payload);
+        self::assertNull($scope->current(), 'Bearer authority must not leak past the request.');
+    }
+
+    #[Test]
     public function eventNameIsPinnedToTheAuditListenerSubscriptionConstant(): void
     {
         // Clause 18: the literal is duplicated by design (mcp must not
@@ -299,6 +363,7 @@ final class McpEndpointDispatchEventTest extends TestCase
     private function makeEndpoint(
         ?EventDispatcherInterface $dispatcher = null,
         ?AccountContextInterface $accountContext = null,
+        ?AccountFieldReadScopeInterface $fieldReadScope = null,
         array $tools = [],
     ): McpEndpoint {
         return new McpEndpoint(
@@ -306,6 +371,7 @@ final class McpEndpointDispatchEventTest extends TestCase
             agentRegistry: $this->stubAgentRegistry($tools),
             dispatcher: $dispatcher,
             accountContext: $accountContext,
+            fieldReadScope: $fieldReadScope,
         );
     }
 

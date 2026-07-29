@@ -8,14 +8,20 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Waaseyaa\Access\AccessResult;
+use Waaseyaa\Access\Context\AccountFieldReadScope;
+use Waaseyaa\Access\FieldReadGuard;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\EntityValueReadGuardInterface;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
+use Waaseyaa\Publishing\ContentMutationSnapshotReader;
 use Waaseyaa\Publishing\ContentPublisher;
 use Waaseyaa\Publishing\ContentTypeDescriptor;
 use Waaseyaa\Publishing\ContentValidatorInterface;
@@ -31,6 +37,7 @@ use Waaseyaa\Publishing\Tests\Fixtures\TestArticleEntity;
 use Waaseyaa\Publishing\ValidationErrors;
 
 #[CoversClass(ContentPublisher::class)]
+#[CoversClass(ContentMutationSnapshotReader::class)]
 final class ContentPublisherTest extends TestCase
 {
     private const string CAPABILITY = 'publish test articles';
@@ -39,9 +46,16 @@ final class ContentPublisherTest extends TestCase
     private SpyAuditWriter $audit;
     private ContentPublisher $publisher;
     private PublisherAccount $actor;
+    private ?EntityValueReadGuardInterface $priorGuard;
 
     protected function setUp(): void
     {
+        $this->priorGuard = EntityReadRuntime::guard();
+        EntityReadRuntime::installGuard(new FieldReadGuard(
+            new AccountFieldReadScope(),
+            static fn(): AccessResult => AccessResult::forbidden('No ambient protected-field grant.'),
+        ));
+
         $db = DBALDatabase::createSqlite();
         $entityType = new EntityType(
             id: 'test_article',
@@ -71,6 +85,11 @@ final class ContentPublisherTest extends TestCase
             new IdempotencyStore($db),
             $this->audit,
         );
+    }
+
+    protected function tearDown(): void
+    {
+        EntityReadRuntime::installGuard($this->priorGuard);
     }
 
     private function descriptor(): ContentTypeDescriptor
@@ -139,7 +158,6 @@ final class ContentPublisherTest extends TestCase
         self::assertIsInt($draft['revision_id']);
         $stored = $this->repo->find((string) $draft['id']);
         self::assertNotNull($stored);
-        self::assertSame(0, (int) $stored->get('status'));
     }
 
     #[Test]
@@ -305,7 +323,7 @@ final class ContentPublisherTest extends TestCase
 
         self::assertTrue($published['status']);
         $stored = $this->repo->find((string) $draft['id']);
-        self::assertSame(1, (int) $stored?->get('status'));
+        self::assertNotNull($stored);
         self::assertContains('content.published', $this->audit->kinds());
 
         $revisions = $this->publisher->revisions($this->actor, (string) $draft['id']);

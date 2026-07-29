@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Authenticated MCP tools now carry their bearer principal into guarded field reads (#2141).** `McpEndpoint` previously scoped only `AccountContextInterface`, while `FieldReadGuard` correctly consults `AccountFieldReadScopeInterface`; under PHP-FPM the write-tier bearer therefore executed protected entity reads as the anonymous HTTP-session account. Both MCP tiers now run JSON-RPC routing inside the bearer principal's field-read scope and restore the prior scope afterward. Publishing mutation responses use a closed, descriptor-defined internal projection rather than requiring a broad ambient read capability, and the entity mutation plus its idempotency replay record now share one transaction so any post-save failure rolls back both instead of stranding content that makes a retry fail `SLUG_TAKEN`.
 - **Packagist create-package fallback now authenticates (#2136).** The alpha.277 cut proved the Bearer-header auth form from the Packagist apidoc example is rejected (HTTP 406 "Missing or invalid username/apiToken"); the `split.yml` fallback now uses the same `username`/`apiToken` query-param auth the adjacent `update-package` call provably works with. Added a dispatchable `packagist-register.yml` recovery workflow that registers a single named package (the same idempotent update→404→create dance) so a mid-release registration failure never requires re-running a tag pipeline.
 
 ## [0.1.0-alpha.277] - 2026-07-29

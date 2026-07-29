@@ -6,6 +6,7 @@ namespace Waaseyaa\Mcp;
 
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
+use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 use Waaseyaa\Api\McpAdmin\ServerConfigReadModelInterface;
 use Waaseyaa\Api\McpAdmin\ToolRegistryReadModelInterface;
@@ -67,6 +68,7 @@ final class McpServiceProvider extends ServiceProvider
             function (): McpEndpoint {
                 $dispatcher = $this->resolveOptional(EventDispatcherInterface::class);
                 $accountContext = $this->resolveOptional(AccountContextInterface::class);
+                $fieldReadScope = $this->resolveOptional(AccountFieldReadScopeInterface::class);
 
                 // Structural layer of the read-only boundary: the endpoint only
                 // ever sees non-destructive tools on the read-capability
@@ -84,6 +86,7 @@ final class McpServiceProvider extends ServiceProvider
                     agentRegistry: $readOnlyRegistry,
                     dispatcher: $dispatcher instanceof EventDispatcherInterface ? $dispatcher : null,
                     accountContext: $accountContext instanceof AccountContextInterface ? $accountContext : null,
+                    fieldReadScope: $fieldReadScope instanceof AccountFieldReadScopeInterface ? $fieldReadScope : null,
                     rateLimiter: $limiter,
                     rateLimitMaxRequests: $maxRequests,
                     rateLimitWindowSeconds: $windowSeconds,
@@ -111,6 +114,7 @@ final class McpServiceProvider extends ServiceProvider
             function (): AuthenticatedMcpEndpoint {
                 $dispatcher = $this->resolveOptional(EventDispatcherInterface::class);
                 $accountContext = $this->resolveOptional(AccountContextInterface::class);
+                $fieldReadScope = $this->resolveOptional(AccountFieldReadScopeInterface::class);
 
                 // Capability-scoped structural layer: this tier exposes ONLY tools
                 // whose capability is on the write-tier allowlist (destructive
@@ -129,6 +133,7 @@ final class McpServiceProvider extends ServiceProvider
                     agentRegistry: $writeRegistry,
                     dispatcher: $dispatcher instanceof EventDispatcherInterface ? $dispatcher : null,
                     accountContext: $accountContext instanceof AccountContextInterface ? $accountContext : null,
+                    fieldReadScope: $fieldReadScope instanceof AccountFieldReadScopeInterface ? $fieldReadScope : null,
                     rateLimiter: $limiter,
                     rateLimitMaxRequests: $maxRequests,
                     rateLimitWindowSeconds: $windowSeconds,
