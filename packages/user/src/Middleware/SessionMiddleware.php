@@ -158,6 +158,20 @@ final class SessionMiddleware implements HttpMiddlewareInterface
             if ($prefix === '') {
                 continue;
             }
+
+            // '/' means the root path, NOT a prefix of every path (#2154).
+            // Prefix-matching it would silently make the whole site stateless
+            // — including /admin/login, a GET that must mint a CSRF token —
+            // and an app disabling sessions everywhere would not use this
+            // feature to do it.
+            if ($prefix === '/') {
+                if ($path === '/') {
+                    return true;
+                }
+
+                continue;
+            }
+
             if ($path === $prefix || str_starts_with($path, rtrim($prefix, '/') . '/')) {
                 return true;
             }

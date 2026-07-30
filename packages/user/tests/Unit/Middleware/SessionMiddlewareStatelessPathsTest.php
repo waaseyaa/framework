@@ -176,4 +176,68 @@ final class SessionMiddlewareStatelessPathsTest extends TestCase
         $this->assertSame(\PHP_SESSION_NONE, session_status());
         $this->assertNotContains('XSRF-TOKEN', $names, 'no session token means no XSRF cookie');
     }
+
+    // ------------------------------------------------------------------
+    // #2154: a "/" entry means the root path, not every path
+    // ------------------------------------------------------------------
+
+    #[Test]
+    #[RunInSeparateProcess]
+    public function a_root_entry_makes_the_homepage_stateless(): void
+    {
+        [$next] = $this->capturingNext();
+
+        $this->middleware(['/'])->process(Request::create('/'), $next);
+
+        $this->assertSame(\PHP_SESSION_NONE, session_status());
+    }
+
+    #[Test]
+    #[RunInSeparateProcess]
+    public function a_root_entry_does_not_make_the_admin_login_stateless(): void
+    {
+        // The failure this closes is silent and severe: /admin/login is a GET
+        // that must mint a CSRF token, and with no session CsrfMiddleware
+        // withholds the XSRF cookie by design (#2146) — so an app listing "/"
+        // for its homepage would serve a login form that cannot work.
+        [$next] = $this->capturingNext();
+
+        $this->middleware(['/'])->process(Request::create('/admin/login'), $next);
+
+        $this->assertSame(\PHP_SESSION_ACTIVE, session_status());
+    }
+
+    #[Test]
+    #[RunInSeparateProcess]
+    public function a_root_entry_does_not_make_arbitrary_paths_stateless(): void
+    {
+        [$next] = $this->capturingNext();
+
+        $this->middleware(['/'])->process(Request::create('/news/some-article'), $next);
+
+        $this->assertSame(\PHP_SESSION_ACTIVE, session_status());
+    }
+
+    #[Test]
+    #[RunInSeparateProcess]
+    public function a_root_entry_composes_with_named_prefixes(): void
+    {
+        // The realistic configuration: homepage + a few public sections.
+        [$next] = $this->capturingNext();
+
+        $this->middleware(['/', '/news'])->process(Request::create('/news/some-article'), $next);
+
+        $this->assertSame(\PHP_SESSION_NONE, session_status());
+    }
+
+    #[Test]
+    #[RunInSeparateProcess]
+    public function a_root_entry_still_yields_a_session_for_non_get_methods(): void
+    {
+        [$next] = $this->capturingNext();
+
+        $this->middleware(['/'])->process(Request::create('/', 'POST'), $next);
+
+        $this->assertSame(\PHP_SESSION_ACTIVE, session_status());
+    }
 }
