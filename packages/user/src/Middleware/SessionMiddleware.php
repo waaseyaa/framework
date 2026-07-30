@@ -148,13 +148,14 @@ final class SessionMiddleware implements HttpMiddlewareInterface
         if (!in_array($request->getMethod(), ['GET', 'HEAD'], true)) {
             return false;
         }
-        if ($request->cookies->has(session_name() ?: 'PHPSESSID')) {
+        $sessionName = session_name();
+        if ($request->cookies->has($sessionName === false ? 'PHPSESSID' : $sessionName)) {
             return false;
         }
 
         $path = $request->getPathInfo();
         foreach ($this->statelessPathPrefixes as $prefix) {
-            if (!is_string($prefix) || $prefix === '') {
+            if ($prefix === '') {
                 continue;
             }
             if ($path === $prefix || str_starts_with($path, rtrim($prefix, '/') . '/')) {

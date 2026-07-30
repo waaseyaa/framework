@@ -1,5 +1,6 @@
 # Middleware Pipeline
 
+<!-- Spec reviewed 2026-07-30 - #2146 stateless session paths: SessionMiddleware gains an opt-in session.stateless_paths gate (anonymous GET/HEAD on configured prefixes skip session_start; session-cookie-carrying requests resume; other methods unchanged; default [] is exact behavior parity). Access-control semantics unchanged: skipped sessions resolve to AnonymousUser under deny-unless-granted. Full contract in middleware-pipeline.md "SessionMiddleware". -->
 <!-- Spec reviewed 2026-07-17 - #2064 WP2 production-wires FieldReadContextMiddleware at priority 15 through the audit provider. It runs after bearer/session identity (40/30) and before route authorization (10), installs a strictly audited immutable principal, restores the fiber-local scope in finally, and wraps deferred streamed-response callbacks with the same bounded principal. Field enforcement remains dormant. -->
 
 <!-- Spec reviewed 2026-06-19 - classic-FrankenPHP fallback in the front controller: `frankenphp_handle_request()` is defined under BOTH worker mode AND classic FrankenPHP (`php-server`) / FPM, where *calling* it throws "called while not in worker mode" — so branching on `function_exists()` alone mis-detected classic mode and `frankenphp php-server --root public` 500'd on every request (alpha.225 only had a worker-mode harness; no native binary tested classic mode). The worker loop now attempts the loop and, if the FIRST call throws before any request is handled, falls through to the single synchronous `$handler()` path (classic FrankenPHP, `php -S`, FPM); worker mode is unchanged. Verified against a real FrankenPHP 1.12 binary (classic `php-server` → 200; worker mode → 200 on repeated warm requests). Applied identically across all four front-controller copies (repo `public/index.php`, `skeleton/public/index.php`, the `make:public` stub, and the `golden-public-index.php` drift reference) so the byte-for-byte convergence audit (`waaseyaa-audit-site`) still holds; locked by `tests/Architecture/FrontControllerRuntimeDispatchTest.php`. The skeleton also adds a `composer serve:franken` script (classic `php-server` on `127.0.0.1:8080`, loopback + non-privileged → no privileged-port/auto-TLS prompt). -->
@@ -199,12 +200,13 @@ $response->send();
 **Implements:** `HttpMiddlewareInterface`
 
 Behavior:
-1. If `session.cookie` options are configured (see `HttpKernel` / `config/waaseyaa.php`), applies matching `ini_set` calls for `session.cookie_*` and `session.use_strict_mode` **before** `session_start()`. Supported keys: `httponly` (bool), `secure` (bool or `'auto'` to enable only when the request is HTTPS or `X-Forwarded-Proto: https`), `samesite` (string), `use_strict_mode` (bool).
-2. Reads `$_SESSION['waaseyaa_uid']` (or `$request->attributes->get('_session')` for testability).
-3. Loads `User` entity via `EntityRepositoryInterface::find($uid)`.
-4. Falls back to `AnonymousUser` if uid is null, user not found, or storage throws.
-5. Sets `AccountInterface` instance on `$request->attributes->set('_account', $account)`.
-6. Calls `$next->handle($request)`.
+1. **Stateless path gate (#2146):** if `session.stateless_paths` is configured (a list of path prefixes wired by `HttpKernel`), an anonymous `GET`/`HEAD` request matching a prefix skips `session_start()` entirely, so informational surfaces stay `Set-Cookie`-free and shared-cache friendly. Three guards bound the skip: a request that already carries the session cookie resumes its session normally (authenticated visitors keep their identity on stateless pages); every non-`GET`/`HEAD` method always gets a session (login, form and CSRF flows are unaffected); and the default `[]` disables the gate, preserving pre-#2146 behavior exactly. Prefix matching is exact-segment (`/docs` matches `/docs` and `/docs/x`, never `/docsearch`). With no active session, `CsrfMiddleware`'s token-presence guard withholds the `XSRF-TOKEN` cookie on its own. Access control is unaffected: a skipped session resolves the account to `AnonymousUser`, and deny-unless-granted still governs the route.
+2. If `session.cookie` options are configured (see `HttpKernel` / `config/waaseyaa.php`), applies matching `ini_set` calls for `session.cookie_*` and `session.use_strict_mode` **before** `session_start()`. Supported keys: `httponly` (bool), `secure` (bool or `'auto'` to enable only when the request is HTTPS or `X-Forwarded-Proto: https`), `samesite` (string), `use_strict_mode` (bool).
+3. Reads `$_SESSION['waaseyaa_uid']` (or `$request->attributes->get('_session')` for testability).
+4. Loads `User` entity via `EntityRepositoryInterface::find($uid)`.
+5. Falls back to `AnonymousUser` if uid is null, user not found, or storage throws.
+6. Sets `AccountInterface` instance on `$request->attributes->set('_account', $account)`.
+7. Calls `$next->handle($request)`.
 
 This middleware always calls the next handler. It never short-circuits.
 

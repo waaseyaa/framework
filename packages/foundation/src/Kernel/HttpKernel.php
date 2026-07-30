@@ -647,7 +647,7 @@ final class HttpKernel extends AbstractKernel
             return [];
         }
 
-        return array_values(array_filter($paths, static fn ($p): bool => is_string($p) && $p !== ''));
+        return array_values(array_filter($paths, static fn($p): bool => is_string($p) && $p !== ''));
     }
 
     /**

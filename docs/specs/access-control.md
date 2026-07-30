@@ -1,5 +1,6 @@
 # Access Control
 
+<!-- Spec reviewed 2026-07-30 - #2146 stateless session paths: SessionMiddleware gains an opt-in session.stateless_paths gate (anonymous GET/HEAD on configured prefixes skip session_start; session-cookie-carrying requests resume; other methods unchanged; default [] is exact behavior parity). Access-control semantics unchanged: skipped sessions resolve to AnonymousUser under deny-unless-granted. Full contract in middleware-pipeline.md "SessionMiddleware". -->
 <!-- Spec reviewed 2026-07-21 - #2101: the canonical `administrator` superuser role satisfies legacy `_role: admin` route requirements. The existing `admin` role remains valid and is not promoted to `administrator`; ordinary role matching and comma-separated alternatives are unchanged. -->
 
 <!-- Spec reviewed 2026-07-21 - #2101 WP-2: note rows now carry Protected uid authorship. The canonical administrator may administer note rows; otherwise view/edit/delete-own grants require an exact authenticated uid match. Note uid edits are server-managed except for an account with administer notes. The immutable core.note type remains non-deletable while authorized note instances are deletable. -->
