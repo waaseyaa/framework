@@ -295,8 +295,31 @@ then unexpected keys — so a retrying agent always sees the same first error.
 
 ### Ordering invariants
 
-Schema enforcement slots in **after** authentication and rate limiting, which
-are unchanged:
+Full `tools/call` order, with the new step marked:
+
+```
+authenticate  ->  rate limit  ->  registry scoping (tool lookup)
+              ->  SCHEMA VALIDATION (#2145)  ->  per-tool requireCapability  ->  handler
+```
+
+Authentication, rate limiting, and **registry scoping** are unchanged and all
+precede validation. Registry scoping is the tier-level authorization boundary:
+`getTool()` consults the tier's own registry wrapper, so a tool the tier does
+not expose returns `-32602` "Unknown tool" before any validation runs — which
+is what keeps **C-001** intact (a destructive tool is never merely
+"invalid-arguments" on the public surface, it does not exist there).
+
+Schema validation runs **before** each tool's own
+`AbstractAgentTool::requireCapability()`, because that check lives inside
+`execute()` — the very call this change must not reach with malformed input.
+The consequence is that an authenticated caller who both lacks the capability
+*and* sends schema-invalid arguments now sees `VALIDATION_FAILED` rather than
+`forbidden`. This discloses nothing new: the tier's `tools/list` already
+publishes that tool's full schema to any caller the tier admits (registry
+scoping is tier-wide; capability is per-account), so the validation message
+only restates what the caller was already told. Capability enforcement itself
+is unweakened — schema-valid input from a caller lacking the capability still
+returns `forbidden`, unchanged.
 
 | Caller state | Outcome |
 |---|---|

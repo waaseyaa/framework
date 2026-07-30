@@ -396,6 +396,50 @@ final class McpToolsCallSchemaEnforcementTest extends TestCase
     }
 
     #[Test]
+    public function authorization_is_unweakened_for_schema_valid_input(): void
+    {
+        // Same tier and tool, but the bearer account holds no publish
+        // capability. Schema-valid input must still be refused on
+        // authorization grounds — validation replaces nothing.
+        $powerless = new PublisherAccount(uid: 900002, permissions: []);
+        $tier = new AuthenticatedMcpEndpoint(new McpEndpoint(
+            auth: new BearerTokenAuth(['powerless-token' => $powerless]),
+            agentRegistry: new CapabilityScopedToolRegistry($this->collectingRegistry(), [self::CAPABILITY]),
+        ));
+
+        $call = static function (array $arguments) use ($tier, $powerless): array {
+            $body = \json_encode([
+                'jsonrpc' => '2.0',
+                'method' => 'tools/call',
+                'params' => ['name' => 'article.createDraft', 'arguments' => $arguments],
+                'id' => 1,
+            ], \JSON_THROW_ON_ERROR);
+            $response = $tier->serve($powerless, HttpRequest::create(
+                '/mcp/write',
+                'POST',
+                [],
+                [],
+                [],
+                ['HTTP_AUTHORIZATION' => 'Bearer powerless-token'],
+                $body,
+            ));
+            $decoded = \json_decode((string) $response->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+
+            return \json_decode((string) $decoded['result']['content'][0]['text'], true, 512, \JSON_THROW_ON_ERROR);
+        };
+
+        // Schema-valid but unauthorized → the authorization outcome, not VALIDATION_FAILED.
+        self::assertSame('UNAUTHORIZED', $call([
+            'values' => ['slug' => 'nope', 'title' => 'Nope'],
+            'idempotency_key' => 'unauthorized-valid',
+        ])['code']);
+
+        // Schema-invalid and unauthorized → validation reports first, and
+        // discloses only the schema this tier already publishes via tools/list.
+        self::assertSame('VALIDATION_FAILED', $call(['values' => ['slug' => 'nope']])['code']);
+    }
+
+    #[Test]
     public function the_unauthenticated_public_read_surface_validates_its_own_tools(): void
     {
         // The public read-only tier: anonymous auth, no 401, destructive
