@@ -525,6 +525,7 @@ final class HttpKernel extends AbstractKernel
                 // The kernel's single acting-account context — the middleware
                 // mirrors `_account` into it on every request (FR-002).
                 accountContext: $this->accountContext(),
+                statelessPathPrefixes: $this->sessionStatelessPaths(),
             ),
             new CsrfMiddleware(),
             new AuthorizationMiddleware($accessChecker, $errorPageRenderer),
@@ -626,6 +627,27 @@ final class HttpKernel extends AbstractKernel
         $cookie = $session['cookie'] ?? null;
 
         return is_array($cookie) ? $cookie : null;
+    }
+
+    /**
+     * Path prefixes whose anonymous GET/HEAD requests never start a
+     * session (config `session.stateless_paths`, issue #2146). Empty by
+     * default: every existing application keeps its current behavior.
+     *
+     * @return list<string>
+     */
+    private function sessionStatelessPaths(): array
+    {
+        $session = $this->config['session'] ?? null;
+        if (!is_array($session)) {
+            return [];
+        }
+        $paths = $session['stateless_paths'] ?? null;
+        if (!is_array($paths)) {
+            return [];
+        }
+
+        return array_values(array_filter($paths, static fn ($p): bool => is_string($p) && $p !== ''));
     }
 
     /**

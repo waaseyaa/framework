@@ -35,6 +35,16 @@ final class SessionMiddleware implements HttpMiddlewareInterface
      *        mirrored alongside the `_account` attribute on every request (mission
      *        revision-audit-provenance-01KTWY5V FR-002). Null keeps legacy construction working.
      */
+    /**
+     * @param list<string> $statelessPathPrefixes Path prefixes (e.g. '/docs',
+     *        '/llms.txt') whose anonymous GET/HEAD requests never start a PHP
+     *        session (issue #2146: informational surfaces should be
+     *        cookie-free and shared-cache friendly). A request that already
+     *        carries the session cookie resumes normally, so authenticated
+     *        visitors keep their identity on stateless pages; every other
+     *        method still gets a session, so form and CSRF flows are
+     *        untouched. Default [] preserves existing behavior exactly.
+     */
     public function __construct(
         private readonly EntityRepositoryInterface $userRepository,
         private readonly ?AccountInterface $devFallback = null,
@@ -42,13 +52,18 @@ final class SessionMiddleware implements HttpMiddlewareInterface
         private readonly ?array $sessionCookieOptions = null,
         private readonly array $trustedProxies = [],
         private readonly ?AccountContextInterface $accountContext = null,
+        private readonly array $statelessPathPrefixes = [],
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
 
     public function process(Request $request, HttpHandlerInterface $next): Response
     {
-        if (session_status() !== \PHP_SESSION_ACTIVE && !$request->attributes->has('_session')) {
+        if (
+            session_status() !== \PHP_SESSION_ACTIVE
+            && !$request->attributes->has('_session')
+            && !$this->isStatelessRequest($request)
+        ) {
             $this->applySessionCookieIni();
             session_start();
         }
@@ -116,6 +131,38 @@ final class SessionMiddleware implements HttpMiddlewareInterface
         }
 
         ini_set('session.use_strict_mode', filter_var($opts['use_strict_mode'], FILTER_VALIDATE_BOOLEAN) ? '1' : '0');
+    }
+
+    /**
+     * True when this request must not create a session: a GET/HEAD request
+     * for a configured stateless path prefix that does not already carry
+     * the session cookie. With no active session, CsrfMiddleware's
+     * token-presence guard also skips the XSRF cookie, so matching
+     * responses are entirely Set-Cookie free.
+     */
+    private function isStatelessRequest(Request $request): bool
+    {
+        if ($this->statelessPathPrefixes === []) {
+            return false;
+        }
+        if (!in_array($request->getMethod(), ['GET', 'HEAD'], true)) {
+            return false;
+        }
+        if ($request->cookies->has(session_name() ?: 'PHPSESSID')) {
+            return false;
+        }
+
+        $path = $request->getPathInfo();
+        foreach ($this->statelessPathPrefixes as $prefix) {
+            if (!is_string($prefix) || $prefix === '') {
+                continue;
+            }
+            if ($path === $prefix || str_starts_with($path, rtrim($prefix, '/') . '/')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function isHttpsRequest(): bool
