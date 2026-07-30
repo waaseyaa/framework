@@ -1,5 +1,6 @@
 # MCP Endpoint
 
+<!-- Spec reviewed 2026-07-30 - #2145: `tools/call` now enforces each tool's declared JSON Schema (draft 2020-12) server-side before the handler runs. Waaseyaa\AI\Tools\Schema\ToolInputSchemaValidator (ai-tools, L5) validates AgentTool::$inputSchema — the exact object tools/list advertises — inside AgentToolRegistryBridge::execute(), the single choke point both MCP tiers share. Violations short-circuit pre-dispatch with the established structured envelope {code: VALIDATION_FAILED, message, errors: [{field, message}]} + isError: true. Auth and rate-limit ordering unchanged (401/-32029 still precede validation). handleToolsCall also rejects non-string `name`, non-object `arguments`, and non-object `params` as -32602. See "Input-schema enforcement (`tools/call`)". -->
 <!-- Spec reviewed 2026-07-29 - #2141: the account resolved from MCP bearer authentication now scopes both AccountContextInterface and AccountFieldReadScopeInterface. FieldReadGuard intentionally follows the latter, so a write-tier request must not inherit the unrelated HTTP-session principal. JSON-RPC routing runs inside AccountFieldReadScopeInterface::run($principal, ...) and restores the prior scope on every exit. Regression coverage uses a bearer principal with no session fallback. -->
 
 <!-- Spec reviewed 2026-07-14 - R22/R24 (#2020): server-card authentication is now honest about the shipped opaque-bearer model (`none` or `bearer`; legacy `oauth2` config normalizes to `bearer`, while real OAuth 2.1 remains a separate product decision). Opaque string account ids map deterministically to a non-zero 60-bit audit actor id instead of PHP-casting to the anonymous sentinel. Five unused runtime dependencies and the two unconsumed MCP-local bridge interfaces were removed; AgentToolRegistryBridge remains the direct per-request adapter over Waaseyaa\AI\Tools\ToolRegistryInterface. The `/mcp/write` public-router + CSRF-exempt wiring is now regression-pinned. -->
@@ -100,8 +101,11 @@ The internal dispatch method processes requests in this order:
    - `initialize` -- returns protocol version (`2025-03-26`), capabilities, and server info.
    - `ping` -- returns an empty result.
    - `tools/list` -- returns tool definitions via the per-request bridge.
-   - `tools/call` -- validates `params.name`, looks up the tool, and executes it via the per-request bridge.
+   - `tools/call` -- validates the `params` envelope (`name` must be a string, `arguments` must be a JSON object), looks up the tool, enforces the tool's declared input schema, and executes it via the per-request bridge. See "Input-schema enforcement (`tools/call`)" below.
    - Any other method returns a "Method not found" error (code `-32601`).
+
+   A `params` member that is not a JSON object is rejected with `-32602`
+   before routing rather than substituting an empty parameter bag.
 
 ### Dispatch event seam (`waaseyaa.mcp.dispatch`)
 
@@ -207,9 +211,142 @@ contract, while the bridge binds the authenticated account for one request.
 ```
 McpEndpoint::handleToolsCall()
     -> AgentToolRegistryBridge::execute($toolName, $arguments)
+    -> ToolInputSchemaValidator::validate($tool->inputSchema, $arguments)   <-- #2145
     -> AgentToolInterface::execute($arguments, $authenticatedAccount)
     -> Result as {content: [{type: "text", text: "..."}]}
 ```
+
+## Input-schema enforcement (`tools/call`)
+
+Added by **#2145** (follow-up to #2136), found during the alpha.278 rhtcircle
+production-shaped acceptance re-run.
+
+Every `#[AsAgentTool]` publishes a JSON Schema draft 2020-12 `inputSchema`
+through `tools/list` — that schema is the contract an agent reads, so it is
+also the contract the server holds callers to. Previously `tools/call`
+dispatched `params.arguments` straight to the handler: an `article.rollback`
+call missing its required `target_revision_id` reached `ContentToolSet`'s
+handler, raised `Undefined array key`, and reached the publisher with a
+zero-ish default. It failed safely ("Revision 0 does not exist",
+`isError: true`, no mutation) only because of an incidental downstream guard.
+
+### Where enforcement lives
+
+`Waaseyaa\Mcp\Bridge\AgentToolRegistryBridge::execute()` — the **single choke
+point both MCP tiers share** (public `/mcp` and authenticated `/mcp/write`
+each construct their own bridge per request, so one insertion covers both).
+The schema enforced is `AgentTool::$inputSchema`, the **exact object
+`toMcpDescriptor()` advertises**: advertised and enforced cannot diverge, and
+there is no second source of truth to drift (the dual-state bug pattern).
+
+The validator itself is `Waaseyaa\AI\Tools\Schema\ToolInputSchemaValidator` in
+**`waaseyaa/ai-tools` (Layer 5)** — the package that owns the `inputSchema`
+contract — not in `mcp` (Layer 6). This keeps it reusable by any same-or-higher
+layer executor (e.g. a future `AgentExecutor` enforcement pass) without an
+upward import. `mcp` already requires `ai-tools`, so no new manifest edge.
+
+### Validated keyword subset
+
+Dependency-free, no `justinrainbow/json-schema` or `opis/json-schema` added:
+
+| Supported | Notes |
+|---|---|
+| `type` | Single or list. `object` accepts any array that is not a non-empty list; `array` accepts any list; `integer` accepts integral floats (JSON has one number type, so `2.0` is a valid integer); `boolean` never satisfies `string`/`number` |
+| `properties`, `required`, `additionalProperties` | `additionalProperties` honours both `false` (unexpected argument → violation) and a subschema (each extra member validated against it, e.g. `EntityListTool`'s `sort` → `{enum: [ASC, DESC]}`) |
+| `enum`, `const` | Strict comparison |
+| `items`, `minItems`, `maxItems` | Item violations carry the index (`tags.1`) |
+| `minLength`, `maxLength`, `pattern` | Length is `mb_strlen`; an invalid schema regex yields no verdict rather than failing the caller's input |
+| `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum` | |
+
+**Unrecognised keywords are ignored** (`default`, `description`, `$schema`,
+`x-*`) — a schema is never *rejected* for vocabulary the validator does not
+police, so `inputSchema` stays declarative documentation first. **Composition
+keywords (`allOf`/`anyOf`/`oneOf`/`$ref`) are deliberately unimplemented**: no
+first-party tool declares them, and silently accepting them would be worse
+than not offering them. Add support alongside the first tool that needs it.
+
+**Decoded-JSON value model:** arguments arrive as `json_decode($body, true)`
+produces them, so a JSON object is an associative PHP array and the empty
+array satisfies both `object` and `array` — `{}` and `[]` are indistinguishable
+after an associative decode, and rejecting either would break legitimate
+empty-argument calls. An **empty schema (`[]`) validates nothing**, so a tool
+that declares no schema behaves exactly as before.
+
+### Error envelope
+
+A violation short-circuits **before** `$tool->impl->execute()` — handlers never
+see malformed input — and returns the established structured envelope inside
+the MCP `isError` result, reusing the machine code and `{field, message}` shape
+Content Publishing already emits so an agent parses a schema rejection exactly
+like a domain rejection:
+
+```json
+{
+    "code": "VALIDATION_FAILED",
+    "message": "Arguments do not satisfy the declared input schema for \"article.rollback\".",
+    "errors": [{"field": "target_revision_id", "message": "This argument is required."}]
+}
+```
+
+Nested paths are dotted (`values.title`), array items indexed (`tags.1`), and a
+root-level mismatch reports `(arguments)`. Violations are emitted in a
+deterministic order — declared `required` first, then declared `properties`,
+then unexpected keys — so a retrying agent always sees the same first error.
+
+### Ordering invariants
+
+Full `tools/call` order, with the new step marked:
+
+```
+authenticate  ->  rate limit  ->  registry scoping (tool lookup)
+              ->  SCHEMA VALIDATION (#2145)  ->  per-tool requireCapability  ->  handler
+```
+
+Authentication, rate limiting, and **registry scoping** are unchanged and all
+precede validation. Registry scoping is the tier-level authorization boundary:
+`getTool()` consults the tier's own registry wrapper, so a tool the tier does
+not expose returns `-32602` "Unknown tool" before any validation runs — which
+is what keeps **C-001** intact (a destructive tool is never merely
+"invalid-arguments" on the public surface, it does not exist there).
+
+Schema validation runs **before** each tool's own
+`AbstractAgentTool::requireCapability()`, because that check lives inside
+`execute()` — the very call this change must not reach with malformed input.
+The consequence is that an authenticated caller who both lacks the capability
+*and* sends schema-invalid arguments now sees `VALIDATION_FAILED` rather than
+`forbidden`. This discloses nothing new: the tier's `tools/list` already
+publishes that tool's full schema to any caller the tier admits (registry
+scoping is tier-wide; capability is per-account), so the validation message
+only restates what the caller was already told. Capability enforcement itself
+is unweakened — schema-valid input from a caller lacking the capability still
+returns `forbidden`, unchanged.
+
+| Caller state | Outcome |
+|---|---|
+| Unauthenticated (write tier), schema-invalid payload | HTTP 401, `-32001` — **never** a validation envelope (no oracle for whether the payload would have been valid) |
+| Authenticated, over rate budget, schema-invalid payload | HTTP 429, `-32029` |
+| Authenticated, within budget, schema-invalid payload | HTTP 200, `isError: true`, `VALIDATION_FAILED` |
+| Authenticated, schema-valid, lacking the capability | HTTP 200, `isError: true`, per-tool `forbidden` (unchanged) |
+| Public `/mcp`, destructive tool | `-32602` "Unknown tool" — structurally absent, never reached (C-001 intact) |
+
+### Relationship to Content Publishing validation
+
+Schema enforcement **does not weaken or replace** the publishing layer's own
+field-level validation. `ContentToolSet::valuesSchema()` deliberately declares
+**no `required`** on the writable-values object (partial `updateDraft` payloads
+are legitimate), so publishing keeps ownership of required-field semantics: a
+`createDraft` whose `values` omits a required field is schema-valid and still
+returns publishing's own `VALIDATION_FAILED` with its `{field: "slug"}` error.
+The two layers stack — schema shape first, editorial rules second.
+
+### Coverage
+
+| Test | Level |
+|---|---|
+| `packages/ai-tools/tests/Unit/Schema/ToolInputSchemaValidatorTest.php` | Unit — the keyword matrix |
+| `packages/mcp/tests/Unit/Bridge/AgentToolRegistryBridgeValidationTest.php` | Unit — handler never invoked, envelope shape |
+| `packages/mcp/tests/Unit/McpEndpointSchemaOrderingTest.php` | Unit — auth/rate-limit ordering, malformed `params` shapes |
+| `tests/Integration/PhaseN/Mcp/McpToolsCallSchemaEnforcementTest.php` | Production-shaped — the real `ContentToolSet` over revisionable SQLite through the real `/mcp/write` tier: the reported payload, wrong types, unexpected properties, the full draft→publish→rollback→unpublish lifecycle, idempotent replays, and both authenticated and unauthenticated surfaces |
 
 ## JSON-RPC Protocol
 

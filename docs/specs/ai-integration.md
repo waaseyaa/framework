@@ -741,6 +741,49 @@ MCP tool execution has the following safety properties:
 6. **FieldableInterface check:** Updates verify the entity implements `FieldableInterface` before calling `set()`.
 7. **Per-entity access on the stock entity tools (mandatory, fail-closed — C-12):** The stock `ai-tools` entity tools enforce the framework's per-entity `AccessPolicy` (the same `view`/`update`/`delete`/`create` gate the REST/GraphQL surfaces use), not just the coarse `tool.entity.*` capability. `AiToolsServiceProvider` injects the kernel `EntityAccessHandler` into the `AttributeToolRegistry`, which stamps every tool it hydrates so the gate is **always** active in production — it is not opt-in. Enforcement is **fail-closed**: if the handler is ever unavailable in a context that requires enforcement, the per-entity guards **deny** (single reads/writes return a `forbidden` error; `entity.list`/`entity.search` drop every candidate) rather than silently allowing — a wiring gap can never degrade to allow-all. The only place the guards no-op (allow) is bare/unit construction that never wires a handler and never stamps enforcement (capability-only mode), preserving the historical contract for hosts with no entity-access policy.
 
+8. **Declared-schema enforcement on the MCP transport (#2145):** a tool's `inputSchema` is a *contract*, not documentation. `Waaseyaa\AI\Tools\Schema\ToolInputSchemaValidator` validates arguments against it before `execute()` runs, so a handler never sees input violating the shape it advertised through `tools/list`. See below.
+
+## Declared input-schema validation (`ToolInputSchemaValidator`, #2145)
+
+`Waaseyaa\AI\Tools\Schema\ToolInputSchemaValidator` is a dependency-free
+validator for the JSON Schema draft 2020-12 subset the first-party tool
+catalogue actually declares. It lives in `ai-tools` because that package owns
+the `AgentTool::$inputSchema` contract, which keeps it importable by any
+same-or-higher-layer executor without an upward dependency.
+
+```php
+/** @return list<array{field: string, message: string}> Empty when valid. */
+ToolInputSchemaValidator::validate(array $schema, mixed $value): array
+```
+
+The `{field, message}` result shape deliberately matches
+`ContentPublishingException::$fieldErrors`, so a transport renders schema and
+domain validation failures identically. Nested paths are dotted
+(`values.title`), array items indexed (`tags.1`), and a root-level mismatch
+reports `(arguments)`.
+
+**Supported keywords:** `type` (single or list), `properties`, `required`,
+`additionalProperties` (`false` or a subschema), `enum`, `const`, `items`,
+`min`/`maxItems`, `min`/`maxLength`, `pattern`, `minimum`, `maximum`,
+`exclusiveMinimum`, `exclusiveMaximum`. Unrecognised keywords (`default`,
+`description`, `$schema`, `x-*`) are **ignored** — a schema is never rejected
+for vocabulary the validator does not police. Composition keywords
+(`allOf`/`anyOf`/`oneOf`/`$ref`) are **deliberately unimplemented**: no
+first-party tool declares them, and silently accepting them would be worse
+than not offering them; add support alongside the first tool that needs it.
+
+**Value model:** arguments arrive as `json_decode($body, true)` produces them,
+so a JSON object is an associative array and the empty array satisfies both
+`object` and `array`. `integer` accepts integral floats (JSON has one number
+type, so `2.0` is a valid integer), and booleans never satisfy `string` or
+`number`. An empty schema validates nothing.
+
+**Where it is enforced:** the MCP bridge (`docs/specs/mcp-endpoint.md`,
+"Input-schema enforcement (`tools/call`)"), which covers both the public
+`/mcp` and authenticated `/mcp/write` tiers. The in-app `AgentExecutor` path
+is unchanged and still relies on each tool's own argument-shape checks —
+extending enforcement there is a separate decision, not an implied one.
+
 ## Identity-Key Write Protection (stock entity tools, #1646)
 
 Applies to the stock tools `entity.create` and `entity.update` (`packages/ai-tools/src/Entity/`, see `docs/specs/agent-executor.md` for the tool registry), over every transport that dispatches them (in-app agent, MCP). Guard implementation: `Waaseyaa\AI\Tools\Entity\EntityKeyGuard`. Canonical contract: `kitty-specs/live-entity-validation-key-protection-01KTWQT3/contracts/tool-refusal.md`.

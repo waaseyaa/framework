@@ -200,6 +200,13 @@ final readonly class McpEndpoint
                 // the JSON-RPC response (contract clause 19).
             }
 
+            // A `params` member that is not a JSON object cannot address any
+            // method's parameters; treat it as an invalid-params envelope
+            // rather than silently substituting an empty bag.
+            if (!\is_array($params)) {
+                return $this->jsonRpcError(-32602, 'Invalid params: must be an object', $id);
+            }
+
             $route = fn(): McpResponse => match ($request['method']) {
                 'initialize' => $this->handleInitialize($id),
                 'ping' => $this->handlePing($id),
@@ -249,6 +256,15 @@ final readonly class McpEndpoint
         return $this->jsonRpcResult($id, ['tools' => $tools]);
     }
 
+    /**
+     * `params` shape is caller-controlled, so each member is checked before
+     * use: a non-string `name` or a non-object `arguments` is a JSON-RPC
+     * envelope defect (-32602), not something to coerce and pass along.
+     * Argument *contents* are then enforced against the tool's declared schema
+     * inside the bridge (#2145), so no malformed input reaches a handler.
+     *
+     * @param array<mixed> $params
+     */
     private function handleToolsCall(mixed $id, array $params, AgentToolRegistryBridge $bridge): McpResponse
     {
         $toolName = $params['name'] ?? null;
@@ -256,6 +272,15 @@ final readonly class McpEndpoint
 
         if ($toolName === null) {
             return $this->jsonRpcError(-32602, 'Missing required parameter: name', $id);
+        }
+
+        if (!\is_string($toolName)) {
+            return $this->jsonRpcError(-32602, 'Invalid parameter: name must be a string', $id);
+        }
+
+        // `{}` and `[]` both decode to []; anything else is not a JSON object.
+        if (!\is_array($arguments) || (array_is_list($arguments) && $arguments !== [])) {
+            return $this->jsonRpcError(-32602, 'Invalid parameter: arguments must be an object', $id);
         }
 
         $tool = $bridge->getTool($toolName);
