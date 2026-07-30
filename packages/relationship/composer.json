@@ -15,10 +15,10 @@
     },
     "require": {
         "php": ">=8.5",
-        "waaseyaa/access": "^0.1.0-alpha.278",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.278",
-        "waaseyaa/entity": "^0.1.0-alpha.278",
-        "waaseyaa/foundation": "^0.1.0-alpha.278"
+        "waaseyaa/access": "^0.1.0-alpha.279",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.279",
+        "waaseyaa/entity": "^0.1.0-alpha.279",
+        "waaseyaa/foundation": "^0.1.0-alpha.279"
     },
     "extra": {
         "waaseyaa": {
