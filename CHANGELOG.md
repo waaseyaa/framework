@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Opt-in stateless session paths for anonymous informational surfaces (#2146).** `SessionMiddleware` started a PHP session unconditionally, so every anonymous GET (docs pages, sitemaps, `llms.txt`, MCP server cards) minted `PHPSESSID` and, downstream, `XSRF-TOKEN` cookies: `Set-Cookie` defeated shared caching and every crawler hit burned a server-side session file. The new `session.stateless_paths` config (a list of path prefixes wired through `HttpKernel`) skips `session_start()` for anonymous GET/HEAD requests on matching paths. A request already carrying the session cookie resumes normally, non-GET/HEAD methods always get sessions (login, form and CSRF flows untouched), and the default `[]` preserves existing behavior exactly. With no active session, `CsrfMiddleware`'s token-presence guard withholds the XSRF cookie on its own. Regression tests cover the skip, exact-prefix and sibling-path (`/docs` vs `/docsearch`) matching, cookie resume, method gating, empty-config parity, and XSRF absence through a CSRF + session pipeline.
+
 ## [0.1.0-alpha.278] - 2026-07-29
 
 ### Fixed
