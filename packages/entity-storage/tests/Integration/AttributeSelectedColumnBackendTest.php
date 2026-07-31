@@ -235,16 +235,16 @@ final class AttributeSelectedColumnBackendTest extends TestCase
     {
         $this->expectException(UnmaterializableIndexException::class);
         // The message must name the type, the field, and the fix.
-        $this->expectExceptionMessageMatches('/impossible_index_entity.*facet|facet.*impossible_index_entity/s');
+        $this->expectExceptionMessageMatches('/unmaterializable_index_entity.*facet|facet.*unmaterializable_index_entity/s');
 
-        $this->sync(EntityType::fromClass(ImpossibleIndexEntity::class));
+        $this->sync(EntityType::fromClass(UnmaterializableIndexEntity::class));
     }
 
     #[Test]
     public function the_unmaterializable_index_error_names_the_remedy(): void
     {
         try {
-            $this->sync(EntityType::fromClass(ImpossibleIndexEntity::class));
+            $this->sync(EntityType::fromClass(UnmaterializableIndexEntity::class));
             self::fail('expected UnmaterializableIndexException');
         } catch (UnmaterializableIndexException $e) {
             self::assertStringContainsString(
@@ -257,14 +257,48 @@ final class AttributeSelectedColumnBackendTest extends TestCase
     }
 
     #[Test]
-    public function an_indexed_data_stored_field_is_rejected_as_contradictory(): void
+    public function an_indexed_data_stored_field_is_rejected_by_api_contract(): void
     {
-        // Statically contradictory: Data storage can never be indexed, on any
-        // backend. Caught at metadata-read time rather than schema time.
+        // An API-contract rejection, NOT a physical-impossibility claim:
+        // `indexed: true` is permitted only with FieldStorage::Column, so that
+        // asking for an index is always an explicit declaration of indexable
+        // intent. Note that this fixture is on the sql-column backend, which
+        // WOULD materialise a column for the Data-stored field — see
+        // on_the_column_backend_every_declared_field_is_materialised... — so
+        // the rejection cannot be justified by impossibility. It is a rule
+        // about the declaration, enforced at metadata-read time.
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessageMatches('/indexed.*FieldStorage::Data|FieldStorage::Data.*indexed/s');
 
         EntityType::fromClass(IndexedBlobFieldEntity::class);
+    }
+
+    #[Test]
+    public function an_unknown_storage_backend_is_rejected_with_an_actionable_message(): void
+    {
+        // The attribute is the public API surface for backend selection, so a
+        // typo must fail at the declaration with a message that names the
+        // offending value and the legal set — not resolve to some default and
+        // silently leave the type blob-backed, which is the exact silent
+        // failure mode #2157 exists to close.
+        try {
+            new ContentEntityType(id: 'typo_backend_entity', label: 'Typo', storageBackend: 'sql_column');
+            self::fail('an unknown storageBackend must be rejected');
+        } catch (\InvalidArgumentException $e) {
+            self::assertStringContainsString('typo_backend_entity', $e->getMessage(), 'names the entity type');
+            self::assertStringContainsString('sql_column', $e->getMessage(), 'quotes the rejected value');
+            self::assertStringContainsString(
+                PrimaryStorageBackend::SQL_COLUMN,
+                $e->getMessage(),
+                'lists the legal values so the developer can see the correct spelling',
+            );
+            self::assertStringContainsString(PrimaryStorageBackend::SQL_BLOB, $e->getMessage());
+        }
+
+        // The empty default must NOT be caught by that guard — omitting the
+        // argument is how every existing entity type keeps the blob default.
+        $declared = new ContentEntityType(id: 'ok_entity', label: 'Ok');
+        self::assertSame('', $declared->storageBackend);
     }
 
     #[Test]
@@ -324,13 +358,14 @@ final class LegacyBlobEntity extends ContentEntityBase
 }
 
 /**
- * Declares an index it cannot possibly get: the type stays on the blob backend.
+ * Declares an index the resolved backend will not create: the type stays on the
+ * blob backend, so the index is unmaterializable and schema sync must say so.
  *
  * @internal Test fixture.
  */
-#[ContentEntityType(id: 'impossible_index_entity', label: 'Impossible index entity')]
+#[ContentEntityType(id: 'unmaterializable_index_entity', label: 'Unmaterializable index entity')]
 #[ContentEntityKeys(id: 'id', uuid: 'uuid', label: 'title')]
-final class ImpossibleIndexEntity extends ContentEntityBase
+final class UnmaterializableIndexEntity extends ContentEntityBase
 {
     #[Field(label: 'Title', stored: FieldStorage::Column)]
     public string $title = '';
@@ -340,7 +375,10 @@ final class ImpossibleIndexEntity extends ContentEntityBase
 }
 
 /**
- * Declares an index on a Data-stored field: contradictory on every backend.
+ * Declares an index on a Data-stored field, which the `#[Field]` API contract
+ * forbids. Deliberately sits on the sql-column backend to make the point that
+ * the rejection is a rule about the declaration, not a physical impossibility:
+ * this backend would have materialised the column.
  *
  * @internal Test fixture.
  */

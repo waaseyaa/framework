@@ -45,7 +45,17 @@ final class AttributeColumnEntity extends ContentEntityBase
     #[Field(required: false, label: 'Note', stored: FieldStorage::Column)]
     public string $note = '';
 
-    /** Blob-backed payload: never a column, never indexable. */
+    /**
+     * Declared Data-stored, and therefore non-indexable by API contract
+     * (`#[Field]` rejects `indexed: true` here).
+     *
+     * It IS still materialised as a column under this fixture's sql-column
+     * backend, which creates a column for every declared field regardless of
+     * `stored:` — see
+     * `on_the_column_backend_every_declared_field_is_materialised_and_there_is_no_blob()`,
+     * which pins that pre-existing behaviour. Do not read `FieldStorage::Data`
+     * as "never a column".
+     */
     #[Field(required: false, type: 'text', label: 'Payload', stored: FieldStorage::Data)]
     public string $payload = '';
 }

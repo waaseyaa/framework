@@ -1909,7 +1909,28 @@ fields in `_data`, unchanged.
 
 Declaring `FieldStorage::Column` alone has never guaranteed a database column,
 and Rule G has never promised one. Before #2157 that divergence was silent;
-`indexed: true` now makes the intent explicit and the impossible case loud.
+`indexed: true` now makes the intent explicit and the unmaterializable case loud.
+
+#### `indexed: true` requires `FieldStorage::Column` — as a contract, not a physics claim
+
+`#[Field]` rejects `indexed: true` alongside `FieldStorage::Data` at
+construction. State the reason precisely, because the obvious justification is
+wrong:
+
+- `indexed: true` is contractually permitted **only** with
+  `stored: FieldStorage::Column`.
+- The rule exists so that requesting an index is always an explicit declaration
+  of indexable intent, on a field the developer has also declared column-shaped.
+- A `Data` declaration is therefore non-indexable **by API contract**, even
+  though the current `sql-column` backend does in fact materialise a column for
+  it (see the note immediately below).
+- That backend behaviour is pre-existing and may change. The attribute API does
+  not promise it either way, which is precisely why the contract is stated in
+  terms of the declaration rather than in terms of what the storage layer
+  happens to do today.
+
+Do **not** describe the combination as physically impossible. Under `sql-column`
+the column exists.
 
 **Note on `FieldStorage::Data` under `sql-column`.** `EntitySchemaSync` selects
 entity-level fields by backend rather than per-field `stored`, so on a
