@@ -24,6 +24,8 @@ final readonly class EntityClassMetadata
         public string $label = '',
         public string $description = '',
         public bool $api = false,
+        /** Primary storage backend id, or '' when the type declares none (#2157). */
+        public string $storageBackend = '',
         public array $fields = [],
     ) {}
 }

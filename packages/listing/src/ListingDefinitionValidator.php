@@ -33,12 +33,33 @@ use Waaseyaa\Listing\Exception\UnsupportedListingException;
  *  - **H** Operator-to-field-type compatibility (BETWEEN/comparison/LIKE/IN)
  *  - **I** `langcode` filter only on translatable entity types
  *
- * Rule G operates at the definition level: a field stored in a `Column`
- * is queryable by definition; a field stored in the `_data` blob is not
- * (its values live inside an opaque JSON column and storage backends
- * such as `SqlBlobBackend` report {@code supportsQuery=false}). This is
- * the same invariant the registrar-owned field-storage gateway contract
- * tests exercise for live backends.
+ * Rule G operates at the DEFINITION level and checks queryability, not
+ * physical shape. A field declared `FieldStorage::Column` is queryable by
+ * definition; a field stored in the `_data` blob is not (its values live
+ * inside an opaque JSON column and storage backends such as `SqlBlobBackend`
+ * report {@code supportsQuery=false}). This is the same invariant the
+ * registrar-owned field-storage gateway contract tests exercise for live
+ * backends.
+ *
+ * **Rule G does NOT promise a database column, and never has (#2157).** Three
+ * distinct properties are easy to conflate:
+ *
+ *  1. *Queryable* — the field may be filtered and sorted on. Rule G checks
+ *     exactly this. A blob-backed field can still be queryable through the
+ *     backend's own query support.
+ *  2. *Physically materialised* — the field is a real database column. This is
+ *     a property of the ENTITY TYPE's primary storage backend, not of the
+ *     field: only `sql-column` materialises columns. A field declared
+ *     `FieldStorage::Column` on a type whose backend resolves to `sql-blob`
+ *     passes Rule G and still lives in `_data`.
+ *  3. *Physically indexed* — the column additionally carries a B-tree index.
+ *     Requires `FieldDefinition::indexed()` (or `#[Field(indexed: true)]`) AND
+ *     the `sql-column` backend. Declaring an index the backend cannot create is
+ *     an error: see `UnmaterializableIndexException`.
+ *
+ * A facet that must be physically indexed therefore needs its entity type to
+ * declare `storageBackend: PrimaryStorageBackend::SQL_COLUMN`. Blob-backed
+ * facets remain fully supported and are the default.
  *
  * Lexicographic ordering on string fields is permitted: per ADR-010 the
  * comparison operators (`LT`, `LTE`, `GT`, `GTE`) are valid on string

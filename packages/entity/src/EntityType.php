@@ -257,6 +257,10 @@ final readonly class EntityType implements EntityTypeInterface, ApiExposableEnti
             tenancy: $tenancy,
             discoverable: $discoverable,
             api: $metadata->api,
+            // #2157: a type may now select its primary storage backend from the
+            // #[ContentEntityType] attribute. '' means "not declared", which
+            // leaves the historical sql-blob default in place.
+            primaryStorageBackend: $metadata->storageBackend !== '' ? $metadata->storageBackend : null,
             _fieldDefinitions: $metadata->fields,
         );
     }

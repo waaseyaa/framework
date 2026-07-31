@@ -41,6 +41,7 @@ final class EntityMetadataReader
             label: $labelDescription['label'],
             description: $labelDescription['description'],
             api: $labelDescription['api'],
+            storageBackend: $labelDescription['storageBackend'],
             fields: $fields,
         );
     }
@@ -107,7 +108,7 @@ final class EntityMetadataReader
                 $field = $attributes[0]->newInstance();
                 $inferred = FieldTypeInferrer::infer($property, $field);
 
-                $fields[$property->getName()] = new FieldDefinition(
+                $definition = new FieldDefinition(
                     name: $property->getName(),
                     type: $inferred['type'],
                     cardinality: 1,
@@ -123,6 +124,13 @@ final class EntityMetadataReader
                     stored: $field->stored,
                     read: $field->read,
                 );
+
+                // `indexed: true` (#2157). FieldDefinition::indexed() is
+                // fluent-immutable, so upgrade rather than pass a constructor
+                // argument. Whether the index can actually be materialised
+                // depends on the entity type's backend and is enforced at
+                // schema-sync time, where the backend is known.
+                $fields[$property->getName()] = $field->indexed ? $definition->indexed() : $definition;
             }
         }
 
@@ -154,7 +162,7 @@ final class EntityMetadataReader
      * hierarchy and surface its label/description fields.
      *
      * @param class-string $class
-     * @return array{label: string, description: string, api: bool}
+     * @return array{label: string, description: string, api: bool, storageBackend: string}
      */
     private static function resolveLabelAndDescription(string $class): array
     {
@@ -167,6 +175,7 @@ final class EntityMetadataReader
                     'label' => $instance->label,
                     'description' => $instance->description,
                     'api' => $instance->api,
+                    'storageBackend' => $instance->storageBackend,
                 ];
             }
             $parent = $ref->getParentClass();
@@ -176,7 +185,7 @@ final class EntityMetadataReader
             $ref = $parent;
         }
 
-        return ['label' => '', 'description' => '', 'api' => false];
+        return ['label' => '', 'description' => '', 'api' => false, 'storageBackend' => ''];
     }
 
     /**

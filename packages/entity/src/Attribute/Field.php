@@ -52,5 +52,17 @@ final readonly class Field
         public bool $revisionable = false,
         public FieldStorage $stored = FieldStorage::Column,
         public ?FieldReadLevel $read = null,
-    ) {}
+        public bool $indexed = false,
+    ) {
+        // Statically contradictory on every backend: a value inside the `_data`
+        // JSON blob has no column to index. Caught here rather than at schema
+        // time so the developer sees it the moment the class is read.
+        if ($indexed && $stored === FieldStorage::Data) {
+            throw new \InvalidArgumentException(
+                'A field cannot be both indexed: true and stored: FieldStorage::Data. '
+                . 'Indexing requires a materialised column; move the field to '
+                . 'FieldStorage::Column, or drop indexed: true.',
+            );
+        }
+    }
 }
