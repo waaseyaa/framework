@@ -1881,6 +1881,65 @@ composition root's explicit framework allowlist.
 `ReservedBackendIds` holds the canonical string constants for the two built-in
 backends: `SQL_BLOB = 'sql-blob'` and `SQL_COLUMN = 'sql-column'`.
 
+#### Selecting a backend from the attribute (#2157)
+
+`#[ContentEntityType(storageBackend: PrimaryStorageBackend::SQL_COLUMN)]`
+selects the primary storage backend for an attribute-defined content entity
+type, and `#[Field(indexed: true)]` requests a physical B-tree index on a
+materialised column. Both flow through `EntityMetadataReader` and
+`EntityType::fromClass()`; the `@internal` `_fieldDefinitions` constructor slot
+is NOT involved and remains reserved for the factory.
+
+`Waaseyaa\Entity\Storage\PrimaryStorageBackend` holds the ids usable from the
+attribute. It deliberately MIRRORS `ReservedBackendIds` rather than importing
+it, because `packages/entity` must not depend on `packages/entity-storage`; the
+two are pinned together by a test in entity-storage, which can see both.
+
+**Omitting `storageBackend` preserves the historical default exactly.** Every
+entity type that does not declare one resolves to `sql-blob`, with non-key
+fields in `_data`, unchanged.
+
+#### Three properties that are easy to conflate
+
+| Property | Determined by | Notes |
+|---|---|---|
+| **Queryable / filterable** | the field's declared `FieldStorage` | What Listing Rule G checks. A blob-backed field can still be filtered and sorted through the backend's query support. This is the default and stays fully supported |
+| **Physically materialised** | the ENTITY TYPE's primary storage backend | Only `sql-column` creates real columns. A field declared `FieldStorage::Column` on a `sql-blob` type passes Rule G and still lives in `_data` |
+| **Physically indexed** | `indexed: true` **and** the `sql-column` backend | Declaring an index the backend cannot create raises `UnmaterializableIndexException` at schema-sync time |
+
+Declaring `FieldStorage::Column` alone has never guaranteed a database column,
+and Rule G has never promised one. Before #2157 that divergence was silent;
+`indexed: true` now makes the intent explicit and the unmaterializable case loud.
+
+#### `indexed: true` requires `FieldStorage::Column` — as a contract, not a physics claim
+
+`#[Field]` rejects `indexed: true` alongside `FieldStorage::Data` at
+construction. State the reason precisely, because the obvious justification is
+wrong:
+
+- `indexed: true` is contractually permitted **only** with
+  `stored: FieldStorage::Column`.
+- The rule exists so that requesting an index is always an explicit declaration
+  of indexable intent, on a field the developer has also declared column-shaped.
+- A `Data` declaration is therefore non-indexable **by API contract**, even
+  though the current `sql-column` backend does in fact materialise a column for
+  it (see the note immediately below).
+- That backend behaviour is pre-existing and may change. The attribute API does
+  not promise it either way, which is precisely why the contract is stated in
+  terms of the declaration rather than in terms of what the storage layer
+  happens to do today.
+
+Do **not** describe the combination as physically impossible. Under `sql-column`
+the column exists.
+
+**Note on `FieldStorage::Data` under `sql-column`.** `EntitySchemaSync` selects
+entity-level fields by backend rather than per-field `stored`, so on a
+`sql-column` type ALL declared fields are materialised as columns and no `_data`
+blob is created. `FieldStorage::Data` therefore has no effect on that backend.
+This is pre-existing behaviour, pinned by
+`AttributeSelectedColumnBackendTest::on_the_column_backend_every_declared_field_is_materialised_and_there_is_no_blob`,
+and is a candidate for a follow-up rather than part of #2157.
+
 The registrar returns only `FieldStorageBackendGateway`; it has no raw backend
 accessor. Each operation reserves a value-free descriptor before fingerprint
 validation or invocation and finalizes success or failure durably. Preflight

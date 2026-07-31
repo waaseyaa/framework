@@ -8,6 +8,7 @@ use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
+use Waaseyaa\EntityStorage\Exception\UnmaterializableIndexException;
 use Waaseyaa\EntityStorage\Schema\TranslationSchemaHandler;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -57,6 +58,10 @@ final class EntitySchemaSync
         $handlers = [];
         foreach ($entityTypes as $entityType) {
             $backend = $this->resolveBackend($entityType);
+            // #2157: `indexed: true` is an unambiguous request for a physical
+            // index. If the resolved backend cannot create one, fail loudly here
+            // rather than silently dropping the field into the _data blob.
+            $this->assertDeclaredIndexesAreMaterializable($entityType, $backend);
             // For sql-column translatable types, the primary table carries
             // only the non-translatable subset of fields (FR-027). Translatable
             // columns live on `<table>__translation`, owned by TranslationSchemaHandler.
@@ -165,6 +170,27 @@ final class EntitySchemaSync
      * Honours the entity-type's explicit `primaryStorageBackend` declaration;
      * falls back to the framework default (`sql-blob`) when unset.
      */
+    /**
+     * Reject an index the resolved backend cannot materialise (#2157).
+     *
+     * Scope is deliberately narrow: only `indexed: true` is an error. A field
+     * that merely declares `FieldStorage::Column` on a blob-backed type keeps
+     * its historical behaviour, because shipped applications depend on exactly
+     * that shape and this change must not break them.
+     */
+    private function assertDeclaredIndexesAreMaterializable(EntityTypeInterface $entityType, string $backend): void
+    {
+        if ($backend === ReservedBackendIds::SQL_COLUMN) {
+            return;
+        }
+
+        foreach ($entityType->getFieldDefinitions() as $name => $definition) {
+            if ($definition instanceof FieldDefinition && $definition->isIndexed()) {
+                throw UnmaterializableIndexException::forField($entityType->id(), $name, $backend);
+            }
+        }
+    }
+
     private function resolveBackend(EntityTypeInterface $entityType): string
     {
         $declared = $entityType->getPrimaryStorageBackend();

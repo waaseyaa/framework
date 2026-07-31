@@ -26,6 +26,22 @@ use Waaseyaa\Field\FieldStorage;
  * `json_extract`. Forwarded verbatim to `FieldDefinition` by
  * {@see EntityMetadataReader::resolveFields()}.
  *
+ * `indexed:` requests a physical B-tree index (#2157). Two rules govern it:
+ *
+ *  - **Contract:** `indexed: true` is permitted **only** with
+ *    `stored: FieldStorage::Column`. Pairing it with `FieldStorage::Data` is
+ *    rejected at construction. This is an API rule that keeps a request for an
+ *    index an explicit declaration of indexable intent — it is *not* a claim
+ *    that no such column could physically exist. (The current sql-column
+ *    backend materialises every declared field, including Data-stored ones;
+ *    that behaviour is pre-existing and may change, and the attribute API does
+ *    not promise it either way.)
+ *  - **Materialisation:** whether the index is actually created depends on the
+ *    *entity type's* primary storage backend, not the field. Only `sql-column`
+ *    creates one. Declaring `indexed: true` on a type that resolves to
+ *    `sql-blob` raises `UnmaterializableIndexException` at schema-sync time
+ *    rather than failing silently.
+ *
  * Example:
  *
  *     #[Field]
@@ -52,5 +68,29 @@ final readonly class Field
         public bool $revisionable = false,
         public FieldStorage $stored = FieldStorage::Column,
         public ?FieldReadLevel $read = null,
-    ) {}
+        public bool $indexed = false,
+    ) {
+        // API contract, not a physical claim: `indexed: true` is permitted only
+        // alongside `FieldStorage::Column`, so that requesting an index is
+        // always an explicit declaration of indexable intent on a field the
+        // developer has also declared column-shaped.
+        //
+        // Deliberately NOT justified as "impossible": the current sql-column
+        // backend materialises *every* declared field, including Data-stored
+        // ones, so such a column can exist today. That is pre-existing backend
+        // behaviour which may change, and it is not something the attribute API
+        // promises. Rejecting the combination here keeps the declaration honest
+        // regardless of which way the backend goes.
+        //
+        // Caught at construction rather than schema time so the developer sees
+        // it the moment the class is read.
+        if ($indexed && $stored === FieldStorage::Data) {
+            throw new \InvalidArgumentException(
+                'A field cannot declare both indexed: true and stored: FieldStorage::Data. '
+                . 'indexed: true is permitted only with stored: FieldStorage::Column, which is how a '
+                . 'field declares that it is column-shaped and therefore indexable. Either move the '
+                . 'field to FieldStorage::Column, or drop indexed: true.',
+            );
+        }
+    }
 }

@@ -203,6 +203,20 @@ This mission ships the listing pipeline and the cache tag/context substrate it r
 - **FR-052** Validation runs in `PackageManifestCompiler::warm()` after entity-type registration but before route dispatch. In dev, it runs on every request; in prod, only when `var/manifest.php` is rebuilt.
 - **FR-053** Validation failures MUST be fail-fast: the kernel refuses to boot, with the exception's full message in the error log. No silent "broken listing" state.
 
+#### What FR-051(d) does and does not promise (#2157)
+
+Rule (d) — "Rule G" in `ListingDefinitionValidator` — checks the field **declaration**, not the physical table. Three properties are easy to conflate, and conflating them produced a silent failure before #2157:
+
+| Property | Means | Established by |
+|---|---|---|
+| **Queryable** | The field may be filtered and sorted on. **This is all Rule G checks.** | `FieldStorage::Column` on the field definition |
+| **Physically materialised** | The field is a real database column. | The *entity type's* primary storage backend being `sql-column` — never the field alone |
+| **Physically indexed** | That column additionally carries a B-tree index. | `indexed: true` **and** the `sql-column` backend |
+
+A field declared `FieldStorage::Column` on an entity type whose backend resolves to `sql-blob` (the default) passes Rule G, lives in the `_data` JSON blob, and is filtered over the blob with no index. That is supported and remains the behaviour of every shipped listing — `node`'s article listings work exactly this way.
+
+A facet that must be *physically indexed* requires its entity type to declare `storageBackend: PrimaryStorageBackend::SQL_COLUMN` on `#[ContentEntityType]` and `indexed: true` on the `#[Field]`. Declaring `indexed: true` on a type whose backend cannot materialise it raises `UnmaterializableIndexException` at schema-sync time rather than failing silently — see [`entity-system.md`](entity-system.md) §"Selecting a backend from the attribute (#2157)".
+
 ### 3.14 Error model
 
 - **FR-054** `UnsupportedListingException extends RuntimeException`. Carries `string $listingId`, `?string $fieldName`, `string $reason`.
