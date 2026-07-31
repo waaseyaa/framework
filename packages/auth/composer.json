@@ -31,12 +31,12 @@
     ],
     "require": {
         "php": ">=8.5",
-        "waaseyaa/access": "^0.1.0-alpha.279",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.279",
-        "waaseyaa/entity": "^0.1.0-alpha.279",
-        "waaseyaa/foundation": "^0.1.0-alpha.279",
-        "waaseyaa/user": "^0.1.0-alpha.279",
-        "waaseyaa/mail": "^0.1.0-alpha.279"
+        "waaseyaa/access": "^0.1.0-alpha.280",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.280",
+        "waaseyaa/entity": "^0.1.0-alpha.280",
+        "waaseyaa/foundation": "^0.1.0-alpha.280",
+        "waaseyaa/user": "^0.1.0-alpha.280",
+        "waaseyaa/mail": "^0.1.0-alpha.280"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
