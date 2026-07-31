@@ -1881,6 +1881,38 @@ composition root's explicit framework allowlist.
 `ReservedBackendIds` holds the canonical string constants for the two built-in
 backends: `SQL_BLOB = 'sql-blob'` and `SQL_COLUMN = 'sql-column'`.
 
+#### Backend registration is what makes any of this work (#2160)
+
+`AbstractKernel::validateQueryDefinitions()` builds a `BackendRegistrar` from
+`$manifest->providers`, keeping only classes implementing
+`HasFieldStorageBackendsV2Interface`. **`FrameworkFieldStorageBackendProvider`
+(`packages/entity-storage`) is the class that registers `sql-blob` and
+`sql-column`**, declared through the ordinary `extra.waaseyaa.providers` key. It
+implements `IsFrameworkBackendProviderV2Interface`, without which
+`BackendRegistrar::registerV2()` rejects both ids as reserved ids claimed by a
+third party.
+
+Before #2160 that provider did not exist and nothing else implemented the
+interface, so the registrar was **empty in every application**. Nothing noticed,
+because `DefinitionValidator::validateType()` skips every field that is not
+`isIndexed()` and `BackendResolver::resolve()` — the registrar's only live
+consumer — is reached only for indexed fields. #2157 made `indexed: true`
+declarable, and the first application to use it aborted `db:init` with
+`UnknownBackendException`, naming `sql-blob` just as readily as `sql-column`.
+
+**Registered instances are query-support only.** `BackendRegistrar` constructs
+providers with `new $fqcn()` and keys gateways by backend id alone, so a
+registered backend is global and cannot carry the table name, id key or entity
+type id that read/write/delete need. Both backends therefore expose
+`forQuerySupport()` for that role, and IO through a registry-obtained gateway
+throws rather than issuing SQL against an empty table name. Per-entity-type
+instances are constructed directly, with a real database, by the storage layer
+that knows the table.
+
+When adding a new backend, register it from a provider the manifest discovers;
+do not construct a registrar by hand. A test that constructs `EntitySchemaSync`
+directly bypasses this entire path — which is exactly how #2160 shipped.
+
 #### Selecting a backend from the attribute (#2157)
 
 `#[ContentEntityType(storageBackend: PrimaryStorageBackend::SQL_COLUMN)]`

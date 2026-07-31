@@ -58,13 +58,42 @@ final class SqlBlobBackend implements FieldStorageBackendV2Interface
     private readonly LoggerInterface $logger;
 
     public function __construct(
-        private readonly DatabaseInterface $database,
+        private readonly ?DatabaseInterface $database,
         private readonly string $entityTableName,
         private readonly string $idKey,
         private readonly string $entityTypeId,
         ?LoggerInterface $logger = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
+    }
+
+    /**
+     * Build the instance the framework backend provider registers (#2160).
+     *
+     * {@see BackendRegistrar} constructs providers with `new $fqcn()` and keys
+     * gateways by backend id alone, so a registered instance is global: it
+     * cannot carry the table name, id key or entity type id that this backend's
+     * read/write/delete paths need, and there is no seam through which it could
+     * receive them.
+     *
+     * That is sufficient, because the only operation the registrar path
+     * actually performs is `supportsQuery()`, which inspects the
+     * {@see FieldDefinition} and touches neither the database nor the table.
+     * Read, write and delete through a registry-obtained gateway throw rather
+     * than silently targeting the wrong table — see requireBinding().
+     *
+     * Per-entity-type instances are still constructed directly, with a real
+     * database, by the storage layer that knows the table.
+     */
+    public static function forQuerySupport(?LoggerInterface $logger = null): self
+    {
+        return new self(
+            database: null,
+            entityTableName: '',
+            idKey: '',
+            entityTypeId: '',
+            logger: $logger,
+        );
     }
 
     public function id(): string
@@ -110,8 +139,28 @@ final class SqlBlobBackend implements FieldStorageBackendV2Interface
      *
      * Returns null when the entity does not exist or the field is absent.
      */
+    /**
+     * @throws \LogicException When invoked on an instance built by
+     *   forQuerySupport(), which has no entity table binding (#2160).
+     */
+    private function requireBinding(string $operation): void
+    {
+        if ($this->database !== null) {
+            return;
+        }
+
+        throw new \LogicException(\sprintf(
+            'The "sql-blob" backend instance registered with BackendRegistrar supports only '
+            . 'query-support checks, so "%s" is unavailable on it: a registry-global instance has no '
+            . 'entity table binding. Construct SqlBlobBackend directly with a database, table name and '
+            . 'id key for read/write/delete.',
+            $operation,
+        ));
+    }
+
     private function read(EntityInterface $entity, FieldDefinition $field): mixed
     {
+        $this->requireBinding('read');
         $id = $entity->id();
         if ($id === null) {
             return null;
@@ -176,6 +225,7 @@ final class SqlBlobBackend implements FieldStorageBackendV2Interface
      */
     private function write(EntityInterface $entity, FieldDefinition $field, mixed $value): null
     {
+        $this->requireBinding('write');
         $id = $entity->id();
         if ($id === null) {
             return null;
@@ -229,6 +279,7 @@ final class SqlBlobBackend implements FieldStorageBackendV2Interface
      */
     private function delete(EntityInterface $entity): null
     {
+        $this->requireBinding('delete');
         $id = $entity->id();
         if ($id === null) {
             return null;
