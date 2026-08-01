@@ -32,6 +32,23 @@ final class DBALSchema implements ForeignKeySchemaInterface
         return $this->sm->tablesExist([$table]);
     }
 
+    /**
+     * Whether $field exists as a column on $table.
+     *
+     * Doctrine keys `listTableColumns()` by the column's **quoted** name
+     * whenever the identifier needs quoting — a reserved word such as `key`
+     * arrives under the key `'"key"'` while the `Column` object's `getName()`
+     * is the canonical `'key'`. A bare `isset($columns[$field])` therefore
+     * reported every reserved-word column as absent (#2163), and callers acted
+     * on the lie: `SqlColumnSchemaBuilder::addFieldColumn()` re-added a column
+     * that already existed, and `SqlBlobBackend` routed the field into the
+     * `_data` blob instead of its own column.
+     *
+     * The canonical name is the authority. Note this deliberately does not
+     * inspect quote characters or consult a reserved-word list: which
+     * identifiers need quoting is the platform's business, and `getName()`
+     * already answers it portably for every driver.
+     */
     public function fieldExists(string $table, string $field): bool
     {
         if (!$this->tableExists($table)) {
@@ -40,7 +57,20 @@ final class DBALSchema implements ForeignKeySchemaInterface
 
         $columns = $this->sm->listTableColumns($table);
 
-        return isset($columns[$field]);
+        // Fast path for ordinary identifiers, which are keyed by their own
+        // name. The name check keeps a *quoted* string such as `'"key"'` from
+        // matching: that is not a column name, it is an identifier literal.
+        if (isset($columns[$field]) && $columns[$field]->getName() === $field) {
+            return true;
+        }
+
+        foreach ($columns as $column) {
+            if ($column->getName() === $field) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function listTableNames(): array

@@ -128,12 +128,6 @@ final class SqlColumnBackend implements FieldStorageBackendV2Interface
     }
 
     /**
-     * Read a single field value from the entity's column.
-     *
-     * Returns null when the entity does not exist or the field column is absent.
-     * Performs type coercion on read (json decoded, bool cast).
-     */
-    /**
      * @throws \LogicException When invoked on an instance built by
      *   forQuerySupport(), which has no entity table binding (#2160).
      */
@@ -152,6 +146,12 @@ final class SqlColumnBackend implements FieldStorageBackendV2Interface
         ));
     }
 
+    /**
+     * Read a single field value from the entity's column.
+     *
+     * Returns null when the entity does not exist or the field column is absent.
+     * Performs type coercion on read (json decoded, bool cast).
+     */
     private function read(EntityInterface $entity, FieldDefinition $field): mixed
     {
         $this->requireBinding('read');
