@@ -8,6 +8,7 @@ use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\EntityStorage\Connection\ConnectionResolverInterface;
+use Waaseyaa\EntityStorage\Exception\UnstorableFieldException;
 use Waaseyaa\EntityStorage\Query\JsonFieldName;
 use Waaseyaa\EntityStorage\ResolvedField;
 use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
@@ -705,6 +706,7 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
 
         $dbValues = [];
         $extraData = [];
+        $unstorable = [];
 
         foreach ($values as $key => $value) {
             if ($key === '_data') {
@@ -726,17 +728,41 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
                 continue;
             }
 
-            if (isset($dataStoredFields[$key])) {
+            // The FieldStorage::Data hint routes to `_data` — but only where a
+            // `_data` column exists to route into. On a column-materialised
+            // table (sql-column) the field HAS its own real column, created by
+            // EntitySchemaSync, and must be written there. Honouring the hint
+            // unconditionally is what silently discarded the value (#2165).
+            if (isset($dataStoredFields[$key]) && $hasDataColumn) {
                 $extraData[$key] = $value;
             } elseif ($schema->fieldExists($entityType, $key)) {
                 $dbValues[$key] = $value;
-            } else {
+            } elseif ($hasDataColumn) {
                 $extraData[$key] = $value;
+            } else {
+                // No column, and no blob to fall back on. Never drop it.
+                $unstorable[] = $key;
             }
         }
 
         if ($hasDataColumn) {
             $dbValues['_data'] = json_encode($extraData, \JSON_THROW_ON_ERROR);
+
+            return $dbValues;
+        }
+
+        if ($unstorable !== []) {
+            throw UnstorableFieldException::noColumnAvailable($entityType, $unstorable);
+        }
+
+        // Every remaining value goes into a real column, so it must be
+        // something a column can hold and reload faithfully. A structured value
+        // could be written here, but would come back as whatever the driver
+        // happened to serialise, so refuse rather than corrupt it quietly.
+        foreach ($dbValues as $key => $value) {
+            if ($value !== null && !is_scalar($value)) {
+                throw UnstorableFieldException::unencodableValue($entityType, $key, get_debug_type($value));
+            }
         }
 
         return $dbValues;
