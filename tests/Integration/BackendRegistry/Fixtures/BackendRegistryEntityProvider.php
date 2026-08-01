@@ -54,6 +54,14 @@ final class RegistryColumnEntity extends ContentEntityBase
     /** Column-backed but not indexed: proves indexes follow the declaration. */
     #[Field(required: false, label: 'Note', stored: FieldStorage::Column)]
     public string $note = '';
+
+    /**
+     * A reserved SQL word (#2163). Doctrine keys listTableColumns() by the
+     * quoted name for these, so fieldExists() reported the column absent and
+     * the second db:init tried to add it again.
+     */
+    #[Field(required: false, label: 'Key', stored: FieldStorage::Column)]
+    public string $key = '';
 }
 
 /**

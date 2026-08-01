@@ -212,13 +212,48 @@ final class BuiltinBackendsAreRegisteredTest extends TestCase
     #[Test]
     public function repeated_db_init_is_idempotent(): void
     {
-        $this->runPhase('db-init');
+        // Strengthened for #2163. As first written this compared the schema
+        // before and after but never looked at an exit code, and its fixture
+        // had no reserved-word column — so it could not have caught the second
+        // `db:init` aborting with ColumnAlreadyExists. Both gaps are closed:
+        // `RegistryColumnEntity` now declares a `key` field, and every run's
+        // exit code is asserted.
+        $first = $this->runPhase('db-init');
+        self::assertSame(0, $first->getExitCode(), $this->processOutput($first));
+
         $before = [$this->columns('registry_column_entity'), $this->indexes('registry_column_entity')];
 
-        $this->runPhase('db-init');
+        foreach ([2, 3] as $run) {
+            $process = $this->runPhase('db-init');
+
+            self::assertSame(
+                0,
+                $process->getExitCode(),
+                sprintf('db:init run %d must succeed: %s', $run, $this->processOutput($process)),
+            );
+            self::assertStringNotContainsString('ColumnAlreadyExists', $this->processOutput($process));
+
+            self::assertSame(
+                $before,
+                [$this->columns('registry_column_entity'), $this->indexes('registry_column_entity')],
+                sprintf('db:init run %d must not mutate the schema', $run),
+            );
+        }
+    }
+
+    #[Test]
+    public function a_reserved_word_column_is_materialised_and_survives_a_resync(): void
+    {
+        // The kernel-level half of #2163: `key` is a reserved word, so
+        // fieldExists() reported it absent and the "table already exists"
+        // branch tried to add it a second time.
         $this->runPhase('db-init');
 
-        self::assertSame($before, [$this->columns('registry_column_entity'), $this->indexes('registry_column_entity')]);
+        self::assertContains('key', $this->columns('registry_column_entity'), 'the reserved-word column must exist');
+
+        $second = $this->runPhase('db-init');
+        self::assertSame(0, $second->getExitCode(), $this->processOutput($second));
+        self::assertContains('key', $this->columns('registry_column_entity'), 'and must still exist after a resync');
     }
 
     // ------------------------------------------------------------------
@@ -264,6 +299,11 @@ final class BuiltinBackendsAreRegisteredTest extends TestCase
         $process->run();
 
         return $process;
+    }
+
+    private function processOutput(Process $process): string
+    {
+        return trim($process->getOutput() . "\n" . $process->getErrorOutput());
     }
 
     /** @return array<string, mixed> */

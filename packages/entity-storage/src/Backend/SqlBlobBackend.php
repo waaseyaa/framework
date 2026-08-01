@@ -132,14 +132,6 @@ final class SqlBlobBackend implements FieldStorageBackendV2Interface
     }
 
     /**
-     * Read a single field value for an entity.
-     *
-     * For column-stored fields: fetches directly from the named column.
-     * For blob-stored fields: fetches the `_data` JSON and extracts the key.
-     *
-     * Returns null when the entity does not exist or the field is absent.
-     */
-    /**
      * @throws \LogicException When invoked on an instance built by
      *   forQuerySupport(), which has no entity table binding (#2160).
      */
@@ -158,6 +150,14 @@ final class SqlBlobBackend implements FieldStorageBackendV2Interface
         ));
     }
 
+    /**
+     * Read a single field value for an entity.
+     *
+     * For column-stored fields: fetches directly from the named column.
+     * For blob-stored fields: fetches the `_data` JSON and extracts the key.
+     *
+     * Returns null when the entity does not exist or the field is absent.
+     */
     private function read(EntityInterface $entity, FieldDefinition $field): mixed
     {
         $this->requireBinding('read');
