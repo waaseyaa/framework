@@ -1881,6 +1881,38 @@ composition root's explicit framework allowlist.
 `ReservedBackendIds` holds the canonical string constants for the two built-in
 backends: `SQL_BLOB = 'sql-blob'` and `SQL_COLUMN = 'sql-column'`.
 
+#### `FieldStorage::Data` under `sql-column`: the hint follows the physical shape (#2165)
+
+`FieldStorage::Data` says where a value *should* live. It does not say where it
+*does*, and on `sql-column` the two differ: `EntitySchemaSync` selects
+entity-level fields by **backend**, so it materialises a real column for every
+declared field and creates no `_data` blob at all.
+
+Both storage sides now resolve the hint against the physical shape rather than
+against the hint alone:
+
+- `SqlStorageDriver::splitForWrite()` routes a Data-declared value to `_data`
+  **only when a `_data` column exists**; otherwise it writes to the column that
+  was created for it.
+- `SqlEntityQuery::resolveField()` emits `json_extract(<table>._data, …)` under
+  the same condition, so a filter or sort on a Data-declared field works on
+  `sql-column` instead of querying a column that is not there.
+
+Before #2165 the write half honoured the hint unconditionally and flushed its
+JSON bucket only `if ($hasDataColumn)` — so on a blob-less table the bucket was
+**silently discarded**. `save()` returned success, nothing was logged, and the
+column stayed `NULL`. The read path was never broken, which made the symptom
+look like a lost reload rather than a write that never happened.
+
+Anything genuinely unstorable now raises `UnstorableFieldException` rather than
+vanishing: a value with no column *and* no blob, or a non-scalar bound for a
+column this driver cannot encode and reload faithfully.
+
+`splitForWrite()` has a single caller, so create, update and revision writes
+inherit this from one boundary. When adding a storage path, resolve `stored:`
+against the table's real shape — a `_data` column is a property of the backend,
+not of the field.
+
 #### Backend registration is what makes any of this work (#2160)
 
 `AbstractKernel::validateQueryDefinitions()` builds a `BackendRegistrar` from

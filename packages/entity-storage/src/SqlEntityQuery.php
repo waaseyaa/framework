@@ -85,6 +85,9 @@ final class SqlEntityQuery implements EntityQueryInterface
      */
     private ?array $dataStoredCoreFieldNames = null;
 
+    /** Memoised `_data` column probe; see {@see hasDataColumn()}. */
+    private ?bool $dataColumnExists = null;
+
     /**
      * Account bound to this query for per-row access checking. When
      * {@see $accessCheckEnabled} is true and this is null, {@see execute()}
@@ -371,7 +374,7 @@ final class SqlEntityQuery implements EntityQueryInterface
             // write side via getDataStoredCoreFieldNames(); both paths consult
             // the same FieldDefinition->getStored() hint, so reads cannot
             // shadow writes.
-            if ($bundle === null && isset($this->getDataStoredCoreFieldNames()[$field])) {
+            if ($bundle === null && isset($this->getDataStoredCoreFieldNames()[$field]) && $this->hasDataColumn()) {
                 $this->assertQueryableJsonFieldName($field);
 
                 return ResolvedField::expression(
@@ -441,6 +444,24 @@ final class SqlEntityQuery implements EntityQueryInterface
      *
      * @return array<string, true>
      */
+    /**
+     * Whether this entity's table actually has a `_data` blob column.
+     *
+     * The `FieldStorage::Data` hint says where a value *should* live, not where
+     * it *does*. On the `sql-column` backend `EntitySchemaSync` materialises a
+     * real column for every declared field and creates no blob at all, so
+     * routing a Data-hinted field to `json_extract(_data, ...)` would query a
+     * column that does not exist (#2165).
+     *
+     * The write path applies the identical rule in
+     * {@see \Waaseyaa\EntityStorage\Driver\SqlStorageDriver::splitForWrite()}, so
+     * reads and writes agree on the physical shape and not merely on the hint.
+     */
+    private function hasDataColumn(): bool
+    {
+        return $this->dataColumnExists ??= $this->database->schema()->fieldExists($this->tableName, '_data');
+    }
+
     private function getDataStoredCoreFieldNames(): array
     {
         if ($this->dataStoredCoreFieldNames !== null) {
