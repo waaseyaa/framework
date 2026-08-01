@@ -404,6 +404,7 @@ abstract class AbstractKernel
             fn(): ?EntityAccessHandler => $this->accessHandler ?? null,
             $this->applicationSecret(),
             $this->fieldReadScope(),
+            requestContext: $this->requestContextForProviders(),
         );
     }
 
@@ -573,6 +574,7 @@ abstract class AbstractKernel
             $this->accountContext(),
             manifest: $this->manifest,
             fieldReadScope: $this->fieldReadScope(),
+            requestContext: $this->requestContextForProviders(),
         );
         $resolver = new KernelPolicyDependencyResolver($kernelServices);
         $this->accessHandler = new AccessPolicyRegistry($this->logger, $resolver)->discover($this->manifest);
@@ -606,6 +608,7 @@ abstract class AbstractKernel
             $this->manifest,
             $this->applicationSecret,
             $this->fieldReadScope(),
+            requestContext: $this->requestContextForProviders(),
         );
         $scope = $kernelServices->get(AccountFieldReadScopeInterface::class);
         if (!$scope instanceof AccountFieldReadScopeInterface) {
@@ -629,6 +632,21 @@ abstract class AbstractKernel
      *
      * Placed after discoverAccessPolicies() so all provider bindings are live.
      */
+    /**
+     * The live request's {@see \Waaseyaa\Foundation\Http\RequestContext}, or
+     * null when this kernel is not serving an HTTP request (#2167).
+     *
+     * Console and CLI kernels keep the null default, so their consumers see the
+     * anonymous context their own provider binds — unchanged behaviour.
+     * {@see \Waaseyaa\Foundation\Kernel\HttpKernel} overrides this to supply
+     * the request's actual query parameters, which is what lets `?page=` and
+     * exposed filter parameters reach the Listing pipeline.
+     */
+    protected function requestContextForProviders(): ?\Waaseyaa\Foundation\Http\RequestContext
+    {
+        return null;
+    }
+
     protected function bootScheduleEntries(): void
     {
         $this->schedule = new Schedule();
@@ -643,6 +661,7 @@ abstract class AbstractKernel
             $this->accountContext(),
             manifest: $this->manifest,
             fieldReadScope: $this->fieldReadScope(),
+            requestContext: $this->requestContextForProviders(),
         );
         $resolver = new KernelPolicyDependencyResolver($kernelServices);
         new ScheduleEntryRegistry($this->logger, $resolver)
@@ -671,6 +690,7 @@ abstract class AbstractKernel
             manifest: $this->manifest,
             applicationSecret: $this->applicationSecret,
             fieldReadScope: $this->fieldReadScope(),
+            requestContext: $this->requestContextForProviders(),
         );
         $gatewayAudit = $kernelServices->get(StrictFieldStorageGatewayAuditInterface::class);
         $gatewayAudit = $gatewayAudit instanceof StrictFieldStorageGatewayAuditInterface
