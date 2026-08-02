@@ -29,6 +29,7 @@ use Waaseyaa\Foundation\Http\HttpServiceResolverInterface;
 use Waaseyaa\Foundation\Http\Inertia\InertiaFullPageRendererInterface;
 use Waaseyaa\Foundation\Http\JsonApiResponseTrait;
 use Waaseyaa\Foundation\Http\LanguagePathStripperInterface;
+use Waaseyaa\Foundation\Http\RequestContext as ListingRequestContext;
 use Waaseyaa\Foundation\Http\Router as HttpRouter;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistryKernelServices;
 use Waaseyaa\Foundation\Kernel\Http\HttpKernelServiceResolver;
@@ -268,6 +269,7 @@ final class HttpKernel extends AbstractKernel
                 providersAccessor: fn(): array => $this->providers,
                 manifest: $this->manifest,
                 fieldReadScope: $this->fieldReadScope(),
+                requestContext: $this->requestContextForProviders(),
             ),
             logger: $this->logger,
         );
@@ -326,6 +328,70 @@ final class HttpKernel extends AbstractKernel
      * Runs CORS, routing, middleware, and controller dispatch. Returns a
      * Symfony Response; uncaught throwables bubble to handle().
      */
+    /**
+     * The live request's query parameters, as the Listing pipeline's
+     * {@see ListingRequestContext} (#2167).
+     *
+     * Aliased on import because Symfony's routing `RequestContext` already
+     * holds that name in this file and means something entirely different.
+     *
+     * Before this existed, `packages/listing`'s ServiceProvider bound an
+     * anonymous `new RequestContext()` and its comment promised that "CLI and
+     * HTTP kernels override the binding" — an override that was never written.
+     * `ListingResolver` therefore never saw `?page=`, so pagination was
+     * unreachable for every listing in every application while `hasNext` still
+     * reported `true`.
+     *
+     * Read from `$_GET`, which PHP populated from the request line before any
+     * framework code ran. The kernel is the correct place for that read: it
+     * already consults `$_SERVER` here, and doing it here is what keeps
+     * `ListingResolver` free of globals.
+     *
+     * `RequestContext::getQueryParams()` is declared `array<string, string>`,
+     * so non-scalar values (`?a[]=1&a[]=2`) are reduced to their last scalar
+     * leaf rather than breaking the contract. Repeated scalar parameters
+     * (`?a=1&a=2`) follow PHP's own last-wins semantics, because `$_GET`
+     * already collapsed them.
+     */
+    protected function requestContextForProviders(): ListingRequestContext
+    {
+        $query = [];
+        foreach ($_GET as $name => $value) {
+            $flattened = self::flattenQueryValue($value);
+            if ($flattened !== null) {
+                $query[(string) $name] = $flattened;
+            }
+        }
+
+        return new ListingRequestContext(queryParams: $query);
+    }
+
+    /**
+     * Reduce one query value to a single string, or null when it carries none.
+     */
+    private static function flattenQueryValue(mixed $value): ?string
+    {
+        if (is_string($value)) {
+            return $value;
+        }
+        if (is_int($value) || is_float($value) || is_bool($value)) {
+            return (string) $value;
+        }
+        if (is_array($value)) {
+            $last = null;
+            foreach ($value as $nested) {
+                $candidate = self::flattenQueryValue($nested);
+                if ($candidate !== null) {
+                    $last = $candidate;
+                }
+            }
+
+            return $last;
+        }
+
+        return null;
+    }
+
     private function serveHttpRequest(): HttpResponse
     {
         // Configure trusted reverse proxies BEFORE any code reads

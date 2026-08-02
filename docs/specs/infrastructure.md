@@ -272,6 +272,47 @@ The provider list is read through a closure accessor so resolution sees the live
 
 **Propagation through `mergeChildProvider()`.** When a stack provider merges a child via `mergeChildProvider()`, the child receives the same `KernelServicesInterface` instance so `resolve()` keeps working inside the child’s `register()`.
 
+### Per-request state on the kernel-services bus (#2167)
+
+Most bus entries are process-scoped (the entity-type manager, the database, the
+dispatcher). `RequestContext` is the exception: it is **per-request**, and the
+kernel supplies it.
+
+- `HttpKernel::requestContextForProviders()` builds one from the live request's
+  query parameters.
+- `AbstractKernel` returns `null`, so console and CLI kernels leave consumers
+  with whatever anonymous default their own provider binds.
+- `ProviderRegistry::discoverAndRegister()` threads it into the bus that
+  providers actually receive. There are several bus construction sites; this is
+  the one whose instance reaches provider bindings, and wiring only the others
+  leaves the value unreachable.
+
+**A provider that binds a per-request service locally must consult the bus
+inside its own binding.** `ServiceProvider::resolve()` checks local bindings
+**first** and only then falls back to the bus, so a local binding that ignores
+the bus wins every time. Before #2167 `packages/listing` bound
+`new RequestContext()` and its comment promised a kernel override that could
+therefore never have taken effect however it was written — `?page=` reached no
+listing in any application, while `Pagination::hasNext` still reported `true`.
+
+The correct shape:
+
+```php
+$this->singleton(
+    RequestContext::class,
+    function (): RequestContext {
+        $fromKernel = $this->kernelServices?->get(RequestContext::class);
+
+        return $fromKernel instanceof RequestContext ? $fromKernel : new RequestContext();
+    },
+);
+```
+
+`RequestContext::getQueryParams()` is `array<string, string>`. Bracketed and
+nested array values reduce to their last scalar leaf rather than widening the
+declared type for every consumer; repeated scalars follow PHP's own last-wins
+semantics.
+
 ### HTTP service resolver (SSR controller-method DI)
 
 <!-- Spec reviewed 2026-05-07 - foundation-symfony-fallback-elimination-01KQZR1 WP03–WP04: resolver + routing exceptions + RouteBuilder/_controller normalization -->

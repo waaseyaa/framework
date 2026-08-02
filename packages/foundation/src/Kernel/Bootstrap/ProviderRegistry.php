@@ -12,6 +12,7 @@ use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Exception\EntityTypeRegistrationCollisionException;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
+use Waaseyaa\Foundation\Http\RequestContext;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -49,6 +50,12 @@ final class ProviderRegistry
         ?\Closure $accessHandlerAccessor = null,
         ?ApplicationSecret $applicationSecret = null,
         ?AccountFieldReadScopeInterface $fieldReadScope = null,
+        /**
+         * The live request's {@see RequestContext} (#2167). Null on kernels not
+         * serving an HTTP request, where consumers keep their provider's
+         * anonymous default.
+         */
+        ?RequestContext $requestContext = null,
     ): array {
         $this->providers = [];
 
@@ -63,6 +70,7 @@ final class ProviderRegistry
             manifest: $manifest,
             applicationSecret: $applicationSecret,
             fieldReadScope: $fieldReadScope,
+            requestContext: $requestContext,
         );
 
         foreach ($manifest->providers as $providerClass) {

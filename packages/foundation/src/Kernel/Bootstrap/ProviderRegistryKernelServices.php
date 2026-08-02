@@ -18,6 +18,7 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface as FoundationEventDispatcherInterface;
+use Waaseyaa\Foundation\Http\RequestContext;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
@@ -78,6 +79,14 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
         private readonly ?PackageManifest $manifest = null,
         private readonly ?ApplicationSecret $applicationSecret = null,
         private readonly ?AccountFieldReadScopeInterface $fieldReadScope = null,
+        /**
+         * The live request's {@see RequestContext} (#2167).
+         *
+         * Null on every construction site without an HTTP request — CLI,
+         * console, unit tests — where consumers keep the anonymous default
+         * their own provider binds.
+         */
+        private readonly ?RequestContext $requestContext = null,
     ) {
         $this->providersAccessor = $providersAccessor;
         $this->accessHandlerAccessor = $accessHandlerAccessor;
@@ -85,6 +94,15 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
 
     public function get(string $abstract): ?object
     {
+        if ($abstract === RequestContext::class) {
+            // #2167: per-request state. The listing ServiceProvider binds an
+            // anonymous default so it works without a kernel; when a real
+            // request exists the kernel supplies this one instead, which is
+            // the only way `?page=` (and exposed filter params) reach
+            // ListingResolver. Null here means "no request", not "no value" —
+            // the provider's default stands.
+            return $this->requestContext;
+        }
         if ($abstract === EntityTypeManager::class || $abstract === EntityTypeManagerInterface::class) {
             return $this->entityTypeManager;
         }

@@ -71,12 +71,23 @@ final class ServiceProvider extends FoundationServiceProvider
             ),
         );
 
-        // RequestContext is per-request state; absent an HTTP request we bind
-        // a default anonymous instance. CLI and HTTP kernels override the
-        // binding via setKernelServices() once a real request lands.
+        // RequestContext is per-request state. When a real HTTP request exists
+        // the kernel supplies one through the kernel-services bus; absent that
+        // (CLI, console, unit construction) we bind an anonymous default.
+        //
+        // The bus must be consulted HERE rather than relied on to shadow this
+        // binding: ServiceProvider::resolve() checks local bindings first and
+        // only falls back to the bus, so a local binding that ignored it would
+        // win every time. That is exactly what happened before #2167 — the
+        // comment here promised a kernel override that could never take effect,
+        // and `?page=` never reached ListingResolver in any application.
         $this->singleton(
             RequestContext::class,
-            static fn(): RequestContext => new RequestContext(),
+            function (): RequestContext {
+                $fromKernel = $this->kernelServices?->get(RequestContext::class);
+
+                return $fromKernel instanceof RequestContext ? $fromKernel : new RequestContext();
+            },
         );
 
         // -----------------------------------------------------------------
