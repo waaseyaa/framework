@@ -40,6 +40,22 @@ final readonly class FieldAccessActivationPreflight
             throw new FieldAccessActivationBlocked('Field-read activation preflight artifact is malformed.', previous: $error);
         }
 
+        // Provenance before contents (#2171). The scanner generation decides
+        // which tables the fingerprint covers and which blockers were swept, so
+        // an artifact from another generation answers a different question than
+        // this framework asks. Its checksum is self-consistent and its
+        // fingerprint can coincide on a database whose table sets happen to
+        // match, so nothing further down would catch it. State this framework
+        // cannot verify must not be treated as verified — in either direction,
+        // because a newer artifact is just as opaque as an older one.
+        if ($data->scannerVersion !== FieldAccessPreflightData::CURRENT_SCANNER_VERSION) {
+            throw new FieldAccessActivationBlocked(sprintf(
+                'Field-read activation preflight was produced by scanner version %d; this framework requires %d. Regenerate it with `waaseyaa field-access:preflight --write-artifact`.',
+                $data->scannerVersion,
+                FieldAccessPreflightData::CURRENT_SCANNER_VERSION,
+            ));
+        }
+
         if (!hash_equals($frameworkVersion, $data->frameworkVersion)
             || !hash_equals($schemaFingerprint, $data->schemaFingerprint)
         ) {
@@ -78,7 +94,16 @@ final readonly class FieldAccessActivationPreflight
     private function stringList(array $data, string $key): array
     {
         $value = $data[$key] ?? null;
-        if (!is_array($value) || !array_is_list($value) || !array_all($value, 'is_string')) {
+        // `array_all()` invokes the callback as ($value, $key), so passing the
+        // bare 'is_string' raised ArgumentCountError for every NON-EMPTY list —
+        // meaning any artifact that actually carried a blocker was reported as
+        // "malformed" instead of naming the blocker. It failed closed, so this
+        // was never a hole; it was an operator staring at the wrong diagnosis
+        // during a blocked deploy, and it is why the honest not-ready path had
+        // no coverage until #2171.
+        if (!is_array($value) || !array_is_list($value)
+            || !array_all($value, static fn(mixed $entry): bool => is_string($entry))
+        ) {
             throw new \UnexpectedValueException(sprintf('Preflight key "%s" must be a string list.', $key));
         }
         return $value;

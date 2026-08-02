@@ -6,6 +6,7 @@ namespace Waaseyaa\CLI\Security;
 
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Database\Schema\TableColumnNames;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Preflight\EntityStorageSchemaShape;
 use Waaseyaa\Field\Preflight\FieldAccessLiveInventory;
@@ -62,8 +63,13 @@ final readonly class DatabaseFieldAccessInventoryScanner
         $legacyPayloads = [];
 
         foreach ($tables as $table) {
-            $columns = array_keys($schema->listTableColumns($table));
-            sort($columns);
+            // Canonical names, never `array_keys()` (#2171): Doctrine keys a
+            // reserved-word column by its *quoted* identifier, which would
+            // enter the inventory as a live key no definition can classify and
+            // poison the schema fingerprint with the same literal. Must stay in
+            // lockstep with LiveEntitySchemaFingerprint, or a correct artifact
+            // reads as stale at boot.
+            $columns = TableColumnNames::sortedFor($schema, $table);
             $schemaShape[$table] = $columns;
 
             if (in_array($table, ['waaseyaa_queue_jobs', 'waaseyaa_failed_jobs'], true)) {
