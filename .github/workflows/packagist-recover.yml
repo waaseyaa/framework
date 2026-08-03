@@ -1,0 +1,196 @@
+name: Recover Packagist Publication
+
+# Targeted recovery for packages that Packagist ACCEPTED but never CRAWLED.
+#
+# Why this exists (alpha.285): `split.yml`'s publish-packagist job submits one
+# `POST /api/update-package` per package in a tight loop, treats HTTP 200/202 as
+# success, and discards the response body. A 202 means **queued, not
+# published** — so when Packagist accepted the job and then never crawled it,
+# the job went green while `waaseyaa/admin-surface`, `waaseyaa/analytics` and
+# `waaseyaa/attachment` stayed on alpha.284. The verify workflow polled 24 times
+# over ~12 minutes and correctly went red, but by then there was no supported
+# way to resubmit just the affected packages without re-running the whole
+# release fan-out.
+#
+# This workflow is that way. It is deliberately narrow: an explicit package
+# list, an existing tag, one submission at a time, and success defined as **the
+# exact tag appearing in P2 metadata** — never as an accepted POST.
+#
+# It does NOT cut a version, move a tag, or touch the monorepo.
+
+on:
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: 'Comma-separated package names to recover, e.g. waaseyaa/analytics,waaseyaa/attachment'
+        required: true
+        type: string
+      tag:
+        description: 'Existing release tag that must become visible, e.g. v0.1.0-alpha.285'
+        required: true
+        type: string
+      max_attempts:
+        description: 'Submission attempts per package before giving up'
+        required: false
+        default: '3'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    name: Recover ${{ inputs.tag }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Recover named packages
+        env:
+          PACKAGIST_USERNAME: ${{ secrets.PACKAGIST_USERNAME }}
+          PACKAGIST_TOKEN: ${{ secrets.PACKAGIST_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          PACKAGES: ${{ inputs.packages }}
+          TAG: ${{ inputs.tag }}
+          MAX_ATTEMPTS: ${{ inputs.max_attempts }}
+        run: |
+          set -uo pipefail
+
+          if [ -z "${PACKAGIST_USERNAME}" ] || [ -z "${PACKAGIST_TOKEN}" ]; then
+            echo "::error::PACKAGIST_USERNAME / PACKAGIST_TOKEN not set."
+            exit 1
+          fi
+
+          # Packagist asks API consumers to identify themselves.
+          UA='waaseyaa-release/1.0 (+https://github.com/waaseyaa/framework; packagist recovery)'
+
+          # Validate every input before it reaches a URL or an API path.
+          # These are dispatch inputs, so they already require write access —
+          # but they are interpolated into `gh api repos/.../git/ref/tags/...`
+          # and into request bodies, where a crafted value could traverse to a
+          # different resource. Reject anything that is not exactly the shape
+          # we expect, rather than escaping and hoping.
+          if ! printf '%s' "${TAG}" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::Refusing to run: tag is not a semver tag."
+            exit 1
+          fi
+          if ! printf '%s' "${MAX_ATTEMPTS}" | grep -qE '^[1-9][0-9]?$'; then
+            echo "::error::Refusing to run: max_attempts must be 1-99."
+            exit 1
+          fi
+
+          missing=()
+          recovered=()
+
+          IFS=',' read -ra PKGS <<< "${PACKAGES}"
+          for raw in "${PKGS[@]}"; do
+            pkg="$(printf '%s' "${raw}" | tr -d '[:space:]')"
+            [ -z "${pkg}" ] && continue
+
+            # Same reasoning as the tag check: this becomes a repo path and a
+            # P2 URL. Only vendor-owned, lowercase, hyphenated names.
+            if ! printf '%s' "${pkg}" | grep -qE '^waaseyaa/[a-z0-9]([a-z0-9-]*[a-z0-9])?$'; then
+              echo "::error::Refusing to submit '${pkg}': not a well-formed waaseyaa/* package name."
+              missing+=("${pkg}")
+              continue
+            fi
+
+            short="${pkg#waaseyaa/}"
+            repo_url="https://github.com/${REPO_OWNER}/${short}"
+
+            echo "::group::${pkg}"
+
+            # ---- 1. The tag must already exist in the split repo -------------
+            # Submitting an update for a tag that was never pushed would ask
+            # Packagist to crawl something that does not exist, and the failure
+            # would look identical to the one we are recovering from.
+            if ! gh api "repos/${REPO_OWNER}/${short}/git/ref/tags/${TAG}" -q .object.sha >/dev/null 2>&1; then
+              echo "::error::${pkg}: split repo has no ${TAG}. Refusing to submit — fix the split first."
+              missing+=("${pkg}")
+              echo "::endgroup::"
+              continue
+            fi
+            echo "${pkg}: split repo carries ${TAG}."
+
+            # ---- 2. Already published? -------------------------------------
+            if curl -sS -A "${UA}" "https://repo.packagist.org/p2/${pkg}.json" \
+                 | jq -e --arg t "${TAG}" '.packages[][] | select(.version == $t)' >/dev/null 2>&1; then
+              echo "::notice::${pkg}: ${TAG} already visible — nothing to do."
+              recovered+=("${pkg}")
+              echo "::endgroup::"
+              continue
+            fi
+
+            published=0
+            attempt=1
+            while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
+              # ---- 3. Submit ONE update, and read the response -------------
+              # The body carries the job id. Discarding it (as split.yml does)
+              # is why the original failure was undiagnosable after the fact.
+              code=$(curl -sS -A "${UA}" -o /tmp/resp.json -w '%{http_code}' -X POST \
+                "https://packagist.org/api/update-package?username=${PACKAGIST_USERNAME}&apiToken=${PACKAGIST_TOKEN}" \
+                -H 'Content-Type: application/json' \
+                -d "{\"repository\":{\"url\":\"${repo_url}\"}}" || echo "000")
+
+              # Never echo the URL (it carries the token). Only the parsed body.
+              job_id=$(jq -r '.job // .jobs[0] // empty' /tmp/resp.json 2>/dev/null)
+              status_txt=$(jq -r '.status // empty' /tmp/resp.json 2>/dev/null)
+              echo "${pkg}: attempt ${attempt} HTTP ${code} status=${status_txt:-none} job=${job_id:-none}"
+
+              if [ "${code}" != "200" ] && [ "${code}" != "202" ]; then
+                # Transient API failure: back off and retry.
+                sleep $(( attempt * 20 + RANDOM % 10 ))
+                attempt=$(( attempt + 1 ))
+                continue
+              fi
+
+              # ---- 4. Accepted != published. Poll P2 for the exact tag. -----
+              for poll in $(seq 1 20); do
+                sleep $(( 15 + RANDOM % 10 ))
+                if curl -sS -A "${UA}" "https://repo.packagist.org/p2/${pkg}.json" \
+                     | jq -e --arg t "${TAG}" '.packages[][] | select(.version == $t)' >/dev/null 2>&1; then
+                  echo "::notice::${pkg}: ${TAG} visible in P2 after poll ${poll} (job ${job_id:-none})."
+                  published=1
+                  break
+                fi
+              done
+
+              [ "${published}" = "1" ] && break
+
+              echo "::warning::${pkg}: accepted (job ${job_id:-none}) but ${TAG} never appeared; resubmitting."
+              sleep $(( attempt * 30 + RANDOM % 15 ))
+              attempt=$(( attempt + 1 ))
+            done
+
+            if [ "${published}" = "1" ]; then
+              recovered+=("${pkg}")
+            else
+              missing+=("${pkg}")
+            fi
+
+            echo "::endgroup::"
+
+            # Spacing between packages. The original failure correlates with 76
+            # unspaced POSTs, and the three that were dropped were the first
+            # three alphabetically.
+            sleep 10
+          done
+
+          echo "recovered=${recovered[*]:-}" >> "${GITHUB_OUTPUT}"
+
+          {
+            echo "## Packagist recovery — ${TAG}"
+            echo
+            echo "| Package | Result |"
+            echo "|---|---|"
+            for p in "${recovered[@]:-}"; do [ -n "${p}" ] && echo "| \`${p}\` | published |"; done
+            for p in "${missing[@]:-}"; do [ -n "${p}" ] && echo "| \`${p}\` | **STILL MISSING** |"; done
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          if [ "${#missing[@]}" -gt 0 ] && [ -n "${missing[0]:-}" ]; then
+            printf '::error::Still missing after recovery: %s\n' "${missing[*]}"
+            printf '::error::Retry: gh workflow run packagist-recover.yml -f packages=%s -f tag=%s\n' \
+              "$(IFS=,; echo "${missing[*]}")" "${TAG}"
+            exit 1
+          fi
+
+          echo "::notice::All requested packages are visible at ${TAG}."
