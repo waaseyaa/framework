@@ -88,7 +88,7 @@ final class EntityListRevisionsTool extends AbstractAgentTool
         } catch (\LogicException $e) {
             return AgentToolResult::error(sprintf('entity.list_revisions: %s is not revisionable (%s)', $entityType, $e->getMessage()));
         } catch (\Throwable $e) {
-            return AgentToolResult::error(sprintf('entity.list_revisions: %s', $e->getMessage()));
+            return $this->internalError('entity.list_revisions', $e);
         }
 
         $rows = [];

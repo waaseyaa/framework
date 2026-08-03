@@ -125,7 +125,7 @@ final class RelationshipTraverseTool extends AbstractAgentTool
             }
             $rows = $repository->findBy($criteria, [], 100);
         } catch (\Throwable $e) {
-            return AgentToolResult::error(sprintf('relationship.traverse: %s', $e->getMessage()));
+            return $this->internalError('relationship.traverse', $e);
         }
 
         $edges = [];

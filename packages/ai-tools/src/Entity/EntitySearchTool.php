@@ -82,7 +82,7 @@ final class EntitySearchTool extends AbstractAgentTool
             $repository = $this->entityTypeManager->getRepository($entityType);
             $candidates = $repository->findBy([], [], $limit * 4);
         } catch (\Throwable $e) {
-            return AgentToolResult::error(sprintf('entity.search: %s', $e->getMessage()));
+            return $this->internalError('entity.search', $e);
         }
 
         $needle = mb_strtolower($query);

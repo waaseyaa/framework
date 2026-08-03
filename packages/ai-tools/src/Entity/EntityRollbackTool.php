@@ -101,7 +101,7 @@ final class EntityRollbackTool extends AbstractAgentTool
         } catch (\LogicException $e) {
             return AgentToolResult::error(sprintf('entity.rollback: %s is not revisionable (%s)', $entityType, $e->getMessage()));
         } catch (\Throwable $e) {
-            return AgentToolResult::error(sprintf('entity.rollback: %s', $e->getMessage()));
+            return $this->internalError('entity.rollback', $e);
         }
 
         $newRevision = method_exists($reverted, 'getRevisionId') ? $reverted->getRevisionId() : null;

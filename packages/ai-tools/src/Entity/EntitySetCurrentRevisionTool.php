@@ -102,7 +102,7 @@ final class EntitySetCurrentRevisionTool extends AbstractAgentTool
         } catch (\LogicException $e) {
             return AgentToolResult::error(sprintf('entity.set_current_revision: %s is not revisionable (%s)', $entityType, $e->getMessage()));
         } catch (\Throwable $e) {
-            return AgentToolResult::error(sprintf('entity.set_current_revision: %s', $e->getMessage()));
+            return $this->internalError('entity.set_current_revision', $e);
         }
 
         return AgentToolResult::success(

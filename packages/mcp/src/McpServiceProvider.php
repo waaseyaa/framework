@@ -12,6 +12,7 @@ use Waaseyaa\Api\McpAdmin\ServerConfigReadModelInterface;
 use Waaseyaa\Api\McpAdmin\ToolRegistryReadModelInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Exception\ConfigException;
+use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Mcp\Admin\RecentInvocationsQueryInterface;
 use Waaseyaa\Mcp\Admin\ServerConfigReadModel;
@@ -81,6 +82,7 @@ final class McpServiceProvider extends ServiceProvider
                 );
 
                 [$limiter, $maxRequests, $windowSeconds] = $this->rateLimitSettings();
+                $logger = $this->resolveOptional(LoggerInterface::class);
 
                 return new McpEndpoint(
                     auth: $this->resolvePublicAuth(),
@@ -92,6 +94,7 @@ final class McpServiceProvider extends ServiceProvider
                     rateLimitMaxRequests: $maxRequests,
                     rateLimitWindowSeconds: $windowSeconds,
                     rateLimitTier: 'public',
+                    logger: $logger instanceof LoggerInterface ? $logger : null,
                 );
             },
         );
@@ -128,6 +131,7 @@ final class McpServiceProvider extends ServiceProvider
                 );
 
                 [$limiter, $maxRequests, $windowSeconds] = $this->rateLimitSettings();
+                $logger = $this->resolveOptional(LoggerInterface::class);
 
                 $inner = new McpEndpoint(
                     auth: $this->resolveWriteTierAuth(),
@@ -139,6 +143,7 @@ final class McpServiceProvider extends ServiceProvider
                     rateLimitMaxRequests: $maxRequests,
                     rateLimitWindowSeconds: $windowSeconds,
                     rateLimitTier: 'write',
+                    logger: $logger instanceof LoggerInterface ? $logger : null,
                 );
 
                 return new AuthenticatedMcpEndpoint($inner);

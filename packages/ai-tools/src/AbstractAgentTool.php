@@ -6,8 +6,11 @@ namespace Waaseyaa\AI\Tools;
 
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\AI\Tools\Error\SanitizedToolError;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
 
 /**
  * Convenience base for {@see AgentToolInterface} implementations.
@@ -64,6 +67,50 @@ abstract class AbstractAgentTool implements AgentToolInterface
      * capability-only construction (unit tests, hosts with no entity policy).
      */
     private bool $accessEnforced = false;
+
+    /**
+     * Destination for the detail of an unhandled exception caught inside a tool.
+     * Null = not attached (bare construction); {@see internalError()} then
+     * discards the detail through a {@see NullLogger}. The production registry
+     * attaches the kernel logger at hydration, exactly as it does the access
+     * handler. Sanitization of the RESULT never depends on this being set.
+     */
+    private ?LoggerInterface $logger = null;
+
+    /**
+     * Attach the logger that {@see internalError()} writes exception detail to.
+     *
+     * @api
+     */
+    public function setLogger(?LoggerInterface $logger): void
+    {
+        $this->logger = $logger;
+    }
+
+    /**
+     * The refusal for an exception a tool could not handle.
+     *
+     * Tools catch `\Throwable` around their storage work so one failing call
+     * cannot take down an agent run. Embedding `$e->getMessage()` in the result
+     * — the prior behavior — handed DSN fragments, credentials and absolute
+     * server paths to the caller, including an anonymous MCP caller. The result
+     * now carries a fixed message plus a correlation id, and the detail goes to
+     * the log under that id.
+     *
+     * Use this ONLY for the generic infrastructure arm. Typed domain failures
+     * (validation, revision conflict, key refusal, "not revisionable") stay as
+     * they are: they are authored, machine-readable, and an agent acts on them.
+     */
+    protected function internalError(string $toolName, \Throwable $e): AgentToolResult
+    {
+        $correlationId = SanitizedToolError::correlationId();
+        ($this->logger ?? new NullLogger())->error(
+            'agent_tool.execution_failed',
+            SanitizedToolError::logContext($e, $correlationId, $toolName),
+        );
+
+        return SanitizedToolError::result($correlationId);
+    }
 
     /**
      * Attach a policy gate so write/read operations consult the entity

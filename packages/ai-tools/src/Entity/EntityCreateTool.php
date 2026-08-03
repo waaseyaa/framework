@@ -117,7 +117,7 @@ final class EntityCreateTool extends AbstractAgentTool
         } catch (EntityValidationException $e) {
             return EntityKeyGuard::validationError('entity.create', $e);
         } catch (\Throwable $e) {
-            return AgentToolResult::error(sprintf('entity.create: %s', $e->getMessage()));
+            return $this->internalError('entity.create', $e);
         }
 
         $id = method_exists($entity, 'id') ? $entity->id() : null;

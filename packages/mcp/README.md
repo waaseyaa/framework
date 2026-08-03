@@ -203,6 +203,52 @@ separately.
 > bundle-scoped, draft-first, and enforces optimistic locking and
 > idempotency.
 
+## Tool error contract
+
+Tool failures come back inside the MCP result envelope with `isError: true`
+and a JSON body carrying a machine-readable `code`:
+
+| `code` | Meaning |
+|---|---|
+| `TOOL_NOT_FOUND` | No tool of that name is visible on this tier. |
+| `VALIDATION_FAILED` | Arguments violate the tool's advertised `inputSchema`; `errors` lists `{field, message}`. |
+| `INTERNAL_ERROR` | The tool raised an unhandled exception. |
+| *(domain codes)* | Authored by the tool — e.g. `REVISION_CONFLICT`, `ASSET_REJECTED`, Content Publishing's field errors. Passed through unchanged. |
+
+`INTERNAL_ERROR` never carries the exception. Its `message` is a fixed literal
+and its `meta.correlation_id` is a random 16-hex-character id.
+
+**The log receives safe diagnostic metadata, not exception detail.** Under
+`mcp.tool_execution_failed` (or `agent_tool.execution_failed` for a failure a
+tool caught itself) the framework logger gets exactly:
+
+| Key | Value |
+|---|---|
+| `correlation_id` | the same id the caller received — the join between the two sides |
+| `tool` | the tool name |
+| `exception` | the exception class |
+| `file` / `line` | the throw site |
+| `code` | only when `getCode()` is an **integer** |
+
+Deliberately **excluded**: the exception message, the stack trace, the bearer
+token, the call arguments, and the `Throwable` object itself. A log store is
+not a private channel — it is shipped to aggregators, indexed, retained, and
+read far more widely than one operator debugging one failure. Copying a DSN or
+a password out of the response and into the log relocates the disclosure
+rather than fixing it. The trace is excluded for the same reason and more
+strongly: it carries argument *values* frame by frame. A non-integer
+`getCode()` (PDO's SQLSTATE string, or anything a custom exception
+interpolated) is dropped rather than inspected — a "does this look sensitive?"
+heuristic is the guesswork this design avoids.
+
+To diagnose a failure, take the correlation id from the caller's response,
+find the log line, and reproduce under a debugger — an access decision someone
+actually made.
+
+Response sanitization does not depend on a logger being configured. Without
+one the metadata is simply discarded; the caller-visible bytes are identical.
+A logging gap can cost diagnosability, never open a leak.
+
 ## Key classes
 
 - `McpEndpoint` — JSON-RPC dispatcher; constructs the per-request
