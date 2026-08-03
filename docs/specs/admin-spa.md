@@ -227,6 +227,8 @@ All composables are in `packages/admin/app/composables/`. Nuxt auto-imports them
 
 Shared fetch wrapper for all `/api/*` calls. Ensures `baseURL: '/'` (bypasses Nuxt's `app.baseURL` prefix) and `credentials: 'include'` (sends session cookie).
 
+CSRF (#2177 F1 prerequisite): on non-safe methods (anything but `GET`/`HEAD`/`OPTIONS`), `apiFetch` reads the `XSRF-TOKEN` cookie (URL-decoding it) and sends it as the `X-XSRF-TOKEN` header — but **only to same-origin destinations**; absolute or protocol-relative URLs pointing at another origin never receive the token. Safe methods and token-less sessions send no header, and a caller-supplied `X-XSRF-TOKEN` header is never overwritten. The cookie is seeded by API responses carrying both an authenticated account and the `waaseyaa_uid` login-session marker (the boot `GET /api/user/me` in practice; bearer-only requests are excluded — see `docs/specs/security-defaults.md` "CSRF token cookie"). This is what lets routes declared with `RouteBuilder::requireCsrf()` (JSON content type included) accept SPA mutations.
+
 ```ts
 function useApi(): {
   apiFetch<T>(path: string, options?: Record<string, unknown>): Promise<T>

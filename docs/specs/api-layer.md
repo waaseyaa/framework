@@ -1180,6 +1180,8 @@ $route = RouteBuilder::create('/node/{node}')
 | `requirePermission(string $permission)` | `_permission` | Require specific permission |
 | `requireRole(string $role)` | `_role` | Require specific role |
 | `allowAll()` | `_public = true` | Public route, no auth required |
+| `csrfExempt()` | `_csrf = false` | Skip CSRF validation — route has its own auth model (MCP bearer, API keys) |
+| `requireCsrf()` | `_csrf = true` | Force CSRF validation on state-changing methods even for the JSON content types that are exempt by default (cookie-authenticated JSON endpoints, e.g. MCP write-tier approvals). See `docs/specs/security-defaults.md` "CSRF token cookie" |
 | `requirement(string $key, string $regex)` | (route requirements) | Regex requirement for parameter |
 | `default(string $key, mixed $value)` | (route defaults) | Default parameter value |
 | `build()` | -- | Returns configured Symfony Route |

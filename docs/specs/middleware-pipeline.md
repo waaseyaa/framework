@@ -344,7 +344,7 @@ All HTTP middleware implement `HttpMiddlewareInterface` and use `#[AsMiddleware(
 | 50 | `ETagMiddleware` | foundation | ETag generation + 304 Not Modified for GET/HEAD |
 | 40 | `BearerAuthMiddleware` | user | JWT and API key auth via Bearer header. Constructor: `(EntityRepositoryInterface, string $jwtSecret, array $apiKeys, ?LoggerInterface)` |
 | 30 | `SessionMiddleware` | user | Resolves `AccountInterface` from session |
-| 20 | `CsrfMiddleware` | user | Double-submit / header CSRF validation for state-changing non-JSON requests |
+| 20 | `CsrfMiddleware` | user | Double-submit / header CSRF validation for state-changing requests. JSON content types are exempt by default; a route with `_csrf = true` (`RouteBuilder::requireCsrf()`) validates every content type, and `_csrf = false` (`csrfExempt()`) skips validation. Writes the `XSRF-TOKEN` cookie on `text/html` responses and on any response carrying an authenticated `_account` plus the `waaseyaa_uid` login-session marker (SPA boot via JSON; bearer-only requests excluded) |
 | 10 | `AuthorizationMiddleware` | access | Route-level access enforcement via `AccessChecker` |
 
 ## File Reference

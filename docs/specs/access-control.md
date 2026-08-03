@@ -739,7 +739,7 @@ the per-save `withActorUid()` override is the only knob.
 
 ### XSRF-TOKEN cookie
 
-After passing a non-validating request through the pipeline, the middleware writes an `XSRF-TOKEN` cookie to `text/html` responses so JavaScript clients can read the current session token. Cookie attributes:
+After passing a non-validating request through the pipeline, the middleware writes an `XSRF-TOKEN` cookie to `text/html` responses so JavaScript clients can read the current session token. Since the #2177 F1 prerequisite it also writes the same cookie (identical attributes) to **any** response — JSON included — whose request carries an authenticated `_account` and a non-empty `waaseyaa_uid` login-session marker (`attachCookieIfAuthenticated()`): the admin SPA boots against `GET /api/user/me` and never receives a kernel HTML response, so this session-authenticated path seeds its token. Anonymous and bearer-only non-HTML responses stay cookie-free. Cookie attributes:
 
 | Attribute | Value |
 |-----------|-------|
@@ -770,7 +770,10 @@ The first matching source short-circuits; all comparisons are constant-time.
 
 ### CSRF-exempt requests
 
-Requests with a `Content-Type` of `application/json` or `application/vnd.api+json` are not validated (browsers cannot forge those content types from HTML forms). Routes may also opt out via `_csrf: false` in their route options.
+Requests with a `Content-Type` of `application/json` or `application/vnd.api+json` are not validated **by default** (browsers cannot forge those content types from HTML forms). The `_csrf` route option overrides the default in either direction (#2177 F1 prerequisite):
+
+- `_csrf: false` (`RouteBuilder::csrfExempt()`) — never validate; the route has its own authentication model.
+- `_csrf: true` (`RouteBuilder::requireCsrf()`) — always validate on state-changing methods, **including** the JSON content types above. The exemption is unsound when the session cookie is the sole authenticator of a JSON endpoint (cross-origin `fetch` can send JSON and the browser attaches the cookie unless SameSite blocks it); the first consumer is the MCP write-tier approval controller. On an opted-in route, a missing/invalid token yields the standard JSON:API 403, which still re-delivers the XSRF-TOKEN cookie to an authenticated session so the client can retry.
 
 ## Discovery
 
