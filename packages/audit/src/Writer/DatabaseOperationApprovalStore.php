@@ -10,6 +10,7 @@ use Waaseyaa\Entity\DateTime\EntityClockInterface;
 use Waaseyaa\Entity\DateTime\UtcEntityClock;
 use Waaseyaa\Foundation\Audit\Approval\ApprovalAlreadyDecidedException;
 use Waaseyaa\Foundation\Audit\Approval\ApprovalRequest;
+use Waaseyaa\Foundation\Audit\Approval\ApprovalRequestPage;
 use Waaseyaa\Foundation\Audit\Approval\ApprovalStatus;
 use Waaseyaa\Foundation\Audit\Approval\ApprovalStoreException;
 use Waaseyaa\Foundation\Audit\Approval\ApprovalTuple;
@@ -35,6 +36,9 @@ use Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface;
 final readonly class DatabaseOperationApprovalStore implements OperationApprovalStoreInterface
 {
     public const int DEFAULT_TTL_SECONDS = 900;
+
+    /** Version tag baked into every pending-page cursor; bump on any format change. */
+    private const string PENDING_CURSOR_VERSION = 'apv1';
 
     private DatabaseInterface $database;
     private EntityClockInterface $clock;
@@ -109,6 +113,82 @@ final readonly class DatabaseOperationApprovalStore implements OperationApproval
             ));
 
             return $events === [] ? null : $this->hydrate($events);
+        } catch (ApprovalStoreException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            throw new ApprovalStoreException('The approval store could not be read.', 0, $e);
+        }
+    }
+
+    public function listPending(
+        int $limit = OperationApprovalStoreInterface::PENDING_PAGE_DEFAULT_LIMIT,
+        ?string $cursor = null,
+    ): ApprovalRequestPage {
+        if ($limit < 1 || $limit > OperationApprovalStoreInterface::PENDING_PAGE_MAX_LIMIT) {
+            throw new \InvalidArgumentException(sprintf(
+                'A pending-approval page limit must be between 1 and %d.',
+                OperationApprovalStoreInterface::PENDING_PAGE_MAX_LIMIT,
+            ));
+        }
+
+        // The cursor is validated in full — and any malformed value rejected —
+        // before the store is touched.
+        $afterId = $cursor === null ? 0 : $this->decodePendingCursor($cursor);
+
+        try {
+            $now = $this->utc($this->clock->now());
+            $requests = [];
+
+            while (true) {
+                $remaining = $limit - \count($requests);
+
+                // One bounded chunk of live-pending candidates strictly after
+                // the scan position, oldest first. Decided and consumed
+                // requests are excluded through the (request_id, event_type)
+                // unique index; definitely-expired requests are excluded by
+                // the sortable fixed-width UTC text comparison, which agrees
+                // exactly with ApprovalRequest::isExpiredAt() (`live` means
+                // `expires_at > now`, expiry is inclusive at the boundary).
+                // The extra row (`remaining + 1`) only detects whether more
+                // rows exist; it is never returned.
+                $rows = iterator_to_array($this->database->query(sprintf(
+                    "SELECT * FROM mcp_approval_event r
+                     WHERE r.event_type = 'requested' AND r.id > :after AND r.expires_at > :now
+                       AND NOT EXISTS (
+                         SELECT 1 FROM mcp_approval_event e
+                         WHERE e.request_id = r.request_id AND e.event_type IN ('decided', 'consumed')
+                       )
+                     ORDER BY r.id
+                     LIMIT %d",
+                    $remaining + 1,
+                ), ['after' => $afterId, 'now' => $now->format('Y-m-d H:i:s.u')]));
+
+                $hasMore = \count($rows) > $remaining;
+                foreach (\array_slice($rows, 0, $remaining) as $row) {
+                    $afterId = (int) $row['id'];
+                    $request = $this->hydrate([$row]);
+                    // The authoritative status derivation has the final say;
+                    // the SQL prefilter can only ever agree with it.
+                    if ($request->status === ApprovalStatus::Pending) {
+                        $requests[] = $request;
+                    }
+                }
+
+                if (\count($requests) === $limit) {
+                    return new ApprovalRequestPage(
+                        $requests,
+                        $hasMore ? $this->encodePendingCursor($afterId) : null,
+                    );
+                }
+                if (!$hasMore) {
+                    return new ApprovalRequestPage($requests, null);
+                }
+                // Filtered rows left the page short with rows still ahead:
+                // continue from the advanced scan position with another
+                // bounded chunk. Skipped rows can never become pending again
+                // (decisions are once-only and expiry is fixed at open time),
+                // so advancing past them loses nothing.
+            }
         } catch (ApprovalStoreException $e) {
             throw $e;
         } catch (\Throwable $e) {
@@ -231,6 +311,61 @@ final readonly class DatabaseOperationApprovalStore implements OperationApproval
                 $e,
             );
         }
+    }
+
+    /**
+     * Encode a pending-scan position as the opaque page cursor.
+     *
+     * The payload is only the versioned, immutable row id of the last scanned
+     * `requested` event (`apv1:<id>`), base64url-encoded without padding. It
+     * carries no mutable state and grants nothing: replaying or altering it
+     * can only move the read-only scan position.
+     */
+    private function encodePendingCursor(int $lastScannedId): string
+    {
+        return rtrim(strtr(
+            base64_encode(self::PENDING_CURSOR_VERSION . ':' . $lastScannedId),
+            '+/',
+            '-_',
+        ), '=');
+    }
+
+    /**
+     * Strictly decode a caller-supplied pending-page cursor.
+     *
+     * Every structural property is enforced — base64url alphabet, decodable
+     * payload, exact `apv1:<positive id, no leading zeros>` shape, and a
+     * canonical re-encode round-trip — so a malformed or tampered cursor is
+     * rejected as {@see \InvalidArgumentException} before any query runs.
+     *
+     * @return int the last scanned `requested` event row id
+     */
+    private function decodePendingCursor(string $cursor): int
+    {
+        $invalid = new \InvalidArgumentException(
+            'The pending-approval cursor is malformed; restart the traversal without a cursor.',
+        );
+
+        if ($cursor === '' || preg_match('/^[A-Za-z0-9_-]+$/', $cursor) !== 1) {
+            throw $invalid;
+        }
+
+        $decoded = base64_decode(
+            strtr($cursor, '-_', '+/') . str_repeat('=', (4 - \strlen($cursor) % 4) % 4),
+            true,
+        );
+        if ($decoded === false
+            || preg_match('/^' . self::PENDING_CURSOR_VERSION . ':([1-9][0-9]{0,17})$/', $decoded, $matches) !== 1
+        ) {
+            throw $invalid;
+        }
+
+        $lastScannedId = (int) $matches[1];
+        if ($this->encodePendingCursor($lastScannedId) !== $cursor) {
+            throw $invalid;
+        }
+
+        return $lastScannedId;
     }
 
     /**

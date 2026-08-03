@@ -24,6 +24,7 @@ use Waaseyaa\Audit\Writer\DatabaseStrictAuditLedger;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\DateTime\EntityClockInterface;
 use Waaseyaa\Foundation\Audit\Approval\ApprovalRequest;
+use Waaseyaa\Foundation\Audit\Approval\ApprovalRequestPage;
 use Waaseyaa\Foundation\Audit\Approval\ApprovalStatus;
 use Waaseyaa\Foundation\Audit\Approval\ApprovalStoreException;
 use Waaseyaa\Foundation\Audit\Approval\ApprovalTuple;
@@ -958,6 +959,11 @@ final class SequenceRecordingStore implements OperationApprovalStoreInterface
 
         return $this->inner->consume($requestId, $receiptId, $retryCorrelationId);
     }
+
+    public function listPending(int $limit = self::PENDING_PAGE_DEFAULT_LIMIT, ?string $cursor = null): ApprovalRequestPage
+    {
+        return $this->inner->listPending($limit, $cursor);
+    }
 }
 
 /** A concurrent winner consumes the approval just before this request can. */
@@ -991,6 +997,11 @@ final class ConsumeRaceStore implements OperationApprovalStoreInterface
         }
 
         return $this->inner->consume($requestId, $receiptId, $retryCorrelationId);
+    }
+
+    public function listPending(int $limit = self::PENDING_PAGE_DEFAULT_LIMIT, ?string $cursor = null): ApprovalRequestPage
+    {
+        return $this->inner->listPending($limit, $cursor);
     }
 }
 
@@ -1037,6 +1048,11 @@ final class NonconformingThrowingStore implements OperationApprovalStoreInterfac
 
         return $this->inner->consume($requestId, $receiptId, $retryCorrelationId);
     }
+
+    public function listPending(int $limit = self::PENDING_PAGE_DEFAULT_LIMIT, ?string $cursor = null): ApprovalRequestPage
+    {
+        return $this->inner->listPending($limit, $cursor);
+    }
 }
 
 /** The approval store's own infrastructure fails exactly at consume time. */
@@ -1062,5 +1078,10 @@ final class ThrowingConsumeStore implements OperationApprovalStoreInterface
     public function consume(string $requestId, string $receiptId, string $retryCorrelationId): bool
     {
         throw new ApprovalStoreException('The approval consumption could not be made durable; the operation must not proceed.');
+    }
+
+    public function listPending(int $limit = self::PENDING_PAGE_DEFAULT_LIMIT, ?string $cursor = null): ApprovalRequestPage
+    {
+        return $this->inner->listPending($limit, $cursor);
     }
 }

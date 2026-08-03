@@ -11,6 +11,7 @@ use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 use Waaseyaa\Foundation\Audit\Approval\ApprovalRequest;
+use Waaseyaa\Foundation\Audit\Approval\ApprovalRequestPage;
 use Waaseyaa\Foundation\Audit\Approval\ApprovalTuple;
 use Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface;
 use Waaseyaa\Foundation\Audit\AuditStage;
@@ -149,6 +150,11 @@ final class McpEndpointApprovalGateContractTest extends TestCase
             public function consume(string $requestId, string $receiptId, string $retryCorrelationId): bool
             {
                 return false;
+            }
+
+            public function listPending(int $limit = self::PENDING_PAGE_DEFAULT_LIMIT, ?string $cursor = null): ApprovalRequestPage
+            {
+                return new ApprovalRequestPage([]);
             }
         };
     }

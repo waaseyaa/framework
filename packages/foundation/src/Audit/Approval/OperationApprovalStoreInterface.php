@@ -30,6 +30,12 @@ namespace Waaseyaa\Foundation\Audit\Approval;
  */
 interface OperationApprovalStoreInterface
 {
+    /** Default page size for {@see listPending()}. */
+    public const int PENDING_PAGE_DEFAULT_LIMIT = 50;
+
+    /** Hard ceiling for a {@see listPending()} page — larger limits are rejected. */
+    public const int PENDING_PAGE_MAX_LIMIT = 100;
+
     /**
      * Durably open an approval request for the given tuple, or return the
      * existing one a retry should wait on.
@@ -55,6 +61,40 @@ interface OperationApprovalStoreInterface
      * @throws ApprovalStoreException when the store cannot be read
      */
     public function find(string $requestId): ?ApprovalRequest;
+
+    /**
+     * List live pending requests as one bounded page, oldest first.
+     *
+     * The operator queue: at most `$limit` requests whose honest derived
+     * status is {@see ApprovalStatus::Pending} at call time, in stable
+     * ascending requested order (append order of their `requested` events).
+     * Expired, approved, denied and consumed requests are omitted. The store
+     * never loads unbounded rows to build a page — it scans forward in
+     * bounded chunks, continuing past filtered rows with further bounded
+     * queries until the page fills or the scan reaches the end.
+     *
+     * `$cursor` is opaque, versioned and strictly validated: it encodes only
+     * an immutable scan position (the last scanned `requested` event row),
+     * reveals or modifies no mutable state, and any malformed or structurally
+     * tampered value throws before the store is queried. Callers must treat
+     * it as a black box: pass back exactly the `nextCursor` of the previous
+     * page, or null to start over. A null {@see ApprovalRequestPage::$nextCursor}
+     * means the scan had reached the end when the page was assembled.
+     *
+     * Traversal is live, not a snapshot: repeating the walk with each page's
+     * cursor visits every pending request exactly once (no duplicates, no
+     * omissions among requests that stay pending), requests opened after a
+     * page was served join a later page, and requests decided or expired
+     * between pages simply stop appearing.
+     *
+     * @param int     $limit  page size, 1..{@see PENDING_PAGE_MAX_LIMIT}
+     * @param ?string $cursor the previous page's `nextCursor`, or null for the first page
+     *
+     * @throws \InvalidArgumentException when the limit is out of range or the
+     *                                   cursor is malformed — always before any query
+     * @throws ApprovalStoreException    when the store cannot be read
+     */
+    public function listPending(int $limit = self::PENDING_PAGE_DEFAULT_LIMIT, ?string $cursor = null): ApprovalRequestPage;
 
     /**
      * Durably record a human decision on a pending request.

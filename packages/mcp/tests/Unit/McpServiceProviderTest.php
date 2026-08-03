@@ -321,6 +321,13 @@ final class McpServiceProviderTest extends TestCase
             {
                 return false;
             }
+
+            public function listPending(
+                int $limit = self::PENDING_PAGE_DEFAULT_LIMIT,
+                ?string $cursor = null,
+            ): \Waaseyaa\Foundation\Audit\Approval\ApprovalRequestPage {
+                return new \Waaseyaa\Foundation\Audit\Approval\ApprovalRequestPage([]);
+            }
         };
     }
 

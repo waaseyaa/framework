@@ -27,7 +27,10 @@ return [
     'Waaseyaa\Foundation\Audit\AuditStage' => 'public',
     // #2177 F1 — durable operation-approval port. Same foundation placement
     // rationale as the strict ledger; implemented by
-    // Waaseyaa\Audit\Writer\DatabaseOperationApprovalStore.
+    // Waaseyaa\Audit\Writer\DatabaseOperationApprovalStore. C1a adds
+    // listPending() (bounded pending queue) to the interface; its
+    // ApprovalRequestPage return type is a final readonly read model and so —
+    // like ApprovalRequest — intentionally untracked here (contract shapes only).
     'Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface' => 'public',
     'Waaseyaa\Foundation\Audit\Approval\ApprovalStatus' => 'public',
     'Waaseyaa\Foundation\Log\Handler\HandlerInterface' => 'public',
