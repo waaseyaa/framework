@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.285] - 2026-08-03
+
 ### Fixed
 
 - **Reserved-word columns made the field-access preflight permanently unready (#2171).** Doctrine keys `listTableColumns()` by the column's **quoted** name whenever the identifier needs quoting — a column named `key` arrives under `'"key"'` while `Column::getName()` stays canonical. Three production callsites read `array_keys()` or `isset()` on that map: `DatabaseFieldAccessInventoryScanner` (emitting a live key of `<type>|*|"key"` that no definition can classify, so `unclassified_entries` was never empty and `ready` was never `true` for any consumer with a reserved-word column), `LiveEntitySchemaFingerprint` (the boot-side fingerprint), and `DatabaseAuthorizationCodeRepository::ensureColumn()` (re-running `ALTER TABLE … ADD COLUMN` on every boot). **The two fingerprint halves were consistently wrong and therefore agreed by accident**: correcting only the scanner would have made every production boot fail as "stale for the current framework or schema", which is worse than the original defect, so they change together and a regression test pins their agreement with a mutation control proving a genuine schema change still moves the fingerprint. This is the same root cause as #2163 (`DBALSchema::fieldExists()`) at callsites that fix did not reach; a fourth independent instance of one mistake is why `Waaseyaa\Database\Schema\TableColumnNames` now exists as the single canonical accessor rather than a convention to remember. Acceptance covers `key`, `order`, `group` and `index`, and pins Doctrine's quoted-key behaviour so the fix cannot silently become dead code.
