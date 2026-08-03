@@ -1,5 +1,18 @@
-name: Publish to Packagist
+name: Verify Packagist Publication (standalone)
 
+# STANDALONE VERIFIER — this workflow never submits anything.
+#
+# Named "Publish to Packagist" until alpha.285, which was actively misleading:
+# an operator reading a failed run reasonably concluded publication had been
+# attempted here, when submission actually happens in split.yml's
+# `publish-packagist` job. The `package_filter` input said "update" for the
+# same reason. Both are corrected.
+#
+# The release path no longer depends on this workflow at all: verification is
+# now a job INSIDE split.yml (`verify-packagist`), so it cannot race the
+# GitHub Release. This remains for ad-hoc checks — "is alpha.281 still fully
+# installable?" — and for re-checking after a recovery run.
+#
 # Verifies every `waaseyaa/*` package (monorepo + split packages, discovered
 # dynamically from `packages/*/composer.json` so the matrix can't drift) is
 # published to Packagist after a release tag.
@@ -32,7 +45,7 @@ on:
         required: false
         default: ''
       package_filter:
-        description: 'Only update packages whose name CONTAINS this substring. Empty = all.'
+        description: 'Only VERIFY packages whose name CONTAINS this substring. Empty = all. (This workflow never submits an update.)'
         required: false
         default: ''
 

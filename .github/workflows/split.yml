@@ -280,11 +280,103 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.SPLIT_GITHUB_TOKEN }}
         run: bash bin/check-release-require-parity
 
-  # Publish only after split matrix + monorepo integrity + parity —
-  # avoids racing github-release.yml on tag push, and blocks releases if main was overwritten.
+  # Stage 4 of the release state machine: split tags -> verify split parity ->
+  # submit Packagist updates -> VERIFY 76/76 -> publish GitHub Release.
+  #
+  # This lived in a separate workflow (`packagist-update.yml`) that ran on the
+  # same tag push, so the two raced: the release could publish while
+  # verification was still polling, and stayed published when it failed.
+  # Inlining it makes the ordering a dependency rather than a coincidence.
+  #
+  # The window is deliberately generous. At alpha.285 three packages were
+  # reported missing after ~12 minutes of polling and then appeared on their
+  # own — they were queued and slow, not dropped, and the old 24-attempt
+  # ceiling could not tell those apart. Observed wait is recorded so the real
+  # latency distribution becomes visible instead of guessed at.
+  verify-packagist:
+    name: Verify every package is installable
+    needs: [publish-packagist]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Poll P2 until every package lists the tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -uo pipefail
+          UA='waaseyaa-release/1.0 (+https://github.com/waaseyaa/framework; release verification)'
+
+          {
+            for f in packages/*/composer.json; do jq -r '.name // empty' "$f"; done
+            jq -r '.name // empty' composer.json
+          } | grep '^waaseyaa/' | sort -u > /tmp/pkgs.txt
+          total=$(wc -l < /tmp/pkgs.txt)
+          echo "Verifying ${total} package(s) at ${TAG}."
+
+          deadline=$(( $(date +%s) + 2400 ))   # 40 minutes
+          missing_file=/tmp/missing.txt
+          cp /tmp/pkgs.txt "${missing_file}"
+          start=$(date +%s)
+
+          while [ -s "${missing_file}" ] && [ "$(date +%s)" -lt "${deadline}" ]; do
+            : > /tmp/still-missing.txt
+            while IFS= read -r pkg; do
+              [ -z "${pkg}" ] && continue
+              if curl -sS -A "${UA}" "https://repo.packagist.org/p2/${pkg}.json" \
+                   | jq -e --arg t "${TAG}" '.packages[][] | select(.version == $t)' >/dev/null 2>&1; then
+                echo "::notice::${pkg}: visible after $(( $(date +%s) - start ))s."
+              else
+                echo "${pkg}" >> /tmp/still-missing.txt
+              fi
+            done < "${missing_file}"
+            mv /tmp/still-missing.txt "${missing_file}"
+            [ -s "${missing_file}" ] || break
+            echo "$(wc -l < "${missing_file}") still pending after $(( $(date +%s) - start ))s; waiting."
+            sleep $(( 45 + RANDOM % 30 ))
+          done
+
+          elapsed=$(( $(date +%s) - start ))
+
+          if [ -s "${missing_file}" ]; then
+            list=$(paste -sd, "${missing_file}")
+            {
+              echo "## Packagist verification FAILED after ${elapsed}s"
+              echo
+              echo '```json'
+              jq -R -s -c 'split("\n") | map(select(length > 0)) | {missing: .}' < "${missing_file}"
+              echo '```'
+              echo
+              echo "Recover only these packages, without republishing the rest:"
+              echo
+              echo '```'
+              echo "gh workflow run packagist-recover.yml -f packages=${list} -f tag=${TAG}"
+              echo '```'
+            } >> "${GITHUB_STEP_SUMMARY}"
+            echo "::error::Not installable at ${TAG}: ${list}"
+            echo "::error::Recover: gh workflow run packagist-recover.yml -f packages=${list} -f tag=${TAG}"
+            exit 1
+          fi
+
+          echo "## Packagist verification passed" >> "${GITHUB_STEP_SUMMARY}"
+          echo "" >> "${GITHUB_STEP_SUMMARY}"
+          echo "All ${total} packages installable at \`${TAG}\` after ${elapsed}s." >> "${GITHUB_STEP_SUMMARY}"
+          echo "::notice::All ${total} packages visible at ${TAG} after ${elapsed}s."
+
+  # Publish only after split matrix + monorepo integrity + parity + PACKAGIST
+  # VERIFICATION — avoids racing github-release.yml on tag push, blocks releases
+  # if main was overwritten, and (alpha.285) refuses to announce a release whose
+  # packages a consumer cannot yet install.
+  #
+  # `verify-packagist` was previously a separate workflow that raced this job:
+  # the GitHub Release published while Packagist verification was still running,
+  # and stayed published when it failed. A release note pointing at packages
+  # that `composer require` cannot resolve is worse than a late release note.
   publish-github-release:
     name: Publish GitHub Release
-    needs: [verify-monorepo-main-intact, verify-tag-parity, verify-require-parity]
+    needs: [verify-monorepo-main-intact, verify-tag-parity, verify-require-parity, verify-packagist]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -341,9 +433,21 @@ jobs:
             echo "::error::so without these secrets nothing publishes. Configure them, then re-run."
             exit 1
           fi
+          # Packagist asks API consumers to identify themselves.
+          UA='waaseyaa-release/1.0 (+https://github.com/waaseyaa/framework; release fan-out)'
+
           rc=0
+          n=0
+          : > /tmp/packagist-jobs.txt
           while IFS= read -r pkg; do
             [ -z "${pkg}" ] && continue
+            n=$(( n + 1 ))
+            # Spacing between submissions (alpha.285). This loop previously
+            # fired ~76 POSTs back to back; the three packages that took
+            # longest to appear were the first three alphabetically, i.e. the
+            # front of that burst. Jitter avoids synchronising with anything
+            # else hitting the same endpoint.
+            [ "${n}" -gt 1 ] && sleep $(( 3 + RANDOM % 4 ))
             # waaseyaa/<x> is registered on Packagist at github.com/<owner>/<x>
             # (each split package's own repo; the monorepo for waaseyaa/framework).
             repo_url="https://github.com/${REPO_OWNER}/${pkg#waaseyaa/}"
@@ -352,7 +456,16 @@ jobs:
               -H 'Content-Type: application/json' \
               -d "{\"repository\":{\"url\":\"${repo_url}\"}}" || echo "000")
             if [ "${code}" = "200" ] || [ "${code}" = "202" ]; then
-              echo "::notice::${pkg}: update-package accepted (HTTP ${code})."
+              # ACCEPTED, NOT PUBLISHED. 202 means the crawl is queued. The
+              # `verify-packagist` job below decides whether it actually
+              # happened; this step must never be read as publication.
+              #
+              # The job id is recorded because without it a package that never
+              # appears is indistinguishable from one still in the queue —
+              # which is exactly what made the alpha.285 investigation guesswork.
+              job_id=$(jq -r '.job // .jobs[0] // empty' /tmp/resp.json 2>/dev/null)
+              printf '%s\t%s\t%s\n' "${pkg}" "${code}" "${job_id:-none}" >> /tmp/packagist-jobs.txt
+              echo "::notice::${pkg}: update-package QUEUED (HTTP ${code}, job ${job_id:-none}) — not yet published."
             elif [ "${code}" = "404" ]; then
               # Package not yet registered on Packagist — first release of a new
               # split package (e.g. waaseyaa/publishing, alpha.277). Register it
@@ -379,4 +492,15 @@ jobs:
               rc=1
             fi
           done < /tmp/pkgs.txt
+
+          {
+            echo "## Packagist crawl submissions"
+            echo
+            echo "Queued, **not** published — see the \`verify-packagist\` job."
+            echo
+            echo "| Package | HTTP | Job |"
+            echo "|---|---|---|"
+            while IFS=$'\t' read -r pk co jb; do echo "| \`${pk}\` | ${co} | \`${jb}\` |"; done < /tmp/packagist-jobs.txt
+          } >> "${GITHUB_STEP_SUMMARY}"
+
           exit "${rc}"

@@ -18,6 +18,19 @@ on:
         type: string
 
 jobs:
+  release-pipeline-fixtures:
+    name: Release pipeline fixtures
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+      # Guards the decision logic that was wrong at alpha.285: an accepted POST
+      # is not publication, and an existing package is not a published version.
+      # No network, no credentials — canned P2 fixtures only.
+      - name: Packagist verification fixtures
+        run: bash tests/release/packagist-verification.bats.sh
+
   composer-policy:
     name: composer-policy
     runs-on: ubuntu-latest
