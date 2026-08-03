@@ -11,6 +11,7 @@ use Waaseyaa\AI\Tools\Error\SanitizedToolError;
 use Waaseyaa\AI\Tools\Schema\ToolInputSchemaValidator;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
+use Waaseyaa\Foundation\Audit\AuditStage;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 
@@ -85,6 +86,19 @@ final class AgentToolRegistryBridge
      */
     public function execute(string $toolName, array $arguments): array
     {
+        return $this->executeClassified($toolName, $arguments)->envelope;
+    }
+
+    /**
+     * Execute and classify the result into an audit stage.
+     *
+     * The stage cannot be recovered from the envelope afterwards — a capability
+     * refusal and an infrastructure failure both surface as `isError: true` — so
+     * it is decided here, where the `AgentToolResult` and its `summary` are still
+     * in hand. {@see execute()} is the unchanged envelope-only façade.
+     */
+    public function executeClassified(string $toolName, array $arguments): ToolExecutionOutcome
+    {
         try {
             $tool = $this->registry->get($toolName);
         } catch (ToolNotFoundException) {
@@ -93,15 +107,21 @@ final class AgentToolRegistryBridge
             // exception's text ever changes. An off-tier tool is hidden behind
             // this same response by the tier registries — "not registered" and
             // "not yours" are deliberately indistinguishable.
-            return self::errorEnvelope([
-                'code' => 'TOOL_NOT_FOUND',
-                'message' => \sprintf('No tool is registered under the name "%s".', $toolName),
-            ]);
+            return new ToolExecutionOutcome(
+                self::errorEnvelope([
+                    'code' => 'TOOL_NOT_FOUND',
+                    'message' => \sprintf('No tool is registered under the name "%s".', $toolName),
+                ]),
+                AuditStage::ToolLookupRefused,
+            );
         }
 
         $violations = ToolInputSchemaValidator::validate($tool->inputSchema, $arguments);
         if ($violations !== []) {
-            return self::validationFailedEnvelope($toolName, $violations);
+            return new ToolExecutionOutcome(
+                self::validationFailedEnvelope($toolName, $violations),
+                AuditStage::InputValidationRefused,
+            );
         }
 
         try {
@@ -119,10 +139,16 @@ final class AgentToolRegistryBridge
                 SanitizedToolError::logContext($e, $correlationId, $toolName),
             );
 
-            return self::errorEnvelope(SanitizedToolError::body($correlationId));
+            return new ToolExecutionOutcome(
+                self::errorEnvelope(SanitizedToolError::body($correlationId)),
+                AuditStage::ExecutionFailed,
+            );
         }
 
-        return self::toolResultToMcpEnvelope($result);
+        return new ToolExecutionOutcome(
+            self::toolResultToMcpEnvelope($result),
+            self::classify($result),
+        );
     }
 
     /**
@@ -164,6 +190,26 @@ final class AgentToolRegistryBridge
             ]],
             'isError' => true,
         ];
+    }
+
+    /**
+     * Classify a returned {@see AgentToolResult}.
+     *
+     * `forbidden` is the summary every `AbstractAgentTool` guard emits for a
+     * capability, per-entity, or per-field denial — see
+     * `AbstractAgentTool::requireCapability()` and its siblings. Treating that
+     * as an authorization refusal rather than a generic execution failure is
+     * what lets the audit trail answer "was this refused, or did it break?".
+     */
+    private static function classify(AgentToolResult $result): AuditStage
+    {
+        if (!$result->isError) {
+            return AuditStage::ExecutionSucceeded;
+        }
+
+        return $result->summary === 'forbidden'
+            ? AuditStage::AuthorizationRefused
+            : AuditStage::ExecutionFailed;
     }
 
     /**

@@ -11,7 +11,9 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\DecisionAccountResolver;
+use Waaseyaa\AI\Tools\Schema\ToolInputSchemaValidator;
 use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
+use Waaseyaa\Foundation\Audit\AuditStage;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\Bridge\AgentToolRegistryBridge;
 use Waaseyaa\Mcp\Event\McpDispatchEvent;
@@ -111,42 +113,76 @@ final readonly class McpEndpoint
         string $body,
         ?string $authorizationHeader,
     ): McpResponse {
+        // One id per request, shared by every record and returned to the caller.
+        $correlationId = \bin2hex(\random_bytes(8));
+
         // Authenticate.
         $authenticated = $this->auth->authenticate($authorizationHeader);
-        if ($authenticated === null) {
-            return new McpResponse(
-                body: \json_encode([
-                    'jsonrpc' => '2.0',
-                    'error' => ['code' => -32001, 'message' => 'Unauthorized'],
-                    'id' => null,
-                ], \JSON_THROW_ON_ERROR),
-                statusCode: 401,
-            );
-        }
-        $principal = DecisionAccountResolver::resolve($authenticated, $authenticated);
+        $principal = $authenticated !== null
+            ? DecisionAccountResolver::resolve($authenticated, $authenticated)
+            : null;
+
         if ($principal === null) {
+            // Audited with a NULL actor and no credential material. An absent,
+            // unknown, malformed, or inactive-principal token all land here and
+            // are recorded identically — the audit trail must not become the
+            // account-existence oracle the response deliberately is not.
+            $this->auditTerminal(
+                AuditStage::AuthenticationRejected,
+                $correlationId,
+                null,
+                'unknown',
+                'authenticate',
+                [],
+                ['reason' => 'rejected'],
+            );
+
             return new McpResponse(
                 body: \json_encode([
                     'jsonrpc' => '2.0',
-                    'error' => ['code' => -32001, 'message' => 'Unauthorized'],
+                    'error' => [
+                        'code' => -32001,
+                        'message' => 'Unauthorized',
+                        'data' => ['correlation_id' => $correlationId],
+                    ],
                     'id' => null,
                 ], \JSON_THROW_ON_ERROR),
                 statusCode: 401,
             );
         }
 
+        $actorUid = self::stableAccountUid($authenticated->id());
+
         // Per-principal rate limiting (post-auth so 401s never consume budget).
         if ($this->rateLimiter !== null && $this->rateLimitMaxRequests > 0) {
             try {
                 $key = sprintf('mcp:%s:%s', $this->rateLimitTier, (string) $principal->id());
                 if ($this->rateLimiter->tooManyAttempts($key, $this->rateLimitMaxRequests)) {
+                    // Audited OUTSIDE the limiter's own try/catch semantics: the
+                    // algorithm is untouched (atomicity remains F7), only the
+                    // decision is recorded. Recording happens once per refused
+                    // request, so it cannot amplify the very traffic being
+                    // limited.
+                    $this->auditTerminal(
+                        AuditStage::RateLimited,
+                        $correlationId,
+                        $actorUid,
+                        'unknown',
+                        'rate_limit',
+                        [],
+                        ['retry_after_seconds' => $this->rateLimitWindowSeconds],
+                    );
+
                     return new McpResponse(
                         body: \json_encode([
                             'jsonrpc' => '2.0',
                             'error' => [
                                 'code' => -32029,
                                 'message' => 'Rate limit exceeded',
-                                'data' => ['retry_after_seconds' => $this->rateLimitWindowSeconds],
+                                'data' => [
+                                    'retry_after_seconds' => $this->rateLimitWindowSeconds,
+                                    'correlation_id' => $correlationId,
+                                ],
                             ],
                             'id' => null,
                         ], \JSON_THROW_ON_ERROR),
@@ -187,23 +223,18 @@ final readonly class McpEndpoint
             $id = $request['id'] ?? null;
             $params = $request['params'] ?? [];
 
-            // Fire the dispatch event exactly once per authenticated,
-            // well-formed request — post-auth, post-parse, pre-routing
-            // (research D5, contract clause 16). Params are carried RAW;
-            // the audit listener hashes them (clause 17).
-            try {
-                $this->dispatcher?->dispatch(
-                    new McpDispatchEvent(
-                        method: (string) $request['method'],
-                        params: \is_array($params) ? $params : [],
-                        accountUid: self::stableAccountUid($authenticated->id()),
-                    ),
-                    McpDispatchEvent::NAME,
-                );
-            } catch (\Throwable) {
-                // Best-effort: an audit/dispatcher failure must never alter
-                // the JSON-RPC response (contract clause 19).
-            }
+            // The request authenticated, parsed, and is admitted for routing.
+            // This REPLACES the former single pre-routing event: that event was
+            // the only record of the whole request and hardcoded
+            // outcome=allowed, so a refusal or failure downstream was invisible.
+            // It is now the FIRST of a pair (or trio) — the terminal stage below
+            // states what actually happened.
+            $this->emitAudit(
+                AuditStage::RequestAccepted,
+                $correlationId,
+                $actorUid,
+                (string) $request['method'],
+            );
 
             // A `params` member that is not a JSON object cannot address any
             // method's parameters; treat it as an invalid-params envelope
@@ -216,7 +247,7 @@ final readonly class McpEndpoint
                 'initialize' => $this->handleInitialize($id),
                 'ping' => $this->handlePing($id),
                 'tools/list' => $this->handleToolsList($id, $bridge),
-                'tools/call' => $this->handleToolsCall($id, $params, $bridge),
+                'tools/call' => $this->handleToolsCall($id, $params, $bridge, $correlationId, $actorUid),
                 default => $this->jsonRpcError(-32601, "Method not found: {$request['method']}", $id),
             };
 
@@ -270,8 +301,13 @@ final readonly class McpEndpoint
      *
      * @param array<mixed> $params
      */
-    private function handleToolsCall(mixed $id, array $params, AgentToolRegistryBridge $bridge): McpResponse
-    {
+    private function handleToolsCall(
+        mixed $id,
+        array $params,
+        AgentToolRegistryBridge $bridge,
+        string $correlationId,
+        ?int $actorUid,
+    ): McpResponse {
         $toolName = $params['name'] ?? null;
         $arguments = $params['arguments'] ?? [];
 
@@ -290,12 +326,132 @@ final readonly class McpEndpoint
 
         $tool = $bridge->getTool($toolName);
         if ($tool === null) {
+            // An unknown tool cannot supply argumentsForAudit(), so only the
+            // requested name and safe structural metadata are recorded — never
+            // the argument values, whose shape is entirely caller-controlled.
+            $this->auditTerminal(
+                AuditStage::ToolLookupRefused,
+                $correlationId,
+                $actorUid,
+                'tools/call',
+                $toolName,
+                [],
+                ['argument_count' => \count($arguments)],
+            );
+
             return $this->jsonRpcError(-32602, "Unknown tool: {$toolName}", $id);
         }
 
-        $result = $bridge->execute($toolName, $arguments);
+        // Schema validation runs BEFORE the reservation. A reservation means
+        // "the tool is about to be invoked"; malformed input never gets that
+        // far, so reserving first would both misdescribe the request and let a
+        // caller write two durable rows per garbage payload — an amplification
+        // path the audit trail must not open. The bridge validates again
+        // internally: defence in depth, and direct bridge callers keep their
+        // guarantee.
+        $violations = ToolInputSchemaValidator::validate($tool->inputSchema, $arguments);
+        if ($violations !== []) {
+            $this->auditTerminal(
+                AuditStage::InputValidationRefused,
+                $correlationId,
+                $actorUid,
+                'tools/call',
+                $toolName,
+                [],
+                ['violation_count' => \count($violations)],
+            );
 
-        return $this->jsonRpcResult($id, $result);
+            return $this->jsonRpcResult($id, $bridge->executeClassified($toolName, $arguments)->envelope);
+        }
+
+        // Redaction is the TOOL's own transform, never the raw JSON-RPC params.
+        $safeArguments = $this->safeArguments($tool, $arguments);
+
+        $outcome = $bridge->executeClassified($toolName, $arguments);
+
+        $this->emitAudit($outcome->stage, $correlationId, $actorUid, 'tools/call', $toolName, $safeArguments);
+
+        return $this->jsonRpcResult($id, $outcome->envelope);
+    }
+
+    /**
+     * The tool's own redaction transform, defensively guarded.
+     *
+     * A tool that throws while redacting must not take down the request, but it
+     * also must not cause raw arguments to be substituted — the fallback is
+     * structural metadata only.
+     *
+     * @param array<array-key, mixed> $arguments
+     *
+     * @return array<array-key, mixed>
+     */
+    private function safeArguments(\Waaseyaa\AI\Tools\AgentTool $tool, array $arguments): array
+    {
+        try {
+            return $tool->impl->argumentsForAudit($arguments);
+        } catch (\Throwable) {
+            return ['_redaction_unavailable' => true, 'argument_count' => \count($arguments)];
+        }
+    }
+
+    /**
+     * A terminal stage that never reaches execution: nothing will be finalized,
+     * so it is one durable record rather than a reserve/finalize pair.
+     *
+     * @param array<array-key, mixed> $safeArguments
+     * @param array<string, mixed>    $metadata
+     */
+    private function auditTerminal(
+        AuditStage $stage,
+        string $correlationId,
+        ?int $actorUid,
+        string $method,
+        string $operation,
+        array $safeArguments = [],
+        array $metadata = [],
+    ): void {
+        $this->emitAudit($stage, $correlationId, $actorUid, $method, $operation, $safeArguments, $metadata);
+    }
+
+    /**
+     * Emit the best-effort `audit_event` projection for a stage.
+     *
+     * This is the OCAP-log side, deliberately best-effort per
+     * {@see \Waaseyaa\Audit\Contract\AuditWriterInterface}'s contract. On the
+     * write tier the DURABLE record is the strict ledger; this projection exists
+     * so operators keep one queryable dashboard across both tiers.
+     *
+     * @param array<array-key, mixed> $safeArguments
+     * @param array<string, mixed>    $metadata
+     */
+    private function emitAudit(
+        AuditStage $stage,
+        string $correlationId,
+        ?int $actorUid,
+        string $method,
+        ?string $operation = null,
+        array $safeArguments = [],
+        array $metadata = [],
+    ): void {
+        try {
+            $this->dispatcher?->dispatch(
+                new McpDispatchEvent(
+                    method: $method,
+                    params: [],
+                    accountUid: $actorUid,
+                    correlationId: $correlationId,
+                    tier: $this->rateLimitTier,
+                    stage: $stage->value,
+                    toolName: $operation,
+                    safeArguments: $safeArguments,
+                    metadata: $metadata,
+                ),
+                McpDispatchEvent::NAME,
+            );
+        } catch (\Throwable) {
+            // Best-effort by contract: the projection must never alter the
+            // JSON-RPC response. The durable guarantee lives in the ledger.
+        }
     }
 
     private function jsonRpcResult(mixed $id, mixed $result): McpResponse

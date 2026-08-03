@@ -86,27 +86,45 @@ final class McpEndpointDispatchEventTest extends TestCase
         self::assertNotSame(0, $event->accountUid, 'Opaque ids must never collide with the anonymous sentinel.');
     }
 
+    /**
+     * #2177 F4 changed this contract. `tools/call` now fires a PAIR — the
+     * request being accepted, then the stage that states what actually happened
+     * — and `params` is no longer populated: `safeArguments` carries the tool's
+     * own redacted arguments instead, which is both safer and actually usable.
+     */
     #[Test]
-    public function toolsCallEventCarriesRawParams(): void
+    public function toolsCallFiresAnAcceptedThenTerminalStagePair(): void
     {
         $this->auth->method('authenticate')->willReturn($this->account);
         $spy = new RecordingSymfonyDispatcher();
 
         $endpoint = $this->makeEndpoint(dispatcher: $spy, tools: [$this->makeEchoTool('read_node')]);
-        $params = ['name' => 'read_node', 'arguments' => ['id' => 42]];
         $this->dispatch($endpoint, \json_encode([
             'jsonrpc' => '2.0',
             'id' => 2,
             'method' => 'tools/call',
-            'params' => $params,
+            'params' => ['name' => 'read_node', 'arguments' => ['id' => 42]],
         ], \JSON_THROW_ON_ERROR), 'Bearer valid');
 
-        self::assertCount(1, $spy->dispatched);
-        [$event] = $spy->dispatched[0];
-        self::assertInstanceOf(McpDispatchEvent::class, $event);
-        self::assertSame('tools/call', $event->method);
-        self::assertSame($params, $event->params, 'Params are carried RAW — hashing belongs to the listener (clause 17)');
-        self::assertSame(7, $event->accountUid);
+        self::assertCount(2, $spy->dispatched);
+
+        [$accepted] = $spy->dispatched[0];
+        self::assertInstanceOf(McpDispatchEvent::class, $accepted);
+        self::assertSame('tools/call', $accepted->method);
+        self::assertSame('request_accepted', $accepted->stage);
+        self::assertSame(7, $accepted->accountUid);
+
+        [$terminal] = $spy->dispatched[1];
+        self::assertInstanceOf(McpDispatchEvent::class, $terminal);
+        self::assertSame('execution_succeeded', $terminal->stage);
+        self::assertSame('read_node', $terminal->toolName);
+
+        // Both halves of the pair correlate.
+        self::assertNotSame('', $accepted->correlationId);
+        self::assertSame($accepted->correlationId, $terminal->correlationId);
+
+        // Raw params are deliberately no longer carried.
+        self::assertSame([], $terminal->params);
     }
 
     #[Test]
@@ -126,8 +144,14 @@ final class McpEndpointDispatchEventTest extends TestCase
         self::assertSame('resources/list', $event->method);
     }
 
+    /**
+     * #2177 F4 REVERSES the former clause-16 rule that "401 requests fire
+     * nothing". That silence was the defect: credential probing and brute-force
+     * attempts left no trace whatsoever. A rejection is now audited with a NULL
+     * actor and no credential material.
+     */
     #[Test]
-    public function failedAuthFiresNoEvent(): void
+    public function failedAuthIsAuditedWithoutTheCredential(): void
     {
         $this->auth->method('authenticate')->willReturn(null);
         $spy = new RecordingSymfonyDispatcher();
@@ -136,7 +160,14 @@ final class McpEndpointDispatchEventTest extends TestCase
         $response = $this->dispatch($endpoint, '{"jsonrpc":"2.0","id":1,"method":"tools/list"}', 'Bearer bad');
 
         self::assertSame(401, $response->statusCode);
-        self::assertCount(0, $spy->dispatched, '401 requests fire nothing (clause 16)');
+        self::assertCount(1, $spy->dispatched);
+
+        [$event] = $spy->dispatched[0];
+        self::assertInstanceOf(McpDispatchEvent::class, $event);
+        self::assertSame('authentication_rejected', $event->stage);
+        self::assertNull($event->accountUid, 'No principal was resolved, so the actor stays null.');
+        self::assertSame([], $event->params);
+        self::assertStringNotContainsString('bad', \json_encode($event->safeArguments, \JSON_THROW_ON_ERROR));
     }
 
     #[Test]

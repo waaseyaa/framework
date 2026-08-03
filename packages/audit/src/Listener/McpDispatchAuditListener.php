@@ -8,6 +8,7 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
+use Waaseyaa\Foundation\Audit\AuditStage;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 
@@ -59,18 +60,59 @@ final class McpDispatchAuditListener implements EventSubscriberInterface
                 ? (int) $event->accountUid
                 : null;
 
-            $paramsHash = hash('sha256', json_encode($params, JSON_THROW_ON_ERROR));
+            $stage = property_exists($event, 'stage') && is_string($event->stage)
+                ? AuditStage::tryFrom($event->stage)
+                : null;
+
+            // Outcome is DERIVED from the stage, never hardcoded. Before #2177
+            // every row said `allowed`, so a capability refusal and a successful
+            // publish were indistinguishable in the log.
+            $outcome = $stage?->outcome() ?? 'allowed';
+            $severity = $stage?->severity() ?? 'info';
+
+            $toolName = property_exists($event, 'toolName') && is_string($event->toolName)
+                ? $event->toolName
+                : null;
+
+            $attributes = [
+                'method' => $method,
+                'stage'  => $stage?->value,
+            ];
+
+            if ($toolName !== null) {
+                $attributes['tool_name'] = $toolName;
+            }
+            if (property_exists($event, 'correlationId') && is_string($event->correlationId) && $event->correlationId !== '') {
+                $attributes['correlation_id'] = $event->correlationId;
+            }
+            if (property_exists($event, 'tier') && is_string($event->tier)) {
+                $attributes['tier'] = $event->tier;
+            }
+            // Already redacted upstream by the tool's own argumentsForAudit();
+            // this listener never sees, and never hashes, the raw params.
+            if (property_exists($event, 'safeArguments') && is_array($event->safeArguments) && $event->safeArguments !== []) {
+                $attributes['safe_arguments'] = $event->safeArguments;
+            }
+            if (property_exists($event, 'metadata') && is_array($event->metadata) && $event->metadata !== []) {
+                $attributes['metadata'] = $event->metadata;
+            }
+
+            // Legacy shape (no stage): keep the pre-#2177 params hash so an
+            // out-of-tree dispatcher that still sends the old event is not
+            // silently downgraded to an attribute-less row.
+            if ($stage === null) {
+                $attributes['params_hash'] = hash('sha256', json_encode($params, JSON_THROW_ON_ERROR));
+            }
 
             $this->writer->record(new AuditEventDescriptor(
                 kind: AuditEventKind::McpDispatch,
                 accountUid: $accountUid,
-                subjectUri: sprintf('/mcp/rpc/%s', $method),
-                outcome: 'allowed',
-                severity: 'info',
-                attributes: [
-                    'method'      => $method,
-                    'params_hash' => $paramsHash,
-                ],
+                subjectUri: $toolName !== null
+                    ? sprintf('/mcp/rpc/%s/%s', $method, $toolName)
+                    : sprintf('/mcp/rpc/%s', $method),
+                outcome: $outcome,
+                severity: $severity,
+                attributes: $attributes,
             ));
         } catch (\Throwable $e) {
             ($this->logger ?? new NullLogger())->warning('audit.listener_failed', [
