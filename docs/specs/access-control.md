@@ -507,6 +507,8 @@ Permissions are declared in `composer.json` under `extra.waaseyaa.permissions` a
 }
 ```
 
+**Static capability seeds** (`packages/access/src/Capability/`): classes that are the single source of truth for a surface's permission identifiers, offering `all(): list<string>`, `seed(): array<string, {title, description}>` and `register(PermissionHandler): void` for apps that keep a registry. `AgentCapabilities` seeds the eleven agent-executor permissions (`agent.run`, `tool.entity.*`, …); `McpApprovalCapabilities` (#2177 F1 C1b) seeds the MCP approval decision surface — `mcp.approval.view` (read the pending queue, `GET /api/mcp/approvals`) and `mcp.approval.decide` (durably approve/deny, `POST /api/mcp/approvals/{id}/decision`), deliberately distinct so a read-only triage audience is expressible. Enforcement is via the route-level `_permission` option (`AccountInterface::hasPermission()`); the registry is discovery/UI-only.
+
 ## Roles
 
 **Files:** `packages/user/src/Role.php`, `packages/user/src/RoleRepository.php`
