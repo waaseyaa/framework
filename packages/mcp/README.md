@@ -249,6 +249,58 @@ Response sanitization does not depend on a logger being configured. Without
 one the metadata is simply discarded; the caller-visible bytes are identical.
 A logging gap can cost diagnosability, never open a leak.
 
+## Audit trail
+
+Every MCP request emits one record per pipeline **stage**, with the outcome
+derived from the stage rather than hardcoded: `authentication_rejected`,
+`rate_limited`, `request_accepted`, `tool_lookup_refused`,
+`input_validation_refused`, `authorization_refused`, `execution_succeeded`,
+`execution_failed`. (`approval_required` / `approval_refused` are declared and
+reserved for the F1 approval gate; nothing emits them yet.)
+
+Records carry the tool name, the acting principal, the tier, a per-request
+correlation id, and the tool's **own redacted arguments** via
+`argumentsForAudit()` — never the raw JSON-RPC params. Bearer tokens, secrets,
+unredacted content and exception detail are never recorded. An unknown tool
+cannot redact its own arguments, so only the requested name and an argument
+count are stored.
+
+### Write tier: durable, fail-closed
+
+`/mcp/write` additionally writes a **reserve/finalize** pair to the append-only
+`strict_audit_ledger`:
+
+```
+reserve(intent)  →  [tool executes]  →  finalize(real outcome)
+```
+
+**Guaranteed: no write tool is invoked without a durable record of the
+attempt.** If the reservation cannot be persisted the tool is never called and
+the caller gets JSON-RPC `-32002` (`Request refused: the audit trail is
+unavailable.`) with no exception detail.
+
+**Not guaranteed: atomicity between the mutation and the outcome record.** The
+tool owns its own transaction and commits internally, so the two are separate
+commits. A crash in between leaves a *dangling reservation* — a `reserved` row
+with no `finalized` row. Treat it as "outcome unknown, side effect may have
+committed", and **never** retry or roll back on that basis. Find them with:
+
+```sql
+SELECT r.receipt_id, r.correlation_id, r.operation, r.created_at
+FROM strict_audit_ledger r
+LEFT JOIN strict_audit_ledger f
+  ON f.receipt_id = r.receipt_id AND f.event_type = 'finalized'
+WHERE r.event_type = 'reserved' AND f.id IS NULL;
+```
+
+Configure with `mcp.write_tier.durable_audit` (default **true**). It fails
+closed: if durable auditing is on and no `StrictAuditLedgerInterface` is bound,
+the provider throws at setup rather than silently degrading to no-op auditing.
+Set it to `false` to accept best-effort auditing explicitly.
+
+The public `/mcp` tier keeps its documented best-effort auditing — it mutates
+nothing, so a durable pre-record buys no safety.
+
 ## Key classes
 
 - `McpEndpoint` — JSON-RPC dispatcher; constructs the per-request

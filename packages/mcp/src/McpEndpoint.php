@@ -14,6 +14,10 @@ use Waaseyaa\Access\DecisionAccountResolver;
 use Waaseyaa\AI\Tools\Schema\ToolInputSchemaValidator;
 use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 use Waaseyaa\Foundation\Audit\AuditStage;
+use Waaseyaa\Foundation\Audit\NullStrictAuditLedger;
+use Waaseyaa\Foundation\Audit\StrictAuditLedgerException;
+use Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface;
+use Waaseyaa\Foundation\Audit\StrictAuditReservation;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\Bridge\AgentToolRegistryBridge;
 use Waaseyaa\Mcp\Event\McpDispatchEvent;
@@ -68,6 +72,8 @@ final readonly class McpEndpoint
         private string $rateLimitTier = 'public',
         private ?AccountFieldReadScopeInterface $fieldReadScope = null,
         private ?\Waaseyaa\Foundation\Log\LoggerInterface $logger = null,
+        private ?StrictAuditLedgerInterface $auditLedger = null,
+        private bool $durableAudit = false,
     ) {}
 
     /**
@@ -367,7 +373,59 @@ final readonly class McpEndpoint
         // Redaction is the TOOL's own transform, never the raw JSON-RPC params.
         $safeArguments = $this->safeArguments($tool, $arguments);
 
+        // Durable pre-execution reservation. On the write tier this is
+        // fail-closed: if the attempt cannot be made durable, the tool is never
+        // invoked, so no mutation can occur without evidence that it was tried.
+        $receipt = null;
+        if ($this->durableAudit) {
+            try {
+                $receipt = $this->auditLedger()->reserve(new StrictAuditReservation(
+                    correlationId: $correlationId,
+                    surface: $this->auditSurface(),
+                    operation: $toolName,
+                    actorUid: $actorUid,
+                    safeArguments: $safeArguments,
+                    metadata: ['tier' => $this->rateLimitTier],
+                ));
+            } catch (StrictAuditLedgerException $e) {
+                $this->logger?->critical('mcp.audit_reservation_failed', [
+                    'correlation_id' => $correlationId,
+                    'tool' => $toolName,
+                    'tier' => $this->rateLimitTier,
+                    'exception' => $e::class,
+                ]);
+
+                // The caller learns only that the request was refused. The
+                // reason is operator-facing (F6): no exception detail leaves.
+                return $this->jsonRpcError(
+                    -32002,
+                    'Request refused: the audit trail is unavailable.',
+                    $id,
+                );
+            }
+        }
+
         $outcome = $bridge->executeClassified($toolName, $arguments);
+
+        if ($receipt !== null) {
+            try {
+                $this->auditLedger()->finalize($receipt, $outcome->stage, ['tier' => $this->rateLimitTier]);
+            } catch (\Throwable $e) {
+                // The side effect has ALREADY happened. Retrying or rolling it
+                // back would duplicate or silently undo a committed mutation, so
+                // neither is attempted. The reservation stays unfinalized, which
+                // is queryable ('reserved' with no 'finalized') and is the
+                // documented crash-window signature. Loud, and never silent.
+                $this->logger?->critical('mcp.audit_finalize_failed', [
+                    'correlation_id' => $correlationId,
+                    'receipt_id' => $receipt->id,
+                    'tool' => $toolName,
+                    'stage' => $outcome->stage->value,
+                    'exception' => $e::class,
+                    'note' => 'Dangling reservation: outcome unknown, side effect may have committed.',
+                ]);
+            }
+        }
 
         $this->emitAudit($outcome->stage, $correlationId, $actorUid, 'tools/call', $toolName, $safeArguments);
 
@@ -394,6 +452,17 @@ final readonly class McpEndpoint
         }
     }
 
+    private function auditLedger(): StrictAuditLedgerInterface
+    {
+        return $this->auditLedger ?? new NullStrictAuditLedger();
+    }
+
+    /** The ledger `surface` for this tier, e.g. `mcp.write`. */
+    private function auditSurface(): string
+    {
+        return 'mcp.' . $this->rateLimitTier;
+    }
+
     /**
      * A terminal stage that never reaches execution: nothing will be finalized,
      * so it is one durable record rather than a reserve/finalize pair.
@@ -410,6 +479,31 @@ final readonly class McpEndpoint
         array $safeArguments = [],
         array $metadata = [],
     ): void {
+        if ($this->durableAudit) {
+            try {
+                $this->auditLedger()->record(
+                    new StrictAuditReservation(
+                        correlationId: $correlationId,
+                        surface: $this->auditSurface(),
+                        operation: $operation,
+                        actorUid: $actorUid,
+                        safeArguments: $safeArguments,
+                        metadata: $metadata + ['tier' => $this->rateLimitTier],
+                    ),
+                    $stage,
+                );
+            } catch (StrictAuditLedgerException $e) {
+                // A refusal was already going to be returned; failing to record
+                // it cannot make the outcome less safe, so this does not change
+                // the response. It is logged loudly rather than swallowed.
+                $this->logger?->critical('mcp.audit_terminal_record_failed', [
+                    'correlation_id' => $correlationId,
+                    'stage' => $stage->value,
+                    'exception' => $e::class,
+                ]);
+            }
+        }
+
         $this->emitAudit($stage, $correlationId, $actorUid, $method, $operation, $safeArguments, $metadata);
     }
 

@@ -445,6 +445,32 @@ Ordering is always `created_at DESC`.
 
 ---
 
+
+## Strict reserve/finalize ledger (`strict_audit_ledger`, #2177 F4)
+
+A second, deliberately **non**-best-effort write path, alongside `AuditWriterInterface`.
+
+`AuditWriterInterface` is contractually best-effort — `record()` MUST swallow every exception and MUST NOT throw (FR-005 / NFR-001). That is correct for an observability log, and unusable for a surface that must refuse to act when it cannot be audited. `Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface` is its opposite number: `reserve()` and `finalize()` **throw** `StrictAuditLedgerException` when a record cannot be made durable, so the caller can decline to proceed.
+
+It is the sibling of `StrictPrivilegedReadLedgerInterface` (privileged reads) and follows the same reserve → act → finalize shape and the same append-only storage discipline. `strict_audit_ledger` is registered in `AppendOnlyAuditDatabase::APPEND_ONLY_TABLES`, so a reservation can be appended but never updated or deleted through the audit database — evidence of a mutation cannot be rewritten after the fact.
+
+**Why the port lives in `waaseyaa/foundation`, not here.** Its first consumer is the MCP write tier, and `waaseyaa/mcp` must not require `waaseyaa/audit` at runtime (see `McpDispatchEvent`, contract clause 18). Foundation is the one package both the consumer and this implementation already depend on. The contracts and value objects are in `Waaseyaa\Foundation\Audit`; the database implementation is `Waaseyaa\Audit\Writer\DatabaseStrictAuditLedger`.
+
+| Column | Meaning |
+|---|---|
+| `receipt_id` | joins a `reserved` row to its `finalized` row |
+| `correlation_id` | joins every record for one request, including `audit_event` rows |
+| `event_type` | `reserved` \| `finalized` \| `recorded` (single-shot terminal stage) |
+| `surface` | e.g. `mcp.write` — one ledger can serve several entry points |
+| `operation` | what was attempted (for MCP, the tool name) |
+| `stage` / `outcome` | `AuditStage` value and its derived outcome |
+| `actor_uid` | three-state actor: `null` (no principal) / `0` (anonymous) / N |
+| `descriptor` | redacted `safe_arguments` + safe metadata |
+
+`UNIQUE(receipt_id, event_type)` makes a double-finalize impossible at the storage layer, independent of the application-level guard.
+
+**The guarantee is pre-durability, not atomicity.** See `docs/specs/mcp-endpoint.md` for the full statement, the four reasons atomic coupling is not reachable, and the dangling-reservation query for the crash window.
+
 ## Retention
 
 ### `AuditRetentionPolicy` Entity

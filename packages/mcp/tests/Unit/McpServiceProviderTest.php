@@ -201,4 +201,113 @@ final class McpServiceProviderTest extends TestCase
             self::assertStringContainsString('string', $e->getMessage());
         }
     }
+
+    // ------------------------------------------------ durable write audit (#2177 F4)
+
+    /** Resolve the write endpoint through the real provider with a given config. */
+    private function resolveWriteEndpoint(array $config, ?object $ledger = null): object
+    {
+        $mcp = new McpServiceProvider();
+        $app = new class ($ledger) extends \Waaseyaa\Foundation\ServiceProvider\ServiceProvider {
+            public function __construct(private readonly ?object $ledger) {}
+
+            public function register(): void
+            {
+                $this->singleton(
+                    \Waaseyaa\AI\Tools\ToolRegistryInterface::class,
+                    fn(): \Waaseyaa\AI\Tools\ToolRegistryInterface => new \Waaseyaa\AI\Tools\Catalogue\AttributeToolRegistry(
+                        new \Waaseyaa\Foundation\Discovery\PackageManifest(),
+                        new class implements \Psr\Container\ContainerInterface {
+                            public function get(string $id): mixed
+                            {
+                                throw new \RuntimeException('not used');
+                            }
+
+                            public function has(string $id): bool
+                            {
+                                return false;
+                            }
+                        },
+                    ),
+                );
+                if ($this->ledger !== null) {
+                    $ledger = $this->ledger;
+                    $this->singleton(
+                        \Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface::class,
+                        static fn(): object => $ledger,
+                    );
+                }
+            }
+        };
+
+        $providers = [$mcp, $app];
+        $bus = new class (static fn(): array => $providers) implements \Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface {
+            public function __construct(private \Closure $providers) {}
+
+            public function get(string $abstract): ?object
+            {
+                foreach (($this->providers)() as $provider) {
+                    if (isset($provider->getBindings()[$abstract])) {
+                        return $provider->resolve($abstract);
+                    }
+                }
+
+                return null;
+            }
+        };
+        foreach ($providers as $provider) {
+            $provider->setKernelContext('', $config, []);
+            $provider->setKernelServices($bus);
+        }
+        foreach ($providers as $provider) {
+            $provider->register();
+        }
+
+        return $mcp->resolve(\Waaseyaa\Mcp\AuthenticatedMcpEndpoint::class);
+    }
+
+    /**
+     * Durable write auditing defaults ON. A write surface must not be quietly
+     * downgraded to best-effort auditing, so an unwireable ledger is a boot
+     * failure rather than a silent substitution of NullStrictAuditLedger.
+     */
+    #[Test]
+    public function the_write_tier_fails_closed_when_durable_audit_cannot_be_wired(): void
+    {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessageMatches('/durable_audit/');
+
+        $this->resolveWriteEndpoint([]);
+    }
+
+    #[Test]
+    public function the_write_tier_wires_cleanly_when_a_ledger_is_bound(): void
+    {
+        $ledger = new \Waaseyaa\Foundation\Audit\NullStrictAuditLedger();
+
+        self::assertInstanceOf(
+            \Waaseyaa\Mcp\AuthenticatedMcpEndpoint::class,
+            $this->resolveWriteEndpoint([], $ledger),
+        );
+    }
+
+    /** Opting out is explicit and supported — it must not throw. */
+    #[Test]
+    public function durable_audit_can_be_explicitly_disabled(): void
+    {
+        self::assertInstanceOf(
+            \Waaseyaa\Mcp\AuthenticatedMcpEndpoint::class,
+            $this->resolveWriteEndpoint(['mcp' => ['write_tier' => ['durable_audit' => false]]]),
+        );
+    }
+
+    /** The flag reuses the same strict boolean contract as mcp.public.enabled. */
+    #[Test]
+    public function a_malformed_durable_audit_flag_throws(): void
+    {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessageMatches('/mcp\.write_tier\.durable_audit/');
+
+        $this->resolveWriteEndpoint(['mcp' => ['write_tier' => ['durable_audit' => 'perhaps']]]);
+    }
 }

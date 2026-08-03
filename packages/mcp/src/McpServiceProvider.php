@@ -11,6 +11,8 @@ use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 use Waaseyaa\Api\McpAdmin\ServerConfigReadModelInterface;
 use Waaseyaa\Api\McpAdmin\ToolRegistryReadModelInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Foundation\Audit\NullStrictAuditLedger;
+use Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface;
 use Waaseyaa\Foundation\Exception\ConfigException;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -95,6 +97,11 @@ final class McpServiceProvider extends ServiceProvider
                     rateLimitWindowSeconds: $windowSeconds,
                     rateLimitTier: 'public',
                     logger: $logger instanceof LoggerInterface ? $logger : null,
+                    // The public read-only tier keeps its documented best-effort
+                    // auditing. It mutates nothing, so a durable pre-record buys
+                    // no safety, and making it fail-closed would take a read-only
+                    // surface down whenever the audit store hiccups.
+                    durableAudit: false,
                 );
             },
         );
@@ -132,6 +139,7 @@ final class McpServiceProvider extends ServiceProvider
 
                 [$limiter, $maxRequests, $windowSeconds] = $this->rateLimitSettings();
                 $logger = $this->resolveOptional(LoggerInterface::class);
+                [$ledger, $durableAudit] = $this->writeTierAuditSettings();
 
                 $inner = new McpEndpoint(
                     auth: $this->resolveWriteTierAuth(),
@@ -144,6 +152,8 @@ final class McpServiceProvider extends ServiceProvider
                     rateLimitWindowSeconds: $windowSeconds,
                     rateLimitTier: 'write',
                     logger: $logger instanceof LoggerInterface ? $logger : null,
+                    auditLedger: $ledger,
+                    durableAudit: $durableAudit,
                 );
 
                 return new AuthenticatedMcpEndpoint($inner);
@@ -182,6 +192,51 @@ final class McpServiceProvider extends ServiceProvider
     public function routes(WaaseyaaRouter $router, EntityTypeManagerInterface $entityTypeManager): void
     {
         new McpRouteProvider($this->publicEndpointEnabled())->registerRoutes($router);
+    }
+
+    /**
+     * Durable-audit wiring for the authenticated write tier (#2177 F4).
+     *
+     * Config `mcp.write_tier.durable_audit`; DEFAULT **on**. A surface that
+     * mutates content should not be quietly downgraded to best-effort auditing,
+     * so the safe value is the default and disabling it is the explicit act.
+     *
+     * **Fails closed on a wiring gap.** If durable auditing is requested but no
+     * `StrictAuditLedgerInterface` can be resolved — typically because
+     * `waaseyaa/audit` is not installed — this throws at provider setup rather
+     * than substituting {@see NullStrictAuditLedger}. Silently substituting it
+     * would leave a write tier that *looks* durably audited and records nothing,
+     * which is worse than a deployment that refuses to boot.
+     *
+     * @return array{0: ?StrictAuditLedgerInterface, 1: bool}
+     *
+     * @throws ConfigException when durable auditing is on but unwireable
+     */
+    private function writeTierAuditSettings(): array
+    {
+        $mcp = $this->config['mcp'] ?? null;
+        $writeTier = \is_array($mcp) && \is_array($mcp['write_tier'] ?? null) ? $mcp['write_tier'] : [];
+
+        $durable = \array_key_exists('durable_audit', $writeTier)
+            ? self::requireBool($writeTier['durable_audit'], 'mcp.write_tier.durable_audit')
+            : true;
+
+        if (!$durable) {
+            return [null, false];
+        }
+
+        $ledger = $this->resolveOptional(StrictAuditLedgerInterface::class);
+        if (!$ledger instanceof StrictAuditLedgerInterface) {
+            throw new ConfigException(
+                'The authenticated MCP write tier is configured for durable auditing '
+                . '(mcp.write_tier.durable_audit), but no StrictAuditLedgerInterface is bound. '
+                . 'Install waaseyaa/audit, or bind your own implementation, or set '
+                . 'mcp.write_tier.durable_audit to false to accept best-effort auditing.',
+                ['config_key' => 'mcp.write_tier.durable_audit'],
+            );
+        }
+
+        return [$ledger, true];
     }
 
     /**

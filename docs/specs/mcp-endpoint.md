@@ -1,5 +1,7 @@
 # MCP Endpoint
 
+<!-- Spec reviewed 2026-08-03 - #2177 F4 (mcp-durable-audit): MCP write-tier auditing is now durable and outcome-aware. New fail-closed reserve/finalize ledger (Foundation\Audit\StrictAuditLedgerInterface port, Audit\Writer\DatabaseStrictAuditLedger implementation over the append-only strict_audit_ledger table), modelled on StrictPrivilegedReadLedgerInterface. GUARANTEED: no write tool is invoked without a durable record of the attempt (reserve commits before execute; failure returns -32002 and the tool never runs). NOT guaranteed and explicitly not claimed: atomicity between the mutation and the outcome record — tools commit their own transactions, DBALTransaction has no savepoints, and entity storage may be on another connection. A crash between the two leaves a queryable dangling reservation, which is never blindly retried or rolled back. McpDispatchEvent now fires per STAGE rather than once per request, carries stage/outcome/tool/correlation/safeArguments, and no longer populates raw params; 401 and 429 are now audited (reversing the former clause-16 silence). Public tier behaviour is unchanged and remains best-effort. -->
+
 <!-- Spec reviewed 2026-08-03 - #2177 F2/F6 (mcp-public-boundary): TWO behaviour changes. (F2) `McpServiceProvider` no longer binds `McpAuthInterface` locally — a local binding sits ahead of the kernel-services bus in `ServiceProvider::resolve()`, so the package default silently shadowed every downstream application override and `/mcp` stayed anonymous regardless of what an app bound. Resolution moved to `resolvePublicAuth()` at the point of use (`resolveOptional() ?? new PublicAnonymousAuth()`), mirroring the `resolveWriteTierAuth()` pattern that already fixed this for the write tier (P0-1); the anonymous default is unchanged when no app binds anything. New `mcp.public.enabled` config gate withdraws BOTH `/mcp` and `/.well-known/mcp.json` from the route collection when false — 404 rather than 401, and the card goes with the endpoint it advertises. Absent = enabled (historical default); a supplied value must parse as a boolean from an explicit allowlist or `ConfigException` is raised during route setup — a typo in a control gating a public network surface must never be guessed at in either direction, and `filter_var(FILTER_VALIDATE_BOOL)` was rejected because it silently maps `null`/`''` to false. `/mcp/write` is deliberately not gated. (F6) Unhandled tool exceptions no longer reach the caller: `AgentToolRegistryBridge` and the 11 generic `catch (\Throwable)` arms in the entity/relationship/vector tools now return a fixed `INTERNAL_ERROR` envelope plus a random correlation id via the new `Waaseyaa\AI\Tools\Error\SanitizedToolError`. The log receives safe diagnostic METADATA only (correlation id, tool, exception class, file, line, integer code) — NOT the exception message, trace, bearer token, call arguments, or the Throwable object, because a log store is an indexed, widely-read egress path and relocating a credential into it is not a fix. Deliberate domain envelopes (Content Publishing, revision conflict, key refusal, per-tool `forbidden`) pass through untouched. Sanitization is independent of logger availability. -->
 
 <!-- Spec reviewed 2026-07-30 - #2145: `tools/call` now enforces each tool's declared JSON Schema (draft 2020-12) server-side before the handler runs. Waaseyaa\AI\Tools\Schema\ToolInputSchemaValidator (ai-tools, L5) validates AgentTool::$inputSchema — the exact object tools/list advertises — inside AgentToolRegistryBridge::execute(), the single choke point both MCP tiers share. Violations short-circuit pre-dispatch with the established structured envelope {code: VALIDATION_FAILED, message, errors: [{field, message}]} + isError: true. Auth and rate-limit ordering unchanged (401/-32029 still precede validation). handleToolsCall also rejects non-string `name`, non-object `arguments`, and non-object `params` as -32602. See "Input-schema enforcement (`tools/call`)". -->
@@ -446,6 +448,84 @@ Two enforcement points, because there are two ways a failure reaches a caller:
 | `packages/ai-tools/tests/Unit/Error/SanitizedToolErrorTest.php` | Unit — tool-level arm, summary, with/without logger, fixed-literal message |
 | `packages/mcp/tests/Unit/Bridge/AgentToolRegistryBridgeSanitizationTest.php` | Unit — bridge arm, correlation-id uniqueness, domain envelopes passing through untouched |
 | `packages/mcp/tests/Unit/McpEndpointErrorSanitizationTest.php` | End-to-end — assertions on the **raw** HTTP response body, plus the bearer token and raw arguments being absent from the log |
+
+## Durable, outcome-aware write auditing (#2177 F4)
+
+Before F4 the MCP audit trail could not answer the questions an operator actually asks. One `mcp.dispatch` row was written per request, **before routing**, inside a `catch (\Throwable) {}`; its `outcome` was the literal `'allowed'`; it named no tool; and it carried only `sha256(params)`. Authentication rejections and rate-limit refusals returned *before* the event fired, so credential probing left no trace at all.
+
+### The event model
+
+A request now emits one record per meaningful **stage** (`Waaseyaa\Foundation\Audit\AuditStage`), and `outcome` is *derived* from the stage — never hardcoded:
+
+| Stage | Outcome | When |
+|---|---|---|
+| `authentication_rejected` | `denied` | absent / unknown / malformed token, or inactive principal |
+| `rate_limited` | `denied` | the limiter refused the request |
+| `request_accepted` | `allowed` | authenticated, parsed, admitted for routing |
+| `tool_lookup_refused` | `denied` | no tool of that name is visible on this tier |
+| `input_validation_refused` | `denied` | arguments violate the declared `inputSchema` |
+| `authorization_refused` | `denied` | the tool's own capability / entity / field guard refused |
+| `approval_required` / `approval_refused` | `denied` | **reserved for F1** — declared, not yet emitted |
+| `execution_succeeded` | `allowed` | the tool ran and reported success |
+| `execution_failed` | `error` | the tool returned or threw a failure |
+
+`request_accepted` is legitimately `allowed` — the request *was* admitted. The load-bearing property is that the **terminal** stage states what actually happened.
+
+### The durability guarantee, and its exact limit
+
+The authenticated write tier uses a **fail-closed reserve/finalize ledger** (`Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface`, implemented by `Waaseyaa\Audit\Writer\DatabaseStrictAuditLedger` over the append-only `strict_audit_ledger` table). It is modelled directly on `StrictPrivilegedReadLedgerInterface`, which established this pattern for privileged reads.
+
+**Guaranteed:** *no write tool is invoked without a durable record of the attempt.* `reserve()` commits before `execute()`; if it cannot, the tool is never called and the caller receives JSON-RPC `-32002`.
+
+**NOT guaranteed — and deliberately not claimed — is atomicity** between the tool's mutation and the outcome record. They are separate commits, and in the general case cannot be joined:
+
+1. Tools commit internally — `IdempotencyStore::execute()` opens and commits its own transaction so the mutation and its replay record are atomic. The bridge holds no handle on that boundary.
+2. `DBALTransaction` has no savepoint support, so a legitimate inner domain rollback under DBAL's default nesting would poison an enclosing audit write.
+3. Entity storage resolves through `ConnectionResolverInterface`, so a multi-connection deployment puts entity writes on a different connection from the audit log entirely.
+4. Pre-durability and atomicity are mutually exclusive: a record committing *with* the mutation is by definition not durable *before* it.
+
+### Crash-window semantics
+
+A crash (or a `finalize()` failure) after the tool commits but before the outcome is written leaves a **dangling reservation** — a `reserved` row with no matching `finalized` row:
+
+```sql
+SELECT r.receipt_id, r.correlation_id, r.operation, r.actor_uid, r.created_at
+FROM strict_audit_ledger r
+LEFT JOIN strict_audit_ledger f
+  ON f.receipt_id = r.receipt_id AND f.event_type = 'finalized'
+WHERE r.event_type = 'reserved' AND f.id IS NULL;
+```
+
+Read it as **"outcome unknown; the side effect may have committed."** It must **never** trigger a blind retry or rollback — the mutation already happened, and repeating it would duplicate it. `McpEndpoint` logs `mcp.audit_finalize_failed` at `critical` and returns the caller's real result; a completed write is not failed retroactively because its outcome row was lost.
+
+A double-finalize is rejected in two places: the application guard in `finalize()`, and a `UNIQUE(receipt_id, event_type)` index so it is impossible at the storage layer even under a race.
+
+### Redaction contract
+
+Recorded: tool name, acting principal (three-state `null` / `0` / N), tier, correlation id, stage, real outcome, and **`argumentsForAudit()` output** — the tool's own redaction transform, never the raw JSON-RPC params.
+
+Never recorded: Authorization headers, bearer tokens, raw secrets, unredacted content, uploaded binary/base64 payloads, exception messages or traces. An **unknown** tool cannot supply `argumentsForAudit()`, so only the requested name and `argument_count` are stored — argument *values* for an unresolvable tool are entirely caller-controlled.
+
+Authentication failures record a `null` actor and no credential material. Absent, unknown, malformed and inactive-principal tokens are recorded identically, so the audit trail does not become the account-existence oracle the 401 response deliberately is not.
+
+### Tiers and configuration
+
+| | Public `/mcp` | Write `/mcp/write` |
+|---|---|---|
+| Strict ledger | no | **yes** |
+| Durability | best-effort (`audit_event` only) | fail-closed pre-record + outcome |
+| Config | — | `mcp.write_tier.durable_audit` (default **true**) |
+
+The public tier keeps its documented best-effort behaviour: it mutates nothing, so a durable pre-record buys no safety, and making a read-only surface fail-closed on audit availability would be a self-inflicted outage.
+
+`mcp.write_tier.durable_audit` **fails closed on a wiring gap**: if it is on and no `StrictAuditLedgerInterface` is bound (typically because `waaseyaa/audit` is absent), `McpServiceProvider` throws at setup rather than substituting `NullStrictAuditLedger`. A write tier that *looks* durably audited and records nothing is worse than one that refuses to boot. It parses with the same strict boolean allowlist as `mcp.public.enabled`.
+
+### Compatibility
+
+- **Event cadence changed.** `McpDispatchEvent` fires once per *stage*, not once per request. A listener counting events per request sees more; one reading `stage` gets the truth.
+- **`params` is no longer populated.** The property remains for source compatibility. A SHA-256 of raw params could not be correlated, reversed, or acted on; `safeArguments` replaces it. A stage-less (legacy) event still receives the old `params_hash` attribute, so an out-of-tree dispatcher is not silently downgraded.
+- **401 is now audited.** This reverses the former "clause 16" rule that 401s fire nothing — that silence was the defect.
+- `waaseyaa/mcp` still does **not** require `waaseyaa/audit` at runtime. The port lives in foundation precisely to preserve that.
 
 ## JSON-RPC Protocol
 
