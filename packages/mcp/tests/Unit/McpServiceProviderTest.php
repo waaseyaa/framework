@@ -283,12 +283,46 @@ final class McpServiceProviderTest extends TestCase
     #[Test]
     public function the_write_tier_wires_cleanly_when_a_ledger_is_bound(): void
     {
-        $ledger = new \Waaseyaa\Foundation\Audit\NullStrictAuditLedger();
+        // A minimal REAL ledger stub: NullStrictAuditLedger is deliberately
+        // unusable here — the endpoint's own contract refuses the durable mode
+        // when wired to the record-nothing ledger.
+        $ledger = new class implements \Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface {
+            public function reserve(
+                \Waaseyaa\Foundation\Audit\StrictAuditReservation $reservation,
+            ): \Waaseyaa\Foundation\Audit\StrictAuditReceipt {
+                return new \Waaseyaa\Foundation\Audit\StrictAuditReceipt('r1', $reservation->correlationId);
+            }
+
+            public function finalize(
+                \Waaseyaa\Foundation\Audit\StrictAuditReceipt $receipt,
+                \Waaseyaa\Foundation\Audit\AuditStage $stage,
+                array $metadata = [],
+            ): void {}
+
+            public function record(
+                \Waaseyaa\Foundation\Audit\StrictAuditReservation $reservation,
+                \Waaseyaa\Foundation\Audit\AuditStage $stage,
+            ): void {}
+        };
 
         self::assertInstanceOf(
             \Waaseyaa\Mcp\AuthenticatedMcpEndpoint::class,
             $this->resolveWriteEndpoint([], $ledger),
         );
+    }
+
+    /**
+     * The endpoint's own fail-closed contract also protects the provider path:
+     * an application that binds the record-nothing ledger while durable audit
+     * is on gets a boot failure, not a write tier that silently records nothing.
+     */
+    #[Test]
+    public function binding_the_record_nothing_ledger_fails_closed_at_wiring(): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessageMatches('/durable/i');
+
+        $this->resolveWriteEndpoint([], new \Waaseyaa\Foundation\Audit\NullStrictAuditLedger());
     }
 
     /** Opting out is explicit and supported — it must not throw. */

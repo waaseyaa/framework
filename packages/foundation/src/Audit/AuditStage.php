@@ -31,11 +31,20 @@ enum AuditStage: string
     /** The request authenticated, parsed, and was admitted for routing. */
     case RequestAccepted = 'request_accepted';
 
+    /** The JSON-RPC envelope was malformed: `params`, `name`, or `arguments` had the wrong shape. */
+    case InvalidParamsRefused = 'invalid_params_refused';
+
+    /** No handler exists for the requested JSON-RPC method on this endpoint. */
+    case MethodLookupRefused = 'method_lookup_refused';
+
     /** No tool is visible under the requested name on this tier. */
     case ToolLookupRefused = 'tool_lookup_refused';
 
     /** Arguments did not satisfy the tool's declared input schema. */
     case InputValidationRefused = 'input_validation_refused';
+
+    /** The durable audit ledger was unavailable, so the call was refused unexecuted. */
+    case AuditUnavailableRefused = 'audit_unavailable_refused';
 
     /** The tool refused the caller: capability or per-entity access denied. */
     case AuthorizationRefused = 'authorization_refused';
@@ -46,7 +55,7 @@ enum AuditStage: string
     /** Reserved for F1 — a human denied a destructive call. */
     case ApprovalRefused = 'approval_refused';
 
-    /** The tool ran and reported success. */
+    /** The routed operation — a tool call or a protocol method — ran and reported success. */
     case ExecutionSucceeded = 'execution_succeeded';
 
     /** The tool ran and reported (or threw) a failure. */
@@ -65,12 +74,16 @@ enum AuditStage: string
             self::RequestAccepted, self::ExecutionSucceeded => 'allowed',
             self::AuthenticationRejected,
             self::RateLimited,
+            self::InvalidParamsRefused,
+            self::MethodLookupRefused,
             self::ToolLookupRefused,
             self::InputValidationRefused,
             self::AuthorizationRefused,
             self::ApprovalRequired,
             self::ApprovalRefused => 'denied',
-            self::ExecutionFailed => 'error',
+            // AuditUnavailableRefused is an infrastructure failure, not a policy
+            // decision — the caller was refused because something BROKE.
+            self::AuditUnavailableRefused, self::ExecutionFailed => 'error',
         };
     }
 
@@ -79,7 +92,7 @@ enum AuditStage: string
     {
         return match ($this) {
             self::RequestAccepted, self::ExecutionSucceeded => 'info',
-            self::ExecutionFailed => 'warning',
+            self::ExecutionFailed, self::AuditUnavailableRefused => 'warning',
             default => 'notice',
         };
     }

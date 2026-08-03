@@ -74,7 +74,24 @@ final readonly class McpEndpoint
         private ?\Waaseyaa\Foundation\Log\LoggerInterface $logger = null,
         private ?StrictAuditLedgerInterface $auditLedger = null,
         private bool $durableAudit = false,
-    ) {}
+    ) {
+        // The endpoint's OWN fail-closed contract, independent of provider
+        // wiring: a durable-audit endpoint with no ledger — or with the
+        // record-nothing NullStrictAuditLedger — is a write surface that LOOKS
+        // durably audited and records nothing. That construction IS the wiring
+        // error, so it is refused here rather than discovered at mutation time.
+        if ($this->durableAudit
+            && (!$this->auditLedger instanceof StrictAuditLedgerInterface
+                || $this->auditLedger instanceof NullStrictAuditLedger)
+        ) {
+            throw new \LogicException(
+                'McpEndpoint: durableAudit requires a real StrictAuditLedgerInterface. '
+                . 'Refusing to construct a durable-audit endpoint whose ledger is absent or '
+                . 'NullStrictAuditLedger — it would mutate without durable evidence. '
+                . 'Supply a real ledger, or set durableAudit to false to accept best-effort auditing.',
+            );
+        }
+    }
 
     /**
      * Standard controller entry point — called by AppControllerRouter with typed injection.
@@ -222,10 +239,15 @@ final readonly class McpEndpoint
                 return $this->jsonRpcError(-32700, 'Parse error', null);
             }
 
-            if (!\is_array($request) || !isset($request['method'])) {
+            // JSON-RPC 2.0 requires `method` to be a string. A non-string
+            // method cannot be honestly named in any audit record, so it is an
+            // Invalid Request refused BEFORE acceptance — nothing is admitted,
+            // so no `request_accepted` is left unpaired.
+            if (!\is_array($request) || !\is_string($request['method'] ?? null)) {
                 return $this->jsonRpcError(-32600, 'Invalid Request', $request['id'] ?? null);
             }
 
+            $method = $request['method'];
             $id = $request['id'] ?? null;
             $params = $request['params'] ?? [];
 
@@ -233,28 +255,35 @@ final readonly class McpEndpoint
             // This REPLACES the former single pre-routing event: that event was
             // the only record of the whole request and hardcoded
             // outcome=allowed, so a refusal or failure downstream was invisible.
-            // It is now the FIRST of a pair (or trio) — the terminal stage below
-            // states what actually happened.
-            $this->emitAudit(
-                AuditStage::RequestAccepted,
-                $correlationId,
-                $actorUid,
-                (string) $request['method'],
-            );
+            // It is the FIRST of a pair — every admitted request also gets
+            // exactly one terminal stage below stating what actually happened.
+            $this->emitAudit(AuditStage::RequestAccepted, $correlationId, $actorUid, $method);
 
             // A `params` member that is not a JSON object cannot address any
             // method's parameters; treat it as an invalid-params envelope
-            // rather than silently substituting an empty bag.
+            // rather than silently substituting an empty bag. Terminal for this
+            // request: only the offending TYPE is recorded — a malformed
+            // `params` value is raw caller input.
             if (!\is_array($params)) {
+                $this->auditTerminal(
+                    AuditStage::InvalidParamsRefused,
+                    $correlationId,
+                    $actorUid,
+                    $method,
+                    $method,
+                    [],
+                    ['reason' => 'params_not_object', 'params_type' => \get_debug_type($params)],
+                );
+
                 return $this->jsonRpcError(-32602, 'Invalid params: must be an object', $id);
             }
 
-            $route = fn(): McpResponse => match ($request['method']) {
-                'initialize' => $this->handleInitialize($id),
-                'ping' => $this->handlePing($id),
-                'tools/list' => $this->handleToolsList($id, $bridge),
+            $route = fn(): McpResponse => match ($method) {
+                'initialize' => $this->protocolExecute(fn(): McpResponse => $this->handleInitialize($id), $id, $correlationId, $actorUid, $method),
+                'ping' => $this->protocolExecute(fn(): McpResponse => $this->handlePing($id), $id, $correlationId, $actorUid, $method),
+                'tools/list' => $this->protocolExecute(fn(): McpResponse => $this->handleToolsList($id, $bridge), $id, $correlationId, $actorUid, $method),
                 'tools/call' => $this->handleToolsCall($id, $params, $bridge, $correlationId, $actorUid),
-                default => $this->jsonRpcError(-32601, "Method not found: {$request['method']}", $id),
+                default => $this->refuseUnknownMethod($id, $method, $correlationId, $actorUid),
             };
 
             // The bearer principal is also the guarded entity-read principal.
@@ -267,6 +296,88 @@ final readonly class McpEndpoint
         } finally {
             $this->accountContext?->set($previousActor);
         }
+    }
+
+    /**
+     * Run a mutation-free protocol method and emit its honest terminal stage.
+     *
+     * The handler arrives as a CLOSURE, invoked inside the try: a handler that
+     * throws (e.g. a registry whose enumeration fails under `tools/list`) still
+     * closes the accepted request with exactly one terminal stage —
+     * `execution_failed` — instead of escaping as an uncontrolled HTTP failure
+     * whose page carries the exception. The caller gets a sanitized JSON-RPC
+     * internal error joined to the audit pair by the same correlation id; the
+     * log gets safe metadata only (exception class, method, correlation id —
+     * never message, trace, or params: F6, same reasoning as
+     * {@see \Waaseyaa\AI\Tools\Error\SanitizedToolError::logContext()}).
+     *
+     * The success stage is projection-only by design: the strict ledger
+     * evidences refusals and write ATTEMPTS, and `initialize`/`ping`/
+     * `tools/list` mutate nothing, so a durable row per ping would be
+     * amplification with no durability guarantee behind it. The FAILURE stage
+     * goes through {@see self::auditTerminal()} like every other terminal
+     * non-success of an accepted request.
+     *
+     * @param \Closure(): McpResponse $handler
+     */
+    private function protocolExecute(
+        \Closure $handler,
+        mixed $id,
+        string $correlationId,
+        ?int $actorUid,
+        string $method,
+    ): McpResponse {
+        try {
+            $response = $handler();
+        } catch (\Throwable $e) {
+            $this->logger?->error('mcp.protocol_execution_failed', [
+                'correlation_id' => $correlationId,
+                'method' => $method,
+                'exception' => $e::class,
+            ]);
+
+            $this->auditTerminal(
+                AuditStage::ExecutionFailed,
+                $correlationId,
+                $actorUid,
+                $method,
+                $method,
+                [],
+                ['reason' => 'protocol_handler_threw', 'exception' => $e::class],
+            );
+
+            return $this->jsonRpcError(
+                -32603,
+                'Internal error. Quote the correlation id to an operator to have it diagnosed.',
+                $id,
+                ['correlation_id' => $correlationId],
+            );
+        }
+
+        $this->emitAudit(AuditStage::ExecutionSucceeded, $correlationId, $actorUid, $method);
+
+        return $response;
+    }
+
+    private function refuseUnknownMethod(
+        mixed $id,
+        string $method,
+        string $correlationId,
+        ?int $actorUid,
+    ): McpResponse {
+        // The requested method name is the same class of safe structural
+        // metadata as an unknown tool name — recorded so probing is visible.
+        $this->auditTerminal(
+            AuditStage::MethodLookupRefused,
+            $correlationId,
+            $actorUid,
+            $method,
+            $method,
+            [],
+            ['reason' => 'method_not_found'],
+        );
+
+        return $this->jsonRpcError(-32601, "Method not found: {$method}", $id);
     }
 
     private function handleInitialize(mixed $id): McpResponse
@@ -317,16 +428,49 @@ final readonly class McpEndpoint
         $toolName = $params['name'] ?? null;
         $arguments = $params['arguments'] ?? [];
 
+        // Each early envelope refusal below is TERMINAL for an already-accepted
+        // request, so each writes its honest stage. Malformed member VALUES are
+        // raw caller input — only their type is ever recorded.
         if ($toolName === null) {
+            $this->auditTerminal(
+                AuditStage::InvalidParamsRefused,
+                $correlationId,
+                $actorUid,
+                'tools/call',
+                'tools/call',
+                [],
+                ['reason' => 'missing_name'],
+            );
+
             return $this->jsonRpcError(-32602, 'Missing required parameter: name', $id);
         }
 
         if (!\is_string($toolName)) {
+            $this->auditTerminal(
+                AuditStage::InvalidParamsRefused,
+                $correlationId,
+                $actorUid,
+                'tools/call',
+                'tools/call',
+                [],
+                ['reason' => 'name_not_string', 'name_type' => \get_debug_type($toolName)],
+            );
+
             return $this->jsonRpcError(-32602, 'Invalid parameter: name must be a string', $id);
         }
 
         // `{}` and `[]` both decode to []; anything else is not a JSON object.
         if (!\is_array($arguments) || (array_is_list($arguments) && $arguments !== [])) {
+            $this->auditTerminal(
+                AuditStage::InvalidParamsRefused,
+                $correlationId,
+                $actorUid,
+                'tools/call',
+                $toolName,
+                [],
+                ['reason' => 'arguments_not_object', 'arguments_type' => \get_debug_type($arguments)],
+            );
+
             return $this->jsonRpcError(-32602, 'Invalid parameter: arguments must be an object', $id);
         }
 
@@ -395,12 +539,27 @@ final readonly class McpEndpoint
                     'exception' => $e::class,
                 ]);
 
-                // The caller learns only that the request was refused. The
-                // reason is operator-facing (F6): no exception detail leaves.
+                // Terminal PROJECTION only — the durable ledger is the thing
+                // that just failed, so the best-effort audit_event row is the
+                // only record this path can still produce.
+                $this->emitAudit(
+                    AuditStage::AuditUnavailableRefused,
+                    $correlationId,
+                    $actorUid,
+                    'tools/call',
+                    $toolName,
+                    [],
+                    ['reason' => 'audit_ledger_unavailable'],
+                );
+
+                // The caller learns only that the request was refused, plus the
+                // correlation id to hand to an operator — it joins this refusal
+                // to the critical log line above. No exception detail leaves (F6).
                 return $this->jsonRpcError(
                     -32002,
                     'Request refused: the audit trail is unavailable.',
                     $id,
+                    ['correlation_id' => $correlationId],
                 );
             }
         }
@@ -454,7 +613,9 @@ final readonly class McpEndpoint
 
     private function auditLedger(): StrictAuditLedgerInterface
     {
-        return $this->auditLedger ?? new NullStrictAuditLedger();
+        // Non-null whenever durableAudit is on — enforced by the constructor.
+        return $this->auditLedger
+            ?? throw new \LogicException('durableAudit without a ledger is refused at construction.');
     }
 
     /** The ledger `surface` for this tier, e.g. `mcp.write`. */
@@ -466,6 +627,16 @@ final readonly class McpEndpoint
     /**
      * A terminal stage that never reaches execution: nothing will be finalized,
      * so it is one durable record rather than a reserve/finalize pair.
+     *
+     * **The exact guarantee, stated honestly:** terminal refusal records (auth
+     * rejections, 429s, method/params/tool/schema refusals) are durable only
+     * when the ledger accepts the write. If it does not, the refusal response
+     * is STILL returned and the gap is logged at critical — refusals perform no
+     * side effect, so the fail-closed rule ("no mutation without durable
+     * evidence") is not weakened, and failing an already-safe refusal on ledger
+     * availability would convert an audit outage into a wider denial of
+     * service. Only the pre-execution `reserve()` in {@see self::handleToolsCall}
+     * is fail-closed.
      *
      * @param array<array-key, mixed> $safeArguments
      * @param array<string, mixed>    $metadata
@@ -492,10 +663,13 @@ final readonly class McpEndpoint
                     ),
                     $stage,
                 );
-            } catch (StrictAuditLedgerException $e) {
+            } catch (\Throwable $e) {
                 // A refusal was already going to be returned; failing to record
                 // it cannot make the outcome less safe, so this does not change
                 // the response. It is logged loudly rather than swallowed.
+                // \Throwable, not just the contract exception: a ledger that
+                // breaks its own exception contract must not convert a safe
+                // refusal into an endpoint crash (same rationale as finalize).
                 $this->logger?->critical('mcp.audit_terminal_record_failed', [
                     'correlation_id' => $correlationId,
                     'stage' => $stage->value,
@@ -559,12 +733,21 @@ final readonly class McpEndpoint
         );
     }
 
-    private function jsonRpcError(int $code, string $message, mixed $id): McpResponse
+    /**
+     * @param array<string, mixed> $data Optional safe `error.data` members
+     *        (e.g. `correlation_id`). Never exception detail or raw params.
+     */
+    private function jsonRpcError(int $code, string $message, mixed $id, array $data = []): McpResponse
     {
+        $error = ['code' => $code, 'message' => $message];
+        if ($data !== []) {
+            $error['data'] = $data;
+        }
+
         return new McpResponse(
             body: \json_encode([
                 'jsonrpc' => '2.0',
-                'error' => ['code' => $code, 'message' => $message],
+                'error' => $error,
                 'id' => $id,
             ], \JSON_THROW_ON_ERROR),
         );

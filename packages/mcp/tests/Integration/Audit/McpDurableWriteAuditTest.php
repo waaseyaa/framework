@@ -166,11 +166,16 @@ final class McpDurableWriteAuditTest extends TestCase
     /** @param array<string, mixed> $arguments */
     private function callTool(McpEndpoint $endpoint, array $arguments = ['id' => 'a1']): HttpResponse
     {
+        return $this->callMethod($endpoint, 'tools/call', ['name' => 'article.publish', 'arguments' => $arguments]);
+    }
+
+    private function callMethod(McpEndpoint $endpoint, string $method, mixed $params = []): HttpResponse
+    {
         $body = json_encode([
             'jsonrpc' => '2.0',
             'id' => 1,
-            'method' => 'tools/call',
-            'params' => ['name' => 'article.publish', 'arguments' => $arguments],
+            'method' => $method,
+            'params' => $params,
         ], JSON_THROW_ON_ERROR);
         $request = HttpRequest::create('/mcp/write', 'POST', [], [], [], ['HTTP_AUTHORIZATION' => 'Bearer ' . self::TOKEN], $body);
 
@@ -229,6 +234,27 @@ final class McpDurableWriteAuditTest extends TestCase
         self::assertStringContainsString('audit trail is unavailable', $body['error']['message']);
     }
 
+    /**
+     * Acceptance blocker: without a correlation id, "the audit trail is
+     * unavailable" gives an operator nothing to search for. The id joins the
+     * caller's refusal to the `mcp.audit_reservation_failed` critical log line.
+     */
+    #[Test]
+    public function the_audit_unavailable_refusal_returns_the_correlation_id(): void
+    {
+        $tableless = DBALDatabase::createSqlite();
+
+        $response = $this->callTool($this->endpoint(new DatabaseStrictAuditLedger($tableless)));
+
+        $body = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame(-32002, $body['error']['code']);
+        self::assertMatchesRegularExpression(
+            '/^[0-9a-f]{16}$/',
+            (string) ($body['error']['data']['correlation_id'] ?? ''),
+            'Operator support needs the correlation id in the refusal.',
+        );
+    }
+
     #[Test]
     public function the_audit_unavailable_refusal_leaks_no_exception_detail(): void
     {
@@ -270,6 +296,54 @@ final class McpDurableWriteAuditTest extends TestCase
         self::assertCount(1, $rows, 'A refusal that never executes is one record, not a pair.');
         self::assertSame('recorded', $rows[0]['event_type']);
         self::assertSame(AuditStage::InputValidationRefused->value, $rows[0]['stage']);
+    }
+
+    #[Test]
+    public function an_unknown_method_is_durably_recorded_as_a_terminal_refusal(): void
+    {
+        $this->callMethod($this->endpoint(), 'resources/list');
+
+        $rows = $this->ledger();
+        self::assertCount(1, $rows, 'An accepted-then-refused request is one durable record.');
+        self::assertSame('recorded', $rows[0]['event_type']);
+        self::assertSame('method_lookup_refused', $rows[0]['stage']);
+        self::assertSame('denied', $rows[0]['outcome']);
+        self::assertSame('resources/list', $rows[0]['operation']);
+    }
+
+    #[Test]
+    public function a_malformed_tools_call_envelope_is_durably_recorded_without_raw_params(): void
+    {
+        // Non-string `name` — an early envelope refusal that never resolves a tool.
+        $this->callMethod($this->endpoint(), 'tools/call', ['name' => ['sk-raw-secret-value']]);
+
+        $rows = $this->ledger();
+        self::assertCount(1, $rows);
+        self::assertSame('recorded', $rows[0]['event_type']);
+        self::assertSame('invalid_params_refused', $rows[0]['stage']);
+        self::assertSame('denied', $rows[0]['outcome']);
+
+        self::assertStringNotContainsString(
+            'sk-raw-secret-value',
+            json_encode($rows, JSON_THROW_ON_ERROR),
+            'Raw malformed params are caller-controlled and must never be recorded.',
+        );
+    }
+
+    /**
+     * Deliberate boundary pin: the strict ledger evidences refusals and write
+     * ATTEMPTS. Mutation-free protocol reads (`ping`, `initialize`,
+     * `tools/list`) get their terminal record in the best-effort `audit_event`
+     * projection only — a durable row per ping would be amplification without
+     * a durability guarantee behind it.
+     */
+    #[Test]
+    public function successful_protocol_reads_do_not_write_durable_rows(): void
+    {
+        $this->callMethod($this->endpoint(), 'ping');
+        $this->callMethod($this->endpoint(), 'tools/list');
+
+        self::assertSame([], $this->ledger());
     }
 
     // ------------------------------------------------------ the crash-window limit

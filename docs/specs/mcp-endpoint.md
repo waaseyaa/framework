@@ -462,20 +462,31 @@ A request now emits one record per meaningful **stage** (`Waaseyaa\Foundation\Au
 | `authentication_rejected` | `denied` | absent / unknown / malformed token, or inactive principal |
 | `rate_limited` | `denied` | the limiter refused the request |
 | `request_accepted` | `allowed` | authenticated, parsed, admitted for routing |
+| `invalid_params_refused` | `denied` | malformed JSON-RPC envelope: non-object `params`, missing/non-string `name`, non-object `arguments` |
+| `method_lookup_refused` | `denied` | no handler for the requested JSON-RPC method on this endpoint |
 | `tool_lookup_refused` | `denied` | no tool of that name is visible on this tier |
 | `input_validation_refused` | `denied` | arguments violate the declared `inputSchema` |
+| `audit_unavailable_refused` | `error` | the durable ledger refused the pre-execution reservation, so the call was refused unexecuted |
 | `authorization_refused` | `denied` | the tool's own capability / entity / field guard refused |
 | `approval_required` / `approval_refused` | `denied` | **reserved for F1** — declared, not yet emitted |
-| `execution_succeeded` | `allowed` | the tool ran and reported success |
+| `execution_succeeded` | `allowed` | the routed operation — a tool call **or a protocol method** — ran and reported success |
 | `execution_failed` | `error` | the tool returned or threw a failure |
 
 `request_accepted` is legitimately `allowed` — the request *was* admitted. The load-bearing property is that the **terminal** stage states what actually happened.
+
+**The pair invariant:** every authenticated, parsed, accepted request emits `request_accepted` and then **exactly one honest terminal stage** — no request is left as a bare admission. That includes the mutation-free protocol methods (`initialize`, `ping`, `tools/list` → `execution_succeeded` — their handlers run as closures inside the routing wrapper's try/catch, so a handler that *throws* (e.g. tool-registry enumeration failing under `tools/list`) still closes the pair with `execution_failed`, answers with a sanitized JSON-RPC `-32603` whose `error.data.correlation_id` matches the pair, and logs safe metadata only under `mcp.protocol_execution_failed`: correlation id, method, exception class — never message, trace, or params), an unknown method (`method_lookup_refused`), a non-object top-level `params` (`invalid_params_refused`), and each early malformed `tools/call` envelope shape (missing `name`, non-string `name`, non-object `arguments` → `invalid_params_refused`). Only their *type* is ever recorded for malformed members — a malformed value is raw caller input and never rides into any record. Two refusals happen **before** acceptance and therefore emit nothing: a JSON parse error (`-32700`) and an Invalid Request whose `method` is missing or not a string (`-32600`) — a request that cannot be honestly named cannot be honestly audited, so nothing is admitted and no `request_accepted` is left unpaired. Successful protocol reads are **projection-only** (best-effort `audit_event`, no durable row): the strict ledger evidences refusals and write attempts, and a durable row per `ping` would be amplification with no durability guarantee behind it. Terminal *refusals* of accepted requests are durably `record()`ed on the write tier.
 
 ### The durability guarantee, and its exact limit
 
 The authenticated write tier uses a **fail-closed reserve/finalize ledger** (`Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface`, implemented by `Waaseyaa\Audit\Writer\DatabaseStrictAuditLedger` over the append-only `strict_audit_ledger` table). It is modelled directly on `StrictPrivilegedReadLedgerInterface`, which established this pattern for privileged reads.
 
-**Guaranteed:** *no write tool is invoked without a durable record of the attempt.* `reserve()` commits before `execute()`; if it cannot, the tool is never called and the caller receives JSON-RPC `-32002`.
+**Guaranteed:** *no write tool is invoked without a durable record of the attempt.* `reserve()` commits before `execute()`; if it cannot, the tool is never called and the caller receives JSON-RPC `-32002` whose `error.data.correlation_id` carries the request's correlation id — the join between the caller's refusal and the operator's `mcp.audit_reservation_failed` critical log line. No exception detail leaves (F6).
+
+**Where fail-closed starts and stops — the exact refusal semantics when the ledger itself fails:**
+
+- **Pre-execution reservation (`reserve()`), write tier:** fail-closed. A `StrictAuditLedgerException` refuses the call unexecuted (`-32002` + `audit_unavailable_refused` projection). A ledger that breaks its exception contract and throws anything else propagates out of the endpoint — still fail-closed (the tool is never invoked; no mutation without evidence), just without the polished `-32002` envelope.
+- **Terminal refusal records (auth rejections, 429s, method/params/tool/schema refusals):** durable only when the ledger accepts the write. If recording fails — for *any* throwable, contract-conforming or not — the already-safe refusal response is **still returned** and the gap is logged at `critical` (`mcp.audit_terminal_record_failed`). Refusals perform no side effect, so the fail-closed rule ("no mutation without durable evidence") is not weakened; failing an already-safe refusal on ledger availability would convert an audit outage into a wider denial of service.
+- **Post-execution `finalize()`:** never alters the response for any throwable — the side effect has already happened, so the dangling reservation is logged at `critical` (`mcp.audit_finalize_failed`) and the caller gets the real result (see crash-window semantics below).
 
 **NOT guaranteed — and deliberately not claimed — is atomicity** between the tool's mutation and the outcome record. They are separate commits, and in the general case cannot be joined:
 
@@ -519,6 +530,8 @@ Authentication failures record a `null` actor and no credential material. Absent
 The public tier keeps its documented best-effort behaviour: it mutates nothing, so a durable pre-record buys no safety, and making a read-only surface fail-closed on audit availability would be a self-inflicted outage.
 
 `mcp.write_tier.durable_audit` **fails closed on a wiring gap**: if it is on and no `StrictAuditLedgerInterface` is bound (typically because `waaseyaa/audit` is absent), `McpServiceProvider` throws at setup rather than substituting `NullStrictAuditLedger`. A write tier that *looks* durably audited and records nothing is worse than one that refuses to boot. It parses with the same strict boolean allowlist as `mcp.public.enabled`.
+
+The same contract is enforced by **`McpEndpoint` itself, independent of provider wiring**: constructing it with `durableAudit: true` and an absent ledger — or the record-nothing `NullStrictAuditLedger` — throws `LogicException` at construction. (The former internal escape, `$this->auditLedger ?? new NullStrictAuditLedger()`, silently downgraded a direct construction to unaudited mutation; it is removed.) `NullStrictAuditLedger` remains the legitimate default only for surfaces that never opted into durability, i.e. the public read-only tier.
 
 ### Compatibility
 

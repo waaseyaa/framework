@@ -24,12 +24,15 @@ use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\Event\McpDispatchEvent;
 use Waaseyaa\Mcp\McpEndpoint;
 use Waaseyaa\Mcp\McpResponse;
+use Waaseyaa\Mcp\Tests\Support\RecordingLogger;
 
 /**
- * FR-007 / contract clauses 16-19: the `waaseyaa.mcp.dispatch` event fires
- * exactly once per authenticated well-formed JSON-RPC request, carries the
- * bearer account, never alters the RPC response, and its name literal is
- * pinned to the audit listener's subscription constant (clause 18).
+ * FR-007 / contract clauses 16-19, as amended by #2177 F4: the
+ * `waaseyaa.mcp.dispatch` event fires once per PIPELINE STAGE — every
+ * authenticated, parsed, accepted request emits `request_accepted` and then
+ * exactly one honest terminal stage — carries the bearer account, never alters
+ * the RPC response, and its name literal is pinned to the audit listener's
+ * subscription constant (clause 18).
  */
 #[CoversClass(McpEndpoint::class)]
 #[CoversClass(McpDispatchEvent::class)]
@@ -46,8 +49,14 @@ final class McpEndpointDispatchEventTest extends TestCase
         $this->account->method('hasPermission')->willReturn(true);
     }
 
+    /**
+     * #2177 F4 acceptance blocker: EVERY authenticated, parsed, accepted
+     * request must end in a terminal stage — `request_accepted` alone is a
+     * record of an admission, not of what happened. A successful protocol
+     * method's honest terminal stage is `execution_succeeded`.
+     */
     #[Test]
-    public function authenticatedToolsListFiresExactlyOneEventWithBearerAccount(): void
+    public function authenticatedToolsListFiresAnAcceptedThenTerminalSuccessPair(): void
     {
         $this->auth->method('authenticate')->willReturn($this->account);
         $spy = new RecordingSymfonyDispatcher();
@@ -56,14 +65,42 @@ final class McpEndpointDispatchEventTest extends TestCase
         $response = $this->dispatch($endpoint, '{"jsonrpc":"2.0","id":1,"method":"tools/list"}', 'Bearer valid');
 
         self::assertSame(200, $response->statusCode);
-        self::assertCount(1, $spy->dispatched, 'Exactly one dispatch event per request (clause 16)');
+        self::assertCount(2, $spy->dispatched, 'Accepted request => accepted + terminal pair');
 
-        [$event, $name] = $spy->dispatched[0];
-        self::assertInstanceOf(McpDispatchEvent::class, $event);
+        [$accepted, $name] = $spy->dispatched[0];
+        self::assertInstanceOf(McpDispatchEvent::class, $accepted);
         self::assertSame(McpDispatchEvent::NAME, $name, 'Dispatched under the string event name');
-        self::assertSame('tools/list', $event->method);
-        self::assertSame([], $event->params);
-        self::assertSame(7, $event->accountUid, 'accountUid is the bearer-auth account id');
+        self::assertSame('tools/list', $accepted->method);
+        self::assertSame('request_accepted', $accepted->stage);
+        self::assertSame([], $accepted->params);
+        self::assertSame(7, $accepted->accountUid, 'accountUid is the bearer-auth account id');
+
+        [$terminal] = $spy->dispatched[1];
+        self::assertInstanceOf(McpDispatchEvent::class, $terminal);
+        self::assertSame('execution_succeeded', $terminal->stage);
+        self::assertNull($terminal->toolName, 'A protocol method names no tool');
+        self::assertSame($accepted->correlationId, $terminal->correlationId);
+    }
+
+    #[Test]
+    public function initializeAndPingFireAcceptedThenTerminalSuccessPairs(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+
+        foreach (['initialize', 'ping'] as $method) {
+            $spy = new RecordingSymfonyDispatcher();
+            $endpoint = $this->makeEndpoint(dispatcher: $spy);
+            $body = \json_encode(['jsonrpc' => '2.0', 'id' => 1, 'method' => $method], \JSON_THROW_ON_ERROR);
+
+            $response = $this->dispatch($endpoint, $body, 'Bearer valid');
+
+            self::assertSame(200, $response->statusCode, $method);
+            $stages = array_map(
+                static fn(array $pair): ?string => $pair[0] instanceof McpDispatchEvent ? $pair[0]->stage : null,
+                $spy->dispatched,
+            );
+            self::assertSame(['request_accepted', 'execution_succeeded'], $stages, $method);
+        }
     }
 
     #[Test]
@@ -78,7 +115,7 @@ final class McpEndpointDispatchEventTest extends TestCase
         $endpoint = $this->makeEndpoint(dispatcher: $spy);
         $this->dispatch($endpoint, '{"jsonrpc":"2.0","id":1,"method":"tools/list"}', 'Bearer valid');
 
-        self::assertCount(1, $spy->dispatched);
+        self::assertCount(2, $spy->dispatched, 'accepted + terminal pair');
         [$event] = $spy->dispatched[0];
         self::assertInstanceOf(McpDispatchEvent::class, $event);
         $expectedStableUid = (int) hexdec(substr(hash('sha256', 'acct-anishinaabe-7'), 0, 15));
@@ -127,21 +164,285 @@ final class McpEndpointDispatchEventTest extends TestCase
         self::assertSame([], $terminal->params);
     }
 
+    /**
+     * An unknown method is an accepted-then-refused request, so it must not be
+     * left as a bare `request_accepted`. Its honest terminal stage is
+     * `method_lookup_refused` — NOT `tool_lookup_refused`, which means "no tool
+     * of that name on this tier".
+     */
     #[Test]
-    public function unknownMethodStillFiresTheEvent(): void
+    public function unknownMethodFiresAnAcceptedThenMethodLookupRefusedPair(): void
     {
-        // The listener's documented contract is "each JSON-RPC method
-        // invocation" — no filtering by method (D5).
         $this->auth->method('authenticate')->willReturn($this->account);
         $spy = new RecordingSymfonyDispatcher();
 
         $endpoint = $this->makeEndpoint(dispatcher: $spy);
-        $this->dispatch($endpoint, '{"jsonrpc":"2.0","id":1,"method":"resources/list"}', 'Bearer valid');
+        $response = $this->dispatch($endpoint, '{"jsonrpc":"2.0","id":1,"method":"resources/list"}', 'Bearer valid');
 
-        self::assertCount(1, $spy->dispatched);
-        [$event] = $spy->dispatched[0];
-        self::assertInstanceOf(McpDispatchEvent::class, $event);
-        self::assertSame('resources/list', $event->method);
+        self::assertSame(-32601, \json_decode($response->body, true)['error']['code']);
+        self::assertCount(2, $spy->dispatched);
+
+        [$accepted] = $spy->dispatched[0];
+        self::assertInstanceOf(McpDispatchEvent::class, $accepted);
+        self::assertSame('resources/list', $accepted->method);
+        self::assertSame('request_accepted', $accepted->stage);
+
+        [$terminal] = $spy->dispatched[1];
+        self::assertInstanceOf(McpDispatchEvent::class, $terminal);
+        self::assertSame('method_lookup_refused', $terminal->stage);
+        self::assertSame($accepted->correlationId, $terminal->correlationId);
+    }
+
+    #[Test]
+    public function nonObjectParamsFireAnAcceptedThenInvalidParamsRefusedPair(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $spy = new RecordingSymfonyDispatcher();
+
+        $endpoint = $this->makeEndpoint(dispatcher: $spy);
+        $response = $this->dispatch(
+            $endpoint,
+            '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":"raw-string-payload"}',
+            'Bearer valid',
+        );
+
+        self::assertSame(-32602, \json_decode($response->body, true)['error']['code']);
+
+        $stages = array_map(
+            static fn(array $pair): ?string => $pair[0] instanceof McpDispatchEvent ? $pair[0]->stage : null,
+            $spy->dispatched,
+        );
+        self::assertSame(['request_accepted', 'invalid_params_refused'], $stages);
+
+        // The malformed params value is raw caller input and must not ride out.
+        self::assertStringNotContainsString(
+            'raw-string-payload',
+            \json_encode(array_column($spy->dispatched, 0), \JSON_THROW_ON_ERROR),
+        );
+    }
+
+    /**
+     * The three early malformed `tools/call` envelope shapes — missing `name`,
+     * non-string `name`, non-object `arguments` — are refusals of accepted
+     * requests and must each end in a terminal stage, without leaking the raw
+     * malformed values.
+     */
+    #[Test]
+    public function malformedToolsCallShapesFireTerminalInvalidParamsRefusals(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+
+        $shapes = [
+            'missing name' => ['arguments' => []],
+            'non-string name' => ['name' => ['sk-raw-name-secret']],
+            'non-object arguments' => ['name' => 'read_node', 'arguments' => ['sk-raw-arg-secret', 'b']],
+        ];
+
+        foreach ($shapes as $label => $params) {
+            $spy = new RecordingSymfonyDispatcher();
+            $endpoint = $this->makeEndpoint(dispatcher: $spy, tools: [$this->makeEchoTool('read_node')]);
+            $body = \json_encode(
+                ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/call', 'params' => $params],
+                \JSON_THROW_ON_ERROR,
+            );
+
+            $response = $this->dispatch($endpoint, $body, 'Bearer valid');
+
+            self::assertSame(-32602, \json_decode($response->body, true)['error']['code'], $label);
+            $stages = array_map(
+                static fn(array $pair): ?string => $pair[0] instanceof McpDispatchEvent ? $pair[0]->stage : null,
+                $spy->dispatched,
+            );
+            self::assertSame(['request_accepted', 'invalid_params_refused'], $stages, $label);
+
+            $bytes = \json_encode(array_column($spy->dispatched, 0), \JSON_THROW_ON_ERROR);
+            self::assertStringNotContainsString('sk-raw-name-secret', $bytes, $label);
+            self::assertStringNotContainsString('sk-raw-arg-secret', $bytes, $label);
+        }
+    }
+
+    /**
+     * JSON-RPC 2.0 requires `method` to be a string. A non-string method cannot
+     * be honestly named in any audit record, so it is refused as an Invalid
+     * Request BEFORE acceptance — no `request_accepted` to leave unpaired.
+     */
+    #[Test]
+    public function aNonStringMethodIsRefusedAsInvalidRequestBeforeAcceptance(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $spy = new RecordingSymfonyDispatcher();
+
+        $endpoint = $this->makeEndpoint(dispatcher: $spy);
+        $response = $this->dispatch($endpoint, '{"jsonrpc":"2.0","id":1,"method":{"a":1}}', 'Bearer valid');
+
+        self::assertSame(-32600, \json_decode($response->body, true)['error']['code']);
+        self::assertCount(0, $spy->dispatched, 'Nothing was accepted, so nothing is recorded');
+    }
+
+    /**
+     * #2177 acceptance blocker: the `-32002` audit-unavailable refusal must
+     * hand the caller a correlation id (operator support has nothing to search
+     * for otherwise) and must itself be a terminal projection — the one path
+     * that cannot write a durable record still gets the best-effort one.
+     */
+    #[Test]
+    public function anAuditUnavailableRefusalCarriesTheCorrelationIdAndATerminalProjection(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $spy = new RecordingSymfonyDispatcher();
+
+        $downLedger = new class implements \Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface {
+            public function reserve(
+                \Waaseyaa\Foundation\Audit\StrictAuditReservation $reservation,
+            ): \Waaseyaa\Foundation\Audit\StrictAuditReceipt {
+                throw new \Waaseyaa\Foundation\Audit\StrictAuditLedgerException('ledger down');
+            }
+
+            public function finalize(
+                \Waaseyaa\Foundation\Audit\StrictAuditReceipt $receipt,
+                \Waaseyaa\Foundation\Audit\AuditStage $stage,
+                array $metadata = [],
+            ): void {
+                throw new \Waaseyaa\Foundation\Audit\StrictAuditLedgerException('ledger down');
+            }
+
+            public function record(
+                \Waaseyaa\Foundation\Audit\StrictAuditReservation $reservation,
+                \Waaseyaa\Foundation\Audit\AuditStage $stage,
+            ): void {
+                throw new \Waaseyaa\Foundation\Audit\StrictAuditLedgerException('ledger down');
+            }
+        };
+
+        $endpoint = new McpEndpoint(
+            auth: $this->auth,
+            agentRegistry: $this->stubAgentRegistry([$this->makeEchoTool('read_node')]),
+            dispatcher: $spy,
+            auditLedger: $downLedger,
+            durableAudit: true,
+        );
+        $response = $this->dispatch(
+            $endpoint,
+            '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"read_node","arguments":{}}}',
+            'Bearer valid',
+        );
+
+        $decoded = \json_decode($response->body, true, 512, \JSON_THROW_ON_ERROR);
+        self::assertSame(-32002, $decoded['error']['code']);
+        self::assertMatchesRegularExpression(
+            '/^[0-9a-f]{16}$/',
+            (string) ($decoded['error']['data']['correlation_id'] ?? ''),
+            'The refusal must give the caller a correlation id to hand to an operator.',
+        );
+
+        $stages = array_map(
+            static fn(array $pair): ?string => $pair[0] instanceof McpDispatchEvent ? $pair[0]->stage : null,
+            $spy->dispatched,
+        );
+        self::assertSame(['request_accepted', 'audit_unavailable_refused'], $stages);
+
+        [$terminal] = $spy->dispatched[1];
+        self::assertInstanceOf(McpDispatchEvent::class, $terminal);
+        self::assertSame($decoded['error']['data']['correlation_id'], $terminal->correlationId);
+    }
+
+    /**
+     * #2177 F4 last acceptance gap: the protocol success stage was emitted for
+     * a PRECOMPUTED response, so a protocol handler that threw — here
+     * `tools/list` over a registry whose `all()` explodes — escaped AFTER
+     * `request_accepted` with no terminal stage, violating the exactly-one-
+     * terminal invariant and surfacing as an uncontrolled HTTP failure carrying
+     * the exception. The honest closure is a `request_accepted` /
+     * `execution_failed` pair, a sanitized JSON-RPC internal error whose
+     * `correlation_id` matches the pair, and a log line holding safe metadata
+     * only — never the exception message.
+     */
+    #[Test]
+    public function aThrowingProtocolHandlerFiresExecutionFailedAndReturnsASanitizedError(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $spy = new RecordingSymfonyDispatcher();
+        $logger = new RecordingLogger();
+
+        // The shape of a real registry failure: an operator-facing message
+        // carrying a DSN with an embedded credential.
+        $secret = 'pgsql://ledger:sk-live-secret-9f7@10.0.0.7/audit';
+        $explodingRegistry = new class ($secret) implements AgentToolRegistryInterface {
+            public function __construct(private readonly string $secret) {}
+
+            public function register(AgentTool $tool): void {}
+
+            public function get(string $name): AgentTool
+            {
+                throw ToolNotFoundException::forName($name);
+            }
+
+            public function has(string $name): bool
+            {
+                return false;
+            }
+
+            public function all(): iterable
+            {
+                throw new \RuntimeException($this->secret);
+            }
+        };
+
+        $endpoint = new McpEndpoint(
+            auth: $this->auth,
+            agentRegistry: $explodingRegistry,
+            dispatcher: $spy,
+            logger: $logger,
+        );
+
+        $response = $this->dispatch($endpoint, '{"jsonrpc":"2.0","id":1,"method":"tools/list"}', 'Bearer valid');
+
+        // Exactly one terminal stage — the accepted request is not left as a
+        // bare admission, and no double-terminal either.
+        $stages = array_map(
+            static fn(array $pair): ?string => $pair[0] instanceof McpDispatchEvent ? $pair[0]->stage : null,
+            $spy->dispatched,
+        );
+        self::assertSame(['request_accepted', 'execution_failed'], $stages);
+
+        // Controlled, sanitized JSON-RPC internal error joined to the pair.
+        self::assertSame(200, $response->statusCode);
+        $decoded = \json_decode($response->body, true, 512, \JSON_THROW_ON_ERROR);
+        self::assertSame(-32603, $decoded['error']['code']);
+        [$accepted] = $spy->dispatched[0];
+        self::assertInstanceOf(McpDispatchEvent::class, $accepted);
+        [$terminal] = $spy->dispatched[1];
+        self::assertInstanceOf(McpDispatchEvent::class, $terminal);
+        self::assertSame($accepted->correlationId, $terminal->correlationId);
+        self::assertSame(
+            $accepted->correlationId,
+            $decoded['error']['data']['correlation_id'] ?? null,
+            'The sanitized refusal must hand the caller the SAME correlation id the audit pair carries.',
+        );
+
+        // The secret leaves in no direction: response, events, or log.
+        self::assertStringNotContainsString('sk-live-secret-9f7', $response->body);
+        self::assertStringNotContainsString(
+            'sk-live-secret-9f7',
+            \json_encode(array_column($spy->dispatched, 0), \JSON_THROW_ON_ERROR),
+        );
+        self::assertStringNotContainsString('sk-live-secret-9f7', $logger->allContextAsString());
+        self::assertStringNotContainsString(
+            'sk-live-secret-9f7',
+            \json_encode(array_column($logger->records, 1), \JSON_THROW_ON_ERROR),
+        );
+
+        // The log carries safe metadata only: exception class, method,
+        // correlation id — never message, trace, or params.
+        self::assertCount(1, $logger->records);
+        [, $logMessage, $context] = $logger->records[0];
+        self::assertSame('mcp.protocol_execution_failed', $logMessage);
+        self::assertSame(\RuntimeException::class, $context['exception'] ?? null);
+        self::assertSame('tools/list', $context['method'] ?? null);
+        self::assertSame($accepted->correlationId, $context['correlation_id'] ?? null);
+        self::assertArrayNotHasKey('message', $context);
+        self::assertArrayNotHasKey('trace', $context);
+        self::assertArrayNotHasKey('params', $context);
     }
 
     /**
@@ -259,8 +560,10 @@ final class McpEndpointDispatchEventTest extends TestCase
         $previousActor = $this->createMock(AccountInterface::class);
         $context = new RecordingMcpAccountContext($previousActor);
 
-        // Registry whose enumeration throws — tools/list propagates the
-        // exception across the context scope boundary.
+        // Registry whose enumeration throws. Since the F4 closure fix the
+        // protocol wrapper catches this and answers with a sanitized -32603
+        // instead of letting it cross the context scope boundary — the
+        // `finally` pin must hold on this path all the same.
         $explodingRegistry = new class implements AgentToolRegistryInterface {
             public function register(AgentTool $tool): void {}
 
@@ -287,12 +590,9 @@ final class McpEndpointDispatchEventTest extends TestCase
             accountContext: $context,
         );
 
-        try {
-            $this->dispatch($endpoint, '{"jsonrpc":"2.0","id":1,"method":"tools/list"}', 'Bearer valid');
-            self::fail('Handler exception expected to propagate');
-        } catch (\RuntimeException) {
-            // expected
-        }
+        $response = $this->dispatch($endpoint, '{"jsonrpc":"2.0","id":1,"method":"tools/list"}', 'Bearer valid');
+
+        self::assertSame(-32603, \json_decode($response->body, true)['error']['code']);
 
         // The `finally` pin: no stale bearer actor leaks past the request.
         self::assertSame([$this->account, $previousActor], $context->setCalls);
