@@ -11,6 +11,7 @@ use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 use Waaseyaa\Api\McpAdmin\ServerConfigReadModelInterface;
 use Waaseyaa\Api\McpAdmin\ToolRegistryReadModelInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface;
 use Waaseyaa\Foundation\Audit\NullStrictAuditLedger;
 use Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface;
 use Waaseyaa\Foundation\Exception\ConfigException;
@@ -140,6 +141,7 @@ final class McpServiceProvider extends ServiceProvider
                 [$limiter, $maxRequests, $windowSeconds] = $this->rateLimitSettings();
                 $logger = $this->resolveOptional(LoggerInterface::class);
                 [$ledger, $durableAudit] = $this->writeTierAuditSettings();
+                [$approvalStore, $approvalGate] = $this->writeTierApprovalSettings($durableAudit);
 
                 $inner = new McpEndpoint(
                     auth: $this->resolveWriteTierAuth(),
@@ -154,6 +156,8 @@ final class McpServiceProvider extends ServiceProvider
                     logger: $logger instanceof LoggerInterface ? $logger : null,
                     auditLedger: $ledger,
                     durableAudit: $durableAudit,
+                    approvalStore: $approvalStore,
+                    approvalGate: $approvalGate,
                 );
 
                 return new AuthenticatedMcpEndpoint($inner);
@@ -237,6 +241,86 @@ final class McpServiceProvider extends ServiceProvider
         }
 
         return [$ledger, true];
+    }
+
+    /**
+     * Human-approval gate wiring for the authenticated write tier (#2177 F1).
+     *
+     * Config `mcp.write_tier.approval.enabled`; DEFAULT **on** — destructive
+     * tools should not silently run unapproved, so disabling the gate is the
+     * explicit act, exactly like `durable_audit` above. The public tier never
+     * receives the gate: its registry already excludes destructive tools, and
+     * this method is only consulted by the write-tier binding.
+     *
+     * **Fails closed on a wiring gap.** Enabled-but-unwireable — no
+     * `OperationApprovalStoreInterface` bound, typically because
+     * `waaseyaa/audit` is not installed — throws at provider setup. Enabled
+     * while `durable_audit` is off is a contradiction (consuming an approval
+     * joins it to the strict-ledger receipt of the executing reservation) and
+     * is refused rather than resolved silently in either direction.
+     *
+     * @return array{0: ?OperationApprovalStoreInterface, 1: bool}
+     *
+     * @throws ConfigException when the gate is on but unwireable
+     */
+    private function writeTierApprovalSettings(bool $durableAudit): array
+    {
+        $mcp = $this->config['mcp'] ?? null;
+        $writeTier = \is_array($mcp) && \is_array($mcp['write_tier'] ?? null) ? $mcp['write_tier'] : [];
+
+        $approvalSection = $writeTier['approval'] ?? null;
+        if ($approvalSection !== null && !\is_array($approvalSection)) {
+            // `approval: false` is a realistic way to write the intent; refuse
+            // it with the correct key named rather than reading it as enabled.
+            throw self::malformedConfig('mcp.write_tier.approval', $approvalSection, 'a map containing an "enabled" key');
+        }
+        $approval = \is_array($approvalSection) ? $approvalSection : [];
+
+        $enabled = \array_key_exists('enabled', $approval)
+            ? self::requireBool($approval['enabled'], 'mcp.write_tier.approval.enabled')
+            : true;
+
+        if (!$enabled) {
+            return [null, false];
+        }
+
+        if (!$durableAudit) {
+            throw new ConfigException(
+                'The MCP write tier has durable auditing disabled (mcp.write_tier.durable_audit) '
+                . 'while the human-approval gate is enabled (mcp.write_tier.approval.enabled, default true). '
+                . 'The gate consumes approvals against strict-ledger receipts, so it cannot run without '
+                . 'durable auditing. Re-enable durable auditing, or explicitly set '
+                . 'mcp.write_tier.approval.enabled to false to run destructive tools without human approval.',
+                ['config_key' => 'mcp.write_tier.approval.enabled'],
+            );
+        }
+
+        try {
+            $store = $this->resolve(OperationApprovalStoreInterface::class);
+        } catch (\RuntimeException $e) {
+            // Only the container's own "nothing is bound" sentinel means the
+            // wiring gap this method reports. Anything else — a ConfigException
+            // for a malformed approval TTL, a schema/DB failure from a BOUND
+            // store's factory — is the store's own error and must surface as
+            // such: misreporting it as "no store bound" sends the operator to
+            // install a package they already have.
+            if ($e->getMessage() !== sprintf('No binding registered for %s.', OperationApprovalStoreInterface::class)) {
+                throw $e;
+            }
+            $store = null;
+        }
+
+        if (!$store instanceof OperationApprovalStoreInterface) {
+            throw new ConfigException(
+                'The authenticated MCP write tier is configured for the human-approval gate '
+                . '(mcp.write_tier.approval.enabled, default true), but no OperationApprovalStoreInterface '
+                . 'is bound. Install waaseyaa/audit, or bind your own implementation, or set '
+                . 'mcp.write_tier.approval.enabled to false to run destructive tools without human approval.',
+                ['config_key' => 'mcp.write_tier.approval.enabled'],
+            );
+        }
+
+        return [$store, true];
     }
 
     /**

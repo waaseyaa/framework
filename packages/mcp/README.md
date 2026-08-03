@@ -255,8 +255,8 @@ Every MCP request emits one record per pipeline **stage**, with the outcome
 derived from the stage rather than hardcoded: `authentication_rejected`,
 `rate_limited`, `request_accepted`, `tool_lookup_refused`,
 `input_validation_refused`, `authorization_refused`, `execution_succeeded`,
-`execution_failed`. (`approval_required` / `approval_refused` are declared and
-reserved for the F1 approval gate; nothing emits them yet.)
+`execution_failed`, and — on a gated write tier — `approval_required` /
+`approval_refused` (the F1 human-approval gate, below).
 
 Records carry the tool name, the acting principal, the tier, a per-request
 correlation id, and the tool's **own redacted arguments** via
@@ -300,6 +300,58 @@ Set it to `false` to accept best-effort auditing explicitly.
 
 The public `/mcp` tier keeps its documented best-effort auditing — it mutates
 nothing, so a durable pre-record buys no safety.
+
+### Write tier: human approval for destructive tools (#2177 F1)
+
+On the write tier, every tool declared `destructive: true` is additionally
+gated behind a **durable human approval** (`mcp.write_tier.approval.enabled`,
+default **true**). The gate is server-enforced from the tool's declared
+metadata — the advisory `annotations.destructiveHint` in `tools/list` is
+display metadata and is never consulted by enforcement.
+
+The protocol, from the agent's side:
+
+1. Call the destructive tool normally. The server durably opens an approval
+   request bound to *exactly this* principal × surface × tool × arguments and
+   answers JSON-RPC error `-32003` with `error.data.approval_request_id`,
+   `expires_at`, and `correlation_id`. The tool did not run.
+2. A human operator approves or denies the request out-of-band.
+3. Retry the *identical* call with
+   `params._meta["waaseyaa/approval_request_id"] = "<apr_…>"`. An approved,
+   unexpired, unconsumed exact match is **consumed atomically (once ever)** and
+   the tool executes; the strict-ledger reservation and finalization carry the
+   approval id and deciding operator uid, and the `consumed` approval event
+   carries the executing reservation's receipt id.
+
+Everything else — unknown id, denied, expired, already consumed, or *any*
+drift in principal/tool/arguments — returns one **identical** `-32004` body
+(`Approval refused.` plus a correlation id only), so the response cannot be
+used to probe approval state; the refused axis is recorded operator-side in
+the durable ledger. A pending id is re-challenged with the same `-32003`.
+While a request is pending, identical retries converge on the same approval
+request rather than fanning out.
+
+Order of operations is fixed: **reserve → consume → execute → finalize**. A
+reservation failure leaves the approval unconsumed; a lost consume race
+finalizes the reservation as `approval_refused` and the tool never runs; an
+approval-store failure at any point fails closed (`-32002`, correlation id
+only, safe log metadata). `tools/list` marks gated tools with
+`_meta["ai.waaseyaa.mcp/approval"] = "required"`.
+
+Wiring: `AuditServiceProvider` binds `OperationApprovalStoreInterface` (lazily
+creating `mcp_approval_event`; TTL from `mcp.write_tier.approval.ttl_seconds`,
+strict positive integer, default 900). The gate fails closed at setup when
+enabled but unwireable, and requires `durable_audit` (consume joins the
+strict-ledger receipt); disabling durable audit while the gate is on is
+refused. The public tier never gets the gate. Non-destructive tools are
+untouched.
+
+> **Not yet operationally complete.** The admin decision surface (HTTP routes
+> and UI for operators to approve/deny) is **not part of this slice** — a
+> decision currently requires calling
+> `OperationApprovalStoreInterface::decide()` server-side. Until that surface
+> lands, treat the gate as fail-closed protection: destructive calls without a
+> standing approval are challenged and will expire unless decided out-of-band.
 
 ## Key classes
 

@@ -1711,7 +1711,7 @@ A fail-closed reserve/finalize audit contract, deliberately the opposite of `waa
 
 ## Operation approval port (`Waaseyaa\Foundation\Audit\Approval`, #2177 F1)
 
-The human-approval companion to the strict ledger: durable, once-only approvals for destructive operations, bound to one exact call. The port lives in foundation for the identical reason as `StrictAuditLedgerInterface` immediately above — the consumer is the MCP write tier and `waaseyaa/mcp` must not require `waaseyaa/audit` at runtime; the implementation is `Waaseyaa\Audit\Writer\DatabaseOperationApprovalStore` (see `docs/specs/ocap-audit-log.md` §"Operation approval event log").
+The human-approval companion to the strict ledger: durable, once-only approvals for destructive operations, bound to one exact call. The port lives in foundation for the identical reason as `StrictAuditLedgerInterface` immediately above — the consumer is the MCP write tier and `waaseyaa/mcp` must not require `waaseyaa/audit` at runtime; the implementation is `Waaseyaa\Audit\Writer\DatabaseOperationApprovalStore` (see `docs/specs/ocap-audit-log.md` §"Operation approval event log"). Since slice B, `AuditServiceProvider` binds the port (schema ensured lazily; TTL from `mcp.write_tier.approval.ttl_seconds`) and `McpEndpoint`'s write-tier approval gate consumes it (`docs/specs/mcp-endpoint.md` §"Human-approval gate"); the operator decision surface is not yet present.
 
 | Type | Role |
 |---|---|

@@ -205,11 +205,24 @@ final class McpServiceProviderTest extends TestCase
     // ------------------------------------------------ durable write audit (#2177 F4)
 
     /** Resolve the write endpoint through the real provider with a given config. */
-    private function resolveWriteEndpoint(array $config, ?object $ledger = null): object
+    private function resolveWriteEndpoint(array $config, ?object $ledger = null, ?object $approvalStore = null): object
     {
+        return $this->resolveThroughProviders($config, $ledger, $approvalStore, \Waaseyaa\Mcp\AuthenticatedMcpEndpoint::class);
+    }
+
+    /** Wire the real provider pair and resolve one endpoint class from it. */
+    private function resolveThroughProviders(
+        array $config,
+        ?object $ledger,
+        ?object $approvalStore,
+        string $endpointClass,
+    ): object {
         $mcp = new McpServiceProvider();
-        $app = new class ($ledger) extends \Waaseyaa\Foundation\ServiceProvider\ServiceProvider {
-            public function __construct(private readonly ?object $ledger) {}
+        $app = new class ($ledger, $approvalStore) extends \Waaseyaa\Foundation\ServiceProvider\ServiceProvider {
+            public function __construct(
+                private readonly ?object $ledger,
+                private readonly ?object $approvalStore,
+            ) {}
 
             public function register(): void
             {
@@ -235,6 +248,18 @@ final class McpServiceProviderTest extends TestCase
                     $this->singleton(
                         \Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface::class,
                         static fn(): object => $ledger,
+                    );
+                }
+                if ($this->approvalStore !== null) {
+                    $approvalStore = $this->approvalStore;
+                    // A Closure is a factory (it may throw to simulate a bound
+                    // store whose construction fails); anything else is the
+                    // instance itself.
+                    $this->singleton(
+                        \Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface::class,
+                        $approvalStore instanceof \Closure
+                            ? $approvalStore
+                            : static fn(): object => $approvalStore,
                     );
                 }
             }
@@ -263,30 +288,46 @@ final class McpServiceProviderTest extends TestCase
             $provider->register();
         }
 
-        return $mcp->resolve(\Waaseyaa\Mcp\AuthenticatedMcpEndpoint::class);
+        return $mcp->resolve($endpointClass);
     }
 
-    /**
-     * Durable write auditing defaults ON. A write surface must not be quietly
-     * downgraded to best-effort auditing, so an unwireable ledger is a boot
-     * failure rather than a silent substitution of NullStrictAuditLedger.
-     */
-    #[Test]
-    public function the_write_tier_fails_closed_when_durable_audit_cannot_be_wired(): void
+    /** A minimal REAL approval store stub for wiring tests. */
+    private function approvalStore(): object
     {
-        $this->expectException(ConfigException::class);
-        $this->expectExceptionMessageMatches('/durable_audit/');
+        return new class implements \Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface {
+            public function open(
+                \Waaseyaa\Foundation\Audit\Approval\ApprovalTuple $tuple,
+                string $correlationId,
+                array $safeArguments,
+            ): \Waaseyaa\Foundation\Audit\Approval\ApprovalRequest {
+                throw new \LogicException('not exercised in wiring tests');
+            }
 
-        $this->resolveWriteEndpoint([]);
+            public function find(string $requestId): ?\Waaseyaa\Foundation\Audit\Approval\ApprovalRequest
+            {
+                return null;
+            }
+
+            public function decide(
+                string $requestId,
+                bool $approved,
+                int $operatorUid,
+                ?string $reason = null,
+            ): \Waaseyaa\Foundation\Audit\Approval\ApprovalRequest {
+                throw new \LogicException('not exercised in wiring tests');
+            }
+
+            public function consume(string $requestId, string $receiptId, string $retryCorrelationId): bool
+            {
+                return false;
+            }
+        };
     }
 
-    #[Test]
-    public function the_write_tier_wires_cleanly_when_a_ledger_is_bound(): void
+    /** A minimal REAL ledger stub for wiring tests. */
+    private function workingLedger(): object
     {
-        // A minimal REAL ledger stub: NullStrictAuditLedger is deliberately
-        // unusable here — the endpoint's own contract refuses the durable mode
-        // when wired to the record-nothing ledger.
-        $ledger = new class implements \Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface {
+        return new class implements \Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface {
             public function reserve(
                 \Waaseyaa\Foundation\Audit\StrictAuditReservation $reservation,
             ): \Waaseyaa\Foundation\Audit\StrictAuditReceipt {
@@ -304,10 +345,31 @@ final class McpServiceProviderTest extends TestCase
                 \Waaseyaa\Foundation\Audit\AuditStage $stage,
             ): void {}
         };
+    }
 
+    /**
+     * Durable write auditing defaults ON. A write surface must not be quietly
+     * downgraded to best-effort auditing, so an unwireable ledger is a boot
+     * failure rather than a silent substitution of NullStrictAuditLedger.
+     */
+    #[Test]
+    public function the_write_tier_fails_closed_when_durable_audit_cannot_be_wired(): void
+    {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessageMatches('/durable_audit/');
+
+        $this->resolveWriteEndpoint([]);
+    }
+
+    #[Test]
+    public function the_write_tier_wires_cleanly_when_a_ledger_and_store_are_bound(): void
+    {
+        // A minimal REAL ledger stub: NullStrictAuditLedger is deliberately
+        // unusable here — the endpoint's own contract refuses the durable mode
+        // when wired to the record-nothing ledger.
         self::assertInstanceOf(
             \Waaseyaa\Mcp\AuthenticatedMcpEndpoint::class,
-            $this->resolveWriteEndpoint([], $ledger),
+            $this->resolveWriteEndpoint([], $this->workingLedger(), $this->approvalStore()),
         );
     }
 
@@ -322,17 +384,142 @@ final class McpServiceProviderTest extends TestCase
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessageMatches('/durable/i');
 
-        $this->resolveWriteEndpoint([], new \Waaseyaa\Foundation\Audit\NullStrictAuditLedger());
+        $this->resolveWriteEndpoint([], new \Waaseyaa\Foundation\Audit\NullStrictAuditLedger(), $this->approvalStore());
     }
 
-    /** Opting out is explicit and supported — it must not throw. */
+    /**
+     * Opting out is explicit and supported — it must not throw. The approval
+     * gate rides on the durable ledger (its consume step joins the strict-audit
+     * receipt), so turning durable audit off requires stating the approval
+     * downgrade explicitly too.
+     */
     #[Test]
     public function durable_audit_can_be_explicitly_disabled(): void
     {
         self::assertInstanceOf(
             \Waaseyaa\Mcp\AuthenticatedMcpEndpoint::class,
-            $this->resolveWriteEndpoint(['mcp' => ['write_tier' => ['durable_audit' => false]]]),
+            $this->resolveWriteEndpoint(['mcp' => ['write_tier' => [
+                'durable_audit' => false,
+                'approval' => ['enabled' => false],
+            ]]]),
         );
+    }
+
+    // ------------------------------------------------ write-tier approval gate (#2177 F1)
+
+    /**
+     * The gate defaults ON: a write tier serving destructive tools without a
+     * human-approval store is a silent downgrade, so an unwireable store is a
+     * boot failure — exactly the durable-audit precedent.
+     */
+    #[Test]
+    public function the_approval_gate_fails_closed_when_no_store_is_bound(): void
+    {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessageMatches('/mcp\.write_tier\.approval/');
+
+        $this->resolveWriteEndpoint([], $this->workingLedger());
+    }
+
+    /**
+     * A store that IS bound but fails to construct (schema migration, DB
+     * connectivity) is the store's own failure and must surface as such —
+     * NOT be swallowed and misreported as "no store bound", which would send
+     * the operator to install a package they already have.
+     */
+    #[Test]
+    public function a_bound_store_whose_construction_fails_is_not_misreported_as_unbound(): void
+    {
+        try {
+            $this->resolveWriteEndpoint(
+                [],
+                $this->workingLedger(),
+                static function (): object {
+                    throw new \RuntimeException('approval store schema migration failed');
+                },
+            );
+            self::fail('The bound store\'s construction failure must propagate.');
+        } catch (\RuntimeException $e) {
+            self::assertSame('approval store schema migration failed', $e->getMessage());
+            self::assertNotInstanceOf(ConfigException::class, $e);
+        }
+    }
+
+    /** Opting the gate out is explicit and supported. */
+    #[Test]
+    public function the_approval_gate_can_be_explicitly_disabled(): void
+    {
+        self::assertInstanceOf(
+            \Waaseyaa\Mcp\AuthenticatedMcpEndpoint::class,
+            $this->resolveWriteEndpoint(
+                ['mcp' => ['write_tier' => ['approval' => ['enabled' => false]]]],
+                $this->workingLedger(),
+            ),
+        );
+    }
+
+    /** The flag reuses the same strict boolean contract as its siblings. */
+    #[Test]
+    public function a_malformed_approval_enabled_flag_throws(): void
+    {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessageMatches('/mcp\.write_tier\.approval\.enabled/');
+
+        $this->resolveWriteEndpoint(
+            ['mcp' => ['write_tier' => ['approval' => ['enabled' => 'perhaps']]]],
+            $this->workingLedger(),
+            $this->approvalStore(),
+        );
+    }
+
+    /**
+     * The gate cannot run without durable audit — consume() joins the approval
+     * to the strict-ledger receipt of the executing reservation. Disabling
+     * durable audit while leaving the gate on is a contradiction, refused
+     * rather than silently resolved in either direction.
+     */
+    #[Test]
+    public function disabling_durable_audit_while_the_gate_is_on_is_refused(): void
+    {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessageMatches('/approval/');
+
+        $this->resolveWriteEndpoint(
+            ['mcp' => ['write_tier' => ['durable_audit' => false]]],
+            null,
+            $this->approvalStore(),
+        );
+    }
+
+    #[Test]
+    public function the_write_tier_gate_is_wired_on_by_default(): void
+    {
+        $store = $this->approvalStore();
+        $endpoint = $this->resolveWriteEndpoint([], $this->workingLedger(), $store);
+
+        $inner = new \ReflectionProperty(\Waaseyaa\Mcp\AuthenticatedMcpEndpoint::class, 'inner')->getValue($endpoint);
+        self::assertTrue(new \ReflectionProperty(\Waaseyaa\Mcp\McpEndpoint::class, 'approvalGate')->getValue($inner));
+        self::assertSame($store, new \ReflectionProperty(\Waaseyaa\Mcp\McpEndpoint::class, 'approvalStore')->getValue($inner));
+    }
+
+    /**
+     * The public read-only tier never gets the gate — not even when a store is
+     * bound and the write tier's gate is on. Its registry already excludes
+     * destructive tools; wiring a gate there would imply approvals can make the
+     * public tier destructive.
+     */
+    #[Test]
+    public function the_public_tier_never_gets_the_approval_gate(): void
+    {
+        $endpoint = $this->resolveThroughProviders(
+            [],
+            $this->workingLedger(),
+            $this->approvalStore(),
+            \Waaseyaa\Mcp\McpEndpoint::class,
+        );
+
+        self::assertFalse(new \ReflectionProperty(\Waaseyaa\Mcp\McpEndpoint::class, 'approvalGate')->getValue($endpoint));
+        self::assertNull(new \ReflectionProperty(\Waaseyaa\Mcp\McpEndpoint::class, 'approvalStore')->getValue($endpoint));
     }
 
     /** The flag reuses the same strict boolean contract as mcp.public.enabled. */

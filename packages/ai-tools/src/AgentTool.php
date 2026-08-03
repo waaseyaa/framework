@@ -29,12 +29,15 @@ final readonly class AgentTool
     ) {}
 
     /**
-     * MCP-compliant tool descriptor (`{name, description, inputSchema}`).
+     * MCP-compliant tool descriptor (`{name, description, inputSchema, annotations}`).
      *
      * The {@see $impl} field is deliberately omitted — the MCP endpoint
-     * receives only the declarative descriptor.
+     * receives only the declarative descriptor. `annotations.destructiveHint`
+     * is the spec-standard projection of {@see $destructive}; by MCP spec it is
+     * advisory display metadata, and server-side enforcement (the write tier's
+     * approval gate) reads {@see $destructive} itself, never the hint.
      *
-     * @return array{name: string, description: string, inputSchema: array<string, mixed>}
+     * @return array{name: string, description: string, inputSchema: array<string, mixed>, annotations: array{destructiveHint: bool}}
      */
     public function toMcpDescriptor(): array
     {
@@ -42,6 +45,7 @@ final readonly class AgentTool
             'name' => $this->name,
             'description' => $this->impl->description(),
             'inputSchema' => $this->inputSchema,
+            'annotations' => ['destructiveHint' => $this->destructive],
         ];
     }
 }

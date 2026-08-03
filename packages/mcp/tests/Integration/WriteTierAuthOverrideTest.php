@@ -180,11 +180,14 @@ final class WriteTierAuthOverrideTest extends TestCase
 
         foreach ($providers as $provider) {
             // This test is scoped to auth resolution, not auditing. Durable
-            // write auditing (#2177 F4) defaults ON and fails closed when no
-            // StrictAuditLedgerInterface is bound, so it is explicitly opted out
-            // here rather than silently satisfied — the fail-closed wiring has
-            // its own coverage in McpServiceProviderTest.
-            $provider->setKernelContext('', ['mcp' => ['write_tier' => ['durable_audit' => false]]], []);
+            // write auditing (#2177 F4) and the human-approval gate (#2177 F1)
+            // both default ON and fail closed when unwireable, so both are
+            // explicitly opted out here rather than silently satisfied — the
+            // fail-closed wiring has its own coverage in McpServiceProviderTest.
+            $provider->setKernelContext('', ['mcp' => ['write_tier' => [
+                'durable_audit' => false,
+                'approval' => ['enabled' => false],
+            ]]], []);
             $provider->setKernelServices($bus);
         }
         foreach ($providers as $provider) {

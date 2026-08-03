@@ -468,7 +468,8 @@ A request now emits one record per meaningful **stage** (`Waaseyaa\Foundation\Au
 | `input_validation_refused` | `denied` | arguments violate the declared `inputSchema` |
 | `audit_unavailable_refused` | `error` | the durable ledger refused the pre-execution reservation, so the call was refused unexecuted |
 | `authorization_refused` | `denied` | the tool's own capability / entity / field guard refused |
-| `approval_required` / `approval_refused` | `denied` | **reserved for F1** — declared, not yet emitted |
+| `approval_required` | `denied` | F1 gate: a destructive call was durably challenged (or re-challenged while pending) and is waiting on a human decision |
+| `approval_refused` | `denied` | F1 gate: a supplied approval id was unknown / tuple-mismatched / denied / expired / consumed, or the once-only consume was lost to a race |
 | `execution_succeeded` | `allowed` | the routed operation — a tool call **or a protocol method** — ran and reported success |
 | `execution_failed` | `error` | the tool returned or threw a failure |
 
@@ -527,13 +528,71 @@ Authentication failures record a `null` actor and no credential material. Absent
 |---|---|---|
 | Strict ledger | no | **yes** |
 | Durability | best-effort (`audit_event` only) | fail-closed pre-record + outcome |
-| Config | — | `mcp.write_tier.durable_audit` (default **true**) |
+| Human-approval gate (F1, below) | never | **yes** for destructive tools |
+| Config | — | `mcp.write_tier.durable_audit` (default **true**), `mcp.write_tier.approval.{enabled, ttl_seconds}` (default **true**, 900) |
 
 The public tier keeps its documented best-effort behaviour: it mutates nothing, so a durable pre-record buys no safety, and making a read-only surface fail-closed on audit availability would be a self-inflicted outage.
 
 `mcp.write_tier.durable_audit` **fails closed on a wiring gap**: if it is on and no `StrictAuditLedgerInterface` is bound (typically because `waaseyaa/audit` is absent), `McpServiceProvider` throws at setup rather than substituting `NullStrictAuditLedger`. A write tier that *looks* durably audited and records nothing is worse than one that refuses to boot. It parses with the same strict boolean allowlist as `mcp.public.enabled`.
 
 The same contract is enforced by **`McpEndpoint` itself, independent of provider wiring**: constructing it with `durableAudit: true` and an absent ledger — or the record-nothing `NullStrictAuditLedger` — throws `LogicException` at construction. (The former internal escape, `$this->auditLedger ?? new NullStrictAuditLedger()`, silently downgraded a direct construction to unaudited mutation; it is removed.) `NullStrictAuditLedger` remains the legitimate default only for surfaces that never opted into durability, i.e. the public read-only tier.
+
+## Human-approval gate for destructive write-tier calls (#2177 F1, slice B)
+
+The server-enforced half of the F1 approval gate: on a gated endpoint, a tool declared `destructive: true` executes **only** against a matching, approved, unexpired, unconsumed durable approval (`Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface`; storage semantics in `docs/specs/ocap-audit-log.md` §"Operation approval event log"). Enforcement reads the tool's declared `AgentTool::$destructive` — never the advisory descriptor hints.
+
+> **Intentionally not operationally complete.** The admin decision surface — HTTP routes and admin-SPA UI for operators to approve/deny — is **not yet present** (it is the next #2177 slice; its CSRF prerequisite is documented above). Until it lands, a decision requires a server-side call to `OperationApprovalStoreInterface::decide()`. The gate therefore currently acts as fail-closed protection: destructive calls without a standing approval are challenged and expire undecided.
+
+### Descriptor metadata (advisory)
+
+- `AgentTool::toMcpDescriptor()` now always emits the spec-standard `annotations.destructiveHint` (from `$destructive`), on every tier.
+- On a **gated** endpoint, `tools/list` additionally marks each destructive tool's descriptor with the namespaced `_meta["ai.waaseyaa.mcp/approval"] = "required"` (`McpEndpoint::APPROVAL_LIST_META_KEY`). Non-destructive tools and ungated endpoints carry no such marker.
+- Both are hints for agents; neither replaces enforcement.
+
+### The `params._meta` envelope contract
+
+`tools/call` accepts an optional `params._meta` (MCP request-metadata member). It is validated as envelope and consumed by the endpoint: a **present** `_meta` that is not a JSON object — including an explicit `"_meta": null` and a non-empty list; presence is checked with `array_key_exists`, so present-null differs from absent — or a non-string `_meta["waaseyaa/approval_request_id"]` (`McpEndpoint::APPROVAL_REQUEST_ID_META_KEY`), is an `invalid_params_refused` `-32602` recording only the offending *type*. `{}` (decoded empty array) is a valid empty envelope. `_meta` **never** reaches schema validation, `argumentsForAudit()`, or the tool — `arguments` is the only member a tool ever sees (pinned by a fixture whose schema sets `additionalProperties: false`).
+
+### The gate flow (destructive tools, gate on)
+
+After schema validation and redaction, the endpoint derives the `ApprovalTuple` from the **exact string account id** of the bearer principal, the ledger surface (`mcp.write`), the tool name, and the canonical fingerprint of the raw validated arguments. Then:
+
+| Situation | Response | Durable record |
+|---|---|---|
+| No approval id supplied | `-32003` with `approval_request_id`, `expires_at` (ISO-8601 UTC), `correlation_id` | `store.open()` (reuses the pending request for an identical retry) + one `approval_required` terminal record carrying safe args, id, expiry |
+| Id supplied, request pending, exact tuple match | same `-32003` (same id) | `approval_required` again |
+| Id unknown / malformed shape, tuple mismatch, denied, expired, consumed | **one identical `-32004` body** — `Approval refused.` + `correlation_id` only | `approval_refused` with the axis + id operator-side |
+| Id approved, exact tuple match | continue to reserve/consume below | — |
+
+The `-32004` body is byte-identical across every axis (pinned by test), so the response is not an approval-state oracle; the axis (`unknown` / `tuple_mismatch` / `denied` / `expired` / `consumed` / `not_consumable`) lives only in the durable record's metadata. A malformed id shape is refused without a store roundtrip — the `apr_` + 32-hex shape is public in every challenge, so this reveals nothing.
+
+### Ordering and joins: reserve → consume → execute → finalize
+
+The existing fail-closed strict reserve happens first, with reservation metadata carrying `approval_request_id` and `approval_decided_by_uid`. Then the approval is **consumed atomically before execution** — `consume(requestId, receiptId, retryCorrelationId)` joins the approval to the executing reservation's receipt and the retry's correlation id; the storage-level `UNIQUE(request_id, event_type)` makes a second consumption impossible, so **a consumed approval is never reusable**. Finalization (success or failure) carries the same approval join metadata.
+
+Failure semantics, each pinned by test:
+
+- **Reserve fails** → the established `-32002` refusal; consume was never called, so the approval stays spendable by a later retry.
+- **Consume returns false** (race lost / state changed since the gate's read) → the reservation is finalized `approval_refused` (a pair, never a dangling reservation, never a second single-record terminal), exactly one terminal projection fires, the caller gets the same `-32004` body, and the tool never runs.
+- **Any `Throwable` from a store call** — before reserve (open/find) or during consume — fails closed: safe log metadata only (`mcp.approval_store_unavailable` / `mcp.approval_consume_failed`: exception class, correlation id, tool — never message or trace), a sanitized `-32002` (`Request refused: the approval store is unavailable.`) with the correlation id, and one honest `audit_unavailable_refused` record — a single terminal before reserve, a reservation finalization after it. No double terminals; the tool never runs; a consume-time failure leaves the approval unconsumed. The interface promises typed `ApprovalStoreException`s, but a nonconforming third-party adapter throwing anything else gets the same fail-closed treatment (pinned by test); each try wraps exactly one store call, so a tuple-construction failure is never misreported as a store outage. The stored-vs-computed `requestKey` match uses `hash_equals()` — the caller controls the computed key via arguments, so an early-exit comparison would be a timing side channel on approval identity.
+
+Non-destructive tools, and destructive tools on an ungated endpoint, keep their exact pre-gate behaviour.
+
+### Wiring and configuration
+
+- `AuditServiceProvider` binds `OperationApprovalStoreInterface` → `DatabaseOperationApprovalStore`, ensuring `ApprovalEventSchema` **lazily on first resolution** (a deployment that never uses the write tier pays nothing at boot). TTL from `mcp.write_tier.approval.ttl_seconds` — a strict positive integer (integer-shaped strings accepted), default `DatabaseOperationApprovalStore::DEFAULT_TTL_SECONDS` (900); anything else is a `ConfigException` naming the key and the value's type only.
+- `McpServiceProvider`: `mcp.write_tier.approval.enabled` defaults **true** (same strict boolean allowlist as its siblings). Enabled-but-unwireable (no store bound) throws at setup; enabled while `mcp.write_tier.durable_audit` is off is a contradiction (consume joins strict-ledger receipts) and is refused rather than silently resolved — turning durable audit off now requires stating `approval.enabled: false` too. The **public tier never gets the gate**.
+- `McpEndpoint` enforces the same contract independent of provider wiring: `approvalGate: true` without a store, or without `durableAudit`, throws `LogicException` at construction.
+
+### Coverage (approval gate)
+
+| Test | Level |
+|---|---|
+| `packages/mcp/tests/Integration/Approval/McpApprovalGateLifecycleTest.php` | End-to-end over real SQLite store + ledger: challenge / pending-reuse / approve / consume / execute / row joins, no-oracle refusal axes, replay, race, store failure, reserve failure, ordering, `_meta` stripping, `tools/list` markers, no secrets in any table |
+| `packages/mcp/tests/Unit/McpEndpointApprovalGateContractTest.php` | Constructor guards |
+| `packages/mcp/tests/Unit/McpServiceProviderTest.php` | Provider defaults, fail-closed wiring, explicit off, public-tier invariant |
+| `packages/audit/tests/Unit/AuditServiceProviderApprovalStoreTest.php` | Store binding, lazy schema, TTL config |
+| `packages/ai-tools/tests/Unit/AgentToolDescriptorTest.php` | `annotations.destructiveHint` |
 
 ### Compatibility
 

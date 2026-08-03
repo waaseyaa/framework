@@ -13,10 +13,15 @@ use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\DecisionAccountResolver;
 use Waaseyaa\AI\Tools\Schema\ToolInputSchemaValidator;
 use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
+use Waaseyaa\Foundation\Audit\Approval\ApprovalRequest;
+use Waaseyaa\Foundation\Audit\Approval\ApprovalStatus;
+use Waaseyaa\Foundation\Audit\Approval\ApprovalTuple;
+use Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface;
 use Waaseyaa\Foundation\Audit\AuditStage;
 use Waaseyaa\Foundation\Audit\NullStrictAuditLedger;
 use Waaseyaa\Foundation\Audit\StrictAuditLedgerException;
 use Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface;
+use Waaseyaa\Foundation\Audit\StrictAuditReceipt;
 use Waaseyaa\Foundation\Audit\StrictAuditReservation;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\Bridge\AgentToolRegistryBridge;
@@ -40,6 +45,19 @@ use Waaseyaa\Mcp\Event\McpDispatchEvent;
  */
 final readonly class McpEndpoint
 {
+    /** `tools/list` descriptor `_meta` key: this tool requires a human approval here. */
+    public const string APPROVAL_LIST_META_KEY = 'ai.waaseyaa.mcp/approval';
+
+    /** `tools/call` `params._meta` member carrying the approval request id on a retry. */
+    public const string APPROVAL_REQUEST_ID_META_KEY = 'waaseyaa/approval_request_id';
+
+    /**
+     * Opaque approval request-id shape (mirrors ApprovalRequest's own id
+     * contract). The shape is public — every challenge response shows it — so
+     * refusing a malformed id without a store roundtrip reveals nothing.
+     */
+    private const string APPROVAL_REQUEST_ID_PATTERN = '/^apr_[0-9a-f]{32}$/';
+
     /**
      * @param ?EventDispatcherInterface $dispatcher     Optional — when absent the
      *                                                  `waaseyaa.mcp.dispatch` event is silently
@@ -60,6 +78,14 @@ final readonly class McpEndpoint
      *        of an unhandled tool exception, forwarded to the per-request bridge. The
      *        caller-visible response is sanitized either way; the logger only decides
      *        whether an operator can still diagnose the failure.
+     * @param ?OperationApprovalStoreInterface $approvalStore The durable human-approval
+     *        store the gate enforces against. Required (with `$durableAudit`) whenever
+     *        `$approvalGate` is true — see the constructor guards below.
+     * @param bool $approvalGate Human-approval gate for destructive tools (#2177 F1).
+     *        When true, a tool declared `destructive: true` executes only against a
+     *        matching, approved, unexpired, unconsumed approval — see
+     *        {@see self::approvalGateDecision()}. The public read-only tier never
+     *        enables this.
      */
     public function __construct(
         private McpAuthInterface $auth,
@@ -74,6 +100,8 @@ final readonly class McpEndpoint
         private ?\Waaseyaa\Foundation\Log\LoggerInterface $logger = null,
         private ?StrictAuditLedgerInterface $auditLedger = null,
         private bool $durableAudit = false,
+        private ?OperationApprovalStoreInterface $approvalStore = null,
+        private bool $approvalGate = false,
     ) {
         // The endpoint's OWN fail-closed contract, independent of provider
         // wiring: a durable-audit endpoint with no ledger — or with the
@@ -89,6 +117,26 @@ final readonly class McpEndpoint
                 . 'Refusing to construct a durable-audit endpoint whose ledger is absent or '
                 . 'NullStrictAuditLedger — it would mutate without durable evidence. '
                 . 'Supply a real ledger, or set durableAudit to false to accept best-effort auditing.',
+            );
+        }
+
+        // Same reasoning for the human-approval gate (#2177 F1): a gate with no
+        // store to enforce against LOOKS enforced and enforces nothing, and a
+        // gate without durable audit has no strict-ledger receipt for the
+        // once-only consume() to join to. Both constructions ARE the wiring
+        // error, so both are refused here.
+        if ($this->approvalGate && !$this->approvalStore instanceof OperationApprovalStoreInterface) {
+            throw new \LogicException(
+                'McpEndpoint: approvalGate requires an OperationApprovalStoreInterface. '
+                . 'Refusing to construct a gated endpoint with no approval store — destructive '
+                . 'tools would run unapproved. Supply a store, or set approvalGate to false.',
+            );
+        }
+        if ($this->approvalGate && !$this->durableAudit) {
+            throw new \LogicException(
+                'McpEndpoint: approvalGate requires durableAudit. Consuming an approval joins it '
+                . 'to the strict-ledger receipt of the executing reservation, which only exists '
+                . 'under durable auditing. Enable durableAudit, or set approvalGate to false.',
             );
         }
     }
@@ -282,7 +330,7 @@ final readonly class McpEndpoint
                 'initialize' => $this->protocolExecute(fn(): McpResponse => $this->handleInitialize($id), $id, $correlationId, $actorUid, $method),
                 'ping' => $this->protocolExecute(fn(): McpResponse => $this->handlePing($id), $id, $correlationId, $actorUid, $method),
                 'tools/list' => $this->protocolExecute(fn(): McpResponse => $this->handleToolsList($id, $bridge), $id, $correlationId, $actorUid, $method),
-                'tools/call' => $this->handleToolsCall($id, $params, $bridge, $correlationId, $actorUid),
+                'tools/call' => $this->handleToolsCall($id, $params, $bridge, $correlationId, $actorUid, (string) $principal->id()),
                 default => $this->refuseUnknownMethod($id, $method, $correlationId, $actorUid),
             };
 
@@ -403,7 +451,15 @@ final readonly class McpEndpoint
     {
         $tools = [];
         foreach ($bridge->getTools() as $tool) {
-            $tools[] = $tool->toMcpDescriptor();
+            $descriptor = $tool->toMcpDescriptor();
+            // Advertise the gate so an agent can anticipate the -32003
+            // challenge instead of discovering it. Advisory only: enforcement
+            // in handleToolsCall reads $tool->destructive and the gate flag,
+            // never this marker.
+            if ($this->approvalGate && $tool->destructive) {
+                $descriptor['_meta'] = [self::APPROVAL_LIST_META_KEY => 'required'];
+            }
+            $tools[] = $descriptor;
         }
 
         return $this->jsonRpcResult($id, ['tools' => $tools]);
@@ -424,6 +480,7 @@ final readonly class McpEndpoint
         AgentToolRegistryBridge $bridge,
         string $correlationId,
         ?int $actorUid,
+        string $principalKey,
     ): McpResponse {
         $toolName = $params['name'] ?? null;
         $arguments = $params['arguments'] ?? [];
@@ -474,6 +531,51 @@ final readonly class McpEndpoint
             return $this->jsonRpcError(-32602, 'Invalid parameter: arguments must be an object', $id);
         }
 
+        // `params._meta` is the request-metadata envelope member (MCP spec). It
+        // is validated and consumed HERE, as envelope: it never reaches schema
+        // validation, argumentsForAudit(), or the tool — `arguments` is the
+        // only member a tool ever sees.
+        // Presence, not value: `"_meta": null` is PRESENT and non-object — the
+        // same envelope defect as any other non-object — while an absent
+        // member is simply no envelope metadata.
+        $metaPresent = \array_key_exists('_meta', $params);
+        $meta = $metaPresent ? $params['_meta'] : null;
+        if ($metaPresent && (!\is_array($meta) || (array_is_list($meta) && $meta !== []))) {
+            $this->auditTerminal(
+                AuditStage::InvalidParamsRefused,
+                $correlationId,
+                $actorUid,
+                'tools/call',
+                $toolName,
+                [],
+                ['reason' => 'meta_not_object', 'meta_type' => \get_debug_type($meta)],
+            );
+
+            return $this->jsonRpcError(-32602, 'Invalid parameter: _meta must be an object', $id);
+        }
+
+        $approvalRequestId = null;
+        if (\is_array($meta) && \array_key_exists(self::APPROVAL_REQUEST_ID_META_KEY, $meta)) {
+            $approvalRequestId = $meta[self::APPROVAL_REQUEST_ID_META_KEY];
+            if (!\is_string($approvalRequestId)) {
+                $this->auditTerminal(
+                    AuditStage::InvalidParamsRefused,
+                    $correlationId,
+                    $actorUid,
+                    'tools/call',
+                    $toolName,
+                    [],
+                    ['reason' => 'approval_request_id_not_string', 'value_type' => \get_debug_type($approvalRequestId)],
+                );
+
+                return $this->jsonRpcError(
+                    -32602,
+                    \sprintf('Invalid parameter: _meta["%s"] must be a string', self::APPROVAL_REQUEST_ID_META_KEY),
+                    $id,
+                );
+            }
+        }
+
         $tool = $bridge->getTool($toolName);
         if ($tool === null) {
             // An unknown tool cannot supply argumentsForAudit(), so only the
@@ -517,9 +619,41 @@ final readonly class McpEndpoint
         // Redaction is the TOOL's own transform, never the raw JSON-RPC params.
         $safeArguments = $this->safeArguments($tool, $arguments);
 
+        // Human-approval gate (#2177 F1): a destructive tool on a gated
+        // endpoint runs only against a matching, approved, unexpired,
+        // unconsumed durable approval. Enforcement keys off the tool's declared
+        // `$destructive` — the advisory descriptor hints in tools/list are
+        // never consulted. Anything but an approved exact-tuple match returns
+        // here, before the reservation, with no execution.
+        $approval = null;
+        if ($this->approvalGate && $tool->destructive) {
+            $gate = $this->approvalGateDecision(
+                $id,
+                $arguments,
+                $safeArguments,
+                $approvalRequestId,
+                $correlationId,
+                $actorUid,
+                $principalKey,
+                $toolName,
+            );
+            if ($gate instanceof McpResponse) {
+                return $gate;
+            }
+            $approval = $gate;
+        }
+
+        // Joins the executing reservation (and its finalization) to the
+        // approval that authorized it and to the operator who decided it.
+        $approvalMetadata = $approval !== null
+            ? ['approval_request_id' => $approval->id, 'approval_decided_by_uid' => $approval->decidedByUid]
+            : [];
+
         // Durable pre-execution reservation. On the write tier this is
         // fail-closed: if the attempt cannot be made durable, the tool is never
         // invoked, so no mutation can occur without evidence that it was tried.
+        // Reserve precedes consume, so a reservation failure leaves the
+        // approval unconsumed and spendable by a later retry.
         $receipt = null;
         if ($this->durableAudit) {
             try {
@@ -529,7 +663,7 @@ final readonly class McpEndpoint
                     operation: $toolName,
                     actorUid: $actorUid,
                     safeArguments: $safeArguments,
-                    metadata: ['tier' => $this->rateLimitTier],
+                    metadata: ['tier' => $this->rateLimitTier] + $approvalMetadata,
                 ));
             } catch (StrictAuditLedgerException $e) {
                 $this->logger?->critical('mcp.audit_reservation_failed', [
@@ -564,11 +698,29 @@ final readonly class McpEndpoint
             }
         }
 
+        // Atomic once-only consume, strictly BEFORE execution: the storage
+        // layer's unique index guarantees at most one consumer, so losing the
+        // race (or any state change since the gate's read) refuses execution.
+        if ($approval !== null) {
+            $consumeRefusal = $this->consumeApproval(
+                $id,
+                $approval,
+                $receipt,
+                $correlationId,
+                $actorUid,
+                $toolName,
+                $approvalMetadata,
+            );
+            if ($consumeRefusal !== null) {
+                return $consumeRefusal;
+            }
+        }
+
         $outcome = $bridge->executeClassified($toolName, $arguments);
 
         if ($receipt !== null) {
             try {
-                $this->auditLedger()->finalize($receipt, $outcome->stage, ['tier' => $this->rateLimitTier]);
+                $this->auditLedger()->finalize($receipt, $outcome->stage, ['tier' => $this->rateLimitTier] + $approvalMetadata);
             } catch (\Throwable $e) {
                 // The side effect has ALREADY happened. Retrying or rolling it
                 // back would duplicate or silently undo a committed mutation, so
@@ -609,6 +761,319 @@ final readonly class McpEndpoint
         } catch (\Throwable) {
             return ['_redaction_unavailable' => true, 'argument_count' => \count($arguments)];
         }
+    }
+
+    /**
+     * Decide the approval gate for one destructive call: a challenge or a
+     * refusal response, or the approved {@see ApprovalRequest} to consume.
+     *
+     * The tuple binds the approval to THIS principal (exact string account id),
+     * THIS surface, THIS tool, and THESE exact raw validated arguments — any
+     * drift is a different operation than the one the human saw. The caller's
+     * refusal body is identical on every non-approved axis (unknown, mismatch,
+     * denied, expired, consumed): the axis is recorded operator-side only, so
+     * the response is not an approval-state oracle.
+     *
+     * @param array<array-key, mixed> $arguments     the raw, schema-validated call arguments
+     * @param array<array-key, mixed> $safeArguments the tool's redacted projection of them
+     */
+    private function approvalGateDecision(
+        mixed $id,
+        array $arguments,
+        array $safeArguments,
+        ?string $approvalRequestId,
+        string $correlationId,
+        ?int $actorUid,
+        string $principalKey,
+        string $toolName,
+    ): McpResponse|ApprovalRequest {
+        // Deliberately OUTSIDE any store try/catch: a tuple-construction
+        // failure is this endpoint's own defect, not a store outage, and must
+        // not be misreported as one.
+        $tuple = ApprovalTuple::forCall($principalKey, $this->auditSurface(), $toolName, $arguments);
+        $store = $this->approvalStore();
+
+        // Each try below wraps EXACTLY one store call, and catches \Throwable
+        // rather than only the contract's ApprovalStoreException: a
+        // nonconforming third-party adapter that throws anything else must
+        // still fail closed, never escape as an uncontrolled crash.
+        if ($approvalRequestId === null) {
+            try {
+                $request = $store->open($tuple, $correlationId, $safeArguments);
+            } catch (\Throwable $e) {
+                return $this->approvalStoreUnavailable($e, $id, $correlationId, $actorUid, $toolName);
+            }
+
+            return $this->approvalChallenge($id, $request, $correlationId, $actorUid, $toolName, $safeArguments);
+        }
+
+        $request = null;
+        if (preg_match(self::APPROVAL_REQUEST_ID_PATTERN, $approvalRequestId) === 1) {
+            try {
+                $request = $store->find($approvalRequestId);
+            } catch (\Throwable $e) {
+                return $this->approvalStoreUnavailable($e, $id, $correlationId, $actorUid, $toolName);
+            }
+        }
+
+        if ($request === null) {
+            return $this->approvalRefusal($id, 'unknown', null, $correlationId, $actorUid, $toolName, $safeArguments);
+        }
+
+        // Constant-time: the caller controls the computed key via the call
+        // arguments, so an early-exit comparison would leak how many
+        // leading bytes of the stored key a probe reproduces.
+        if (!\hash_equals($request->tuple->requestKey, $tuple->requestKey)) {
+            return $this->approvalRefusal($id, 'tuple_mismatch', $request->id, $correlationId, $actorUid, $toolName, $safeArguments);
+        }
+
+        return match ($request->status) {
+            ApprovalStatus::Pending => $this->approvalChallenge($id, $request, $correlationId, $actorUid, $toolName, $safeArguments),
+            ApprovalStatus::Approved => $request,
+            ApprovalStatus::Denied => $this->approvalRefusal($id, 'denied', $request->id, $correlationId, $actorUid, $toolName, $safeArguments),
+            ApprovalStatus::Expired => $this->approvalRefusal($id, 'expired', $request->id, $correlationId, $actorUid, $toolName, $safeArguments),
+            ApprovalStatus::Consumed => $this->approvalRefusal($id, 'consumed', $request->id, $correlationId, $actorUid, $toolName, $safeArguments),
+        };
+    }
+
+    /**
+     * Fail closed on a pre-reservation store failure: approval state that
+     * cannot be read or made durable means the destructive call must not run.
+     * Safe metadata only — class, correlation, tool — never message or trace
+     * (F6). Nothing was reserved yet, so this is one honest single-record
+     * terminal — never a second terminal for the same request.
+     */
+    private function approvalStoreUnavailable(
+        \Throwable $e,
+        mixed $id,
+        string $correlationId,
+        ?int $actorUid,
+        string $toolName,
+    ): McpResponse {
+        $this->logger?->critical('mcp.approval_store_unavailable', [
+            'correlation_id' => $correlationId,
+            'tool' => $toolName,
+            'exception' => $e::class,
+        ]);
+
+        $this->auditTerminal(
+            AuditStage::AuditUnavailableRefused,
+            $correlationId,
+            $actorUid,
+            'tools/call',
+            $toolName,
+            [],
+            ['reason' => 'approval_store_unavailable'],
+        );
+
+        return $this->jsonRpcError(
+            -32002,
+            'Request refused: the approval store is unavailable.',
+            $id,
+            ['correlation_id' => $correlationId],
+        );
+    }
+
+    /**
+     * Consume the approved request, exactly once, before execution.
+     *
+     * Returns null when consumption succeeded and the tool may run; otherwise
+     * the refusal response. Either failure path finalizes the already-durable
+     * reservation with its honest stage — a pair, never a dangling reservation
+     * and never a second single-record terminal.
+     *
+     * @param array<string, mixed> $approvalMetadata
+     */
+    private function consumeApproval(
+        mixed $id,
+        ApprovalRequest $approval,
+        ?StrictAuditReceipt $receipt,
+        string $correlationId,
+        ?int $actorUid,
+        string $toolName,
+        array $approvalMetadata,
+    ): ?McpResponse {
+        // Non-null whenever the gate is on — approvalGate requires durableAudit
+        // at construction, and the fail-closed reserve() already returned.
+        if ($receipt === null) {
+            throw new \LogicException('approvalGate without durableAudit is refused at construction.');
+        }
+
+        // \Throwable, not just the contract's ApprovalStoreException: a
+        // nonconforming store must still fail closed with an honest
+        // finalization, never escape mid-request (same rationale as the
+        // pre-reservation gate). The try wraps only the store call.
+        try {
+            $consumed = $this->approvalStore()->consume($approval->id, $receipt->id, $correlationId);
+        } catch (\Throwable $e) {
+            $this->logger?->critical('mcp.approval_consume_failed', [
+                'correlation_id' => $correlationId,
+                'tool' => $toolName,
+                'exception' => $e::class,
+            ]);
+
+            $this->finalizeQuietly(
+                $receipt,
+                AuditStage::AuditUnavailableRefused,
+                ['reason' => 'approval_store_unavailable'] + $approvalMetadata,
+                $correlationId,
+                $toolName,
+            );
+            $this->emitAudit(
+                AuditStage::AuditUnavailableRefused,
+                $correlationId,
+                $actorUid,
+                'tools/call',
+                $toolName,
+                [],
+                ['reason' => 'approval_store_unavailable'],
+            );
+
+            return $this->jsonRpcError(
+                -32002,
+                'Request refused: the approval store is unavailable.',
+                $id,
+                ['correlation_id' => $correlationId],
+            );
+        }
+
+        if ($consumed) {
+            return null;
+        }
+
+        // Lost the once-only race, or the state changed since the gate's read.
+        // Either way the approval is not spendable by THIS request.
+        $this->finalizeQuietly(
+            $receipt,
+            AuditStage::ApprovalRefused,
+            ['reason' => 'not_consumable'] + $approvalMetadata,
+            $correlationId,
+            $toolName,
+        );
+        $this->emitAudit(
+            AuditStage::ApprovalRefused,
+            $correlationId,
+            $actorUid,
+            'tools/call',
+            $toolName,
+            [],
+            ['reason' => 'not_consumable'] + $approvalMetadata,
+        );
+
+        return $this->approvalRefusedResponse($id, $correlationId);
+    }
+
+    /**
+     * The -32003 challenge: durably record `approval_required`, then hand the
+     * caller everything a compliant retry needs — and nothing else.
+     *
+     * @param array<array-key, mixed> $safeArguments
+     */
+    private function approvalChallenge(
+        mixed $id,
+        ApprovalRequest $request,
+        string $correlationId,
+        ?int $actorUid,
+        string $toolName,
+        array $safeArguments,
+    ): McpResponse {
+        $expiresAt = $request->expiresAt->format(\DateTimeInterface::ATOM);
+
+        $this->auditTerminal(
+            AuditStage::ApprovalRequired,
+            $correlationId,
+            $actorUid,
+            'tools/call',
+            $toolName,
+            $safeArguments,
+            ['approval_request_id' => $request->id, 'expires_at' => $expiresAt],
+        );
+
+        return $this->jsonRpcError(
+            -32003,
+            'Approval required: a human operator must approve this call before it runs. '
+            . 'Retry with the approval request id in _meta["' . self::APPROVAL_REQUEST_ID_META_KEY . '"] once approved.',
+            $id,
+            [
+                'approval_request_id' => $request->id,
+                'expires_at' => $expiresAt,
+                'correlation_id' => $correlationId,
+            ],
+        );
+    }
+
+    /**
+     * A pre-reservation approval refusal: one durable `approval_refused`
+     * record carrying the axis operator-side, and the fixed no-oracle body.
+     *
+     * @param array<array-key, mixed> $safeArguments
+     */
+    private function approvalRefusal(
+        mixed $id,
+        string $reason,
+        ?string $requestId,
+        string $correlationId,
+        ?int $actorUid,
+        string $toolName,
+        array $safeArguments,
+    ): McpResponse {
+        $metadata = ['reason' => $reason];
+        if ($requestId !== null) {
+            $metadata['approval_request_id'] = $requestId;
+        }
+
+        $this->auditTerminal(
+            AuditStage::ApprovalRefused,
+            $correlationId,
+            $actorUid,
+            'tools/call',
+            $toolName,
+            $safeArguments,
+            $metadata,
+        );
+
+        return $this->approvalRefusedResponse($id, $correlationId);
+    }
+
+    /** The single no-oracle refusal body, shared by every non-approved axis. */
+    private function approvalRefusedResponse(mixed $id, string $correlationId): McpResponse
+    {
+        return $this->jsonRpcError(-32004, 'Approval refused.', $id, ['correlation_id' => $correlationId]);
+    }
+
+    /**
+     * Finalize a reservation whose refusal response is already decided: the
+     * response must not change if the outcome record fails, so the failure is
+     * logged loudly instead (same rationale as the post-execution finalize).
+     *
+     * @param array<string, mixed> $metadata
+     */
+    private function finalizeQuietly(
+        StrictAuditReceipt $receipt,
+        AuditStage $stage,
+        array $metadata,
+        string $correlationId,
+        string $toolName,
+    ): void {
+        try {
+            $this->auditLedger()->finalize($receipt, $stage, ['tier' => $this->rateLimitTier] + $metadata);
+        } catch (\Throwable $e) {
+            $this->logger?->critical('mcp.audit_finalize_failed', [
+                'correlation_id' => $correlationId,
+                'receipt_id' => $receipt->id,
+                'tool' => $toolName,
+                'stage' => $stage->value,
+                'exception' => $e::class,
+                'note' => 'Dangling reservation: the refusal stands, its outcome record does not.',
+            ]);
+        }
+    }
+
+    private function approvalStore(): OperationApprovalStoreInterface
+    {
+        // Non-null whenever approvalGate is on — enforced by the constructor.
+        return $this->approvalStore
+            ?? throw new \LogicException('approvalGate without a store is refused at construction.');
     }
 
     private function auditLedger(): StrictAuditLedgerInterface
