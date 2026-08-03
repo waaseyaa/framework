@@ -80,7 +80,7 @@ final class EntityDeleteTool extends AbstractAgentTool
             }
             $repository->delete($entity);
         } catch (\Throwable $e) {
-            return AgentToolResult::error(sprintf('entity.delete: %s', $e->getMessage()));
+            return $this->internalError('entity.delete', $e);
         }
 
         return AgentToolResult::success(

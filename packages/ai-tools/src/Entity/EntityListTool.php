@@ -76,7 +76,7 @@ final class EntityListTool extends AbstractAgentTool
             $repository = $this->entityTypeManager->getRepository($entityType);
             $entities = $repository->findBy($filter, $sort, $limit);
         } catch (\Throwable $e) {
-            return AgentToolResult::error(sprintf('entity.list: %s', $e->getMessage()));
+            return $this->internalError('entity.list', $e);
         }
 
         // Per-entity access gate: drop entities the initiating account may not

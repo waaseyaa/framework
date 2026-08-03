@@ -50,6 +50,10 @@ final readonly class McpEndpoint
      *        consulted only AFTER successful authentication (anonymous 401s never
      *        consume budget) and fails OPEN on limiter infrastructure errors —
      *        limiter availability must never take down the endpoint.
+     * @param ?\Waaseyaa\Foundation\Log\LoggerInterface $logger Destination for the detail
+     *        of an unhandled tool exception, forwarded to the per-request bridge. The
+     *        caller-visible response is sanitized either way; the logger only decides
+     *        whether an operator can still diagnose the failure.
      */
     public function __construct(
         private McpAuthInterface $auth,
@@ -61,6 +65,7 @@ final readonly class McpEndpoint
         private int $rateLimitWindowSeconds = 60,
         private string $rateLimitTier = 'public',
         private ?AccountFieldReadScopeInterface $fieldReadScope = null,
+        private ?\Waaseyaa\Foundation\Log\LoggerInterface $logger = null,
     ) {}
 
     /**
@@ -157,7 +162,7 @@ final readonly class McpEndpoint
         // Construct the per-request bridge with the auth-resolved account.
         // The bridge forwards $authenticated into every tool->execute() call,
         // so per-tool capability gates run against the correct identity.
-        $bridge = new AgentToolRegistryBridge($this->agentRegistry, $principal);
+        $bridge = new AgentToolRegistryBridge($this->agentRegistry, $principal, $this->logger);
 
         // Scope the acting-account context to the bearer-auth account
         // (research D1 writer 2, FR-002). The MCP account deliberately

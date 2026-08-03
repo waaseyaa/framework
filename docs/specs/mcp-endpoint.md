@@ -1,5 +1,7 @@
 # MCP Endpoint
 
+<!-- Spec reviewed 2026-08-03 - #2177 F2/F6 (mcp-public-boundary): TWO behaviour changes. (F2) `McpServiceProvider` no longer binds `McpAuthInterface` locally — a local binding sits ahead of the kernel-services bus in `ServiceProvider::resolve()`, so the package default silently shadowed every downstream application override and `/mcp` stayed anonymous regardless of what an app bound. Resolution moved to `resolvePublicAuth()` at the point of use (`resolveOptional() ?? new PublicAnonymousAuth()`), mirroring the `resolveWriteTierAuth()` pattern that already fixed this for the write tier (P0-1); the anonymous default is unchanged when no app binds anything. New `mcp.public.enabled` config gate withdraws BOTH `/mcp` and `/.well-known/mcp.json` from the route collection when false — 404 rather than 401, and the card goes with the endpoint it advertises. Absent = enabled (historical default); a supplied value must parse as a boolean from an explicit allowlist or `ConfigException` is raised during route setup — a typo in a control gating a public network surface must never be guessed at in either direction, and `filter_var(FILTER_VALIDATE_BOOL)` was rejected because it silently maps `null`/`''` to false. `/mcp/write` is deliberately not gated. (F6) Unhandled tool exceptions no longer reach the caller: `AgentToolRegistryBridge` and the 11 generic `catch (\Throwable)` arms in the entity/relationship/vector tools now return a fixed `INTERNAL_ERROR` envelope plus a random correlation id via the new `Waaseyaa\AI\Tools\Error\SanitizedToolError`. The log receives safe diagnostic METADATA only (correlation id, tool, exception class, file, line, integer code) — NOT the exception message, trace, bearer token, call arguments, or the Throwable object, because a log store is an indexed, widely-read egress path and relocating a credential into it is not a fix. Deliberate domain envelopes (Content Publishing, revision conflict, key refusal, per-tool `forbidden`) pass through untouched. Sanitization is independent of logger availability. -->
+
 <!-- Spec reviewed 2026-07-30 - #2145: `tools/call` now enforces each tool's declared JSON Schema (draft 2020-12) server-side before the handler runs. Waaseyaa\AI\Tools\Schema\ToolInputSchemaValidator (ai-tools, L5) validates AgentTool::$inputSchema — the exact object tools/list advertises — inside AgentToolRegistryBridge::execute(), the single choke point both MCP tiers share. Violations short-circuit pre-dispatch with the established structured envelope {code: VALIDATION_FAILED, message, errors: [{field, message}]} + isError: true. Auth and rate-limit ordering unchanged (401/-32029 still precede validation). handleToolsCall also rejects non-string `name`, non-object `arguments`, and non-object `params` as -32602. See "Input-schema enforcement (`tools/call`)". -->
 <!-- Spec reviewed 2026-07-29 - #2141: the account resolved from MCP bearer authentication now scopes both AccountContextInterface and AccountFieldReadScopeInterface. FieldReadGuard intentionally follows the latter, so a write-tier request must not inherit the unrelated HTTP-session principal. JSON-RPC routing runs inside AccountFieldReadScopeInterface::run($principal, ...) and restores the prior scope on every exit. Regression coverage uses a bearer principal with no session fallback. -->
 
@@ -176,6 +178,43 @@ interface McpAuthInterface
 
 Takes the raw `Authorization` header value. Returns the authenticated `AccountInterface` or `null` on failure. The interface is deliberately minimal so implementations can be swapped without changing the endpoint.
 
+### Public-tier auth resolution and the `mcp.public.enabled` gate
+
+`McpServiceProvider` binds **no** default for `McpAuthInterface`. A local binding would sit in the provider's own bindings, and `ServiceProvider::resolve()` consults those *before* the cross-provider kernel-services bus (`packages/foundation/src/ServiceProvider/ServiceProvider.php`) — so a package default silently beat any application binding, and `/mcp` stayed anonymous no matter what a downstream app did. That is the same P0-1 shadowing already fixed for `WriteTierAuthInterface`; the public tier now follows the identical pattern.
+
+Resolution happens at the point of use, in `McpServiceProvider::resolvePublicAuth()`:
+
+```
+resolveOptional(McpAuthInterface::class)   // own bindings (empty) → kernel-services bus → app binding
+    ?? new PublicAnonymousAuth()           // anonymous read-only default
+```
+
+The two tiers differ only in their fallback, deliberately:
+
+| Tier | Resolver | Fallback when no application binding | Rationale |
+|---|---|---|---|
+| Public `/mcp` | `resolvePublicAuth()` | `PublicAnonymousAuth` (anonymous read) | Anonymous read is the designed default; operators disable it with the config gate, not by supplying an auth strategy that refuses everything. |
+| Write `/mcp/write` | `resolveWriteTierAuth()` | `BearerTokenAuth([])` (every request 401) | A write surface with no configured identity must be unusable; token→account mapping is inherently application-specific. |
+
+**The gate.** `mcp.public.enabled` decides whether the public pair is routed at all.
+
+| Value | Result |
+|---|---|
+| key absent | enabled (historical default) |
+| `true`, `1`, `"1"`, `"true"`, `"on"`, `"yes"` (case-insensitive, trimmed) | enabled |
+| `false`, `0`, `"0"`, `"false"`, `"off"`, `"no"` | disabled |
+| anything else — `null`, `""`, `"flase"`, floats, out-of-range ints, arrays, objects | **`ConfigException` during provider/route setup** |
+
+**Absent means default; present means it must parse.** A typo in a control governing a public network surface cannot be guessed at safely: reading `"flase"` as enabled silently publishes the endpoint the operator meant to close, and reading it as disabled silently withdraws a surface a deployment depends on. Refusing to boot is the only outcome that is wrong in neither direction.
+
+The implementation is an explicit allowlist, **not** `filter_var(..., FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE)` — that maps both `null` and `''` to `false`, which would have silently withdrawn the endpoint for a key an operator left blank. `McpServiceProviderTest` pins that PHP behaviour alongside the throw, so the reason the allowlist exists cannot be refactored away.
+
+`mcp.public` must itself be a map; `mcp.public: false` throws (naming `mcp.public`) rather than being read as enabled. The exception names the key and `get_debug_type()` of the value **only** — configuration routinely holds credentials and exception messages reach logs and error pages.
+
+When disabled, `McpRouteProvider` registers **neither** `mcp.endpoint` **nor** `mcp.server_card` — both paths 404. The routes are withdrawn rather than left answering 401 so the surface does not confirm an MCP server is present, and the discovery card goes with the endpoint because a card advertising a 404 is worse than no card. `mcp.endpoint.write` is **not** gated: an authenticated write tier with no anonymous read tier is a supported production shape.
+
+Covered by `McpServiceProviderTest` (route registration + flag parsing) and `Integration\PublicTierAuthOverrideTest` (override honoured under either provider ordering, anonymous default preserved, and the enabled/disabled routing outcomes asserted through `WaaseyaaRouter::match()`).
+
 ### BearerTokenAuth
 
 MVP implementation that maps opaque bearer tokens to user accounts, hardened by mission request-surface-hardening-01KTX7F2 (#1652, FR-005/FR-006):
@@ -348,6 +387,66 @@ The two layers stack — schema shape first, editorial rules second.
 | `packages/mcp/tests/Unit/McpEndpointSchemaOrderingTest.php` | Unit — auth/rate-limit ordering, malformed `params` shapes |
 | `tests/Integration/PhaseN/Mcp/McpToolsCallSchemaEnforcementTest.php` | Production-shaped — the real `ContentToolSet` over revisionable SQLite through the real `/mcp/write` tier: the reported payload, wrong types, unexpected properties, the full draft→publish→rollback→unpublish lifecycle, idempotent replays, and both authenticated and unauthenticated surfaces |
 
+## Tool error envelope and exception sanitization
+
+Every tool failure returns inside the MCP result envelope with `isError: true` and a `text` content block holding a JSON object with a machine-readable `code`. There is one shape for all of them, so an agent parses a schema rejection, a missing tool and a domain refusal identically.
+
+| `code` | Source | Notes |
+|---|---|---|
+| `TOOL_NOT_FOUND` | `AgentToolRegistryBridge` | Built from the caller's own tool name, never echoed from the exception. An off-tier tool is hidden behind this same response by the tier registries — "not registered" and "not yours" are indistinguishable. |
+| `VALIDATION_FAILED` | `AgentToolRegistryBridge` (#2145) | `errors` lists `{field, message}`. |
+| `INTERNAL_ERROR` | `AgentToolRegistryBridge` / `AbstractAgentTool::internalError()` | An unhandled exception. See below. |
+| Domain codes | The tool itself | `REVISION_CONFLICT`, `ASSET_REJECTED`, Content Publishing field errors, per-tool `forbidden` refusals. **Passed through unchanged** — these are authored, machine-readable results an agent acts on. |
+
+### `INTERNAL_ERROR` — what the caller is not told
+
+A thrown exception's message is operator-facing: it routinely carries DSN fragments, credentials, absolute filesystem paths and internal class names. Returning it verbatim handed all of that to the caller, including an anonymous one on the public tier.
+
+`Waaseyaa\AI\Tools\Error\SanitizedToolError` is the single source of truth for the replacement. The caller receives only:
+
+```json
+{
+  "code": "INTERNAL_ERROR",
+  "message": "<fixed literal — interpolates nothing>",
+  "meta": {"correlation_id": "<16 hex chars>"}
+}
+```
+
+**The log receives safe diagnostic metadata, not exception detail.** `Waaseyaa\Foundation\Log\LoggerInterface` gets a fixed key set under `mcp.tool_execution_failed` (bridge) or `agent_tool.execution_failed` (a tool's own catch):
+
+| Key | Value |
+|---|---|
+| `correlation_id` | identical to the caller's — the only join between the two sides |
+| `tool` | tool name |
+| `exception` | exception class |
+| `file` / `line` | throw site |
+| `code` | only when `getCode()` is an **integer** |
+
+Deliberately excluded: **the exception message, the stack trace, the bearer token, the call arguments, and the `Throwable` object itself.**
+
+The message is not merely kept out of the response — it is kept out of the log too. A log store is not a private channel: it is shipped to aggregators, indexed, retained, and read by people with far broader access than the operator debugging one failure. Copying a DSN or credential from the response into the log store relocates a disclosure rather than fixing one. The trace is excluded more strongly still, since it carries argument *values* frame by frame. The `Throwable` is never attached because a logger that serializes context objects (JSON, `var_export`, an error tracker's payload builder) would walk straight into the message and trace this design excludes.
+
+A non-integer `getCode()` — PDO's SQLSTATE string, or anything a custom exception interpolated — is dropped rather than inspected. An int cannot carry a credential; a "does this string look sensitive?" test would be exactly the guesswork this design avoids.
+
+Diagnosis path: take the correlation id from the caller's response, find the log line, reproduce under a debugger — under an access decision someone actually made.
+
+**Sanitization does not depend on a logger.** Both paths default to `NullLogger`; without one the caller-visible bytes are identical and the metadata is simply discarded. A logging gap can cost diagnosability, never open a leak.
+
+Two enforcement points, because there are two ways a failure reaches a caller:
+
+- **Thrown** — an exception escaping `execute()` is caught by `AgentToolRegistryBridge::execute()`, the transport boundary.
+- **Returned** — the entity/relationship/vector tools each wrap their storage work in a generic `catch (\Throwable)` so one failure cannot take down an agent run, and used to embed `$e->getMessage()` in the returned `AgentToolResult`. Those 11 arms now call `AbstractAgentTool::internalError()`. The logger is attached at hydration by `AttributeToolRegistry`, the same way the access handler is. Typed domain catches (`EntityValidationException`, `RevisionConflictException`, the `LogicException` "not revisionable" arms) are untouched.
+
+`AgentToolResult::summary` — the audit/transcript line — is a separate egress path and previously defaulted to the raw message; it now carries only the code and correlation id.
+
+### Coverage (sanitization)
+
+| Test | Level |
+|---|---|
+| `packages/ai-tools/tests/Unit/Error/SanitizedToolErrorTest.php` | Unit — tool-level arm, summary, with/without logger, fixed-literal message |
+| `packages/mcp/tests/Unit/Bridge/AgentToolRegistryBridgeSanitizationTest.php` | Unit — bridge arm, correlation-id uniqueness, domain envelopes passing through untouched |
+| `packages/mcp/tests/Unit/McpEndpointErrorSanitizationTest.php` | End-to-end — assertions on the **raw** HTTP response body, plus the bearer token and raw arguments being absent from the log |
+
 ## JSON-RPC Protocol
 
 All communication uses JSON-RPC 2.0 over HTTP.
@@ -423,12 +522,15 @@ The MCP spec (protocol version 2025-03-26) defines Streamable HTTP as the remote
 
 ## Routes
 
-`McpRouteProvider` registers two routes:
+`McpRouteProvider` registers three routes. The public pair is conditional on `mcp.public.enabled` (see [Public-tier auth resolution and the `mcp.public.enabled` gate](#public-tier-auth-resolution-and-the-mcppublicenabled-gate)); the write tier is always registered and is independently fail-closed.
 
-| Route Name | Path | Methods | Auth |
-|------------|------|---------|------|
-| `mcp.endpoint` | `/mcp` | POST, GET | Required |
-| `mcp.server_card` | `/.well-known/mcp.json` | GET | Public (`allowAll()`) |
+| Route Name | Path | Methods | Registered when | Auth |
+|------------|------|---------|-----------------|------|
+| `mcp.endpoint` | `/mcp` | POST, GET | `mcp.public.enabled` (default true) | `McpAuthInterface` — anonymous by default |
+| `mcp.server_card` | `/.well-known/mcp.json` | GET | `mcp.public.enabled` (default true) | Public (`allowAll()`) |
+| `mcp.endpoint.write` | `/mcp/write` | POST, GET | Always | `WriteTierAuthInterface` — 401 without an application binding |
+
+With `mcp.public.enabled = false`, `/mcp` and `/.well-known/mcp.json` are absent from the route collection and resolve to HTTP 404.
 
 ### Server Card
 

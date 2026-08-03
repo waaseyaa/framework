@@ -163,7 +163,7 @@ final class EntityUpdateTool extends AbstractAgentTool
         } catch (EntityValidationException $e) {
             return EntityKeyGuard::validationError('entity.update', $e);
         } catch (\Throwable $e) {
-            return AgentToolResult::error(sprintf('entity.update: %s', $e->getMessage()));
+            return $this->internalError('entity.update', $e);
         }
 
         return AgentToolResult::success(

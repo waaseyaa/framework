@@ -92,7 +92,7 @@ final class VectorSearchTool extends AbstractAgentTool
             $limit = isset($arguments['limit']) && is_int($arguments['limit']) ? $arguments['limit'] : 10;
             $results = $storage->search($embedding, $limit);
         } catch (\Throwable $e) {
-            return AgentToolResult::error(sprintf('vector.search: %s', $e->getMessage()));
+            return $this->internalError('vector.search', $e);
         }
 
         $filtered = $this->applyAccessGate(is_array($results) ? $results : [], $account);

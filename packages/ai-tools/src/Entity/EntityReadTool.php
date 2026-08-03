@@ -76,7 +76,7 @@ final class EntityReadTool extends AbstractAgentTool
             $repository = $this->entityTypeManager->getRepository($entityType);
             $entity = $repository->find((string) $id, $langcode);
         } catch (\Throwable $e) {
-            return AgentToolResult::error(sprintf('entity.read: %s', $e->getMessage()));
+            return $this->internalError('entity.read', $e);
         }
 
         // Absent-vs-forbidden indistinguishability (R8-c): `tool.entity.read`

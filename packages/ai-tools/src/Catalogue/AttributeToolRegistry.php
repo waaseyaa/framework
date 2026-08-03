@@ -176,6 +176,14 @@ final class AttributeToolRegistry implements ToolRegistryInterface
                 }
             }
 
+            // Give the tool somewhere to put the detail of an exception it had
+            // to swallow. Unconditional — unlike access enforcement this is a
+            // diagnostics concern, and a tool that cannot log still returns the
+            // same sanitized result.
+            if ($impl instanceof AbstractAgentTool) {
+                $impl->setLogger($this->logger);
+            }
+
             $tool = new AgentTool(
                 name: $name,
                 capability: $entry['capability'],
