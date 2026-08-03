@@ -1690,6 +1690,25 @@ Authoritative contracts: `docs/specs/bundle-scoped-storage.md §Drift diagnostic
 
 `AbstractKernel::buildHandlerContainer()` composes the CLI handler container from the booted provider list and returns a `KernelHandlerContainer` instance (`packages/foundation/src/Kernel/KernelHandlerContainer.php`), a named PSR-11 `ContainerInterface` implementation that replaced the inline anonymous class. Among its kernel-owned bindings it registers `Waaseyaa\User\RoleRepository` via `RoleRepository::fromProviders($this->providers)`, which scans every provider implementing `Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface` and flattens their `Role` contributions into an id-keyed registry. This is a kernel-owned service mirroring the `HealthChecker` composition pattern above: a type no single provider binds, assembled once by the kernel and made injectable into class-based command handlers. It lets role-aware handlers such as the `user:assign-role` handler (`Waaseyaa\CLI\Handler\UserAssignRoleHandler`) resolve a role to its registered permissions and stamp the union onto a user. See `docs/specs/access-control.md §Roles` for the role-to-permission model.
 
+## Strict audit ledger port (`Waaseyaa\Foundation\Audit`, #2177 F4)
+
+A fail-closed reserve/finalize audit contract, deliberately the opposite of `waaseyaa/audit`'s `AuditWriterInterface`.
+
+`AuditWriterInterface` is contractually best-effort — `record()` MUST swallow every exception and MUST NOT throw. That is right for an observability log and unusable for a surface that must refuse to act when it cannot be audited. `StrictAuditLedgerInterface` throws `StrictAuditLedgerException` when a record cannot be made durable, so a caller can decline to proceed.
+
+| Type | Role |
+|---|---|
+| `StrictAuditLedgerInterface` | `reserve()` / `finalize()` / `record()`; throws rather than swallowing |
+| `AuditStage` | pipeline stage enum; `outcome()` / `severity()` map onto the existing `audit_event` grammar |
+| `StrictAuditReservation` | what is about to be attempted — already-redacted arguments only |
+| `StrictAuditReceipt` | handle joining a reservation to its outcome |
+| `StrictAuditLedgerException` | raised when durability cannot be achieved |
+| `NullStrictAuditLedger` | records nothing; the default for best-effort surfaces, never for a mutating one |
+
+**Why this port lives in foundation.** It is not foundation's domain — the implementation is `Waaseyaa\Audit\Writer\DatabaseStrictAuditLedger`, in `waaseyaa/audit` (layer 1). But its first consumer is the MCP write tier (layer 6), and `waaseyaa/mcp` must not require `waaseyaa/audit` at runtime (`McpDispatchEvent`, contract clause 18). Foundation is the one package both the consumer and the implementation already depend on, so the port sits here and the layer graph stays acyclic and downward-only. Consumers depend on the contract; only the kernel wiring knows the implementation.
+
+**The guarantee is pre-durability, not atomicity.** `reserve()` must commit before the caller acts, giving "no side effect without a durable record of the attempt". It does not couple the side effect to the outcome record — see `docs/specs/ocap-audit-log.md` and `docs/specs/mcp-endpoint.md` for the four reasons that coupling is not reachable and for the dangling-reservation semantics.
+
 ## Internal Interfaces
 
 These foundation interfaces are `@internal` and not part of the public consumer API. They are listed here for completeness and to prevent accidental exposure.

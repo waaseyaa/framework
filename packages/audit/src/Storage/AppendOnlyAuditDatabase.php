@@ -75,7 +75,15 @@ final class AppendOnlyAuditDatabase implements DatabaseInterface
      *
      * @var list<string>
      */
-    private const APPEND_ONLY_TABLES = ['audit_event', 'audit_checkpoint', 'privileged_read_ledger'];
+    private const APPEND_ONLY_TABLES = [
+        'audit_event',
+        'audit_checkpoint',
+        'privileged_read_ledger',
+        // The strict reserve/finalize ledger (#2177 F4). Append-only for the
+        // same reason as the others: a reservation that could be updated or
+        // deleted would let a mutation's evidence be rewritten after the fact.
+        'strict_audit_ledger',
+    ];
 
     /**
      * SQL verbs that mutate rows or schema — forbidden against append-only

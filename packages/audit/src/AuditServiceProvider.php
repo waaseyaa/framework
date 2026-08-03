@@ -40,12 +40,15 @@ use Waaseyaa\Audit\Query\AuditEventQuery;
 use Waaseyaa\Audit\Schedule\AuditCheckpointScheduleEntries;
 use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
 use Waaseyaa\Audit\Storage\AppendOnlyAuditDatabase;
+use Waaseyaa\Audit\Storage\StrictAuditLedgerSchema;
 use Waaseyaa\Audit\Writer\AuditEventWriter;
+use Waaseyaa\Audit\Writer\DatabaseStrictAuditLedger;
 use Waaseyaa\Audit\Writer\DatabaseStrictFieldStorageGatewayAudit;
 use Waaseyaa\Audit\Writer\DatabaseStrictPrivilegedReadLedger;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\Backend\StrictFieldStorageGatewayAuditInterface;
+use Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
@@ -135,6 +138,18 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
 
         $this->singleton(StrictPrivilegedReadLedgerInterface::class, function (): StrictPrivilegedReadLedgerInterface {
             return new DatabaseStrictPrivilegedReadLedger($this->resolve(DatabaseInterface::class));
+        });
+
+        // The strict reserve/finalize ledger for mutating request pipelines
+        // (#2177 F4). Its port lives in foundation, not here, because the MCP
+        // write tier consumes it and must not require waaseyaa/audit at runtime.
+        // The table is created on first bind so a deployment that never uses a
+        // durable surface pays nothing.
+        $this->singleton(StrictAuditLedgerInterface::class, function (): StrictAuditLedgerInterface {
+            $database = $this->resolve(DatabaseInterface::class);
+            new StrictAuditLedgerSchema($database)->ensure();
+
+            return new DatabaseStrictAuditLedger($database);
         });
 
         $this->singleton(StrictFieldStorageGatewayAuditInterface::class, function (): StrictFieldStorageGatewayAuditInterface {

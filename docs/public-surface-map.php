@@ -20,6 +20,11 @@ return [
     'Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface' => 'public',
     'Waaseyaa\Foundation\Diagnostic\DiagnosticCode' => 'public',
     'Waaseyaa\Foundation\Log\LoggerInterface' => 'public',
+    // #2177 F4 — fail-closed reserve/finalize audit port. Lives in foundation
+    // (not waaseyaa/audit) so waaseyaa/mcp keeps its no-runtime-audit-dependency
+    // boundary; implemented by Waaseyaa\Audit\Writer\DatabaseStrictAuditLedger.
+    'Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface' => 'public',
+    'Waaseyaa\Foundation\Audit\AuditStage' => 'public',
     'Waaseyaa\Foundation\Log\Handler\HandlerInterface' => 'public',
     'Waaseyaa\Foundation\Log\Formatter\FormatterInterface' => 'public',
     'Waaseyaa\Foundation\Log\Processor\ProcessorInterface' => 'public',
