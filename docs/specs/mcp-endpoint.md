@@ -1,5 +1,6 @@
 # MCP Endpoint
 
+
 <!-- Spec reviewed 2026-07-30 - #2145: `tools/call` now enforces each tool's declared JSON Schema (draft 2020-12) server-side before the handler runs. Waaseyaa\AI\Tools\Schema\ToolInputSchemaValidator (ai-tools, L5) validates AgentTool::$inputSchema — the exact object tools/list advertises — inside AgentToolRegistryBridge::execute(), the single choke point both MCP tiers share. Violations short-circuit pre-dispatch with the established structured envelope {code: VALIDATION_FAILED, message, errors: [{field, message}]} + isError: true. Auth and rate-limit ordering unchanged (401/-32029 still precede validation). handleToolsCall also rejects non-string `name`, non-object `arguments`, and non-object `params` as -32602. See "Input-schema enforcement (`tools/call`)". -->
 <!-- Spec reviewed 2026-07-29 - #2141: the account resolved from MCP bearer authentication now scopes both AccountContextInterface and AccountFieldReadScopeInterface. FieldReadGuard intentionally follows the latter, so a write-tier request must not inherit the unrelated HTTP-session principal. JSON-RPC routing runs inside AccountFieldReadScopeInterface::run($principal, ...) and restores the prior scope on every exit. Regression coverage uses a bearer principal with no session fallback. -->
 
@@ -175,6 +176,43 @@ interface McpAuthInterface
 ```
 
 Takes the raw `Authorization` header value. Returns the authenticated `AccountInterface` or `null` on failure. The interface is deliberately minimal so implementations can be swapped without changing the endpoint.
+
+### Public-tier auth resolution and the `mcp.public.enabled` gate
+
+`McpServiceProvider` binds **no** default for `McpAuthInterface`. A local binding would sit in the provider's own bindings, and `ServiceProvider::resolve()` consults those *before* the cross-provider kernel-services bus (`packages/foundation/src/ServiceProvider/ServiceProvider.php`) — so a package default silently beat any application binding, and `/mcp` stayed anonymous no matter what a downstream app did. That is the same P0-1 shadowing already fixed for `WriteTierAuthInterface`; the public tier now follows the identical pattern.
+
+Resolution happens at the point of use, in `McpServiceProvider::resolvePublicAuth()`:
+
+```
+resolveOptional(McpAuthInterface::class)   // own bindings (empty) → kernel-services bus → app binding
+    ?? new PublicAnonymousAuth()           // anonymous read-only default
+```
+
+The two tiers differ only in their fallback, deliberately:
+
+| Tier | Resolver | Fallback when no application binding | Rationale |
+|---|---|---|---|
+| Public `/mcp` | `resolvePublicAuth()` | `PublicAnonymousAuth` (anonymous read) | Anonymous read is the designed default; operators disable it with the config gate, not by supplying an auth strategy that refuses everything. |
+| Write `/mcp/write` | `resolveWriteTierAuth()` | `BearerTokenAuth([])` (every request 401) | A write surface with no configured identity must be unusable; token→account mapping is inherently application-specific. |
+
+**The gate.** `mcp.public.enabled` decides whether the public pair is routed at all.
+
+| Value | Result |
+|---|---|
+| key absent | enabled (historical default) |
+| `true`, `1`, `"1"`, `"true"`, `"on"`, `"yes"` (case-insensitive, trimmed) | enabled |
+| `false`, `0`, `"0"`, `"false"`, `"off"`, `"no"` | disabled |
+| anything else — `null`, `""`, `"flase"`, floats, out-of-range ints, arrays, objects | **`ConfigException` during provider/route setup** |
+
+**Absent means default; present means it must parse.** A typo in a control governing a public network surface cannot be guessed at safely: reading `"flase"` as enabled silently publishes the endpoint the operator meant to close, and reading it as disabled silently withdraws a surface a deployment depends on. Refusing to boot is the only outcome that is wrong in neither direction.
+
+The implementation is an explicit allowlist, **not** `filter_var(..., FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE)` — that maps both `null` and `''` to `false`, which would have silently withdrawn the endpoint for a key an operator left blank. `McpServiceProviderTest` pins that PHP behaviour alongside the throw, so the reason the allowlist exists cannot be refactored away.
+
+`mcp.public` must itself be a map; `mcp.public: false` throws (naming `mcp.public`) rather than being read as enabled. The exception names the key and `get_debug_type()` of the value **only** — configuration routinely holds credentials and exception messages reach logs and error pages.
+
+When disabled, `McpRouteProvider` registers **neither** `mcp.endpoint` **nor** `mcp.server_card` — both paths 404. The routes are withdrawn rather than left answering 401 so the surface does not confirm an MCP server is present, and the discovery card goes with the endpoint because a card advertising a 404 is worse than no card. `mcp.endpoint.write` is **not** gated: an authenticated write tier with no anonymous read tier is a supported production shape.
+
+Covered by `McpServiceProviderTest` (route registration + flag parsing) and `Integration\PublicTierAuthOverrideTest` (override honoured under either provider ordering, anonymous default preserved, and the enabled/disabled routing outcomes asserted through `WaaseyaaRouter::match()`).
 
 ### BearerTokenAuth
 
@@ -423,12 +461,15 @@ The MCP spec (protocol version 2025-03-26) defines Streamable HTTP as the remote
 
 ## Routes
 
-`McpRouteProvider` registers two routes:
+`McpRouteProvider` registers three routes. The public pair is conditional on `mcp.public.enabled` (see [Public-tier auth resolution and the `mcp.public.enabled` gate](#public-tier-auth-resolution-and-the-mcppublicenabled-gate)); the write tier is always registered and is independently fail-closed.
 
-| Route Name | Path | Methods | Auth |
-|------------|------|---------|------|
-| `mcp.endpoint` | `/mcp` | POST, GET | Required |
-| `mcp.server_card` | `/.well-known/mcp.json` | GET | Public (`allowAll()`) |
+| Route Name | Path | Methods | Registered when | Auth |
+|------------|------|---------|-----------------|------|
+| `mcp.endpoint` | `/mcp` | POST, GET | `mcp.public.enabled` (default true) | `McpAuthInterface` — anonymous by default |
+| `mcp.server_card` | `/.well-known/mcp.json` | GET | `mcp.public.enabled` (default true) | Public (`allowAll()`) |
+| `mcp.endpoint.write` | `/mcp/write` | POST, GET | Always | `WriteTierAuthInterface` — 401 without an application binding |
+
+With `mcp.public.enabled = false`, `/mcp` and `/.well-known/mcp.json` are absent from the route collection and resolve to HTTP 404.
 
 ### Server Card
 

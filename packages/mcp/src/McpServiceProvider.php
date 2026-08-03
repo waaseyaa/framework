@@ -11,6 +11,7 @@ use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 use Waaseyaa\Api\McpAdmin\ServerConfigReadModelInterface;
 use Waaseyaa\Api\McpAdmin\ToolRegistryReadModelInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Foundation\Exception\ConfigException;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Mcp\Admin\RecentInvocationsQueryInterface;
 use Waaseyaa\Mcp\Admin\ServerConfigReadModel;
@@ -42,14 +43,14 @@ final class McpServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        // McpAuthInterface default: public read-only. Every request resolves to
-        // an anonymous account holding ONLY the read capabilities (capability
-        // layer of the read-only boundary). A deployment wanting an
-        // authenticated write surface re-binds this with a delegate auth.
-        $this->singleton(
-            McpAuthInterface::class,
-            static fn(): McpAuthInterface => new PublicAnonymousAuth(),
-        );
+        // McpAuthInterface is deliberately NOT bound here. Binding it would put
+        // it in this provider's OWN bindings, and ServiceProvider::resolve()
+        // consults those before the cross-provider kernel-services bus — so an
+        // application's binding would be shadowed and `/mcp` would stay anonymous
+        // no matter what the app did. That is the same P0-1 shadowing already
+        // fixed for WriteTierAuthInterface; the public tier now follows it.
+        // The anonymous default is applied at the point of use instead, by
+        // resolvePublicAuth() below.
 
         // Configurable server card (identity + declared auth + registry fields).
         $this->singleton(
@@ -82,7 +83,7 @@ final class McpServiceProvider extends ServiceProvider
                 [$limiter, $maxRequests, $windowSeconds] = $this->rateLimitSettings();
 
                 return new McpEndpoint(
-                    auth: $this->resolve(McpAuthInterface::class),
+                    auth: $this->resolvePublicAuth(),
                     agentRegistry: $readOnlyRegistry,
                     dispatcher: $dispatcher instanceof EventDispatcherInterface ? $dispatcher : null,
                     accountContext: $accountContext instanceof AccountContextInterface ? $accountContext : null,
@@ -168,14 +169,154 @@ final class McpServiceProvider extends ServiceProvider
         $this->singleton(
             ServerConfigReadModelInterface::class,
             fn(): ServerConfigReadModelInterface => new ServerConfigReadModel(
-                auth: $this->resolve(McpAuthInterface::class),
+                auth: $this->resolvePublicAuth(),
             ),
         );
     }
 
     public function routes(WaaseyaaRouter $router, EntityTypeManagerInterface $entityTypeManager): void
     {
-        new McpRouteProvider()->registerRoutes($router);
+        new McpRouteProvider($this->publicEndpointEnabled())->registerRoutes($router);
+    }
+
+    /**
+     * Resolve the PUBLIC-tier auth, preferring an application override and
+     * falling back to the anonymous read-only default (FR-002).
+     *
+     * The mechanism is the one `resolveWriteTierAuth()` established:
+     * `resolveOptional()` finds nothing in this provider's own bindings — the
+     * package deliberately binds no default — and falls through to the
+     * cross-provider kernel-services bus, so an application's
+     * `McpAuthInterface` binding is what reaches `/mcp`.
+     *
+     * The two tiers differ only in their fallback, and deliberately so.
+     * The write tier falls back to a credential that cannot succeed
+     * (`BearerTokenAuth([])`, so every request 401s) because a write surface
+     * with no configured identity must be unusable. The public tier falls back
+     * to {@see PublicAnonymousAuth} because anonymous read is its designed
+     * behavior — an operator who wants it off sets `mcp.public.enabled` to
+     * false rather than relying on an auth strategy to suppress it.
+     */
+    private function resolvePublicAuth(): McpAuthInterface
+    {
+        $auth = $this->resolveOptional(McpAuthInterface::class);
+
+        return $auth instanceof McpAuthInterface ? $auth : new PublicAnonymousAuth();
+    }
+
+    /**
+     * Whether the anonymous public `/mcp` surface is served at all.
+     *
+     * Config `mcp.public.enabled`; DEFAULT TRUE when the key is absent, so an
+     * existing deployment that sets nothing is unaffected. Set it to false and
+     * neither `/mcp` nor the `/.well-known/mcp.json` discovery card is
+     * registered — both 404. The card goes with the endpoint on purpose: its
+     * entire job is to advertise a discovery surface, and advertising one that
+     * answers 404 is worse than advertising nothing.
+     *
+     * `/mcp/write` is unaffected. It is not a discovery surface, it is already
+     * fail-closed without an application-supplied credential, and an operator
+     * who wants an authenticated write tier but no anonymous read tier is
+     * exactly who this flag is for.
+     *
+     * **A supplied value that is not a recognised boolean throws.** This key
+     * gates a public network surface, and there is no safe way to guess at a
+     * typo: reading `"flase"` as enabled silently publishes the endpoint the
+     * operator meant to close, and reading it as disabled silently withdraws a
+     * surface someone may depend on. Absent means default; present means it
+     * must parse. Raised during provider/route setup, so the deployment fails
+     * at boot rather than serving a misconfigured surface.
+     *
+     * @throws ConfigException on a malformed value
+     */
+    private function publicEndpointEnabled(): bool
+    {
+        $mcp = $this->config['mcp'] ?? null;
+        if (!\is_array($mcp) || !\array_key_exists('public', $mcp)) {
+            return true;
+        }
+
+        $public = $mcp['public'];
+        if (!\is_array($public)) {
+            // `mcp.public: false` is a realistic way to write the intent, and
+            // silently reading it as "enabled" is the exact failure this guard
+            // exists to prevent — so it is refused, with the correct key named.
+            throw self::malformedConfig('mcp.public', $public, 'a map containing an "enabled" key');
+        }
+
+        if (!\array_key_exists('enabled', $public)) {
+            return true;
+        }
+
+        return self::requireBool($public['enabled'], 'mcp.public.enabled');
+    }
+
+    /** Recognised true spellings, lowercased. */
+    private const array TRUE_VALUES = ['1', 'true', 'on', 'yes'];
+
+    /** Recognised false spellings, lowercased. */
+    private const array FALSE_VALUES = ['0', 'false', 'off', 'no'];
+
+    /**
+     * Parse a config value as a boolean, or throw.
+     *
+     * Deliberately NOT `filter_var(..., FILTER_VALIDATE_BOOL)`: that maps both
+     * `null` and `''` to `false` and would silently withdraw the endpoint for a
+     * key an operator left blank. An explicit allowlist is auditable and treats
+     * every unrecognised value — including `null`, `''`, floats, arrays and
+     * objects — the same way.
+     *
+     * @throws ConfigException on anything outside the allowlist
+     */
+    private static function requireBool(mixed $value, string $key): bool
+    {
+        if (\is_bool($value)) {
+            return $value;
+        }
+
+        if (\is_int($value) && ($value === 0 || $value === 1)) {
+            return $value === 1;
+        }
+
+        if (\is_string($value)) {
+            $normalized = \strtolower(\trim($value));
+            if (\in_array($normalized, self::TRUE_VALUES, true)) {
+                return true;
+            }
+            if (\in_array($normalized, self::FALSE_VALUES, true)) {
+                return false;
+            }
+        }
+
+        throw self::malformedConfig(
+            $key,
+            $value,
+            'a boolean: true/false, 1/0, "true"/"false", "on"/"off", or "yes"/"no"',
+        );
+    }
+
+    /**
+     * Build the refusal for a malformed config value.
+     *
+     * The message names the KEY and the value's TYPE, never the value itself —
+     * configuration routinely holds credentials, and an exception message reaches
+     * logs and error pages. `get_debug_type()` returns a type name only, so a
+     * secret cannot ride out through the diagnostic.
+     */
+    private static function malformedConfig(string $key, mixed $value, string $expectation): ConfigException
+    {
+        return new ConfigException(
+            \sprintf(
+                'Configuration key "%s" must be %s; got a value of type %s. '
+                . 'This key gates a public network surface, so an unrecognised value is refused '
+                . 'rather than guessed. Remove the key to accept the default (enabled). '
+                . '(The value is omitted from this message because configuration may hold secrets.)',
+                $key,
+                $expectation,
+                \get_debug_type($value),
+            ),
+            ['config_key' => $key, 'value_type' => \get_debug_type($value)],
+        );
     }
 
     /**
