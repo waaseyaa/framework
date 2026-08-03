@@ -83,6 +83,10 @@ final class AppendOnlyAuditDatabase implements DatabaseInterface
         // same reason as the others: a reservation that could be updated or
         // deleted would let a mutation's evidence be rewritten after the fact.
         'strict_audit_ledger',
+        // The operation-approval event log (#2177 F1). A decision or a
+        // consumption that could be updated or deleted would let an approval
+        // be forged, revoked-after-use, or reused.
+        'mcp_approval_event',
     ];
 
     /**

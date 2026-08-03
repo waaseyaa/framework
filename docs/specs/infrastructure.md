@@ -1709,6 +1709,22 @@ A fail-closed reserve/finalize audit contract, deliberately the opposite of `waa
 
 **The guarantee is pre-durability, not atomicity.** `reserve()` must commit before the caller acts, giving "no side effect without a durable record of the attempt". It does not couple the side effect to the outcome record — see `docs/specs/ocap-audit-log.md` and `docs/specs/mcp-endpoint.md` for the four reasons that coupling is not reachable and for the dangling-reservation semantics.
 
+## Operation approval port (`Waaseyaa\Foundation\Audit\Approval`, #2177 F1)
+
+The human-approval companion to the strict ledger: durable, once-only approvals for destructive operations, bound to one exact call. The port lives in foundation for the identical reason as `StrictAuditLedgerInterface` immediately above — the consumer is the MCP write tier and `waaseyaa/mcp` must not require `waaseyaa/audit` at runtime; the implementation is `Waaseyaa\Audit\Writer\DatabaseOperationApprovalStore` (see `docs/specs/ocap-audit-log.md` §"Operation approval event log").
+
+| Type | Role |
+|---|---|
+| `ApprovalTuple` | exact binding: principal key × surface × operation × canonical raw-argument SHA-256 fingerprint; derives the collision-unambiguous `requestKey` used for pending reuse |
+| `CanonicalArgumentFingerprint` | canonical fingerprint of the RAW arguments: recursive map-key sort, list order preserved, tool-name domain separation, `JSON_THROW_ON_ERROR \| JSON_UNESCAPED_SLASHES \| JSON_UNESCAPED_UNICODE`; versioned domain label |
+| `ApprovalStatus` | derived state, never a stored column: `pending` / `approved` / `denied` / `consumed` / `expired` |
+| `ApprovalRequest` | read model of one request; owns the single expiry comparison `isExpiredAt()` — inclusive boundary (`now >= expiresAt`), instant-based, no sub-second escape — and the decision-reason normal form `normalizeDecisionReason()` (trim, blank → null, ≤ `MAX_DECISION_REASON_LENGTH` = 500 Unicode characters, single-line: ASCII control characters rejected) |
+| `OperationApprovalStoreInterface` | `open()` / `find()` / `decide()` / `consume()`; every method throws rather than degrading |
+| `ApprovalStoreException` | store cannot read/append durably, or the request is unknown/expired for the operation; message sanitized, cause in `$previous` |
+| `ApprovalAlreadyDecidedException` | a decision already exists — the recorded decision stands, never overwritten |
+
+Contract highlights: `open()` may reuse an unexpired **undecided pending** request with an identical `requestKey` (duplicate pending rows under a create race are documented-harmless — each approval still consumes exactly once); `decide()` takes the **server-derived** operator uid (positive, never from request payload) plus an optional human reason (normalized/validated before any row is appended, persisted on the `decided` event as durable incident evidence) and rejects missing/already-decided/expired requests; `consume()` runs transactionally, requires Approved-and-unexpired at the consume boundary, takes the exact request id plus the strict-ledger receipt id and the retry's correlation id, and returns `false` (never a silent success) on any state or race loss.
+
 ## Internal Interfaces
 
 These foundation interfaces are `@internal` and not part of the public consumer API. They are listed here for completeness and to prevent accidental exposure.

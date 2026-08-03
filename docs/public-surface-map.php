@@ -25,6 +25,11 @@ return [
     // boundary; implemented by Waaseyaa\Audit\Writer\DatabaseStrictAuditLedger.
     'Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface' => 'public',
     'Waaseyaa\Foundation\Audit\AuditStage' => 'public',
+    // #2177 F1 — durable operation-approval port. Same foundation placement
+    // rationale as the strict ledger; implemented by
+    // Waaseyaa\Audit\Writer\DatabaseOperationApprovalStore.
+    'Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface' => 'public',
+    'Waaseyaa\Foundation\Audit\Approval\ApprovalStatus' => 'public',
     'Waaseyaa\Foundation\Log\Handler\HandlerInterface' => 'public',
     'Waaseyaa\Foundation\Log\Formatter\FormatterInterface' => 'public',
     'Waaseyaa\Foundation\Log\Processor\ProcessorInterface' => 'public',

@@ -471,6 +471,27 @@ It is the sibling of `StrictPrivilegedReadLedgerInterface` (privileged reads) an
 
 **The guarantee is pre-durability, not atomicity.** See `docs/specs/mcp-endpoint.md` for the full statement, the four reasons atomic coupling is not reachable, and the dangling-reservation query for the crash window.
 
+## Operation approval event log (`mcp_approval_event`, #2177 F1)
+
+Durable human approvals for destructive MCP write-tier calls, stored as append-only events by `Waaseyaa\Audit\Writer\DatabaseOperationApprovalStore` (the implementation of `Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface` — the port lives in foundation for the same no-runtime-audit-dependency reason as the strict ledger above; see `docs/specs/infrastructure.md` §"Operation approval port"). `mcp_approval_event` is registered in `AppendOnlyAuditDatabase::APPEND_ONLY_TABLES`, so an approval can be appended but never forged by update, revoked after use, or made reusable by delete. Schema: `Waaseyaa\Audit\Storage\ApprovalEventSchema` (additive, idempotent; **not yet ensured by `AuditServiceProvider` — store wiring is a later #2177 slice**).
+
+One row per event; status is always derived, never stored:
+
+| Column | Meaning |
+|---|---|
+| `request_id` | opaque `apr_` + 32 hex (16 random bytes); joins a request's events |
+| `event_type` | `requested` \| `decided` \| `consumed` |
+| `request_key` | deterministic tuple identity (SHA-256 over a length-unambiguous component encoding); reuse lookup for retried identical calls |
+| `principal_key` / `surface` / `operation` / `arguments_fingerprint` | the exact `ApprovalTuple`, repeated on every event so each row is self-describing |
+| `correlation_id` | original request's correlation on `requested`/`decided`; the consuming retry's correlation on `consumed` |
+| `safe_arguments` | the tool's redacted arguments (`requested` only) — never raw params; the raw arguments exist only as the fingerprint |
+| `expires_at` | fixed expiry stamped at open time (`requested` only); UTC `Y-m-d H:i:s.u` |
+| `decision` / `operator_uid` | `approved` \| `denied` and the server-derived deciding operator (`decided` only) |
+| `decision_reason` | optional operator-supplied human reason (`decided` only) — durable incident evidence; normalized via `ApprovalRequest::normalizeDecisionReason()` (trimmed, blank → null, ≤ 500 Unicode characters, single-line: any ASCII control character rejected before the append). The decided row carries only the decision, operator uid and reason — never request payload or raw arguments |
+| `receipt_id` | the strict-ledger receipt of the consuming execution (`consumed` only), joining the approval to its `strict_audit_ledger` evidence |
+
+`UNIQUE(request_id, event_type)` makes both a second decision and a second consumption impossible at the storage layer, independent of the application-level guards. `consume()` runs transactionally (state check + `consumed` append commit together) and re-checks expiry at the consume boundary with the single inclusive instant comparison (`ApprovalRequest::isExpiredAt()`), so there is no sub-second window in which an expired approval still consumes; a concurrent-consumer loss surfaces as `false`, never as a duplicate execution. Duplicate pending rows under a create race are accepted and harmless — later retries converge on the oldest pending request, and each approval still consumes once. Rows are covered by `AuditReadModelDefinitionRegistry` (`id` Public, every other column Internal).
+
 ## Retention
 
 ### `AuditRetentionPolicy` Entity
