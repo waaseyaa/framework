@@ -67,7 +67,11 @@ final class FieldAccessActivationPreflightTest extends TestCase
         $result = FieldAccessPreflightResult::fromData(new FieldAccessPreflightData(
             frameworkVersion: 'candidate-1',
             schemaFingerprint: 'schema-1',
-            scannerVersion: 1,
+            // Track the constant rather than a literal (#2171): these tests are
+            // about checksums, readiness and tampering, and a stale generation
+            // literal would make the exception-expecting ones pass for the
+            // scanner-version reason instead of the reason they name.
+            scannerVersion: FieldAccessPreflightData::CURRENT_SCANNER_VERSION,
             fields: ['user|*|uid' => 'public:structural'],
             conflicts: [],
             unclassifiedEntries: [],

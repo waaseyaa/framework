@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Foundation\Kernel\Preflight;
 
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Database\Schema\TableColumnNames;
 use Waaseyaa\Entity\Preflight\EntityStorageSchemaShape;
 
 /**
@@ -31,7 +32,12 @@ final readonly class LiveEntitySchemaFingerprint
             if (!EntityStorageSchemaShape::belongsToEntityStorage($table, $entityTypeIds)) {
                 continue;
             }
-            $shape[$table] = array_keys($schema->listTableColumns($table));
+            // Canonical names, never `array_keys()` (#2171) — see the matching
+            // comment in DatabaseFieldAccessInventoryScanner. Both halves were
+            // consistently quoted before the fix, so they agreed by accident;
+            // correcting either alone makes every production boot fail as
+            // "stale for the current schema" on a reserved-word column.
+            $shape[$table] = TableColumnNames::sortedFor($schema, $table);
         }
 
         return EntityStorageSchemaShape::fingerprint($shape);

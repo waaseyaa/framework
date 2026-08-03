@@ -12,6 +12,20 @@ namespace Waaseyaa\Entity\Preflight;
 final readonly class FieldAccessPreflightData
 {
     /**
+     * The scanner generation this framework produces and will accept.
+     *
+     * The generation determines what a preflight actually swept: v2 narrowed
+     * the schema fingerprint from every physical table to entity storage only
+     * (#2143). An artifact from another generation therefore describes a
+     * different question than the one the running framework asks, so it cannot
+     * be verified — and unverifiable state must fail closed (#2171).
+     *
+     * Bump this whenever the meaning of a scan changes, not merely when its
+     * implementation does.
+     */
+    public const int CURRENT_SCANNER_VERSION = 2;
+
+    /**
      * @param array<string, string> $fields
      * @param list<string> $conflicts
      * @param list<string> $unclassifiedEntries

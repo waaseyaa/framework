@@ -6,6 +6,7 @@ namespace Waaseyaa\Oidc\Repository;
 
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Database\Schema\TableColumnNames;
 
 /**
  * DBAL-backed authorization code repository.
@@ -157,11 +158,16 @@ final class DatabaseAuthorizationCodeRepository implements AuthorizationCodeRepo
 
     private function ensureColumn(string $column, string $definition): void
     {
-        $columns = $this->database->getConnection()
-            ->createSchemaManager()
-            ->listTableColumns(self::TABLE);
+        // Canonical names, never the raw `listTableColumns()` keys (#2171):
+        // Doctrine keys a reserved-word column by its quoted identifier, so
+        // `isset($columns[$column])` reports such a column as absent and this
+        // method re-runs ADD COLUMN on every boot until the statement errors.
+        $columns = TableColumnNames::for(
+            $this->database->getConnection()->createSchemaManager(),
+            self::TABLE,
+        );
 
-        if (isset($columns[$column])) {
+        if (in_array($column, $columns, true)) {
             return;
         }
 
