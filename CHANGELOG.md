@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **admin / admin-surface (#2186):** Make the admin SPA self-contained by replacing its only provider-backed icon with an inline decorative SVG, removing `@nuxt/icon`, and pinning the absence of external icon-provider origins in the shipped bundle.
+
 - **northcloud / cli / admin / search (#2185, #2187):** Retire the abandoned NorthCloud integration from the active framework and release graph. The package, root and CLI Composer dependencies, sync command/provider, split-package publishing entry, layer/import/public-surface inventories, and current operator/spec references are removed. The generic admin dashboard no longer calls the ownerless `/api/staff/nc-sync-status` endpoint or ships its state, routes, translations, markup, or styles; its catalog-gated `ingest_log` counters remain. The internal `SearchRequest::cacheKey()` helper, whose sole production consumer was NorthCloud, is removed with it instead of preserving an ownerless cache contract.
 
 - **foundation / ai-tools / cli / audit**: Close the framework-boundary gaps found during MCP hardening. Bearer-token operator commands now live in the Layer-6 CLI package while auth owns only the credential domain; the new MCP approval projection registers through Waaseyaa's event-dispatcher port without adding a Symfony subscriber exception; and applications now have a deterministic, kernel-injected `ProvidesAgentToolsInterface` lifecycle instead of mutating the tool registry from route registration.

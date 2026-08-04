@@ -1,5 +1,7 @@
 # Admin SPA
 
+<!-- Spec reviewed 2026-08-04 - #2186 self-contained admin: the navigation toggle ships its decorative SVG inline. The SPA has no runtime icon-provider module, dependency, or external icon origin in its committed distribution. -->
+
 <!-- Spec reviewed 2026-08-04 - #2185/#2187 retire NorthCloud: the generic dashboard retains only its catalog-gated ingest_log counters; all NC Sync requests, state, routes, translations, markup, and shipped assets are removed. -->
 
 <!-- Spec reviewed 2026-07-22 - #2108 browser-channel follow-up: the GenericAdminSurfaceHost itself owns the shipped node.source_status/wp_status form-visibility floor, so application-owned routes that construct the host directly receive the same exclusion as provider-owned routes. Host-declared additions remain supported. The broader JSON:API metadata convergence is tracked in #2113. -->

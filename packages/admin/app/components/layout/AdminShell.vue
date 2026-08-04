@@ -109,7 +109,16 @@ function onLocaleChange(event: Event) {
         :aria-expanded="sidebarOpen ? 'true' : 'false'"
         @click="toggleSidebar"
       >
-        <Icon name="heroicons:bars-3" class="topbar-toggle-icon" aria-hidden="true" />
+        <svg
+          class="topbar-toggle-icon"
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+        >
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+        </svg>
       </button>
       <NuxtLink to="/" class="topbar-brand touch-target">{{ appName }}</NuxtLink>
       <nav
@@ -275,6 +284,11 @@ body {
   cursor: pointer;
   padding: 0;
   margin-right: 8px;
+}
+
+.topbar-toggle-icon {
+  width: 24px;
+  height: 24px;
 }
 
 .topbar-locale {
