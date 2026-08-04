@@ -37,11 +37,12 @@ final class McpEndpointTest extends TestCase
         $this->tools = [];
     }
 
-    private function createEndpoint(): McpEndpoint
+    private function createEndpoint(?string $unauthorizedChallenge = null): McpEndpoint
     {
         return new McpEndpoint(
             auth: $this->auth,
             agentRegistry: $this->stubAgentRegistry($this->tools),
+            unauthorizedChallenge: $unauthorizedChallenge,
         );
     }
 
@@ -170,6 +171,23 @@ final class McpEndpointTest extends TestCase
         $response = $this->dispatch($endpoint, 'POST', '{"jsonrpc":"2.0","id":1,"method":"tools/list"}', 'Bearer bad-token');
 
         self::assertSame(401, $response->statusCode);
+    }
+
+    #[Test]
+    public function oauth_protected_endpoint_challenges_with_resource_metadata_and_scopes(): void
+    {
+        $this->auth->method('authenticate')->willReturn(null);
+        $challenge = 'Bearer resource_metadata="https://cms.example/.well-known/oauth-protected-resource/mcp/write", scope="content.write"';
+
+        $response = $this->dispatch(
+            $this->createEndpoint($challenge),
+            'POST',
+            '{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
+            null,
+        );
+
+        self::assertSame(401, $response->statusCode);
+        self::assertSame($challenge, $response->headers['WWW-Authenticate'] ?? null);
     }
 
     #[Test]

@@ -248,7 +248,13 @@ final class ContentToolSetTest extends TestCase
             self::assertSame(self::CAPABILITY, $tool->capability);
             self::assertSame('https://json-schema.org/draft/2020-12/schema', $tool->inputSchema['$schema']);
             self::assertFalse($tool->inputSchema['additionalProperties']);
+            self::assertNotNull($tool->title);
+            self::assertSame('object', $tool->outputSchema['type'] ?? null);
+            self::assertFalse($tool->openWorld);
         }
+
+        self::assertTrue($this->tools['article.createDraft']->idempotent);
+        self::assertFalse($this->tools['asset.upload']->idempotent);
 
         $values = $this->tools['article.createDraft']->inputSchema['properties']['values']['properties'];
         self::assertSame([
@@ -271,6 +277,10 @@ final class ContentToolSetTest extends TestCase
         ]);
         self::assertFalse($draft['status']);
         self::assertStringNotContainsString('<script', (string) $draft['body_html']);
+        self::assertSame($draft, $this->tools['article.createDraft']->impl->execute([
+            'values' => ['slug' => 'tool-post', 'title' => 'Tool post', 'body_html' => '<p>Hi</p><script>x</script>'],
+            'idempotency_key' => 'tool-key-1',
+        ], $this->actor)->structuredContent);
 
         $published = $this->call('article.publish', [
             'id' => (string) $draft['id'],

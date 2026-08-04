@@ -94,6 +94,46 @@ final class McpServiceProviderTest extends TestCase
         );
     }
 
+    #[Test]
+    public function oauth_resource_config_registers_discovery_and_the_matching_write_challenge(): void
+    {
+        $config = ['mcp' => [
+            'public' => ['enabled' => false],
+            'write_tier' => ['oauth_resource' => [
+                'enabled' => true,
+                'resource' => 'https://cms.example/mcp/write',
+                'authorization_servers' => ['https://identity.example'],
+                'scopes_supported' => ['content.read', 'content.write'],
+            ]],
+        ]];
+        $metadataRoute = $this->routesFor($config)->get('mcp.oauth_protected_resource');
+        self::assertNotNull($metadataRoute);
+        self::assertSame('/.well-known/oauth-protected-resource/mcp/write', $metadataRoute->getPath());
+
+        $endpoint = $this->resolveWriteEndpoint($config, $this->workingLedger(), $this->approvalStore());
+        $inner = new \ReflectionProperty(\Waaseyaa\Mcp\AuthenticatedMcpEndpoint::class, 'inner')->getValue($endpoint);
+        self::assertSame(
+            'Bearer resource_metadata="https://cms.example/.well-known/oauth-protected-resource/mcp/write", scope="content.read content.write"',
+            new \ReflectionProperty(\Waaseyaa\Mcp\McpEndpoint::class, 'unauthorizedChallenge')->getValue($inner),
+        );
+    }
+
+    #[Test]
+    public function malformed_oauth_resource_config_fails_boot_without_echoing_values(): void
+    {
+        try {
+            $this->routesFor(['mcp' => ['write_tier' => ['oauth_resource' => [
+                'enabled' => true,
+                'resource' => 'http://not-loopback.example/mcp/write',
+                'authorization_servers' => ['https://identity.example'],
+            ]]]]);
+            self::fail('Insecure OAuth resource metadata must fail boot.');
+        } catch (ConfigException $e) {
+            self::assertStringContainsString('mcp.write_tier.oauth_resource', $e->getMessage());
+            self::assertStringNotContainsString('not-loopback.example', $e->getMessage());
+        }
+    }
+
     /**
      * Config arrives from YAML/env, where a boolean is routinely the string
      * `"false"` or `"0"`. Case and surrounding whitespace are tolerated.
@@ -504,6 +544,34 @@ final class McpServiceProviderTest extends TestCase
                 self::fail('Malformed allowed origins must fail endpoint wiring.');
             } catch (ConfigException $e) {
                 self::assertStringContainsString('mcp.transport.allowed_origins', $e->getMessage());
+            }
+        }
+    }
+
+    #[Test]
+    public function transport_request_size_is_bounded_and_strictly_configured(): void
+    {
+        $endpoint = $this->resolveWriteEndpoint(
+            ['mcp' => ['transport' => ['max_request_bytes' => 2_000_000]]],
+            $this->workingLedger(),
+            $this->approvalStore(),
+        );
+        $inner = new \ReflectionProperty(\Waaseyaa\Mcp\AuthenticatedMcpEndpoint::class, 'inner')->getValue($endpoint);
+        self::assertSame(
+            2_000_000,
+            new \ReflectionProperty(\Waaseyaa\Mcp\McpEndpoint::class, 'maxRequestBytes')->getValue($inner),
+        );
+
+        foreach ([0, 1023, 104_857_601, '2000000'] as $invalid) {
+            try {
+                $this->resolveWriteEndpoint(
+                    ['mcp' => ['transport' => ['max_request_bytes' => $invalid]]],
+                    $this->workingLedger(),
+                    $this->approvalStore(),
+                );
+                self::fail('Malformed transport size must fail endpoint wiring.');
+            } catch (ConfigException $e) {
+                self::assertStringContainsString('mcp.transport.max_request_bytes', $e->getMessage());
             }
         }
     }

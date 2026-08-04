@@ -145,6 +145,25 @@ final class AgentToolRegistryBridge
             );
         }
 
+        if (!$result->isError && $tool->outputSchema !== null) {
+            $outputViolations = $result->structuredContent === null
+                ? [['field' => '$', 'message' => 'structuredContent is required by the advertised outputSchema.']]
+                : ToolInputSchemaValidator::validate($tool->outputSchema, $result->structuredContent);
+            if ($outputViolations !== []) {
+                $correlationId = SanitizedToolError::correlationId();
+                $this->logger->error('mcp.tool_output_schema_violation', [
+                    'correlation_id' => $correlationId,
+                    'tool' => $toolName,
+                    'violation_count' => \count($outputViolations),
+                ]);
+
+                return new ToolExecutionOutcome(
+                    self::errorEnvelope(SanitizedToolError::body($correlationId)),
+                    AuditStage::ExecutionFailed,
+                );
+            }
+        }
+
         return new ToolExecutionOutcome(
             self::toolResultToMcpEnvelope($result),
             self::classify($result),
@@ -220,6 +239,9 @@ final class AgentToolRegistryBridge
     private static function toolResultToMcpEnvelope(AgentToolResult $result): array
     {
         $envelope = ['content' => $result->content];
+        if ($result->structuredContent !== null) {
+            $envelope['structuredContent'] = $result->structuredContent;
+        }
         if ($result->isError) {
             $envelope['isError'] = true;
         }

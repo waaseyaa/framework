@@ -21,9 +21,9 @@ namespace Waaseyaa\Mcp;
 final readonly class McpServerCardConfig
 {
     /**
-     * @param 'none'|'bearer' $authType Declared auth scheme. The public
-     *        read-only surface advertises `none`; authenticated deployments use
-     *        an opaque bearer token. OAuth 2.1 is not implemented here.
+     * @param 'none'|'bearer'|'oauth2' $authType Declared auth scheme. OAuth
+     *        deployments pair this card with RFC 9728 protected-resource
+     *        metadata and an OAuthAccessTokenValidatorInterface implementation.
      * @param ?string $registryName Namespaced registry id (e.g. `io.github.owner/server`).
      * @param ?string $repositoryUrl Source repository URL (registry `repository.url`).
      * @param ?string $websiteUrl Project/site URL (registry `websiteUrl`).
@@ -53,11 +53,7 @@ final readonly class McpServerCardConfig
             => isset($config[$key]) && \is_string($config[$key]) && $config[$key] !== '' ? $config[$key] : $default;
 
         $authType = $string('auth_type', 'none');
-        // Historical config accepted `oauth2` even though this package only
-        // validates opaque bearer tokens. Normalize that drift to the honest
-        // wire contract; real OAuth 2.1 remains a separate product decision.
-        $authType = $authType === 'oauth2' ? 'bearer' : $authType;
-        $authType = \in_array($authType, ['none', 'bearer'], true) ? $authType : 'none';
+        $authType = \in_array($authType, ['none', 'bearer', 'oauth2'], true) ? $authType : 'none';
 
         return new self(
             name: $string('name', 'Waaseyaa') ?? 'Waaseyaa',

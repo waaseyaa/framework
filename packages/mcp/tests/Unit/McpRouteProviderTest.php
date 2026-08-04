@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Mcp\McpRouteProvider;
+use Waaseyaa\Mcp\Auth\OAuthProtectedResourceMetadataConfig;
 use Waaseyaa\Routing\WaaseyaaRouter;
 
 #[CoversClass(McpRouteProvider::class)]
@@ -87,5 +88,23 @@ final class McpRouteProviderTest extends TestCase
         $cardRoute = $routes->get('mcp.server_card');
 
         $this->assertTrue($cardRoute->getOption('_public'));
+    }
+
+    #[Test]
+    public function oauth_protected_resource_metadata_is_registered_only_when_configured(): void
+    {
+        $router = new WaaseyaaRouter();
+        new McpRouteProvider(false, new OAuthProtectedResourceMetadataConfig(
+            'https://cms.example/mcp/write',
+            ['https://identity.example'],
+        ))->registerRoutes($router);
+
+        $routes = $router->getRouteCollection();
+        self::assertNull($routes->get('mcp.endpoint'));
+        $metadata = $routes->get('mcp.oauth_protected_resource');
+        self::assertNotNull($metadata);
+        self::assertSame('/.well-known/oauth-protected-resource/mcp/write', $metadata->getPath());
+        self::assertSame(['GET'], $metadata->getMethods());
+        self::assertTrue($metadata->getOption('_public'));
     }
 }

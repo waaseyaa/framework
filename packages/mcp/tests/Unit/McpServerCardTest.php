@@ -67,11 +67,11 @@ final class McpServerCardTest extends TestCase
     }
 
     #[Test]
-    public function oauth2_advertisement_falls_back_to_opaque_bearer(): void
+    public function oauth2_advertisement_is_preserved_for_a_standard_resource_server(): void
     {
         $card = new McpServerCard(McpServerCardConfig::fromArray(['auth_type' => 'oauth2']))->toArray();
 
-        self::assertSame('bearer', $card['authentication']['type']);
+        self::assertSame('oauth2', $card['authentication']['type']);
     }
 
     #[Test]

@@ -56,6 +56,10 @@ final readonly class ContentToolSet
                 category: 'content',
                 inputSchema: $impl->inputSchema(),
                 impl: $impl,
+                title: self::toolTitle($name),
+                outputSchema: $this->outputSchema($name, $prefix),
+                idempotent: self::isIdempotentMutation($name),
+                openWorld: false,
             ));
         }
     }
@@ -69,6 +73,82 @@ final readonly class ContentToolSet
         }
 
         return false;
+    }
+
+    private static function isIdempotentMutation(string $name): bool
+    {
+        return self::isMutation($name) && !\str_ends_with($name, '.upload');
+    }
+
+    private static function toolTitle(string $name): string
+    {
+        $words = \preg_replace('/(?<!^)([A-Z])/', ' $1', \str_replace('.', ' ', $name));
+
+        return \ucwords((string) $words);
+    }
+
+    /** @return array<string, mixed> */
+    private function outputSchema(string $name, string $prefix): array
+    {
+        $schema = [
+            '$schema' => 'https://json-schema.org/draft/2020-12/schema',
+            'type' => 'object',
+            'additionalProperties' => true,
+        ];
+
+        if ($name === "$prefix.list") {
+            return $schema + [
+                'properties' => ['items' => ['type' => 'array', 'items' => $this->entityOutputSchema()]],
+                'required' => ['items'],
+            ];
+        }
+        if ($name === "$prefix.preview") {
+            return $schema + [
+                'properties' => [
+                    'id' => ['oneOf' => [['type' => 'integer'], ['type' => 'string']]],
+                    'expires_at' => ['type' => 'integer'],
+                    'signature' => ['type' => 'string'],
+                    'preview_url' => ['type' => 'string'],
+                ],
+                'required' => ['id', 'expires_at', 'signature', 'preview_url'],
+            ];
+        }
+        if ($name === "$prefix.revisions") {
+            return $schema + [
+                'properties' => ['revisions' => ['type' => 'array', 'items' => ['type' => 'object']]],
+                'required' => ['revisions'],
+            ];
+        }
+        if ($name === "{$this->assetPrefix}.upload" || $name === "{$this->assetPrefix}.get") {
+            return $schema + [
+                'properties' => [
+                    'asset_id' => ['type' => 'string'],
+                    'url' => ['type' => 'string'],
+                    'mime' => ['type' => 'string'],
+                    'width' => ['type' => 'integer'],
+                    'height' => ['type' => 'integer'],
+                    'size' => ['type' => 'integer'],
+                ],
+                'required' => ['asset_id', 'url', 'mime', 'width', 'height', 'size'],
+            ];
+        }
+
+        return $this->entityOutputSchema();
+    }
+
+    /** @return array<string, mixed> */
+    private function entityOutputSchema(): array
+    {
+        return [
+            'type' => 'object',
+            'properties' => [
+                'id' => ['oneOf' => [['type' => 'integer'], ['type' => 'string']]],
+                'revision_id' => ['type' => 'integer'],
+                'status' => ['type' => 'boolean'],
+            ],
+            'required' => ['id', 'revision_id', 'status'],
+            'additionalProperties' => true,
+        ];
     }
 
     /**

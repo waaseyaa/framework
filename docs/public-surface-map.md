@@ -518,6 +518,7 @@ Charter §5.6 — listing-pipeline-v1 (M-007). Namespace `Waaseyaa\Listing\`.
 | `ToolExecutorInterface` | interface | Executes an MCP tool call by name with arguments and returns structured content |
 | `ToolRegistryInterface` | interface | Provides the full list of MCP tool definitions for the protocol manifest |
 | `McpAuthInterface` | interface | Authenticates MCP requests and resolves the acting account |
+| `OAuthAccessTokenValidatorInterface` | interface | Validates OAuth access tokens for one exact MCP resource and returns an active scoped principal |
 
 ### ssr
 

@@ -40,7 +40,19 @@ final class AgentToolDescriptorTest extends TestCase
             }
         };
 
-        return new AgentTool('fixture.tool', 'cap', $destructive, false, 'content', $impl->inputSchema(), $impl);
+        return new AgentTool(
+            'fixture.tool',
+            'cap',
+            $destructive,
+            false,
+            'content',
+            $impl->inputSchema(),
+            $impl,
+            title: 'Fixture Tool',
+            outputSchema: ['type' => 'object'],
+            idempotent: true,
+            openWorld: false,
+        );
     }
 
     #[Test]
@@ -57,6 +69,7 @@ final class AgentToolDescriptorTest extends TestCase
         $descriptor = $this->tool(destructive: false)->toMcpDescriptor();
 
         self::assertFalse($descriptor['annotations']['destructiveHint'] ?? null);
+        self::assertTrue($descriptor['annotations']['readOnlyHint'] ?? null);
     }
 
     #[Test]
@@ -67,5 +80,9 @@ final class AgentToolDescriptorTest extends TestCase
         self::assertSame('fixture.tool', $descriptor['name']);
         self::assertSame('described', $descriptor['description']);
         self::assertSame(['type' => 'object'], $descriptor['inputSchema']);
+        self::assertSame('Fixture Tool', $descriptor['title']);
+        self::assertSame(['type' => 'object'], $descriptor['outputSchema']);
+        self::assertTrue($descriptor['annotations']['idempotentHint']);
+        self::assertFalse($descriptor['annotations']['openWorldHint']);
     }
 }

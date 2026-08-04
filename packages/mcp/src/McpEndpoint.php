@@ -90,6 +90,10 @@ final readonly class McpEndpoint
      * @param list<string> $allowedOrigins Additional browser origins permitted
      *        by the Streamable HTTP DNS-rebinding guard. Same-origin requests
      *        and non-browser requests without Origin remain valid.
+     * @param ?string $unauthorizedChallenge Standards-compliant
+     *        `WWW-Authenticate` value for protected deployments.
+     * @param int $maxRequestBytes Hard transport cap applied before authentication
+     *        and JSON decoding.
      */
     public function __construct(
         private McpAuthInterface $auth,
@@ -107,6 +111,8 @@ final readonly class McpEndpoint
         private ?OperationApprovalStoreInterface $approvalStore = null,
         private bool $approvalGate = false,
         private array $allowedOrigins = [],
+        private ?string $unauthorizedChallenge = null,
+        private int $maxRequestBytes = StreamableHttpTransportGuard::DEFAULT_MAX_REQUEST_BYTES,
     ) {
         // The endpoint's OWN fail-closed contract, independent of provider
         // wiring: a durable-audit endpoint with no ledger — or with the
@@ -176,7 +182,10 @@ final readonly class McpEndpoint
         AccountInterface $account,
         HttpRequest $request,
     ): HttpResponse {
-        $transportRefusal = new StreamableHttpTransportGuard($this->allowedOrigins)->validate($request);
+        $transportRefusal = new StreamableHttpTransportGuard(
+            $this->allowedOrigins,
+            $this->maxRequestBytes,
+        )->validate($request);
         if ($transportRefusal !== null) {
             return $this->toHttpResponse($transportRefusal);
         }
@@ -243,6 +252,9 @@ final readonly class McpEndpoint
                     'id' => null,
                 ], \JSON_THROW_ON_ERROR),
                 statusCode: 401,
+                headers: $this->unauthorizedChallenge !== null
+                    ? ['WWW-Authenticate' => $this->unauthorizedChallenge]
+                    : [],
             );
         }
 

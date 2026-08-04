@@ -15,12 +15,19 @@ use Symfony\Component\HttpFoundation\Request as HttpRequest;
  */
 final readonly class StreamableHttpTransportGuard
 {
+    public const int DEFAULT_MAX_REQUEST_BYTES = 10_485_760;
+
     /** @var list<string> */
     private array $allowedOrigins;
 
     /** @param list<string> $allowedOrigins Additional browser origins beyond same-origin. */
-    public function __construct(array $allowedOrigins = [])
-    {
+    public function __construct(
+        array $allowedOrigins = [],
+        private int $maxRequestBytes = self::DEFAULT_MAX_REQUEST_BYTES,
+    ) {
+        if ($this->maxRequestBytes < 1) {
+            throw new \InvalidArgumentException('MCP maximum request size must be positive.');
+        }
         $normalized = [];
         foreach ($allowedOrigins as $origin) {
             $normalized[] = self::normalizeOrigin($origin);
@@ -52,6 +59,18 @@ final readonly class StreamableHttpTransportGuard
 
         if (!$request->isMethod('POST')) {
             return new McpResponse('', 405, 'application/json', ['Allow' => 'POST']);
+        }
+
+        $declaredLength = $request->headers->get('Content-Length');
+        if ($declaredLength !== null && \preg_match('/^\d+$/D', $declaredLength) !== 1) {
+            return self::error(400, -32600, 'Invalid Content-Length');
+        }
+        if (($declaredLength !== null && (int) $declaredLength > $this->maxRequestBytes)
+            || \strlen($request->getContent()) > $this->maxRequestBytes
+        ) {
+            return self::error(413, -32043, 'Request body exceeds maximum size', [
+                'max_request_bytes' => $this->maxRequestBytes,
+            ]);
         }
 
         $contentType = \strtolower(\trim(\explode(';', (string) $request->headers->get('Content-Type'), 2)[0]));

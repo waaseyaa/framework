@@ -115,6 +115,23 @@ final class StreamableHttpTransportGuardTest extends TestCase
         self::assertStringContainsString('supported', $response?->body ?? '');
     }
 
+    #[Test]
+    public function oversized_or_deceptively_declared_request_bodies_are_refused_before_dispatch(): void
+    {
+        $guard = new StreamableHttpTransportGuard(maxRequestBytes: 8);
+
+        $oversized = Request::create('/mcp', 'POST', server: [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_ACCEPT' => 'application/json, text/event-stream',
+        ], content: '{"too":"large"}');
+        $response = $guard->validate($oversized);
+        self::assertSame(413, $response?->statusCode);
+        self::assertStringContainsString('max_request_bytes', $response?->body ?? '');
+
+        self::assertSame(413, $guard->validate($this->post(['CONTENT_LENGTH' => '999']))?->statusCode);
+        self::assertSame(400, $guard->validate($this->post(['CONTENT_LENGTH' => 'not-a-number']))?->statusCode);
+    }
+
     /** @param array<string, string> $overrides */
     private function post(array $overrides = []): Request
     {

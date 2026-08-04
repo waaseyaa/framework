@@ -30,6 +30,7 @@ final readonly class McpRouteProvider
      */
     public function __construct(
         private bool $publicEndpointEnabled = true,
+        private ?Auth\OAuthProtectedResourceMetadataConfig $oauthResource = null,
     ) {}
 
     public function registerRoutes(WaaseyaaRouter $router): void
@@ -73,5 +74,16 @@ final readonly class McpRouteProvider
                 ->csrfExempt()
                 ->build(),
         );
+
+        if ($this->oauthResource !== null) {
+            $router->addRoute(
+                'mcp.oauth_protected_resource',
+                RouteBuilder::create($this->oauthResource->metadataPath())
+                    ->controller('Waaseyaa\\Mcp\\Auth\\OAuthProtectedResourceMetadata::serve')
+                    ->methods('GET')
+                    ->allowAll()
+                    ->build(),
+            );
+        }
     }
 }

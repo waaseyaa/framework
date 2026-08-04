@@ -25,6 +25,8 @@ account's permissions.
 - **Browser boundary:** absent Origin is valid for native clients. A present
   Origin must be same-origin or appear in `mcp.transport.allowed_origins`;
   invalid origins return 403 before authentication or dispatch.
+- **Resource boundary:** request bodies are capped before authentication and
+  JSON decoding (`mcp.transport.max_request_bytes`, 10 MiB by default).
 - **Server card:** `GET /.well-known/mcp.json` (MCP discovery).
 - **Authentication:** the public read-only `/mcp` surface defaults to
   `PublicAnonymousAuth`, overridable by binding `McpAuthInterface` and
@@ -33,13 +35,17 @@ account's permissions.
   `/mcp/write` surface validates `Authorization: Bearer <token>` through a
   fail-closed `BearerTokenAuth(tokens: [])` default that applications replace
   via `WriteTierAuthInterface`.
-- **Bearer model:** durable opaque tokens are hashed at rest, revealed only at
-  issue/rotation time, audience- and scope-bound, expiring, revocable, and
-  resolved to an active real account. Server cards advertise `none` or
-  `bearer`; OAuth discovery is not claimed.
+- **Authorization models:** durable opaque tokens are hashed at rest, revealed
+  only at issue/rotation time, audience- and scope-bound, expiring, revocable,
+  and resolved to an active real account. Standard OAuth resource-server mode
+  adds RFC 9728 discovery, `WWW-Authenticate` scope challenges, and a validator
+  port for an OAuth 2.1 authorization server or enterprise IdP.
 - **Tool surface:** every class carrying `#[AsAgentTool]` and
   implementing `AgentToolInterface` becomes a callable MCP tool with
   no per-tool MCP code.
+- **Tool results:** content tools advertise titles, complete behavior hints,
+  and output schemas. Successful results include both backwards-compatible
+  JSON text and schema-validated `structuredContent`.
 
 ## Bimaaji tool family
 
@@ -224,6 +230,44 @@ return [
 
 The flag is a strict boolean security control; malformed values fail boot.
 
+## OAuth 2.1 resource-server mode
+
+Opaque operator tokens remain the zero-infrastructure local option. For MCP
+clients that perform standard authorization discovery, configure the write
+tier as an OAuth protected resource:
+
+```php
+return [
+    'mcp' => [
+        'write_tier' => [
+            'oauth_resource' => [
+                'enabled' => true,
+                'resource' => 'https://cms.example/mcp/write',
+                'authorization_servers' => ['https://identity.example'],
+                'scopes_supported' => ['content.read', 'content.write'],
+                'resource_documentation' => 'https://cms.example/docs/mcp',
+            ],
+        ],
+    ],
+];
+```
+
+The framework then serves RFC 9728 metadata at the path-specific well-known
+URI and includes that absolute URI plus scope guidance on every 401 challenge.
+Plain HTTP is accepted only for loopback development; malformed, duplicate, or
+insecure metadata fails application boot.
+
+Bind `WriteTierAuthInterface` to `OAuthMcpAuth`, constructed with the same
+`OAuthProtectedResourceMetadataConfig` and an application implementation of
+`OAuthAccessTokenValidatorInterface`. The validator is the authorization-server
+trust boundary: it must validate issuer/integrity or introspection, expiry,
+revocation, exact resource audience, active-account mapping, and granted
+scopes. The framework never passes the incoming token to another service.
+
+An authorization server is deliberately not embedded in `waaseyaa/mcp`.
+Deployments may use Waaseyaa's OIDC issuer, a corporate IdP, or another OAuth
+2.1 server without coupling the transport package to one identity product.
+
 ## Tool error contract
 
 Tool failures come back inside the MCP result envelope with `isError: true`
@@ -367,12 +411,10 @@ strict-ledger receipt); disabling durable audit while the gate is on is
 refused. The public tier never gets the gate. Non-destructive tools are
 untouched.
 
-> **Not yet operationally complete.** The admin decision surface (HTTP routes
-> and UI for operators to approve/deny) is **not part of this slice** — a
-> decision currently requires calling
-> `OperationApprovalStoreInterface::decide()` server-side. Until that surface
-> lands, treat the gate as fail-closed protection: destructive calls without a
-> standing approval are challenged and will expire unless decided out-of-band.
+The admin application provides the corresponding pending queue and decision
+dialog at `/mcp/approvals`. Its API enforces separate decision capabilities,
+CSRF/session authentication, separation of duties, expiry, and atomic
+single-use consumption; decision events are written to the audit trail.
 
 ## Key classes
 
@@ -397,13 +439,3 @@ documentation including the per-request bridge architecture, the
 Bimaaji MCP bridge section (shipped tool inventory, capability model,
 M-G → M3 transition rationale), and the post-WP01..WP03 file
 reference.
-
-## Legacy surface
-
-The pre-M3 `McpController` + `Tools/*` + `Cache/` + `Rpc/*` files
-remain in-place from the original `entity`/`discovery`/`traversal`/
-`editorial` tool-class architecture, still test-covered via direct
-instantiation in `tests/Integration/Phase14/AiMcpIntegrationTest.php`.
-They are no longer reachable from HTTP routing (the foundation
-`McpRouter` was retired in M3 WP01). A future cleanup mission may
-delete them.

@@ -41,20 +41,25 @@ final class AgentToolRegistryBridgeValidationTest extends TestCase
         return $this->handlerSink->getArrayCopy();
     }
 
-    private function bridge(array $schema): AgentToolRegistryBridge
+    private function bridge(
+        array $schema,
+        ?array $outputSchema = null,
+        ?AgentToolResult $toolResult = null,
+    ): AgentToolRegistryBridge
     {
-        $impl = new class ($this->handlerSink, $schema) implements AgentToolInterface {
+        $impl = new class ($this->handlerSink, $schema, $toolResult) implements AgentToolInterface {
             /** @param \ArrayObject<int, array<string, mixed>> $calls */
             public function __construct(
                 private readonly \ArrayObject $calls,
                 private readonly array $schema,
+                private readonly ?AgentToolResult $toolResult,
             ) {}
 
             public function execute(array $arguments, AccountInterface $account): AgentToolResult
             {
                 $this->calls->append($arguments);
 
-                return AgentToolResult::success([['type' => 'text', 'text' => '{"ok":true}']]);
+                return $this->toolResult ?? AgentToolResult::success([['type' => 'text', 'text' => '{"ok":true}']]);
             }
 
             public function dryRun(array $arguments, AccountInterface $account): AgentToolResult
@@ -86,6 +91,7 @@ final class AgentToolRegistryBridgeValidationTest extends TestCase
             category: 'test',
             inputSchema: $schema,
             impl: $impl,
+            outputSchema: $outputSchema,
         );
 
         $registry = new class ($tool) implements ToolRegistryInterface {
@@ -198,5 +204,53 @@ final class AgentToolRegistryBridgeValidationTest extends TestCase
 
         self::assertArrayNotHasKey('isError', $result);
         self::assertCount(1, $this->handlerCalls());
+    }
+
+    #[Test]
+    public function a_declared_output_schema_requires_matching_structured_content(): void
+    {
+        $schema = [
+            'type' => 'object',
+            'properties' => ['ok' => ['type' => 'boolean']],
+            'required' => ['ok'],
+            'additionalProperties' => false,
+        ];
+        $bridge = $this->bridge(
+            self::SCHEMA,
+            outputSchema: $schema,
+            toolResult: AgentToolResult::success(
+                [['type' => 'text', 'text' => '{"ok":true}']],
+                structuredContent: ['ok' => true],
+            ),
+        );
+
+        $result = $bridge->execute('guarded.tool', ['id' => '42', 'target_revision_id' => 7]);
+
+        self::assertSame(['ok' => true], $result['structuredContent']);
+        self::assertArrayNotHasKey('isError', $result);
+    }
+
+    #[Test]
+    public function a_tool_cannot_emit_content_that_violates_its_advertised_output_schema(): void
+    {
+        $bridge = $this->bridge(
+            self::SCHEMA,
+            outputSchema: [
+                'type' => 'object',
+                'properties' => ['ok' => ['type' => 'boolean']],
+                'required' => ['ok'],
+                'additionalProperties' => false,
+            ],
+            toolResult: AgentToolResult::success(
+                [['type' => 'text', 'text' => '{"ok":"not-a-boolean"}']],
+                structuredContent: ['ok' => 'not-a-boolean'],
+            ),
+        );
+
+        $result = $bridge->execute('guarded.tool', ['id' => '42', 'target_revision_id' => 7]);
+
+        self::assertTrue($result['isError'] ?? false);
+        self::assertSame('INTERNAL_ERROR', self::decodeEnvelope($result)['code']);
+        self::assertArrayNotHasKey('structuredContent', $result);
     }
 }

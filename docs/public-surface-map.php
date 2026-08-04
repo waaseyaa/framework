@@ -588,6 +588,9 @@ return [
     'Waaseyaa\AdminSurface\Host\AbstractAdminSurfaceHost' => 'public',
     // ('Waaseyaa\Bimaaji\Graph\GraphSectionProviderInterface' is listed once in the Layer-5 public block above.)
     'Waaseyaa\Mcp\Auth\McpAuthInterface' => 'public',
+    // OAuth authorization-server adapter boundary. Applications implement this
+    // against their trusted JWT verifier or token-introspection client.
+    'Waaseyaa\Mcp\Auth\OAuthAccessTokenValidatorInterface' => 'public',
     'Waaseyaa\Mcp\Admin\RecentInvocationsQueryInterface' => 'public',
     // Wayfinding Phase 5 (wayfinding-01KVGH5X): authenticated MCP write tier.
     // WriteTierAuthInterface is the app override point for write-tier credentials;

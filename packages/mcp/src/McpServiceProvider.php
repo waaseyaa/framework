@@ -75,6 +75,18 @@ final class McpServiceProvider extends ServiceProvider
             fn(): McpServerCard => new McpServerCard($this->serverCardConfig()),
         );
 
+        $oauthResource = $this->writeTierOAuthResourceConfig();
+        if ($oauthResource !== null) {
+            $this->singleton(
+                Auth\OAuthProtectedResourceMetadataConfig::class,
+                static fn(): Auth\OAuthProtectedResourceMetadataConfig => $oauthResource,
+            );
+            $this->singleton(
+                Auth\OAuthProtectedResourceMetadata::class,
+                static fn(): Auth\OAuthProtectedResourceMetadata => new Auth\OAuthProtectedResourceMetadata($oauthResource),
+            );
+        }
+
         // McpEndpoint: bound explicitly so AppControllerRouter's controller
         // resolution (which checks provider bindings before falling back to
         // reflection autowiring) injects the kernel-services event dispatcher
@@ -112,6 +124,7 @@ final class McpServiceProvider extends ServiceProvider
                     rateLimitTier: 'public',
                     logger: $logger instanceof LoggerInterface ? $logger : null,
                     allowedOrigins: $this->transportAllowedOrigins(),
+                    maxRequestBytes: $this->transportMaxRequestBytes(),
                     // The public read-only tier keeps its documented best-effort
                     // auditing. It mutates nothing, so a durable pre-record buys
                     // no safety, and making it fail-closed would take a read-only
@@ -174,6 +187,8 @@ final class McpServiceProvider extends ServiceProvider
                     approvalStore: $approvalStore,
                     approvalGate: $approvalGate,
                     allowedOrigins: $this->transportAllowedOrigins(),
+                    unauthorizedChallenge: $this->writeTierOAuthResourceConfig()?->challenge(),
+                    maxRequestBytes: $this->transportMaxRequestBytes(),
                 );
 
                 return new AuthenticatedMcpEndpoint($inner);
@@ -211,7 +226,10 @@ final class McpServiceProvider extends ServiceProvider
 
     public function routes(WaaseyaaRouter $router, EntityTypeManagerInterface $entityTypeManager): void
     {
-        new McpRouteProvider($this->publicEndpointEnabled())->registerRoutes($router);
+        new McpRouteProvider(
+            $this->publicEndpointEnabled(),
+            $this->writeTierOAuthResourceConfig(),
+        )->registerRoutes($router);
     }
 
     /**
@@ -614,6 +632,22 @@ final class McpServiceProvider extends ServiceProvider
         return $origins;
     }
 
+    private function transportMaxRequestBytes(): int
+    {
+        $mcp = $this->config['mcp'] ?? null;
+        $transport = \is_array($mcp) && \is_array($mcp['transport'] ?? null) ? $mcp['transport'] : [];
+        $max = $transport['max_request_bytes'] ?? StreamableHttpTransportGuard::DEFAULT_MAX_REQUEST_BYTES;
+        if (!\is_int($max) || $max < 1_024 || $max > 104_857_600) {
+            throw self::malformedConfig(
+                'mcp.transport.max_request_bytes',
+                $max,
+                'an integer between 1024 and 104857600',
+            );
+        }
+
+        return $max;
+    }
+
     /**
      * Per-principal rate limiting for both MCP tiers (#2136 WP3).
      *
@@ -667,5 +701,62 @@ final class McpServiceProvider extends ServiceProvider
         $card = \is_array($mcp) && \is_array($mcp['server_card'] ?? null) ? $mcp['server_card'] : [];
 
         return McpServerCardConfig::fromArray($card);
+    }
+
+    private function writeTierOAuthResourceConfig(): ?Auth\OAuthProtectedResourceMetadataConfig
+    {
+        $mcp = $this->config['mcp'] ?? null;
+        $writeTier = \is_array($mcp) && \is_array($mcp['write_tier'] ?? null) ? $mcp['write_tier'] : [];
+        $oauth = $writeTier['oauth_resource'] ?? null;
+        if ($oauth === null) {
+            return null;
+        }
+        if (!\is_array($oauth)) {
+            throw self::malformedConfig('mcp.write_tier.oauth_resource', $oauth, 'a configuration map');
+        }
+        $enabled = self::requireBool($oauth['enabled'] ?? false, 'mcp.write_tier.oauth_resource.enabled');
+        if (!$enabled) {
+            return null;
+        }
+
+        $resource = $oauth['resource'] ?? null;
+        $servers = $oauth['authorization_servers'] ?? null;
+        $scopes = $oauth['scopes_supported'] ?? [];
+        $documentation = $oauth['resource_documentation'] ?? null;
+        if (!\is_string($resource)
+            || !\is_array($servers)
+            || !\array_is_list($servers)
+            || !\is_array($scopes)
+            || !\array_is_list($scopes)
+            || ($documentation !== null && !\is_string($documentation))
+        ) {
+            throw self::malformedConfig(
+                'mcp.write_tier.oauth_resource',
+                $oauth,
+                'resource URI, authorization_servers list, optional scopes_supported list, and optional resource_documentation URI',
+            );
+        }
+        foreach ([...$servers, ...$scopes] as $value) {
+            if (!\is_string($value)) {
+                throw self::malformedConfig('mcp.write_tier.oauth_resource', $oauth, 'string URI and scope lists');
+            }
+        }
+
+        try {
+            /** @var list<string> $servers */
+            /** @var list<string> $scopes */
+            return new Auth\OAuthProtectedResourceMetadataConfig(
+                $resource,
+                $servers,
+                $scopes,
+                $documentation,
+            );
+        } catch (\InvalidArgumentException) {
+            throw self::malformedConfig(
+                'mcp.write_tier.oauth_resource',
+                $oauth,
+                'secure absolute resource and authorization-server URIs with valid unique OAuth scopes',
+            );
+        }
     }
 }
