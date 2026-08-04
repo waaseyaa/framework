@@ -69,6 +69,22 @@ final class IdempotencyStoreTest extends TestCase
     }
 
     #[Test]
+    public function the_same_client_key_is_independent_across_namespaces(): void
+    {
+        $store = $this->store();
+
+        self::assertSame(
+            ['surface' => 'page'],
+            $store->execute('client-key', 'createDraft', ['slug' => 'same'], fn(): array => ['surface' => 'page'], 'node:page'),
+        );
+        self::assertSame(
+            ['surface' => 'event'],
+            $store->execute('client-key', 'createDraft', ['slug' => 'same'], fn(): array => ['surface' => 'event'], 'node:event'),
+        );
+        self::assertCount(2, iterator_to_array($this->db->select('publishing_idempotency')->execute()));
+    }
+
+    #[Test]
     public function entries_expire_after_the_ttl(): void
     {
         $store = $this->store(ttl: 100);

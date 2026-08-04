@@ -243,6 +243,31 @@ final class ContentPublisherTest extends TestCase
     }
 
     #[Test]
+    public function idempotency_keys_are_namespaced_by_content_descriptor(): void
+    {
+        $first = $this->publisher->createDraft($this->actor, $this->draftValues(), 'shared-client-key');
+        $descriptor = $this->descriptor();
+        $otherPublisher = new ContentPublisher(
+            new ContentTypeDescriptor(
+                entityTypeId: 'other_article',
+                bundle: null,
+                slugField: $descriptor->slugField,
+                statusField: $descriptor->statusField,
+                writableFields: $descriptor->writableFields,
+                htmlSanitizer: $descriptor->htmlSanitizer,
+                validators: $descriptor->validators,
+                publishCapability: $descriptor->publishCapability,
+            ),
+            $this->repo,
+            new IdempotencyStore($this->db),
+            $this->audit,
+        );
+
+        $second = $otherPublisher->createDraft($this->actor, $this->draftValues(['slug' => 'other-post']), 'shared-client-key');
+        self::assertNotSame($first['id'], $second['id']);
+    }
+
+    #[Test]
     public function the_same_idempotency_key_with_a_different_payload_conflicts(): void
     {
         $this->publisher->createDraft($this->actor, $this->draftValues(), 'same-key');

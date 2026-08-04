@@ -69,7 +69,7 @@ Sanitization is **lossy-at-input by design** for this surface (unlike the read-b
 
 ### IdempotencyStore
 
-Table `publishing_idempotency` (`idem_key` PK, `operation`, `request_hash` (sha256 of canonicalized args), `response_json`, `created_at`). Same key + same hash → replay the stored response without re-executing. Same key + different hash → `IDEMPOTENCY_CONFLICT` error. The content operation and replay-record insert execute in one database transaction; any later projection, serialization, or duplicate-key failure rolls back the mutation with the missing replay record. TTL sweep (default 48 h). Self-creating table (portable schema builder, mirrors `rate_limits`).
+Table `publishing_idempotency` (`idem_key` PK, `operation`, `request_hash` (sha256 of canonicalized args), `response_json`, `created_at`). `ContentPublisher` namespaces the client key by entity type and bundle before storage, so independent bundle-scoped surfaces cannot replay or conflict with one another. The stored namespaced key is a fixed-length SHA-256 digest; the client key still appears in structured conflict errors. Within one surface, same key + same hash → replay the stored response without re-executing, while same key + different hash → `IDEMPOTENCY_CONFLICT`. The content operation and replay-record insert execute in one database transaction; any later projection, serialization, or duplicate-key failure rolls back the mutation with the missing replay record. TTL sweep (default 48 h). Self-creating table (portable schema builder, mirrors `rate_limits`).
 
 ### PreviewLinkService
 

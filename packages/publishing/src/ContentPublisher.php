@@ -154,7 +154,7 @@ final class ContentPublisher
             $this->auditRecord(AuditEventKind::ContentDraftSaved, $actor, $saved);
 
             return $this->snapshot($saved);
-        });
+        }, $this->idempotencyNamespace());
     }
 
     /**
@@ -186,7 +186,7 @@ final class ContentPublisher
             $this->auditRecord(AuditEventKind::ContentDraftSaved, $actor, $saved);
 
             return $this->snapshot($saved);
-        });
+        }, $this->idempotencyNamespace());
     }
 
     /**
@@ -242,7 +242,7 @@ final class ContentPublisher
             ]);
 
             return $this->snapshot($saved);
-        });
+        }, $this->idempotencyNamespace());
     }
 
     // ------------------------------------------------------------------
@@ -296,7 +296,7 @@ final class ContentPublisher
             $this->auditRecord($kind, $actor, $saved);
 
             return $this->snapshot($saved);
-        });
+        }, $this->idempotencyNamespace());
     }
 
     private function requireCapability(AuthorizationPrincipalInterface $actor): void
@@ -307,6 +307,11 @@ final class ContentPublisher
                 $this->descriptor->publishCapability,
             ));
         }
+    }
+
+    private function idempotencyNamespace(): string
+    {
+        return $this->descriptor->entityTypeId . ':' . ($this->descriptor->bundle ?? '_');
     }
 
     private function requireEntityCreateAccess(AuthorizationPrincipalInterface $actor): void
