@@ -6,7 +6,15 @@ namespace Waaseyaa\Mcp;
 
 use Waaseyaa\Auth\AtomicRateLimiterInterface;
 
-/** Fail-closed limiter used when an enabled MCP tier has no durable store. */
+/**
+ * Fail-closed limiter used when an enabled MCP tier has no durable store.
+ *
+ * MCP calls the atomic consume operation, while substitutability requires this
+ * adapter to retain every method on the public AtomicRateLimiterInterface even
+ * when a particular method has no in-repository caller.
+ *
+ * @api
+ */
 final class UnavailableRateLimiter implements AtomicRateLimiterInterface
 {
     public function consume(string $key, int $maxAttempts, int $decaySeconds): bool
