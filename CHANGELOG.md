@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.286] - 2026-08-04
+
 ### Added
 
 - **Deterministic duplicate agent-tool refusal (#2177, F11).** `AttributeToolRegistry` no longer lets registration or manifest order silently decide which implementation owns a protocol-visible name. A duplicate discovered/discovered or discovered/manual name raises `DuplicateToolNameException`; hydration remembers the failure so later access cannot expose a partially built catalogue.
