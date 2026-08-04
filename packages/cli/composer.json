@@ -46,10 +46,6 @@
         },
         {
             "type": "path",
-            "url": "../northcloud"
-        },
-        {
-            "type": "path",
             "url": "../queue"
         },
         {
@@ -106,7 +102,6 @@
         "waaseyaa/groups": "^0.1.0-alpha.286",
         "waaseyaa/http-client": "^0.1.0-alpha.286",
         "waaseyaa/migration": "^0.1.0-alpha.286",
-        "waaseyaa/northcloud": "^0.1.0-alpha.286",
         "waaseyaa/queue": "^0.1.0-alpha.286",
         "waaseyaa/scheduler": "^0.1.0-alpha.286",
         "waaseyaa/user": "^0.1.0-alpha.286",
@@ -174,7 +169,6 @@
                 "Waaseyaa\\CLI\\Provider\\MiscAServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\MiscBServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\OtherScaffoldsServiceProvider",
-                "Waaseyaa\\CLI\\Provider\\NorthCloudServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\OidcServiceProvider"
             ]
         }

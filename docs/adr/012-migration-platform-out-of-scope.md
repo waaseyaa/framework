@@ -10,7 +10,7 @@
 
 Drupal's `migrate` module (core since 8.x) is how organizations leave Drupal 7. It defines source plugins (read foreign data), processor plugins (transform), destination plugins (write entities), a manifest format, dependency graphs, rollback, and an admin UI. It is large — comparable in scope to the entity system itself.
 
-A Waaseyaa-shaped equivalent would be a multi-year mission. Minoo currently has an `Ingestion` namespace (`src/Ingestion/EntityMapper/*`) that imports content from NorthCloud envelopes into entities. It works. It is app-shaped, not framework-shaped.
+A Waaseyaa-shaped equivalent would be a multi-year mission. Consumer applications may keep an `Ingestion` namespace (`src/Ingestion/EntityMapper/*`) that imports external provider envelopes into entities. That remains app-shaped, not framework-shaped.
 
 The decision: claim "destination for Drupal migrations" as a framework promise, or document that migration is an out-of-scope concern.
 

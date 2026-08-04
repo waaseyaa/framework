@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "3bb26cda71f31c254d96f42109ab126a",
+    "content-hash": "20224a89ed0d96a8d4c0d04c58f322fb",
     "packages": [
         {
             "name": "deployer/deployer",
@@ -3890,7 +3890,6 @@
                 "waaseyaa/groups": "^0.1.0-alpha.276",
                 "waaseyaa/http-client": "^0.1.0-alpha.276",
                 "waaseyaa/migration": "^0.1.0-alpha.276",
-                "waaseyaa/northcloud": "^0.1.0-alpha.276",
                 "waaseyaa/plugin": "^0.1.0-alpha.276",
                 "waaseyaa/queue": "^0.1.0-alpha.276",
                 "waaseyaa/routing": "^0.1.0-alpha.276",
@@ -3942,7 +3941,6 @@
                         "Waaseyaa\\CLI\\Provider\\MiscAServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\MiscBServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\OtherScaffoldsServiceProvider",
-                        "Waaseyaa\\CLI\\Provider\\NorthCloudServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\OidcServiceProvider"
                     ]
                 }
@@ -5152,54 +5150,6 @@
                 "GPL-2.0-or-later"
             ],
             "description": "Content node entity type for Waaseyaa",
-            "transport-options": {
-                "relative": true
-            }
-        },
-        {
-            "name": "waaseyaa/northcloud",
-            "version": "dev-main",
-            "dist": {
-                "type": "path",
-                "url": "packages/northcloud",
-                "reference": "cd21aa8041fbb88676bc3c28f9da297c49c20dbc"
-            },
-            "require": {
-                "php": ">=8.5",
-                "waaseyaa/config": "^0.1.0-alpha.276",
-                "waaseyaa/entity": "^0.1.0-alpha.276",
-                "waaseyaa/foundation": "^0.1.0-alpha.276",
-                "waaseyaa/http-client": "^0.1.0-alpha.276",
-                "waaseyaa/search": "^0.1.0-alpha.276"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.5"
-            },
-            "type": "library",
-            "extra": {
-                "waaseyaa": {
-                    "providers": [
-                        "Waaseyaa\\NorthCloud\\Provider\\NorthCloudServiceProvider"
-                    ]
-                },
-                "branch-alias": {
-                    "dev-main": "0.1.x-dev"
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Waaseyaa\\NorthCloud\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Waaseyaa\\NorthCloud\\Tests\\": "tests/"
-                }
-            },
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "description": "North Cloud client, content sync, and search provider for Waaseyaa applications",
             "transport-options": {
                 "relative": true
             }
@@ -11325,7 +11275,6 @@
         "waaseyaa/messaging": 20,
         "waaseyaa/migration": 20,
         "waaseyaa/node": 20,
-        "waaseyaa/northcloud": 20,
         "waaseyaa/note": 20,
         "waaseyaa/notification": 20,
         "waaseyaa/oauth-provider": 20,
