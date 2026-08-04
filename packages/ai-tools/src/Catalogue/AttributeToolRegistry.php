@@ -9,6 +9,7 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\AgentToolInterface;
+use Waaseyaa\AI\Tools\DuplicateToolNameException;
 use Waaseyaa\AI\Tools\ToolDependencyUnavailableException;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
@@ -36,6 +37,8 @@ final class AttributeToolRegistry implements ToolRegistryInterface
     private array $tools = [];
 
     private bool $hydrated = false;
+
+    private ?DuplicateToolNameException $hydrationFailure = null;
 
     private readonly LoggerInterface $logger;
 
@@ -68,6 +71,10 @@ final class AttributeToolRegistry implements ToolRegistryInterface
 
     public function register(AgentTool $tool): void
     {
+        $this->hydrate();
+        if (isset($this->tools[$tool->name])) {
+            throw DuplicateToolNameException::forName($tool->name);
+        }
         $this->tools[$tool->name] = $tool;
     }
 
@@ -100,6 +107,9 @@ final class AttributeToolRegistry implements ToolRegistryInterface
 
     private function hydrate(): void
     {
+        if ($this->hydrationFailure !== null) {
+            throw $this->hydrationFailure;
+        }
         if ($this->hydrated) {
             return;
         }
@@ -193,10 +203,11 @@ final class AttributeToolRegistry implements ToolRegistryInterface
                 inputSchema: $impl->inputSchema(),
                 impl: $impl,
             );
-            // Hand-registered tools win over discovery (allows tests + overrides).
-            if (!isset($this->tools[$tool->name])) {
-                $this->tools[$tool->name] = $tool;
+            if (isset($this->tools[$tool->name])) {
+                $this->hydrationFailure = DuplicateToolNameException::forName($tool->name);
+                throw $this->hydrationFailure;
             }
+            $this->tools[$tool->name] = $tool;
         }
     }
 }
