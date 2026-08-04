@@ -8,6 +8,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Waaseyaa\Access\AccessResult;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\Content\ContentOperationTool;
 use Waaseyaa\AI\Tools\Content\ContentToolSet;
@@ -19,8 +21,10 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Publishing\ContentPublisher;
+use Waaseyaa\Publishing\Exception\ContentAuthorizationException;
 use Waaseyaa\Publishing\ContentTypeDescriptor;
 use Waaseyaa\Publishing\FieldSpec;
 use Waaseyaa\Publishing\Idempotency\IdempotencyStore;
@@ -41,6 +45,7 @@ final class ContentToolSetTest extends TestCase
     private array $tools = [];
     private PublisherAccount $actor;
     private string $uploadsDir;
+    private EntityRepository $mediaRepository;
 
     protected function setUp(): void
     {
@@ -88,16 +93,25 @@ final class ContentToolSetTest extends TestCase
             id: 'test_media',
             label: 'Test media',
             class: \Waaseyaa\Publishing\Tests\Fixtures\TestArticleEntity::class,
-            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title'],
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id'],
+            revisionable: true,
+            revisionDefault: true,
         );
-        new SqlSchemaHandler($mediaType, $db)->ensureTable();
+        $mediaSchema = new SqlSchemaHandler($mediaType, $db);
+        $mediaSchema->ensureTable();
+        $mediaSchema->ensureRevisionTable();
         $mediaRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $mediaType,
             new SqlStorageDriver($resolver),
             new EventDispatcher(),
+            new RevisionableStorageDriver($resolver, $mediaType),
+            $db,
         );
+        $this->mediaRepository = $mediaRepo;
         $this->uploadsDir = sys_get_temp_dir() . '/waaseyaa_assets_' . uniqid();
-        $assets = new MediaAssetStore($mediaRepo, $this->uploadsDir, '/media/uploads', bundle: 'test_media');
+        $access = $this->createMock(EntityAccessHandler::class);
+        $access->method('checkCreateAccess')->willReturn(AccessResult::allowed());
+        $assets = new MediaAssetStore($mediaRepo, $this->uploadsDir, '/media/uploads', $access, bundle: 'test_media');
 
         $set = new ContentToolSet(
             $publisher,
@@ -135,6 +149,45 @@ final class ContentToolSetTest extends TestCase
         $set->register($registry, 'article');
         $this->tools = $tools;
         $this->actor = new PublisherAccount(permissions: [self::CAPABILITY]);
+    }
+
+    #[Test]
+    public function asset_upload_fails_before_writing_when_media_create_access_is_denied(): void
+    {
+        $access = $this->createMock(EntityAccessHandler::class);
+        $access->method('checkCreateAccess')->willReturn(AccessResult::forbidden('denied'));
+        $directory = $this->uploadsDir . '/denied';
+        $store = new MediaAssetStore($this->mediaRepository, $directory, '/media/uploads', $access);
+        $before = $this->mediaRepository->count();
+
+        $this->expectException(ContentAuthorizationException::class);
+        try {
+            $store->upload('pixel.png', base64_decode(self::PNG_BASE64, true), $this->actor);
+        } finally {
+            self::assertDirectoryDoesNotExist($directory);
+            self::assertSame($before, $this->mediaRepository->count());
+        }
+    }
+
+    #[Test]
+    public function asset_upload_attributes_the_catalog_save_to_the_authenticated_actor(): void
+    {
+        $access = $this->createMock(EntityAccessHandler::class);
+        $access->method('checkCreateAccess')->willReturn(AccessResult::allowed());
+        $directory = $this->uploadsDir . '/attributed';
+        $store = new MediaAssetStore($this->mediaRepository, $directory, '/media/uploads', $access);
+
+        try {
+            $store->upload('pixel.png', base64_decode(self::PNG_BASE64, true), $this->actor);
+            $saved = $this->mediaRepository->findBy(['bundle' => 'image']);
+            self::assertCount(1, $saved);
+            $revisions = $this->mediaRepository->listRevisions((string) $saved[0]->id());
+            self::assertCount(1, $revisions);
+            self::assertSame(900001, $revisions[0]->revisionMetadata()?->revisionAuthor);
+        } finally {
+            array_map(unlink(...), glob($directory . '/*') ?: []);
+            @rmdir($directory);
+        }
     }
 
     protected function tearDown(): void

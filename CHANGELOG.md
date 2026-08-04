@@ -1,5 +1,7 @@
 # Changelog
 
+- **ai-tools / access**: Make MCP asset upload obey the same media create-access boundary as every other editorial write. `MediaAssetStore` now refuses before writing bytes when the authenticated principal cannot create the configured media bundle, and catalog saves carry that principal's uid for durable revision provenance.
+
 - **ai-tools / mcp**: Classify `ContentToolSet` operations by actual risk. Read-only list/get/preview/revisions/asset-get tools are now non-destructive, so the write-tier human-approval gate does not challenge ordinary editorial inspection; every state-changing draft, publication, rollback, or asset-upload operation remains destructive, structurally absent from the anonymous tier, and approval-gated.
 
 - **mcp / ai-agent**: Bring the HTTP server and outbound client onto the MCP `2025-11-25` lifecycle and stateless Streamable HTTP contract. The server negotiates the current and two compatible revisions, validates `MCP-Protocol-Version`, JSON `Content-Type`, the required dual `Accept` media types, and browser `Origin` (same-origin plus strict `mcp.transport.allowed_origins`); it returns 202/no-body for notifications and client response messages, rejects batch and malformed JSON-RPC with HTTP 400, and honestly returns 405 for GET because SSE, sessions, and resumability are not offered. The server card states those limits. The outbound client sends the negotiated version, completes `notifications/initialized`, preserves optional session IDs, and refuses unsupported negotiated revisions.

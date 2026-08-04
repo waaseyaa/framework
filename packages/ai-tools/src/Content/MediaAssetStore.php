@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Waaseyaa\AI\Tools\Content;
 
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
-use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
+use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\EntityStorage\EntityRepository;
+use Waaseyaa\EntityStorage\SaveContext;
 use Waaseyaa\Media\UploadHandler;
+use Waaseyaa\Publishing\Exception\ContentAuthorizationException;
 
 /**
  * Media-entity-backed {@see AssetStoreInterface} for editorial images.
@@ -31,16 +34,19 @@ final readonly class MediaAssetStore implements AssetStoreInterface
     private const array EXTENSIONS = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp'];
 
     /**
-     * @param EntityRepositoryInterface $mediaRepository The `media` entity repository.
+     * @param EntityRepository $mediaRepository The `media` entity repository.
      * @param string $uploadsDir Absolute directory for stored assets (created if missing).
      * @param string $publicUrlBase URL prefix the app serves `$uploadsDir` under (e.g. '/media/uploads').
+     * @param EntityAccessHandler $accessHandler Enforces bundle-scoped create
+     *        access before any bytes or entity rows are written.
      * @param string $bundle Media bundle recorded on rows (approved type family).
      * @param int $maxSizeBytes Upload cap.
      */
     public function __construct(
-        private EntityRepositoryInterface $mediaRepository,
+        private EntityRepository $mediaRepository,
         private string $uploadsDir,
         private string $publicUrlBase,
+        private EntityAccessHandler $accessHandler,
         private string $bundle = 'image',
         private int $maxSizeBytes = 5_242_880,
     ) {}
@@ -48,6 +54,10 @@ final readonly class MediaAssetStore implements AssetStoreInterface
     /** @return array{asset_id: string, url: string, mime: string, width: int, height: int, size: int} */
     public function upload(string $filename, string $bytes, AuthorizationPrincipalInterface $actor): array
     {
+        if (!$this->accessHandler->checkCreateAccess('media', $this->bundle, $actor)->isAllowed()) {
+            throw new ContentAuthorizationException('Media create access denied.');
+        }
+
         if ($bytes === '') {
             throw new AssetRejectedException(['Empty upload.']);
         }
@@ -105,7 +115,12 @@ final readonly class MediaAssetStore implements AssetStoreInterface
             'source_uri' => $this->publicUrl($sha, $mime),
             'status' => 1,
         ]);
-        $this->mediaRepository->save($entity, false);
+        $context = SaveContext::default();
+        $uid = $actor->id();
+        if (\is_int($uid) || ctype_digit($uid)) {
+            $context = $context->withActorUid((int) $uid);
+        }
+        $this->mediaRepository->save($entity, false, $context);
 
         return [
             'asset_id' => $sha,
