@@ -19,6 +19,7 @@ use Waaseyaa\AI\Tools\Tests\Fixtures\InMemoryToolRepository;
 use Waaseyaa\AI\Tools\Tests\Fixtures\SingleTypeEntityTypeManager;
 use Waaseyaa\AI\Tools\Tests\Fixtures\ToolTestEntity;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
+use Waaseyaa\AI\Tools\ProvidesAgentToolsInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
@@ -38,6 +39,46 @@ use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 #[CoversClass(AttributeToolRegistry::class)]
 final class AiToolsServiceProviderWiringTest extends TestCase
 {
+    #[Test]
+    public function application_providers_contribute_tools_before_first_registry_use(): void
+    {
+        $provider = new AiToolsServiceProvider();
+        $provider->withAgentToolProviders([
+            new class implements ProvidesAgentToolsInterface {
+                public function registerAgentTools(ToolRegistryInterface $registry): void
+                {
+                    $registry->register(new \Waaseyaa\AI\Tools\AgentTool(
+                        name: 'app.example',
+                        capability: 'app.example',
+                        destructive: false,
+                        dryRunSupported: false,
+                        category: 'application',
+                        inputSchema: ['type' => 'object'],
+                        impl: new class implements \Waaseyaa\AI\Tools\AgentToolInterface {
+                            public function description(): string { return 'Example application tool.'; }
+                            public function inputSchema(): array { return ['type' => 'object']; }
+                            public function argumentsForAudit(array $arguments): array { return $arguments; }
+                            public function execute(array $arguments, AccountInterface $account): \Waaseyaa\AI\Tools\AgentToolResult
+                            {
+                                return \Waaseyaa\AI\Tools\AgentToolResult::success([['type' => 'text', 'text' => 'ok']]);
+                            }
+                            public function dryRun(array $arguments, AccountInterface $account): \Waaseyaa\AI\Tools\AgentToolResult
+                            {
+                                return $this->execute($arguments, $account);
+                            }
+                        },
+                    ));
+                }
+            },
+        ]);
+        $provider->register();
+
+        $registry = $provider->resolve(ToolRegistryInterface::class);
+
+        $this->assertInstanceOf(ToolRegistryInterface::class, $registry);
+        $this->assertTrue($registry->has('app.example'));
+    }
+
     #[Test]
     public function the_provider_wires_the_kernel_access_handler_onto_hydrated_tools(): void
     {

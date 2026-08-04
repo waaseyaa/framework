@@ -61,9 +61,13 @@ final class StubMcpServerHttpClient implements HttpClientInterface
         $params = is_array($envelope['params'] ?? null) ? $envelope['params'] : [];
         $id = $envelope['id'] ?? 'noid';
 
+        if ($rpcMethod === 'notifications/initialized' && !array_key_exists('id', $envelope)) {
+            return new HttpResponse(202, '');
+        }
+
         $result = match ($rpcMethod) {
             'initialize' => [
-                'protocolVersion' => '2024-11-05',
+                'protocolVersion' => '2025-11-25',
                 'serverInfo' => ['name' => 'stub-mcp', 'version' => '0.1'],
                 'capabilities' => ['tools' => new \stdClass()],
             ],

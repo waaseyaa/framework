@@ -13,6 +13,8 @@
 <!-- Spec reviewed 2026-07-16 - #2053: one --admin-target-size token gives ordinary authenticated-admin links, buttons, inputs, selects, date controls, autocomplete controls/options, rich-text controls, toggle labels, disclosures, actions, and pagination effective 44 by 44 CSS-pixel targets. Autocomplete clear is an adjacent non-overlapping control; the toggle label owns the effective target while focus and state remain on its native checkbox. Geometry is pinned at 360/768/1024/1440 and 200% text enlargement. -->
 <!-- Spec reviewed 2026-07-16 - #2051: schema listings retain one semantic table/action set, adapt that markup to labelled cards below 600px, contain wider tables in a named scroll region, and use bounded semantic pagination. Generic ordinary controls use 44px targets. Closed mobile navigation is inert/aria-hidden/pointer-disabled; open navigation manages focus, Escape, scroll, backdrop, route, and breakpoint cleanup. Shell boundaries shrink/wrap long content without document overflow. -->
 
+<!-- Spec reviewed 2026-08-03 - #2177 F1 C1c prerequisite: server-authoritative session capability projection. AdminSurfaceSession gains optional `capabilities: Record<string, boolean>` (always emitted by the PHP host, `{}` when empty), computed in GenericAdminSurfaceHost::resolveSession() from the resolved immutable principal via hasPermission() over an explicit constructor `$capabilityAllowlist` (strict identifier validation, deduplicated, sorted, hard caps CAPABILITY_ALLOWLIST_MAX=32 / CAPABILITY_IDENTIFIER_MAX_LENGTH=128; malformed or oversized lists throw at construction — never a silent broadening, never permission enumeration). AdminSurfaceServiceProvider::defaultCapabilityAllowlist() projects exactly McpApprovalCapabilities::PERMISSION_VIEW/PERMISSION_DECIDE when the MCP package is installed and nothing on slim installs; `features.mcp` stays installation-wide while `capabilities` is per-account. SPA: the admin plugin threads session capabilities into AdminRuntime.capabilities and useAdmin() exposes the canonical fail-closed `can(permission)` helper (true only for exact boolean true; no role fallback). Server middleware/route permissions remain the enforcement boundary — this is a UI affordance signal only. -->
+
 <!-- Spec reviewed 2026-07-15 - #2050: schema fields share stable label/help/error IDs and required/invalid semantics; submission failures use a focused assertive summary, structured-error mapping and single-flight guard. RichText preserves untouched canonical HTML behind an inert visual projection plus explicit source mode. Date-only fields use ISO YYYY-MM-DD without timezone conversion and enforce authoritative x-min/x-max bounds. -->
 
 <!-- Spec reviewed 2026-07-15 - #2048: mounted admin workflow/API transport now keeps the Nuxt app base (`/admin/`) separate from the canonical JSON API base (`/`). The admin SPA catch-all excludes both `_surface` and `api` path segments, so missing `/admin/api/*` requests remain non-success API-looking misses rather than `200 text/html`. Workflow discovery validates the response shape and models loading, bound/no-transition, 403, 404, malformed, network, and server failures explicitly; transition submission is single-flight and errors are announced. GenericAdminSurfaceHost resolves bundle-specific workflow binding metadata as `x-workflow` and removes raw `workflow_state` and `status` properties only from bound schemas; unbound schemas preserve their prior fields. -->
@@ -227,6 +229,8 @@ All composables are in `packages/admin/app/composables/`. Nuxt auto-imports them
 
 Shared fetch wrapper for all `/api/*` calls. Ensures `baseURL: '/'` (bypasses Nuxt's `app.baseURL` prefix) and `credentials: 'include'` (sends session cookie).
 
+CSRF (#2177 F1 prerequisite): on non-safe methods (anything but `GET`/`HEAD`/`OPTIONS`), `apiFetch` reads the `XSRF-TOKEN` cookie (URL-decoding it) and sends it as the `X-XSRF-TOKEN` header — but **only to same-origin destinations**; absolute or protocol-relative URLs pointing at another origin never receive the token. Safe methods and token-less sessions send no header, and a caller-supplied `X-XSRF-TOKEN` header is never overwritten. The cookie is seeded by API responses carrying both an authenticated account and the `waaseyaa_uid` login-session marker (the boot `GET /api/user/me` in practice; bearer-only requests are excluded — see `docs/specs/security-defaults.md` "CSRF token cookie"). This is what lets routes declared with `RouteBuilder::requireCsrf()` (JSON content type included) accept SPA mutations.
+
 ```ts
 function useApi(): {
   apiFetch<T>(path: string, options?: Record<string, unknown>): Promise<T>
@@ -347,6 +351,19 @@ The root Nuxt plugin is the authoritative bootstrap for `$admin`. On non-public 
 4. Hydrates the shared auth-state keys `waaseyaa.auth.user` and `waaseyaa.auth.checked` from the authoritative session bootstrap before returning the runtime.
 5. Builds `AdminRuntime` from `SessionAuthAdapter`, `AdminSurfaceTransportAdapter`, the resolved account/tenant, a local admin runtime catalog contract derived from the surface bootstrap payload, and **`ui`** — normalized from optional session `ui` (`headerLinks`, `sidebarItems`) via `normalizeSurfaceUi()` in `packages/admin/app/runtime/normalizeSurfaceUi.ts` (defensive filtering; defaults to empty arrays when absent).
 6. Returns `{ provide: { admin: runtime } }`, or `{ provide: { admin: null } }` for public auth pages and unauthenticated redirects.
+
+**Session capability projection (PHP → SPA, #2177):** `AdminSurfaceSession.capabilities`
+is a server-authoritative `Record<string, boolean>` computed by
+`GenericAdminSurfaceHost::resolveSession()` from the resolved principal's
+`hasPermission()` over an explicit, bounded constructor allowlist
+(`$capabilityAllowlist`; empty by default, `{}` in JSON when unconfigured).
+Only allowlisted identifiers are ever serialized. The framework default
+(`AdminSurfaceServiceProvider::defaultCapabilityAllowlist()`) projects exactly
+`mcp.approval.view` and `mcp.approval.decide` when the MCP package is
+installed. Pages and navigation consume it through `useAdmin().can(permission)`,
+which is fail-closed: it returns `true` only when the value is exactly boolean
+`true`, and there is no role-based fallback. This gates UI affordances only —
+route-level `_permission` checks remain the enforcement boundary.
 
 **Session UI customization (PHP → SPA):** Hosts extend `GenericAdminSurfaceHost` and override `buildAdminUi(AccountInterface): ?AdminSurfaceUiPayload` to attach non-empty `AdminSurfaceUiPayload` to `AdminSurfaceSessionData`. JSON includes a top-level `ui` object only when the payload has at least one valid header link or sidebar item. Sidebar `group` values that look like i18n keys (`nav_*`) are passed through `t()` in `NavBuilder`; an empty/missing `group` uses `nav_group_custom` (“Shortcuts”). External targets use `external: true` or absolute URLs (`http(s):`, `//`, `mailto:`, `tel:`) and render as `<a target="_blank" rel="noopener noreferrer">`.
 
@@ -1019,6 +1036,9 @@ Test files live in `packages/admin/tests/`:
 - `tests/unit/composables/useSchema.test.ts` — schema caching/error handling and missing-runtime invariant
 - `tests/components/layout/NavBuilder.test.ts` — deterministic navigation rendering for empty and action-aware catalogs using capability-minimal fixtures
 - `tests/pages/dashboard.test.ts` — onboarding prompt capability fallbacks (`node_type` create path, first create-capable fallback, root fallback when note is absent, first-listable probe when `node_type` is absent)
+- `tests/unit/composables/useMcpApprovals.test.ts` — bounded 25-row pages, verbatim opaque-cursor traversal (next/previous/refresh), 403-view vs generic load errors, decision body shape (blank reason omitted), 400/403/404/409/503 → typed refusal kinds
+- `tests/components/mcp/ApprovalDecisionDialog.test.ts` — alertdialog semantics, hostile server strings rendered as text, 500-Unicode-char reason boundary (astral-safe), single-line validation, remaining counter, double-submit guard, focus-in on open, Tab/Shift+Tab trap, Escape/overlay/cancel dismissal refused while submitting
+- `tests/pages/mcpApprovals.test.ts` — capability-aware rendering (`can('mcp.approval.view')` / `can('mcp.approval.decide')`), loading/empty/error/forbidden states (load errors `role="alert"`), labelled keyboard-focusable table region, pagination + refresh wiring, decision flow with honest 404/409 stale refetch, focus restoration to the triggering Approve/Deny control (Refresh fallback when the row is gone)
 
 Pattern: `mountSuspended()` from `@nuxt/test-utils/runtime` for component mounting. Props via `props: {}`, emits via `wrapper.emitted()`.
 
@@ -1114,15 +1134,18 @@ Real-time SSE monitor for the Mercure broadcasting layer (gap-matrix C-L0-04, mi
 
 **Mission:** `mcp-endpoint-admin-m5c-01KSEFTB` (#1415, audit C-L6-01).
 
-Read-only admin surface for the MCP endpoint. Three pages under `/mcp/`, accessible via the "MCP" nav group in `NavBuilder.vue`:
+Admin surface for the MCP endpoint. Four pages under `/mcp/`, accessible via the "MCP" nav group in `NavBuilder.vue`:
 
 | Page | Route | Description |
 |------|-------|-------------|
 | Tool registry | `/mcp/tools` | Paginated list of registered MCP tools with name, category, capability chips, summary |
 | Tool detail | `/mcp/tools/{name}` | Per-tool header card + collapsible input-schema viewer + recent invocations table |
 | Server config | `/mcp/server-config` | Transport/protocol banner, server capabilities, registered clients table |
+| MCP approvals | `/mcp/approvals` | #2177 F1 C1c operator queue for the write-tier human-approval gate: bounded 25-row pages of pending requests (server order, oldest first) with safe projections only (`safeArguments`, fingerprint, correlation id — never raw arguments), opaque-`nextCursor` pagination (Previous = client-side cursor stack, cursors never decoded), manual refresh, and approve/deny through `<McpApprovalDecisionDialog>` (optional ≤500-Unicode-char single-line reason with live remaining count, double-submit guard). Decision refusals map 400/403/404/409/503 to static non-secret messages; 404/409 refresh the queue honestly instead of pretending success. |
 
-**Composables:** `useMcpTools`, `useMcpTool`, `useMcpServerConfig` — all use `useApi().apiFetch`.
+**Capability gating (#2177 F1 C1c):** the approvals page and its NavBuilder link are gated by the server-authoritative session projection via `useAdmin().can('mcp.approval.view')`; decision actions additionally require `can('mcp.approval.decide')` (view-only operators see the queue with no decision buttons). Never inferred from roles; the PHP routes stay the enforcement boundary. There is deliberately no UI for `mcp.write_tier.approval.allow_self_approval` — that stays deployment config.
+
+**Composables:** `useMcpTools`, `useMcpTool`, `useMcpServerConfig`, `useMcpApprovals` — all use `useApi().apiFetch` (so decisions inherit the CSRF `X-XSRF-TOKEN` header behaviour pinned in `tests/composables/useApi.test.ts`).
 
 **Security:** `McpRegisteredClient` TypeScript type has no `token` field; only `tokenFingerprint` (16-char hex) is exposed. Enforced by compile-time type assertion in `useMcpServerConfig.test.ts`.
 
@@ -1142,6 +1165,7 @@ Read-only admin surface for the MCP endpoint. Three pages under `/mcp/`, accessi
 - **Git worktrees can't run Nuxt dev server**: Worktrees share source via symlinks but not `node_modules/.vite/` or `.nuxt/`. Vite module resolution fails with MIME type errors. Run E2E tests against the main repo's dev server, not from worktrees.
 
 <!-- Spec reviewed 2026-05-25 - mcp-endpoint-admin-m5c-01KSEFTB: MCP admin surface — tool registry browser (/mcp/tools), per-tool detail (/mcp/tools/{name}), server config viewer (/mcp/server-config). Nav group "MCP" added to NavBuilder.vue. -->
+<!-- Spec reviewed 2026-08-03 - #2177 F1 C1c: MCP approvals operator page (/mcp/approvals) — useMcpApprovals composable, McpApprovalDecisionDialog, capability-gated NavBuilder link via useAdmin().can('mcp.approval.view'); dist content pinned by AdminDistContentTest::shipped_bundle_contains_the_mcp_approvals_page. -->
 <!-- Spec reviewed 2026-05-24 - workflow guards read-only matrix section on /workflows/{id} (M4A-5 Phase 1, #1470) -->
 <!-- Spec reviewed 2026-05-25 - inertia-demotion-nuxt-standardisation-01KSEFTS - WP03 - SPA bet section added per DIR-007 -->
 <!-- Spec reviewed 2026-05-25 - media version browser page /media/{uuid}/versions (DIR-005 versioned-blob-media-abstraction-01KSEFTJ WP04) -->

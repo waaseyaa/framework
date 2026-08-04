@@ -10,16 +10,15 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
-use Waaseyaa\Auth\RateLimiterInterface;
+use Waaseyaa\Auth\AtomicRateLimiterInterface;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\McpEndpoint;
 use Waaseyaa\Mcp\McpResponse;
 
 /**
  * Per-principal MCP rate limiting (#2136 WP3): keyed by tier + principal id,
- * default-off, JSON-RPC -32029 + HTTP 429 when exceeded, fail-open when the
- * limiter substrate itself fails (limiter availability must never take down
- * the endpoint).
+ * JSON-RPC -32029 + HTTP 429 when exceeded, and a sanitized fail-closed 503
+ * when the limiter substrate cannot make a durable decision.
  */
 #[CoversClass(McpEndpoint::class)]
 final class McpEndpointRateLimitTest extends TestCase
@@ -45,7 +44,7 @@ final class McpEndpointRateLimitTest extends TestCase
         return $account;
     }
 
-    private function endpoint(?RateLimiterInterface $limiter, int $max = 2, string $tier = 'write'): McpEndpoint
+    private function endpoint(?AtomicRateLimiterInterface $limiter, int $max = 2, string $tier = 'write'): McpEndpoint
     {
         $registry = $this->createMock(ToolRegistryInterface::class);
         $registry->method('all')->willReturn([]);
@@ -76,11 +75,18 @@ final class McpEndpointRateLimitTest extends TestCase
     }
 
     /** In-memory limiter recording keys and enforcing counts. */
-    private function inMemoryLimiter(): RateLimiterInterface
+    private function inMemoryLimiter(): AtomicRateLimiterInterface
     {
-        return new class implements RateLimiterInterface {
+        return new class implements AtomicRateLimiterInterface {
             /** @var array<string, int> */
             public array $hits = [];
+
+            public function consume(string $key, int $maxAttempts, int $decaySeconds): bool
+            {
+                $this->hit($key, $decaySeconds);
+
+                return $this->hits[$key] <= $maxAttempts;
+            }
 
             public function hit(string $key, int $decaySeconds): void
             {
@@ -172,9 +178,13 @@ final class McpEndpointRateLimitTest extends TestCase
     }
 
     #[Test]
-    public function limiter_infrastructure_failure_fails_open(): void
+    public function limiter_infrastructure_failure_fails_closed_without_leaking_the_cause(): void
     {
-        $broken = new class implements RateLimiterInterface {
+        $broken = new class implements AtomicRateLimiterInterface {
+            public function consume(string $key, int $maxAttempts, int $decaySeconds): bool
+            {
+                throw new \RuntimeException('limiter db down');
+            }
             public function hit(string $key, int $decaySeconds): void
             {
                 throw new \RuntimeException('limiter db down');
@@ -199,7 +209,10 @@ final class McpEndpointRateLimitTest extends TestCase
         };
 
         $endpoint = $this->endpoint($broken, max: 1);
-        self::assertSame(200, $this->ping($endpoint, 7)->statusCode);
-        self::assertSame(200, $this->ping($endpoint, 7)->statusCode);
+        $first = $this->ping($endpoint, 7);
+        $second = $this->ping($endpoint, 7);
+        self::assertSame(503, $first->statusCode);
+        self::assertSame(503, $second->statusCode);
+        self::assertStringNotContainsString('limiter db down', $first->body);
     }
 }

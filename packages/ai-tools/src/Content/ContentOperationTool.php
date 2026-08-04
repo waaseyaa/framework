@@ -47,6 +47,7 @@ final readonly class ContentOperationTool implements AgentToolInterface
 
             return AgentToolResult::success(
                 [['type' => 'text', 'text' => json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)]],
+                structuredContent: $payload,
             );
         } catch (ContentPublishingException $e) {
             return $this->errorEnvelope($e->errorCode, $e->getMessage(), $e->fieldErrors, $e->meta);

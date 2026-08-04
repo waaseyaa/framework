@@ -78,7 +78,7 @@ For traditional non-JS forms, keep using the existing `csrf_token()` helper. Thi
 
 ## Cookie attributes
 
-The `XSRF-TOKEN` cookie is written on every `text/html` response with the following attributes.
+The `XSRF-TOKEN` cookie is written on every `text/html` response, and — since the #2177 F1 prerequisite — on any response (JSON included) whose request carries both an authenticated `_account` and the login-session `waaseyaa_uid` marker. This lets an SPA that boots against JSON endpoints (`GET /api/user/me`) receive the token without ever loading a kernel-rendered HTML page, while bearer-only requests do not receive a browser-session token. Both paths use the same attributes; anonymous and bearer-only non-HTML responses set no cookie.
 
 | Attribute | Value | Notes |
 |---|---|---|
@@ -111,7 +111,7 @@ If none of the three sources provides a valid token, the framework returns 403 I
 
 ## What this convention does NOT do
 
-- No per-route CSRF exemptions are added. Existing exempt Content-Types (`application/json`, `application/vnd.api+json`) remain the only exemptions.
+- The exempt Content-Types (`application/json`, `application/vnd.api+json`) remain exempt **by default**. A route may override this in either direction via the three-valued `_csrf` route option: `RouteBuilder::csrfExempt()` (`_csrf = false`, never validate) or `RouteBuilder::requireCsrf()` (`_csrf = true`, validate every content type — the #2177 F1 prerequisite for cookie-authenticated JSON endpoints). See `docs/specs/security-defaults.md` "CSRF token cookie".
 - No token rotation policy change. The session-scoped CSRF token is rotated only by the existing rotation triggers (e.g., login).
 - No session driver change. The token continues to live in `$_SESSION['_csrf_token']` via whatever session driver the app is configured to use.
 

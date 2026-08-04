@@ -7,7 +7,7 @@ namespace Waaseyaa\Workflows\Tests\Integration;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Config\ConfigFactory;
@@ -31,6 +31,7 @@ use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 use Waaseyaa\Workflows\DefaultWorkflows;
 use Waaseyaa\Workflows\Listener\WorkflowStateGuard;
+use Waaseyaa\Workflows\Publishing\WorkflowContentPublicationTransitioner;
 use Waaseyaa\Workflows\Transition\TransitionDeniedException;
 use Waaseyaa\Workflows\Transition\TransitionService;
 use Waaseyaa\Workflows\Workflow;
@@ -126,6 +127,27 @@ final class EditorialFlowTest extends TestCase
         }
     }
 
+    #[Test]
+    public function generic_publication_bridge_selects_the_legal_visibility_transition(): void
+    {
+        [$manager, $service, , $bindings] = $this->wireEngine();
+        $repository = $manager->getRepository(self::ENTITY_TYPE_ID);
+        $entity = new EditorialFlowSubject(['bundle' => self::ENTITY_TYPE_ID], self::ENTITY_TYPE_ID, $this->entityKeys());
+        $repository->save($entity);
+        $stored = $repository->loadWorkingCopy((string) $entity->id());
+        $this->assertNotNull($stored);
+        $actor = $this->account(9, ['use editorial transition publish', 'use editorial transition archive']);
+        $bridge = new WorkflowContentPublicationTransitioner($bindings, $service, $manager);
+
+        $published = $bridge->setPublished($stored, true, $actor);
+        $this->assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($published));
+        $this->assertSame(1, \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($published));
+
+        $archived = $bridge->setPublished($published, false, $actor);
+        $this->assertSame('archived', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($archived));
+        $this->assertSame(0, \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($archived));
+    }
+
     /**
      * @return array<string, string>
      */
@@ -134,19 +156,22 @@ final class EditorialFlowTest extends TestCase
         return ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id'];
     }
 
-    private function account(int $id, array $permissions): AccountInterface
+    private function account(int $id, array $permissions): AuthorizationPrincipalInterface
     {
-        return new class ($id, $permissions) implements AccountInterface {
+        return new class ($id, $permissions) implements AuthorizationPrincipalInterface {
             public function __construct(private readonly int $accountId, private readonly array $permissions) {}
             public function id(): int|string { return $this->accountId; }
             public function hasPermission(string $permission): bool { return \in_array($permission, $this->permissions, true); }
             public function getRoles(): array { return []; }
             public function isAuthenticated(): bool { return true; }
+            public function claimsGeneration(): string { return 'test'; }
+            public function tenantId(): ?string { return null; }
+            public function communityId(): ?string { return null; }
         };
     }
 
     /**
-     * @return array{0: EntityTypeManager, 1: TransitionService, 2: EditorialFlowSpyAuditWriter}
+     * @return array{0: EntityTypeManager, 1: TransitionService, 2: EditorialFlowSpyAuditWriter, 3: WorkflowBindingResolver}
      */
     private function wireEngine(): array
     {
@@ -217,7 +242,7 @@ final class EditorialFlowTest extends TestCase
             auditWriter: $auditWriter,
         );
 
-        return [$entityTypeManager, $service, $auditWriter];
+        return [$entityTypeManager, $service, $auditWriter, $bindings];
     }
 }
 

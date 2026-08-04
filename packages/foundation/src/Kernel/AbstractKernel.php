@@ -53,6 +53,7 @@ use Waaseyaa\Foundation\Migration\MigrationLoader;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsAgentToolProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsContentModelProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -189,6 +190,7 @@ abstract class AbstractKernel
         $this->discoverAndRegisterProviders();
         $this->injectMigrationProviders();
         $this->injectContentModelProviders();
+        $this->injectAgentToolProviders();
         $this->loadAppEntityTypes();
         $this->validateContentTypes();
         if (!$this->fieldAccessPreflightOnly && !$this->isDevelopmentMode()) {
@@ -516,6 +518,44 @@ abstract class AbstractKernel
         foreach ($this->providers as $provider) {
             if ($provider instanceof AcceptsContentModelProvidersInterface) {
                 $provider->withContentModelProviders($contentModelProviders);
+            }
+        }
+    }
+
+    /**
+     * Feed application providers implementing the ai-tools contributor
+     * contract into the registry-owning provider before any provider boots.
+     *
+     * The string FQCN preserves Foundation's Layer-0 boundary while the named
+     * receiver capability keeps this kernel call explicit and contract-tested.
+     */
+    protected function injectAgentToolProviders(): void
+    {
+        $providesAgentToolsFqcn = 'Waaseyaa\\AI\\Tools\\ProvidesAgentToolsInterface';
+
+        if (!\interface_exists($providesAgentToolsFqcn)) {
+            return;
+        }
+
+        $toolProviders = [];
+        foreach ($this->providers as $provider) {
+            if ($provider instanceof $providesAgentToolsFqcn) {
+                $toolProviders[] = $provider;
+            }
+        }
+
+        if ($toolProviders === []) {
+            return;
+        }
+
+        usort(
+            $toolProviders,
+            static fn(object $left, object $right): int => $left::class <=> $right::class,
+        );
+
+        foreach ($this->providers as $provider) {
+            if ($provider instanceof AcceptsAgentToolProvidersInterface) {
+                $provider->withAgentToolProviders($toolProviders);
             }
         }
     }

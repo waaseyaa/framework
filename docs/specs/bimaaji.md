@@ -1,5 +1,6 @@
 # Bimaaji — Application Graph & Agent Mutation Layer
 
+<!-- Spec reviewed 2026-08-04 - #2177 MCP enterprise hardening: Bimaaji's graph/spec provider bindings and introspection tools remain read-only discovery surfaces. Privileged graph and spec introspection is now explicitly curated and withheld from remotely reachable MCP registries unless an application grants the corresponding capability; the graph-generation contract itself is unchanged. -->
 <!-- Spec reviewed 2026-06-22 - WP15 (alpha245 security, audit): MutationValidator runs sovereignty guardrails before structural validation; BimaajiServiceProvider wires SovereigntyGuardrails into the live validator binding. Acceptance: MutationValidatorTest::it_gates_sovereignty_sensitive_operations_through_the_guardrails. -->
 <!-- Spec reviewed 2026-05-23 - M3 WP04 (bimaaji-mcp-bridge-01KS5VS8): added "MCP exposure" subsection enumerating the five bimaaji #[AsAgentTool] adapters surfaced over MCP through AgentToolRegistryBridge. Updated Implementation Status to flip M2 + M3 from "Deferred" to "Shipped". Bound SpecIndexProvider as a container singleton in BimaajiServiceProvider (WP02). -->
 <!-- Spec reviewed 2026-05-21 - M1 (bimaaji-wakeup-01KS5VEY) flipped Implementation Status from "scaffolding only" to "shipped". -->

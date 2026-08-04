@@ -445,6 +445,55 @@ Ordering is always `created_at DESC`.
 
 ---
 
+
+## Strict reserve/finalize ledger (`strict_audit_ledger`, #2177 F4)
+
+A second, deliberately **non**-best-effort write path, alongside `AuditWriterInterface`.
+
+`AuditWriterInterface` is contractually best-effort — `record()` MUST swallow every exception and MUST NOT throw (FR-005 / NFR-001). That is correct for an observability log, and unusable for a surface that must refuse to act when it cannot be audited. `Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface` is its opposite number: `reserve()` and `finalize()` **throw** `StrictAuditLedgerException` when a record cannot be made durable, so the caller can decline to proceed.
+
+It is the sibling of `StrictPrivilegedReadLedgerInterface` (privileged reads) and follows the same reserve → act → finalize shape and the same append-only storage discipline. `strict_audit_ledger` is registered in `AppendOnlyAuditDatabase::APPEND_ONLY_TABLES`, so a reservation can be appended but never updated or deleted through the audit database — evidence of a mutation cannot be rewritten after the fact.
+
+**Why the port lives in `waaseyaa/foundation`, not here.** Its first consumer is the MCP write tier, and `waaseyaa/mcp` must not require `waaseyaa/audit` at runtime (see `McpDispatchEvent`, contract clause 18). Foundation is the one package both the consumer and this implementation already depend on. The contracts and value objects are in `Waaseyaa\Foundation\Audit`; the database implementation is `Waaseyaa\Audit\Writer\DatabaseStrictAuditLedger`.
+
+| Column | Meaning |
+|---|---|
+| `receipt_id` | joins a `reserved` row to its `finalized` row |
+| `correlation_id` | joins every record for one request, including `audit_event` rows |
+| `event_type` | `reserved` \| `finalized` \| `recorded` (single-shot terminal stage) |
+| `surface` | e.g. `mcp.write` — one ledger can serve several entry points |
+| `operation` | what was attempted (for MCP, the tool name) |
+| `stage` / `outcome` | `AuditStage` value and its derived outcome |
+| `actor_uid` | three-state actor: `null` (no principal) / `0` (anonymous) / N |
+| `descriptor` | redacted `safe_arguments` + safe metadata |
+
+`UNIQUE(receipt_id, event_type)` makes a double-finalize impossible at the storage layer, independent of the application-level guard.
+
+**The guarantee is pre-durability, not atomicity.** See `docs/specs/mcp-endpoint.md` for the full statement, the four reasons atomic coupling is not reachable, and the dangling-reservation query for the crash window.
+
+## Operation approval event log (`mcp_approval_event`, #2177 F1)
+
+Durable human approvals for destructive MCP write-tier calls, stored as append-only events by `Waaseyaa\Audit\Writer\DatabaseOperationApprovalStore` (the implementation of `Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface` — the port lives in foundation for the same no-runtime-audit-dependency reason as the strict ledger above; see `docs/specs/infrastructure.md` §"Operation approval port"). `mcp_approval_event` is registered in `AppendOnlyAuditDatabase::APPEND_ONLY_TABLES`, so an approval can be appended but never forged by update, revoked after use, or made reusable by delete. Schema: `Waaseyaa\Audit\Storage\ApprovalEventSchema` (additive, idempotent; ensured **lazily** by `AuditServiceProvider`'s `OperationApprovalStoreInterface` binding on first resolution — slice B — so a deployment that never uses the write tier pays nothing at boot). The binding reads the expiry window from `mcp.write_tier.approval.ttl_seconds` (strict positive integer, integer-shaped strings accepted, default 900; malformed values throw `ConfigException` naming the key and value type only). The consumer is the `McpEndpoint` write-tier approval gate — see `docs/specs/mcp-endpoint.md` §"Human-approval gate". The admin decision **routes** landed in slice C1b (`GET /api/mcp/approvals`, `POST /api/mcp/approvals/{id}/decision` — see `docs/specs/mcp-endpoint.md` §"Admin decision surface"); a successful `decide()` through them additionally projects a best-effort `mcp.approval_decision` audit event (`McpApprovalDecisionAuditListener`, safe join fields only — request id, decision, optional normalized reason, correlation id, operator uid as actor — never raw arguments; a projection failure is logged and swallowed, never unwinding the already-durable `decided` row). The admin-SPA UI is **not yet present**.
+
+One row per event; status is always derived, never stored:
+
+| Column | Meaning |
+|---|---|
+| `request_id` | opaque `apr_` + 32 hex (16 random bytes); joins a request's events |
+| `event_type` | `requested` \| `decided` \| `consumed` |
+| `request_key` | deterministic tuple identity (SHA-256 over a length-unambiguous component encoding); reuse lookup for retried identical calls |
+| `principal_key` / `surface` / `operation` / `arguments_fingerprint` | the exact `ApprovalTuple`, repeated on every event so each row is self-describing |
+| `correlation_id` | original request's correlation on `requested`/`decided`; the consuming retry's correlation on `consumed` |
+| `safe_arguments` | the tool's redacted arguments (`requested` only) — never raw params; the raw arguments exist only as the fingerprint |
+| `expires_at` | fixed expiry stamped at open time (`requested` only); UTC `Y-m-d H:i:s.u` |
+| `decision` / `operator_uid` | `approved` \| `denied` and the server-derived deciding operator (`decided` only) |
+| `decision_reason` | optional operator-supplied human reason (`decided` only) — durable incident evidence; normalized via `ApprovalRequest::normalizeDecisionReason()` (trimmed, blank → null, ≤ 500 Unicode characters, single-line: any ASCII control character rejected before the append). The decided row carries only the decision, operator uid and reason — never request payload or raw arguments |
+| `receipt_id` | the strict-ledger receipt of the consuming execution (`consumed` only), joining the approval to its `strict_audit_ledger` evidence |
+
+`UNIQUE(request_id, event_type)` makes both a second decision and a second consumption impossible at the storage layer, independent of the application-level guards. `consume()` runs transactionally (state check + `consumed` append commit together) and re-checks expiry at the consume boundary with the single inclusive instant comparison (`ApprovalRequest::isExpiredAt()`), so there is no sub-second window in which an expired approval still consumes; a concurrent-consumer loss surfaces as `false`, never as a duplicate execution. Duplicate pending rows under a create race are accepted and harmless — later retries converge on the oldest pending request, and each approval still consumes once. Rows are covered by `AuditReadModelDefinitionRegistry` (`id` Public, every other column Internal).
+
+**Pending queue (`listPending()`, C1a).** The operator-facing read side: one bounded `ApprovalRequestPage` of live `Pending` requests in stable ascending requested order (append order of `requested` rows), omitting expired, approved, denied and consumed requests. Limit is 1..100 (default 50); an out-of-range limit or a malformed/tampered cursor throws `\InvalidArgumentException` before any query runs. The cursor is opaque and versioned (`apv1`-tagged, base64url, canonical-form-only): it encodes exactly the immutable row id of the last scanned `requested` event — an append-only position, so it reveals no mutable state and can grant nothing. The scan is one bounded chunk query per page in the common case, never an unbounded `SELECT`: a single `LIMIT`-bounded query over `requested` rows strictly after the cursor position excludes decided/consumed requests via `NOT EXISTS` on the `(request_id, event_type)` unique index and definitely-expired requests via the sortable fixed-width UTC `expires_at` text (which agrees exactly with the inclusive `ApprovalRequest::isExpiredAt()` boundary; the in-PHP derivation keeps the final say per hydrated row). If in-PHP filtering ever leaves a page short with rows still ahead, the store continues from the advanced scan position with further bounded chunks. Traversal is live, not a snapshot: walking `nextCursor` to null visits every continuously-pending request exactly once (skipped non-pending rows can never become pending again — decisions are once-only and expiry is fixed at open time), requests opened between pages appear on a later page, and requests decided or expired between pages stop appearing. Pages carry `safeArguments` only — raw arguments never leave the fingerprint.
+
 ## Retention
 
 ### `AuditRetentionPolicy` Entity

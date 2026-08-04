@@ -218,6 +218,19 @@ final class RouteBuilder
     }
 
     /**
+     * Require CSRF token validation for this route on state-changing methods,
+     * even for JSON content types that are otherwise exempt.
+     *
+     * Use for cookie-authenticated JSON endpoints whose side effects must not
+     * be triggerable cross-site (e.g., MCP write-tier approvals).
+     */
+    public function requireCsrf(): self
+    {
+        $this->options['_csrf'] = true;
+        return $this;
+    }
+
+    /**
      * Mark route as a JSON:API route (enables JSON body parsing on POST/PATCH).
      */
     public function jsonApi(): self

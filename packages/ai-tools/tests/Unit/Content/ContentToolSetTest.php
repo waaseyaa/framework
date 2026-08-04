@@ -8,6 +8,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Waaseyaa\Access\AccessResult;
+use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\Content\ContentOperationTool;
 use Waaseyaa\AI\Tools\Content\ContentToolSet;
@@ -19,8 +21,10 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Publishing\ContentPublisher;
+use Waaseyaa\Publishing\Exception\ContentAuthorizationException;
 use Waaseyaa\Publishing\ContentTypeDescriptor;
 use Waaseyaa\Publishing\FieldSpec;
 use Waaseyaa\Publishing\Idempotency\IdempotencyStore;
@@ -41,10 +45,12 @@ final class ContentToolSetTest extends TestCase
     private array $tools = [];
     private PublisherAccount $actor;
     private string $uploadsDir;
+    private EntityRepository $mediaRepository;
+    private DBALDatabase $database;
 
     protected function setUp(): void
     {
-        $db = DBALDatabase::createSqlite();
+        $db = $this->database = DBALDatabase::createSqlite();
         $articleType = new EntityType(
             id: 'test_article',
             label: 'Test article',
@@ -76,6 +82,8 @@ final class ContentToolSetTest extends TestCase
                 'summary' => new FieldSpec(type: 'text'),
                 'body_html' => new FieldSpec(type: 'text', html: true),
                 'promote' => new FieldSpec(type: 'bool'),
+                'publish_on' => new FieldSpec(type: 'date', nullable: true),
+                'related' => new FieldSpec(type: 'reference_list', maxItems: 3),
             ],
             htmlSanitizer: new \Waaseyaa\Publishing\Tests\Fixtures\SymfonyTestSanitizer(['p']),
             validators: [],
@@ -88,16 +96,25 @@ final class ContentToolSetTest extends TestCase
             id: 'test_media',
             label: 'Test media',
             class: \Waaseyaa\Publishing\Tests\Fixtures\TestArticleEntity::class,
-            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title'],
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id'],
+            revisionable: true,
+            revisionDefault: true,
         );
-        new SqlSchemaHandler($mediaType, $db)->ensureTable();
+        $mediaSchema = new SqlSchemaHandler($mediaType, $db);
+        $mediaSchema->ensureTable();
+        $mediaSchema->ensureRevisionTable();
         $mediaRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
             $mediaType,
             new SqlStorageDriver($resolver),
             new EventDispatcher(),
+            new RevisionableStorageDriver($resolver, $mediaType),
+            $db,
         );
+        $this->mediaRepository = $mediaRepo;
         $this->uploadsDir = sys_get_temp_dir() . '/waaseyaa_assets_' . uniqid();
-        $assets = new MediaAssetStore($mediaRepo, $this->uploadsDir, '/media/uploads', bundle: 'test_media');
+        $access = $this->createMock(EntityAccessHandler::class);
+        $access->method('checkCreateAccess')->willReturn(AccessResult::allowed());
+        $assets = new MediaAssetStore($mediaRepo, $this->uploadsDir, '/media/uploads', $access, bundle: 'test_media');
 
         $set = new ContentToolSet(
             $publisher,
@@ -137,6 +154,47 @@ final class ContentToolSetTest extends TestCase
         $this->actor = new PublisherAccount(permissions: [self::CAPABILITY]);
     }
 
+    #[Test]
+    public function asset_upload_fails_before_writing_when_media_create_access_is_denied(): void
+    {
+        $access = $this->createMock(EntityAccessHandler::class);
+        $access->method('checkCreateAccess')->willReturn(AccessResult::forbidden('denied'));
+        $directory = $this->uploadsDir . '/denied';
+        $store = new MediaAssetStore($this->mediaRepository, $directory, '/media/uploads', $access);
+        $before = $this->mediaRepository->count();
+
+        $this->expectException(ContentAuthorizationException::class);
+        try {
+            $store->upload('pixel.png', base64_decode(self::PNG_BASE64, true), $this->actor);
+        } finally {
+            self::assertDirectoryDoesNotExist($directory);
+            self::assertSame($before, $this->mediaRepository->count());
+        }
+    }
+
+    #[Test]
+    public function asset_upload_attributes_the_catalog_save_to_the_authenticated_actor(): void
+    {
+        $access = $this->createMock(EntityAccessHandler::class);
+        $access->method('checkCreateAccess')->willReturn(AccessResult::allowed());
+        $directory = $this->uploadsDir . '/attributed';
+        $store = new MediaAssetStore($this->mediaRepository, $directory, '/media/uploads', $access);
+
+        try {
+            $store->upload('pixel.png', base64_decode(self::PNG_BASE64, true), $this->actor);
+            $saved = $this->mediaRepository->findBy(['bundle' => 'image']);
+            self::assertCount(1, $saved);
+            $rows = iterator_to_array($this->database->query("SELECT json_extract(_data, '$.uid') AS uid FROM test_media LIMIT 1"));
+            self::assertSame(900001, (int) $rows[0]['uid']);
+            $revisions = $this->mediaRepository->listRevisions((string) $saved[0]->id());
+            self::assertCount(1, $revisions);
+            self::assertSame(900001, $revisions[0]->revisionMetadata()?->revisionAuthor);
+        } finally {
+            array_map(unlink(...), glob($directory . '/*') ?: []);
+            @rmdir($directory);
+        }
+    }
+
     protected function tearDown(): void
     {
         if (is_dir($this->uploadsDir)) {
@@ -164,7 +222,7 @@ final class ContentToolSetTest extends TestCase
     }
 
     #[Test]
-    public function the_full_stable_tool_set_is_registered_destructive_under_the_capability(): void
+    public function the_full_stable_tool_set_declares_risk_accurately_under_the_capability(): void
     {
         $expected = [
             'article.list', 'article.get', 'article.createDraft', 'article.updateDraft', 'article.preview',
@@ -172,12 +230,42 @@ final class ContentToolSetTest extends TestCase
             'asset.upload', 'asset.get',
         ];
         self::assertSame($expected, array_keys($this->tools));
+
+        $approvalRequired = [
+            'article.createDraft',
+            'article.updateDraft',
+            'article.publish',
+            'article.unpublish',
+            'article.rollback',
+            'asset.upload',
+        ];
         foreach ($this->tools as $tool) {
-            self::assertTrue($tool->destructive);
+            self::assertSame(
+                in_array($tool->name, $approvalRequired, true),
+                $tool->destructive,
+                $tool->name,
+            );
             self::assertSame(self::CAPABILITY, $tool->capability);
             self::assertSame('https://json-schema.org/draft/2020-12/schema', $tool->inputSchema['$schema']);
             self::assertFalse($tool->inputSchema['additionalProperties']);
+            self::assertNotNull($tool->title);
+            self::assertSame('object', $tool->outputSchema['type'] ?? null);
+            self::assertFalse($tool->openWorld);
         }
+
+        self::assertTrue($this->tools['article.createDraft']->idempotent);
+        self::assertFalse($this->tools['asset.upload']->idempotent);
+
+        $values = $this->tools['article.createDraft']->inputSchema['properties']['values']['properties'];
+        self::assertSame([
+            'anyOf' => [
+                ['type' => 'string', 'format' => 'date'],
+                ['type' => 'null'],
+            ],
+        ], $values['publish_on']);
+        self::assertSame('array', $values['related']['type']);
+        self::assertSame(3, $values['related']['maxItems']);
+        self::assertTrue($values['related']['uniqueItems']);
     }
 
     #[Test]
@@ -189,6 +277,10 @@ final class ContentToolSetTest extends TestCase
         ]);
         self::assertFalse($draft['status']);
         self::assertStringNotContainsString('<script', (string) $draft['body_html']);
+        self::assertSame($draft, $this->tools['article.createDraft']->impl->execute([
+            'values' => ['slug' => 'tool-post', 'title' => 'Tool post', 'body_html' => '<p>Hi</p><script>x</script>'],
+            'idempotency_key' => 'tool-key-1',
+        ], $this->actor)->structuredContent);
 
         $published = $this->call('article.publish', [
             'id' => (string) $draft['id'],

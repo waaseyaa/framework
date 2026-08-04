@@ -47,6 +47,10 @@
         {
             "type": "path",
             "url": "../node"
+        },
+        {
+            "type": "path",
+            "url": "../publishing"
         }
     ],
     "require": {
@@ -59,6 +63,7 @@
         "waaseyaa/field": "^0.1.0-alpha.285",
         "waaseyaa/foundation": "^0.1.0-alpha.285",
         "waaseyaa/groups": "^0.1.0-alpha.285",
+        "waaseyaa/publishing": "^0.1.0-alpha.285",
         "waaseyaa/relationship": "^0.1.0-alpha.285"
     },
     "require-dev": {

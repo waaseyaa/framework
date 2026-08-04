@@ -35,6 +35,7 @@ final class SearchSpecsTool extends AbstractAgentTool
 {
     private const int DEFAULT_LIMIT = 20;
     private const int MAX_LIMIT = 100;
+    private const int MAX_QUERY_LENGTH = 256;
     private const int SNIPPET_RADIUS = 80;
 
     public function __construct(
@@ -55,6 +56,8 @@ final class SearchSpecsTool extends AbstractAgentTool
                 'query' => [
                     'type' => 'string',
                     'minLength' => 1,
+                    'maxLength' => self::MAX_QUERY_LENGTH,
+                    'pattern' => '^[^\\x00-\\x1F\\x7F]+$',
                 ],
                 'limit' => [
                     'type' => 'integer',
@@ -80,6 +83,15 @@ final class SearchSpecsTool extends AbstractAgentTool
             return AgentToolResult::error(
                 message: 'bimaaji_search_specs: missing required argument "query" (non-empty string).',
                 summary: 'missing argument',
+            );
+        }
+        if (mb_strlen($query) > self::MAX_QUERY_LENGTH || preg_match('/[\\x00-\\x1F\\x7F]/u', $query) === 1) {
+            return AgentToolResult::error(
+                message: sprintf(
+                    'bimaaji_search_specs: "query" must contain at most %d printable characters.',
+                    self::MAX_QUERY_LENGTH,
+                ),
+                summary: 'invalid argument',
             );
         }
 
@@ -112,7 +124,8 @@ final class SearchSpecsTool extends AbstractAgentTool
                 continue;
             }
 
-            $matches = array_merge($matches, $this->searchInFile($path, $contents, $query, $queryLower, $limit - count($matches)));
+            $file = basename($path);
+            $matches = array_merge($matches, $this->searchInFile($file, $contents, $query, $queryLower, $limit - count($matches)));
         }
 
         return AgentToolResult::success(
@@ -129,7 +142,7 @@ final class SearchSpecsTool extends AbstractAgentTool
     /**
      * @return list<array{file: string, section_title: string, line_number: int, snippet: string}>
      */
-    private function searchInFile(string $path, string $contents, string $query, string $queryLower, int $remainingLimit): array
+    private function searchInFile(string $file, string $contents, string $query, string $queryLower, int $remainingLimit): array
     {
         if ($remainingLimit <= 0) {
             return [];
@@ -152,7 +165,7 @@ final class SearchSpecsTool extends AbstractAgentTool
 
             if (str_contains(strtolower($line), $queryLower)) {
                 $matches[] = [
-                    'file' => $path,
+                    'file' => $file,
                     'section_title' => $currentSection,
                     'line_number' => $index + 1,
                     'snippet' => $this->buildSnippet($line, $query),

@@ -86,6 +86,20 @@ Provider-contributed HTTP middleware uses the same onion response phase: code af
 
 State-changing routes (`POST`, `PUT`, `PATCH`, `DELETE`) require a valid CSRF token accepted from a form field, the `X-CSRF-Token` header, or the `X-XSRF-TOKEN` header (URL-decoded); every `text/html` response sets the `XSRF-TOKEN` cookie so Inertia + Vue consumers get protection automatically with no consumer-side code. See [docs/conventions/csrf-token-cookie.md](../conventions/csrf-token-cookie.md) for runnable examples and the full cookie-attribute table.
 
+The `_csrf` route option is three-valued (#2177 F1 prerequisite):
+
+| `_csrf` | Set by | Behaviour on state-changing methods |
+|---|---|---|
+| *(unset)* | default | Validate, **except** for the exempt content types `application/json` / `application/vnd.api+json` (browsers cannot send those from HTML forms) |
+| `false` | `RouteBuilder::csrfExempt()` | Never validate — the route has its own authentication model (MCP bearer, API keys) |
+| `true` | `RouteBuilder::requireCsrf()` | **Always validate, JSON content types included.** The explicit opt-in takes precedence over the content-type exemption, because a cookie-authenticated JSON endpoint *is* CSRF-reachable: the content-type exemption only holds while the session cookie is not the sole authenticator of a JSON request whose side effects matter (`fetch` can send `application/json` cross-origin; the browser will attach the session cookie unless SameSite blocks it) |
+
+No framework route sets `_csrf = true` yet — the first consumer is the MCP write-tier approval controller (#2177 F1). Opted-in routes still accept all three token sources; SPA callers use the `X-XSRF-TOKEN` header fed from the cookie.
+
+Cookie delivery: `CsrfMiddleware` writes the `XSRF-TOKEN` cookie on every `text/html` response (unchanged), **and** on any response — JSON included — whose request carries an authenticated `_account` plus a non-empty `waaseyaa_uid` login-session marker (`CsrfMiddleware::attachCookieIfAuthenticated()`). The admin SPA boots against JSON endpoints (`GET /api/user/me`) and never sees a kernel HTML response, so the session-authenticated path seeds its token without exposing it to bearer-only requests. Cookie flags are identical on both paths (`HttpOnly=false`, `SameSite=Lax`, `Path=/`, `Secure` follows the request scheme); anonymous and bearer-only non-HTML responses stay cookie-free. A CSRF 403 on an opted-in route also re-delivers the cookie to an authenticated login session so a stale-token client can recover without a page reload.
+
+Origin checking is **not** part of this middleware: the CORS allowlist lives at the kernel level (`CorsHandler`), and a middleware-level same-origin guard would break the supported Nuxt-dev deployment (SPA on `localhost:3000` calling the PHP API cross-port). Endpoints whose side effects warrant defense-in-depth beyond the token — the MCP approval controller — should verify the `Origin`/`Referer` header against the deployment's allowed origins in the controller itself (see `docs/specs/mcp-endpoint.md`).
+
 ## Encryption Policy
 
 ### Current (pre-v1)

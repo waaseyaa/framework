@@ -11,7 +11,9 @@ use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\RevisionableEntityInterface;
+use Waaseyaa\Entity\RevisionableInterface;
 use Waaseyaa\EntityStorage\EntityRepository;
+use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
 use Waaseyaa\EntityStorage\SaveContext;
 use Waaseyaa\Publishing\Exception\ContentAuthorizationException;
 use Waaseyaa\Publishing\Exception\ContentNotFoundException;
@@ -46,6 +48,7 @@ final class ContentPublisher
         private readonly IdempotencyStore $idempotency,
         private readonly ?AuditWriterInterface $audit = null,
         private readonly ?EntityAccessHandler $accessHandler = null,
+        private readonly ?ContentPublicationTransitionerInterface $publicationTransitioner = null,
     ) {
         $this->snapshotReader = new ContentMutationSnapshotReader($descriptor);
     }
@@ -151,7 +154,7 @@ final class ContentPublisher
             $this->auditRecord(AuditEventKind::ContentDraftSaved, $actor, $saved);
 
             return $this->snapshot($saved);
-        });
+        }, $this->idempotencyNamespace());
     }
 
     /**
@@ -183,7 +186,7 @@ final class ContentPublisher
             $this->auditRecord(AuditEventKind::ContentDraftSaved, $actor, $saved);
 
             return $this->snapshot($saved);
-        });
+        }, $this->idempotencyNamespace());
     }
 
     /**
@@ -239,7 +242,7 @@ final class ContentPublisher
             ]);
 
             return $this->snapshot($saved);
-        });
+        }, $this->idempotencyNamespace());
     }
 
     // ------------------------------------------------------------------
@@ -276,6 +279,15 @@ final class ContentPublisher
                 $this->validatePayload([], existing: $entity, forPublish: true);
             }
 
+            if ($this->publicationTransitioner?->supports($entity) === true) {
+                $this->assertExpectedRevision($entity, $expectedRevisionId);
+                $this->stampLog($entity, $note !== '' ? $note : ucfirst($operation) . 'ed via publishing surface.');
+                $saved = $this->publicationTransitioner->setPublished($entity, $published, $actor);
+                $this->auditRecord($kind, $actor, $saved);
+
+                return $this->snapshot($saved);
+            }
+
             $entity = $entity->set($this->descriptor->statusField, $published ? 1 : 0);
             $this->stampLog($entity, $note !== '' ? $note : ucfirst($operation) . 'ed via publishing surface.');
             $this->repository->save($entity, true, $this->saveContext($actor, $expectedRevisionId));
@@ -284,7 +296,7 @@ final class ContentPublisher
             $this->auditRecord($kind, $actor, $saved);
 
             return $this->snapshot($saved);
-        });
+        }, $this->idempotencyNamespace());
     }
 
     private function requireCapability(AuthorizationPrincipalInterface $actor): void
@@ -295,6 +307,11 @@ final class ContentPublisher
                 $this->descriptor->publishCapability,
             ));
         }
+    }
+
+    private function idempotencyNamespace(): string
+    {
+        return $this->descriptor->entityTypeId . ':' . ($this->descriptor->bundle ?? '_');
     }
 
     private function requireEntityCreateAccess(AuthorizationPrincipalInterface $actor): void
@@ -342,9 +359,10 @@ final class ContentPublisher
                 $errors->add($field, 'This field is not part of the writable schema.');
                 continue;
             }
+            $errorCount = \count($errors->toArray());
             $typed = $this->coerce($field, $value, $spec, $errors);
-            if ($typed === null && !\in_array($spec->type, ['bool', 'int'], true)) {
-                continue; // coercion already recorded the error
+            if (\count($errors->toArray()) !== $errorCount) {
+                continue;
             }
             if ($spec->html && \is_string($typed)) {
                 $typed = $this->descriptor->htmlSanitizer?->sanitize($typed) ?? $typed;
@@ -392,6 +410,15 @@ final class ContentPublisher
 
     private function coerce(string $field, mixed $value, FieldSpec $spec, ValidationErrors $errors): mixed
     {
+        if ($value === null) {
+            if ($spec->nullable) {
+                return null;
+            }
+            $errors->add($field, 'Must not be null.');
+
+            return null;
+        }
+
         switch ($spec->type) {
             case 'string':
             case 'text':
@@ -414,6 +441,50 @@ final class ContentPublisher
                 }
 
                 return \is_int($value) ? $value : null;
+            case 'date':
+                if (!\is_string($value)
+                    || preg_match('/^\d{4}-\d{2}-\d{2}$/D', $value) !== 1
+                    || ($date = \DateTimeImmutable::createFromFormat('!Y-m-d', $value)) === false
+                    || $date->format('Y-m-d') !== $value
+                ) {
+                    $errors->add($field, 'Must be a real calendar date in YYYY-MM-DD format.');
+
+                    return null;
+                }
+
+                return $value;
+            case 'reference_list':
+                if (!\is_array($value) || !array_is_list($value)) {
+                    $errors->add($field, 'Must be a list of entity identifiers.');
+
+                    return null;
+                }
+                if ($spec->maxItems !== null && \count($value) > $spec->maxItems) {
+                    $errors->add($field, sprintf('Must contain at most %d references.', $spec->maxItems));
+
+                    return null;
+                }
+                $normalized = [];
+                foreach ($value as $item) {
+                    if (\is_int($item) && $item > 0) {
+                        $normalized[] = $item;
+                        continue;
+                    }
+                    if (\is_string($item) && $item !== '' && mb_strlen($item) <= 190) {
+                        $normalized[] = ctype_digit($item) && $item !== '0' ? (int) $item : $item;
+                        continue;
+                    }
+                    $errors->add($field, 'Every reference must be a positive integer or a non-empty identifier of at most 190 characters.');
+
+                    return null;
+                }
+                if (\count(array_unique(array_map(static fn(int|string $item): string => (string) $item, $normalized))) !== \count($normalized)) {
+                    $errors->add($field, 'Reference lists must not contain duplicates.');
+
+                    return null;
+                }
+
+                return $normalized;
         }
     }
 
@@ -432,12 +503,12 @@ final class ContentPublisher
         if (ctype_digit($idOrSlug)) {
             $entity = $this->repository->find($idOrSlug);
             if ($entity !== null && $this->matchesBundle($entity)) {
-                return $entity;
+                return $this->repository->loadWorkingCopy($idOrSlug) ?? $entity;
             }
         }
         $matches = $this->filterBundle($this->repository->findBy([$this->descriptor->slugField => $idOrSlug], null, 1));
         if ($matches !== []) {
-            return $matches[0];
+            return $this->repository->loadWorkingCopy((string) $matches[0]->id()) ?? $matches[0];
         }
 
         throw new ContentNotFoundException($idOrSlug);
@@ -445,7 +516,8 @@ final class ContentPublisher
 
     private function reload(EntityInterface $entity): EntityInterface
     {
-        $reloaded = $this->repository->find((string) $entity->id());
+        $reloaded = $this->repository->loadWorkingCopy((string) $entity->id())
+            ?? $this->repository->find((string) $entity->id());
 
         return $reloaded ?? $entity;
     }
@@ -462,6 +534,24 @@ final class ContentPublisher
         }
 
         return $context;
+    }
+
+    private function assertExpectedRevision(EntityInterface $entity, int $expectedRevisionId): void
+    {
+        $current = match (true) {
+            $entity instanceof RevisionableInterface => $entity->getRevisionId(),
+            $entity instanceof RevisionableEntityInterface => $entity->revisionId(),
+            default => null,
+        };
+        $current = is_int($current) || (is_string($current) && ctype_digit($current)) ? (int) $current : null;
+        if ($current !== $expectedRevisionId) {
+            throw new RevisionConflictException(
+                $entity->getEntityTypeId(),
+                (string) $entity->id(),
+                $expectedRevisionId,
+                $current,
+            );
+        }
     }
 
     private function stampLog(EntityInterface $entity, string $note): void

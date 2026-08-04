@@ -64,7 +64,8 @@ final class SearchSpecsToolTest extends TestCase
         foreach ($matches as $match) {
             self::assertGreaterThan(0, $match['line_number']);
             self::assertNotEmpty($match['snippet']);
-            self::assertStringStartsWith($this->tempDir . '/', $match['file']);
+            self::assertContains($match['file'], ['entity-system.md', 'access-control.md']);
+            self::assertStringNotContainsString($this->tempDir, $match['file']);
         }
     }
 
@@ -96,6 +97,19 @@ final class SearchSpecsToolTest extends TestCase
 
         self::assertTrue($result->isError);
         self::assertSame('missing argument', $result->summary);
+    }
+
+    #[Test]
+    public function rejectsOversizedOrControlCharacterQuery(): void
+    {
+        $tool = $this->makeTool();
+        $account = $this->accountWithPermission('bimaaji.read');
+
+        foreach ([str_repeat('x', 257), "line\nbreak"] as $query) {
+            $result = $tool->execute(['query' => $query], $account);
+            self::assertTrue($result->isError);
+            self::assertSame('invalid argument', $result->summary);
+        }
     }
 
     #[Test]

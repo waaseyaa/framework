@@ -11,6 +11,9 @@ use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 use Waaseyaa\Api\McpAdmin\ServerConfigReadModelInterface;
 use Waaseyaa\Api\McpAdmin\ToolRegistryReadModelInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface;
+use Waaseyaa\Foundation\Audit\NullStrictAuditLedger;
+use Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface;
 use Waaseyaa\Foundation\Exception\ConfigException;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -42,6 +45,19 @@ use Waaseyaa\Routing\WaaseyaaRouter;
  */
 final class McpServiceProvider extends ServiceProvider
 {
+    /**
+     * Generic entity mutations are not bundle-scoped and therefore are not a
+     * safe default for a remotely callable editorial surface. Embedded agents
+     * keep the complete catalogue; only `/mcp/write` withholds these names.
+     */
+    private const array GENERIC_ENTITY_MUTATION_TOOLS = [
+        'entity.create',
+        'entity.update',
+        'entity.delete',
+        'entity.rollback',
+        'entity.set_current_revision',
+    ];
+
     public function register(): void
     {
         // McpAuthInterface is deliberately NOT bound here. Binding it would put
@@ -58,6 +74,18 @@ final class McpServiceProvider extends ServiceProvider
             McpServerCard::class,
             fn(): McpServerCard => new McpServerCard($this->serverCardConfig()),
         );
+
+        $oauthResource = $this->writeTierOAuthResourceConfig();
+        if ($oauthResource !== null) {
+            $this->singleton(
+                Auth\OAuthProtectedResourceMetadataConfig::class,
+                static fn(): Auth\OAuthProtectedResourceMetadataConfig => $oauthResource,
+            );
+            $this->singleton(
+                Auth\OAuthProtectedResourceMetadata::class,
+                static fn(): Auth\OAuthProtectedResourceMetadata => new Auth\OAuthProtectedResourceMetadata($oauthResource),
+            );
+        }
 
         // McpEndpoint: bound explicitly so AppControllerRouter's controller
         // resolution (which checks provider bindings before falling back to
@@ -83,6 +111,7 @@ final class McpServiceProvider extends ServiceProvider
 
                 [$limiter, $maxRequests, $windowSeconds] = $this->rateLimitSettings();
                 $logger = $this->resolveOptional(LoggerInterface::class);
+                $oauthMetadata = $this->resolveOptional(Auth\OAuthProtectedResourceMetadata::class);
 
                 return new McpEndpoint(
                     auth: $this->resolvePublicAuth(),
@@ -95,6 +124,16 @@ final class McpServiceProvider extends ServiceProvider
                     rateLimitWindowSeconds: $windowSeconds,
                     rateLimitTier: 'public',
                     logger: $logger instanceof LoggerInterface ? $logger : null,
+                    allowedOrigins: $this->transportAllowedOrigins(),
+                    maxRequestBytes: $this->transportMaxRequestBytes(),
+                    oauthProtectedResourceMetadata: $oauthMetadata instanceof Auth\OAuthProtectedResourceMetadata
+                        ? $oauthMetadata
+                        : null,
+                    // The public read-only tier keeps its documented best-effort
+                    // auditing. It mutates nothing, so a durable pre-record buys
+                    // no safety, and making it fail-closed would take a read-only
+                    // surface down whenever the audit store hiccups.
+                    durableAudit: false,
                 );
             },
         );
@@ -128,10 +167,13 @@ final class McpServiceProvider extends ServiceProvider
                 $writeRegistry = new CapabilityScopedToolRegistry(
                     $this->resolve(AgentToolRegistryInterface::class),
                     $this->writeTierCapabilities(),
+                    $this->genericEntityMutationToolBlocklist(),
                 );
 
                 [$limiter, $maxRequests, $windowSeconds] = $this->rateLimitSettings();
                 $logger = $this->resolveOptional(LoggerInterface::class);
+                [$ledger, $durableAudit] = $this->writeTierAuditSettings();
+                [$approvalStore, $approvalGate] = $this->writeTierApprovalSettings($durableAudit);
 
                 $inner = new McpEndpoint(
                     auth: $this->resolveWriteTierAuth(),
@@ -144,6 +186,13 @@ final class McpServiceProvider extends ServiceProvider
                     rateLimitWindowSeconds: $windowSeconds,
                     rateLimitTier: 'write',
                     logger: $logger instanceof LoggerInterface ? $logger : null,
+                    auditLedger: $ledger,
+                    durableAudit: $durableAudit,
+                    approvalStore: $approvalStore,
+                    approvalGate: $approvalGate,
+                    allowedOrigins: $this->transportAllowedOrigins(),
+                    unauthorizedChallenge: $this->writeTierOAuthResourceConfig()?->challenge(),
+                    maxRequestBytes: $this->transportMaxRequestBytes(),
                 );
 
                 return new AuthenticatedMcpEndpoint($inner);
@@ -181,7 +230,135 @@ final class McpServiceProvider extends ServiceProvider
 
     public function routes(WaaseyaaRouter $router, EntityTypeManagerInterface $entityTypeManager): void
     {
-        new McpRouteProvider($this->publicEndpointEnabled())->registerRoutes($router);
+        new McpRouteProvider(
+            $this->publicEndpointEnabled(),
+            $this->writeTierOAuthResourceConfig(),
+        )->registerRoutes($router);
+    }
+
+    /**
+     * Durable-audit wiring for the authenticated write tier (#2177 F4).
+     *
+     * Config `mcp.write_tier.durable_audit`; DEFAULT **on**. A surface that
+     * mutates content should not be quietly downgraded to best-effort auditing,
+     * so the safe value is the default and disabling it is the explicit act.
+     *
+     * **Fails closed on a wiring gap.** If durable auditing is requested but no
+     * `StrictAuditLedgerInterface` can be resolved — typically because
+     * `waaseyaa/audit` is not installed — this throws at provider setup rather
+     * than substituting {@see NullStrictAuditLedger}. Silently substituting it
+     * would leave a write tier that *looks* durably audited and records nothing,
+     * which is worse than a deployment that refuses to boot.
+     *
+     * @return array{0: ?StrictAuditLedgerInterface, 1: bool}
+     *
+     * @throws ConfigException when durable auditing is on but unwireable
+     */
+    private function writeTierAuditSettings(): array
+    {
+        $mcp = $this->config['mcp'] ?? null;
+        $writeTier = \is_array($mcp) && \is_array($mcp['write_tier'] ?? null) ? $mcp['write_tier'] : [];
+
+        $durable = \array_key_exists('durable_audit', $writeTier)
+            ? self::requireBool($writeTier['durable_audit'], 'mcp.write_tier.durable_audit')
+            : true;
+
+        if (!$durable) {
+            return [null, false];
+        }
+
+        $ledger = $this->resolveOptional(StrictAuditLedgerInterface::class);
+        if (!$ledger instanceof StrictAuditLedgerInterface) {
+            throw new ConfigException(
+                'The authenticated MCP write tier is configured for durable auditing '
+                . '(mcp.write_tier.durable_audit), but no StrictAuditLedgerInterface is bound. '
+                . 'Install waaseyaa/audit, or bind your own implementation, or set '
+                . 'mcp.write_tier.durable_audit to false to accept best-effort auditing.',
+                ['config_key' => 'mcp.write_tier.durable_audit'],
+            );
+        }
+
+        return [$ledger, true];
+    }
+
+    /**
+     * Human-approval gate wiring for the authenticated write tier (#2177 F1).
+     *
+     * Config `mcp.write_tier.approval.enabled`; DEFAULT **on** — destructive
+     * tools should not silently run unapproved, so disabling the gate is the
+     * explicit act, exactly like `durable_audit` above. The public tier never
+     * receives the gate: its registry already excludes destructive tools, and
+     * this method is only consulted by the write-tier binding.
+     *
+     * **Fails closed on a wiring gap.** Enabled-but-unwireable — no
+     * `OperationApprovalStoreInterface` bound, typically because
+     * `waaseyaa/audit` is not installed — throws at provider setup. Enabled
+     * while `durable_audit` is off is a contradiction (consuming an approval
+     * joins it to the strict-ledger receipt of the executing reservation) and
+     * is refused rather than resolved silently in either direction.
+     *
+     * @return array{0: ?OperationApprovalStoreInterface, 1: bool}
+     *
+     * @throws ConfigException when the gate is on but unwireable
+     */
+    private function writeTierApprovalSettings(bool $durableAudit): array
+    {
+        $mcp = $this->config['mcp'] ?? null;
+        $writeTier = \is_array($mcp) && \is_array($mcp['write_tier'] ?? null) ? $mcp['write_tier'] : [];
+
+        $approvalSection = $writeTier['approval'] ?? null;
+        if ($approvalSection !== null && !\is_array($approvalSection)) {
+            // `approval: false` is a realistic way to write the intent; refuse
+            // it with the correct key named rather than reading it as enabled.
+            throw self::malformedConfig('mcp.write_tier.approval', $approvalSection, 'a map containing an "enabled" key');
+        }
+        $approval = \is_array($approvalSection) ? $approvalSection : [];
+
+        $enabled = \array_key_exists('enabled', $approval)
+            ? self::requireBool($approval['enabled'], 'mcp.write_tier.approval.enabled')
+            : true;
+
+        if (!$enabled) {
+            return [null, false];
+        }
+
+        if (!$durableAudit) {
+            throw new ConfigException(
+                'The MCP write tier has durable auditing disabled (mcp.write_tier.durable_audit) '
+                . 'while the human-approval gate is enabled (mcp.write_tier.approval.enabled, default true). '
+                . 'The gate consumes approvals against strict-ledger receipts, so it cannot run without '
+                . 'durable auditing. Re-enable durable auditing, or explicitly set '
+                . 'mcp.write_tier.approval.enabled to false to run destructive tools without human approval.',
+                ['config_key' => 'mcp.write_tier.approval.enabled'],
+            );
+        }
+
+        try {
+            $store = $this->resolve(OperationApprovalStoreInterface::class);
+        } catch (\RuntimeException $e) {
+            // Only the container's own "nothing is bound" sentinel means the
+            // wiring gap this method reports. Anything else — a ConfigException
+            // for a malformed approval TTL, a schema/DB failure from a BOUND
+            // store's factory — is the store's own error and must surface as
+            // such: misreporting it as "no store bound" sends the operator to
+            // install a package they already have.
+            if ($e->getMessage() !== sprintf('No binding registered for %s.', OperationApprovalStoreInterface::class)) {
+                throw $e;
+            }
+            $store = null;
+        }
+
+        if (!$store instanceof OperationApprovalStoreInterface) {
+            throw new ConfigException(
+                'The authenticated MCP write tier is configured for the human-approval gate '
+                . '(mcp.write_tier.approval.enabled, default true), but no OperationApprovalStoreInterface '
+                . 'is bound. Install waaseyaa/audit, or bind your own implementation, or set '
+                . 'mcp.write_tier.approval.enabled to false to run destructive tools without human approval.',
+                ['config_key' => 'mcp.write_tier.approval.enabled'],
+            );
+        }
+
+        return [$store, true];
     }
 
     /**
@@ -341,8 +518,46 @@ final class McpServiceProvider extends ServiceProvider
     private function resolveWriteTierAuth(): WriteTierAuthInterface
     {
         $auth = $this->resolveOptional(WriteTierAuthInterface::class);
+        if ($auth instanceof WriteTierAuthInterface) {
+            return $auth;
+        }
 
-        return $auth instanceof WriteTierAuthInterface ? $auth : new BearerTokenAuth([]);
+        // Framework default (#2177 F3): the DURABLE token path. When the
+        // kernel supplies the bearer-token store (bound by AuthServiceProvider
+        // over the kernel database) and the user repository, `/mcp/write`
+        // authenticates against hashed, expiring, revocable, audience-bound
+        // credentials issued via the `bearer-token:*` operator commands. A
+        // fresh deployment has no tokens, so the tier still fails closed with
+        // 401 until an operator issues one — same observable posture as the
+        // empty map, but production-usable without application auth code.
+        $store = $this->resolveOptional(\Waaseyaa\Auth\Token\Bearer\BearerTokenStoreInterface::class);
+        $entityTypeManager = $this->resolveOptional(EntityTypeManagerInterface::class);
+        $principals = $this->resolveOptional(\Waaseyaa\Access\AccountPrincipalFactoryInterface::class);
+        if ($store instanceof \Waaseyaa\Auth\Token\Bearer\BearerTokenStoreInterface
+            && $entityTypeManager instanceof EntityTypeManagerInterface
+            && $principals instanceof \Waaseyaa\Access\AccountPrincipalFactoryInterface
+        ) {
+            try {
+                $accounts = $entityTypeManager->getRepository('user');
+            } catch (\Throwable) {
+                // No user entity type (e.g. a bare kernel): the durable path
+                // cannot resolve owners, so the tier keeps the fail-closed map.
+                return new BearerTokenAuth([]);
+            }
+
+            $logger = $this->resolveOptional(LoggerInterface::class);
+
+            return new Auth\DurableBearerTokenAuth(
+                store: $store,
+                accounts: $accounts,
+                principals: $principals,
+                logger: $logger instanceof LoggerInterface ? $logger : null,
+            );
+        }
+
+        // No durable store wireable: the framework ships no usable static
+        // credential — every `/mcp/write` request is HTTP 401.
+        return new BearerTokenAuth([]);
     }
 
     /**
@@ -372,30 +587,109 @@ final class McpServiceProvider extends ServiceProvider
     }
 
     /**
+     * Generic entity mutations require an explicit dangerous opt-in. The
+     * framework-supported remote editing path is an app-registered
+     * ContentToolSet: bundle-scoped, draft-first, idempotent and revision-aware.
+     *
+     * @return list<string>
+     */
+    private function genericEntityMutationToolBlocklist(): array
+    {
+        $mcp = $this->config['mcp'] ?? null;
+        $writeTier = \is_array($mcp) && \is_array($mcp['write_tier'] ?? null) ? $mcp['write_tier'] : [];
+        $configured = $writeTier['allow_generic_entity_mutations'] ?? false;
+        $allowed = self::requireBool(
+            $configured,
+            'mcp.write_tier.allow_generic_entity_mutations',
+        );
+
+        return $allowed ? [] : self::GENERIC_ENTITY_MUTATION_TOOLS;
+    }
+
+    /** @return list<string> */
+    private function transportAllowedOrigins(): array
+    {
+        $mcp = $this->config['mcp'] ?? null;
+        $transport = \is_array($mcp) && \is_array($mcp['transport'] ?? null) ? $mcp['transport'] : [];
+        $origins = $transport['allowed_origins'] ?? [];
+        if (!\is_array($origins) || !\array_is_list($origins)) {
+            throw self::malformedConfig('mcp.transport.allowed_origins', $origins, 'a list of HTTP(S) origins');
+        }
+
+        foreach ($origins as $origin) {
+            if (!\is_string($origin) || $origin === '') {
+                throw self::malformedConfig('mcp.transport.allowed_origins', $origins, 'a list of HTTP(S) origins');
+            }
+        }
+
+        try {
+            new StreamableHttpTransportGuard($origins);
+        } catch (\InvalidArgumentException) {
+            throw self::malformedConfig(
+                'mcp.transport.allowed_origins',
+                $origins,
+                'a list of absolute HTTP(S) origins without paths or credentials',
+            );
+        }
+
+        /** @var list<string> $origins */
+        return $origins;
+    }
+
+    private function transportMaxRequestBytes(): int
+    {
+        $mcp = $this->config['mcp'] ?? null;
+        $transport = \is_array($mcp) && \is_array($mcp['transport'] ?? null) ? $mcp['transport'] : [];
+        $max = $transport['max_request_bytes'] ?? StreamableHttpTransportGuard::DEFAULT_MAX_REQUEST_BYTES;
+        if (!\is_int($max) || $max < 1_024 || $max > 104_857_600) {
+            throw self::malformedConfig(
+                'mcp.transport.max_request_bytes',
+                $max,
+                'an integer between 1024 and 104857600',
+            );
+        }
+
+        return $max;
+    }
+
+    /**
      * Per-principal rate limiting for both MCP tiers (#2136 WP3).
      *
-     * Config `mcp.rate_limit.{max_requests, window_seconds}`; DEFAULT OFF
-     * (`max_requests` absent or <= 0). When enabled, a shared
+     * Config `mcp.rate_limit.{max_requests, window_seconds}`; DEFAULT ON at
+     * 120 authenticated requests per 60 seconds. An explicit integer zero
+     * disables it. When enabled, a shared atomic
      * {@see \Waaseyaa\Auth\DatabaseRateLimiter} is built over the kernel
-     * database; when no database resolves, limiting stays off (the endpoint
-     * fails open by contract — limiter availability is not endpoint
-     * availability).
+     * database; when no database resolves, provider wiring fails closed.
      *
-     * @return array{0: ?\Waaseyaa\Auth\RateLimiterInterface, 1: int, 2: int}
+     * @return array{0: ?\Waaseyaa\Auth\AtomicRateLimiterInterface, 1: int, 2: int}
      */
     private function rateLimitSettings(): array
     {
         $mcp = $this->config['mcp'] ?? null;
         $settings = \is_array($mcp) && \is_array($mcp['rate_limit'] ?? null) ? $mcp['rate_limit'] : [];
-        $maxRequests = (int) ($settings['max_requests'] ?? 0);
-        $windowSeconds = max(1, (int) ($settings['window_seconds'] ?? 60));
-        if ($maxRequests <= 0) {
+        $maxRequests = $settings['max_requests'] ?? 120;
+        $windowSeconds = $settings['window_seconds'] ?? 60;
+        if (!\is_int($maxRequests) || $maxRequests < 0 || $maxRequests > 10_000) {
+            throw self::malformedConfig(
+                'mcp.rate_limit.max_requests',
+                $maxRequests,
+                'an integer between 0 and 10000',
+            );
+        }
+        if (!\is_int($windowSeconds) || $windowSeconds < 1 || $windowSeconds > 3_600) {
+            throw self::malformedConfig(
+                'mcp.rate_limit.window_seconds',
+                $windowSeconds,
+                'an integer between 1 and 3600',
+            );
+        }
+        if ($maxRequests === 0) {
             return [null, 0, $windowSeconds];
         }
 
         $database = $this->resolveOptional(\Waaseyaa\Database\DatabaseInterface::class);
         if (!$database instanceof \Waaseyaa\Database\DatabaseInterface) {
-            return [null, 0, $windowSeconds];
+            return [new UnavailableRateLimiter(), $maxRequests, $windowSeconds];
         }
 
         return [new \Waaseyaa\Auth\DatabaseRateLimiter($database), $maxRequests, $windowSeconds];
@@ -411,5 +705,62 @@ final class McpServiceProvider extends ServiceProvider
         $card = \is_array($mcp) && \is_array($mcp['server_card'] ?? null) ? $mcp['server_card'] : [];
 
         return McpServerCardConfig::fromArray($card);
+    }
+
+    private function writeTierOAuthResourceConfig(): ?Auth\OAuthProtectedResourceMetadataConfig
+    {
+        $mcp = $this->config['mcp'] ?? null;
+        $writeTier = \is_array($mcp) && \is_array($mcp['write_tier'] ?? null) ? $mcp['write_tier'] : [];
+        $oauth = $writeTier['oauth_resource'] ?? null;
+        if ($oauth === null) {
+            return null;
+        }
+        if (!\is_array($oauth)) {
+            throw self::malformedConfig('mcp.write_tier.oauth_resource', $oauth, 'a configuration map');
+        }
+        $enabled = self::requireBool($oauth['enabled'] ?? false, 'mcp.write_tier.oauth_resource.enabled');
+        if (!$enabled) {
+            return null;
+        }
+
+        $resource = $oauth['resource'] ?? null;
+        $servers = $oauth['authorization_servers'] ?? null;
+        $scopes = $oauth['scopes_supported'] ?? [];
+        $documentation = $oauth['resource_documentation'] ?? null;
+        if (!\is_string($resource)
+            || !\is_array($servers)
+            || !\array_is_list($servers)
+            || !\is_array($scopes)
+            || !\array_is_list($scopes)
+            || ($documentation !== null && !\is_string($documentation))
+        ) {
+            throw self::malformedConfig(
+                'mcp.write_tier.oauth_resource',
+                $oauth,
+                'resource URI, authorization_servers list, optional scopes_supported list, and optional resource_documentation URI',
+            );
+        }
+        foreach ([...$servers, ...$scopes] as $value) {
+            if (!\is_string($value)) {
+                throw self::malformedConfig('mcp.write_tier.oauth_resource', $oauth, 'string URI and scope lists');
+            }
+        }
+
+        try {
+            /** @var list<string> $servers */
+            /** @var list<string> $scopes */
+            return new Auth\OAuthProtectedResourceMetadataConfig(
+                $resource,
+                $servers,
+                $scopes,
+                $documentation,
+            );
+        } catch (\InvalidArgumentException) {
+            throw self::malformedConfig(
+                'mcp.write_tier.oauth_resource',
+                $oauth,
+                'secure absolute resource and authorization-server URIs with valid unique OAuth scopes',
+            );
+        }
     }
 }

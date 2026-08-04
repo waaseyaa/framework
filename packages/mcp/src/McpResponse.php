@@ -13,5 +13,7 @@ final readonly class McpResponse
         public string $body,
         public int $statusCode = 200,
         public string $contentType = 'application/json',
+        /** @var array<string, string> */
+        public array $headers = [],
     ) {}
 }

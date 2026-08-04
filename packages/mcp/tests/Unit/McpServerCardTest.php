@@ -23,6 +23,13 @@ final class McpServerCardTest extends TestCase
         self::assertSame('0.1.0', $card['version']);
         self::assertSame('/mcp', $card['endpoint']);
         self::assertSame('streamable-http', $card['transport']);
+        self::assertSame(['2025-11-25', '2025-06-18', '2025-03-26'], $card['protocolVersions']);
+        self::assertSame([
+            'jsonResponse' => true,
+            'sse' => false,
+            'sessions' => false,
+            'resumability' => false,
+        ], $card['transportCapabilities']);
         self::assertTrue($card['capabilities']['tools']);
         self::assertFalse($card['capabilities']['resources']);
         self::assertFalse($card['capabilities']['prompts']);
@@ -60,11 +67,11 @@ final class McpServerCardTest extends TestCase
     }
 
     #[Test]
-    public function oauth2_advertisement_falls_back_to_opaque_bearer(): void
+    public function oauth2_advertisement_is_preserved_for_a_standard_resource_server(): void
     {
         $card = new McpServerCard(McpServerCardConfig::fromArray(['auth_type' => 'oauth2']))->toArray();
 
-        self::assertSame('bearer', $card['authentication']['type']);
+        self::assertSame('oauth2', $card['authentication']['type']);
     }
 
     #[Test]

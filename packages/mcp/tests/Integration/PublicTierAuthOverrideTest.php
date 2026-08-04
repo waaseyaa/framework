@@ -227,7 +227,11 @@ final class PublicTierAuthOverrideTest extends TestCase
         };
 
         foreach ($providers as $provider) {
-            $provider->setKernelContext('', [], []);
+            // This acceptance test isolates auth override semantics; default-on
+            // durable rate limiting has separate provider/endpoint coverage.
+            $provider->setKernelContext('', [
+                'mcp' => ['rate_limit' => ['max_requests' => 0]],
+            ], []);
             $provider->setKernelServices($bus);
         }
         foreach ($providers as $provider) {
@@ -352,6 +356,10 @@ final class PublicTierAuthOverrideTest extends TestCase
         if ($authorizationHeader !== null) {
             $server['HTTP_AUTHORIZATION'] = $authorizationHeader;
         }
+        $server += [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_ACCEPT' => 'application/json, text/event-stream',
+        ];
         $request = HttpRequest::create('/mcp', 'POST', [], [], [], $server, $body);
 
         // The session account is forwarded for AppControllerRouter contract

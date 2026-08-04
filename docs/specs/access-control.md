@@ -1,4 +1,6 @@
 # Access Control
+<!-- Spec reviewed 2026-08-04 - #2177 boundary correction: `AuthServiceProvider` owns the durable `BearerTokenStoreInterface` binding only. The `bearer-token:*` Symfony Console commands and `BearerTokenConsoleCommands` class are owned by waaseyaa/cli (L6), preserving the auth (L1) dependency boundary. This supersedes the command-ownership portion of the 2026-08-03 F3 review note below. -->
+<!-- Spec reviewed 2026-08-03 - #2177 F3 (enterprise bearer-token lifecycle, waaseyaa/auth): new durable machine-credential store Waaseyaa\Auth\Token\Bearer\{BearerTokenStoreInterface, DatabaseBearerTokenStore, BearerTokenRecord, IssuedBearerToken, BearerTokenStoreException}; the Layer-6 CLI package owns BearerTokenConsoleCommands. Contract: plaintext never at rest (SHA-256 verifier of the full `mbt_<16hex>.<64hex>` wire token; 256-bit CSPRNG secret so a fast hash is the correct verifier; separate non-secret 16-hex fingerprint for display); mandatory bounded expiry (60s..7776000s, default 30d) via injected EntityClockInterface with inclusive-boundary comparison; durable idempotent revoke; transactional rotate (successor inserted + predecessor revoked under a `revoked_at IS NULL` guard in one transaction — partial failure rolls back the successor, so two usable credentials are impossible); explicit audience and canonicalized scopes (trimmed/deduped/sorted, 1..32 scopes, printable ASCII ≤128 chars, empty list refused — least privilege is not optional); owner must be a real uid (sentinels 0/PHP_INT_MAX refused); verify() is constant-time (hash_equals, dummy compare on unknown id) and fail-closed null on malformed shape/record and storage outage; mutating ops throw sanitized BearerTokenStoreException. Schema ownership: auth_bearer_token, lazily race-safe ensureSchema() like AuthTokenRepository. AuthServiceProvider binds BearerTokenStoreInterface; the Layer-6 BearerTokenServiceProvider yields bearer-token:issue/list/rotate/revoke — the ONLY surfaces that ever show a secret, once, on the operator's console. IssuedBearerToken holds the secret in a WeakMap-backed virtual property hook (not in the property table): print_r/var_dump/var_export/json_encode redact, serialize() throws. Consumed by the MCP write tier's durable default auth (see mcp-endpoint.md #2177 F3). -->
 <!-- Spec reviewed 2026-07-30 - #2154 (follow-up to #2146): a session.stateless_paths entry of exactly "/" now means the ROOT PATH only, not a prefix of every path. Prefix-matching it made every anonymous GET stateless including /admin/login (a GET that must mint a CSRF token, withheld when no session exists), so an app could not express a cookie-free homepage without silently breaking its own authentication. Named prefixes are unchanged. See middleware-pipeline.md "Stateless path gate". -->
 
 <!-- Spec reviewed 2026-07-30 - #2146 stateless session paths: SessionMiddleware gains an opt-in session.stateless_paths gate (anonymous GET/HEAD on configured prefixes skip session_start; session-cookie-carrying requests resume; other methods unchanged; default [] is exact behavior parity). Access-control semantics unchanged: skipped sessions resolve to AnonymousUser under deny-unless-granted. Full contract in middleware-pipeline.md "SessionMiddleware". -->
@@ -507,6 +509,8 @@ Permissions are declared in `composer.json` under `extra.waaseyaa.permissions` a
 }
 ```
 
+**Static capability seeds** (`packages/access/src/Capability/`): classes that are the single source of truth for a surface's permission identifiers, offering `all(): list<string>`, `seed(): array<string, {title, description}>` and `register(PermissionHandler): void` for apps that keep a registry. `AgentCapabilities` seeds the eleven agent-executor permissions (`agent.run`, `tool.entity.*`, …); `McpApprovalCapabilities` (#2177 F1 C1b) seeds the MCP approval decision surface — `mcp.approval.view` (read the pending queue, `GET /api/mcp/approvals`) and `mcp.approval.decide` (durably approve/deny, `POST /api/mcp/approvals/{id}/decision`), deliberately distinct so a read-only triage audience is expressible. Enforcement is via the route-level `_permission` option (`AccountInterface::hasPermission()`); the registry is discovery/UI-only.
+
 ## Roles
 
 **Files:** `packages/user/src/Role.php`, `packages/user/src/RoleRepository.php`
@@ -739,7 +743,7 @@ the per-save `withActorUid()` override is the only knob.
 
 ### XSRF-TOKEN cookie
 
-After passing a non-validating request through the pipeline, the middleware writes an `XSRF-TOKEN` cookie to `text/html` responses so JavaScript clients can read the current session token. Cookie attributes:
+After passing a non-validating request through the pipeline, the middleware writes an `XSRF-TOKEN` cookie to `text/html` responses so JavaScript clients can read the current session token. Since the #2177 F1 prerequisite it also writes the same cookie (identical attributes) to **any** response — JSON included — whose request carries an authenticated `_account` and a non-empty `waaseyaa_uid` login-session marker (`attachCookieIfAuthenticated()`): the admin SPA boots against `GET /api/user/me` and never receives a kernel HTML response, so this session-authenticated path seeds its token. Anonymous and bearer-only non-HTML responses stay cookie-free. Cookie attributes:
 
 | Attribute | Value |
 |-----------|-------|
@@ -770,7 +774,10 @@ The first matching source short-circuits; all comparisons are constant-time.
 
 ### CSRF-exempt requests
 
-Requests with a `Content-Type` of `application/json` or `application/vnd.api+json` are not validated (browsers cannot forge those content types from HTML forms). Routes may also opt out via `_csrf: false` in their route options.
+Requests with a `Content-Type` of `application/json` or `application/vnd.api+json` are not validated **by default** (browsers cannot forge those content types from HTML forms). The `_csrf` route option overrides the default in either direction (#2177 F1 prerequisite):
+
+- `_csrf: false` (`RouteBuilder::csrfExempt()`) — never validate; the route has its own authentication model.
+- `_csrf: true` (`RouteBuilder::requireCsrf()`) — always validate on state-changing methods, **including** the JSON content types above. The exemption is unsound when the session cookie is the sole authenticator of a JSON endpoint (cross-origin `fetch` can send JSON and the browser attaches the cookie unless SameSite blocks it); the first consumer is the MCP write-tier approval controller. On an opted-in route, a missing/invalid token yields the standard JSON:API 403, which still re-delivers the XSRF-TOKEN cookie to an authenticated session so the client can retry.
 
 ## Discovery
 

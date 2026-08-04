@@ -10,6 +10,7 @@ use Waaseyaa\Api\Audit\ApiAuditQueryAdapter;
 use Waaseyaa\Api\Audit\AuditQueryReadModelInterface;
 use Waaseyaa\Api\Controller\AuditQueryController;
 use Waaseyaa\Api\Controller\McpAdminController;
+use Waaseyaa\Api\Controller\McpApprovalController;
 use Waaseyaa\Api\Controller\MediaVersionController;
 use Waaseyaa\Api\Controller\MercureMonitorController;
 use Waaseyaa\Api\Controller\NotificationController;
@@ -20,6 +21,7 @@ use Waaseyaa\Api\Controller\WorkflowTransitionController;
 use Waaseyaa\Api\Http\Router\AuditApiRouter;
 use Waaseyaa\Api\Http\Router\DiscoveryRouter;
 use Waaseyaa\Api\Http\Router\McpAdminApiRouter;
+use Waaseyaa\Api\Http\Router\McpApprovalApiRouter;
 use Waaseyaa\Api\Http\Router\MediaVersionApiRouter;
 use Waaseyaa\Api\Http\Router\MercureMonitorApiRouter;
 use Waaseyaa\Api\Http\Router\NotificationAdminApiRouter;
@@ -37,7 +39,10 @@ use Waaseyaa\Api\MercureMonitor\SubscriberObserverInterface;
 // Note: AuditQueryInterface is NOT imported at class-level — waaseyaa/audit
 // is a require-dev dep. The singleton factory resolves it by string (C-002).
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface;
+use Waaseyaa\Foundation\Exception\ConfigException;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
+use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Media\Version\MediaVersionRepository;
@@ -221,6 +226,31 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
             $routers[] = new McpAdminApiRouter(new McpAdminController(
                 registry: $mcpRegistry instanceof ToolRegistryReadModelInterface ? $mcpRegistry : null,
                 config: $mcpConfig instanceof ServerConfigReadModelInterface ? $mcpConfig : null,
+            ));
+
+            // MCP approval decision surface (#2177 F1 C1b). The store is
+            // resolved LAZILY per request through the closure — resolving it
+            // here would ensure the approval schema at every boot, and a
+            // deployment that never uses the write tier must pay nothing.
+            // resolve() (not resolveOptional) is deliberate: resolveOptional
+            // swallows every RuntimeException, which would misreport a bound
+            // store's runtime failure (ApprovalStoreException IS a
+            // RuntimeException) as "not bound". The controller tells the two
+            // apart by the container's exact "No binding registered for"
+            // sentinel and fails closed either way.
+            $dispatcher = $this->resolveOptional(\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class);
+            $logger = $this->resolveOptional(LoggerInterface::class);
+            $routers[] = new McpApprovalApiRouter(new McpApprovalController(
+                storeResolver: function (): OperationApprovalStoreInterface {
+                    $store = $this->resolve(OperationApprovalStoreInterface::class);
+                    \assert($store instanceof OperationApprovalStoreInterface);
+
+                    return $store;
+                },
+                allowedOrigins: $this->corsOrigins(),
+                allowSelfApproval: $this->approvalAllowsSelfApproval(),
+                dispatcher: $dispatcher instanceof \Symfony\Contracts\EventDispatcher\EventDispatcherInterface ? $dispatcher : null,
+                logger: $logger instanceof LoggerInterface ? $logger : null,
             ));
         }
 
@@ -446,6 +476,38 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
                     ->methods('GET')
                     ->build(),
             );
+
+            // MCP approval decision surface (#2177 F1 C1b). Both routes demand
+            // a REAL login session (`_session ['waaseyaa_uid']`) on top of
+            // authentication, so a bearer-only identity — the very principal
+            // class whose destructive calls are being approved — can never
+            // reach the queue or the decision. The decision route additionally
+            // opts IN to CSRF validation (requireCsrf) because it is a
+            // cookie-authenticated JSON endpoint: the default JSON
+            // content-type exemption must not apply. The controller layers the
+            // exact-origin and separation-of-duties gates on top.
+            $mcpApprovalController = 'Waaseyaa\\Api\\Controller\\McpApprovalController';
+            $router->addRoute(
+                'api.mcp.approvals.index',
+                RouteBuilder::create('/api/mcp/approvals')
+                    ->controller($mcpApprovalController . '::index')
+                    ->requireAuthentication()
+                    ->requireSession(['waaseyaa_uid'])
+                    ->requirePermission('mcp.approval.view')
+                    ->methods('GET')
+                    ->build(),
+            );
+            $router->addRoute(
+                'api.mcp.approvals.decision',
+                RouteBuilder::create('/api/mcp/approvals/{id}/decision')
+                    ->controller($mcpApprovalController . '::decide')
+                    ->requireAuthentication()
+                    ->requireSession(['waaseyaa_uid'])
+                    ->requirePermission('mcp.approval.decide')
+                    ->requireCsrf()
+                    ->methods('POST')
+                    ->build(),
+            );
         }
 
         // WP05 (oidc-flows-completion-01KSEFTP): OIDC client admin CRUD API.
@@ -576,5 +638,57 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
     private static function mcpInstalled(): bool
     {
         return class_exists('Waaseyaa\\Mcp\\McpServiceProvider');
+    }
+
+    /**
+     * The deployment's exact-match CORS origin allowlist (`cors_origins`),
+     * reused by the approval decision controller's origin gate. Entries are
+     * compared with strict string identity only — never substring, suffix,
+     * wildcard, regex, or host-only matching.
+     *
+     * @return list<string>
+     */
+    private function corsOrigins(): array
+    {
+        $origins = $this->config['cors_origins'] ?? [];
+        if (!\is_array($origins)) {
+            return [];
+        }
+
+        return array_values(array_filter($origins, static fn($origin): bool => \is_string($origin) && $origin !== ''));
+    }
+
+    /**
+     * `mcp.write_tier.approval.allow_self_approval` — STRICT boolean, DEFAULT
+     * **false**: separation of duties stands unless a deployment explicitly
+     * states otherwise. Strict means a PHP `bool` only — deliberately narrower
+     * than the sibling `mcp.write_tier.approval.*` keys' coercing allowlist,
+     * because this key weakens a security control and its intent must be
+     * stated, not inferred from a string or integer shape. Any non-bool value
+     * throws at wiring time (fail closed) naming the key and the value's TYPE
+     * only.
+     *
+     * @throws ConfigException when a supplied value is not a PHP bool
+     */
+    private function approvalAllowsSelfApproval(): bool
+    {
+        $mcp = $this->config['mcp'] ?? [];
+        $writeTier = \is_array($mcp) && \is_array($mcp['write_tier'] ?? null) ? $mcp['write_tier'] : [];
+        $approval = \is_array($writeTier['approval'] ?? null) ? $writeTier['approval'] : [];
+
+        if (!\array_key_exists('allow_self_approval', $approval)) {
+            return false;
+        }
+
+        $value = $approval['allow_self_approval'];
+        if (\is_bool($value)) {
+            return $value;
+        }
+
+        throw new ConfigException(sprintf(
+            'The mcp.write_tier.approval.allow_self_approval config value must be a strict boolean '
+            . '(PHP true or false — coerced string/integer forms are not accepted for this key); got %s.',
+            get_debug_type($value),
+        ));
     }
 }

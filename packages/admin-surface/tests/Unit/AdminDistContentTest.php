@@ -60,6 +60,29 @@ final class AdminDistContentTest extends TestCase
         );
     }
 
+    #[Test]
+    public function shipped_bundle_contains_the_mcp_approvals_page(): void
+    {
+        // #2177 F1 C1c: the MCP approvals operator page must reach the served
+        // bundle — both the prerendered route shell and the compiled page code.
+        self::assertFileExists(
+            $this->distDir() . '/mcp/approvals/index.html',
+            'The served admin bundle is missing the prerendered /mcp/approvals route — rebuild with bin/build-admin-dist.',
+        );
+
+        $js = $this->concatenatedBundleJs();
+        self::assertStringContainsString(
+            'mcp_approvals_title',
+            $js,
+            'The served admin bundle is missing the MCP approvals page — rebuild with bin/build-admin-dist.',
+        );
+        self::assertStringContainsString(
+            'mcp.approval.decide',
+            $js,
+            'The served admin bundle is missing the capability-gated MCP approval decision UI — rebuild with bin/build-admin-dist.',
+        );
+    }
+
     private function concatenatedBundleJs(): string
     {
         $nuxtDir = $this->distDir() . '/_nuxt';

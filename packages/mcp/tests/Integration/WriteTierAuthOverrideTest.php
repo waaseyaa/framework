@@ -179,7 +179,18 @@ final class WriteTierAuthOverrideTest extends TestCase
         };
 
         foreach ($providers as $provider) {
-            $provider->setKernelContext('', [], []);
+            // This test is scoped to auth resolution, not auditing. Durable
+            // write auditing (#2177 F4) and the human-approval gate (#2177 F1)
+            // both default ON and fail closed when unwireable, so both are
+            // explicitly opted out here rather than silently satisfied — the
+            // fail-closed wiring has its own coverage in McpServiceProviderTest.
+            $provider->setKernelContext('', ['mcp' => [
+                'rate_limit' => ['max_requests' => 0],
+                'write_tier' => [
+                    'durable_audit' => false,
+                    'approval' => ['enabled' => false],
+                ],
+            ]], []);
             $provider->setKernelServices($bus);
         }
         foreach ($providers as $provider) {
@@ -305,6 +316,10 @@ final class WriteTierAuthOverrideTest extends TestCase
         if ($authorizationHeader !== null) {
             $server['HTTP_AUTHORIZATION'] = $authorizationHeader;
         }
+        $server += [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_ACCEPT' => 'application/json, text/event-stream',
+        ];
         $request = HttpRequest::create('/mcp/write', 'POST', [], [], [], $server, $body);
 
         // The session account is forwarded for AppControllerRouter contract

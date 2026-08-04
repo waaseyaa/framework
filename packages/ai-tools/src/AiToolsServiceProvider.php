@@ -11,6 +11,7 @@ use Waaseyaa\AI\Tools\Catalogue\AutowiringToolContainer;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsAgentToolProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 /**
@@ -24,8 +25,19 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
  *
  * @api
  */
-final class AiToolsServiceProvider extends ServiceProvider
+final class AiToolsServiceProvider extends ServiceProvider implements AcceptsAgentToolProvidersInterface
 {
+    /** @var list<ProvidesAgentToolsInterface> */
+    private array $agentToolProviders = [];
+
+    public function withAgentToolProviders(array $providers): void
+    {
+        $this->agentToolProviders = array_values(array_filter(
+            $providers,
+            static fn(object $provider): bool => $provider instanceof ProvidesAgentToolsInterface,
+        ));
+    }
+
     public function register(): void
     {
         $this->singleton(ToolRegistryInterface::class, function (): ToolRegistryInterface {
@@ -33,7 +45,7 @@ final class AiToolsServiceProvider extends ServiceProvider
             $container = $this->resolveContainer();
             $logger = $this->resolveLogger();
 
-            return new AttributeToolRegistry(
+            $registry = new AttributeToolRegistry(
                 manifest: $manifest,
                 container: $container,
                 logger: $logger,
@@ -45,6 +57,12 @@ final class AiToolsServiceProvider extends ServiceProvider
                 // when the handler itself transiently resolves to null.
                 accessHandlerResolver: fn(): ?EntityAccessHandler => $this->resolveAccessHandler(),
             );
+
+            foreach ($this->agentToolProviders as $provider) {
+                $provider->registerAgentTools($registry);
+            }
+
+            return $registry;
         });
 
         $this->singleton(AttributeToolRegistry::class, function (): AttributeToolRegistry {

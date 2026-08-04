@@ -17,6 +17,7 @@ use Waaseyaa\Bimaaji\Introspection\JsonApi\JsonApiIntrospectionProvider;
 use Waaseyaa\Bimaaji\Introspection\PublicSurface\PublicSurfaceProvider;
 use Waaseyaa\Bimaaji\Introspection\Routing\RoutingIntrospectionProvider;
 use Waaseyaa\Bimaaji\Introspection\Sovereignty\SovereigntyIntrospectionProvider;
+use Waaseyaa\Bimaaji\Spec\SpecIndexProvider;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
@@ -42,6 +43,55 @@ final class BimaajiServiceProviderTest extends TestCase
 
         $again = $provider->resolve(ApplicationGraphGenerator::class);
         self::assertSame($generator, $again, 'Singleton must return the same instance.');
+    }
+
+    #[Test]
+    public function spec_indexing_is_disabled_without_explicit_configuration(): void
+    {
+        $provider = new BimaajiServiceProvider();
+        $provider->setKernelContext('/tmp/project-with-docs', [], []);
+        $provider->register();
+
+        $index = $provider->resolve(SpecIndexProvider::class);
+
+        self::assertInstanceOf(SpecIndexProvider::class, $index);
+        self::assertSame([], $index->provide()->data);
+    }
+
+    #[Test]
+    public function spec_indexing_uses_the_explicit_configured_directory(): void
+    {
+        $directory = sys_get_temp_dir() . '/waaseyaa_bimaaji_specs_' . uniqid();
+        mkdir($directory, 0o777, true);
+        file_put_contents($directory . '/approved.md', '# Approved');
+
+        try {
+            $provider = new BimaajiServiceProvider();
+            $provider->setKernelContext('/tmp/ignored-project', [
+                'bimaaji' => ['specs_directory' => $directory],
+            ], []);
+            $provider->register();
+
+            $index = $provider->resolve(SpecIndexProvider::class);
+            self::assertArrayHasKey('approved', $index->provide()->data);
+        } finally {
+            unlink($directory . '/approved.md');
+            rmdir($directory);
+        }
+    }
+
+    #[Test]
+    public function malformed_explicit_specs_directory_is_refused(): void
+    {
+        $provider = new BimaajiServiceProvider();
+        $provider->setKernelContext('/tmp', [
+            'bimaaji' => ['specs_directory' => ''],
+        ], []);
+        $provider->register();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('bimaaji.specs_directory');
+        $provider->resolve(SpecIndexProvider::class);
     }
 
     #[Test]

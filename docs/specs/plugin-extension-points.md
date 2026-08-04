@@ -72,7 +72,7 @@ Demonstrates:
 
 ## ServiceProvider Extension Hooks
 
-The `Waaseyaa\Foundation\ServiceProvider\ServiceProvider` extension hooks (kernel-invoked methods such as `register`, `boot`, `routes`, `commands`, `middleware`, `httpDomainRouters`, `registerRenderCacheListeners`, `configureHttpKernel`, `graphqlMutationOverrides`, plus the `KnowledgeToolingExtensionInterface` runner described above) are documented canonically in [`docs/specs/infrastructure.md`](infrastructure.md) under § ServiceProvider extension hooks. The interface ↔ abstract base ↔ kernel call-site lockstep is enforced by `packages/foundation/tests/Contract/ServiceProviderContractTest.php` (mission #824 WP03 surface B).
+The `Waaseyaa\Foundation\ServiceProvider\ServiceProvider` extension hooks (kernel-invoked methods such as `register`, `boot`, `routes`, `middleware`, `httpDomainRouters`, `registerRenderCacheListeners`, `configureHttpKernel`, `graphqlMutationOverrides`, and provider-injection capabilities including agent-tool contribution, plus the `KnowledgeToolingExtensionInterface` runner described above) are documented canonically in [`docs/specs/infrastructure.md`](infrastructure.md) under § ServiceProvider extension hooks. The interface ↔ abstract base ↔ kernel call-site lockstep is enforced by `packages/foundation/tests/Contract/ServiceProviderContractTest.php` (mission #824 WP03 surface B).
 
 Plugin-specific extension via `KnowledgeToolingExtensionInterface` (above) is layered on top of those provider hooks but documented separately because it composes through the plugin manager rather than through the service-provider lifecycle.
 

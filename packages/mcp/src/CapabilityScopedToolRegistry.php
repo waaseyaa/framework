@@ -27,12 +27,18 @@ use Waaseyaa\AI\Tools\ToolRegistryInterface;
 final class CapabilityScopedToolRegistry implements ToolRegistryInterface
 {
     /**
-     * @param non-empty-list<string> $allowedCapabilities Tools whose capability is
-     *                                                     listed are visible (destructive included).
+     * @param list<string> $allowedCapabilities Tools whose capability is listed
+     *        are visible (destructive included). An EMPTY allowlist exposes
+     *        nothing — the fail-closed shape a scopeless credential gets when
+     *        this registry narrows a request to its token scopes (#2177 F3).
+     * @param list<string> $blockedToolNames Exact tool names withheld even when
+     *        their capability is allowlisted. This lets a network tier enforce
+     *        a narrower structural policy than the embedded agent catalogue.
      */
     public function __construct(
         private readonly ToolRegistryInterface $inner,
         private readonly array $allowedCapabilities,
+        private readonly array $blockedToolNames = [],
     ) {}
 
     public function register(AgentTool $tool): void
@@ -79,6 +85,7 @@ final class CapabilityScopedToolRegistry implements ToolRegistryInterface
 
     private function isVisible(AgentTool $tool): bool
     {
-        return \in_array($tool->capability, $this->allowedCapabilities, true);
+        return !\in_array($tool->name, $this->blockedToolNames, true)
+            && \in_array($tool->capability, $this->allowedCapabilities, true);
     }
 }

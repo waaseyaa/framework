@@ -12,6 +12,7 @@ use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\FieldReadGuard;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityValueReadGuardInterface;
@@ -22,6 +23,7 @@ use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Publishing\ContentMutationSnapshotReader;
+use Waaseyaa\Publishing\ContentPublicationTransitionerInterface;
 use Waaseyaa\Publishing\ContentPublisher;
 use Waaseyaa\Publishing\ContentTypeDescriptor;
 use Waaseyaa\Publishing\ContentValidatorInterface;
@@ -43,6 +45,7 @@ final class ContentPublisherTest extends TestCase
     private const string CAPABILITY = 'publish test articles';
 
     private EntityRepository $repo;
+    private DBALDatabase $db;
     private SpyAuditWriter $audit;
     private ContentPublisher $publisher;
     private PublisherAccount $actor;
@@ -56,7 +59,7 @@ final class ContentPublisherTest extends TestCase
             static fn(): AccessResult => AccessResult::forbidden('No ambient protected-field grant.'),
         ));
 
-        $db = DBALDatabase::createSqlite();
+        $db = $this->db = DBALDatabase::createSqlite();
         $entityType = new EntityType(
             id: 'test_article',
             label: 'Test article',
@@ -129,6 +132,30 @@ final class ContentPublisherTest extends TestCase
     }
 
     // --- authorization ---
+
+    #[Test]
+    public function dates_nullable_clears_and_bounded_reference_lists_are_validated_and_normalized(): void
+    {
+        $coerce = new \ReflectionMethod(ContentPublisher::class, 'coerce');
+
+        $errors = new ValidationErrors();
+        self::assertSame('2028-02-29', $coerce->invoke($this->publisher, 'publish_on', '2028-02-29', new FieldSpec('date'), $errors));
+        self::assertSame([12, 'uuid-2'], $coerce->invoke($this->publisher, 'related', ['12', 'uuid-2'], new FieldSpec('reference_list', maxItems: 3), $errors));
+        self::assertNull($coerce->invoke($this->publisher, 'publish_on', null, new FieldSpec('date', nullable: true), $errors));
+        self::assertTrue($errors->isEmpty());
+
+        foreach ([
+            ['publish_on', '2027-02-29', new FieldSpec('date')],
+            ['related', [1, 1], new FieldSpec('reference_list')],
+            ['related', [1, 2, 3, 4], new FieldSpec('reference_list', maxItems: 3)],
+            ['related', [''], new FieldSpec('reference_list')],
+            ['publish_on', null, new FieldSpec('date')],
+        ] as [$field, $value, $spec]) {
+            $invalid = new ValidationErrors();
+            self::assertNull($coerce->invoke($this->publisher, $field, $value, $spec, $invalid));
+            self::assertFalse($invalid->isEmpty());
+        }
+    }
 
     #[Test]
     public function every_operation_requires_the_publish_capability(): void
@@ -213,6 +240,31 @@ final class ContentPublisherTest extends TestCase
 
         self::assertSame($first, $replay);
         self::assertCount(1, $this->repo->findBy(['slug' => 'first-post']));
+    }
+
+    #[Test]
+    public function idempotency_keys_are_namespaced_by_content_descriptor(): void
+    {
+        $first = $this->publisher->createDraft($this->actor, $this->draftValues(), 'shared-client-key');
+        $descriptor = $this->descriptor();
+        $otherPublisher = new ContentPublisher(
+            new ContentTypeDescriptor(
+                entityTypeId: 'other_article',
+                bundle: null,
+                slugField: $descriptor->slugField,
+                statusField: $descriptor->statusField,
+                writableFields: $descriptor->writableFields,
+                htmlSanitizer: $descriptor->htmlSanitizer,
+                validators: $descriptor->validators,
+                publishCapability: $descriptor->publishCapability,
+            ),
+            $this->repo,
+            new IdempotencyStore($this->db),
+            $this->audit,
+        );
+
+        $second = $otherPublisher->createDraft($this->actor, $this->draftValues(['slug' => 'other-post']), 'shared-client-key');
+        self::assertNotSame($first['id'], $second['id']);
     }
 
     #[Test]
@@ -341,6 +393,45 @@ final class ContentPublisherTest extends TestCase
         self::assertNotNull($this->repo->find((string) $draft['id']));
         self::assertGreaterThanOrEqual(3, \count($this->publisher->revisions($this->actor, (string) $draft['id'])));
         self::assertContains('content.unpublished', $this->audit->kinds());
+    }
+
+    #[Test]
+    public function a_bound_workflow_owns_publication_and_still_honors_optimistic_locking(): void
+    {
+        $draft = $this->publisher->createDraft($this->actor, $this->draftValues(), 'k1');
+        $transitioner = new class ($this->repo) implements ContentPublicationTransitionerInterface {
+            public int $calls = 0;
+
+            public function __construct(private readonly EntityRepository $repository) {}
+
+            public function supports(EntityInterface $entity): bool
+            {
+                return true;
+            }
+
+            public function setPublished(EntityInterface $entity, bool $published, \Waaseyaa\Access\AuthorizationPrincipalInterface $actor): EntityInterface
+            {
+                ++$this->calls;
+                $entity->set('status', $published ? 1 : 0);
+                $this->repository->save($entity, true);
+
+                return $this->repository->loadWorkingCopy((string) $entity->id()) ?? $entity;
+            }
+        };
+        $publisher = new ContentPublisher(
+            $this->descriptor(),
+            $this->repo,
+            new IdempotencyStore($this->db),
+            $this->audit,
+            publicationTransitioner: $transitioner,
+        );
+
+        $published = $publisher->publish($this->actor, (string) $draft['id'], $draft['revision_id'], 'workflow-publish');
+        self::assertTrue($published['status']);
+        self::assertSame(1, $transitioner->calls);
+
+        $this->expectException(RevisionConflictException::class);
+        $publisher->unpublish($this->actor, (string) $draft['id'], $draft['revision_id'], 'workflow-stale');
     }
 
     // --- rollback / revisions ---

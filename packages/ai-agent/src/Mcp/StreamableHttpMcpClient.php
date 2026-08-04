@@ -27,11 +27,17 @@ use Waaseyaa\HttpClient\HttpResponse;
  */
 final class StreamableHttpMcpClient
 {
-    private const PROTOCOL_VERSION = '2024-11-05';
+    private const PROTOCOL_VERSION = '2025-11-25';
+    /** @var non-empty-list<string> */
+    private const SUPPORTED_PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26'];
     private const CLIENT_NAME = 'waaseyaa-ai-agent';
     private const CLIENT_VERSION = '0.1';
 
     private readonly LoggerInterface $logger;
+    /** @var array<string, string> */
+    private array $protocolVersions = [];
+    /** @var array<string, string> */
+    private array $sessionIds = [];
 
     public function __construct(
         private readonly HttpClientInterface $httpClient,
@@ -68,6 +74,14 @@ final class StreamableHttpMcpClient
         $protocolVersion = isset($response['protocolVersion']) && is_string($response['protocolVersion'])
             ? $response['protocolVersion']
             : self::PROTOCOL_VERSION;
+        if (!in_array($protocolVersion, self::SUPPORTED_PROTOCOL_VERSIONS, true)) {
+            throw new McpServerUnavailableException(
+                url: $url,
+                message: sprintf('MCP server %s negotiated unsupported protocol version %s', $url, $protocolVersion),
+            );
+        }
+        $this->protocolVersions[$url] = $protocolVersion;
+        $this->notifyInitialized($url, $authHeader);
         $capabilities = isset($response['capabilities']) && is_array($response['capabilities'])
             ? $response['capabilities']
             : [];
@@ -212,7 +226,11 @@ final class StreamableHttpMcpClient
         $headers = [
             'Content-Type' => 'application/json',
             'Accept' => 'application/json, text/event-stream',
+            'MCP-Protocol-Version' => $this->protocolVersions[$url] ?? self::PROTOCOL_VERSION,
         ];
+        if (isset($this->sessionIds[$url])) {
+            $headers['MCP-Session-Id'] = $this->sessionIds[$url];
+        }
         if ($authHeader !== null && $authHeader !== '') {
             $headers['Authorization'] = $authHeader;
         }
@@ -235,6 +253,21 @@ final class StreamableHttpMcpClient
         } catch (\JsonException $e) {
             // Encoding our own envelope failed — treat as fatal; caller's bug.
             throw new \RuntimeException('Failed to encode MCP JSON-RPC envelope: ' . $e->getMessage(), 0, $e);
+        }
+
+        if ($method === 'initialize') {
+            $sessionId = self::header($response, 'MCP-Session-Id');
+            if ($sessionId !== null && $sessionId !== '') {
+                $this->sessionIds[$url] = $sessionId;
+            }
+        }
+
+        if ($response->statusCode === 404 && isset($this->sessionIds[$url])) {
+            unset($this->sessionIds[$url], $this->protocolVersions[$url]);
+            throw new McpServerUnavailableException(
+                url: $url,
+                message: sprintf('MCP session expired for %s; initialize a new session', $url),
+            );
         }
 
         if ($response->statusCode >= 500) {
@@ -278,6 +311,52 @@ final class StreamableHttpMcpClient
         }
 
         return $result;
+    }
+
+    private function notifyInitialized(string $url, ?string $authHeader): void
+    {
+        $headers = [
+            'Content-Type' => 'application/json',
+            'Accept' => 'application/json, text/event-stream',
+            'MCP-Protocol-Version' => $this->protocolVersions[$url],
+        ];
+        if ($authHeader !== null && $authHeader !== '') {
+            $headers['Authorization'] = $authHeader;
+        }
+        if (isset($this->sessionIds[$url])) {
+            $headers['MCP-Session-Id'] = $this->sessionIds[$url];
+        }
+
+        try {
+            $response = $this->httpClient->post($url, $headers, json_encode([
+                'jsonrpc' => '2.0',
+                'method' => 'notifications/initialized',
+            ], JSON_THROW_ON_ERROR));
+        } catch (HttpRequestException $e) {
+            throw new McpServerUnavailableException(
+                url: $url,
+                message: sprintf('MCP initialized notification failed for %s: %s', $url, $e->getMessage()),
+                previous: $e,
+            );
+        }
+
+        if ($response->statusCode < 200 || $response->statusCode >= 300) {
+            throw new McpServerUnavailableException(
+                url: $url,
+                message: sprintf('MCP server %s rejected notifications/initialized with HTTP %d', $url, $response->statusCode),
+            );
+        }
+    }
+
+    private static function header(HttpResponse $response, string $name): ?string
+    {
+        foreach ($response->headers as $header => $value) {
+            if (strcasecmp($header, $name) === 0) {
+                return $value;
+            }
+        }
+
+        return null;
     }
 
     /**

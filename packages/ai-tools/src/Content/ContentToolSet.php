@@ -18,10 +18,11 @@ use Waaseyaa\Publishing\Preview\PreviewLinkService;
  * `article.rollback`, plus `asset.upload` / `asset.get` when an asset store
  * is supplied.
  *
- * Every tool is registered `destructive: true` under the descriptor's publish
- * capability, so the set is structurally absent from the public `/mcp`
- * registry and reachable only through the authenticated write tier whose
- * capability allowlist includes it. Input schemas are derived from the
+ * Every mutation is registered `destructive: true` under the descriptor's
+ * publish capability, so it is structurally absent from the public `/mcp`
+ * registry and requires write-tier approval. Read operations are accurately
+ * non-destructive and remain reachable only when the tier and principal both
+ * hold the app-chosen capability. Input schemas are derived from the
  * descriptor's writable fields (`additionalProperties: false`); every
  * mutation requires an `idempotency_key`, and update/publish/unpublish
  * require `expected_revision_id`. Apps hand-write nothing per tool.
@@ -50,13 +51,104 @@ final readonly class ContentToolSet
             $registry->register(new AgentTool(
                 name: $name,
                 capability: $this->descriptor->publishCapability,
-                destructive: true,
+                destructive: self::isMutation($name),
                 dryRunSupported: false,
                 category: 'content',
                 inputSchema: $impl->inputSchema(),
                 impl: $impl,
+                title: self::toolTitle($name),
+                outputSchema: $this->outputSchema($name, $prefix),
+                idempotent: self::isIdempotentMutation($name),
+                openWorld: false,
             ));
         }
+    }
+
+    private static function isMutation(string $name): bool
+    {
+        foreach (['.createDraft', '.updateDraft', '.publish', '.unpublish', '.rollback', '.upload'] as $suffix) {
+            if (\str_ends_with($name, $suffix)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function isIdempotentMutation(string $name): bool
+    {
+        return self::isMutation($name) && !\str_ends_with($name, '.upload');
+    }
+
+    private static function toolTitle(string $name): string
+    {
+        $words = \preg_replace('/(?<!^)([A-Z])/', ' $1', \str_replace('.', ' ', $name));
+
+        return \ucwords((string) $words);
+    }
+
+    /** @return array<string, mixed> */
+    private function outputSchema(string $name, string $prefix): array
+    {
+        $schema = [
+            '$schema' => 'https://json-schema.org/draft/2020-12/schema',
+            'type' => 'object',
+            'additionalProperties' => true,
+        ];
+
+        if ($name === "$prefix.list") {
+            return $schema + [
+                'properties' => ['items' => ['type' => 'array', 'items' => $this->entityOutputSchema()]],
+                'required' => ['items'],
+            ];
+        }
+        if ($name === "$prefix.preview") {
+            return $schema + [
+                'properties' => [
+                    'id' => ['oneOf' => [['type' => 'integer'], ['type' => 'string']]],
+                    'expires_at' => ['type' => 'integer'],
+                    'signature' => ['type' => 'string'],
+                    'preview_url' => ['type' => 'string'],
+                ],
+                'required' => ['id', 'expires_at', 'signature', 'preview_url'],
+            ];
+        }
+        if ($name === "$prefix.revisions") {
+            return $schema + [
+                'properties' => ['revisions' => ['type' => 'array', 'items' => ['type' => 'object']]],
+                'required' => ['revisions'],
+            ];
+        }
+        if ($name === "{$this->assetPrefix}.upload" || $name === "{$this->assetPrefix}.get") {
+            return $schema + [
+                'properties' => [
+                    'asset_id' => ['type' => 'string'],
+                    'url' => ['type' => 'string'],
+                    'mime' => ['type' => 'string'],
+                    'width' => ['type' => 'integer'],
+                    'height' => ['type' => 'integer'],
+                    'size' => ['type' => 'integer'],
+                ],
+                'required' => ['asset_id', 'url', 'mime', 'width', 'height', 'size'],
+            ];
+        }
+
+        return $this->entityOutputSchema();
+    }
+
+    /** @return array<string, mixed> */
+    private function entityOutputSchema(): array
+    {
+        return [
+            'type' => 'object',
+            'properties' => [
+                'id' => ['oneOf' => [['type' => 'integer'], ['type' => 'string']]],
+                'revision_id' => ['type' => 'integer'],
+                'status' => ['type' => 'boolean'],
+            ],
+            'required' => ['id', 'revision_id', 'status'],
+            'additionalProperties' => true,
+        ];
     }
 
     /**
@@ -255,11 +347,26 @@ final readonly class ContentToolSet
             $properties[$field] = match ($spec->type) {
                 'bool' => ['type' => 'boolean'],
                 'int' => ['type' => 'integer'],
+                'date' => ['type' => 'string', 'format' => 'date'],
+                'reference_list' => array_filter([
+                    'type' => 'array',
+                    'items' => [
+                        'oneOf' => [
+                            ['type' => 'integer', 'minimum' => 1],
+                            ['type' => 'string', 'minLength' => 1, 'maxLength' => 190],
+                        ],
+                    ],
+                    'uniqueItems' => true,
+                    'maxItems' => $spec->maxItems,
+                ], static fn($v): bool => $v !== null),
                 default => array_filter([
                     'type' => 'string',
                     'maxLength' => $spec->maxLength,
                 ], static fn($v): bool => $v !== null),
             };
+            if ($spec->nullable) {
+                $properties[$field] = ['anyOf' => [$properties[$field], ['type' => 'null']]];
+            }
             if ($spec->html) {
                 $properties[$field]['description'] = 'HTML fragment; sanitized against the editorial allowlist before persistence.';
             }

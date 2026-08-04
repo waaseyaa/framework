@@ -22,6 +22,11 @@ final readonly class AdminSurfaceSessionData
      * @param string   $tenantName
      * @param array<string, bool> $features
      * @param AdminSurfaceUiPayload|null $ui Optional SPA chrome (header links, sidebar items)
+     * @param array<string, bool> $capabilities Server-authoritative per-principal permission
+     *   projection. Keys are the host's explicitly allowlisted permission identifiers
+     *   (see GenericAdminSurfaceHost `$capabilityAllowlist`); values come from
+     *   AccountInterface::hasPermission() on the resolved principal. Unlike `features`
+     *   (installation-wide) this varies per account. Empty when no allowlist is configured.
      */
     public function __construct(
         public string $accountId,
@@ -34,6 +39,7 @@ final readonly class AdminSurfaceSessionData
         public string $tenantName = 'Default',
         public array $features = [],
         public ?AdminSurfaceUiPayload $ui = null,
+        public array $capabilities = [],
     ) {}
 
     /**
@@ -55,6 +61,7 @@ final readonly class AdminSurfaceSessionData
             ],
             'policies' => $this->policies,
             'features' => $this->features !== [] ? $this->features : new \stdClass(),
+            'capabilities' => $this->capabilities !== [] ? $this->capabilities : new \stdClass(),
         ];
 
         if ($this->ui !== null && !$this->ui->isEmpty()) {

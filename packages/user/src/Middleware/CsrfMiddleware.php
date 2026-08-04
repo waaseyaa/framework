@@ -9,6 +9,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Route;
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
@@ -43,7 +44,7 @@ final class CsrfMiddleware implements HttpMiddlewareInterface
                 return $response;
             }
 
-            return new JsonResponse([
+            $response = new JsonResponse([
                 'jsonapi' => ['version' => '1.1'],
                 'errors' => [[
                     'status' => '403',
@@ -51,10 +52,14 @@ final class CsrfMiddleware implements HttpMiddlewareInterface
                     'detail' => 'CSRF token validation failed.',
                 ]],
             ], 403, ['Content-Type' => 'application/vnd.api+json']);
+            self::attachCookieIfAuthenticated($request, $response);
+
+            return $response;
         }
 
         $response = $next->handle($request);
         self::attachCookieIfHtml($request, $response);
+        self::attachCookieIfAuthenticated($request, $response);
 
         return $response;
     }
@@ -68,13 +73,43 @@ final class CsrfMiddleware implements HttpMiddlewareInterface
      */
     public static function attachCookieIfHtml(Request $request, Response $response): void
     {
-        if (session_status() !== \PHP_SESSION_ACTIVE) {
-            return;
-        }
-
         $contentType = $response->headers->get('Content-Type', '');
         $primaryType = strtolower(trim(explode(';', $contentType)[0]));
         if ($primaryType !== 'text/html') {
+            return;
+        }
+
+        self::attachCookie($request, $response);
+    }
+
+    /**
+     * Attach the XSRF-TOKEN cookie to any response for an authenticated session.
+     *
+     * The admin SPA boots against JSON endpoints (e.g. GET /api/user/me), never
+     * receiving a text/html response from the kernel, so the HTML-only cookie
+     * writer above cannot seed it with a token. Once the session is
+     * authenticated the token is delivered on API responses too, with the exact
+     * same cookie flags. Anonymous responses stay cookie-free.
+     */
+    public static function attachCookieIfAuthenticated(Request $request, Response $response): void
+    {
+        $account = $request->attributes->get('_account');
+        $session = $request->attributes->get('_session');
+        if (!$account instanceof AccountInterface
+            || !$account->isAuthenticated()
+            || !\is_array($session)
+            || !isset($session['waaseyaa_uid'])
+            || $session['waaseyaa_uid'] === ''
+        ) {
+            return;
+        }
+
+        self::attachCookie($request, $response);
+    }
+
+    private static function attachCookie(Request $request, Response $response): void
+    {
+        if (session_status() !== \PHP_SESSION_ACTIVE) {
             return;
         }
 
@@ -175,6 +210,21 @@ final class CsrfMiddleware implements HttpMiddlewareInterface
             return false;
         }
 
+        $route = $request->attributes->get('_route_object');
+        $routeOption = $route instanceof Route ? $route->getOption('_csrf') : null;
+
+        // An explicit opt-in (RouteBuilder::requireCsrf()) demands token
+        // validation for every content type, including the JSON exemptions
+        // below — cookie-authenticated JSON endpoints (e.g. MCP write-tier
+        // approvals) are CSRF-reachable despite the non-form content type.
+        if ($routeOption === true) {
+            return true;
+        }
+
+        if ($routeOption === false) {
+            return false;
+        }
+
         // JSON:API requests are not vulnerable to CSRF (browsers cannot send
         // application/vnd.api+json from HTML forms), so exempt them.
         $contentType = $request->headers->get('Content-Type', '');
@@ -182,11 +232,6 @@ final class CsrfMiddleware implements HttpMiddlewareInterface
             if (str_starts_with($contentType, $exemptType)) {
                 return false;
             }
-        }
-
-        $route = $request->attributes->get('_route_object');
-        if ($route instanceof Route && $route->getOption('_csrf') === false) {
-            return false;
         }
 
         return true;

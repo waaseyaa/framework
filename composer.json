@@ -508,7 +508,7 @@
         "check-admin-dist-fresh": "php bin/check-admin-dist-fresh",
         "check-field-guards": "bash tests/Tooling/FieldGuardsTest.sh",
         "check-access-hardening": "bash tests/Tooling/AccessHardeningGateTest.sh",
-        "test": "php -d memory_limit=512M vendor/bin/phpunit --no-coverage",
+        "test": "php -d memory_limit=1G vendor/bin/phpunit --no-coverage",
         "verify": [
             "@cs-check",
             "@phpstan",

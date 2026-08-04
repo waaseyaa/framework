@@ -105,6 +105,14 @@ registerEndpoint('/admin/_surface/session', () => ({
     tenant: { id: 'default', name: 'Waaseyaa' },
     policies: ['admin'],
     features: {},
+    // Server-authoritative capability projection (bounded host allowlist).
+    // 'hostile.truthy' pins the fail-closed contract: can() must only honor
+    // an exact boolean true, never a truthy non-boolean from a hostile host.
+    capabilities: {
+      'mcp.approval.view': true,
+      'mcp.approval.decide': false,
+      'hostile.truthy': 1 as unknown as boolean,
+    },
   },
 }))
 

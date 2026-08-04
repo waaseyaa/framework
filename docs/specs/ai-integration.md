@@ -1,5 +1,7 @@
 # AI Integration
 
+<!-- Spec reviewed 2026-08-03 - #2177 F1 slice B: `AgentTool::toMcpDescriptor()` now always emits the spec-standard MCP `annotations.destructiveHint`, projected from the tool's declared `$destructive`. It is advisory display metadata for MCP clients; server-side enforcement (the write tier's human-approval gate, see docs/specs/mcp-endpoint.md §"Human-approval gate") reads `$destructive` itself and never the hint. On a gated endpoint the MCP layer additionally decorates destructive tools' tools/list descriptors with `_meta["ai.waaseyaa.mcp/approval"]="required"` — that decoration lives in `McpEndpoint`, not in AgentTool. Acceptance: AgentToolDescriptorTest. -->
+
 <!-- Spec reviewed 2026-08-03 - #2177 F6 (mcp-public-boundary): the 11 generic `catch (\Throwable)` arms across the entity/relationship/vector tools no longer embed `$e->getMessage()` in the returned AgentToolResult (nor in its `summary`, the audit/transcript line) — they call `AbstractAgentTool::internalError()`, which returns a fixed INTERNAL_ERROR envelope plus a random correlation id via the new `Waaseyaa\AI\Tools\Error\SanitizedToolError`. The logger (attached at hydration by AttributeToolRegistry, mirroring the EntityAccessHandler mechanism) receives safe diagnostic METADATA only — correlation id, tool, exception class, file, line, integer code — never the message, trace, or the Throwable object. Typed domain catches (validation, revision conflict, key refusal, not-revisionable, forbidden) are untouched and remain machine-readable. See the new "Tool failure contract" section. -->
 
 <!-- Spec reviewed 2026-07-13 - R18 M6 (#1975): the outbound MCP subsystem is active production wiring, not parked scaffolding. `Waaseyaa\AI\Agent\Mcp\McpServiceProvider` is declared in `packages/ai-agent/composer.json` under `extra.waaseyaa.providers`, so normal package-manifest compilation boots remote tool discovery. Its existing fail-closed contract is unchanged: no host tool registry/config means no remote tools, and an unavailable server cannot abort kernel boot. Acceptance: McpServiceProviderManifestTest. -->
@@ -75,6 +77,10 @@ The generated schema maps entity keys to JSON Schema properties:
 The output always includes `'$schema' => 'https://json-schema.org/draft/2020-12/schema'` and sets `'additionalProperties' => true` to allow non-key fields.
 
 ## MCP Tool System
+
+### Application tool contribution
+
+Framework packages normally contribute `#[AsAgentTool]` classes through the compiled package manifest. Applications and providers that assemble tools from application-owned configuration implement `Waaseyaa\AI\Tools\ProvidesAgentToolsInterface`. During kernel boot, contributors are sorted by provider class and injected into `AiToolsServiceProvider`; each receives the canonical `ToolRegistryInterface` when that singleton is first constructed. Registration is therefore independent of HTTP route declaration, works for embedded-agent and MCP consumers alike, and preserves the registry's fail-closed duplicate-name rule. Contributors must not resolve the registry recursively or capture request-scoped services.
 
 ### McpToolDefinition
 

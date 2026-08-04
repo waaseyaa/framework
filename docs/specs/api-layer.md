@@ -128,6 +128,8 @@ Dispatch lives in `Waaseyaa\Api\Http\Router\McpAdminApiRouter` (implements `Doma
 
 The `{name}` segment is `rawurldecode()`-ed once inside `tool()` so tool names containing dots (e.g. `bimaaji.search_specs`) survive double URL encoding by the SPA client.
 
+**MCP approval decision surface (#2177 F1, slice C1b).** Two further `/api/mcp/*` admin routes back the write-tier human-approval gate's operator decisions — `GET /api/mcp/approvals` (`McpApprovalController::index`, permission `mcp.approval.view`) and `POST /api/mcp/approvals/{id}/decision` (`McpApprovalController::decide`, permission `mcp.approval.decide`, `requireCsrf()`). Both demand `requireAuthentication()` + `requireSession(['waaseyaa_uid'])` (a real login session — bearer-only identities are refused), and both are registered in `ApiServiceProvider::routes()` under the `mcpInstalled()` gate. Dispatch: `McpApprovalApiRouter` (mirrors `McpAdminApiRouter`; the controller returns full `Response` objects because the status vocabulary is wider — 200/204/400/403/404/409/503). The controller resolves `Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface` lazily per request via a closure over `ServiceProvider::resolve()` (NOT `resolveOptional()`, which would swallow a bound store's `ApprovalStoreException`), reads the exact-origin allowlist from `cors_origins`, and `mcp.write_tier.approval.allow_self_approval` (default false; PHP-bool-only — any non-bool, including boolean-shaped strings/integers, throws a type-only `ConfigException`). Every 400 body is STATIC controller text — a store adapter's `\InvalidArgumentException` message is never echoed (pagination refusals map to one fixed body; an adapter IAE from `decide()` after the controller's own validation is treated as a nonconforming adapter and fails closed 503). Full contract: `docs/specs/mcp-endpoint.md` §"Admin decision surface".
+
 **Read-model bindings.** The controller depends on two **api-local** interfaces under `Waaseyaa\Api\McpAdmin\`:
 
 - `ToolRegistryReadModelInterface` — `listTools(): list<ToolRegistryRow>` and `findTool(string): ?ToolDetail`.
@@ -1180,6 +1182,8 @@ $route = RouteBuilder::create('/node/{node}')
 | `requirePermission(string $permission)` | `_permission` | Require specific permission |
 | `requireRole(string $role)` | `_role` | Require specific role |
 | `allowAll()` | `_public = true` | Public route, no auth required |
+| `csrfExempt()` | `_csrf = false` | Skip CSRF validation — route has its own auth model (MCP bearer, API keys) |
+| `requireCsrf()` | `_csrf = true` | Force CSRF validation on state-changing methods even for the JSON content types that are exempt by default (cookie-authenticated JSON endpoints, e.g. MCP write-tier approvals). See `docs/specs/security-defaults.md` "CSRF token cookie" |
 | `requirement(string $key, string $regex)` | (route requirements) | Regex requirement for parameter |
 | `default(string $key, mixed $value)` | (route defaults) | Default parameter value |
 | `build()` | -- | Returns configured Symfony Route |

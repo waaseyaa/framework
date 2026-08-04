@@ -159,6 +159,10 @@ final class McpToolsCallSchemaEnforcementTest extends TestCase
         ], \JSON_THROW_ON_ERROR);
 
         $server = $token !== null ? ['HTTP_AUTHORIZATION' => 'Bearer ' . $token] : [];
+        $server += [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_ACCEPT' => 'application/json, text/event-stream',
+        ];
         $request = HttpRequest::create('/mcp/write', 'POST', [], [], [], $server, $body);
         $response = $this->writeTier->serve($this->actor, $request);
 
@@ -420,7 +424,11 @@ final class McpToolsCallSchemaEnforcementTest extends TestCase
                 [],
                 [],
                 [],
-                ['HTTP_AUTHORIZATION' => 'Bearer powerless-token'],
+                [
+                    'HTTP_AUTHORIZATION' => 'Bearer powerless-token',
+                    'CONTENT_TYPE' => 'application/json',
+                    'HTTP_ACCEPT' => 'application/json, text/event-stream',
+                ],
                 $body,
             ));
             $decoded = \json_decode((string) $response->getContent(), true, 512, \JSON_THROW_ON_ERROR);

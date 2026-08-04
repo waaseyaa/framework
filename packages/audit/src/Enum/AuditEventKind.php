@@ -7,13 +7,15 @@ namespace Waaseyaa\Audit\Enum;
 /**
  * Canonical vocabulary of audit event kinds.
  *
- * 23 cases (originally 14, extended additively by
+ * 29 cases (originally 14, extended additively by
  * `versioned-blob-media-abstraction-01KSEFTJ` (+3),
  * `revision-audit-provenance-01KTWY5V` (+2),
  * WP3 audit tamper-evidence verify (+1),
  * WP4 audit fail-open marker+metric (#1792) (+1),
- * CW-v1 WP-1 (#1920) (+1), and
- * CW-v1 WP-2 task 2.5 (#1920) (+1) per the §Out-of-band
+ * CW-v1 WP-1 (#1920) (+1),
+ * CW-v1 WP-2 task 2.5 (#1920) (+1),
+ * content-publishing v1 (#2136) (+5), and
+ * the MCP approval decision surface (#2177 F1 C1b) (+1) per the §Out-of-band
  * downstream-amendment principle — additive, no removal).
  *
  * The {@see \Waaseyaa\Audit\Contract\AuditEventDescriptor} rejects
@@ -91,4 +93,14 @@ enum AuditEventKind: string
      * a rollback creates a brand-new revision from the target's values.
      */
     case RevisionRollback = 'revision.rollback';
+
+    // --- Added by the MCP approval decision surface (#2177 F1 C1b) ---
+    /**
+     * A human operator durably approved or denied a pending destructive MCP
+     * write-tier call via `POST /api/mcp/approvals/{id}/decision`. Best-effort
+     * projection of the durable `mcp_approval_event` `decided` row: attributes
+     * carry only safe join fields (request id, decision, optional normalized
+     * reason, correlation id) — never raw call arguments or credentials.
+     */
+    case McpApprovalDecision = 'mcp.approval_decision';
 }

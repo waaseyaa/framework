@@ -36,13 +36,15 @@ final readonly class ContentTypeDescriptor {
     public ?string $bundle;              // e.g. 'article'
     public string $slugField;            // unique-per-bundle human key, e.g. 'slug'
     public string $statusField;          // publish flag, e.g. 'status'
-    public array $writableFields;       // field => FieldSpec{type, required, htmlProfile?, maxLength?}
+    public array $writableFields;       // field => FieldSpec{type, required, html, maxLength, nullable, maxItems}
     public array $htmlFields;           // fields sanitized with the app's HtmlSanitizerConfig
     public HtmlSanitizerConfig $sanitizerConfig; // explicit editorial allowlist (Symfony)
     public array $validators;           // list<ContentValidatorInterface> — app editorial rules
     public string $publishCapability;    // permission string gating every mutation
 }
 ```
+
+`FieldSpec` supports `string`, `text`, `bool`, `int`, `date`, and `reference_list`. Dates are real `YYYY-MM-DD` calendar dates rather than arbitrary strings. Reference lists accept only positive integer or bounded non-empty string identifiers, reject duplicates, and may declare `maxItems`. Optional fields may explicitly opt into `nullable`; required-field validation still rejects null when creating or publishing a complete document. The generated MCP schema mirrors these constraints, including date format, null alternatives, unique items, and list bounds.
 
 `ContentValidatorInterface::validate(array $values, ValidationErrors $errors): void` — app rules append **field-specific** errors (`$errors->add('body_html', 'em dash U+2014 is not allowed')`).
 
@@ -52,20 +54,22 @@ All mutations require: (1) the descriptor's `publishCapability` on the acting pr
 
 Publisher reads and mutation responses expose only a closed projection fixed by the descriptor: structural identity, publication status, slug, and the declared writable fields. First-party entities are projected through an internal reader after the publish capability and applicable entity gate have succeeded, so publishing does not require an unrelated broad ambient field-read permission such as `administer nodes`. Callers cannot choose additional fields. Third-party entity implementations retain the canonical guarded-accessor fallback.
 
+`ContentPublisher` accepts an optional `ContentPublicationTransitionerInterface`. When the transitioner reports that an entity is workflow-bound, publication changes must pass through that transitioner after the publisher has asserted the caller's expected revision. The workflows package supplies the canonical adapter: it chooses exactly one currently permitted transition whose target state has the requested `published` value and is a default revision, invokes `TransitionService`, and reloads the working copy. No candidate or an ambiguous candidate set fails with the structured `WORKFLOW_TRANSITION_UNAVAILABLE` publishing error. Direct status-field writes remain the compatibility path only for content without a workflow binding.
+
 | Method | Semantics |
 |---|---|
 | `list(query)` / `get(idOrSlug)` / `revisions(id)` | Reads via repository + access filter; `get` returns `revision_id` (the concurrency token) and full payload. |
 | `createDraft(values, idemKey)` | `status=false` forced; slug required + unique (bundle-scoped query); returns id + revision_id. Draft is never public. |
 | `updateDraft(id, values, expectedRevisionId, idemKey)` | Optimistic concurrency via `SaveContext::withExpectedRevisionId` → `RevisionConflictException` maps to a structured `REVISION_CONFLICT` error carrying expected/current. Slug change re-checked for uniqueness. |
-| `publish(id, expectedRevisionId, idemKey, note)` | Atomic: one revision-cutting save setting `status=true` with the revision note. Listings/search/render-cache update via the existing POST_SAVE listeners (best-effort, outside the write transaction — publish never blocks on ingestion). |
-| `unpublish(id, expectedRevisionId, idemKey, note)` | `status=false` save; record + full history preserved. |
+| `publish(id, expectedRevisionId, idemKey, note)` | Optimistically guarded publication. Workflow-bound content uses the canonical transition to a published default revision; unbound content uses one revision-cutting save setting `status=true`. Listings/search/render-cache update via the existing POST_SAVE listeners (best-effort, outside the write transaction — publish never blocks on ingestion). |
+| `unpublish(id, expectedRevisionId, idemKey, note)` | Optimistically guarded unpublication. Workflow-bound content uses the canonical transition to an unpublished default revision; unbound content saves `status=false`. Record and full history are preserved. |
 | `rollback(id, targetRevisionId, idemKey, note)` | `EntityRepository::rollback()` — a NEW revision restoring the target; history never deleted. Publication status is DELIBERATELY untouched (framework rollback never moves `status`/pointers — CW-v1 decision 2); restoring a published look requires an explicit `publish()` after rollback. |
 
 Sanitization is **lossy-at-input by design** for this surface (unlike the read-boundary `RichTextSanitizer`): HTML fields are sanitized against the descriptor's allowlist *before* persistence, so unsanitized markup never enters storage from an agent. (The read boundary still sanitizes on output; belt and braces.)
 
 ### IdempotencyStore
 
-Table `publishing_idempotency` (`idem_key` PK, `operation`, `request_hash` (sha256 of canonicalized args), `response_json`, `created_at`). Same key + same hash → replay the stored response without re-executing. Same key + different hash → `IDEMPOTENCY_CONFLICT` error. The content operation and replay-record insert execute in one database transaction; any later projection, serialization, or duplicate-key failure rolls back the mutation with the missing replay record. TTL sweep (default 48 h). Self-creating table (portable schema builder, mirrors `rate_limits`).
+Table `publishing_idempotency` (`idem_key` PK, `operation`, `request_hash` (sha256 of canonicalized args), `response_json`, `created_at`). `ContentPublisher` namespaces the client key by entity type and bundle before storage, so independent bundle-scoped surfaces cannot replay or conflict with one another. The stored namespaced key is a fixed-length SHA-256 digest; the client key still appears in structured conflict errors. Within one surface, same key + same hash → replay the stored response without re-executing, while same key + different hash → `IDEMPOTENCY_CONFLICT`. The content operation and replay-record insert execute in one database transaction; any later projection, serialization, or duplicate-key failure rolls back the mutation with the missing replay record. TTL sweep (default 48 h). Self-creating table (portable schema builder, mirrors `rate_limits`).
 
 ### PreviewLinkService
 
@@ -85,11 +89,11 @@ Every successful mutation records via `AuditWriterInterface` (best-effort): kind
 - Input schemas: JSON Schema draft 2020-12, `additionalProperties: false`, derived from the descriptor's writable fields; mutations require `idempotency_key`; update/publish/unpublish require `expected_revision_id`.
 - Errors: structured `{code, message, errors?: [{field, message}]}` in the MCP `isError` envelope — `VALIDATION_FAILED` (field-specific), `REVISION_CONFLICT` (with expected/current), `IDEMPOTENCY_CONFLICT`, `SLUG_TAKEN` (field-level on the slug field), `NOT_FOUND`, `UNAUTHORIZED`.
 - No tool input is ever a filesystem path, SQL, Twig, or executable content; asset bytes are base64 with size caps; responses never include credentials or personal data.
-- `asset.upload {filename, content_base64, alt?}`: decoded bytes go through the media `UploadHandler` contract — fail-closed `finfo` MIME sniffing (client MIME ignored), file-signature/extension agreement, size cap, randomized safe filename — then a `media` entity is created (repository save, revisioned, audited). Returns `{asset_id, url, mime, width, height, size}`. `asset.get` returns the same by id. Approved types: png/jpeg/webp (descriptor-configurable subset of the media allowlist).
+- `asset.upload {filename, content_base64, alt?}`: media create access for the configured bundle is required before any bytes are written. Accepted bytes go through the media `UploadHandler` contract — fail-closed `finfo` MIME sniffing (client MIME ignored), file-signature/extension agreement, size cap, randomized safe filename — then a `media` entity is created with the authenticated actor recorded in its save context (repository save, revisioned, audited). Returns `{asset_id, url, mime, width, height, size}`. `asset.get` returns the same by id. Approved types: png/jpeg/webp (descriptor-configurable subset of the media allowlist).
 
 ## MCP rate limiting (`packages/mcp`)
 
-`McpEndpoint` gains an optional `?RateLimiterInterface` + config `mcp.rate_limit.{max_requests,window_seconds}` (default off; rhtcircle sets e.g. 120/60). Keyed per resolved principal id + tier. Exceeded → JSON-RPC error `-32029` "Rate limit exceeded" with `retryAfter`. Fail-open on limiter infrastructure errors (log; availability of the audit chain is not availability of the limiter).
+`McpEndpoint` uses `AtomicRateLimiterInterface` + config `mcp.rate_limit.{max_requests,window_seconds}` (default 120/60; explicit integer zero disables). It is keyed per resolved principal id + tier. Exceeded → JSON-RPC error `-32029` "Rate limit exceeded" with `retryAfter`; inability to obtain a durable decision fails closed with sanitized `-32030` / HTTP 503.
 
 ## rhtcircle (consumer — the app side of the same effort)
 

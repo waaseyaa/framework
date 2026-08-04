@@ -13,6 +13,7 @@ use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\AgentToolInterface;
 use Waaseyaa\AI\Tools\AgentToolResult;
+use Waaseyaa\AI\Tools\DuplicateToolNameException;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
 use Waaseyaa\AI\Tools\Catalogue\AttributeToolRegistry;
 use Waaseyaa\AI\Tools\ToolDependencyUnavailableException;
@@ -130,7 +131,7 @@ final class AttributeToolRegistryTest extends TestCase
     }
 
     #[Test]
-    public function manually_registered_tools_win_over_discovery_collisions(): void
+    public function manual_registration_cannot_silently_replace_a_discovered_tool(): void
     {
         $manifest = new PackageManifest(
             agentTools: [
@@ -160,10 +161,37 @@ final class AttributeToolRegistryTest extends TestCase
             inputSchema: [],
             impl: new AttributeToolRegistryTestFixture(),
         );
+        $this->expectException(DuplicateToolNameException::class);
+        $this->expectExceptionMessage('fixture.tool');
         $registry->register($override);
+    }
 
-        $resolved = $registry->get('fixture.tool');
-        self::assertSame('override', $resolved->category, 'Manually-registered tool must win.');
+    #[Test]
+    public function duplicate_manifest_names_fail_deterministically_on_every_access(): void
+    {
+        $entry = [
+            'class' => AttributeToolRegistryTestFixture::class,
+            'name' => 'fixture.tool',
+            'capability' => 'tool.fixture',
+            'destructive' => false,
+            'dry_run_supported' => false,
+            'category' => 'fixture',
+        ];
+        $registry = new AttributeToolRegistry(
+            manifest: new PackageManifest(agentTools: [$entry, $entry]),
+            container: $this->makeContainer([
+                AttributeToolRegistryTestFixture::class => new AttributeToolRegistryTestFixture(),
+            ]),
+        );
+
+        foreach (['all', 'has'] as $method) {
+            try {
+                $method === 'all' ? [...$registry->all()] : $registry->has('fixture.tool');
+                self::fail('A duplicate tool name must never leave a partially usable registry.');
+            } catch (DuplicateToolNameException $e) {
+                self::assertStringContainsString('fixture.tool', $e->getMessage());
+            }
+        }
     }
 
     /**

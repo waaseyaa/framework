@@ -69,6 +69,27 @@ final class CapabilityScopedToolRegistryTest extends TestCase
     }
 
     #[Test]
+    public function exact_name_blocklist_overrides_an_allowlisted_capability(): void
+    {
+        $inner = $this->stubRegistry([
+            $this->makeTool('entity.update', 'tool.entity.update', destructive: true),
+            $this->makeTool('article.updateDraft', 'tool.entity.update', destructive: true),
+        ]);
+        $registry = new CapabilityScopedToolRegistry(
+            $inner,
+            ['tool.entity.update'],
+            ['entity.update'],
+        );
+
+        self::assertFalse($registry->has('entity.update'));
+        self::assertTrue($registry->has('article.updateDraft'));
+        self::assertSame(['article.updateDraft'], $this->names($registry));
+
+        $this->expectException(ToolNotFoundException::class);
+        $registry->get('entity.update');
+    }
+
+    #[Test]
     public function the_same_destructive_tool_is_hidden_on_the_public_read_only_surface(): void
     {
         $inner = $this->attributeCatalogue();

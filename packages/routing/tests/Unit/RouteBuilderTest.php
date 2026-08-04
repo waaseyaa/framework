@@ -207,6 +207,26 @@ final class RouteBuilderTest extends TestCase
     }
 
     #[Test]
+    public function requireCsrfSetsOption(): void
+    {
+        $route = RouteBuilder::create('/api/approvals')
+            ->controller('test')
+            ->requireCsrf()
+            ->build();
+
+        $this->assertTrue($route->getOption('_csrf'));
+    }
+
+    #[Test]
+    public function requireCsrfIsFluent(): void
+    {
+        $builder = RouteBuilder::create('/api/approvals');
+        $result = $builder->requireCsrf();
+
+        $this->assertSame($builder, $result);
+    }
+
+    #[Test]
     public function createReturnsNewInstance(): void
     {
         $builder1 = RouteBuilder::create('/path1');

@@ -210,7 +210,10 @@ final class AuthenticatedMcpEndpointTest extends TestCase
 
     private function request(string $body, ?string $authorizationHeader): HttpRequest
     {
-        $server = [];
+        $server = [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_ACCEPT' => 'application/json, text/event-stream',
+        ];
         if ($authorizationHeader !== null) {
             $server['HTTP_AUTHORIZATION'] = $authorizationHeader;
         }

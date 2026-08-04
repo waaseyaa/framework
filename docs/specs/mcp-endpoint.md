@@ -1,5 +1,10 @@
 # MCP Endpoint
 
+<!-- Spec reviewed 2026-08-04 - #2177 boundary correction: bearer-token storage and validation remain in waaseyaa/auth (L1), while the Symfony Console `bearer-token:*` presentation now lives in `Waaseyaa\CLI\Provider\BearerTokenServiceProvider` and `Waaseyaa\CLI\Command\BearerTokenConsoleCommands` (L6). This supersedes the command-ownership sentence in the 2026-08-03 F3 review note below. -->
+
+<!-- Spec reviewed 2026-08-03 - #2177 F3 (enterprise bearer-token lifecycle): the write tier's production credential path is now DURABLE. New Waaseyaa\Auth\Token\Bearer\* (waaseyaa/auth, L1): BearerTokenStoreInterface + DatabaseBearerTokenStore own the auth_bearer_token table (hashed SHA-256 verifier of the full `mbt_<16hex>.<64hex>` wire token, never plaintext at rest; non-secret id + 16-hex fingerprint; mandatory expiry 60s..90d via injected EntityClockInterface, inclusive boundary; durable idempotent revocation; transactionally atomic rotation whose partial failure can never leave two usable credentials; audience + canonicalized bounded scopes persisted per token; verify() is constant-time over the verifier with a dummy compare on unknown ids and answers null fail-closed on outage/malformed records). One-time secret reveal is IssuedBearerToken (virtual-hook secret in a WeakMap: print_r/var_dump/json_encode redact, serialize() throws). Lifecycle operator commands: bearer-token:issue/list/rotate/revoke (owned by the Layer-6 CLI BearerTokenServiceProvider). MCP side: DurableBearerTokenAuth (WriteTierAuthInterface + new ScopedMcpAuthInterface→ScopedPrincipal) verifies audience `mcp:write`, resolves the owner by ACTIVE-owner query (uid + status=1 — a Protected `status` field read pre-auth has no read context) and snapshots it through AccountPrincipalFactoryInterface, so the principal id IS the owner uid (F1 separation-of-duties preserved; token ids never become identities). McpEndpoint intersects the tier registry with the token's scopes per request (CapabilityScopedToolRegistry; empty scopes ⇒ nothing; scopes narrow, never broaden — per-tool account capability enforcement unchanged). resolveWriteTierAuth() default: app override > DurableBearerTokenAuth (when store + user repo + principal factory resolve; no tokens issued ⇒ still 401) > BearerTokenAuth([]) fail-closed. Static BearerTokenAuth is quarantined to the empty fail-closed default and test fixtures. -->
+<!-- Spec reviewed 2026-08-03 - #2177 F4 (mcp-durable-audit): MCP write-tier auditing is now durable and outcome-aware. New fail-closed reserve/finalize ledger (Foundation\Audit\StrictAuditLedgerInterface port, Audit\Writer\DatabaseStrictAuditLedger implementation over the append-only strict_audit_ledger table), modelled on StrictPrivilegedReadLedgerInterface. GUARANTEED: no write tool is invoked without a durable record of the attempt (reserve commits before execute; failure returns -32002 and the tool never runs). NOT guaranteed and explicitly not claimed: atomicity between the mutation and the outcome record — tools commit their own transactions, DBALTransaction has no savepoints, and entity storage may be on another connection. A crash between the two leaves a queryable dangling reservation, which is never blindly retried or rolled back. McpDispatchEvent now fires per STAGE rather than once per request, carries stage/outcome/tool/correlation/safeArguments, and no longer populates raw params; 401 and 429 are now audited (reversing the former clause-16 silence). Public tier behaviour is unchanged and remains best-effort. -->
+
 <!-- Spec reviewed 2026-08-03 - #2177 F2/F6 (mcp-public-boundary): TWO behaviour changes. (F2) `McpServiceProvider` no longer binds `McpAuthInterface` locally — a local binding sits ahead of the kernel-services bus in `ServiceProvider::resolve()`, so the package default silently shadowed every downstream application override and `/mcp` stayed anonymous regardless of what an app bound. Resolution moved to `resolvePublicAuth()` at the point of use (`resolveOptional() ?? new PublicAnonymousAuth()`), mirroring the `resolveWriteTierAuth()` pattern that already fixed this for the write tier (P0-1); the anonymous default is unchanged when no app binds anything. New `mcp.public.enabled` config gate withdraws BOTH `/mcp` and `/.well-known/mcp.json` from the route collection when false — 404 rather than 401, and the card goes with the endpoint it advertises. Absent = enabled (historical default); a supplied value must parse as a boolean from an explicit allowlist or `ConfigException` is raised during route setup — a typo in a control gating a public network surface must never be guessed at in either direction, and `filter_var(FILTER_VALIDATE_BOOL)` was rejected because it silently maps `null`/`''` to false. `/mcp/write` is deliberately not gated. (F6) Unhandled tool exceptions no longer reach the caller: `AgentToolRegistryBridge` and the 11 generic `catch (\Throwable)` arms in the entity/relationship/vector tools now return a fixed `INTERNAL_ERROR` envelope plus a random correlation id via the new `Waaseyaa\AI\Tools\Error\SanitizedToolError`. The log receives safe diagnostic METADATA only (correlation id, tool, exception class, file, line, integer code) — NOT the exception message, trace, bearer token, call arguments, or the Throwable object, because a log store is an indexed, widely-read egress path and relocating a credential into it is not a fix. Deliberate domain envelopes (Content Publishing, revision conflict, key refusal, per-tool `forbidden`) pass through untouched. Sanitization is independent of logger availability. -->
 
 <!-- Spec reviewed 2026-07-30 - #2145: `tools/call` now enforces each tool's declared JSON Schema (draft 2020-12) server-side before the handler runs. Waaseyaa\AI\Tools\Schema\ToolInputSchemaValidator (ai-tools, L5) validates AgentTool::$inputSchema — the exact object tools/list advertises — inside AgentToolRegistryBridge::execute(), the single choke point both MCP tiers share. Violations short-circuit pre-dispatch with the established structured envelope {code: VALIDATION_FAILED, message, errors: [{field, message}]} + isError: true. Auth and rate-limit ordering unchanged (401/-32029 still precede validation). handleToolsCall also rejects non-string `name`, non-object `arguments`, and non-object `params` as -32602. See "Input-schema enforcement (`tools/call`)". -->
@@ -55,7 +60,9 @@ Kernel-level failures before MCP dispatch are governed by the JSON-first HTTP er
 | `src/McpRouteProvider.php` | Registers `/mcp` and `/.well-known/mcp.json` routes |
 | `src/McpServerCard.php` | Generates the `/.well-known/mcp.json` server card |
 | `src/Auth/McpAuthInterface.php` | Pluggable authentication contract |
-| `src/Auth/BearerTokenAuth.php` | MVP auth: opaque bearer token to account mapping — constant-time full-scan comparison + blocked-account fail-closed check (#1652) |
+| `src/Auth/ScopedMcpAuthInterface.php` / `src/Auth/ScopedPrincipal.php` | Scope-aware auth contract: account + explicit token scopes (#2177 F3) |
+| `src/Auth/DurableBearerTokenAuth.php` | Production write-tier auth over the durable `Waaseyaa\Auth\Token\Bearer` store (#2177 F3) |
+| `src/Auth/BearerTokenAuth.php` | STATIC in-memory token map — quarantined to the empty fail-closed default and test fixtures (#2177 F3); constant-time full-scan comparison + blocked-account fail-closed check (#1652) |
 | `src/Bridge/AgentToolRegistryBridge.php` | Adapts the framework-wide `Waaseyaa\AI\Tools` registry directly to MCP descriptors and calls |
 | `src/ReadOnlyToolRegistry.php` / `src/CapabilityScopedToolRegistry.php` | Tool-visibility wrappers for the public read-only `/mcp` and the `/mcp/write` tier |
 
@@ -95,12 +102,16 @@ This follows the typed `AppControllerRouter` contract (see **`docs/specs/app-con
 
 The internal dispatch method processes requests in this order:
 
+0. **Guard Streamable HTTP in `serve()`** -- before dispatch, validate Origin,
+   method, media types, and any `MCP-Protocol-Version` header. A transport
+   refusal never reaches authentication, rate limiting, JSON parsing, or tools.
 1. **Authenticate** -- calls `$this->auth->authenticate($authorizationHeader)`. If null is returned, responds with HTTP 401 and a JSON-RPC error (code `-32001`, message "Unauthorized"). The 401 envelope is identical for every `null` cause — missing/malformed header, unknown token, or a token whose account is blocked (#1652) — so callers cannot distinguish a blocked token from an invalid one.
 2. **Scope the acting-account context** -- immediately after successful auth (before body parsing), the endpoint captures the prior `AccountContextInterface` value and sets the bearer-auth-resolved account. The prior value is restored in `finally` -- including when a routed handler throws -- because the MCP account deliberately differs from any session account. No-op when no context was injected.
-3. **Parse JSON-RPC** -- decodes the body with `json_decode()`. On `JsonException`, returns parse error (code `-32700`). On missing `method` field, returns invalid request (code `-32600`).
+3. **Parse one JSON-RPC message** -- decodes the body with `json_decode()`. On `JsonException`, returns HTTP 400 parse error (`-32700`). Batch arrays, a non-`2.0` envelope, an invalid request id, or a malformed request return HTTP 400 (`-32600`). Valid client response messages are accepted with HTTP 202 and no body.
 4. **Fire the dispatch event** -- see "Dispatch event seam" below. Fires exactly once per authenticated, well-formed request, immediately before method routing.
 5. **Dispatch inside the bearer field-read scope** -- `AccountFieldReadScopeInterface::run()` scopes the guarded entity-read principal to the bearer identity for the complete routed call and restores the prior scope afterward. This is separate from `AccountContextInterface`: `FieldReadGuard` deliberately consults the immutable field-read scope, not the HTTP session or acting-account holder. The routed call then matches the JSON-RPC method to an internal handler:
-   - `initialize` -- returns protocol version (`2025-03-26`), capabilities, and server info.
+   - `initialize` -- validates lifecycle params and negotiates `2025-11-25`, `2025-06-18`, or `2025-03-26` (preferring the latest), then returns capabilities and server info.
+   - `notifications/initialized` and `notifications/cancelled` -- accepted as notifications with HTTP 202 and no response body. Cancellation is advisory for this synchronous, task-free server profile.
    - `ping` -- returns an empty result.
    - `tools/list` -- returns tool definitions via the per-request bridge.
    - `tools/call` -- validates the `params` envelope (`name` must be a string, `arguments` must be a JSON object), looks up the tool, enforces the tool's declared input schema, and executes it via the per-request bridge. See "Input-schema enforcement (`tools/call`)" below.
@@ -447,6 +458,171 @@ Two enforcement points, because there are two ways a failure reaches a caller:
 | `packages/mcp/tests/Unit/Bridge/AgentToolRegistryBridgeSanitizationTest.php` | Unit — bridge arm, correlation-id uniqueness, domain envelopes passing through untouched |
 | `packages/mcp/tests/Unit/McpEndpointErrorSanitizationTest.php` | End-to-end — assertions on the **raw** HTTP response body, plus the bearer token and raw arguments being absent from the log |
 
+## Durable, outcome-aware write auditing (#2177 F4)
+
+Before F4 the MCP audit trail could not answer the questions an operator actually asks. One `mcp.dispatch` row was written per request, **before routing**, inside a `catch (\Throwable) {}`; its `outcome` was the literal `'allowed'`; it named no tool; and it carried only `sha256(params)`. Authentication rejections and rate-limit refusals returned *before* the event fired, so credential probing left no trace at all.
+
+### The event model
+
+A request now emits one record per meaningful **stage** (`Waaseyaa\Foundation\Audit\AuditStage`), and `outcome` is *derived* from the stage — never hardcoded:
+
+| Stage | Outcome | When |
+|---|---|---|
+| `authentication_rejected` | `denied` | absent / unknown / malformed token, or inactive principal |
+| `rate_limited` | `denied` | the limiter refused the request |
+| `request_accepted` | `allowed` | authenticated, parsed, admitted for routing |
+| `invalid_params_refused` | `denied` | malformed JSON-RPC envelope: non-object `params`, missing/non-string `name`, non-object `arguments` |
+| `method_lookup_refused` | `denied` | no handler for the requested JSON-RPC method on this endpoint |
+| `tool_lookup_refused` | `denied` | no tool of that name is visible on this tier |
+| `input_validation_refused` | `denied` | arguments violate the declared `inputSchema` |
+| `audit_unavailable_refused` | `error` | the durable ledger refused the pre-execution reservation, so the call was refused unexecuted |
+| `authorization_refused` | `denied` | the tool's own capability / entity / field guard refused |
+| `approval_required` | `denied` | F1 gate: a destructive call was durably challenged (or re-challenged while pending) and is waiting on a human decision |
+| `approval_refused` | `denied` | F1 gate: a supplied approval id was unknown / tuple-mismatched / denied / expired / consumed, or the once-only consume was lost to a race |
+| `execution_succeeded` | `allowed` | the routed operation — a tool call **or a protocol method** — ran and reported success |
+| `execution_failed` | `error` | the tool returned or threw a failure |
+
+**F1 approval-controller prerequisite (landed, #2177):** the CSRF machinery the approval HTTP endpoint needs is in place. The approval controller's route must be declared with `RouteBuilder::requireCsrf()` (`_csrf = true`), which makes `CsrfMiddleware` validate the token on state-changing methods **even for `application/json` / `application/vnd.api+json`** — the default content-type exemption does not protect a cookie-authenticated JSON endpoint, and an approval decision is exactly such an endpoint (the admin operator approves from a session-cookie-authenticated SPA, unlike the bearer-authenticated `/mcp/write` tier itself, which stays `csrfExempt()`). The admin SPA receives the `XSRF-TOKEN` cookie on API responses carrying both an authenticated account and the `waaseyaa_uid` login-session marker (`CsrfMiddleware::attachCookieIfAuthenticated()`, seeded at boot by `GET /api/user/me`); bearer-only requests do not receive it. `useApi().apiFetch` forwards the token as `X-XSRF-TOKEN` on non-safe methods to same-origin destinations only. **Origin check (landed with the C1b controller):** an exact-match `Origin` check against the deployment's allowed origins. It is deliberately *not* in `CsrfMiddleware` — the CORS allowlist lives at the kernel (`CorsHandler`), and a blanket middleware same-origin guard would break the supported cross-port Nuxt-dev deployment — so `McpApprovalController::decide()` performs it as defense-in-depth: the `Origin` header must be present and strictly identical to the request's own `scheme://host[:port]` or to one `cors_origins` entry (no substring, suffix, wildcard, regex, or host-only matching; the `CorsHandler` dev-localhost regex mode is deliberately NOT reused).
+
+`request_accepted` is legitimately `allowed` — the request *was* admitted. The load-bearing property is that the **terminal** stage states what actually happened.
+
+**The pair invariant:** every authenticated, parsed, accepted request emits `request_accepted` and then **exactly one honest terminal stage** — no request is left as a bare admission. That includes the mutation-free protocol methods (`initialize`, `ping`, `tools/list` → `execution_succeeded` — their handlers run as closures inside the routing wrapper's try/catch, so a handler that *throws* (e.g. tool-registry enumeration failing under `tools/list`) still closes the pair with `execution_failed`, answers with a sanitized JSON-RPC `-32603` whose `error.data.correlation_id` matches the pair, and logs safe metadata only under `mcp.protocol_execution_failed`: correlation id, method, exception class — never message, trace, or params), an unknown method (`method_lookup_refused`), a non-object top-level `params` (`invalid_params_refused`), and each early malformed `tools/call` envelope shape (missing `name`, non-string `name`, non-object `arguments` → `invalid_params_refused`). Only their *type* is ever recorded for malformed members — a malformed value is raw caller input and never rides into any record. Two refusals happen **before** acceptance and therefore emit nothing: a JSON parse error (`-32700`) and an Invalid Request whose `method` is missing or not a string (`-32600`) — a request that cannot be honestly named cannot be honestly audited, so nothing is admitted and no `request_accepted` is left unpaired. Successful protocol reads are **projection-only** (best-effort `audit_event`, no durable row): the strict ledger evidences refusals and write attempts, and a durable row per `ping` would be amplification with no durability guarantee behind it. Terminal *refusals* of accepted requests are durably `record()`ed on the write tier.
+
+### The durability guarantee, and its exact limit
+
+The authenticated write tier uses a **fail-closed reserve/finalize ledger** (`Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface`, implemented by `Waaseyaa\Audit\Writer\DatabaseStrictAuditLedger` over the append-only `strict_audit_ledger` table). It is modelled directly on `StrictPrivilegedReadLedgerInterface`, which established this pattern for privileged reads.
+
+**Guaranteed:** *no write tool is invoked without a durable record of the attempt.* `reserve()` commits before `execute()`; if it cannot, the tool is never called and the caller receives JSON-RPC `-32002` whose `error.data.correlation_id` carries the request's correlation id — the join between the caller's refusal and the operator's `mcp.audit_reservation_failed` critical log line. No exception detail leaves (F6).
+
+**Where fail-closed starts and stops — the exact refusal semantics when the ledger itself fails:**
+
+- **Pre-execution reservation (`reserve()`), write tier:** fail-closed. A `StrictAuditLedgerException` refuses the call unexecuted (`-32002` + `audit_unavailable_refused` projection). A ledger that breaks its exception contract and throws anything else propagates out of the endpoint — still fail-closed (the tool is never invoked; no mutation without evidence), just without the polished `-32002` envelope.
+- **Terminal refusal records (auth rejections, 429s, method/params/tool/schema refusals):** durable only when the ledger accepts the write. If recording fails — for *any* throwable, contract-conforming or not — the already-safe refusal response is **still returned** and the gap is logged at `critical` (`mcp.audit_terminal_record_failed`). Refusals perform no side effect, so the fail-closed rule ("no mutation without durable evidence") is not weakened; failing an already-safe refusal on ledger availability would convert an audit outage into a wider denial of service.
+- **Post-execution `finalize()`:** never alters the response for any throwable — the side effect has already happened, so the dangling reservation is logged at `critical` (`mcp.audit_finalize_failed`) and the caller gets the real result (see crash-window semantics below).
+
+**NOT guaranteed — and deliberately not claimed — is atomicity** between the tool's mutation and the outcome record. They are separate commits, and in the general case cannot be joined:
+
+1. Tools commit internally — `IdempotencyStore::execute()` opens and commits its own transaction so the mutation and its replay record are atomic. The bridge holds no handle on that boundary.
+2. `DBALTransaction` has no savepoint support, so a legitimate inner domain rollback under DBAL's default nesting would poison an enclosing audit write.
+3. Entity storage resolves through `ConnectionResolverInterface`, so a multi-connection deployment puts entity writes on a different connection from the audit log entirely.
+4. Pre-durability and atomicity are mutually exclusive: a record committing *with* the mutation is by definition not durable *before* it.
+
+### Crash-window semantics
+
+A crash (or a `finalize()` failure) after the tool commits but before the outcome is written leaves a **dangling reservation** — a `reserved` row with no matching `finalized` row:
+
+```sql
+SELECT r.receipt_id, r.correlation_id, r.operation, r.actor_uid, r.created_at
+FROM strict_audit_ledger r
+LEFT JOIN strict_audit_ledger f
+  ON f.receipt_id = r.receipt_id AND f.event_type = 'finalized'
+WHERE r.event_type = 'reserved' AND f.id IS NULL;
+```
+
+Read it as **"outcome unknown; the side effect may have committed."** It must **never** trigger a blind retry or rollback — the mutation already happened, and repeating it would duplicate it. `McpEndpoint` logs `mcp.audit_finalize_failed` at `critical` and returns the caller's real result; a completed write is not failed retroactively because its outcome row was lost.
+
+A double-finalize is rejected in two places: the application guard in `finalize()`, and a `UNIQUE(receipt_id, event_type)` index so it is impossible at the storage layer even under a race.
+
+### Redaction contract
+
+Recorded: tool name, acting principal (three-state `null` / `0` / N), tier, correlation id, stage, real outcome, and **`argumentsForAudit()` output** — the tool's own redaction transform, never the raw JSON-RPC params.
+
+Never recorded: Authorization headers, bearer tokens, raw secrets, unredacted content, uploaded binary/base64 payloads, exception messages or traces. An **unknown** tool cannot supply `argumentsForAudit()`, so only the requested name and `argument_count` are stored — argument *values* for an unresolvable tool are entirely caller-controlled.
+
+Authentication failures record a `null` actor and no credential material. Absent, unknown, malformed and inactive-principal tokens are recorded identically, so the audit trail does not become the account-existence oracle the 401 response deliberately is not.
+
+### Tiers and configuration
+
+| | Public `/mcp` | Write `/mcp/write` |
+|---|---|---|
+| Strict ledger | no | **yes** |
+| Durability | best-effort (`audit_event` only) | fail-closed pre-record + outcome |
+| Human-approval gate (F1, below) | never | **yes** for destructive tools |
+| Config | — | `mcp.write_tier.durable_audit` (default **true**), `mcp.write_tier.approval.{enabled, ttl_seconds}` (default **true**, 900) |
+
+The public tier keeps its documented best-effort behaviour: it mutates nothing, so a durable pre-record buys no safety, and making a read-only surface fail-closed on audit availability would be a self-inflicted outage.
+
+`mcp.write_tier.durable_audit` **fails closed on a wiring gap**: if it is on and no `StrictAuditLedgerInterface` is bound (typically because `waaseyaa/audit` is absent), `McpServiceProvider` throws at setup rather than substituting `NullStrictAuditLedger`. A write tier that *looks* durably audited and records nothing is worse than one that refuses to boot. It parses with the same strict boolean allowlist as `mcp.public.enabled`.
+
+The same contract is enforced by **`McpEndpoint` itself, independent of provider wiring**: constructing it with `durableAudit: true` and an absent ledger — or the record-nothing `NullStrictAuditLedger` — throws `LogicException` at construction. (The former internal escape, `$this->auditLedger ?? new NullStrictAuditLedger()`, silently downgraded a direct construction to unaudited mutation; it is removed.) `NullStrictAuditLedger` remains the legitimate default only for surfaces that never opted into durability, i.e. the public read-only tier.
+
+## Human-approval gate for destructive write-tier calls (#2177 F1, slice B)
+
+The server-enforced half of the F1 approval gate: on a gated endpoint, a tool declared `destructive: true` executes **only** against a matching, approved, unexpired, unconsumed durable approval (`Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface`; storage semantics in `docs/specs/ocap-audit-log.md` §"Operation approval event log"). Enforcement reads the tool's declared `AgentTool::$destructive` — never the advisory descriptor hints.
+
+> **Decision routes landed (C1b); UI still pending.** The admin decision HTTP surface exists (see §"Admin decision surface" below); the admin-SPA UI is the remaining #2177 slice. Until the UI lands, operators decide via the JSON API directly.
+
+### Admin decision surface (#2177 F1, slice C1b)
+
+The secured JSON admin API for operator decisions, in `packages/api` (family: `/api/mcp/*` admin endpoints; router `McpApprovalApiRouter`, controller `McpApprovalController`, routes in `ApiServiceProvider::routes()` gated on `mcpInstalled()`):
+
+- **`GET /api/mcp/approvals`** (`api.mcp.approvals.index`) — one bounded pending page via `OperationApprovalStoreInterface::listPending()`. Query params `limit` (integer-shaped, store-validated 1..100, default 50) and `cursor` (the previous page's opaque `nextCursor`); an invalid limit or malformed/tampered cursor is 400. Response: `data` = serialized requests (id, status, principal key, surface, operation, arguments fingerprint, correlation id, `safeArguments` only — raw arguments never leave the fingerprint), `meta.limit` + `meta.nextCursor`.
+- **`POST /api/mcp/approvals/{id}/decision`** (`api.mcp.approvals.decision`) — body exactly `{"decision": "approve"|"deny"}` plus optional `"reason"` (normalized via `ApprovalRequest::normalizeDecisionReason()`); any other member — including any client-supplied operator identity — is 400, not silently ignored.
+
+**Access model (both routes):** `requireAuthentication()` + `requireSession(['waaseyaa_uid'])` — a REAL login session, so a bearer-only identity (the principal class being supervised) can never reach the surface — plus the capabilities `mcp.approval.view` (GET) / `mcp.approval.decide` (POST), seeded by `Waaseyaa\Access\Capability\McpApprovalCapabilities` (the `AgentCapabilities` pattern). The decision route is the first production `requireCsrf()` consumer (CSRF validated despite the JSON content type, per the prerequisite above). The controller adds the two gates the route layer cannot express: the exact-origin check (documented above) and **separation of duties** — the server-derived operator (via `DecisionAccountResolver` from `_authorization_principal`/`_account`; positive-int uid or fail-closed 403; request JSON never consulted) must not equal the request tuple's `principalKey` (exact string identity, `(string) $uid === $principalKey` — the same semantics the MCP endpoint used to build the tuple, `principalKey = (string) $principal->id()`). Self-approval is 403 unless `mcp.write_tier.approval.allow_self_approval` (default **false**, parsed fail-closed in `ApiServiceProvider`) says otherwise — a STRICT boolean in the literal sense: only PHP `true`/`false` are accepted, deliberately narrower than the sibling keys' coercing allowlist, because this key weakens a security control and its intent must be stated, not inferred from a string/integer shape; any non-bool throws a type-only `ConfigException`.
+
+**Status mapping (deterministic, non-secret-bearing):** 204 on a durable decision; 400 malformed input; 401/403 from the middleware pipeline (auth/session/permission/CSRF) and controller gates (origin, identity, self-approval); 404 for a malformed-shape OR unknown id (byte-identical — not a store oracle; malformed shapes skip the store roundtrip); 409 for any not-pending state (already decided / expired / consumed — one body) including the `ApprovalAlreadyDecidedException` race, with a post-failure re-`find()` classifying a lost race apart from an outage; 503 for the store unavailable — same sanitized body whether the port is unbound or a bound store threw (the two are distinguished ONLY in the log by the container's exact "No binding registered for" sentinel, so a bound store's runtime failure is never misreported as "not bound"; `resolveOptional()` is deliberately avoided because it swallows `ApprovalStoreException`, a `RuntimeException`). Responses never carry exception detail or database messages; the store is resolved lazily per request so a deployment that never uses the write tier pays nothing at boot.
+
+**Audit:** after a durable decision the controller dispatches `waaseyaa.mcp.approval_decision` (`McpApprovalDecisionRecorded`, safe join fields only) and `McpApprovalDecisionAuditListener` projects a best-effort `AuditEventKind::McpApprovalDecision` row; a projection failure never unwinds or misreports the decision. Coverage: `tests/Integration/PhaseN/Mcp/McpApprovalDecisionSurfaceTest.php` (full pipeline: Session → Csrf → FieldReadContext → Authorization → `ControllerDispatcher`), `packages/api/tests/Unit/Controller/McpApprovalControllerTest.php`, `packages/api/tests/Unit/ApiServiceProviderApprovalRoutesTest.php`.
+
+### Descriptor metadata (advisory)
+
+- `AgentTool::toMcpDescriptor()` now always emits the spec-standard `annotations.destructiveHint` (from `$destructive`), on every tier.
+- On a **gated** endpoint, `tools/list` additionally marks each destructive tool's descriptor with the namespaced `_meta["ai.waaseyaa.mcp/approval"] = "required"` (`McpEndpoint::APPROVAL_LIST_META_KEY`). Non-destructive tools and ungated endpoints carry no such marker.
+- Both are hints for agents; neither replaces enforcement.
+
+### The `params._meta` envelope contract
+
+`tools/call` accepts an optional `params._meta` (MCP request-metadata member). It is validated as envelope and consumed by the endpoint: a **present** `_meta` that is not a JSON object — including an explicit `"_meta": null` and a non-empty list; presence is checked with `array_key_exists`, so present-null differs from absent — or a non-string `_meta["waaseyaa/approval_request_id"]` (`McpEndpoint::APPROVAL_REQUEST_ID_META_KEY`), is an `invalid_params_refused` `-32602` recording only the offending *type*. `{}` (decoded empty array) is a valid empty envelope. `_meta` **never** reaches schema validation, `argumentsForAudit()`, or the tool — `arguments` is the only member a tool ever sees (pinned by a fixture whose schema sets `additionalProperties: false`).
+
+### The gate flow (destructive tools, gate on)
+
+After schema validation and redaction, the endpoint derives the `ApprovalTuple` from the **exact string account id** of the bearer principal, the ledger surface (`mcp.write`), the tool name, and the canonical fingerprint of the raw validated arguments. Then:
+
+| Situation | Response | Durable record |
+|---|---|---|
+| No approval id supplied | `-32003` with `approval_request_id`, `expires_at` (ISO-8601 UTC), `correlation_id` | `store.open()` (reuses the pending request for an identical retry) + one `approval_required` terminal record carrying safe args, id, expiry |
+| Id supplied, request pending, exact tuple match | same `-32003` (same id) | `approval_required` again |
+| Id unknown / malformed shape, tuple mismatch, denied, expired, consumed | **one identical `-32004` body** — `Approval refused.` + `correlation_id` only | `approval_refused` with the axis + id operator-side |
+| Id approved, exact tuple match | continue to reserve/consume below | — |
+
+The `-32004` body is byte-identical across every axis (pinned by test), so the response is not an approval-state oracle; the axis (`unknown` / `tuple_mismatch` / `denied` / `expired` / `consumed` / `not_consumable`) lives only in the durable record's metadata. A malformed id shape is refused without a store roundtrip — the `apr_` + 32-hex shape is public in every challenge, so this reveals nothing.
+
+### Ordering and joins: reserve → consume → execute → finalize
+
+The existing fail-closed strict reserve happens first, with reservation metadata carrying `approval_request_id` and `approval_decided_by_uid`. Then the approval is **consumed atomically before execution** — `consume(requestId, receiptId, retryCorrelationId)` joins the approval to the executing reservation's receipt and the retry's correlation id; the storage-level `UNIQUE(request_id, event_type)` makes a second consumption impossible, so **a consumed approval is never reusable**. Finalization (success or failure) carries the same approval join metadata.
+
+Failure semantics, each pinned by test:
+
+- **Reserve fails** → the established `-32002` refusal; consume was never called, so the approval stays spendable by a later retry.
+- **Consume returns false** (race lost / state changed since the gate's read) → the reservation is finalized `approval_refused` (a pair, never a dangling reservation, never a second single-record terminal), exactly one terminal projection fires, the caller gets the same `-32004` body, and the tool never runs.
+- **Any `Throwable` from a store call** — before reserve (open/find) or during consume — fails closed: safe log metadata only (`mcp.approval_store_unavailable` / `mcp.approval_consume_failed`: exception class, correlation id, tool — never message or trace), a sanitized `-32002` (`Request refused: the approval store is unavailable.`) with the correlation id, and one honest `audit_unavailable_refused` record — a single terminal before reserve, a reservation finalization after it. No double terminals; the tool never runs; a consume-time failure leaves the approval unconsumed. The interface promises typed `ApprovalStoreException`s, but a nonconforming third-party adapter throwing anything else gets the same fail-closed treatment (pinned by test); each try wraps exactly one store call, so a tuple-construction failure is never misreported as a store outage. The stored-vs-computed `requestKey` match uses `hash_equals()` — the caller controls the computed key via arguments, so an early-exit comparison would be a timing side channel on approval identity.
+
+Non-destructive tools, and destructive tools on an ungated endpoint, keep their exact pre-gate behaviour.
+
+### Wiring and configuration
+
+- `AuditServiceProvider` binds `OperationApprovalStoreInterface` → `DatabaseOperationApprovalStore`, ensuring `ApprovalEventSchema` **lazily on first resolution** (a deployment that never uses the write tier pays nothing at boot). TTL from `mcp.write_tier.approval.ttl_seconds` — a strict positive integer (integer-shaped strings accepted), default `DatabaseOperationApprovalStore::DEFAULT_TTL_SECONDS` (900); anything else is a `ConfigException` naming the key and the value's type only.
+- `McpServiceProvider`: `mcp.write_tier.approval.enabled` defaults **true** (same strict boolean allowlist as its siblings). Enabled-but-unwireable (no store bound) throws at setup; enabled while `mcp.write_tier.durable_audit` is off is a contradiction (consume joins strict-ledger receipts) and is refused rather than silently resolved — turning durable audit off now requires stating `approval.enabled: false` too. The **public tier never gets the gate**.
+- `McpEndpoint` enforces the same contract independent of provider wiring: `approvalGate: true` without a store, or without `durableAudit`, throws `LogicException` at construction.
+
+### Coverage (approval gate)
+
+| Test | Level |
+|---|---|
+| `packages/mcp/tests/Integration/Approval/McpApprovalGateLifecycleTest.php` | End-to-end over real SQLite store + ledger: challenge / pending-reuse / approve / consume / execute / row joins, no-oracle refusal axes, replay, race, store failure, reserve failure, ordering, `_meta` stripping, `tools/list` markers, no secrets in any table |
+| `packages/mcp/tests/Unit/McpEndpointApprovalGateContractTest.php` | Constructor guards |
+| `packages/mcp/tests/Unit/McpServiceProviderTest.php` | Provider defaults, fail-closed wiring, explicit off, public-tier invariant |
+| `packages/audit/tests/Unit/AuditServiceProviderApprovalStoreTest.php` | Store binding, lazy schema, TTL config |
+| `packages/ai-tools/tests/Unit/AgentToolDescriptorTest.php` | `annotations.destructiveHint` |
+
+### Compatibility
+
+- **Event cadence changed.** `McpDispatchEvent` fires once per *stage*, not once per request. A listener counting events per request sees more; one reading `stage` gets the truth.
+- **`params` is no longer populated.** The property remains for source compatibility. A SHA-256 of raw params could not be correlated, reversed, or acted on; `safeArguments` replaces it. A stage-less (legacy) event still receives the old `params_hash` attribute, so an out-of-tree dispatcher is not silently downgraded.
+- **401 is now audited.** This reverses the former "clause 16" rule that 401s fire nothing — that silence was the defect.
+- `waaseyaa/mcp` still does **not** require `waaseyaa/audit` at runtime. The port lives in foundation precisely to preserve that.
+
 ## JSON-RPC Protocol
 
 All communication uses JSON-RPC 2.0 over HTTP.
@@ -513,12 +689,21 @@ The 12 first-party tools (`search_entities`/`search_teachings`/`ai_discover`, `g
 
 ### Transport
 
-The MCP spec (protocol version 2025-03-26) defines Streamable HTTP as the remote transport:
+The endpoint implements the stateless JSON-response profile of Streamable HTTP
+for protocol `2025-11-25` with compatibility for `2025-06-18` and
+`2025-03-26`:
 
-- Single endpoint at `/mcp` accepts POST and GET.
-- POST sends JSON-RPC messages. Server responds with `application/json`.
-- GET opens SSE stream for server-initiated messages (future).
-- Sessions use `Mcp-Session-Id` header.
+- POST carries exactly one JSON-RPC request, notification, or response.
+- POST requires `Content-Type: application/json` and `Accept` listing both
+  `application/json` and `text/event-stream`.
+- Notifications and client response messages return HTTP 202 with no body.
+- GET with `Accept: text/event-stream` returns 405: SSE, server-initiated
+  requests, sessions, and resumability are not implemented or advertised.
+- A present Origin is validated against the request origin plus the explicit
+  `mcp.transport.allowed_origins` list; invalid origins return 403. Native
+  clients may omit Origin.
+- Subsequent clients send `MCP-Protocol-Version`; invalid or unsupported values
+  return HTTP 400. Absence retains the specification's `2025-03-26` fallback.
 
 ## Routes
 
@@ -543,6 +728,13 @@ With `mcp.public.enabled = false`, `/mcp` and `/.well-known/mcp.json` are absent
     "description": "AI-native content management system",
     "endpoint": "/mcp",
     "transport": "streamable-http",
+    "protocolVersions": ["2025-11-25", "2025-06-18", "2025-03-26"],
+    "transportCapabilities": {
+        "jsonResponse": true,
+        "sse": false,
+        "sessions": false,
+        "resumability": false
+    },
     "capabilities": {
         "tools": true,
         "resources": false,
@@ -565,8 +757,8 @@ With `mcp.public.enabled = false`, `/mcp` and `/.well-known/mcp.json` are absent
 | `resources/read` | No | v0.2.0+ |
 | `prompts/list` | No | v0.3.0+ |
 | Server card | Yes | Evolves with spec |
-| SSE streaming | No | Via SDK |
-| Session management | No | Via SDK |
+| SSE streaming | No, honestly returns 405 | Optional future profile |
+| Session management | No, not advertised | Optional future profile |
 
 ## File Reference
 
@@ -883,6 +1075,25 @@ returns. The blast radius is confined to the write-tier auth path — no global
 binding-precedence change (the public read tier and every other binding are
 untouched). When no app binds it, the behaviour is unchanged: every `/mcp/write`
 request fails closed with HTTP 401.
+
+**Durable default (#2177 F3).** With no app override, `resolveWriteTierAuth()`
+now prefers the durable path before the empty map: when the kernel-services bus
+supplies `Waaseyaa\Auth\Token\Bearer\BearerTokenStoreInterface` (bound by
+`AuthServiceProvider` over the kernel database), the `user` entity repository
+(via `EntityTypeManagerInterface`), and the audited
+`AccountPrincipalFactoryInterface` (bound by `AuditServiceProvider`), the tier
+authenticates through `DurableBearerTokenAuth`: hashed-at-rest, expiring,
+revocable, rotatable credentials with audience `mcp:write` and explicit
+per-token scopes, issued via the `bearer-token:*` operator commands. A fresh
+deployment has no tokens, so the observable posture is identical (every request
+401s) — but production becomes usable without application auth code. The owner
+resolves by an ACTIVE-owner query (`uid` + `status = 1`, mirroring
+`findActiveByLogin` — a direct Protected `status` read pre-auth has no field
+read context) and is snapshotted into a decision principal whose `id()` is the
+owner uid, preserving the F1 separation-of-duties comparison. Token scopes are
+enforced by the endpoint as a per-request `CapabilityScopedToolRegistry`
+intersection: scopes narrow the tier surface and never broaden account
+capabilities; a scopeless credential exposes nothing.
 
 ### Registry: `CapabilityScopedToolRegistry`
 

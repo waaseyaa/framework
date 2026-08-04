@@ -20,6 +20,19 @@ return [
     'Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface' => 'public',
     'Waaseyaa\Foundation\Diagnostic\DiagnosticCode' => 'public',
     'Waaseyaa\Foundation\Log\LoggerInterface' => 'public',
+    // #2177 F4 — fail-closed reserve/finalize audit port. Lives in foundation
+    // (not waaseyaa/audit) so waaseyaa/mcp keeps its no-runtime-audit-dependency
+    // boundary; implemented by Waaseyaa\Audit\Writer\DatabaseStrictAuditLedger.
+    'Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface' => 'public',
+    'Waaseyaa\Foundation\Audit\AuditStage' => 'public',
+    // #2177 F1 — durable operation-approval port. Same foundation placement
+    // rationale as the strict ledger; implemented by
+    // Waaseyaa\Audit\Writer\DatabaseOperationApprovalStore. C1a adds
+    // listPending() (bounded pending queue) to the interface; its
+    // ApprovalRequestPage return type is a final readonly read model and so —
+    // like ApprovalRequest — intentionally untracked here (contract shapes only).
+    'Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface' => 'public',
+    'Waaseyaa\Foundation\Audit\Approval\ApprovalStatus' => 'public',
     'Waaseyaa\Foundation\Log\Handler\HandlerInterface' => 'public',
     'Waaseyaa\Foundation\Log\Formatter\FormatterInterface' => 'public',
     'Waaseyaa\Foundation\Log\Processor\ProcessorInterface' => 'public',
@@ -57,6 +70,7 @@ return [
     // Migration-provider injection capability (PR #1614): kernel guards provider
     // wiring via this named interface instead of a Layer-3 concrete edge.
     'Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface' => 'public',
+    'Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsAgentToolProvidersInterface' => 'public',
     // Content-model-provider injection capability (G-026, #1940): mirrors
     // AcceptsMigrationProvidersInterface immediately above — kernel guards
     // provider wiring via this named interface instead of a Layer-3 concrete edge.
@@ -417,6 +431,7 @@ return [
     'Waaseyaa\Access\ErrorPageRendererInterface' => 'internal',
     'Waaseyaa\Auth\Token\AuthTokenRepositoryInterface' => 'internal',
     'Waaseyaa\Auth\RateLimiterInterface' => 'internal',
+    'Waaseyaa\Auth\AtomicRateLimiterInterface' => 'public',
 
     // Layer 2: Content Types — public
     'Waaseyaa\Media\FileRepositoryInterface' => 'public',
@@ -486,6 +501,7 @@ return [
     // Content publishing v1 (#2136): app-facing editorial contract + structured error base.
     'Waaseyaa\Publishing\ContentValidatorInterface' => 'public',
     'Waaseyaa\Publishing\ContentHtmlSanitizerInterface' => 'public',
+    'Waaseyaa\Publishing\ContentPublicationTransitionerInterface' => 'public',
     'Waaseyaa\Publishing\Exception\ContentPublishingException' => 'public',
     'Waaseyaa\AI\Tools\Content\AssetStoreInterface' => 'public',
 
@@ -552,6 +568,7 @@ return [
     'Waaseyaa\AI\Tools\AgentToolInterface' => 'public',
     'Waaseyaa\AI\Tools\AgentToolResult' => 'public',
     'Waaseyaa\AI\Tools\ToolRegistryInterface' => 'public',
+    'Waaseyaa\AI\Tools\ProvidesAgentToolsInterface' => 'public',
     'Waaseyaa\AI\Tools\Attribute\AsAgentTool' => 'public',
     'Waaseyaa\AI\Vector\VectorStoreInterface' => 'public',
     'Waaseyaa\AI\Vector\EmbeddingProviderInterface' => 'public',
@@ -573,11 +590,17 @@ return [
     'Waaseyaa\AdminSurface\Host\AbstractAdminSurfaceHost' => 'public',
     // ('Waaseyaa\Bimaaji\Graph\GraphSectionProviderInterface' is listed once in the Layer-5 public block above.)
     'Waaseyaa\Mcp\Auth\McpAuthInterface' => 'public',
+    // OAuth authorization-server adapter boundary. Applications implement this
+    // against their trusted JWT verifier or token-introspection client.
+    'Waaseyaa\Mcp\Auth\OAuthAccessTokenValidatorInterface' => 'public',
     'Waaseyaa\Mcp\Admin\RecentInvocationsQueryInterface' => 'public',
     // Wayfinding Phase 5 (wayfinding-01KVGH5X): authenticated MCP write tier.
     // WriteTierAuthInterface is the app override point for write-tier credentials;
     // AbstractTrailTool is the internal shared base for the wayfinding trail tools.
     'Waaseyaa\Mcp\Auth\WriteTierAuthInterface' => 'public',
+    // #2177 F3: scope-aware MCP auth (durable bearer-token lifecycle). The
+    // sibling BearerTokenStoreInterface lives in the Layer-1 block below.
+    'Waaseyaa\Mcp\Auth\ScopedMcpAuthInterface' => 'public',
     'Waaseyaa\AI\Agent\Tool\Wayfinding\AbstractTrailTool' => 'internal',
     'Waaseyaa\Oidc\Keys\OidcKeyLoaderInterface' => 'public',
     'Waaseyaa\Oidc\Repository\AuthorizationCodeRepositoryInterface' => 'public',
@@ -585,6 +608,10 @@ return [
     'Waaseyaa\SSR\ThemeInterface' => 'public',
 
     // Layer 1: Core Data — public (discovered during L5-L6 scan)
+    // #2177 F3: durable bearer-token lifecycle store (hashed-at-rest, expiring,
+    // revocable, rotatable, audience-bound). Consumed by the MCP write tier's
+    // durable default auth and the bearer-token:* operator commands.
+    'Waaseyaa\Auth\Token\Bearer\BearerTokenStoreInterface' => 'public',
     'Waaseyaa\OAuthProvider\OAuthProviderInterface' => 'public',
     'Waaseyaa\OAuthProvider\SessionInterface' => 'public',
     // Audit log: query/write contracts and event-kind enum.

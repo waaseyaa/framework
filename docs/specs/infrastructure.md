@@ -236,8 +236,11 @@ Every `Waaseyaa\Foundation\ServiceProvider\ServiceProvider` exposes a fixed set 
 | `middleware(EntityTypeManager): list<HttpMiddlewareInterface>` | `Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface` | `HttpKernel::buildMiddlewarePipeline()` |
 | `httpDomainRouters(HttpKernel): iterable<DomainRouterInterface>` | `Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface` | `HttpKernel::buildDomainRouterChain()` |
 | `withMigrationProviders(list<object>): void` | `Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface` | `AbstractKernel::injectMigrationProviders()` |
+| `withAgentToolProviders(list<object>): void` | `Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsAgentToolProvidersInterface` | `AbstractKernel::injectAgentToolProviders()` |
 
 The `withMigrationProviders` hook lets the kernel hand the discovered migration providers (objects exposing application migrations, found via the Layer-3 `HasMigrationsInterface`) to the provider that owns the migration registry, before that provider's `boot()` resolves the registry. The capability interface lives in Foundation so the kernel guards the call site with a named interface (not a concrete FQCN) while the Layer-3 migration `ServiceProvider` opts in via a downward dependency; the interface param is `list<object>` and the implementation filters to migration providers.
+
+The `withAgentToolProviders` hook is the corresponding application-tool lifecycle. The kernel discovers providers implementing the Layer-5 `ProvidesAgentToolsInterface`, sorts them by provider class for deterministic registration, and supplies them to `AiToolsServiceProvider` before provider boot. The registry invokes each contributor exactly once when its singleton is first constructed. Contributors receive the registry directly and must not resolve it recursively or capture request-scoped state. Duplicate tool names remain hard failures.
 
 ### ServiceProvider kernel-services bus
 
@@ -1689,6 +1692,42 @@ Authoritative contracts: `docs/specs/bundle-scoped-storage.md §Drift diagnostic
 ### Role registry composition
 
 `AbstractKernel::buildHandlerContainer()` composes the CLI handler container from the booted provider list and returns a `KernelHandlerContainer` instance (`packages/foundation/src/Kernel/KernelHandlerContainer.php`), a named PSR-11 `ContainerInterface` implementation that replaced the inline anonymous class. Among its kernel-owned bindings it registers `Waaseyaa\User\RoleRepository` via `RoleRepository::fromProviders($this->providers)`, which scans every provider implementing `Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesRolesInterface` and flattens their `Role` contributions into an id-keyed registry. This is a kernel-owned service mirroring the `HealthChecker` composition pattern above: a type no single provider binds, assembled once by the kernel and made injectable into class-based command handlers. It lets role-aware handlers such as the `user:assign-role` handler (`Waaseyaa\CLI\Handler\UserAssignRoleHandler`) resolve a role to its registered permissions and stamp the union onto a user. See `docs/specs/access-control.md §Roles` for the role-to-permission model.
+
+## Strict audit ledger port (`Waaseyaa\Foundation\Audit`, #2177 F4)
+
+A fail-closed reserve/finalize audit contract, deliberately the opposite of `waaseyaa/audit`'s `AuditWriterInterface`.
+
+`AuditWriterInterface` is contractually best-effort — `record()` MUST swallow every exception and MUST NOT throw. That is right for an observability log and unusable for a surface that must refuse to act when it cannot be audited. `StrictAuditLedgerInterface` throws `StrictAuditLedgerException` when a record cannot be made durable, so a caller can decline to proceed.
+
+| Type | Role |
+|---|---|
+| `StrictAuditLedgerInterface` | `reserve()` / `finalize()` / `record()`; throws rather than swallowing |
+| `AuditStage` | pipeline stage enum; `outcome()` / `severity()` map onto the existing `audit_event` grammar |
+| `StrictAuditReservation` | what is about to be attempted — already-redacted arguments only |
+| `StrictAuditReceipt` | handle joining a reservation to its outcome |
+| `StrictAuditLedgerException` | raised when durability cannot be achieved |
+| `NullStrictAuditLedger` | records nothing; the default for best-effort surfaces, never for a mutating one |
+
+**Why this port lives in foundation.** It is not foundation's domain — the implementation is `Waaseyaa\Audit\Writer\DatabaseStrictAuditLedger`, in `waaseyaa/audit` (layer 1). But its first consumer is the MCP write tier (layer 6), and `waaseyaa/mcp` must not require `waaseyaa/audit` at runtime (`McpDispatchEvent`, contract clause 18). Foundation is the one package both the consumer and the implementation already depend on, so the port sits here and the layer graph stays acyclic and downward-only. Consumers depend on the contract; only the kernel wiring knows the implementation.
+
+**The guarantee is pre-durability, not atomicity.** `reserve()` must commit before the caller acts, giving "no side effect without a durable record of the attempt". It does not couple the side effect to the outcome record — see `docs/specs/ocap-audit-log.md` and `docs/specs/mcp-endpoint.md` for the four reasons that coupling is not reachable and for the dangling-reservation semantics.
+
+## Operation approval port (`Waaseyaa\Foundation\Audit\Approval`, #2177 F1)
+
+The human-approval companion to the strict ledger: durable, once-only approvals for destructive operations, bound to one exact call. The port lives in foundation for the identical reason as `StrictAuditLedgerInterface` immediately above — the consumer is the MCP write tier and `waaseyaa/mcp` must not require `waaseyaa/audit` at runtime; the implementation is `Waaseyaa\Audit\Writer\DatabaseOperationApprovalStore` (see `docs/specs/ocap-audit-log.md` §"Operation approval event log"). Since slice B, `AuditServiceProvider` binds the port (schema ensured lazily; TTL from `mcp.write_tier.approval.ttl_seconds`) and `McpEndpoint`'s write-tier approval gate consumes it (`docs/specs/mcp-endpoint.md` §"Human-approval gate"); the operator decision routes landed in slice C1b (`packages/api`'s `McpApprovalController`, resolving the port lazily per request through the kernel-services bus — `docs/specs/mcp-endpoint.md` §"Admin decision surface"); the admin-SPA UI is not yet present.
+
+| Type | Role |
+|---|---|
+| `ApprovalTuple` | exact binding: principal key × surface × operation × canonical raw-argument SHA-256 fingerprint; derives the collision-unambiguous `requestKey` used for pending reuse |
+| `CanonicalArgumentFingerprint` | canonical fingerprint of the RAW arguments: recursive map-key sort, list order preserved, tool-name domain separation, `JSON_THROW_ON_ERROR \| JSON_UNESCAPED_SLASHES \| JSON_UNESCAPED_UNICODE`; versioned domain label |
+| `ApprovalStatus` | derived state, never a stored column: `pending` / `approved` / `denied` / `consumed` / `expired` |
+| `ApprovalRequest` | read model of one request; owns the single expiry comparison `isExpiredAt()` — inclusive boundary (`now >= expiresAt`), instant-based, no sub-second escape — and the decision-reason normal form `normalizeDecisionReason()` (trim, blank → null, ≤ `MAX_DECISION_REASON_LENGTH` = 500 Unicode characters, single-line: ASCII control characters rejected) |
+| `OperationApprovalStoreInterface` | `open()` / `find()` / `listPending()` / `decide()` / `consume()`; every method throws rather than degrading |
+| `ApprovalRequestPage` | one bounded page of live pending requests from `listPending()` (C1a): `list<ApprovalRequest>` in stable ascending requested order plus the opaque `nextCursor` (null on a terminal page); requests carry `safeArguments` only, never raw call arguments |
+| `ApprovalStoreException` | store cannot read/append durably, or the request is unknown/expired for the operation; message sanitized, cause in `$previous` |
+| `ApprovalAlreadyDecidedException` | a decision already exists — the recorded decision stands, never overwritten |
+
+Contract highlights: `open()` may reuse an unexpired **undecided pending** request with an identical `requestKey` (duplicate pending rows under a create race are documented-harmless — each approval still consumes exactly once); `decide()` takes the **server-derived** operator uid (positive, never from request payload) plus an optional human reason (normalized/validated before any row is appended, persisted on the `decided` event as durable incident evidence) and rejects missing/already-decided/expired requests; `consume()` runs transactionally, requires Approved-and-unexpired at the consume boundary, takes the exact request id plus the strict-ledger receipt id and the retry's correlation id, and returns `false` (never a silent success) on any state or race loss; `listPending()` is the bounded operator queue — page size 1..`PENDING_PAGE_MAX_LIMIT` (100, default `PENDING_PAGE_DEFAULT_LIMIT` = 50), out-of-range limits and malformed/tampered cursors throw `\InvalidArgumentException` **before any query**, the cursor is opaque/versioned and encodes only an immutable scan position (the last scanned `requested` event row id — no mutable state revealed, nothing grantable), traversal is live (not a snapshot: no duplicates or omissions among requests that stay pending; requests opened between pages join a later page, requests decided/expired between pages stop appearing) and the store scans in bounded chunks — never an unbounded `SELECT` (see `docs/specs/ocap-audit-log.md` §"Operation approval event log" for the query shape).
 
 ## Internal Interfaces
 

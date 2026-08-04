@@ -15,7 +15,7 @@ use Waaseyaa\AI\Tools\AgentToolInterface;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
-use Waaseyaa\Auth\RateLimiterInterface;
+use Waaseyaa\Auth\AtomicRateLimiterInterface;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\McpEndpoint;
 use Waaseyaa\Mcp\McpResponse;
@@ -119,7 +119,7 @@ final class McpEndpointSchemaOrderingTest extends TestCase
         return $account;
     }
 
-    private function endpoint(bool $authenticates, ?RateLimiterInterface $limiter = null): McpEndpoint
+    private function endpoint(bool $authenticates, ?AtomicRateLimiterInterface $limiter = null): McpEndpoint
     {
         $auth = $this->createMock(McpAuthInterface::class);
         $auth->method('authenticate')->willReturn($authenticates ? $this->account() : null);
@@ -161,7 +161,11 @@ final class McpEndpointSchemaOrderingTest extends TestCase
     #[Test]
     public function rate_limiting_precedes_schema_validation(): void
     {
-        $limiter = new class implements RateLimiterInterface {
+        $limiter = new class implements AtomicRateLimiterInterface {
+            public function consume(string $key, int $maxAttempts, int $decaySeconds): bool
+            {
+                return false;
+            }
             public function hit(string $key, int $decaySeconds): void {}
 
             public function tooManyAttempts(string $key, int $maxAttempts): bool

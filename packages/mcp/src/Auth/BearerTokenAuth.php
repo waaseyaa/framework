@@ -7,11 +7,16 @@ namespace Waaseyaa\Mcp\Auth;
 use Waaseyaa\Access\AccountInterface;
 
 /**
- * Credentialed bearer-token auth: an opaque token maps to an account, and an
- * absent/unknown/blocked token fails closed (returns null ⇒ HTTP 401). Because
- * it genuinely requires credentials (unlike {@see PublicAnonymousAuth}, which
- * falls back to anonymous), it is the canonical strategy for the authenticated
- * MCP write tier — hence it also satisfies {@see WriteTierAuthInterface}.
+ * STATIC in-memory bearer-token auth: an opaque token maps to an account, and
+ * an absent/unknown/blocked token fails closed (returns null ⇒ HTTP 401).
+ *
+ * **Superseded for production by {@see DurableBearerTokenAuth}** (#2177 F3):
+ * this class holds PLAINTEXT token strings in memory/config with no expiry,
+ * revocation, rotation, audience, or scopes, so its remaining legitimate uses
+ * are exactly two — the empty-map fail-closed default (`new BearerTokenAuth([])`,
+ * every request 401s) and test fixtures. An application that still binds a
+ * non-empty static map should migrate to tokens issued via the
+ * `bearer-token:*` commands against the durable store.
  */
 final readonly class BearerTokenAuth implements WriteTierAuthInterface
 {

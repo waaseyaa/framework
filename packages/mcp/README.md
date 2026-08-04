@@ -16,7 +16,17 @@ account's permissions.
 ## Quick reference
 
 - **Endpoint:** `POST /mcp` (JSON-RPC; methods: `initialize`, `ping`,
-  `tools/list`, `tools/call`).
+  `tools/list`, `tools/call`). Protocol revisions `2025-11-25`, `2025-06-18`,
+  and `2025-03-26` are supported; the latest is preferred.
+- **Transport profile:** stateless Streamable HTTP with JSON responses. POST
+  requires `Content-Type: application/json` and an `Accept` header listing both
+  `application/json` and `text/event-stream`. GET returns 405 because this
+  server does not offer SSE; sessions and resumability are not advertised.
+- **Browser boundary:** absent Origin is valid for native clients. A present
+  Origin must be same-origin or appear in `mcp.transport.allowed_origins`;
+  invalid origins return 403 before authentication or dispatch.
+- **Resource boundary:** request bodies are capped before authentication and
+  JSON decoding (`mcp.transport.max_request_bytes`, 10 MiB by default).
 - **Server card:** `GET /.well-known/mcp.json` (MCP discovery).
 - **Authentication:** the public read-only `/mcp` surface defaults to
   `PublicAnonymousAuth`, overridable by binding `McpAuthInterface` and
@@ -25,12 +35,17 @@ account's permissions.
   `/mcp/write` surface validates `Authorization: Bearer <token>` through a
   fail-closed `BearerTokenAuth(tokens: [])` default that applications replace
   via `WriteTierAuthInterface`.
-- **Bearer model:** tokens are opaque application-managed credentials. This
-  package does not implement OAuth 2.1 scopes, audience checks, expiry, or
-  revocation; server cards therefore advertise only `none` or `bearer`.
+- **Authorization models:** durable opaque tokens are hashed at rest, revealed
+  only at issue/rotation time, audience- and scope-bound, expiring, revocable,
+  and resolved to an active real account. Standard OAuth resource-server mode
+  adds RFC 9728 discovery, `WWW-Authenticate` scope challenges, and a validator
+  port for an OAuth 2.1 authorization server or enterprise IdP.
 - **Tool surface:** every class carrying `#[AsAgentTool]` and
   implementing `AgentToolInterface` becomes a callable MCP tool with
   no per-tool MCP code.
+- **Tool results:** content tools advertise titles, complete behavior hints,
+  and output schemas. Successful results include both backwards-compatible
+  JSON text and schema-validated `structuredContent`.
 
 ## Bimaaji tool family
 
@@ -46,10 +61,13 @@ The first first-party tool family surfaced through this package is
 | `bimaaji_generate_patch` | `bimaaji.mutate` | Generate a `PatchSet` from a validated mutation. **Never writes to disk** — the calling MCP client persists. |
 | `bimaaji_search_specs` | `bimaaji.read` | Substring search over `docs/specs/*.md`; returns `{file, section_title, line_number, snippet}` per match. |
 
-**Capability model.** `bimaaji.read` is intended to be broadly
-granted to authenticated MCP clients; `bimaaji.mutate` is opt-in per
-role/account. The framework does not grant either by default — the
-integrating application's permission stack does.
+**Capability model.** `bimaaji.read` exposes privileged architectural
+introspection and is granted only to authenticated accounts that explicitly
+need it; it is not part of the anonymous read tier. `bimaaji.mutate` is opt-in
+per role/account. Spec search is disabled unless the application explicitly
+configures a non-empty `bimaaji.specs_directory`; results expose logical file
+names, never absolute server paths. The integrating application's permission
+stack grants both capabilities.
 
 **Example claude_desktop_config.json fragment** (replace `<token>`
 with the bearer token your `McpAuthInterface` implementation expects):
@@ -82,8 +100,8 @@ No configuration. Every request resolves to an `AnonymousUser` holding only
 `PublicAnonymousAuth::DEFAULT_READ_CAPABILITIES`, and `ReadOnlyToolRegistry`
 makes destructive tools structurally absent. What an anonymous caller can
 reach is the intersection of *non-destructive* and *on that capability list*.
-Audit that intersection for your install — it includes the Bimaaji
-introspection tools, which describe your application's architecture.
+Audit that intersection for your install. Bimaaji introspection is excluded
+from the anonymous defaults because it describes application architecture.
 
 ### 2. Authenticated public tier
 
@@ -166,42 +184,89 @@ and the value's type only** — never the value.
 
 ## Why `/mcp/write` is fail-closed by default
 
-The write tier resolves `WriteTierAuthInterface`, and the framework ships
-**no usable default credential**: absent an application binding it falls back
-to `BearerTokenAuth([])`, an empty token map that matches nothing, so every
-request is HTTP 401. Token-to-account mapping is inherently
-application-specific — there is no safe value for the framework to guess.
+The write tier resolves `WriteTierAuthInterface`. Its production default is
+`DurableBearerTokenAuth` over the framework bearer-token store: a fresh
+installation has no issued credentials, so every request is HTTP 401 until an
+operator issues an audience- and scope-bound token. If durable auth cannot be
+wired, the endpoint falls back to `BearerTokenAuth([])`, which also matches
+nothing.
 
 It is not gated by `mcp.public.enabled` because an authenticated write tier
 with no anonymous read tier is a supported production shape, and turning off
 public reads should not silently disable a surface an operator configured
 separately.
 
-> ### Write-tier readiness warning
+> ### Write-tier safety posture
 >
-> **Do not use `/mcp/write` for unattended production content editing yet.**
-> The transport and authorization plumbing is sound, but the safety milestone
-> around it is incomplete. As of this release:
+> Durable outcome-honest auditing, destructive-tool human approval, expiring
+> and revocable scoped bearer tokens, atomic default-on rate limiting, bounded
+> authenticated introspection, deterministic duplicate-name refusal, and a
+> curated write-tool boundary are framework-owned. The endpoint implements the
+> stateless JSON-response profile of MCP Streamable HTTP 2025-11-25, including
+> lifecycle negotiation, notification semantics, media negotiation, protocol
+> headers, and Origin validation. SSE, server-initiated requests, transport
+> sessions, and resumability are intentionally absent and advertised as such.
 >
-> - **No human-approval gate.** A tool declared `destructive: true` executes
->   immediately over MCP. The HITL gate in `AgentExecutor` covers agent
->   *runs*, not MCP calls, so `destructive` is descriptive metadata on this
->   surface.
-> - **Bearer tokens have no expiry, revocation, rotation, audience, or
->   scopes.** Rotation means changing configuration and redeploying.
-> - **Auditing is best-effort.** The dispatch event fires once per request
->   *before* routing, records `outcome: 'allowed'` unconditionally, and does
->   not record which tool ran. Authentication failures and rate-limit
->   rejections return before it fires and are not recorded at all.
-> - **Rate limiting is off by default** (`mcp.rate_limit.max_requests`), and
->   its check-then-increment is not atomic under concurrency.
->
-> Until those land, treat the write tier as suitable for supervised or
-> trusted-operator use only, behind a curated capability allowlist
-> (`mcp.write_tier.capabilities`) — and prefer `waaseyaa/publishing`'s
-> `ContentToolSet` over the generic `tool.entity.*` tools, since it is
-> bundle-scoped, draft-first, and enforces optimistic locking and
-> idempotency.
+> Keep the tier behind a curated capability allowlist
+> (`mcp.write_tier.capabilities`). The canonical editorial surface is
+> `waaseyaa/publishing`'s `ContentToolSet`: it is bundle-scoped, draft-first,
+> and enforces optimistic locking and idempotency.
+
+The generic `entity.create`, `entity.update`, `entity.delete`,
+`entity.rollback`, and `entity.set_current_revision` tools are structurally
+absent from `/mcp/write` by default even if their broad `tool.entity.*`
+capability is allowlisted. They remain available to the embedded agent runtime.
+An application accepting the cross-bundle risk can opt in explicitly:
+
+```php
+return [
+    'mcp' => [
+        'write_tier' => [
+            'allow_generic_entity_mutations' => true,
+        ],
+    ],
+];
+```
+
+The flag is a strict boolean security control; malformed values fail boot.
+
+## OAuth 2.1 resource-server mode
+
+Opaque operator tokens remain the zero-infrastructure local option. For MCP
+clients that perform standard authorization discovery, configure the write
+tier as an OAuth protected resource:
+
+```php
+return [
+    'mcp' => [
+        'write_tier' => [
+            'oauth_resource' => [
+                'enabled' => true,
+                'resource' => 'https://cms.example/mcp/write',
+                'authorization_servers' => ['https://identity.example'],
+                'scopes_supported' => ['content.read', 'content.write'],
+                'resource_documentation' => 'https://cms.example/docs/mcp',
+            ],
+        ],
+    ],
+];
+```
+
+The framework then serves RFC 9728 metadata at the path-specific well-known
+URI and includes that absolute URI plus scope guidance on every 401 challenge.
+Plain HTTP is accepted only for loopback development; malformed, duplicate, or
+insecure metadata fails application boot.
+
+Bind `WriteTierAuthInterface` to `OAuthMcpAuth`, constructed with the same
+`OAuthProtectedResourceMetadataConfig` and an application implementation of
+`OAuthAccessTokenValidatorInterface`. The validator is the authorization-server
+trust boundary: it must validate issuer/integrity or introspection, expiry,
+revocation, exact resource audience, active-account mapping, and granted
+scopes. The framework never passes the incoming token to another service.
+
+An authorization server is deliberately not embedded in `waaseyaa/mcp`.
+Deployments may use Waaseyaa's OIDC issuer, a corporate IdP, or another OAuth
+2.1 server without coupling the transport package to one identity product.
 
 ## Tool error contract
 
@@ -249,6 +314,108 @@ Response sanitization does not depend on a logger being configured. Without
 one the metadata is simply discarded; the caller-visible bytes are identical.
 A logging gap can cost diagnosability, never open a leak.
 
+## Audit trail
+
+Every MCP request emits one record per pipeline **stage**, with the outcome
+derived from the stage rather than hardcoded: `authentication_rejected`,
+`rate_limited`, `request_accepted`, `tool_lookup_refused`,
+`input_validation_refused`, `authorization_refused`, `execution_succeeded`,
+`execution_failed`, and — on a gated write tier — `approval_required` /
+`approval_refused` (the F1 human-approval gate, below).
+
+Records carry the tool name, the acting principal, the tier, a per-request
+correlation id, and the tool's **own redacted arguments** via
+`argumentsForAudit()` — never the raw JSON-RPC params. Bearer tokens, secrets,
+unredacted content and exception detail are never recorded. An unknown tool
+cannot redact its own arguments, so only the requested name and an argument
+count are stored.
+
+### Write tier: durable, fail-closed
+
+`/mcp/write` additionally writes a **reserve/finalize** pair to the append-only
+`strict_audit_ledger`:
+
+```
+reserve(intent)  →  [tool executes]  →  finalize(real outcome)
+```
+
+**Guaranteed: no write tool is invoked without a durable record of the
+attempt.** If the reservation cannot be persisted the tool is never called and
+the caller gets JSON-RPC `-32002` (`Request refused: the audit trail is
+unavailable.`) with no exception detail.
+
+**Not guaranteed: atomicity between the mutation and the outcome record.** The
+tool owns its own transaction and commits internally, so the two are separate
+commits. A crash in between leaves a *dangling reservation* — a `reserved` row
+with no `finalized` row. Treat it as "outcome unknown, side effect may have
+committed", and **never** retry or roll back on that basis. Find them with:
+
+```sql
+SELECT r.receipt_id, r.correlation_id, r.operation, r.created_at
+FROM strict_audit_ledger r
+LEFT JOIN strict_audit_ledger f
+  ON f.receipt_id = r.receipt_id AND f.event_type = 'finalized'
+WHERE r.event_type = 'reserved' AND f.id IS NULL;
+```
+
+Configure with `mcp.write_tier.durable_audit` (default **true**). It fails
+closed: if durable auditing is on and no `StrictAuditLedgerInterface` is bound,
+the provider throws at setup rather than silently degrading to no-op auditing.
+Set it to `false` to accept best-effort auditing explicitly.
+
+The public `/mcp` tier keeps its documented best-effort auditing — it mutates
+nothing, so a durable pre-record buys no safety.
+
+### Write tier: human approval for destructive tools (#2177 F1)
+
+On the write tier, every tool declared `destructive: true` is additionally
+gated behind a **durable human approval** (`mcp.write_tier.approval.enabled`,
+default **true**). The gate is server-enforced from the tool's declared
+metadata — the advisory `annotations.destructiveHint` in `tools/list` is
+display metadata and is never consulted by enforcement.
+
+The protocol, from the agent's side:
+
+1. Call the destructive tool normally. The server durably opens an approval
+   request bound to *exactly this* principal × surface × tool × arguments and
+   answers JSON-RPC error `-32003` with `error.data.approval_request_id`,
+   `expires_at`, and `correlation_id`. The tool did not run.
+2. A human operator approves or denies the request out-of-band.
+3. Retry the *identical* call with
+   `params._meta["waaseyaa/approval_request_id"] = "<apr_…>"`. An approved,
+   unexpired, unconsumed exact match is **consumed atomically (once ever)** and
+   the tool executes; the strict-ledger reservation and finalization carry the
+   approval id and deciding operator uid, and the `consumed` approval event
+   carries the executing reservation's receipt id.
+
+Everything else — unknown id, denied, expired, already consumed, or *any*
+drift in principal/tool/arguments — returns one **identical** `-32004` body
+(`Approval refused.` plus a correlation id only), so the response cannot be
+used to probe approval state; the refused axis is recorded operator-side in
+the durable ledger. A pending id is re-challenged with the same `-32003`.
+While a request is pending, identical retries converge on the same approval
+request rather than fanning out.
+
+Order of operations is fixed: **reserve → consume → execute → finalize**. A
+reservation failure leaves the approval unconsumed; a lost consume race
+finalizes the reservation as `approval_refused` and the tool never runs; an
+approval-store failure at any point fails closed (`-32002`, correlation id
+only, safe log metadata). `tools/list` marks gated tools with
+`_meta["ai.waaseyaa.mcp/approval"] = "required"`.
+
+Wiring: `AuditServiceProvider` binds `OperationApprovalStoreInterface` (lazily
+creating `mcp_approval_event`; TTL from `mcp.write_tier.approval.ttl_seconds`,
+strict positive integer, default 900). The gate fails closed at setup when
+enabled but unwireable, and requires `durable_audit` (consume joins the
+strict-ledger receipt); disabling durable audit while the gate is on is
+refused. The public tier never gets the gate. Non-destructive tools are
+untouched.
+
+The admin application provides the corresponding pending queue and decision
+dialog at `/mcp/approvals`. Its API enforces separate decision capabilities,
+CSRF/session authentication, separation of duties, expiry, and atomic
+single-use consumption; decision events are written to the audit trail.
+
 ## Key classes
 
 - `McpEndpoint` — JSON-RPC dispatcher; constructs the per-request
@@ -272,13 +439,3 @@ documentation including the per-request bridge architecture, the
 Bimaaji MCP bridge section (shipped tool inventory, capability model,
 M-G → M3 transition rationale), and the post-WP01..WP03 file
 reference.
-
-## Legacy surface
-
-The pre-M3 `McpController` + `Tools/*` + `Cache/` + `Rpc/*` files
-remain in-place from the original `entity`/`discovery`/`traversal`/
-`editorial` tool-class architecture, still test-covered via direct
-instantiation in `tests/Integration/Phase14/AiMcpIntegrationTest.php`.
-They are no longer reachable from HTTP routing (the foundation
-`McpRouter` was retired in M3 WP01). A future cleanup mission may
-delete them.

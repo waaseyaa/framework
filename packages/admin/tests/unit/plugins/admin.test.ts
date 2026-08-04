@@ -43,6 +43,17 @@ describe('admin plugin', () => {
     expect(node?.actions).toContainEqual({ id: 'board-config', label: 'Board Config', scope: 'collection' })
   })
 
+  it('threads the session capability projection into the runtime', () => {
+    const { $admin } = useNuxtApp()
+    if (!$admin) {
+      throw new Error('Expected admin runtime to be available in plugin test.')
+    }
+    expect($admin.capabilities).toMatchObject({
+      'mcp.approval.view': true,
+      'mcp.approval.decide': false,
+    })
+  })
+
   it('hydrates shared auth state from the bootstrap session', () => {
     const { $admin } = useNuxtApp()
     if (!$admin) {

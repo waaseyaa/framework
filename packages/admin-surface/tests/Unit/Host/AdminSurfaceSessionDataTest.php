@@ -98,5 +98,41 @@ final class AdminSurfaceSessionDataTest extends TestCase
         self::assertSame('Default', $result['tenant']['name']);
         // Empty features array becomes stdClass for clean JSON serialization
         self::assertInstanceOf(\stdClass::class, $result['features']);
+        // Same convention for the capability projection: always present, `{}` when empty
+        self::assertInstanceOf(\stdClass::class, $result['capabilities']);
+    }
+
+    #[Test]
+    public function toArrayIncludesCapabilityProjection(): void
+    {
+        $session = new AdminSurfaceSessionData(
+            accountId: '1',
+            accountName: 'Admin',
+            roles: [],
+            policies: [],
+            capabilities: ['mcp.approval.decide' => false, 'mcp.approval.view' => true],
+        );
+
+        $result = $session->toArray();
+
+        self::assertSame(
+            ['mcp.approval.decide' => false, 'mcp.approval.view' => true],
+            $result['capabilities'],
+        );
+    }
+
+    #[Test]
+    public function emptyCapabilitiesSerializeAsJsonObject(): void
+    {
+        $session = new AdminSurfaceSessionData(
+            accountId: '1',
+            accountName: 'Admin',
+            roles: [],
+            policies: [],
+        );
+
+        $json = json_encode($session->toArray(), JSON_THROW_ON_ERROR);
+
+        self::assertStringContainsString('"capabilities":{}', $json);
     }
 }

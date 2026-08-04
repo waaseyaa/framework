@@ -33,6 +33,7 @@ use Waaseyaa\Audit\Listener\AgentToolAuditListener;
 use Waaseyaa\Audit\Listener\ApiRequestAuditListener;
 use Waaseyaa\Audit\Listener\BroadcastAuditListener;
 use Waaseyaa\Audit\Listener\EntityLifecycleAuditListener;
+use Waaseyaa\Audit\Listener\McpApprovalDecisionAuditListener;
 use Waaseyaa\Audit\Listener\McpDispatchAuditListener;
 use Waaseyaa\Audit\Listener\PublishPointerAuditListener;
 use Waaseyaa\Audit\Listener\RollbackAuditListener;
@@ -40,13 +41,20 @@ use Waaseyaa\Audit\Query\AuditEventQuery;
 use Waaseyaa\Audit\Schedule\AuditCheckpointScheduleEntries;
 use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
 use Waaseyaa\Audit\Storage\AppendOnlyAuditDatabase;
+use Waaseyaa\Audit\Storage\ApprovalEventSchema;
+use Waaseyaa\Audit\Storage\StrictAuditLedgerSchema;
 use Waaseyaa\Audit\Writer\AuditEventWriter;
+use Waaseyaa\Audit\Writer\DatabaseOperationApprovalStore;
+use Waaseyaa\Audit\Writer\DatabaseStrictAuditLedger;
 use Waaseyaa\Audit\Writer\DatabaseStrictFieldStorageGatewayAudit;
 use Waaseyaa\Audit\Writer\DatabaseStrictPrivilegedReadLedger;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\Backend\StrictFieldStorageGatewayAuditInterface;
+use Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface;
+use Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
+use Waaseyaa\Foundation\Exception\ConfigException;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
@@ -135,6 +143,31 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
 
         $this->singleton(StrictPrivilegedReadLedgerInterface::class, function (): StrictPrivilegedReadLedgerInterface {
             return new DatabaseStrictPrivilegedReadLedger($this->resolve(DatabaseInterface::class));
+        });
+
+        // The strict reserve/finalize ledger for mutating request pipelines
+        // (#2177 F4). Its port lives in foundation, not here, because the MCP
+        // write tier consumes it and must not require waaseyaa/audit at runtime.
+        // The table is created on first bind so a deployment that never uses a
+        // durable surface pays nothing.
+        $this->singleton(StrictAuditLedgerInterface::class, function (): StrictAuditLedgerInterface {
+            $database = $this->resolve(DatabaseInterface::class);
+            new StrictAuditLedgerSchema($database)->ensure();
+
+            return new DatabaseStrictAuditLedger($database);
+        });
+
+        // The durable human-approval store for destructive MCP write-tier calls
+        // (#2177 F1). Same shape as the strict ledger above: the port lives in
+        // foundation so the MCP write tier needs no runtime waaseyaa/audit
+        // dependency, and the mcp_approval_event table is created lazily on
+        // first resolution so a deployment that never uses the write tier pays
+        // nothing at boot.
+        $this->singleton(OperationApprovalStoreInterface::class, function (): OperationApprovalStoreInterface {
+            $database = $this->resolve(DatabaseInterface::class);
+            new ApprovalEventSchema($database)->ensure();
+
+            return new DatabaseOperationApprovalStore($database, ttlSeconds: $this->approvalTtlSeconds());
         });
 
         $this->singleton(StrictFieldStorageGatewayAuditInterface::class, function (): StrictFieldStorageGatewayAuditInterface {
@@ -232,6 +265,53 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
         });
     }
 
+    /**
+     * The approval expiry window, from `mcp.write_tier.approval.ttl_seconds`.
+     *
+     * The key lives under `mcp.` because the TTL is write-tier policy — how
+     * long a standing human approval can authorize a destructive call — and
+     * this provider merely carries it to the store it wires. A supplied value
+     * must be a strict positive integer (the integer-shaped strings YAML/env
+     * actually deliver are accepted); anything else is refused rather than
+     * guessed, because a misread TTL silently widens the approval window.
+     *
+     * @throws ConfigException on a malformed value
+     */
+    private function approvalTtlSeconds(): int
+    {
+        $mcp = $this->config['mcp'] ?? null;
+        $writeTier = \is_array($mcp) && \is_array($mcp['write_tier'] ?? null) ? $mcp['write_tier'] : [];
+        $approval = \is_array($writeTier['approval'] ?? null) ? $writeTier['approval'] : [];
+
+        if (!\array_key_exists('ttl_seconds', $approval)) {
+            return DatabaseOperationApprovalStore::DEFAULT_TTL_SECONDS;
+        }
+
+        $value = $approval['ttl_seconds'];
+        $ttl = null;
+        if (\is_int($value)) {
+            $ttl = $value;
+        } elseif (\is_string($value) && preg_match('/^[1-9][0-9]*$/', trim($value)) === 1) {
+            $ttl = (int) trim($value);
+        }
+
+        if ($ttl === null || $ttl <= 0) {
+            // Names the key and the value's type, never the value —
+            // configuration may hold secrets and this message reaches logs.
+            throw new ConfigException(
+                \sprintf(
+                    'Configuration key "mcp.write_tier.approval.ttl_seconds" must be a positive integer '
+                    . 'number of seconds; got a value of type %s. Remove the key to accept the default (%d).',
+                    \get_debug_type($value),
+                    DatabaseOperationApprovalStore::DEFAULT_TTL_SECONDS,
+                ),
+                ['config_key' => 'mcp.write_tier.approval.ttl_seconds', 'value_type' => \get_debug_type($value)],
+            );
+        }
+
+        return $ttl;
+    }
+
     public function boot(): void
     {
         // Ensure schema tables exist.
@@ -269,6 +349,11 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
         $dispatcher->addSubscriber(new EntityLifecycleAuditListener($writer, $resolvedLogger, $resolvedContext));
         $dispatcher->addSubscriber(new AgentToolAuditListener($writer, $resolvedLogger, $resolvedContext));
         $dispatcher->addSubscriber(new McpDispatchAuditListener($writer, $resolvedLogger));
+        $approvalDecisionListener = new McpApprovalDecisionAuditListener($writer, $resolvedLogger);
+        $dispatcher->addListener(
+            McpApprovalDecisionAuditListener::EVENT_NAME,
+            [$approvalDecisionListener, 'onApprovalDecision'],
+        );
         $dispatcher->addSubscriber(new BroadcastAuditListener($writer, $resolvedLogger));
         $dispatcher->addSubscriber(new PublishPointerAuditListener($writer, $resolvedLogger, $resolvedContext));
         $dispatcher->addSubscriber(new RollbackAuditListener($writer, $resolvedLogger, $resolvedContext));

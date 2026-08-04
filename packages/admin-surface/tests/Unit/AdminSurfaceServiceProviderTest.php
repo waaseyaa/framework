@@ -481,6 +481,24 @@ final class AdminSurfaceServiceProviderTest extends TestCase
         }
     }
 
+    #[Test]
+    public function defaultCapabilityAllowlistExposesExactlyTheMcpApprovalPermissionsWhenMcpIsInstalled(): void
+    {
+        $this->assertSame(
+            [
+                \Waaseyaa\Access\Capability\McpApprovalCapabilities::PERMISSION_VIEW,
+                \Waaseyaa\Access\Capability\McpApprovalCapabilities::PERMISSION_DECIDE,
+            ],
+            AdminSurfaceServiceProvider::defaultCapabilityAllowlist(mcpInstalled: true),
+        );
+    }
+
+    #[Test]
+    public function defaultCapabilityAllowlistIsEmptyOnSlimInstallsWithoutMcp(): void
+    {
+        $this->assertSame([], AdminSurfaceServiceProvider::defaultCapabilityAllowlist(mcpInstalled: false));
+    }
+
     private function createTestHost(?AdminSurfaceSessionData $session): AbstractAdminSurfaceHost
     {
         return new class ($session) extends AbstractAdminSurfaceHost {

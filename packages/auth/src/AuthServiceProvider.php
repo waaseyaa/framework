@@ -55,6 +55,15 @@ final class AuthServiceProvider extends ServiceProvider implements HasMiddleware
             return $repo;
         });
 
+        // Durable bearer-token lifecycle store (#2177 F3). Consumed by the MCP
+        // write tier's default auth and the `bearer-token:*` operator commands.
+        // Deliberately NOT eagerly ensuring schema here: the store bootstraps
+        // its table lazily on first use, so resolving the binding never costs
+        // a database roundtrip.
+        $this->singleton(Token\Bearer\BearerTokenStoreInterface::class, fn() => new Token\Bearer\DatabaseBearerTokenStore(
+            $this->resolve(\Waaseyaa\Database\DatabaseInterface::class),
+        ));
+
         $this->singleton(TwoFactorManager::class, fn() => new TwoFactorManager());
 
         $this->singleton(TwoFactorService::class, fn() => new TwoFactorService(

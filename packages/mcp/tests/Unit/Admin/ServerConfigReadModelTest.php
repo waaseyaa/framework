@@ -116,7 +116,7 @@ final class ServerConfigReadModelTest extends TestCase
         $snapshot = $model->serverConfig();
 
         $this->assertSame('streamable-http', $snapshot->transport);
-        $this->assertSame('2025-03-26', $snapshot->protocolVersion);
+        $this->assertSame('2025-11-25', $snapshot->protocolVersion);
         $this->assertContains('tools', $snapshot->serverCapabilities);
     }
 

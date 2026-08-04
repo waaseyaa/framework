@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Route;
+use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\User\Middleware\CsrfMiddleware;
 
@@ -601,5 +602,299 @@ final class CsrfMiddlewareTest extends TestCase
             fn($c) => $c->getName() === 'XSRF-TOKEN',
         );
         $this->assertCount(1, $xsrfCookies);
+    }
+
+    // -------------------------------------------------------------------------
+    // #2177 F1 prerequisite — explicit per-route CSRF opt-in (_csrf = true)
+    // takes precedence over the JSON content-type exemption.
+    // -------------------------------------------------------------------------
+
+    #[Test]
+    public function jsonPostOnCsrfRequiredRouteWithoutTokenReturns403(): void
+    {
+        $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
+
+        $route = new Route('/api/approvals');
+        $route->setOption('_csrf', true);
+
+        $request = Request::create('/api/approvals', 'POST', [], [], [], [], '{"decision":"approve"}');
+        $request->headers->set('Content-Type', 'application/json');
+        $request->attributes->set('_route_object', $route);
+
+        $response = $this->middleware->process($request, $this->passthrough);
+
+        $this->assertSame(403, $response->getStatusCode());
+        $this->assertStringContainsString('application/vnd.api+json', $response->headers->get('Content-Type'));
+    }
+
+    #[Test]
+    public function jsonApiPostOnCsrfRequiredRouteWithoutTokenReturns403(): void
+    {
+        $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
+
+        $route = new Route('/api/approvals');
+        $route->setOption('_csrf', true);
+
+        $request = Request::create('/api/approvals', 'POST', [], [], [], [], '{"data":{}}');
+        $request->headers->set('Content-Type', 'application/vnd.api+json');
+        $request->attributes->set('_route_object', $route);
+
+        $response = $this->middleware->process($request, $this->passthrough);
+
+        $this->assertSame(403, $response->getStatusCode());
+    }
+
+    #[Test]
+    public function jsonPostOnCsrfRequiredRouteWithValidXsrfHeaderPassesThrough(): void
+    {
+        $token = bin2hex(random_bytes(32));
+        $_SESSION['_csrf_token'] = $token;
+
+        $route = new Route('/api/approvals');
+        $route->setOption('_csrf', true);
+
+        $request = Request::create('/api/approvals', 'POST', [], [], [], [], '{"decision":"approve"}');
+        $request->headers->set('Content-Type', 'application/json');
+        $request->headers->set('X-XSRF-TOKEN', rawurlencode($token));
+        $request->attributes->set('_route_object', $route);
+
+        $response = $this->middleware->process($request, $this->passthrough);
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    #[Test]
+    public function jsonPostOnCsrfRequiredRouteWithValidCsrfHeaderPassesThrough(): void
+    {
+        $token = bin2hex(random_bytes(32));
+        $_SESSION['_csrf_token'] = $token;
+
+        $route = new Route('/api/approvals');
+        $route->setOption('_csrf', true);
+
+        $request = Request::create('/api/approvals', 'POST', [], [], [], [], '{"decision":"approve"}');
+        $request->headers->set('Content-Type', 'application/json');
+        $request->headers->set('X-CSRF-Token', $token);
+        $request->attributes->set('_route_object', $route);
+
+        $response = $this->middleware->process($request, $this->passthrough);
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    #[Test]
+    public function jsonPostOnRouteWithoutCsrfOptionRemainsExempt(): void
+    {
+        $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
+
+        $route = new Route('/api/nodes');
+
+        $request = Request::create('/api/nodes', 'POST', [], [], [], [], '{"data":{}}');
+        $request->headers->set('Content-Type', 'application/json');
+        $request->attributes->set('_route_object', $route);
+
+        $response = $this->middleware->process($request, $this->passthrough);
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    #[Test]
+    public function formPostOnCsrfRequiredRouteWithoutTokenReturns403(): void
+    {
+        $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
+
+        $route = new Route('/api/approvals');
+        $route->setOption('_csrf', true);
+
+        $request = Request::create('/api/approvals', 'POST', ['decision' => 'approve']);
+        $request->headers->set('Content-Type', 'application/x-www-form-urlencoded');
+        $request->attributes->set('_route_object', $route);
+
+        $response = $this->middleware->process($request, $this->passthrough);
+
+        $this->assertSame(403, $response->getStatusCode());
+    }
+
+    // -------------------------------------------------------------------------
+    // #2177 F1 prerequisite — XSRF-TOKEN cookie delivery on authenticated
+    // session/API boot responses (non-HTML), same flags as the HTML path.
+    // -------------------------------------------------------------------------
+
+    #[Test]
+    public function authenticatedSessionJsonResponseDeliversXsrfCookie(): void
+    {
+        $token = bin2hex(random_bytes(32));
+        $_SESSION['_csrf_token'] = $token;
+
+        $request = Request::create('/api/user/me', 'GET');
+        $request->attributes->set('_account', $this->authenticatedAccount());
+        $request->attributes->set('_session', ['waaseyaa_uid' => 42]);
+
+        $response = $this->middleware->process($request, $this->jsonPassthrough());
+
+        $cookies = array_values(array_filter(
+            $response->headers->getCookies(),
+            fn($c) => $c->getName() === 'XSRF-TOKEN',
+        ));
+        $this->assertCount(1, $cookies);
+        $this->assertSame(rawurlencode($token), $cookies[0]->getValue());
+        $this->assertFalse($cookies[0]->isHttpOnly());
+        $this->assertSame('lax', $cookies[0]->getSameSite());
+        $this->assertSame('/', $cookies[0]->getPath());
+        $this->assertFalse($cookies[0]->isSecure());
+    }
+
+    #[Test]
+    public function authenticatedSessionJsonResponseCookieIsSecureOnHttps(): void
+    {
+        $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
+
+        $request = Request::create('https://example.com/api/user/me', 'GET');
+        $request->attributes->set('_account', $this->authenticatedAccount());
+        $request->attributes->set('_session', ['waaseyaa_uid' => 42]);
+
+        $response = $this->middleware->process($request, $this->jsonPassthrough());
+
+        $cookies = array_values(array_filter(
+            $response->headers->getCookies(),
+            fn($c) => $c->getName() === 'XSRF-TOKEN',
+        ));
+        $this->assertCount(1, $cookies);
+        $this->assertTrue($cookies[0]->isSecure());
+    }
+
+    #[Test]
+    public function anonymousJsonResponseDoesNotGetXsrfCookie(): void
+    {
+        $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
+
+        $request = Request::create('/api/user/me', 'GET');
+        $request->attributes->set('_account', $this->anonymousAccount());
+
+        $response = $this->middleware->process($request, $this->jsonPassthrough());
+
+        $this->assertCount(0, $response->headers->getCookies());
+    }
+
+    #[Test]
+    public function bearerAuthenticatedJsonResponseWithoutLoginSessionDoesNotGetXsrfCookie(): void
+    {
+        $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
+
+        $request = Request::create('/api/user/me', 'GET');
+        $request->attributes->set('_account', $this->authenticatedAccount());
+        $request->attributes->set('_session', []);
+
+        $response = $this->middleware->process($request, $this->jsonPassthrough());
+
+        $this->assertCount(0, $response->headers->getCookies());
+    }
+
+    #[Test]
+    public function csrfRequired403DeliversXsrfCookieToAuthenticatedSession(): void
+    {
+        $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
+
+        $route = new Route('/api/approvals');
+        $route->setOption('_csrf', true);
+
+        $request = Request::create('/api/approvals', 'POST', [], [], [], [], '{"decision":"approve"}');
+        $request->headers->set('Content-Type', 'application/json');
+        $request->attributes->set('_route_object', $route);
+        $request->attributes->set('_account', $this->authenticatedAccount());
+        $request->attributes->set('_session', ['waaseyaa_uid' => 42]);
+
+        $response = $this->middleware->process($request, $this->passthrough);
+
+        $this->assertSame(403, $response->getStatusCode());
+        $xsrfCookies = array_filter(
+            $response->headers->getCookies(),
+            fn($c) => $c->getName() === 'XSRF-TOKEN',
+        );
+        $this->assertCount(1, $xsrfCookies);
+    }
+
+    #[Test]
+    public function authenticatedHtmlResponseStillGetsExactlyOneXsrfCookie(): void
+    {
+        $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
+
+        $request = Request::create('/page', 'GET');
+        $request->attributes->set('_account', $this->authenticatedAccount());
+
+        $htmlPassthrough = new class implements HttpHandlerInterface {
+            public function handle(Request $request): Response
+            {
+                return new Response('<html></html>', 200, ['Content-Type' => 'text/html; charset=UTF-8']);
+            }
+        };
+
+        $response = $this->middleware->process($request, $htmlPassthrough);
+
+        $xsrfCookies = array_filter(
+            $response->headers->getCookies(),
+            fn($c) => $c->getName() === 'XSRF-TOKEN',
+        );
+        $this->assertCount(1, $xsrfCookies);
+    }
+
+    private function jsonPassthrough(): HttpHandlerInterface
+    {
+        return new class implements HttpHandlerInterface {
+            public function handle(Request $request): Response
+            {
+                return new Response('{"data":{}}', 200, ['Content-Type' => 'application/json']);
+            }
+        };
+    }
+
+    private function authenticatedAccount(): AccountInterface
+    {
+        return new class implements AccountInterface {
+            public function id(): int|string
+            {
+                return 42;
+            }
+
+            public function hasPermission(string $permission): bool
+            {
+                return false;
+            }
+
+            public function getRoles(): array
+            {
+                return ['authenticated'];
+            }
+
+            public function isAuthenticated(): bool
+            {
+                return true;
+            }
+        };
+    }
+
+    private function anonymousAccount(): AccountInterface
+    {
+        return new class implements AccountInterface {
+            public function id(): int|string
+            {
+                return 0;
+            }
+
+            public function hasPermission(string $permission): bool
+            {
+                return false;
+            }
+
+            public function getRoles(): array
+            {
+                return ['anonymous'];
+            }
+
+            public function isAuthenticated(): bool
+            {
+                return false;
+            }
+        };
     }
 }

@@ -52,7 +52,7 @@ final class IdempotencyStore
      *
      * @throws IdempotencyConflictException Same key, different request payload.
      */
-    public function execute(string $idempotencyKey, string $operationName, array $request, \Closure $operation): array
+    public function execute(string $idempotencyKey, string $operationName, array $request, \Closure $operation, string $namespace = ''): array
     {
         if (trim($idempotencyKey) === '') {
             throw new \InvalidArgumentException('Idempotency key must not be empty.');
@@ -60,11 +60,14 @@ final class IdempotencyStore
         $this->ensureTable();
         $this->sweep();
 
+        $storageKey = $namespace === ''
+            ? $idempotencyKey
+            : hash('sha256', $namespace . "\0" . $idempotencyKey);
         $requestHash = $this->hashRequest($operationName, $request);
         $transaction = $this->database->transaction('publishing_idempotency');
 
         try {
-            $existing = $this->fetch($idempotencyKey);
+            $existing = $this->fetch($storageKey);
             if ($existing !== null) {
                 if (!hash_equals($existing['request_hash'], $requestHash)) {
                     throw new IdempotencyConflictException($idempotencyKey);
@@ -87,7 +90,7 @@ final class IdempotencyStore
             $this->database->query(
                 'INSERT INTO ' . self::TABLE . ' (idem_key, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?)',
                 [
-                    $idempotencyKey,
+                    $storageKey,
                     $operationName,
                     $requestHash,
                     json_encode($response, JSON_THROW_ON_ERROR),

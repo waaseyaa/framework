@@ -210,9 +210,12 @@ Beyond `register()` / `boot()`, a provider opts into kernel-invoked hooks by imp
 | `HasHttpDomainRoutersInterface` | `httpDomainRouters(HttpKernel): iterable` | Domain router chain |
 | `HasRenderCacheListenersInterface` | `registerRenderCacheListeners(...)` | Render cache listeners |
 | `AcceptsMigrationProvidersInterface` | `withMigrationProviders(list)` | Migration registry |
+| `AcceptsAgentToolProvidersInterface` | `withAgentToolProviders(list)` | Agent-tool registry provider |
 | `ProvidesRolesInterface` | `roles(): iterable` (yields `Waaseyaa\User\Role`) | `RoleRepository` |
 
 `ProvidesRolesInterface::roles()` returns an untyped `iterable` rather than a typed return, exactly as `HasNativeCommandsInterface::nativeCommands()` yields Layer-6 `CommandDefinition`s without importing them. Keeping the return untyped lets the Foundation (Layer 0) interface yield `Waaseyaa\User\Role` (Layer 1) without Foundation importing the User package; the concrete element type is resolved by the Layer-1 collector (`RoleRepository::fromProviders()`) at runtime. The full kernel-call-site table lives in `docs/specs/infrastructure.md`.
+
+Agent-tool contribution uses the same cross-layer pattern. Application providers implement the Layer-5 `Waaseyaa\AI\Tools\ProvidesAgentToolsInterface`; the kernel detects that contract by string FQCN, sorts contributors by provider class, and hands them to the Foundation-owned `AcceptsAgentToolProvidersInterface` receiver before provider boot. `AiToolsServiceProvider` invokes each contributor once when the canonical registry singleton is first constructed. This keeps Foundation free of a compile-time Layer-5 dependency and keeps application tools independent of route registration.
 
 ## PackageManifest
 

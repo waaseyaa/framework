@@ -24,14 +24,21 @@ final readonly class AgentToolResult
         public bool $isError,
         public array $content,
         public ?string $summary = null,
+        /** @var ?array<string, mixed> */
+        public ?array $structuredContent = null,
     ) {}
 
     /**
      * @param array<int, array{type: string, text?: string, data?: mixed}> $content
      */
-    public static function success(array $content, ?string $summary = null): self
+    public static function success(array $content, ?string $summary = null, ?array $structuredContent = null): self
     {
-        return new self(isError: false, content: $content, summary: $summary);
+        return new self(
+            isError: false,
+            content: $content,
+            summary: $summary,
+            structuredContent: $structuredContent,
+        );
     }
 
     public static function error(string $message, ?string $summary = null): self

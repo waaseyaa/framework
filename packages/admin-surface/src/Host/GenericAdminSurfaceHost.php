@@ -65,6 +65,17 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
     /** Config rows with an explicitly reviewed generic edit/delete lifecycle. */
     private const array MUTABLE_CONFIG_ROW_TYPES = ['taxonomy_vocabulary'];
 
+    /**
+     * Hard cap on the session capability allowlist. The projection exists so
+     * the SPA can gate a handful of admin affordances, not to mirror the
+     * account's permission universe — an app that hits this cap is enumerating
+     * permissions, which this surface deliberately refuses.
+     */
+    public const int CAPABILITY_ALLOWLIST_MAX = 32;
+
+    /** Hard cap on a single allowlisted permission identifier's length. */
+    public const int CAPABILITY_IDENTIFIER_MAX_LENGTH = 128;
+
     /** @var \Waaseyaa\Access\AuthorizationPrincipalInterface|null */
     private ?AccountInterface $currentAccount = null;
 
@@ -73,10 +84,18 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
 
     private readonly EntityClockInterface $clock;
 
+    /** @var list<string> */
+    private readonly array $capabilityAllowlist;
+
     /**
      * @param string[]          $readOnlyTypes Entity type IDs that should be read-only in the admin
      * @param array<string, bool> $features Installed capabilities exposed to the SPA session
      * @param array<string, list<string>> $internalFieldsByType Additional host-owned migration or operational fields omitted from forms
+     * @param list<string> $capabilityAllowlist Explicit permission identifiers to project into the
+     *   session as `capabilities` (each evaluated via hasPermission() on the resolved principal).
+     *   Only these identifiers are ever serialized; the list is deduplicated, sorted, and bounded
+     *   (CAPABILITY_ALLOWLIST_MAX / CAPABILITY_IDENTIFIER_MAX_LENGTH). A malformed or oversized
+     *   allowlist is rejected with InvalidArgumentException at construction. Default: empty.
      */
     public function __construct(
         private readonly EntityTypeManagerInterface $entityTypeManager,
@@ -90,8 +109,56 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         private readonly array $features = [],
         private readonly array $internalFieldsByType = [],
         ?EntityClockInterface $clock = null,
+        array $capabilityAllowlist = [],
     ) {
         $this->clock = $clock ?? new UtcEntityClock();
+        $this->capabilityAllowlist = self::normalizeCapabilityAllowlist($capabilityAllowlist);
+    }
+
+    /**
+     * Validate and canonicalize the session capability allowlist: strings only,
+     * bounded length, printable identifier characters, deduplicated, and sorted
+     * so the projection is deterministic regardless of configuration order.
+     *
+     * @return list<string>
+     */
+    private static function normalizeCapabilityAllowlist(array $capabilityAllowlist): array
+    {
+        $normalized = [];
+        foreach ($capabilityAllowlist as $permission) {
+            if (!is_string($permission)) {
+                throw new \InvalidArgumentException(
+                    'Capability allowlist entries must be permission identifier strings, got ' . get_debug_type($permission) . '.',
+                );
+            }
+            if ($permission === '' || strlen($permission) > self::CAPABILITY_IDENTIFIER_MAX_LENGTH) {
+                throw new \InvalidArgumentException(sprintf(
+                    'Capability allowlist entries must be 1–%d characters long.',
+                    self::CAPABILITY_IDENTIFIER_MAX_LENGTH,
+                ));
+            }
+            if (preg_match('/^[A-Za-z0-9][A-Za-z0-9 ._:-]*$/', $permission) !== 1) {
+                // Constraint-only message: configuration can be malformed with
+                // secret-like input, so the offending value is never echoed.
+                throw new \InvalidArgumentException(
+                    'Capability allowlist entries must match ^[A-Za-z0-9][A-Za-z0-9 ._:-]*$; an entry does not.',
+                );
+            }
+            $normalized[$permission] = true;
+        }
+
+        if (count($normalized) > self::CAPABILITY_ALLOWLIST_MAX) {
+            throw new \InvalidArgumentException(sprintf(
+                'Capability allowlist exceeds the maximum of %d permissions (%d given); the session projection is not a permission enumeration surface.',
+                self::CAPABILITY_ALLOWLIST_MAX,
+                count($normalized),
+            ));
+        }
+
+        $permissions = array_keys($normalized);
+        sort($permissions, SORT_STRING);
+
+        return $permissions;
     }
 
     public function resolveSession(Request $request): ?AdminSurfaceSessionData
@@ -112,6 +179,14 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
 
         $this->currentAccount = $principal;
 
+        // Server-authoritative capability projection: ask the resolved
+        // principal about exactly the allowlisted permissions — never client
+        // data, display roles, or the account's wider permission universe.
+        $capabilities = [];
+        foreach ($this->capabilityAllowlist as $permission) {
+            $capabilities[$permission] = $principal->hasPermission($permission);
+        }
+
         return new AdminSurfaceSessionData(
             accountId: (string) $principal->id(),
             accountName: 'Admin',
@@ -121,6 +196,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             tenantName: $this->tenantName,
             features: $this->features,
             ui: $this->buildAdminUi($principal),
+            capabilities: $capabilities,
         );
     }
 

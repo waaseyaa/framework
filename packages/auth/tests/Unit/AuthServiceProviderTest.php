@@ -71,6 +71,29 @@ final class AuthServiceProviderTest extends TestCase
     /**
      * @param array<string, mixed> $config
      */
+    #[Test]
+    public function bearer_token_store_binding_resolves_the_database_store(): void
+    {
+        $provider = $this->providerWith([]);
+        $provider->register();
+
+        $store = $provider->resolve(\Waaseyaa\Auth\Token\Bearer\BearerTokenStoreInterface::class);
+
+        $this->assertInstanceOf(\Waaseyaa\Auth\Token\Bearer\DatabaseBearerTokenStore::class, $store);
+    }
+
+    #[Test]
+    public function the_domain_provider_does_not_own_console_commands(): void
+    {
+        $provider = $this->providerWith([]);
+        $provider->register();
+
+        $this->assertNotInstanceOf(
+            \Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface::class,
+            $provider,
+        );
+    }
+
     private function providerWith(array $config): AuthServiceProvider
     {
         $provider = new AuthServiceProvider();
