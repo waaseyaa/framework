@@ -187,8 +187,17 @@ final readonly class McpEndpoint
         // One id per request, shared by every record and returned to the caller.
         $correlationId = \bin2hex(\random_bytes(8));
 
-        // Authenticate.
-        $authenticated = $this->auth->authenticate($authorizationHeader);
+        // Authenticate. A scope-aware strategy (#2177 F3) also states which
+        // capability scopes the presented credential is limited to; a plain
+        // strategy grants the tier surface unchanged (scopes stay null).
+        $tokenScopes = null;
+        if ($this->auth instanceof Auth\ScopedMcpAuthInterface) {
+            $scoped = $this->auth->authenticateWithScopes($authorizationHeader);
+            $authenticated = $scoped?->account;
+            $tokenScopes = $scoped?->scopes;
+        } else {
+            $authenticated = $this->auth->authenticate($authorizationHeader);
+        }
         $principal = $authenticated !== null
             ? DecisionAccountResolver::resolve($authenticated, $authenticated)
             : null;
@@ -269,7 +278,16 @@ final readonly class McpEndpoint
         // Construct the per-request bridge with the auth-resolved account.
         // The bridge forwards $authenticated into every tool->execute() call,
         // so per-tool capability gates run against the correct identity.
-        $bridge = new AgentToolRegistryBridge($this->agentRegistry, $principal, $this->logger);
+        //
+        // Token scopes narrow, never broaden (#2177 F3): when the credential
+        // carries explicit scopes, the request's registry is the INTERSECTION
+        // of the tier registry and those scopes — an empty scope list exposes
+        // nothing (fail closed) — while per-tool account-capability
+        // enforcement still runs underneath in the tools themselves.
+        $requestRegistry = $tokenScopes === null
+            ? $this->agentRegistry
+            : new CapabilityScopedToolRegistry($this->agentRegistry, $tokenScopes);
+        $bridge = new AgentToolRegistryBridge($requestRegistry, $principal, $this->logger);
 
         // Scope the acting-account context to the bearer-auth account
         // (research D1 writer 2, FR-002). The MCP account deliberately

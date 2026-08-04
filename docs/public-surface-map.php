@@ -591,6 +591,9 @@ return [
     // WriteTierAuthInterface is the app override point for write-tier credentials;
     // AbstractTrailTool is the internal shared base for the wayfinding trail tools.
     'Waaseyaa\Mcp\Auth\WriteTierAuthInterface' => 'public',
+    // #2177 F3: scope-aware MCP auth (durable bearer-token lifecycle). The
+    // sibling BearerTokenStoreInterface lives in the Layer-1 block below.
+    'Waaseyaa\Mcp\Auth\ScopedMcpAuthInterface' => 'public',
     'Waaseyaa\AI\Agent\Tool\Wayfinding\AbstractTrailTool' => 'internal',
     'Waaseyaa\Oidc\Keys\OidcKeyLoaderInterface' => 'public',
     'Waaseyaa\Oidc\Repository\AuthorizationCodeRepositoryInterface' => 'public',
@@ -598,6 +601,10 @@ return [
     'Waaseyaa\SSR\ThemeInterface' => 'public',
 
     // Layer 1: Core Data — public (discovered during L5-L6 scan)
+    // #2177 F3: durable bearer-token lifecycle store (hashed-at-rest, expiring,
+    // revocable, rotatable, audience-bound). Consumed by the MCP write tier's
+    // durable default auth and the bearer-token:* operator commands.
+    'Waaseyaa\Auth\Token\Bearer\BearerTokenStoreInterface' => 'public',
     'Waaseyaa\OAuthProvider\OAuthProviderInterface' => 'public',
     'Waaseyaa\OAuthProvider\SessionInterface' => 'public',
     // Audit log: query/write contracts and event-kind enum.

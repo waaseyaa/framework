@@ -480,8 +480,46 @@ final class McpServiceProvider extends ServiceProvider
     private function resolveWriteTierAuth(): WriteTierAuthInterface
     {
         $auth = $this->resolveOptional(WriteTierAuthInterface::class);
+        if ($auth instanceof WriteTierAuthInterface) {
+            return $auth;
+        }
 
-        return $auth instanceof WriteTierAuthInterface ? $auth : new BearerTokenAuth([]);
+        // Framework default (#2177 F3): the DURABLE token path. When the
+        // kernel supplies the bearer-token store (bound by AuthServiceProvider
+        // over the kernel database) and the user repository, `/mcp/write`
+        // authenticates against hashed, expiring, revocable, audience-bound
+        // credentials issued via the `bearer-token:*` operator commands. A
+        // fresh deployment has no tokens, so the tier still fails closed with
+        // 401 until an operator issues one — same observable posture as the
+        // empty map, but production-usable without application auth code.
+        $store = $this->resolveOptional(\Waaseyaa\Auth\Token\Bearer\BearerTokenStoreInterface::class);
+        $entityTypeManager = $this->resolveOptional(EntityTypeManagerInterface::class);
+        $principals = $this->resolveOptional(\Waaseyaa\Access\AccountPrincipalFactoryInterface::class);
+        if ($store instanceof \Waaseyaa\Auth\Token\Bearer\BearerTokenStoreInterface
+            && $entityTypeManager instanceof EntityTypeManagerInterface
+            && $principals instanceof \Waaseyaa\Access\AccountPrincipalFactoryInterface
+        ) {
+            try {
+                $accounts = $entityTypeManager->getRepository('user');
+            } catch (\Throwable) {
+                // No user entity type (e.g. a bare kernel): the durable path
+                // cannot resolve owners, so the tier keeps the fail-closed map.
+                return new BearerTokenAuth([]);
+            }
+
+            $logger = $this->resolveOptional(LoggerInterface::class);
+
+            return new Auth\DurableBearerTokenAuth(
+                store: $store,
+                accounts: $accounts,
+                principals: $principals,
+                logger: $logger instanceof LoggerInterface ? $logger : null,
+            );
+        }
+
+        // No durable store wireable: the framework ships no usable static
+        // credential — every `/mcp/write` request is HTTP 401.
+        return new BearerTokenAuth([]);
     }
 
     /**

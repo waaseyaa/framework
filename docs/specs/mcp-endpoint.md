@@ -1,5 +1,6 @@
 # MCP Endpoint
 
+<!-- Spec reviewed 2026-08-03 - #2177 F3 (enterprise bearer-token lifecycle): the write tier's production credential path is now DURABLE. New Waaseyaa\Auth\Token\Bearer\* (waaseyaa/auth, L1): BearerTokenStoreInterface + DatabaseBearerTokenStore own the auth_bearer_token table (hashed SHA-256 verifier of the full `mbt_<16hex>.<64hex>` wire token, never plaintext at rest; non-secret id + 16-hex fingerprint; mandatory expiry 60s..90d via injected EntityClockInterface, inclusive boundary; durable idempotent revocation; transactionally atomic rotation whose partial failure can never leave two usable credentials; audience + canonicalized bounded scopes persisted per token; verify() is constant-time over the verifier with a dummy compare on unknown ids and answers null fail-closed on outage/malformed records). One-time secret reveal is IssuedBearerToken (virtual-hook secret in a WeakMap: print_r/var_dump/json_encode redact, serialize() throws). Lifecycle operator commands: bearer-token:issue/list/rotate/revoke (AuthServiceProvider::consoleCommands(), bimaaji-style inline-FQCN HandlerCommands). MCP side: DurableBearerTokenAuth (WriteTierAuthInterface + new ScopedMcpAuthInterface→ScopedPrincipal) verifies audience `mcp:write`, resolves the owner by ACTIVE-owner query (uid + status=1 — a Protected `status` field read pre-auth has no read context) and snapshots it through AccountPrincipalFactoryInterface, so the principal id IS the owner uid (F1 separation-of-duties preserved; token ids never become identities). McpEndpoint intersects the tier registry with the token's scopes per request (CapabilityScopedToolRegistry; empty scopes ⇒ nothing; scopes narrow, never broaden — per-tool account capability enforcement unchanged). resolveWriteTierAuth() default: app override > DurableBearerTokenAuth (when store + user repo + principal factory resolve; no tokens issued ⇒ still 401) > BearerTokenAuth([]) fail-closed. Static BearerTokenAuth is quarantined to the empty fail-closed default and test fixtures. -->
 <!-- Spec reviewed 2026-08-03 - #2177 F4 (mcp-durable-audit): MCP write-tier auditing is now durable and outcome-aware. New fail-closed reserve/finalize ledger (Foundation\Audit\StrictAuditLedgerInterface port, Audit\Writer\DatabaseStrictAuditLedger implementation over the append-only strict_audit_ledger table), modelled on StrictPrivilegedReadLedgerInterface. GUARANTEED: no write tool is invoked without a durable record of the attempt (reserve commits before execute; failure returns -32002 and the tool never runs). NOT guaranteed and explicitly not claimed: atomicity between the mutation and the outcome record — tools commit their own transactions, DBALTransaction has no savepoints, and entity storage may be on another connection. A crash between the two leaves a queryable dangling reservation, which is never blindly retried or rolled back. McpDispatchEvent now fires per STAGE rather than once per request, carries stage/outcome/tool/correlation/safeArguments, and no longer populates raw params; 401 and 429 are now audited (reversing the former clause-16 silence). Public tier behaviour is unchanged and remains best-effort. -->
 
 <!-- Spec reviewed 2026-08-03 - #2177 F2/F6 (mcp-public-boundary): TWO behaviour changes. (F2) `McpServiceProvider` no longer binds `McpAuthInterface` locally — a local binding sits ahead of the kernel-services bus in `ServiceProvider::resolve()`, so the package default silently shadowed every downstream application override and `/mcp` stayed anonymous regardless of what an app bound. Resolution moved to `resolvePublicAuth()` at the point of use (`resolveOptional() ?? new PublicAnonymousAuth()`), mirroring the `resolveWriteTierAuth()` pattern that already fixed this for the write tier (P0-1); the anonymous default is unchanged when no app binds anything. New `mcp.public.enabled` config gate withdraws BOTH `/mcp` and `/.well-known/mcp.json` from the route collection when false — 404 rather than 401, and the card goes with the endpoint it advertises. Absent = enabled (historical default); a supplied value must parse as a boolean from an explicit allowlist or `ConfigException` is raised during route setup — a typo in a control gating a public network surface must never be guessed at in either direction, and `filter_var(FILTER_VALIDATE_BOOL)` was rejected because it silently maps `null`/`''` to false. `/mcp/write` is deliberately not gated. (F6) Unhandled tool exceptions no longer reach the caller: `AgentToolRegistryBridge` and the 11 generic `catch (\Throwable)` arms in the entity/relationship/vector tools now return a fixed `INTERNAL_ERROR` envelope plus a random correlation id via the new `Waaseyaa\AI\Tools\Error\SanitizedToolError`. The log receives safe diagnostic METADATA only (correlation id, tool, exception class, file, line, integer code) — NOT the exception message, trace, bearer token, call arguments, or the Throwable object, because a log store is an indexed, widely-read egress path and relocating a credential into it is not a fix. Deliberate domain envelopes (Content Publishing, revision conflict, key refusal, per-tool `forbidden`) pass through untouched. Sanitization is independent of logger availability. -->
@@ -57,7 +58,9 @@ Kernel-level failures before MCP dispatch are governed by the JSON-first HTTP er
 | `src/McpRouteProvider.php` | Registers `/mcp` and `/.well-known/mcp.json` routes |
 | `src/McpServerCard.php` | Generates the `/.well-known/mcp.json` server card |
 | `src/Auth/McpAuthInterface.php` | Pluggable authentication contract |
-| `src/Auth/BearerTokenAuth.php` | MVP auth: opaque bearer token to account mapping — constant-time full-scan comparison + blocked-account fail-closed check (#1652) |
+| `src/Auth/ScopedMcpAuthInterface.php` / `src/Auth/ScopedPrincipal.php` | Scope-aware auth contract: account + explicit token scopes (#2177 F3) |
+| `src/Auth/DurableBearerTokenAuth.php` | Production write-tier auth over the durable `Waaseyaa\Auth\Token\Bearer` store (#2177 F3) |
+| `src/Auth/BearerTokenAuth.php` | STATIC in-memory token map — quarantined to the empty fail-closed default and test fixtures (#2177 F3); constant-time full-scan comparison + blocked-account fail-closed check (#1652) |
 | `src/Bridge/AgentToolRegistryBridge.php` | Adapts the framework-wide `Waaseyaa\AI\Tools` registry directly to MCP descriptors and calls |
 | `src/ReadOnlyToolRegistry.php` / `src/CapabilityScopedToolRegistry.php` | Tool-visibility wrappers for the public read-only `/mcp` and the `/mcp/write` tier |
 
@@ -1050,6 +1053,25 @@ returns. The blast radius is confined to the write-tier auth path — no global
 binding-precedence change (the public read tier and every other binding are
 untouched). When no app binds it, the behaviour is unchanged: every `/mcp/write`
 request fails closed with HTTP 401.
+
+**Durable default (#2177 F3).** With no app override, `resolveWriteTierAuth()`
+now prefers the durable path before the empty map: when the kernel-services bus
+supplies `Waaseyaa\Auth\Token\Bearer\BearerTokenStoreInterface` (bound by
+`AuthServiceProvider` over the kernel database), the `user` entity repository
+(via `EntityTypeManagerInterface`), and the audited
+`AccountPrincipalFactoryInterface` (bound by `AuditServiceProvider`), the tier
+authenticates through `DurableBearerTokenAuth`: hashed-at-rest, expiring,
+revocable, rotatable credentials with audience `mcp:write` and explicit
+per-token scopes, issued via the `bearer-token:*` operator commands. A fresh
+deployment has no tokens, so the observable posture is identical (every request
+401s) — but production becomes usable without application auth code. The owner
+resolves by an ACTIVE-owner query (`uid` + `status = 1`, mirroring
+`findActiveByLogin` — a direct Protected `status` read pre-auth has no field
+read context) and is snapshotted into a decision principal whose `id()` is the
+owner uid, preserving the F1 separation-of-duties comparison. Token scopes are
+enforced by the endpoint as a per-request `CapabilityScopedToolRegistry`
+intersection: scopes narrow the tier surface and never broaden account
+capabilities; a scopeless credential exposes nothing.
 
 ### Registry: `CapabilityScopedToolRegistry`
 

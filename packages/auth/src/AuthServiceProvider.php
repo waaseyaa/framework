@@ -8,9 +8,10 @@ use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
-final class AuthServiceProvider extends ServiceProvider implements HasMiddlewareInterface
+final class AuthServiceProvider extends ServiceProvider implements HasMiddlewareInterface, ProvidesConsoleCommandsInterface
 {
     public function register(): void
     {
@@ -55,6 +56,15 @@ final class AuthServiceProvider extends ServiceProvider implements HasMiddleware
             return $repo;
         });
 
+        // Durable bearer-token lifecycle store (#2177 F3). Consumed by the MCP
+        // write tier's default auth and the `bearer-token:*` operator commands.
+        // Deliberately NOT eagerly ensuring schema here: the store bootstraps
+        // its table lazily on first use, so resolving the binding never costs
+        // a database roundtrip.
+        $this->singleton(Token\Bearer\BearerTokenStoreInterface::class, fn() => new Token\Bearer\DatabaseBearerTokenStore(
+            $this->resolve(\Waaseyaa\Database\DatabaseInterface::class),
+        ));
+
         $this->singleton(TwoFactorManager::class, fn() => new TwoFactorManager());
 
         $this->singleton(TwoFactorService::class, fn() => new TwoFactorService(
@@ -70,6 +80,17 @@ final class AuthServiceProvider extends ServiceProvider implements HasMiddleware
     public function middleware(EntityTypeManager $entityTypeManager): array
     {
         return [];
+    }
+
+    /**
+     * The `bearer-token:*` lifecycle commands (#2177 F3). Console-context
+     * only; the store resolves lazily inside a running command.
+     */
+    public function consoleCommands(): iterable
+    {
+        yield from new Token\Bearer\BearerTokenConsoleCommands(
+            fn(): Token\Bearer\BearerTokenStoreInterface => $this->resolve(Token\Bearer\BearerTokenStoreInterface::class),
+        )->commands();
     }
 
     /**

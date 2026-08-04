@@ -27,8 +27,10 @@ use Waaseyaa\AI\Tools\ToolRegistryInterface;
 final class CapabilityScopedToolRegistry implements ToolRegistryInterface
 {
     /**
-     * @param non-empty-list<string> $allowedCapabilities Tools whose capability is
-     *                                                     listed are visible (destructive included).
+     * @param list<string> $allowedCapabilities Tools whose capability is listed
+     *        are visible (destructive included). An EMPTY allowlist exposes
+     *        nothing — the fail-closed shape a scopeless credential gets when
+     *        this registry narrows a request to its token scopes (#2177 F3).
      */
     public function __construct(
         private readonly ToolRegistryInterface $inner,
