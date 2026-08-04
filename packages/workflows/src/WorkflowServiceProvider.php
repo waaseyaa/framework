@@ -22,11 +22,13 @@ use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Groups\Membership\GroupMembershipService;
+use Waaseyaa\Publishing\ContentPublicationTransitionerInterface;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 use Waaseyaa\Workflows\Group\GroupConstraintChecker;
 use Waaseyaa\Workflows\Listener\WorkflowPointerMoveGuard;
 use Waaseyaa\Workflows\Listener\WorkflowRepublishListener;
 use Waaseyaa\Workflows\Listener\WorkflowStateGuard;
+use Waaseyaa\Workflows\Publishing\WorkflowContentPublicationTransitioner;
 use Waaseyaa\Workflows\Republish\RepublishMarker;
 use Waaseyaa\Workflows\Transition\TransitionService;
 use Waaseyaa\Workflows\Validation\WorkflowValidator;
@@ -92,6 +94,14 @@ final class WorkflowServiceProvider extends ServiceProvider
                 workflowValues: new \Waaseyaa\Workflows\Read\WorkflowEntitySnapshotReader(),
                 fieldReadScope: $fieldReadScope instanceof AccountFieldReadScopeInterface ? $fieldReadScope : null,
                 principalFactory: $principalFactory instanceof AccountPrincipalFactoryInterface ? $principalFactory : null,
+            );
+        });
+
+        $this->singleton(ContentPublicationTransitionerInterface::class, function (): ContentPublicationTransitionerInterface {
+            return new WorkflowContentPublicationTransitioner(
+                bindings: $this->resolve(WorkflowBindingResolver::class),
+                transitions: $this->resolve(TransitionService::class),
+                entityTypeManager: $this->resolve(EntityTypeManagerInterface::class),
             );
         });
 

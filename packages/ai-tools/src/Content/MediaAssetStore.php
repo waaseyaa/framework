@@ -109,16 +109,23 @@ final readonly class MediaAssetStore implements AssetStoreInterface
         // come back through the entity — sealed-field classifications must
         // not gate asset metadata — so the asset id is the content hash and
         // get() resolves from the store's own filesystem.
-        $entity = $this->mediaRepository->create([
+        $uid = $actor->id();
+        $owner = \is_int($uid) || ctype_digit($uid) ? (int) $uid : null;
+        $values = [
             'name' => $this->safeDisplayName($filename),
             'bundle' => $this->bundle,
             'source_uri' => $this->publicUrl($sha, $mime),
             'status' => 1,
-        ]);
+        ];
+        if ($owner !== null) {
+            // Core media is not revisionable, so SaveContext alone cannot
+            // preserve authorship. The owner field is its durable attribution.
+            $values['uid'] = $owner;
+        }
+        $entity = $this->mediaRepository->create($values);
         $context = SaveContext::default();
-        $uid = $actor->id();
-        if (\is_int($uid) || ctype_digit($uid)) {
-            $context = $context->withActorUid((int) $uid);
+        if ($owner !== null) {
+            $context = $context->withActorUid($owner);
         }
         $this->mediaRepository->save($entity, false, $context);
 

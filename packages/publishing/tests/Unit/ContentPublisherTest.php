@@ -12,6 +12,7 @@ use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\FieldReadGuard;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityValueReadGuardInterface;
@@ -22,6 +23,7 @@ use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Publishing\ContentMutationSnapshotReader;
+use Waaseyaa\Publishing\ContentPublicationTransitionerInterface;
 use Waaseyaa\Publishing\ContentPublisher;
 use Waaseyaa\Publishing\ContentTypeDescriptor;
 use Waaseyaa\Publishing\ContentValidatorInterface;
@@ -43,6 +45,7 @@ final class ContentPublisherTest extends TestCase
     private const string CAPABILITY = 'publish test articles';
 
     private EntityRepository $repo;
+    private DBALDatabase $db;
     private SpyAuditWriter $audit;
     private ContentPublisher $publisher;
     private PublisherAccount $actor;
@@ -56,7 +59,7 @@ final class ContentPublisherTest extends TestCase
             static fn(): AccessResult => AccessResult::forbidden('No ambient protected-field grant.'),
         ));
 
-        $db = DBALDatabase::createSqlite();
+        $db = $this->db = DBALDatabase::createSqlite();
         $entityType = new EntityType(
             id: 'test_article',
             label: 'Test article',
@@ -341,6 +344,45 @@ final class ContentPublisherTest extends TestCase
         self::assertNotNull($this->repo->find((string) $draft['id']));
         self::assertGreaterThanOrEqual(3, \count($this->publisher->revisions($this->actor, (string) $draft['id'])));
         self::assertContains('content.unpublished', $this->audit->kinds());
+    }
+
+    #[Test]
+    public function a_bound_workflow_owns_publication_and_still_honors_optimistic_locking(): void
+    {
+        $draft = $this->publisher->createDraft($this->actor, $this->draftValues(), 'k1');
+        $transitioner = new class ($this->repo) implements ContentPublicationTransitionerInterface {
+            public int $calls = 0;
+
+            public function __construct(private readonly EntityRepository $repository) {}
+
+            public function supports(EntityInterface $entity): bool
+            {
+                return true;
+            }
+
+            public function setPublished(EntityInterface $entity, bool $published, \Waaseyaa\Access\AuthorizationPrincipalInterface $actor): EntityInterface
+            {
+                ++$this->calls;
+                $entity->set('status', $published ? 1 : 0);
+                $this->repository->save($entity, true);
+
+                return $this->repository->loadWorkingCopy((string) $entity->id()) ?? $entity;
+            }
+        };
+        $publisher = new ContentPublisher(
+            $this->descriptor(),
+            $this->repo,
+            new IdempotencyStore($this->db),
+            $this->audit,
+            publicationTransitioner: $transitioner,
+        );
+
+        $published = $publisher->publish($this->actor, (string) $draft['id'], $draft['revision_id'], 'workflow-publish');
+        self::assertTrue($published['status']);
+        self::assertSame(1, $transitioner->calls);
+
+        $this->expectException(RevisionConflictException::class);
+        $publisher->unpublish($this->actor, (string) $draft['id'], $draft['revision_id'], 'workflow-stale');
     }
 
     // --- rollback / revisions ---

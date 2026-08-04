@@ -1,5 +1,7 @@
 # Changelog
 
+- **publishing / workflows / ai-tools**: Route content publication through the canonical editorial workflow whenever an entity bundle is workflow-bound. `ContentPublisher` now preserves optimistic concurrency while delegating publish and unpublish to an application-provided transitioner; the workflows package supplies the default adapter, selects exactly one permitted transition to the requested visibility, and reloads the working copy so forward drafts and rollback snapshots remain correct. Unbound content retains the direct status-field path. MCP asset catalog records now also persist the authenticated actor as media owner, providing durable attribution for non-revisionable media as well as revision authorship where revisions exist.
+
 - **ai-tools / access**: Make MCP asset upload obey the same media create-access boundary as every other editorial write. `MediaAssetStore` now refuses before writing bytes when the authenticated principal cannot create the configured media bundle, and catalog saves carry that principal's uid for durable revision provenance.
 
 - **ai-tools / mcp**: Classify `ContentToolSet` operations by actual risk. Read-only list/get/preview/revisions/asset-get tools are now non-destructive, so the write-tier human-approval gate does not challenge ordinary editorial inspection; every state-changing draft, publication, rollback, or asset-upload operation remains destructive, structurally absent from the anonymous tier, and approval-gated.

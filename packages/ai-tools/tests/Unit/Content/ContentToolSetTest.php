@@ -46,10 +46,11 @@ final class ContentToolSetTest extends TestCase
     private PublisherAccount $actor;
     private string $uploadsDir;
     private EntityRepository $mediaRepository;
+    private DBALDatabase $database;
 
     protected function setUp(): void
     {
-        $db = DBALDatabase::createSqlite();
+        $db = $this->database = DBALDatabase::createSqlite();
         $articleType = new EntityType(
             id: 'test_article',
             label: 'Test article',
@@ -181,6 +182,8 @@ final class ContentToolSetTest extends TestCase
             $store->upload('pixel.png', base64_decode(self::PNG_BASE64, true), $this->actor);
             $saved = $this->mediaRepository->findBy(['bundle' => 'image']);
             self::assertCount(1, $saved);
+            $rows = iterator_to_array($this->database->query("SELECT json_extract(_data, '$.uid') AS uid FROM test_media LIMIT 1"));
+            self::assertSame(900001, (int) $rows[0]['uid']);
             $revisions = $this->mediaRepository->listRevisions((string) $saved[0]->id());
             self::assertCount(1, $revisions);
             self::assertSame(900001, $revisions[0]->revisionMetadata()?->revisionAuthor);

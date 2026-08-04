@@ -11,7 +11,9 @@ use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\RevisionableEntityInterface;
+use Waaseyaa\Entity\RevisionableInterface;
 use Waaseyaa\EntityStorage\EntityRepository;
+use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
 use Waaseyaa\EntityStorage\SaveContext;
 use Waaseyaa\Publishing\Exception\ContentAuthorizationException;
 use Waaseyaa\Publishing\Exception\ContentNotFoundException;
@@ -46,6 +48,7 @@ final class ContentPublisher
         private readonly IdempotencyStore $idempotency,
         private readonly ?AuditWriterInterface $audit = null,
         private readonly ?EntityAccessHandler $accessHandler = null,
+        private readonly ?ContentPublicationTransitionerInterface $publicationTransitioner = null,
     ) {
         $this->snapshotReader = new ContentMutationSnapshotReader($descriptor);
     }
@@ -276,6 +279,15 @@ final class ContentPublisher
                 $this->validatePayload([], existing: $entity, forPublish: true);
             }
 
+            if ($this->publicationTransitioner?->supports($entity) === true) {
+                $this->assertExpectedRevision($entity, $expectedRevisionId);
+                $this->stampLog($entity, $note !== '' ? $note : ucfirst($operation) . 'ed via publishing surface.');
+                $saved = $this->publicationTransitioner->setPublished($entity, $published, $actor);
+                $this->auditRecord($kind, $actor, $saved);
+
+                return $this->snapshot($saved);
+            }
+
             $entity = $entity->set($this->descriptor->statusField, $published ? 1 : 0);
             $this->stampLog($entity, $note !== '' ? $note : ucfirst($operation) . 'ed via publishing surface.');
             $this->repository->save($entity, true, $this->saveContext($actor, $expectedRevisionId));
@@ -432,12 +444,12 @@ final class ContentPublisher
         if (ctype_digit($idOrSlug)) {
             $entity = $this->repository->find($idOrSlug);
             if ($entity !== null && $this->matchesBundle($entity)) {
-                return $entity;
+                return $this->repository->loadWorkingCopy($idOrSlug) ?? $entity;
             }
         }
         $matches = $this->filterBundle($this->repository->findBy([$this->descriptor->slugField => $idOrSlug], null, 1));
         if ($matches !== []) {
-            return $matches[0];
+            return $this->repository->loadWorkingCopy((string) $matches[0]->id()) ?? $matches[0];
         }
 
         throw new ContentNotFoundException($idOrSlug);
@@ -445,7 +457,8 @@ final class ContentPublisher
 
     private function reload(EntityInterface $entity): EntityInterface
     {
-        $reloaded = $this->repository->find((string) $entity->id());
+        $reloaded = $this->repository->loadWorkingCopy((string) $entity->id())
+            ?? $this->repository->find((string) $entity->id());
 
         return $reloaded ?? $entity;
     }
@@ -462,6 +475,24 @@ final class ContentPublisher
         }
 
         return $context;
+    }
+
+    private function assertExpectedRevision(EntityInterface $entity, int $expectedRevisionId): void
+    {
+        $current = match (true) {
+            $entity instanceof RevisionableInterface => $entity->getRevisionId(),
+            $entity instanceof RevisionableEntityInterface => $entity->revisionId(),
+            default => null,
+        };
+        $current = is_int($current) || (is_string($current) && ctype_digit($current)) ? (int) $current : null;
+        if ($current !== $expectedRevisionId) {
+            throw new RevisionConflictException(
+                $entity->getEntityTypeId(),
+                (string) $entity->id(),
+                $expectedRevisionId,
+                $current,
+            );
+        }
     }
 
     private function stampLog(EntityInterface $entity, string $note): void
