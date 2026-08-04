@@ -75,10 +75,7 @@ final class IntrospectSectionTool extends AbstractAgentTool
         try {
             $graph = $this->generator->generate();
         } catch (\Throwable $e) {
-            return AgentToolResult::error(
-                message: sprintf('bimaaji_introspect_section: [%s] %s', $e::class, $e->getMessage()),
-                summary: 'graph generation failed',
-            );
+            return $this->internalError('bimaaji_introspect_section', $e);
         }
 
         $found = $graph->getSection($section);

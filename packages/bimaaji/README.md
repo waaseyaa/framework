@@ -33,6 +33,11 @@ The six default section providers are pre-wired:
 | `RoutingIntrospectionProvider` | `routing` | `RouteCollection` |
 | `SovereigntyIntrospectionProvider` | `sovereignty` | `SovereigntyProfile` |
 
+Filesystem-backed spec indexing is disabled by default. Applications that
+intentionally expose spec search to an authenticated `bimaaji.read` principal
+must configure a non-empty `bimaaji.specs_directory`; Bimaaji never guesses a
+project-root `docs/specs` path for a remotely callable tool.
+
 `SovereigntyProfile` is derived from `SovereigntyConfigInterface::getProfile()` and falls back to `SovereigntyProfile::Local` when no config is bound. `RouteCollection` is looked up directly and falls back to `WaaseyaaRouter::getRouteCollection()`.
 
 ## Extending: third-party graph sections

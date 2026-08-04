@@ -33,14 +33,13 @@ final readonly class PublicAnonymousAuth implements McpAuthInterface
         'tool.entity.read',
         'tool.entity.search',
         'tool.relationship.traverse',
-        'bimaaji.read',
     ];
 
     /** @var list<string> */
     private array $readCapabilities;
 
     /**
-     * @param list<string>|null $readCapabilities Defaults to the four read
+     * @param list<string>|null $readCapabilities Defaults to the three data-read
      *                                            capabilities above.
      * @param ?McpAuthInterface  $delegate        Optional authenticated-surface
      *                                            auth consulted before the

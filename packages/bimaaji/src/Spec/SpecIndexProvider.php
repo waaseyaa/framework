@@ -11,7 +11,7 @@ final class SpecIndexProvider implements GraphSectionProviderInterface
 {
     /** @param array<string> $additionalPaths */
     public function __construct(
-        private readonly string $specsDirectory,
+        private readonly ?string $specsDirectory,
         private readonly array $additionalPaths = [],
     ) {}
 
@@ -24,7 +24,10 @@ final class SpecIndexProvider implements GraphSectionProviderInterface
     {
         $data = [];
 
-        $directories = [$this->specsDirectory, ...$this->additionalPaths];
+        $directories = [
+            ...($this->specsDirectory !== null ? [$this->specsDirectory] : []),
+            ...$this->additionalPaths,
+        ];
 
         foreach ($directories as $directory) {
             if (!is_dir($directory)) {

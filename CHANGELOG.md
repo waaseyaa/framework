@@ -1,5 +1,7 @@
 # Changelog
 
+- **mcp / bimaaji / ai-agent**: Remove privileged `bimaaji.read` architectural introspection from anonymous MCP defaults and make filesystem spec indexing explicit opt-in via `bimaaji.specs_directory`. Graph failures now use the shared sanitized internal-error envelope, spec-search queries are bounded and reject control characters, and results expose only logical filenames rather than absolute server paths.
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),

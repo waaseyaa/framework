@@ -46,10 +46,13 @@ The first first-party tool family surfaced through this package is
 | `bimaaji_generate_patch` | `bimaaji.mutate` | Generate a `PatchSet` from a validated mutation. **Never writes to disk** — the calling MCP client persists. |
 | `bimaaji_search_specs` | `bimaaji.read` | Substring search over `docs/specs/*.md`; returns `{file, section_title, line_number, snippet}` per match. |
 
-**Capability model.** `bimaaji.read` is intended to be broadly
-granted to authenticated MCP clients; `bimaaji.mutate` is opt-in per
-role/account. The framework does not grant either by default — the
-integrating application's permission stack does.
+**Capability model.** `bimaaji.read` exposes privileged architectural
+introspection and is granted only to authenticated accounts that explicitly
+need it; it is not part of the anonymous read tier. `bimaaji.mutate` is opt-in
+per role/account. Spec search is disabled unless the application explicitly
+configures a non-empty `bimaaji.specs_directory`; results expose logical file
+names, never absolute server paths. The integrating application's permission
+stack grants both capabilities.
 
 **Example claude_desktop_config.json fragment** (replace `<token>`
 with the bearer token your `McpAuthInterface` implementation expects):
@@ -82,8 +85,8 @@ No configuration. Every request resolves to an `AnonymousUser` holding only
 `PublicAnonymousAuth::DEFAULT_READ_CAPABILITIES`, and `ReadOnlyToolRegistry`
 makes destructive tools structurally absent. What an anonymous caller can
 reach is the intersection of *non-destructive* and *on that capability list*.
-Audit that intersection for your install — it includes the Bimaaji
-introspection tools, which describe your application's architecture.
+Audit that intersection for your install. Bimaaji introspection is excluded
+from the anonymous defaults because it describes application architecture.
 
 ### 2. Authenticated public tier
 

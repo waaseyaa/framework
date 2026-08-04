@@ -75,6 +75,14 @@ final class SpecIndexProviderTest extends TestCase
     }
 
     #[Test]
+    public function provide_returns_empty_data_when_filesystem_indexing_is_disabled(): void
+    {
+        $provider = new SpecIndexProvider(null);
+
+        $this->assertSame([], $provider->provide()->data);
+    }
+
+    #[Test]
     public function provide_skips_nonexistent_directory_silently(): void
     {
         $provider = new SpecIndexProvider($this->tempDir . '/nonexistent');

@@ -179,8 +179,9 @@ final class BimaajiServiceProvider extends FoundationServiceProvider implements 
 
         // 6. Bind SpecIndexProvider so M3's bimaaji_search_specs tool (and
         //    any future spec-aware consumer) can resolve it from the
-        //    container. Path resolution prefers config['bimaaji']['specs_directory']
-        //    and falls back to <projectRoot>/docs/specs. M3 WP02 of mission
+        //    container. Reading files from disk is disabled unless the app
+        //    explicitly configures `bimaaji.specs_directory`; no project-root
+        //    directory is guessed for a remotely callable tool. M3 WP02 of mission
         //    bimaaji-mcp-bridge-01KS5VS8.
         $this->singleton(
             SpecIndexProvider::class,
@@ -379,16 +380,20 @@ final class BimaajiServiceProvider extends FoundationServiceProvider implements 
         return $candidate instanceof LoggerInterface ? $candidate : new NullLogger();
     }
 
-    private function resolveSpecsDirectory(): string
+    private function resolveSpecsDirectory(): ?string
     {
-        $configured = $this->config['bimaaji']['specs_directory'] ?? null;
+        if (!\array_key_exists('specs_directory', $this->config['bimaaji'] ?? [])) {
+            return null;
+        }
+
+        $configured = $this->config['bimaaji']['specs_directory'];
         if (is_string($configured) && $configured !== '') {
             return $configured;
         }
 
-        $root = $this->projectRoot !== '' ? $this->projectRoot : getcwd();
-
-        return rtrim((string) $root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'docs' . DIRECTORY_SEPARATOR . 'specs';
+        throw new \InvalidArgumentException(
+            'bimaaji.specs_directory must be an explicit non-empty string when configured.',
+        );
     }
 
     private function resolveSkillsDirectory(): string

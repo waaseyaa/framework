@@ -31,7 +31,7 @@ Four `#[AsAgentTool]` adapters expose [bimaaji](../bimaaji/README.md)'s applicat
 | `bimaaji_propose_mutation` | `bimaaji.mutate` | `Waaseyaa\AI\Agent\Tool\Bimaaji\ProposeMutationTool` | Validate a proposed schema mutation against the current graph; returns the full `MutationResult` envelope (status + errors). |
 | `bimaaji_generate_patch` | `bimaaji.mutate` | `Waaseyaa\AI\Agent\Tool\Bimaaji\GeneratePatchTool` | Re-validate the request and emit a `PatchSet` in memory (never touches the filesystem — the consuming agent loop decides what to do with the patches). |
 
-**Capabilities:** `bimaaji.read` is generally safe to grant; `bimaaji.mutate` is default-off per AD-02 and should be granted only to agents that need to propose schema changes. The mutation tools enforce the deny via `AbstractAgentTool::requireCapability()`; rejected calls surface as `AgentToolResult::error(summary: 'forbidden')` and are recorded in the audit log.
+**Capabilities:** `bimaaji.read` is privileged architectural introspection and should be granted only to authenticated agents that need it; it is not an anonymous-safe capability. `bimaaji.mutate` is default-off per AD-02 and should be granted only to agents that need to propose schema changes. The mutation tools enforce the deny via `AbstractAgentTool::requireCapability()`; rejected calls surface as `AgentToolResult::error(summary: 'forbidden')` and are recorded in the audit log.
 
 **Example — run the reference demo agent inline:**
 

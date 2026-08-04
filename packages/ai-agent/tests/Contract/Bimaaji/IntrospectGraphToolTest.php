@@ -72,7 +72,7 @@ final class IntrospectGraphToolTest extends TestCase
 
             public function provide(): GraphSection
             {
-                throw new \RuntimeException('upstream blew up');
+                throw new \RuntimeException('password=do-not-leak /srv/private/specs');
             }
         };
         $generator = new ApplicationGraphGenerator(providers: [$failingProvider], strict: true);
@@ -82,8 +82,11 @@ final class IntrospectGraphToolTest extends TestCase
 
         self::assertTrue($result->isError);
         $message = $result->content[0]['text'] ?? '';
-        self::assertStringContainsString('RuntimeException', $message);
-        self::assertStringContainsString('upstream blew up', $message);
+        self::assertStringContainsString('INTERNAL_ERROR', $message);
+        self::assertStringContainsString('correlation_id', $message);
+        self::assertStringNotContainsString('RuntimeException', $message);
+        self::assertStringNotContainsString('do-not-leak', $message);
+        self::assertStringNotContainsString('/srv/private/specs', $message);
     }
 
     #[Test]

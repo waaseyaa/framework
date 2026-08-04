@@ -169,7 +169,7 @@ final class ReadOnlyBoundaryTest extends TestCase
 
         self::assertFalse($account->isAuthenticated());
         self::assertTrue($account->hasPermission(self::READ_CAP));
-        self::assertTrue($account->hasPermission('bimaaji.read'));
+        self::assertFalse($account->hasPermission('bimaaji.read'));
         self::assertTrue($account->hasPermission('tool.relationship.traverse'));
         // The write capability is NOT granted — a write tool's requireCapability
         // would fail even if it somehow reached execution.

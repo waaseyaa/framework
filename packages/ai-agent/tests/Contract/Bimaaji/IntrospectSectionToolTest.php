@@ -78,6 +78,33 @@ final class IntrospectSectionToolTest extends TestCase
     }
 
     #[Test]
+    public function sanitizesGeneratorFailure(): void
+    {
+        $failingProvider = new class implements GraphSectionProviderInterface {
+            public function getKey(): string
+            {
+                return 'routing';
+            }
+
+            public function provide(): GraphSection
+            {
+                throw new \RuntimeException('token=do-not-leak /srv/private/routes');
+            }
+        };
+        $tool = new IntrospectSectionTool(new ApplicationGraphGenerator(providers: [$failingProvider], strict: true));
+
+        $result = $tool->execute(['section' => 'routing'], $this->accountWithPermission('bimaaji.read'));
+
+        self::assertTrue($result->isError);
+        $message = $result->content[0]['text'] ?? '';
+        self::assertStringContainsString('INTERNAL_ERROR', $message);
+        self::assertStringContainsString('correlation_id', $message);
+        self::assertStringNotContainsString('RuntimeException', $message);
+        self::assertStringNotContainsString('do-not-leak', $message);
+        self::assertStringNotContainsString('/srv/private/routes', $message);
+    }
+
+    #[Test]
     public function inputSchemaEnumeratesSixSectionKeys(): void
     {
         $schema = $this->makeTool()->inputSchema();

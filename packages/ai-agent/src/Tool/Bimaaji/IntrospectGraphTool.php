@@ -60,10 +60,7 @@ final class IntrospectGraphTool extends AbstractAgentTool
         try {
             $graph = $this->generator->generate();
         } catch (\Throwable $e) {
-            return AgentToolResult::error(
-                message: sprintf('bimaaji_introspect_graph: [%s] %s', $e::class, $e->getMessage()),
-                summary: 'graph generation failed',
-            );
+            return $this->internalError('bimaaji_introspect_graph', $e);
         }
 
         $payload = $graph->toArray();
