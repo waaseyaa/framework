@@ -349,7 +349,11 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
         $dispatcher->addSubscriber(new EntityLifecycleAuditListener($writer, $resolvedLogger, $resolvedContext));
         $dispatcher->addSubscriber(new AgentToolAuditListener($writer, $resolvedLogger, $resolvedContext));
         $dispatcher->addSubscriber(new McpDispatchAuditListener($writer, $resolvedLogger));
-        $dispatcher->addSubscriber(new McpApprovalDecisionAuditListener($writer, $resolvedLogger));
+        $approvalDecisionListener = new McpApprovalDecisionAuditListener($writer, $resolvedLogger);
+        $dispatcher->addListener(
+            McpApprovalDecisionAuditListener::EVENT_NAME,
+            [$approvalDecisionListener, 'onApprovalDecision'],
+        );
         $dispatcher->addSubscriber(new BroadcastAuditListener($writer, $resolvedLogger));
         $dispatcher->addSubscriber(new PublishPointerAuditListener($writer, $resolvedLogger, $resolvedContext));
         $dispatcher->addSubscriber(new RollbackAuditListener($writer, $resolvedLogger, $resolvedContext));

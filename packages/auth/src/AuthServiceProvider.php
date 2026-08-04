@@ -8,10 +8,9 @@ use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface;
-use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
-final class AuthServiceProvider extends ServiceProvider implements HasMiddlewareInterface, ProvidesConsoleCommandsInterface
+final class AuthServiceProvider extends ServiceProvider implements HasMiddlewareInterface
 {
     public function register(): void
     {
@@ -80,17 +79,6 @@ final class AuthServiceProvider extends ServiceProvider implements HasMiddleware
     public function middleware(EntityTypeManager $entityTypeManager): array
     {
         return [];
-    }
-
-    /**
-     * The `bearer-token:*` lifecycle commands (#2177 F3). Console-context
-     * only; the store resolves lazily inside a running command.
-     */
-    public function consoleCommands(): iterable
-    {
-        yield from new Token\Bearer\BearerTokenConsoleCommands(
-            fn(): Token\Bearer\BearerTokenStoreInterface => $this->resolve(Token\Bearer\BearerTokenStoreInterface::class),
-        )->commands();
     }
 
     /**

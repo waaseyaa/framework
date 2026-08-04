@@ -14,6 +14,10 @@
         },
         {
             "type": "path",
+            "url": "../auth"
+        },
+        {
+            "type": "path",
             "url": "../cache"
         },
         {
@@ -94,6 +98,7 @@
         "symfony/console": "^8.0",
         "waaseyaa/access": "^0.1.0-alpha.285",
         "waaseyaa/audit": "^0.1.0-alpha.285",
+        "waaseyaa/auth": "^0.1.0-alpha.285",
         "waaseyaa/cache": "^0.1.0-alpha.285",
         "waaseyaa/config": "^0.1.0-alpha.285",
         "waaseyaa/entity": "^0.1.0-alpha.285",
@@ -148,6 +153,7 @@
                 "Waaseyaa\\CLI\\CliServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\AiServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\AuditServiceProvider",
+                "Waaseyaa\\CLI\\Provider\\BearerTokenServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\BundleFixtureServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\EntityTypeServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\GroupsCliServiceProvider",

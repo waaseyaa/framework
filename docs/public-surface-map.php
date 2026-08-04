@@ -70,6 +70,7 @@ return [
     // Migration-provider injection capability (PR #1614): kernel guards provider
     // wiring via this named interface instead of a Layer-3 concrete edge.
     'Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface' => 'public',
+    'Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsAgentToolProvidersInterface' => 'public',
     // Content-model-provider injection capability (G-026, #1940): mirrors
     // AcceptsMigrationProvidersInterface immediately above — kernel guards
     // provider wiring via this named interface instead of a Layer-3 concrete edge.
@@ -567,6 +568,7 @@ return [
     'Waaseyaa\AI\Tools\AgentToolInterface' => 'public',
     'Waaseyaa\AI\Tools\AgentToolResult' => 'public',
     'Waaseyaa\AI\Tools\ToolRegistryInterface' => 'public',
+    'Waaseyaa\AI\Tools\ProvidesAgentToolsInterface' => 'public',
     'Waaseyaa\AI\Tools\Attribute\AsAgentTool' => 'public',
     'Waaseyaa\AI\Vector\VectorStoreInterface' => 'public',
     'Waaseyaa\AI\Vector\EmbeddingProviderInterface' => 'public',

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Audit\Listener;
 
-use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
@@ -31,7 +30,7 @@ use Waaseyaa\Foundation\Log\NullLogger;
  *
  * @api
  */
-final class McpApprovalDecisionAuditListener implements EventSubscriberInterface
+final class McpApprovalDecisionAuditListener
 {
     /** Canonical event name dispatched by the approval decision controller. */
     public const EVENT_NAME = 'waaseyaa.mcp.approval_decision';
@@ -40,13 +39,6 @@ final class McpApprovalDecisionAuditListener implements EventSubscriberInterface
         private readonly AuditWriterInterface $writer,
         private readonly ?LoggerInterface $logger = null,
     ) {}
-
-    public static function getSubscribedEvents(): array
-    {
-        return [
-            self::EVENT_NAME => 'onApprovalDecision',
-        ];
-    }
 
     /**
      * @param object $event Expects properties: requestId (string), operatorUid (int),

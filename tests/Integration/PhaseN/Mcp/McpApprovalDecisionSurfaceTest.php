@@ -183,7 +183,11 @@ final class McpApprovalDecisionSurfaceTest extends TestCase
                 $this->records[] = $d;
             }
         };
-        $this->dispatcher->addSubscriber(new McpApprovalDecisionAuditListener($writer));
+        $approvalDecisionListener = new McpApprovalDecisionAuditListener($writer);
+        $this->dispatcher->addListener(
+            McpApprovalDecisionAuditListener::EVENT_NAME,
+            [$approvalDecisionListener, 'onApprovalDecision'],
+        );
 
         $this->router = new WaaseyaaRouter(new RequestContext('', 'GET'));
         new ApiServiceProvider()->routes($this->router, $this->entityTypeManager);

@@ -78,6 +78,10 @@ The output always includes `'$schema' => 'https://json-schema.org/draft/2020-12/
 
 ## MCP Tool System
 
+### Application tool contribution
+
+Framework packages normally contribute `#[AsAgentTool]` classes through the compiled package manifest. Applications and providers that assemble tools from application-owned configuration implement `Waaseyaa\AI\Tools\ProvidesAgentToolsInterface`. During kernel boot, contributors are sorted by provider class and injected into `AiToolsServiceProvider`; each receives the canonical `ToolRegistryInterface` when that singleton is first constructed. Registration is therefore independent of HTTP route declaration, works for embedded-agent and MCP consumers alike, and preserves the registry's fail-closed duplicate-name rule. Contributors must not resolve the registry recursively or capture request-scoped services.
+
 ### McpToolDefinition
 
 **File:** `packages/ai-schema/src/Mcp/McpToolDefinition.php`

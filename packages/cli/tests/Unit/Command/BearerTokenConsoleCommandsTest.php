@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Waaseyaa\Auth\Tests\Unit\Token\Bearer;
+namespace Waaseyaa\CLI\Tests\Unit\Command;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
-use Waaseyaa\Auth\Token\Bearer\BearerTokenConsoleCommands;
+use Waaseyaa\CLI\Command\BearerTokenConsoleCommands;
 use Waaseyaa\Auth\Token\Bearer\BearerTokenStoreInterface;
 use Waaseyaa\Auth\Token\Bearer\DatabaseBearerTokenStore;
 use Waaseyaa\CLI\Command\HandlerCommand;

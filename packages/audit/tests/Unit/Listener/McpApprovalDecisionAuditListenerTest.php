@@ -29,12 +29,15 @@ final class McpApprovalDecisionAuditListenerTest extends TestCase
     }
 
     #[Test]
-    public function it_subscribes_to_the_approval_decision_event(): void
+    public function it_exposes_a_framework_neutral_event_name(): void
     {
-        $subscribed = McpApprovalDecisionAuditListener::getSubscribedEvents();
+        $recorded = [];
 
-        $this->assertArrayHasKey(McpApprovalDecisionAuditListener::EVENT_NAME, $subscribed);
         $this->assertSame('waaseyaa.mcp.approval_decision', McpApprovalDecisionAuditListener::EVENT_NAME);
+        $this->assertNotInstanceOf(
+            \Symfony\Component\EventDispatcher\EventSubscriberInterface::class,
+            new McpApprovalDecisionAuditListener($this->writer($recorded)),
+        );
     }
 
     #[Test]

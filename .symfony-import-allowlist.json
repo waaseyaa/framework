@@ -39,7 +39,6 @@
     "packages/audit/src/Listener/ApiRequestAuditListener.php",
     "packages/audit/src/Listener/BroadcastAuditListener.php",
     "packages/audit/src/Listener/EntityLifecycleAuditListener.php",
-    "packages/audit/src/Listener/McpApprovalDecisionAuditListener.php",
     "packages/audit/src/Listener/McpDispatchAuditListener.php",
     "packages/audit/src/Listener/PublishPointerAuditListener.php",
     "packages/audit/src/Listener/RollbackAuditListener.php",

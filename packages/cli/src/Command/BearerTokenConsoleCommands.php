@@ -2,16 +2,17 @@
 
 declare(strict_types=1);
 
-namespace Waaseyaa\Auth\Token\Bearer;
+namespace Waaseyaa\CLI\Command;
+
+use Waaseyaa\Auth\Token\Bearer\BearerTokenRecord;
+use Waaseyaa\Auth\Token\Bearer\BearerTokenStoreException;
+use Waaseyaa\Auth\Token\Bearer\BearerTokenStoreInterface;
 
 /**
  * The `bearer-token:*` operator lifecycle commands (#2177 F3).
  *
- * Constructed lazily by {@see \Waaseyaa\Auth\AuthServiceProvider::consoleCommands()}
- * — console context only, where `waaseyaa/cli` (and Symfony Console) are
- * present. CLI types are referenced by inline FQCN, never imported, exactly
- * like `BimaajiServiceProvider::consoleCommands()`: `waaseyaa/auth` (L1) keeps
- * no manifest or import edge to `waaseyaa/cli` (L6).
+ * Owned by `waaseyaa/cli` (L6); the auth package exposes only the durable
+ * credential store consumed by these operator-facing commands.
  *
  * The issuance/rotation handlers are the ONLY place a bearer secret is ever
  * written out, and only to the operator's console — the store persists a hash,

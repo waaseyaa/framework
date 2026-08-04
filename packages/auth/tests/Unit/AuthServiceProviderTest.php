@@ -83,25 +83,14 @@ final class AuthServiceProviderTest extends TestCase
     }
 
     #[Test]
-    public function the_provider_exposes_the_bearer_token_lifecycle_console_commands(): void
+    public function the_domain_provider_does_not_own_console_commands(): void
     {
         $provider = $this->providerWith([]);
         $provider->register();
 
-        $this->assertInstanceOf(
+        $this->assertNotInstanceOf(
             \Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface::class,
             $provider,
-        );
-
-        $names = [];
-        foreach ($provider->consoleCommands() as $command) {
-            $this->assertInstanceOf(\Symfony\Component\Console\Command\Command::class, $command);
-            $names[] = $command->getName();
-        }
-
-        $this->assertSame(
-            ['bearer-token:issue', 'bearer-token:list', 'bearer-token:rotate', 'bearer-token:revoke'],
-            $names,
         );
     }
 
