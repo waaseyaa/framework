@@ -9,7 +9,7 @@ use Waaseyaa\Database\DatabaseInterface;
 /**
  * @api
  */
-final class DatabaseRateLimiter implements RateLimiterInterface
+final class DatabaseRateLimiter implements AtomicRateLimiterInterface
 {
     private const TABLE = 'rate_limits';
 
@@ -18,6 +18,44 @@ final class DatabaseRateLimiter implements RateLimiterInterface
     public function __construct(
         private readonly DatabaseInterface $database,
     ) {}
+
+    public function consume(string $key, int $maxAttempts, int $decaySeconds): bool
+    {
+        if ($key === '' || \strlen($key) > 255) {
+            throw new \InvalidArgumentException('A rate-limit key must contain 1-255 bytes.');
+        }
+        if ($maxAttempts < 1 || $decaySeconds < 1) {
+            throw new \InvalidArgumentException('Rate-limit bounds must be positive integers.');
+        }
+
+        $this->ensureTable();
+        $now = \time();
+        $table = $this->database->quoteIdentifier(self::TABLE);
+        $bucket = $this->database->quoteIdentifier('bucket_key');
+        $hits = $this->database->quoteIdentifier('hits');
+        $reset = $this->database->quoteIdentifier('reset_at');
+
+        // The upsert atomically consumes the attempt before any decision is
+        // read. Concurrent requests therefore cannot all observe the same
+        // pre-increment count and over-admit the bucket. The following read can
+        // only see this count or a later/higher one, so a race may conservatively
+        // refuse an attempt but can never admit more than the configured limit.
+        $sql = "INSERT INTO {$table} ({$bucket}, {$hits}, {$reset}) VALUES (?, 1, ?) "
+            . "ON CONFLICT ({$bucket}) DO UPDATE SET "
+            . "{$hits} = CASE WHEN {$reset} <= ? THEN 1 ELSE {$hits} + 1 END, "
+            . "{$reset} = CASE WHEN {$reset} <= ? THEN excluded.{$reset} ELSE {$reset} END";
+
+        $this->database->query(
+            $sql,
+            [$key, $now + $decaySeconds, $now, $now],
+        );
+        $row = $this->fetchRow($key);
+        if ($row === null || !isset($row['hits'])) {
+            throw new \RuntimeException('The rate limiter did not return an atomic decision.');
+        }
+
+        return (int) $row['hits'] <= $maxAttempts;
+    }
 
     public function hit(string $key, int $decaySeconds): void
     {

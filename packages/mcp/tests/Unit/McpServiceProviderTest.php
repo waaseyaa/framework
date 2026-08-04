@@ -9,10 +9,12 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Waaseyaa\Auth\AtomicRateLimiterInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Exception\ConfigException;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\McpServiceProvider;
+use Waaseyaa\Mcp\UnavailableRateLimiter;
 use Waaseyaa\Routing\WaaseyaaRouter;
 
 #[CoversClass(McpServiceProvider::class)]
@@ -199,6 +201,58 @@ final class McpServiceProviderTest extends TestCase
             self::assertStringNotContainsString($secret, json_encode($e->context, JSON_THROW_ON_ERROR));
             self::assertStringContainsString('mcp.public.enabled', $e->getMessage());
             self::assertStringContainsString('string', $e->getMessage());
+        }
+    }
+
+    /** @return array{0: ?AtomicRateLimiterInterface, 1: int, 2: int} */
+    private function rateLimitSettingsFor(array $config): array
+    {
+        $provider = new McpServiceProvider();
+        $provider->setKernelContext('', $config, []);
+        $method = new \ReflectionMethod(McpServiceProvider::class, 'rateLimitSettings');
+
+        return $method->invoke($provider);
+    }
+
+    #[Test]
+    public function mcp_rate_limiting_is_enabled_by_default_and_fails_closed_without_storage(): void
+    {
+        [$limiter, $max, $window] = $this->rateLimitSettingsFor([]);
+
+        self::assertInstanceOf(UnavailableRateLimiter::class, $limiter);
+        self::assertSame(120, $max);
+        self::assertSame(60, $window);
+    }
+
+    #[Test]
+    public function an_explicit_zero_disables_mcp_rate_limiting(): void
+    {
+        [$limiter, $max, $window] = $this->rateLimitSettingsFor([
+            'mcp' => ['rate_limit' => ['max_requests' => 0, 'window_seconds' => 30]],
+        ]);
+
+        self::assertNull($limiter);
+        self::assertSame(0, $max);
+        self::assertSame(30, $window);
+    }
+
+    #[Test]
+    public function malformed_rate_limit_values_are_refused_without_coercion(): void
+    {
+        foreach ([
+            ['max_requests' => '120'],
+            ['max_requests' => -1],
+            ['max_requests' => 10_001],
+            ['window_seconds' => '60'],
+            ['window_seconds' => 0],
+            ['window_seconds' => 3_601],
+        ] as $settings) {
+            try {
+                $this->rateLimitSettingsFor(['mcp' => ['rate_limit' => $settings]]);
+                self::fail('Expected malformed MCP rate-limit config to be refused.');
+            } catch (ConfigException $e) {
+                self::assertStringContainsString('mcp.rate_limit.', $e->getMessage());
+            }
         }
     }
 

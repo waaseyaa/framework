@@ -113,6 +113,35 @@ final class DatabaseRateLimiterTest extends TestCase
     }
 
     #[Test]
+    public function consume_records_and_decides_the_attempt_atomically(): void
+    {
+        self::assertTrue($this->limiter->consume('mcp:write:7', 2, 60));
+        self::assertTrue($this->limiter->consume('mcp:write:7', 2, 60));
+        self::assertFalse($this->limiter->consume('mcp:write:7', 2, 60));
+        self::assertSame(3, $this->limiter->attempts('mcp:write:7'));
+    }
+
+    #[Test]
+    public function consume_shares_one_durable_bucket_across_instances(): void
+    {
+        $other = new DatabaseRateLimiter($this->db);
+
+        self::assertTrue($this->limiter->consume('mcp:write:7', 1, 60));
+        self::assertFalse($other->consume('mcp:write:7', 1, 60));
+    }
+
+    #[Test]
+    public function consume_starts_a_fresh_window_after_expiry(): void
+    {
+        self::assertTrue($this->limiter->consume('mcp:write:7', 1, 60));
+        $this->db->update('rate_limits')->fields(['reset_at' => 0])
+            ->condition('bucket_key', 'mcp:write:7')->execute();
+
+        self::assertTrue($this->limiter->consume('mcp:write:7', 1, 60));
+        self::assertSame(1, $this->limiter->attempts('mcp:write:7'));
+    }
+
+    #[Test]
     public function schema_uses_no_reserved_word_columns(): void
     {
         $this->limiter->hit('k', 60); // triggers ensureTable()

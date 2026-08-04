@@ -166,11 +166,12 @@ and the value's type only** — never the value.
 
 ## Why `/mcp/write` is fail-closed by default
 
-The write tier resolves `WriteTierAuthInterface`, and the framework ships
-**no usable default credential**: absent an application binding it falls back
-to `BearerTokenAuth([])`, an empty token map that matches nothing, so every
-request is HTTP 401. Token-to-account mapping is inherently
-application-specific — there is no safe value for the framework to guess.
+The write tier resolves `WriteTierAuthInterface`. Its production default is
+`DurableBearerTokenAuth` over the framework bearer-token store: a fresh
+installation has no issued credentials, so every request is HTTP 401 until an
+operator issues an audience- and scope-bound token. If durable auth cannot be
+wired, the endpoint falls back to `BearerTokenAuth([])`, which also matches
+nothing.
 
 It is not gated by `mcp.public.enabled` because an authenticated write tier
 with no anonymous read tier is a supported production shape, and turning off
@@ -183,20 +184,13 @@ separately.
 > The transport and authorization plumbing is sound, but the safety milestone
 > around it is incomplete. As of this release:
 >
-> - **No human-approval gate.** A tool declared `destructive: true` executes
->   immediately over MCP. The HITL gate in `AgentExecutor` covers agent
->   *runs*, not MCP calls, so `destructive` is descriptive metadata on this
->   surface.
-> - **Bearer tokens have no expiry, revocation, rotation, audience, or
->   scopes.** Rotation means changing configuration and redeploying.
-> - **Auditing is best-effort.** The dispatch event fires once per request
->   *before* routing, records `outcome: 'allowed'` unconditionally, and does
->   not record which tool ran. Authentication failures and rate-limit
->   rejections return before it fires and are not recorded at all.
-> - **Rate limiting is off by default** (`mcp.rate_limit.max_requests`), and
->   its check-then-increment is not atomic under concurrency.
+> Durable outcome-honest auditing, destructive-tool human approval, expiring
+> and revocable scoped bearer tokens, and atomic default-on rate limiting are
+> now framework-owned. The remaining enterprise-readiness work is protocol and
+> transport conformance, bounded introspection, curated generic mutations, and
+> deterministic duplicate tool-name refusal.
 >
-> Until those land, treat the write tier as suitable for supervised or
+> Until those remaining items land, treat the write tier as suitable for supervised or
 > trusted-operator use only, behind a curated capability allowlist
 > (`mcp.write_tier.capabilities`) — and prefer `waaseyaa/publishing`'s
 > `ContentToolSet` over the generic `tool.entity.*` tools, since it is

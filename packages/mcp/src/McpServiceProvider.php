@@ -551,28 +551,41 @@ final class McpServiceProvider extends ServiceProvider
     /**
      * Per-principal rate limiting for both MCP tiers (#2136 WP3).
      *
-     * Config `mcp.rate_limit.{max_requests, window_seconds}`; DEFAULT OFF
-     * (`max_requests` absent or <= 0). When enabled, a shared
+     * Config `mcp.rate_limit.{max_requests, window_seconds}`; DEFAULT ON at
+     * 120 authenticated requests per 60 seconds. An explicit integer zero
+     * disables it. When enabled, a shared atomic
      * {@see \Waaseyaa\Auth\DatabaseRateLimiter} is built over the kernel
-     * database; when no database resolves, limiting stays off (the endpoint
-     * fails open by contract — limiter availability is not endpoint
-     * availability).
+     * database; when no database resolves, provider wiring fails closed.
      *
-     * @return array{0: ?\Waaseyaa\Auth\RateLimiterInterface, 1: int, 2: int}
+     * @return array{0: ?\Waaseyaa\Auth\AtomicRateLimiterInterface, 1: int, 2: int}
      */
     private function rateLimitSettings(): array
     {
         $mcp = $this->config['mcp'] ?? null;
         $settings = \is_array($mcp) && \is_array($mcp['rate_limit'] ?? null) ? $mcp['rate_limit'] : [];
-        $maxRequests = (int) ($settings['max_requests'] ?? 0);
-        $windowSeconds = max(1, (int) ($settings['window_seconds'] ?? 60));
-        if ($maxRequests <= 0) {
+        $maxRequests = $settings['max_requests'] ?? 120;
+        $windowSeconds = $settings['window_seconds'] ?? 60;
+        if (!\is_int($maxRequests) || $maxRequests < 0 || $maxRequests > 10_000) {
+            throw self::malformedConfig(
+                'mcp.rate_limit.max_requests',
+                $maxRequests,
+                'an integer between 0 and 10000',
+            );
+        }
+        if (!\is_int($windowSeconds) || $windowSeconds < 1 || $windowSeconds > 3_600) {
+            throw self::malformedConfig(
+                'mcp.rate_limit.window_seconds',
+                $windowSeconds,
+                'an integer between 1 and 3600',
+            );
+        }
+        if ($maxRequests === 0) {
             return [null, 0, $windowSeconds];
         }
 
         $database = $this->resolveOptional(\Waaseyaa\Database\DatabaseInterface::class);
         if (!$database instanceof \Waaseyaa\Database\DatabaseInterface) {
-            return [null, 0, $windowSeconds];
+            return [new UnavailableRateLimiter(), $maxRequests, $windowSeconds];
         }
 
         return [new \Waaseyaa\Auth\DatabaseRateLimiter($database), $maxRequests, $windowSeconds];

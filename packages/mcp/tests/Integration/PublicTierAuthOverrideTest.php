@@ -227,7 +227,11 @@ final class PublicTierAuthOverrideTest extends TestCase
         };
 
         foreach ($providers as $provider) {
-            $provider->setKernelContext('', [], []);
+            // This acceptance test isolates auth override semantics; default-on
+            // durable rate limiting has separate provider/endpoint coverage.
+            $provider->setKernelContext('', [
+                'mcp' => ['rate_limit' => ['max_requests' => 0]],
+            ], []);
             $provider->setKernelServices($bus);
         }
         foreach ($providers as $provider) {

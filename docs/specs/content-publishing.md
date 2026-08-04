@@ -89,7 +89,7 @@ Every successful mutation records via `AuditWriterInterface` (best-effort): kind
 
 ## MCP rate limiting (`packages/mcp`)
 
-`McpEndpoint` gains an optional `?RateLimiterInterface` + config `mcp.rate_limit.{max_requests,window_seconds}` (default off; rhtcircle sets e.g. 120/60). Keyed per resolved principal id + tier. Exceeded → JSON-RPC error `-32029` "Rate limit exceeded" with `retryAfter`. Fail-open on limiter infrastructure errors (log; availability of the audit chain is not availability of the limiter).
+`McpEndpoint` uses `AtomicRateLimiterInterface` + config `mcp.rate_limit.{max_requests,window_seconds}` (default 120/60; explicit integer zero disables). It is keyed per resolved principal id + tier. Exceeded → JSON-RPC error `-32029` "Rate limit exceeded" with `retryAfter`; inability to obtain a durable decision fails closed with sanitized `-32030` / HTTP 503.
 
 ## rhtcircle (consumer — the app side of the same effort)
 

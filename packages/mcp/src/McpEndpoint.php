@@ -66,14 +66,15 @@ final readonly class McpEndpoint
      * @param ?AccountFieldReadScopeInterface $fieldReadScope Optional guarded-read scope. Authenticated
      *                                                        MCP dispatch runs as the bearer principal,
      *                                                        independently of the HTTP session account.
-     * @param ?\Waaseyaa\Auth\RateLimiterInterface $rateLimiter Optional per-principal
-     *        rate limiting (#2136 WP3). Enabled only when a limiter is supplied AND
-     *        `$rateLimitMaxRequests > 0` (default off). Keys are
+     * @param ?\Waaseyaa\Auth\AtomicRateLimiterInterface $rateLimiter Per-principal
+     *        atomic rate limiting (#2136 WP3, #2177 F7). Enabled when a limiter
+     *        is supplied and `$rateLimitMaxRequests > 0`. Keys are
      *        `mcp:<tier>:<principal id>`; exceeding the budget yields JSON-RPC
      *        error -32029 with `retry_after_seconds` (HTTP 429). The limiter is
      *        consulted only AFTER successful authentication (anonymous 401s never
-     *        consume budget) and fails OPEN on limiter infrastructure errors —
-     *        limiter availability must never take down the endpoint.
+     *        consume budget). A limiter that cannot make a durable decision
+     *        fails closed with a sanitized 503; requests are never admitted on
+     *        an assumed budget.
      * @param ?\Waaseyaa\Foundation\Log\LoggerInterface $logger Destination for the detail
      *        of an unhandled tool exception, forwarded to the per-request bridge. The
      *        caller-visible response is sanitized either way; the logger only decides
@@ -92,7 +93,7 @@ final readonly class McpEndpoint
         private AgentToolRegistryInterface $agentRegistry,
         private ?EventDispatcherInterface $dispatcher = null,
         private ?AccountContextInterface $accountContext = null,
-        private ?\Waaseyaa\Auth\RateLimiterInterface $rateLimiter = null,
+        private ?\Waaseyaa\Auth\AtomicRateLimiterInterface $rateLimiter = null,
         private int $rateLimitMaxRequests = 0,
         private int $rateLimitWindowSeconds = 60,
         private string $rateLimitTier = 'public',
@@ -237,7 +238,11 @@ final readonly class McpEndpoint
         if ($this->rateLimiter !== null && $this->rateLimitMaxRequests > 0) {
             try {
                 $key = sprintf('mcp:%s:%s', $this->rateLimitTier, (string) $principal->id());
-                if ($this->rateLimiter->tooManyAttempts($key, $this->rateLimitMaxRequests)) {
+                if (!$this->rateLimiter->consume(
+                    $key,
+                    $this->rateLimitMaxRequests,
+                    $this->rateLimitWindowSeconds,
+                )) {
                     // Audited OUTSIDE the limiter's own try/catch semantics: the
                     // algorithm is untouched (atomicity remains F7), only the
                     // decision is recorded. Recording happens once per refused
@@ -269,9 +274,24 @@ final readonly class McpEndpoint
                         statusCode: 429,
                     );
                 }
-                $this->rateLimiter->hit($key, $this->rateLimitWindowSeconds);
-            } catch (\Throwable) {
-                // Fail open: limiter availability is not endpoint availability.
+            } catch (\Throwable $e) {
+                $this->logger?->error('MCP rate limiter could not make a durable decision.', [
+                    'exception_class' => $e::class,
+                    'tier' => $this->rateLimitTier,
+                ]);
+
+                return new McpResponse(
+                    body: \json_encode([
+                        'jsonrpc' => '2.0',
+                        'error' => [
+                            'code' => -32030,
+                            'message' => 'Rate limiter unavailable',
+                            'data' => ['correlation_id' => $correlationId],
+                        ],
+                        'id' => null,
+                    ], \JSON_THROW_ON_ERROR),
+                    statusCode: 503,
+                );
             }
         }
 

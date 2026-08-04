@@ -430,6 +430,7 @@ return [
     'Waaseyaa\Access\ErrorPageRendererInterface' => 'internal',
     'Waaseyaa\Auth\Token\AuthTokenRepositoryInterface' => 'internal',
     'Waaseyaa\Auth\RateLimiterInterface' => 'internal',
+    'Waaseyaa\Auth\AtomicRateLimiterInterface' => 'public',
 
     // Layer 2: Content Types — public
     'Waaseyaa\Media\FileRepositoryInterface' => 'public',

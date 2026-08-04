@@ -184,10 +184,13 @@ final class WriteTierAuthOverrideTest extends TestCase
             // both default ON and fail closed when unwireable, so both are
             // explicitly opted out here rather than silently satisfied — the
             // fail-closed wiring has its own coverage in McpServiceProviderTest.
-            $provider->setKernelContext('', ['mcp' => ['write_tier' => [
-                'durable_audit' => false,
-                'approval' => ['enabled' => false],
-            ]]], []);
+            $provider->setKernelContext('', ['mcp' => [
+                'rate_limit' => ['max_requests' => 0],
+                'write_tier' => [
+                    'durable_audit' => false,
+                    'approval' => ['enabled' => false],
+                ],
+            ]], []);
             $provider->setKernelServices($bus);
         }
         foreach ($providers as $provider) {

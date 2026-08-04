@@ -38,7 +38,10 @@ final class McpServiceProviderDurableAuthTest extends TestCase
 {
     /** Config that keeps this test about auth wiring, not audit wiring. */
     private const array CONFIG = [
-        'mcp' => ['write_tier' => ['durable_audit' => false, 'approval' => ['enabled' => false]]],
+        'mcp' => [
+            'rate_limit' => ['max_requests' => 0],
+            'write_tier' => ['durable_audit' => false, 'approval' => ['enabled' => false]],
+        ],
     ];
 
     #[Test]
