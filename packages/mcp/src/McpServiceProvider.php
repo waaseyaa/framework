@@ -45,6 +45,19 @@ use Waaseyaa\Routing\WaaseyaaRouter;
  */
 final class McpServiceProvider extends ServiceProvider
 {
+    /**
+     * Generic entity mutations are not bundle-scoped and therefore are not a
+     * safe default for a remotely callable editorial surface. Embedded agents
+     * keep the complete catalogue; only `/mcp/write` withholds these names.
+     */
+    private const array GENERIC_ENTITY_MUTATION_TOOLS = [
+        'entity.create',
+        'entity.update',
+        'entity.delete',
+        'entity.rollback',
+        'entity.set_current_revision',
+    ];
+
     public function register(): void
     {
         // McpAuthInterface is deliberately NOT bound here. Binding it would put
@@ -136,6 +149,7 @@ final class McpServiceProvider extends ServiceProvider
                 $writeRegistry = new CapabilityScopedToolRegistry(
                     $this->resolve(AgentToolRegistryInterface::class),
                     $this->writeTierCapabilities(),
+                    $this->genericEntityMutationToolBlocklist(),
                 );
 
                 [$limiter, $maxRequests, $windowSeconds] = $this->rateLimitSettings();
@@ -546,6 +560,26 @@ final class McpServiceProvider extends ServiceProvider
         }
 
         return $resolved !== [] ? $resolved : ['present guided content'];
+    }
+
+    /**
+     * Generic entity mutations require an explicit dangerous opt-in. The
+     * framework-supported remote editing path is an app-registered
+     * ContentToolSet: bundle-scoped, draft-first, idempotent and revision-aware.
+     *
+     * @return list<string>
+     */
+    private function genericEntityMutationToolBlocklist(): array
+    {
+        $mcp = $this->config['mcp'] ?? null;
+        $writeTier = \is_array($mcp) && \is_array($mcp['write_tier'] ?? null) ? $mcp['write_tier'] : [];
+        $configured = $writeTier['allow_generic_entity_mutations'] ?? false;
+        $allowed = self::requireBool(
+            $configured,
+            'mcp.write_tier.allow_generic_entity_mutations',
+        );
+
+        return $allowed ? [] : self::GENERIC_ENTITY_MUTATION_TOOLS;
     }
 
     /**

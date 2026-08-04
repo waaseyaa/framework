@@ -188,17 +188,34 @@ separately.
 > around it is incomplete. As of this release:
 >
 > Durable outcome-honest auditing, destructive-tool human approval, expiring
-> and revocable scoped bearer tokens, and atomic default-on rate limiting are
-> now framework-owned. The remaining enterprise-readiness work is protocol and
-> transport conformance, bounded introspection, curated generic mutations, and
-> deterministic duplicate tool-name refusal.
+> and revocable scoped bearer tokens, atomic default-on rate limiting, bounded
+> authenticated introspection, deterministic duplicate-name refusal, and a
+> curated write-tool boundary are now framework-owned. The remaining
+> enterprise-readiness work is protocol and transport conformance.
 >
 > Until those remaining items land, treat the write tier as suitable for supervised or
 > trusted-operator use only, behind a curated capability allowlist
-> (`mcp.write_tier.capabilities`) — and prefer `waaseyaa/publishing`'s
-> `ContentToolSet` over the generic `tool.entity.*` tools, since it is
-> bundle-scoped, draft-first, and enforces optimistic locking and
-> idempotency.
+> (`mcp.write_tier.capabilities`). The canonical editorial surface is
+> `waaseyaa/publishing`'s `ContentToolSet`: it is bundle-scoped, draft-first,
+> and enforces optimistic locking and idempotency.
+
+The generic `entity.create`, `entity.update`, `entity.delete`,
+`entity.rollback`, and `entity.set_current_revision` tools are structurally
+absent from `/mcp/write` by default even if their broad `tool.entity.*`
+capability is allowlisted. They remain available to the embedded agent runtime.
+An application accepting the cross-bundle risk can opt in explicitly:
+
+```php
+return [
+    'mcp' => [
+        'write_tier' => [
+            'allow_generic_entity_mutations' => true,
+        ],
+    ],
+];
+```
+
+The flag is a strict boolean security control; malformed values fail boot.
 
 ## Tool error contract
 

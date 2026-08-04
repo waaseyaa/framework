@@ -264,6 +264,15 @@ final class McpServiceProviderTest extends TestCase
         return $this->resolveThroughProviders($config, $ledger, $approvalStore, \Waaseyaa\Mcp\AuthenticatedMcpEndpoint::class);
     }
 
+    private function writeRegistryFrom(object $endpoint): \Waaseyaa\Mcp\CapabilityScopedToolRegistry
+    {
+        $inner = new \ReflectionProperty(\Waaseyaa\Mcp\AuthenticatedMcpEndpoint::class, 'inner')->getValue($endpoint);
+        $registry = new \ReflectionProperty(\Waaseyaa\Mcp\McpEndpoint::class, 'agentRegistry')->getValue($inner);
+        self::assertInstanceOf(\Waaseyaa\Mcp\CapabilityScopedToolRegistry::class, $registry);
+
+        return $registry;
+    }
+
     /** Wire the real provider pair and resolve one endpoint class from it. */
     private function resolveThroughProviders(
         array $config,
@@ -431,6 +440,38 @@ final class McpServiceProviderTest extends TestCase
         self::assertInstanceOf(
             \Waaseyaa\Mcp\AuthenticatedMcpEndpoint::class,
             $this->resolveWriteEndpoint([], $this->workingLedger(), $this->approvalStore()),
+        );
+    }
+
+    #[Test]
+    public function generic_entity_mutations_are_structurally_blocked_on_the_write_tier_by_default(): void
+    {
+        $endpoint = $this->resolveWriteEndpoint([], $this->workingLedger(), $this->approvalStore());
+        $registry = $this->writeRegistryFrom($endpoint);
+
+        self::assertSame(
+            ['entity.create', 'entity.update', 'entity.delete', 'entity.rollback', 'entity.set_current_revision'],
+            new \ReflectionProperty($registry, 'blockedToolNames')->getValue($registry),
+        );
+    }
+
+    #[Test]
+    public function generic_entity_mutations_require_an_explicit_strict_boolean_opt_in(): void
+    {
+        $endpoint = $this->resolveWriteEndpoint(
+            ['mcp' => ['write_tier' => ['allow_generic_entity_mutations' => true]]],
+            $this->workingLedger(),
+            $this->approvalStore(),
+        );
+        $registry = $this->writeRegistryFrom($endpoint);
+        self::assertSame([], new \ReflectionProperty($registry, 'blockedToolNames')->getValue($registry));
+
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessageMatches('/mcp\.write_tier\.allow_generic_entity_mutations/');
+        $this->resolveWriteEndpoint(
+            ['mcp' => ['write_tier' => ['allow_generic_entity_mutations' => 'perhaps']]],
+            $this->workingLedger(),
+            $this->approvalStore(),
         );
     }
 

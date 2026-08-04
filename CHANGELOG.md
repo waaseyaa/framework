@@ -1,5 +1,7 @@
 # Changelog
 
+- **mcp / ai-tools**: Make `ContentToolSet` the canonical remotely callable editorial mutation surface. `/mcp/write` now structurally withholds the five cross-bundle generic `entity.*` mutation tools even when their broad capabilities are allowlisted; applications must set the strict `mcp.write_tier.allow_generic_entity_mutations=true` escape hatch to accept that risk. The embedded agent catalogue remains unchanged.
+
 - **mcp / bimaaji / ai-agent**: Remove privileged `bimaaji.read` architectural introspection from anonymous MCP defaults and make filesystem spec indexing explicit opt-in via `bimaaji.specs_directory`. Graph failures now use the shared sanitized internal-error envelope, spec-search queries are bounded and reject control characters, and results expose only logical filenames rather than absolute server paths.
 
 All notable changes to this project will be documented in this file.
