@@ -100,12 +100,16 @@ This follows the typed `AppControllerRouter` contract (see **`docs/specs/app-con
 
 The internal dispatch method processes requests in this order:
 
+0. **Guard Streamable HTTP in `serve()`** -- before dispatch, validate Origin,
+   method, media types, and any `MCP-Protocol-Version` header. A transport
+   refusal never reaches authentication, rate limiting, JSON parsing, or tools.
 1. **Authenticate** -- calls `$this->auth->authenticate($authorizationHeader)`. If null is returned, responds with HTTP 401 and a JSON-RPC error (code `-32001`, message "Unauthorized"). The 401 envelope is identical for every `null` cause — missing/malformed header, unknown token, or a token whose account is blocked (#1652) — so callers cannot distinguish a blocked token from an invalid one.
 2. **Scope the acting-account context** -- immediately after successful auth (before body parsing), the endpoint captures the prior `AccountContextInterface` value and sets the bearer-auth-resolved account. The prior value is restored in `finally` -- including when a routed handler throws -- because the MCP account deliberately differs from any session account. No-op when no context was injected.
-3. **Parse JSON-RPC** -- decodes the body with `json_decode()`. On `JsonException`, returns parse error (code `-32700`). On missing `method` field, returns invalid request (code `-32600`).
+3. **Parse one JSON-RPC message** -- decodes the body with `json_decode()`. On `JsonException`, returns HTTP 400 parse error (`-32700`). Batch arrays, a non-`2.0` envelope, an invalid request id, or a malformed request return HTTP 400 (`-32600`). Valid client response messages are accepted with HTTP 202 and no body.
 4. **Fire the dispatch event** -- see "Dispatch event seam" below. Fires exactly once per authenticated, well-formed request, immediately before method routing.
 5. **Dispatch inside the bearer field-read scope** -- `AccountFieldReadScopeInterface::run()` scopes the guarded entity-read principal to the bearer identity for the complete routed call and restores the prior scope afterward. This is separate from `AccountContextInterface`: `FieldReadGuard` deliberately consults the immutable field-read scope, not the HTTP session or acting-account holder. The routed call then matches the JSON-RPC method to an internal handler:
-   - `initialize` -- returns protocol version (`2025-03-26`), capabilities, and server info.
+   - `initialize` -- validates lifecycle params and negotiates `2025-11-25`, `2025-06-18`, or `2025-03-26` (preferring the latest), then returns capabilities and server info.
+   - `notifications/initialized` and `notifications/cancelled` -- accepted as notifications with HTTP 202 and no response body. Cancellation is advisory for this synchronous, task-free server profile.
    - `ping` -- returns an empty result.
    - `tools/list` -- returns tool definitions via the per-request bridge.
    - `tools/call` -- validates the `params` envelope (`name` must be a string, `arguments` must be a JSON object), looks up the tool, enforces the tool's declared input schema, and executes it via the per-request bridge. See "Input-schema enforcement (`tools/call`)" below.
@@ -683,12 +687,21 @@ The 12 first-party tools (`search_entities`/`search_teachings`/`ai_discover`, `g
 
 ### Transport
 
-The MCP spec (protocol version 2025-03-26) defines Streamable HTTP as the remote transport:
+The endpoint implements the stateless JSON-response profile of Streamable HTTP
+for protocol `2025-11-25` with compatibility for `2025-06-18` and
+`2025-03-26`:
 
-- Single endpoint at `/mcp` accepts POST and GET.
-- POST sends JSON-RPC messages. Server responds with `application/json`.
-- GET opens SSE stream for server-initiated messages (future).
-- Sessions use `Mcp-Session-Id` header.
+- POST carries exactly one JSON-RPC request, notification, or response.
+- POST requires `Content-Type: application/json` and `Accept` listing both
+  `application/json` and `text/event-stream`.
+- Notifications and client response messages return HTTP 202 with no body.
+- GET with `Accept: text/event-stream` returns 405: SSE, server-initiated
+  requests, sessions, and resumability are not implemented or advertised.
+- A present Origin is validated against the request origin plus the explicit
+  `mcp.transport.allowed_origins` list; invalid origins return 403. Native
+  clients may omit Origin.
+- Subsequent clients send `MCP-Protocol-Version`; invalid or unsupported values
+  return HTTP 400. Absence retains the specification's `2025-03-26` fallback.
 
 ## Routes
 
@@ -713,6 +726,13 @@ With `mcp.public.enabled = false`, `/mcp` and `/.well-known/mcp.json` are absent
     "description": "AI-native content management system",
     "endpoint": "/mcp",
     "transport": "streamable-http",
+    "protocolVersions": ["2025-11-25", "2025-06-18", "2025-03-26"],
+    "transportCapabilities": {
+        "jsonResponse": true,
+        "sse": false,
+        "sessions": false,
+        "resumability": false
+    },
     "capabilities": {
         "tools": true,
         "resources": false,
@@ -735,8 +755,8 @@ With `mcp.public.enabled = false`, `/mcp` and `/.well-known/mcp.json` are absent
 | `resources/read` | No | v0.2.0+ |
 | `prompts/list` | No | v0.3.0+ |
 | Server card | Yes | Evolves with spec |
-| SSE streaming | No | Via SDK |
-| Session management | No | Via SDK |
+| SSE streaming | No, honestly returns 405 | Optional future profile |
+| Session management | No, not advertised | Optional future profile |
 
 ## File Reference
 

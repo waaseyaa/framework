@@ -81,7 +81,7 @@ Repositories live in `packages/ai-agent/src/Repository/`. The legacy in-memory `
 | `AgentExecutor` | Per-iteration loop: provider call, tool dispatch via `ToolRegistryInterface`, HITL gating, cancellation poll. |
 | `AgentDefinitionRegistry` | Resolves `AgentDefinition` VOs by id. |
 | `StalledRunReaper` | Transitions runs stuck past `max_runtime_seconds` to `failed`. |
-| `Mcp\McpClientToolSource` + `StreamableHttpMcpClient` | Adapts remote MCP servers into the local tool registry; capability prefix `tool.mcp.<server>.<name>`. |
+| `Mcp\McpClientToolSource` + `StreamableHttpMcpClient` | Adapts remote MCP servers into the local tool registry; completes initialize/initialized, preserves negotiated protocol + session headers, supports JSON or SSE-framed responses, and applies capability prefix `tool.mcp.<server>.<name>`. |
 
 ## Quality gates
 

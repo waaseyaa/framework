@@ -216,6 +216,10 @@ final class McpAuditStagesTest extends TestCase
     {
         $server = $token !== null ? ['HTTP_AUTHORIZATION' => 'Bearer ' . $token] : [];
         $body = json_encode(['jsonrpc' => '2.0', 'id' => 1, 'method' => $method, 'params' => $params], JSON_THROW_ON_ERROR);
+        $server += [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_ACCEPT' => 'application/json, text/event-stream',
+        ];
         $request = HttpRequest::create('/mcp/write', 'POST', [], [], [], $server, $body);
 
         return $endpoint->serve($this->account(99), $request);

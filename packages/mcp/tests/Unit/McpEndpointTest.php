@@ -261,7 +261,7 @@ final class McpEndpointTest extends TestCase
         $endpoint = $this->createEndpoint();
         $response = $this->dispatch($endpoint, 'POST', '{invalid json', 'Bearer valid-token');
 
-        self::assertSame(200, $response->statusCode);
+        self::assertSame(400, $response->statusCode);
 
         $decoded = \json_decode($response->body, true);
         self::assertSame(-32700, $decoded['error']['code']);
@@ -275,10 +275,153 @@ final class McpEndpointTest extends TestCase
         $endpoint = $this->createEndpoint();
         $response = $this->dispatch($endpoint, 'POST', \json_encode(['jsonrpc' => '2.0', 'id' => 1], \JSON_THROW_ON_ERROR), 'Bearer valid-token');
 
-        self::assertSame(200, $response->statusCode);
+        self::assertSame(400, $response->statusCode);
 
         $decoded = \json_decode($response->body, true);
         self::assertSame(-32600, $decoded['error']['code']);
+    }
+
+    #[Test]
+    public function initialize_negotiates_supported_versions_and_falls_forward_for_an_unknown_version(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $endpoint = $this->createEndpoint();
+
+        foreach (['2025-11-25' => '2025-11-25', '2025-06-18' => '2025-06-18', '1999-01-01' => '2025-11-25'] as $requested => $expected) {
+            $response = $this->dispatch($endpoint, 'POST', \json_encode([
+                'jsonrpc' => '2.0',
+                'id' => 1,
+                'method' => 'initialize',
+                'params' => [
+                    'protocolVersion' => $requested,
+                    'capabilities' => [],
+                    'clientInfo' => ['name' => 'test-client', 'version' => '1.0.0'],
+                ],
+            ], \JSON_THROW_ON_ERROR), 'Bearer valid-token');
+
+            self::assertSame($expected, \json_decode($response->body, true)['result']['protocolVersion']);
+        }
+    }
+
+    #[Test]
+    public function initialize_requires_the_lifecycle_identity_and_capability_fields(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $response = $this->dispatch($this->createEndpoint(), 'POST', \json_encode([
+            'jsonrpc' => '2.0',
+            'id' => 1,
+            'method' => 'initialize',
+            'params' => [],
+        ], \JSON_THROW_ON_ERROR), 'Bearer valid-token');
+
+        self::assertSame(-32602, \json_decode($response->body, true)['error']['code']);
+    }
+
+    #[Test]
+    public function initialized_and_cancelled_notifications_return_202_with_no_body(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $endpoint = $this->createEndpoint();
+
+        foreach ([
+            ['method' => 'notifications/initialized', 'params' => []],
+            ['method' => 'notifications/cancelled', 'params' => ['requestId' => 7, 'reason' => 'timeout']],
+        ] as $notification) {
+            $response = $this->dispatch($endpoint, 'POST', \json_encode([
+                'jsonrpc' => '2.0',
+                ...$notification,
+            ], \JSON_THROW_ON_ERROR), 'Bearer valid-token');
+
+            self::assertSame(202, $response->statusCode);
+            self::assertSame('', $response->body);
+        }
+    }
+
+    #[Test]
+    public function malformed_cancellation_notification_is_rejected_without_a_jsonrpc_response(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $response = $this->dispatch($this->createEndpoint(), 'POST', \json_encode([
+            'jsonrpc' => '2.0',
+            'method' => 'notifications/cancelled',
+            'params' => [],
+        ], \JSON_THROW_ON_ERROR), 'Bearer valid-token');
+
+        self::assertSame(400, $response->statusCode);
+        self::assertSame('', $response->body);
+    }
+
+    #[Test]
+    public function response_messages_are_accepted_with_202_and_ignored(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $response = $this->dispatch($this->createEndpoint(), 'POST', \json_encode([
+            'jsonrpc' => '2.0',
+            'id' => 1,
+            'result' => [],
+        ], \JSON_THROW_ON_ERROR), 'Bearer valid-token');
+
+        self::assertSame(202, $response->statusCode);
+        self::assertSame('', $response->body);
+    }
+
+    #[Test]
+    public function malformed_response_messages_are_http_400(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $endpoint = $this->createEndpoint();
+        foreach ([
+            ['jsonrpc' => '2.0', 'id' => null, 'result' => []],
+            ['jsonrpc' => '2.0', 'id' => 1, 'result' => [], 'error' => ['code' => -1, 'message' => 'both']],
+            ['jsonrpc' => '2.0', 'id' => 1, 'error' => ['code' => '-1', 'message' => 'wrong code type']],
+        ] as $payload) {
+            $response = $this->dispatch(
+                $endpoint,
+                'POST',
+                \json_encode($payload, \JSON_THROW_ON_ERROR),
+                'Bearer valid-token',
+            );
+            self::assertSame(400, $response->statusCode);
+            self::assertSame(-32600, \json_decode($response->body, true)['error']['code']);
+        }
+    }
+
+    #[Test]
+    public function batch_payload_wrong_jsonrpc_and_invalid_ids_are_http_400(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $endpoint = $this->createEndpoint();
+        $payloads = [
+            [['jsonrpc' => '2.0', 'id' => 1, 'method' => 'ping']],
+            ['jsonrpc' => '1.0', 'id' => 1, 'method' => 'ping'],
+            ['jsonrpc' => '2.0', 'id' => null, 'method' => 'ping'],
+            ['jsonrpc' => '2.0', 'id' => 1.5, 'method' => 'ping'],
+        ];
+
+        foreach ($payloads as $payload) {
+            $response = $this->dispatch(
+                $endpoint,
+                'POST',
+                \json_encode($payload, \JSON_THROW_ON_ERROR),
+                'Bearer valid-token',
+            );
+            self::assertSame(400, $response->statusCode);
+            self::assertSame(-32600, \json_decode($response->body, true)['error']['code']);
+        }
+    }
+
+    #[Test]
+    public function request_methods_without_ids_are_not_misexecuted_as_notifications(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $response = $this->dispatch($this->createEndpoint(), 'POST', \json_encode([
+            'jsonrpc' => '2.0',
+            'method' => 'tools/call',
+            'params' => ['name' => 'anything', 'arguments' => []],
+        ], \JSON_THROW_ON_ERROR), 'Bearer valid-token');
+
+        self::assertSame(400, $response->statusCode);
+        self::assertSame('', $response->body);
     }
 
     #[Test]

@@ -191,7 +191,11 @@ final class LazyTableCreationPreflightStabilityTest extends TestCase
     private function serve(DBALDatabase $db, string $body): HttpResponse
     {
         $endpoint = $this->writeTier($db);
-        $server = ['HTTP_AUTHORIZATION' => 'Bearer ' . self::TOKEN];
+        $server = [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . self::TOKEN,
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_ACCEPT' => 'application/json, text/event-stream',
+        ];
         $request = HttpRequest::create('/mcp/write', 'POST', [], [], [], $server, $body);
         $response = $endpoint->serve(new PublisherAccount(permissions: []), $request);
         self::assertSame(200, $response->getStatusCode(), 'Write-tier dispatch must succeed: ' . $response->getContent());

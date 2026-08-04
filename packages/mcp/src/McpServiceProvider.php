@@ -111,6 +111,7 @@ final class McpServiceProvider extends ServiceProvider
                     rateLimitWindowSeconds: $windowSeconds,
                     rateLimitTier: 'public',
                     logger: $logger instanceof LoggerInterface ? $logger : null,
+                    allowedOrigins: $this->transportAllowedOrigins(),
                     // The public read-only tier keeps its documented best-effort
                     // auditing. It mutates nothing, so a durable pre-record buys
                     // no safety, and making it fail-closed would take a read-only
@@ -172,6 +173,7 @@ final class McpServiceProvider extends ServiceProvider
                     durableAudit: $durableAudit,
                     approvalStore: $approvalStore,
                     approvalGate: $approvalGate,
+                    allowedOrigins: $this->transportAllowedOrigins(),
                 );
 
                 return new AuthenticatedMcpEndpoint($inner);
@@ -580,6 +582,36 @@ final class McpServiceProvider extends ServiceProvider
         );
 
         return $allowed ? [] : self::GENERIC_ENTITY_MUTATION_TOOLS;
+    }
+
+    /** @return list<string> */
+    private function transportAllowedOrigins(): array
+    {
+        $mcp = $this->config['mcp'] ?? null;
+        $transport = \is_array($mcp) && \is_array($mcp['transport'] ?? null) ? $mcp['transport'] : [];
+        $origins = $transport['allowed_origins'] ?? [];
+        if (!\is_array($origins) || !\array_is_list($origins)) {
+            throw self::malformedConfig('mcp.transport.allowed_origins', $origins, 'a list of HTTP(S) origins');
+        }
+
+        foreach ($origins as $origin) {
+            if (!\is_string($origin) || $origin === '') {
+                throw self::malformedConfig('mcp.transport.allowed_origins', $origins, 'a list of HTTP(S) origins');
+            }
+        }
+
+        try {
+            new StreamableHttpTransportGuard($origins);
+        } catch (\InvalidArgumentException) {
+            throw self::malformedConfig(
+                'mcp.transport.allowed_origins',
+                $origins,
+                'a list of absolute HTTP(S) origins without paths or credentials',
+            );
+        }
+
+        /** @var list<string> $origins */
+        return $origins;
     }
 
     /**

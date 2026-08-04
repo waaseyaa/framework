@@ -16,7 +16,15 @@ account's permissions.
 ## Quick reference
 
 - **Endpoint:** `POST /mcp` (JSON-RPC; methods: `initialize`, `ping`,
-  `tools/list`, `tools/call`).
+  `tools/list`, `tools/call`). Protocol revisions `2025-11-25`, `2025-06-18`,
+  and `2025-03-26` are supported; the latest is preferred.
+- **Transport profile:** stateless Streamable HTTP with JSON responses. POST
+  requires `Content-Type: application/json` and an `Accept` header listing both
+  `application/json` and `text/event-stream`. GET returns 405 because this
+  server does not offer SSE; sessions and resumability are not advertised.
+- **Browser boundary:** absent Origin is valid for native clients. A present
+  Origin must be same-origin or appear in `mcp.transport.allowed_origins`;
+  invalid origins return 403 before authentication or dispatch.
 - **Server card:** `GET /.well-known/mcp.json` (MCP discovery).
 - **Authentication:** the public read-only `/mcp` surface defaults to
   `PublicAnonymousAuth`, overridable by binding `McpAuthInterface` and
@@ -25,9 +33,10 @@ account's permissions.
   `/mcp/write` surface validates `Authorization: Bearer <token>` through a
   fail-closed `BearerTokenAuth(tokens: [])` default that applications replace
   via `WriteTierAuthInterface`.
-- **Bearer model:** tokens are opaque application-managed credentials. This
-  package does not implement OAuth 2.1 scopes, audience checks, expiry, or
-  revocation; server cards therefore advertise only `none` or `bearer`.
+- **Bearer model:** durable opaque tokens are hashed at rest, revealed only at
+  issue/rotation time, audience- and scope-bound, expiring, revocable, and
+  resolved to an active real account. Server cards advertise `none` or
+  `bearer`; OAuth discovery is not claimed.
 - **Tool surface:** every class carrying `#[AsAgentTool]` and
   implementing `AgentToolInterface` becomes a callable MCP tool with
   no per-tool MCP code.
@@ -181,20 +190,18 @@ with no anonymous read tier is a supported production shape, and turning off
 public reads should not silently disable a surface an operator configured
 separately.
 
-> ### Write-tier readiness warning
->
-> **Do not use `/mcp/write` for unattended production content editing yet.**
-> The transport and authorization plumbing is sound, but the safety milestone
-> around it is incomplete. As of this release:
+> ### Write-tier safety posture
 >
 > Durable outcome-honest auditing, destructive-tool human approval, expiring
 > and revocable scoped bearer tokens, atomic default-on rate limiting, bounded
 > authenticated introspection, deterministic duplicate-name refusal, and a
-> curated write-tool boundary are now framework-owned. The remaining
-> enterprise-readiness work is protocol and transport conformance.
+> curated write-tool boundary are framework-owned. The endpoint implements the
+> stateless JSON-response profile of MCP Streamable HTTP 2025-11-25, including
+> lifecycle negotiation, notification semantics, media negotiation, protocol
+> headers, and Origin validation. SSE, server-initiated requests, transport
+> sessions, and resumability are intentionally absent and advertised as such.
 >
-> Until those remaining items land, treat the write tier as suitable for supervised or
-> trusted-operator use only, behind a curated capability allowlist
+> Keep the tier behind a curated capability allowlist
 > (`mcp.write_tier.capabilities`). The canonical editorial surface is
 > `waaseyaa/publishing`'s `ContentToolSet`: it is bundle-scoped, draft-first,
 > and enforces optimistic locking and idempotency.

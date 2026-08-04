@@ -90,7 +90,15 @@ final class McpEndpointDispatchEventTest extends TestCase
         foreach (['initialize', 'ping'] as $method) {
             $spy = new RecordingSymfonyDispatcher();
             $endpoint = $this->makeEndpoint(dispatcher: $spy);
-            $body = \json_encode(['jsonrpc' => '2.0', 'id' => 1, 'method' => $method], \JSON_THROW_ON_ERROR);
+            $request = ['jsonrpc' => '2.0', 'id' => 1, 'method' => $method];
+            if ($method === 'initialize') {
+                $request['params'] = [
+                    'protocolVersion' => '2025-11-25',
+                    'capabilities' => [],
+                    'clientInfo' => ['name' => 'test-client', 'version' => '1.0.0'],
+                ];
+            }
+            $body = \json_encode($request, \JSON_THROW_ON_ERROR);
 
             $response = $this->dispatch($endpoint, $body, 'Bearer valid');
 

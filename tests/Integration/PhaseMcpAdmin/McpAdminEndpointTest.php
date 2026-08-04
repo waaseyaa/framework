@@ -208,7 +208,7 @@ final class McpAdminEndpointTest extends TestCase
         self::assertArrayHasKey('config', $body['data']);
         $config = $body['data']['config'];
         self::assertSame('streamable-http', $config['transport']);
-        self::assertSame('2025-03-26', $config['protocolVersion']);
+        self::assertSame('2025-11-25', $config['protocolVersion']);
         self::assertArrayHasKey('registeredClients', $config);
         self::assertCount(1, $config['registeredClients']);
 

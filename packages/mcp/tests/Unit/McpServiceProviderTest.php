@@ -475,6 +475,39 @@ final class McpServiceProviderTest extends TestCase
         );
     }
 
+    #[Test]
+    public function configured_transport_origins_are_passed_to_the_write_endpoint(): void
+    {
+        $endpoint = $this->resolveWriteEndpoint(
+            ['mcp' => ['transport' => ['allowed_origins' => ['https://editor.example']]]],
+            $this->workingLedger(),
+            $this->approvalStore(),
+        );
+        $inner = new \ReflectionProperty(\Waaseyaa\Mcp\AuthenticatedMcpEndpoint::class, 'inner')->getValue($endpoint);
+
+        self::assertSame(
+            ['https://editor.example'],
+            new \ReflectionProperty(\Waaseyaa\Mcp\McpEndpoint::class, 'allowedOrigins')->getValue($inner),
+        );
+    }
+
+    #[Test]
+    public function malformed_transport_origin_configuration_fails_closed(): void
+    {
+        foreach (['https://editor.example', [42], ['https://editor.example/path']] as $origins) {
+            try {
+                $this->resolveWriteEndpoint(
+                    ['mcp' => ['transport' => ['allowed_origins' => $origins]]],
+                    $this->workingLedger(),
+                    $this->approvalStore(),
+                );
+                self::fail('Malformed allowed origins must fail endpoint wiring.');
+            } catch (ConfigException $e) {
+                self::assertStringContainsString('mcp.transport.allowed_origins', $e->getMessage());
+            }
+        }
+    }
+
     /**
      * The endpoint's own fail-closed contract also protects the provider path:
      * an application that binds the record-nothing ledger while durable audit

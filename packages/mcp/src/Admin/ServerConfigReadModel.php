@@ -30,7 +30,7 @@ final class ServerConfigReadModel implements ServerConfigReadModelInterface
 
         return new ServerConfigSnapshot(
             transport: 'streamable-http',
-            protocolVersion: '2025-03-26',
+            protocolVersion: \Waaseyaa\Mcp\McpProtocol::LATEST,
             registeredClients: $clients,
             serverCapabilities: ['tools'],
         );

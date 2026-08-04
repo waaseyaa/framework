@@ -93,6 +93,10 @@ final class DurableBearerTokenLifecycleTest extends TestCase
     private function dispatch(?string $bearer, array $payload): array
     {
         $headers = $bearer !== null ? ['HTTP_AUTHORIZATION' => 'Bearer ' . $bearer] : [];
+        $headers += [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_ACCEPT' => 'application/json, text/event-stream',
+        ];
         $request = HttpRequest::create('/mcp/write', 'POST', [], [], [], $headers, json_encode($payload, JSON_THROW_ON_ERROR));
 
         $account = $this->createStub(AccountInterface::class);

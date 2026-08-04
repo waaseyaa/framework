@@ -356,6 +356,10 @@ final class PublicTierAuthOverrideTest extends TestCase
         if ($authorizationHeader !== null) {
             $server['HTTP_AUTHORIZATION'] = $authorizationHeader;
         }
+        $server += [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_ACCEPT' => 'application/json, text/event-stream',
+        ];
         $request = HttpRequest::create('/mcp', 'POST', [], [], [], $server, $body);
 
         // The session account is forwarded for AppControllerRouter contract

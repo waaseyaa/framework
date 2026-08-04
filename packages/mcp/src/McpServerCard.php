@@ -34,6 +34,13 @@ final readonly class McpServerCard
             'description' => $this->config->description,
             'endpoint' => $this->config->endpoint,
             'transport' => 'streamable-http',
+            'protocolVersions' => McpProtocol::SUPPORTED,
+            'transportCapabilities' => [
+                'jsonResponse' => true,
+                'sse' => false,
+                'sessions' => false,
+                'resumability' => false,
+            ],
             'capabilities' => [
                 'tools' => true,
                 'resources' => false,

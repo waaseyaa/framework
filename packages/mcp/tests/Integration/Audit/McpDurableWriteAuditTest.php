@@ -177,7 +177,11 @@ final class McpDurableWriteAuditTest extends TestCase
             'method' => $method,
             'params' => $params,
         ], JSON_THROW_ON_ERROR);
-        $request = HttpRequest::create('/mcp/write', 'POST', [], [], [], ['HTTP_AUTHORIZATION' => 'Bearer ' . self::TOKEN], $body);
+        $request = HttpRequest::create('/mcp/write', 'POST', [], [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . self::TOKEN,
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_ACCEPT' => 'application/json, text/event-stream',
+        ], $body);
 
         return $endpoint->serve($this->account(99), $request);
     }

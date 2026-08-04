@@ -87,6 +87,9 @@ final readonly class McpEndpoint
      *        matching, approved, unexpired, unconsumed approval — see
      *        {@see self::approvalGateDecision()}. The public read-only tier never
      *        enables this.
+     * @param list<string> $allowedOrigins Additional browser origins permitted
+     *        by the Streamable HTTP DNS-rebinding guard. Same-origin requests
+     *        and non-browser requests without Origin remain valid.
      */
     public function __construct(
         private McpAuthInterface $auth,
@@ -103,6 +106,7 @@ final readonly class McpEndpoint
         private bool $durableAudit = false,
         private ?OperationApprovalStoreInterface $approvalStore = null,
         private bool $approvalGate = false,
+        private array $allowedOrigins = [],
     ) {
         // The endpoint's OWN fail-closed contract, independent of provider
         // wiring: a durable-audit endpoint with no ledger — or with the
@@ -172,12 +176,22 @@ final readonly class McpEndpoint
         AccountInterface $account,
         HttpRequest $request,
     ): HttpResponse {
+        $transportRefusal = new StreamableHttpTransportGuard($this->allowedOrigins)->validate($request);
+        if ($transportRefusal !== null) {
+            return $this->toHttpResponse($transportRefusal);
+        }
+
         $mcp = $this->handle($account, $request);
 
+        return $this->toHttpResponse($mcp);
+    }
+
+    private function toHttpResponse(McpResponse $mcp): HttpResponse
+    {
         return new HttpResponse(
             $mcp->body,
             $mcp->statusCode,
-            ['Content-Type' => $mcp->contentType],
+            ['Content-Type' => $mcp->contentType] + $mcp->headers,
         );
     }
 
@@ -322,20 +336,56 @@ final readonly class McpEndpoint
             try {
                 $request = \json_decode($body, true, 512, \JSON_THROW_ON_ERROR);
             } catch (\JsonException) {
-                return $this->jsonRpcError(-32700, 'Parse error', null);
+                return $this->jsonRpcError(-32700, 'Parse error', null, statusCode: 400);
+            }
+
+            // Streamable HTTP accepts exactly one JSON-RPC message per POST;
+            // JSON-RPC batch arrays are deliberately outside that transport
+            // profile and are rejected as an invalid request.
+            if (!\is_array($request) || \array_is_list($request)) {
+                return $this->jsonRpcError(-32600, 'Invalid Request', null, statusCode: 400);
+            }
+
+            if (($request['jsonrpc'] ?? null) !== '2.0') {
+                return $this->jsonRpcError(-32600, 'Invalid Request: jsonrpc must be "2.0"', null, statusCode: 400);
+            }
+
+            // A client response to a prior server request is a valid transport
+            // message. This server advertises no server-to-client request
+            // capability, so it has no pending response to correlate and safely
+            // accepts/ignores the envelope.
+            if (!\array_key_exists('method', $request)) {
+                $hasResult = \array_key_exists('result', $request);
+                $hasError = \array_key_exists('error', $request);
+                $responseId = $request['id'] ?? null;
+                $validId = \is_int($responseId) || \is_string($responseId);
+                $error = $request['error'] ?? null;
+                $validError = !$hasError || (\is_array($error)
+                    && \is_int($error['code'] ?? null)
+                    && \is_string($error['message'] ?? null));
+                if (\array_key_exists('id', $request) && $validId && $hasResult !== $hasError && $validError) {
+                    return $this->acceptedNoContent();
+                }
+
+                return $this->jsonRpcError(-32600, 'Invalid Request', null, statusCode: 400);
             }
 
             // JSON-RPC 2.0 requires `method` to be a string. A non-string
             // method cannot be honestly named in any audit record, so it is an
             // Invalid Request refused BEFORE acceptance — nothing is admitted,
             // so no `request_accepted` is left unpaired.
-            if (!\is_array($request) || !\is_string($request['method'] ?? null)) {
-                return $this->jsonRpcError(-32600, 'Invalid Request', $request['id'] ?? null);
+            if (!\is_string($request['method'])) {
+                return $this->jsonRpcError(-32600, 'Invalid Request', null, statusCode: 400);
             }
 
             $method = $request['method'];
-            $id = $request['id'] ?? null;
+            $hasId = \array_key_exists('id', $request);
+            $id = $hasId ? $request['id'] : null;
             $params = $request['params'] ?? [];
+
+            if ($hasId && (!\is_int($id) && !\is_string($id))) {
+                return $this->jsonRpcError(-32600, 'Invalid Request: id must be a string or integer', null, statusCode: 400);
+            }
 
             // The request authenticated, parsed, and is admitted for routing.
             // This REPLACES the former single pre-routing event: that event was
@@ -350,7 +400,7 @@ final readonly class McpEndpoint
             // rather than silently substituting an empty bag. Terminal for this
             // request: only the offending TYPE is recorded — a malformed
             // `params` value is raw caller input.
-            if (!\is_array($params)) {
+            if (!\is_array($params) || (\array_is_list($params) && $params !== [])) {
                 $this->auditTerminal(
                     AuditStage::InvalidParamsRefused,
                     $correlationId,
@@ -364,8 +414,12 @@ final readonly class McpEndpoint
                 return $this->jsonRpcError(-32602, 'Invalid params: must be an object', $id);
             }
 
+            if (!$hasId) {
+                return $this->handleNotification($method, $params, $correlationId, $actorUid);
+            }
+
             $route = fn(): McpResponse => match ($method) {
-                'initialize' => $this->protocolExecute(fn(): McpResponse => $this->handleInitialize($id), $id, $correlationId, $actorUid, $method),
+                'initialize' => $this->protocolExecute(fn(): McpResponse => $this->handleInitialize($id, $params), $id, $correlationId, $actorUid, $method),
                 'ping' => $this->protocolExecute(fn(): McpResponse => $this->handlePing($id), $id, $correlationId, $actorUid, $method),
                 'tools/list' => $this->protocolExecute(fn(): McpResponse => $this->handleToolsList($id, $bridge), $id, $correlationId, $actorUid, $method),
                 'tools/call' => $this->handleToolsCall($id, $params, $bridge, $correlationId, $actorUid, (string) $principal->id()),
@@ -466,10 +520,27 @@ final readonly class McpEndpoint
         return $this->jsonRpcError(-32601, "Method not found: {$method}", $id);
     }
 
-    private function handleInitialize(mixed $id): McpResponse
+    /** @param array<mixed> $params */
+    private function handleInitialize(mixed $id, array $params): McpResponse
     {
+        $requestedVersion = $params['protocolVersion'] ?? null;
+        $capabilities = $params['capabilities'] ?? null;
+        $clientInfo = $params['clientInfo'] ?? null;
+        if (!\is_string($requestedVersion)
+            || !self::isJsonObject($capabilities)
+            || !self::isJsonObject($clientInfo)
+            || !\is_string($clientInfo['name'] ?? null)
+            || !\is_string($clientInfo['version'] ?? null)
+        ) {
+            return $this->jsonRpcError(
+                -32602,
+                'Invalid initialize params: protocolVersion, capabilities, and clientInfo{name,version} are required',
+                $id,
+            );
+        }
+
         return $this->jsonRpcResult($id, [
-            'protocolVersion' => '2025-03-26',
+            'protocolVersion' => McpProtocol::negotiate($requestedVersion),
             'capabilities' => [
                 'tools' => ['listChanged' => false],
             ],
@@ -478,6 +549,59 @@ final readonly class McpEndpoint
                 'version' => '0.1.0',
             ],
         ]);
+    }
+
+    /** @param array<mixed> $params */
+    private function handleNotification(
+        string $method,
+        array $params,
+        string $correlationId,
+        ?int $actorUid,
+    ): McpResponse {
+        if (!\str_starts_with($method, 'notifications/')) {
+            $this->auditTerminal(
+                AuditStage::InvalidParamsRefused,
+                $correlationId,
+                $actorUid,
+                $method,
+                $method,
+                [],
+                ['reason' => 'request_method_without_id'],
+            );
+
+            return new McpResponse('', 400);
+        }
+
+        if ($method === 'notifications/cancelled') {
+            $requestId = $params['requestId'] ?? null;
+            if (!\is_int($requestId) && !\is_string($requestId)) {
+                $this->auditTerminal(
+                    AuditStage::InvalidParamsRefused,
+                    $correlationId,
+                    $actorUid,
+                    $method,
+                    $method,
+                    [],
+                    ['reason' => 'missing_or_invalid_request_id'],
+                );
+
+                return new McpResponse('', 400);
+            }
+        }
+
+        $this->emitAudit(AuditStage::ExecutionSucceeded, $correlationId, $actorUid, $method);
+
+        return $this->acceptedNoContent();
+    }
+
+    private function acceptedNoContent(): McpResponse
+    {
+        return new McpResponse('', 202);
+    }
+
+    private static function isJsonObject(mixed $value): bool
+    {
+        return \is_array($value) && (!\array_is_list($value) || $value === []);
     }
 
     private function handlePing(mixed $id): McpResponse
@@ -1240,8 +1364,13 @@ final readonly class McpEndpoint
      * @param array<string, mixed> $data Optional safe `error.data` members
      *        (e.g. `correlation_id`). Never exception detail or raw params.
      */
-    private function jsonRpcError(int $code, string $message, mixed $id, array $data = []): McpResponse
-    {
+    private function jsonRpcError(
+        int $code,
+        string $message,
+        mixed $id,
+        array $data = [],
+        int $statusCode = 200,
+    ): McpResponse {
         $error = ['code' => $code, 'message' => $message];
         if ($data !== []) {
             $error['data'] = $data;
@@ -1253,6 +1382,7 @@ final readonly class McpEndpoint
                 'error' => $error,
                 'id' => $id,
             ], \JSON_THROW_ON_ERROR),
+            statusCode: $statusCode,
         );
     }
 

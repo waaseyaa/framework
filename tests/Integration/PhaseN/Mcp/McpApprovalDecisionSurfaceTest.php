@@ -738,7 +738,11 @@ final class McpApprovalDecisionSurfaceTest extends TestCase
     private function challengeViaMcpEndpoint(int $bearerAccountUid): string
     {
         $endpoint = $this->writeTierEndpoint($bearerAccountUid);
-        $request = Request::create('/mcp/write', 'POST', [], [], [], ['HTTP_AUTHORIZATION' => 'Bearer requester-token'], json_encode([
+        $request = Request::create('/mcp/write', 'POST', [], [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer requester-token',
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_ACCEPT' => 'application/json, text/event-stream',
+        ], json_encode([
             'jsonrpc' => '2.0',
             'id' => 1,
             'method' => 'tools/call',

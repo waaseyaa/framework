@@ -139,7 +139,11 @@ final class McpEndpointErrorSanitizationTest extends TestCase
             [],
             [],
             [],
-            ['HTTP_AUTHORIZATION' => 'Bearer ' . self::BEARER],
+            [
+                'HTTP_AUTHORIZATION' => 'Bearer ' . self::BEARER,
+                'CONTENT_TYPE' => 'application/json',
+                'HTTP_ACCEPT' => 'application/json, text/event-stream',
+            ],
             $body,
         );
 
