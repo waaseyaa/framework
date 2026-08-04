@@ -354,9 +354,10 @@ final class ContentPublisher
                 $errors->add($field, 'This field is not part of the writable schema.');
                 continue;
             }
+            $errorCount = \count($errors->toArray());
             $typed = $this->coerce($field, $value, $spec, $errors);
-            if ($typed === null && !\in_array($spec->type, ['bool', 'int'], true)) {
-                continue; // coercion already recorded the error
+            if (\count($errors->toArray()) !== $errorCount) {
+                continue;
             }
             if ($spec->html && \is_string($typed)) {
                 $typed = $this->descriptor->htmlSanitizer?->sanitize($typed) ?? $typed;
@@ -404,6 +405,15 @@ final class ContentPublisher
 
     private function coerce(string $field, mixed $value, FieldSpec $spec, ValidationErrors $errors): mixed
     {
+        if ($value === null) {
+            if ($spec->nullable) {
+                return null;
+            }
+            $errors->add($field, 'Must not be null.');
+
+            return null;
+        }
+
         switch ($spec->type) {
             case 'string':
             case 'text':
@@ -426,6 +436,50 @@ final class ContentPublisher
                 }
 
                 return \is_int($value) ? $value : null;
+            case 'date':
+                if (!\is_string($value)
+                    || preg_match('/^\d{4}-\d{2}-\d{2}$/D', $value) !== 1
+                    || ($date = \DateTimeImmutable::createFromFormat('!Y-m-d', $value)) === false
+                    || $date->format('Y-m-d') !== $value
+                ) {
+                    $errors->add($field, 'Must be a real calendar date in YYYY-MM-DD format.');
+
+                    return null;
+                }
+
+                return $value;
+            case 'reference_list':
+                if (!\is_array($value) || !array_is_list($value)) {
+                    $errors->add($field, 'Must be a list of entity identifiers.');
+
+                    return null;
+                }
+                if ($spec->maxItems !== null && \count($value) > $spec->maxItems) {
+                    $errors->add($field, sprintf('Must contain at most %d references.', $spec->maxItems));
+
+                    return null;
+                }
+                $normalized = [];
+                foreach ($value as $item) {
+                    if (\is_int($item) && $item > 0) {
+                        $normalized[] = $item;
+                        continue;
+                    }
+                    if (\is_string($item) && $item !== '' && mb_strlen($item) <= 190) {
+                        $normalized[] = ctype_digit($item) && $item !== '0' ? (int) $item : $item;
+                        continue;
+                    }
+                    $errors->add($field, 'Every reference must be a positive integer or a non-empty identifier of at most 190 characters.');
+
+                    return null;
+                }
+                if (\count(array_unique(array_map(static fn(int|string $item): string => (string) $item, $normalized))) !== \count($normalized)) {
+                    $errors->add($field, 'Reference lists must not contain duplicates.');
+
+                    return null;
+                }
+
+                return $normalized;
         }
     }
 

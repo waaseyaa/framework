@@ -82,6 +82,8 @@ final class ContentToolSetTest extends TestCase
                 'summary' => new FieldSpec(type: 'text'),
                 'body_html' => new FieldSpec(type: 'text', html: true),
                 'promote' => new FieldSpec(type: 'bool'),
+                'publish_on' => new FieldSpec(type: 'date', nullable: true),
+                'related' => new FieldSpec(type: 'reference_list', maxItems: 3),
             ],
             htmlSanitizer: new \Waaseyaa\Publishing\Tests\Fixtures\SymfonyTestSanitizer(['p']),
             validators: [],
@@ -247,6 +249,17 @@ final class ContentToolSetTest extends TestCase
             self::assertSame('https://json-schema.org/draft/2020-12/schema', $tool->inputSchema['$schema']);
             self::assertFalse($tool->inputSchema['additionalProperties']);
         }
+
+        $values = $this->tools['article.createDraft']->inputSchema['properties']['values']['properties'];
+        self::assertSame([
+            'anyOf' => [
+                ['type' => 'string', 'format' => 'date'],
+                ['type' => 'null'],
+            ],
+        ], $values['publish_on']);
+        self::assertSame('array', $values['related']['type']);
+        self::assertSame(3, $values['related']['maxItems']);
+        self::assertTrue($values['related']['uniqueItems']);
     }
 
     #[Test]

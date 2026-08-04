@@ -267,11 +267,26 @@ final readonly class ContentToolSet
             $properties[$field] = match ($spec->type) {
                 'bool' => ['type' => 'boolean'],
                 'int' => ['type' => 'integer'],
+                'date' => ['type' => 'string', 'format' => 'date'],
+                'reference_list' => array_filter([
+                    'type' => 'array',
+                    'items' => [
+                        'oneOf' => [
+                            ['type' => 'integer', 'minimum' => 1],
+                            ['type' => 'string', 'minLength' => 1, 'maxLength' => 190],
+                        ],
+                    ],
+                    'uniqueItems' => true,
+                    'maxItems' => $spec->maxItems,
+                ], static fn($v): bool => $v !== null),
                 default => array_filter([
                     'type' => 'string',
                     'maxLength' => $spec->maxLength,
                 ], static fn($v): bool => $v !== null),
             };
+            if ($spec->nullable) {
+                $properties[$field] = ['anyOf' => [$properties[$field], ['type' => 'null']]];
+            }
             if ($spec->html) {
                 $properties[$field]['description'] = 'HTML fragment; sanitized against the editorial allowlist before persistence.';
             }

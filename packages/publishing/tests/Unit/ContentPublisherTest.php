@@ -134,6 +134,30 @@ final class ContentPublisherTest extends TestCase
     // --- authorization ---
 
     #[Test]
+    public function dates_nullable_clears_and_bounded_reference_lists_are_validated_and_normalized(): void
+    {
+        $coerce = new \ReflectionMethod(ContentPublisher::class, 'coerce');
+
+        $errors = new ValidationErrors();
+        self::assertSame('2028-02-29', $coerce->invoke($this->publisher, 'publish_on', '2028-02-29', new FieldSpec('date'), $errors));
+        self::assertSame([12, 'uuid-2'], $coerce->invoke($this->publisher, 'related', ['12', 'uuid-2'], new FieldSpec('reference_list', maxItems: 3), $errors));
+        self::assertNull($coerce->invoke($this->publisher, 'publish_on', null, new FieldSpec('date', nullable: true), $errors));
+        self::assertTrue($errors->isEmpty());
+
+        foreach ([
+            ['publish_on', '2027-02-29', new FieldSpec('date')],
+            ['related', [1, 1], new FieldSpec('reference_list')],
+            ['related', [1, 2, 3, 4], new FieldSpec('reference_list', maxItems: 3)],
+            ['related', [''], new FieldSpec('reference_list')],
+            ['publish_on', null, new FieldSpec('date')],
+        ] as [$field, $value, $spec]) {
+            $invalid = new ValidationErrors();
+            self::assertNull($coerce->invoke($this->publisher, $field, $value, $spec, $invalid));
+            self::assertFalse($invalid->isEmpty());
+        }
+    }
+
+    #[Test]
     public function every_operation_requires_the_publish_capability(): void
     {
         $noCapability = new PublisherAccount(permissions: []);

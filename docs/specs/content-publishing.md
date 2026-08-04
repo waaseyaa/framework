@@ -36,13 +36,15 @@ final readonly class ContentTypeDescriptor {
     public ?string $bundle;              // e.g. 'article'
     public string $slugField;            // unique-per-bundle human key, e.g. 'slug'
     public string $statusField;          // publish flag, e.g. 'status'
-    public array $writableFields;       // field => FieldSpec{type, required, htmlProfile?, maxLength?}
+    public array $writableFields;       // field => FieldSpec{type, required, html, maxLength, nullable, maxItems}
     public array $htmlFields;           // fields sanitized with the app's HtmlSanitizerConfig
     public HtmlSanitizerConfig $sanitizerConfig; // explicit editorial allowlist (Symfony)
     public array $validators;           // list<ContentValidatorInterface> — app editorial rules
     public string $publishCapability;    // permission string gating every mutation
 }
 ```
+
+`FieldSpec` supports `string`, `text`, `bool`, `int`, `date`, and `reference_list`. Dates are real `YYYY-MM-DD` calendar dates rather than arbitrary strings. Reference lists accept only positive integer or bounded non-empty string identifiers, reject duplicates, and may declare `maxItems`. Optional fields may explicitly opt into `nullable`; required-field validation still rejects null when creating or publishing a complete document. The generated MCP schema mirrors these constraints, including date format, null alternatives, unique items, and list bounds.
 
 `ContentValidatorInterface::validate(array $values, ValidationErrors $errors): void` — app rules append **field-specific** errors (`$errors->add('body_html', 'em dash U+2014 is not allowed')`).
 
