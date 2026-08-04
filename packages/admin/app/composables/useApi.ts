@@ -2,8 +2,8 @@ const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS']
 
 function readXsrfToken(): string | null {
   if (typeof document === 'undefined') return null
-  const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/)
-  return match ? decodeURIComponent(match[1]) : null
+  const token = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/)?.[1]
+  return token !== undefined ? decodeURIComponent(token) : null
 }
 
 function isSameOrigin(target: string): boolean {

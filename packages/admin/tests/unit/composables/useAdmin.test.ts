@@ -41,6 +41,31 @@ describe('useAdmin', () => {
     expect(getEntity('nonexistent')).toBeUndefined()
   })
 
+  it('can() returns true only for a capability the server projected as exactly true', () => {
+    const { can } = useAdmin()
+    expect(can('mcp.approval.view')).toBe(true)
+  })
+
+  it('can() returns false for a capability the server projected as false', () => {
+    const { can } = useAdmin()
+    expect(can('mcp.approval.decide')).toBe(false)
+  })
+
+  it('can() fails closed for permissions the server never projected', () => {
+    const { can } = useAdmin()
+    expect(can('administer users')).toBe(false)
+  })
+
+  it('can() fails closed for truthy non-boolean projection values', () => {
+    const { can } = useAdmin()
+    expect(can('hostile.truthy')).toBe(false)
+  })
+
+  it('exposes the raw capabilities projection from the runtime', () => {
+    const { capabilities } = useAdmin()
+    expect(capabilities?.['mcp.approval.view']).toBe(true)
+  })
+
   it('throws an explicit invariant error when admin runtime is unavailable', async () => {
     vi.resetModules()
     vi.doMock('~/composables/useAdminRuntime', () => ({

@@ -16,6 +16,8 @@ export interface AdminRuntime {
   tenant: AdminTenant
   account: AdminAccount
   features?: Record<string, boolean>
+  /** Server-authoritative capability projection from the surface session; read via useAdmin().can(). */
+  capabilities?: Record<string, boolean>
   /** Resolved from session `ui`; always defined (defaults to empty arrays). */
   ui: {
     headerLinks: AdminSurfaceHeaderLink[]

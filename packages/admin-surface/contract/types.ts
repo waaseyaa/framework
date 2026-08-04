@@ -33,6 +33,21 @@ export interface AdminSurfaceSession {
   tenant: AdminSurfaceTenant
   policies: string[]
   features?: Record<string, boolean>
+  /**
+   * Server-authoritative per-principal permission projection.
+   *
+   * Keys are the permission identifiers the PHP host explicitly allowlisted
+   * (`GenericAdminSurfaceHost` `$capabilityAllowlist`, bounded and
+   * deduplicated); values come from `hasPermission()` on the resolved
+   * principal. Unlike `features` (installation-wide) this varies per account.
+   * An empty object when the host configures no allowlist. (Keep braces out
+   * of this comment — the PHP conformance parser ends the interface body at
+   * the first closing brace.) Consume via `useAdmin().can()`
+   * — which honors only an exact boolean `true` — and never derive access
+   * from `account.roles`. Server middleware remains the enforcement boundary;
+   * this is a UI affordance signal only.
+   */
+  capabilities?: Record<string, boolean>
   ui?: AdminSurfaceUiCustomization
 }
 

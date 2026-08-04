@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\AdminSurface;
 
 use Symfony\Component\HttpFoundation\Response;
+use Waaseyaa\Access\Capability\McpApprovalCapabilities;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AdminSurface\Host\AbstractAdminSurfaceHost;
 use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
@@ -114,6 +115,9 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
             features: [
                 'mcp' => class_exists('Waaseyaa\\Mcp\\McpServiceProvider'),
             ],
+            capabilityAllowlist: self::defaultCapabilityAllowlist(
+                mcpInstalled: class_exists('Waaseyaa\\Mcp\\McpServiceProvider'),
+            ),
         );
 
         self::registerRoutes($router, $host);
@@ -162,6 +166,23 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
             ->requirement('path', '(?!(?:_surface|api)(?:/|$)).*')
             ->default('path', '')
             ->build());
+    }
+
+    /**
+     * Framework-default session capability allowlist for the generic host.
+     *
+     * When the MCP package is installed, project exactly the two approval
+     * permissions (`mcp.approval.view` / `mcp.approval.decide`) so the SPA can
+     * distinguish a read-only triage operator from a deciding operator without
+     * guessing from roles. Slim installs without MCP project nothing. The
+     * identifiers come from McpApprovalCapabilities (L1 access — a legal
+     * downward import for this L6 package), never duplicated strings.
+     *
+     * @return list<string>
+     */
+    public static function defaultCapabilityAllowlist(bool $mcpInstalled): array
+    {
+        return $mcpInstalled ? McpApprovalCapabilities::all() : [];
     }
 
     /**

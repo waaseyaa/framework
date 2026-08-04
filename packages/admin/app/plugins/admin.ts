@@ -118,6 +118,7 @@ export default defineNuxtPlugin(async (): Promise<{ provide: { admin: AdminRunti
     tenant,
     account,
     features: surfaceSession.features,
+    capabilities: surfaceSession.capabilities,
     ui: normalizeSurfaceUi(surfaceSession.ui),
   }
 

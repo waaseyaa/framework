@@ -3,6 +3,11 @@ export interface AdminSurfaceSession {
   tenant: AdminSurfaceTenant
   policies: string[]
   features?: Record<string, boolean>
+  /**
+   * Server-authoritative per-principal permission projection (host-allowlisted;
+   * see packages/admin-surface/contract/types.ts). Consume via useAdmin().can().
+   */
+  capabilities?: Record<string, boolean>
 }
 
 export interface AdminSurfaceAccount {
