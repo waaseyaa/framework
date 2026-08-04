@@ -1,5 +1,7 @@
 # Broadcasting (Server-Sent Events)
 
+<!-- Spec reviewed 2026-08-04 - #2181: the global admin Wayfinding consumer may open the shared broadcast SSE connection only for an authenticated account with exact `features.wayfinding === true`, and its unmount on auth loss participates in normal reference-counted teardown. -->
+
 This spec documents Waaseyaa's production broadcasting subsystem: how domain events
 fan out to long-lived SSE consumers (admin SPA, ops dashboards) without coupling
 the request handler to subscriber bookkeeping.

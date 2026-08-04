@@ -8,15 +8,40 @@
  * interception, no hydration race. The value comes from the race-free endpoint
  * GET /api/wayfinding/session (root-level framework API — NOT under the admin
  * SPA baseURL) and is identical to the SSE `connected` frame's token.
- * Best-effort: unauthenticated/login pages return no token and the attribute is
- * simply not set. Runs after the admin auth bootstrap plugin (alphabetical order
- * puts `admin.ts` first), so the session cookie is established by the time this
- * fires; fire-and-forget so it never blocks app boot.
+ * Unauthenticated pages and installs without Wayfinding make no request at all.
+ * Runs after the admin auth bootstrap plugin (alphabetical order puts `admin.ts`
+ * first), so both the authenticated account and exact optional-package feature
+ * projection are known before activation. Fire-and-forget so it never blocks
+ * app boot; auth loss aborts an in-flight request and clears the exposed token.
  */
-export default defineNuxtPlugin(() => {
+import type { AdminRuntime } from '~/contracts/runtime'
+
+export default defineNuxtPlugin((nuxtApp) => {
   if (!import.meta.client) {
     return
   }
+
+  const admin = (nuxtApp as unknown as { $admin: AdminRuntime | null }).$admin
+  const currentUser = useState<AdminRuntime['account'] | null>('waaseyaa.auth.user', () => null)
+  const clearToken = () => document.documentElement.removeAttribute('data-wf-session')
+
+  clearToken()
+  if (admin?.features?.wayfinding !== true || currentUser.value === null) {
+    return
+  }
+
+  const controller = new AbortController()
+  const stopAuthWatch = watch(currentUser, (account) => {
+    if (account === null) {
+      controller.abort()
+      clearToken()
+    }
+  }, { flush: 'sync' })
+  nuxtApp.vueApp.onUnmount(() => {
+    stopAuthWatch()
+    controller.abort()
+    clearToken()
+  })
 
   void (async () => {
     try {
@@ -24,17 +49,21 @@ export default defineNuxtPlugin(() => {
       // baseURL (/admin/), which would rewrite this root-level framework path to
       // /admin/api/wayfinding/session (caught by the SPA fallback). This mirrors
       // useRealtime's raw `new EventSource('/api/broadcast')`.
-      const res = await fetch('/api/wayfinding/session', { credentials: 'include' })
+      const res = await fetch('/api/wayfinding/session', {
+        credentials: 'include',
+        signal: controller.signal,
+      })
       if (!res.ok) {
         return
       }
       const body = (await res.json()) as { data?: { sessionToken?: string | null } }
       const token = body?.data?.sessionToken
-      if (typeof token === 'string' && token !== '') {
+      if (!controller.signal.aborted && currentUser.value !== null && typeof token === 'string' && token !== '') {
         document.documentElement.setAttribute('data-wf-session', token)
       }
     } catch {
-      // Optional presenter convenience — never block app boot on it.
+      // Optional presenter convenience — never block app boot on it. Aborting
+      // on auth loss follows this path too; the token has already been cleared.
     }
   })()
 })

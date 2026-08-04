@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **admin / admin-surface / wayfinding (#2181):** Gate the Wayfinding overlay, broadcast stream, and session-token discovery on both authenticated state and an exact server-projected optional-package feature flag; abort and clear discovery state when authentication is lost.
+
 - **admin / admin-surface (#2186):** Make the admin SPA self-contained by replacing its only provider-backed icon with an inline decorative SVG, removing `@nuxt/icon`, and pinning the absence of external icon-provider origins in the shipped bundle.
 
 - **api / foundation / mcp / wayfinding**: Publish an opt-in RFC 9727 API Catalog at `/.well-known/api-catalog` when `APP_URL` (or `api_catalog.base_url`) names a canonical HTTPS deployment and at least one installed provider contributes a public API. The response is a deterministic RFC 9264 JSON Linkset with the registered profile, GET/HEAD parity, required `api-catalog` discovery link, strict content negotiation, cache validators, and anonymous stateless handling. A Foundation-owned provider seam keeps package dependencies downward-only; MCP contributes only its enabled anonymous tier and server card, Wayfinding contributes only its public anchor catalog, and write/auth/admin/schema routes plus sitemap and llms.txt documents remain undisclosed. Canonical URLs never derive from request Host headers.
