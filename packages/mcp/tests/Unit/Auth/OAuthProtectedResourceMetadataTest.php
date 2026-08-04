@@ -32,10 +32,11 @@ final class OAuthProtectedResourceMetadataTest extends TestCase
         );
         self::assertSame(['header'], $config->toArray()['bearer_methods_supported']);
 
-        $response = new OAuthProtectedResourceMetadata($config)->serve();
-        self::assertSame(200, $response->getStatusCode());
-        self::assertSame('max-age=300, public', $response->headers->get('Cache-Control'));
-        self::assertSame($config->toArray(), \json_decode((string) $response->getContent(), true, 512, \JSON_THROW_ON_ERROR));
+        $response = new OAuthProtectedResourceMetadata($config)->response();
+        self::assertSame(200, $response->statusCode);
+        self::assertSame('application/json', $response->contentType);
+        self::assertSame('public, max-age=300', $response->headers['Cache-Control']);
+        self::assertSame($config->toArray(), \json_decode($response->body, true, 512, \JSON_THROW_ON_ERROR));
     }
 
     #[Test]

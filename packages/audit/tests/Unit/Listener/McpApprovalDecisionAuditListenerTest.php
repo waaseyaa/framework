@@ -115,7 +115,7 @@ final class McpApprovalDecisionAuditListenerTest extends TestCase
         $writer = new class implements AuditWriterInterface {
             public function record(AuditEventDescriptor $d): void
             {
-                throw new \RuntimeException('SENTINEL-SECRET dsn=mysql://root:hunter2@db');
+                throw new \RuntimeException('SENTINEL-INTERNAL-WRITER-DETAIL');
             }
         };
         /** @var list<array{0: string, 1: string, 2: array<string, mixed>}> $logs */

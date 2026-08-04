@@ -105,6 +105,10 @@ final class McpRouteProviderTest extends TestCase
         self::assertNotNull($metadata);
         self::assertSame('/.well-known/oauth-protected-resource/mcp/write', $metadata->getPath());
         self::assertSame(['GET'], $metadata->getMethods());
+        self::assertSame(
+            'Waaseyaa\\Mcp\\McpEndpoint::serveProtectedResourceMetadata',
+            $metadata->getDefault('_controller'),
+        );
         self::assertTrue($metadata->getOption('_public'));
     }
 }

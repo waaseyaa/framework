@@ -16,6 +16,8 @@ use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
+use Waaseyaa\Mcp\Auth\OAuthProtectedResourceMetadata;
+use Waaseyaa\Mcp\Auth\OAuthProtectedResourceMetadataConfig;
 use Waaseyaa\Mcp\McpEndpoint;
 use Waaseyaa\Mcp\McpResponse;
 
@@ -188,6 +190,28 @@ final class McpEndpointTest extends TestCase
 
         self::assertSame(401, $response->statusCode);
         self::assertSame($challenge, $response->headers['WWW-Authenticate'] ?? null);
+    }
+
+    #[Test]
+    public function protected_resource_metadata_is_rendered_only_when_bound(): void
+    {
+        self::assertSame(404, $this->createEndpoint()->serveProtectedResourceMetadata()->getStatusCode());
+
+        $config = new OAuthProtectedResourceMetadataConfig(
+            'https://cms.example/mcp/write',
+            ['https://identity.example'],
+            ['content.write'],
+        );
+        $endpoint = new McpEndpoint(
+            auth: $this->auth,
+            agentRegistry: $this->stubAgentRegistry([]),
+            oauthProtectedResourceMetadata: new OAuthProtectedResourceMetadata($config),
+        );
+
+        $response = $endpoint->serveProtectedResourceMetadata();
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('max-age=300, public', $response->headers->get('Cache-Control'));
+        self::assertSame($config->toArray(), \json_decode((string) $response->getContent(), true, 512, \JSON_THROW_ON_ERROR));
     }
 
     #[Test]

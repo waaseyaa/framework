@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Mcp;
 
-use Symfony\Component\HttpFoundation\Request as HttpRequest;
-
 /**
  * Enforces the wire contract for the stateless JSON-response profile of MCP
  * Streamable HTTP. SSE, sessions and resumability are deliberately not
@@ -35,21 +33,21 @@ final readonly class StreamableHttpTransportGuard
         $this->allowedOrigins = \array_values(\array_unique($normalized));
     }
 
-    public function validate(HttpRequest $request): ?McpResponse
+    public function validate(StreamableHttpRequestSnapshot $request): ?McpResponse
     {
-        $origin = $request->headers->get('Origin');
+        $origin = $request->origin;
         if ($origin !== null && !$this->originAllowed($origin, $request)) {
             return self::error(403, -32040, 'Forbidden origin');
         }
 
-        $version = $request->headers->get('MCP-Protocol-Version');
+        $version = $request->protocolVersion;
         if ($version !== null && !McpProtocol::isSupported($version)) {
             return self::error(400, -32602, 'Unsupported MCP-Protocol-Version', [
                 'supported' => McpProtocol::SUPPORTED,
             ]);
         }
 
-        if ($request->isMethod('GET')) {
+        if ($request->method === 'GET') {
             if (!self::accepts($request, 'text/event-stream')) {
                 return self::error(406, -32041, 'GET requires Accept: text/event-stream');
             }
@@ -57,23 +55,23 @@ final readonly class StreamableHttpTransportGuard
             return new McpResponse('', 405, 'application/json', ['Allow' => 'POST']);
         }
 
-        if (!$request->isMethod('POST')) {
+        if ($request->method !== 'POST') {
             return new McpResponse('', 405, 'application/json', ['Allow' => 'POST']);
         }
 
-        $declaredLength = $request->headers->get('Content-Length');
+        $declaredLength = $request->contentLength;
         if ($declaredLength !== null && \preg_match('/^\d+$/D', $declaredLength) !== 1) {
             return self::error(400, -32600, 'Invalid Content-Length');
         }
         if (($declaredLength !== null && (int) $declaredLength > $this->maxRequestBytes)
-            || \strlen($request->getContent()) > $this->maxRequestBytes
+            || \strlen($request->body) > $this->maxRequestBytes
         ) {
             return self::error(413, -32043, 'Request body exceeds maximum size', [
                 'max_request_bytes' => $this->maxRequestBytes,
             ]);
         }
 
-        $contentType = \strtolower(\trim(\explode(';', (string) $request->headers->get('Content-Type'), 2)[0]));
+        $contentType = \strtolower(\trim(\explode(';', (string) $request->contentType, 2)[0]));
         if ($contentType !== 'application/json') {
             return self::error(415, -32042, 'Content-Type must be application/json');
         }
@@ -89,11 +87,11 @@ final readonly class StreamableHttpTransportGuard
         return null;
     }
 
-    private function originAllowed(string $origin, HttpRequest $request): bool
+    private function originAllowed(string $origin, StreamableHttpRequestSnapshot $request): bool
     {
         try {
             $normalized = self::normalizeOrigin($origin);
-            $sameOrigin = self::normalizeOrigin($request->getSchemeAndHttpHost());
+            $sameOrigin = self::normalizeOrigin($request->schemeAndHttpHost);
         } catch (\InvalidArgumentException) {
             return false;
         }
@@ -130,9 +128,9 @@ final readonly class StreamableHttpTransportGuard
         return $scheme . '://' . $host . $portPart;
     }
 
-    private static function accepts(HttpRequest $request, string $mediaType): bool
+    private static function accepts(StreamableHttpRequestSnapshot $request, string $mediaType): bool
     {
-        foreach (\explode(',', (string) $request->headers->get('Accept')) as $item) {
+        foreach (\explode(',', (string) $request->accept) as $item) {
             $segments = \array_map('trim', \explode(';', \strtolower($item)));
             if ($segments[0] !== $mediaType) {
                 continue;

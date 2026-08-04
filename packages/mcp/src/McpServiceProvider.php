@@ -111,6 +111,7 @@ final class McpServiceProvider extends ServiceProvider
 
                 [$limiter, $maxRequests, $windowSeconds] = $this->rateLimitSettings();
                 $logger = $this->resolveOptional(LoggerInterface::class);
+                $oauthMetadata = $this->resolveOptional(Auth\OAuthProtectedResourceMetadata::class);
 
                 return new McpEndpoint(
                     auth: $this->resolvePublicAuth(),
@@ -125,6 +126,9 @@ final class McpServiceProvider extends ServiceProvider
                     logger: $logger instanceof LoggerInterface ? $logger : null,
                     allowedOrigins: $this->transportAllowedOrigins(),
                     maxRequestBytes: $this->transportMaxRequestBytes(),
+                    oauthProtectedResourceMetadata: $oauthMetadata instanceof Auth\OAuthProtectedResourceMetadata
+                        ? $oauthMetadata
+                        : null,
                     // The public read-only tier keeps its documented best-effort
                     // auditing. It mutates nothing, so a durable pre-record buys
                     // no safety, and making it fail-closed would take a read-only

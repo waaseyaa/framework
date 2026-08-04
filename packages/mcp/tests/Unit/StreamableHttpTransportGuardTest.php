@@ -9,9 +9,11 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Mcp\McpProtocol;
+use Waaseyaa\Mcp\StreamableHttpRequestSnapshot;
 use Waaseyaa\Mcp\StreamableHttpTransportGuard;
 
 #[CoversClass(StreamableHttpTransportGuard::class)]
+#[CoversClass(StreamableHttpRequestSnapshot::class)]
 #[CoversClass(McpProtocol::class)]
 final class StreamableHttpTransportGuardTest extends TestCase
 {
@@ -44,7 +46,7 @@ final class StreamableHttpTransportGuardTest extends TestCase
             'HTTP_ACCEPT' => 'text/event-stream',
         ]);
 
-        $response = new StreamableHttpTransportGuard()->validate($request);
+        $response = new StreamableHttpTransportGuard()->validate($this->snapshot($request));
 
         self::assertSame(405, $response?->statusCode);
         self::assertSame('', $response?->body);
@@ -56,7 +58,7 @@ final class StreamableHttpTransportGuardTest extends TestCase
     {
         $request = Request::create('/mcp', 'GET', server: ['HTTP_ACCEPT' => 'application/json']);
 
-        self::assertSame(406, new StreamableHttpTransportGuard()->validate($request)?->statusCode);
+        self::assertSame(406, new StreamableHttpTransportGuard()->validate($this->snapshot($request))?->statusCode);
     }
 
     #[Test]
@@ -124,7 +126,7 @@ final class StreamableHttpTransportGuardTest extends TestCase
             'CONTENT_TYPE' => 'application/json',
             'HTTP_ACCEPT' => 'application/json, text/event-stream',
         ], content: '{"too":"large"}');
-        $response = $guard->validate($oversized);
+        $response = $guard->validate($this->snapshot($oversized));
         self::assertSame(413, $response?->statusCode);
         self::assertStringContainsString('max_request_bytes', $response?->body ?? '');
 
@@ -133,11 +135,25 @@ final class StreamableHttpTransportGuardTest extends TestCase
     }
 
     /** @param array<string, string> $overrides */
-    private function post(array $overrides = []): Request
+    private function post(array $overrides = []): StreamableHttpRequestSnapshot
     {
-        return Request::create('/mcp', 'POST', server: $overrides + [
+        return $this->snapshot(Request::create('/mcp', 'POST', server: $overrides + [
             'CONTENT_TYPE' => 'application/json; charset=utf-8',
             'HTTP_ACCEPT' => 'application/json, text/event-stream',
-        ], content: '{}');
+        ], content: '{}'));
+    }
+
+    private function snapshot(Request $request): StreamableHttpRequestSnapshot
+    {
+        return new StreamableHttpRequestSnapshot(
+            method: $request->getMethod(),
+            origin: $request->headers->get('Origin'),
+            protocolVersion: $request->headers->get('MCP-Protocol-Version'),
+            contentLength: $request->headers->get('Content-Length'),
+            contentType: $request->headers->get('Content-Type'),
+            accept: $request->headers->get('Accept'),
+            schemeAndHttpHost: $request->getSchemeAndHttpHost(),
+            body: $request->getContent(),
+        );
     }
 }

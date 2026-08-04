@@ -79,7 +79,7 @@ final readonly class McpRouteProvider
             $router->addRoute(
                 'mcp.oauth_protected_resource',
                 RouteBuilder::create($this->oauthResource->metadataPath())
-                    ->controller('Waaseyaa\\Mcp\\Auth\\OAuthProtectedResourceMetadata::serve')
+                    ->controller('Waaseyaa\\Mcp\\McpEndpoint::serveProtectedResourceMetadata')
                     ->methods('GET')
                     ->allowAll()
                     ->build(),

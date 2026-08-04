@@ -252,7 +252,7 @@ final class McpApprovalControllerTest extends TestCase
         // pagination refusal, never the adapter's message.
         $store = $this->store([
             'listPending' => static function (): ApprovalRequestPage {
-                throw new \InvalidArgumentException('SECRET-DSN mysql://root:hunter2@db/prod');
+                throw new \InvalidArgumentException('SENTINEL-HOSTILE-ADAPTER-DETAIL');
             },
         ]);
 
@@ -260,8 +260,7 @@ final class McpApprovalControllerTest extends TestCase
 
         self::assertSame(400, $response->getStatusCode());
         $content = (string) $response->getContent();
-        self::assertStringNotContainsString('SECRET-DSN', $content);
-        self::assertStringNotContainsString('hunter2', $content);
+        self::assertStringNotContainsString('SENTINEL-HOSTILE-ADAPTER-DETAIL', $content);
     }
 
     #[Test]

@@ -94,6 +94,9 @@ final readonly class McpEndpoint
      *        `WWW-Authenticate` value for protected deployments.
      * @param int $maxRequestBytes Hard transport cap applied before authentication
      *        and JSON decoding.
+     * @param ?Auth\OAuthProtectedResourceMetadata $oauthProtectedResourceMetadata
+     *        Framework-neutral metadata producer used only by the existing HTTP
+     *        adapter entry point. When absent, that entry point fails closed.
      */
     public function __construct(
         private McpAuthInterface $auth,
@@ -113,6 +116,7 @@ final readonly class McpEndpoint
         private array $allowedOrigins = [],
         private ?string $unauthorizedChallenge = null,
         private int $maxRequestBytes = StreamableHttpTransportGuard::DEFAULT_MAX_REQUEST_BYTES,
+        private ?Auth\OAuthProtectedResourceMetadata $oauthProtectedResourceMetadata = null,
     ) {
         // The endpoint's OWN fail-closed contract, independent of provider
         // wiring: a durable-audit endpoint with no ledger — or with the
@@ -182,10 +186,20 @@ final readonly class McpEndpoint
         AccountInterface $account,
         HttpRequest $request,
     ): HttpResponse {
+        $transportRequest = new StreamableHttpRequestSnapshot(
+            method: $request->getMethod(),
+            origin: $request->headers->get('Origin'),
+            protocolVersion: $request->headers->get('MCP-Protocol-Version'),
+            contentLength: $request->headers->get('Content-Length'),
+            contentType: $request->headers->get('Content-Type'),
+            accept: $request->headers->get('Accept'),
+            schemeAndHttpHost: $request->getSchemeAndHttpHost(),
+            body: $request->getContent(),
+        );
         $transportRefusal = new StreamableHttpTransportGuard(
             $this->allowedOrigins,
             $this->maxRequestBytes,
-        )->validate($request);
+        )->validate($transportRequest);
         if ($transportRefusal !== null) {
             return $this->toHttpResponse($transportRefusal);
         }
@@ -193,6 +207,16 @@ final readonly class McpEndpoint
         $mcp = $this->handle($account, $request);
 
         return $this->toHttpResponse($mcp);
+    }
+
+    /** HTTP adapter for the RFC 9728 protected-resource metadata route. */
+    public function serveProtectedResourceMetadata(): HttpResponse
+    {
+        if ($this->oauthProtectedResourceMetadata === null) {
+            return $this->toHttpResponse(new McpResponse('', 404));
+        }
+
+        return $this->toHttpResponse($this->oauthProtectedResourceMetadata->response());
     }
 
     private function toHttpResponse(McpResponse $mcp): HttpResponse
