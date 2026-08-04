@@ -164,7 +164,7 @@ final class ContentToolSetTest extends TestCase
     }
 
     #[Test]
-    public function the_full_stable_tool_set_is_registered_destructive_under_the_capability(): void
+    public function the_full_stable_tool_set_declares_risk_accurately_under_the_capability(): void
     {
         $expected = [
             'article.list', 'article.get', 'article.createDraft', 'article.updateDraft', 'article.preview',
@@ -172,8 +172,21 @@ final class ContentToolSetTest extends TestCase
             'asset.upload', 'asset.get',
         ];
         self::assertSame($expected, array_keys($this->tools));
+
+        $approvalRequired = [
+            'article.createDraft',
+            'article.updateDraft',
+            'article.publish',
+            'article.unpublish',
+            'article.rollback',
+            'asset.upload',
+        ];
         foreach ($this->tools as $tool) {
-            self::assertTrue($tool->destructive);
+            self::assertSame(
+                in_array($tool->name, $approvalRequired, true),
+                $tool->destructive,
+                $tool->name,
+            );
             self::assertSame(self::CAPABILITY, $tool->capability);
             self::assertSame('https://json-schema.org/draft/2020-12/schema', $tool->inputSchema['$schema']);
             self::assertFalse($tool->inputSchema['additionalProperties']);

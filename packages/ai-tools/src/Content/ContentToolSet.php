@@ -18,10 +18,11 @@ use Waaseyaa\Publishing\Preview\PreviewLinkService;
  * `article.rollback`, plus `asset.upload` / `asset.get` when an asset store
  * is supplied.
  *
- * Every tool is registered `destructive: true` under the descriptor's publish
- * capability, so the set is structurally absent from the public `/mcp`
- * registry and reachable only through the authenticated write tier whose
- * capability allowlist includes it. Input schemas are derived from the
+ * Every mutation is registered `destructive: true` under the descriptor's
+ * publish capability, so it is structurally absent from the public `/mcp`
+ * registry and requires write-tier approval. Read operations are accurately
+ * non-destructive and remain reachable only when the tier and principal both
+ * hold the app-chosen capability. Input schemas are derived from the
  * descriptor's writable fields (`additionalProperties: false`); every
  * mutation requires an `idempotency_key`, and update/publish/unpublish
  * require `expected_revision_id`. Apps hand-write nothing per tool.
@@ -50,13 +51,24 @@ final readonly class ContentToolSet
             $registry->register(new AgentTool(
                 name: $name,
                 capability: $this->descriptor->publishCapability,
-                destructive: true,
+                destructive: self::isMutation($name),
                 dryRunSupported: false,
                 category: 'content',
                 inputSchema: $impl->inputSchema(),
                 impl: $impl,
             ));
         }
+    }
+
+    private static function isMutation(string $name): bool
+    {
+        foreach (['.createDraft', '.updateDraft', '.publish', '.unpublish', '.rollback', '.upload'] as $suffix) {
+            if (\str_ends_with($name, $suffix)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
