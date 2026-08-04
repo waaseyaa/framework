@@ -1036,6 +1036,9 @@ Test files live in `packages/admin/tests/`:
 - `tests/unit/composables/useSchema.test.ts` — schema caching/error handling and missing-runtime invariant
 - `tests/components/layout/NavBuilder.test.ts` — deterministic navigation rendering for empty and action-aware catalogs using capability-minimal fixtures
 - `tests/pages/dashboard.test.ts` — onboarding prompt capability fallbacks (`node_type` create path, first create-capable fallback, root fallback when note is absent, first-listable probe when `node_type` is absent)
+- `tests/unit/composables/useMcpApprovals.test.ts` — bounded 25-row pages, verbatim opaque-cursor traversal (next/previous/refresh), 403-view vs generic load errors, decision body shape (blank reason omitted), 400/403/404/409/503 → typed refusal kinds
+- `tests/components/mcp/ApprovalDecisionDialog.test.ts` — alertdialog semantics, hostile server strings rendered as text, 500-Unicode-char reason boundary (astral-safe), single-line validation, remaining counter, double-submit guard, focus-in on open, Tab/Shift+Tab trap, Escape/overlay/cancel dismissal refused while submitting
+- `tests/pages/mcpApprovals.test.ts` — capability-aware rendering (`can('mcp.approval.view')` / `can('mcp.approval.decide')`), loading/empty/error/forbidden states (load errors `role="alert"`), labelled keyboard-focusable table region, pagination + refresh wiring, decision flow with honest 404/409 stale refetch, focus restoration to the triggering Approve/Deny control (Refresh fallback when the row is gone)
 
 Pattern: `mountSuspended()` from `@nuxt/test-utils/runtime` for component mounting. Props via `props: {}`, emits via `wrapper.emitted()`.
 
@@ -1131,15 +1134,18 @@ Real-time SSE monitor for the Mercure broadcasting layer (gap-matrix C-L0-04, mi
 
 **Mission:** `mcp-endpoint-admin-m5c-01KSEFTB` (#1415, audit C-L6-01).
 
-Read-only admin surface for the MCP endpoint. Three pages under `/mcp/`, accessible via the "MCP" nav group in `NavBuilder.vue`:
+Admin surface for the MCP endpoint. Four pages under `/mcp/`, accessible via the "MCP" nav group in `NavBuilder.vue`:
 
 | Page | Route | Description |
 |------|-------|-------------|
 | Tool registry | `/mcp/tools` | Paginated list of registered MCP tools with name, category, capability chips, summary |
 | Tool detail | `/mcp/tools/{name}` | Per-tool header card + collapsible input-schema viewer + recent invocations table |
 | Server config | `/mcp/server-config` | Transport/protocol banner, server capabilities, registered clients table |
+| MCP approvals | `/mcp/approvals` | #2177 F1 C1c operator queue for the write-tier human-approval gate: bounded 25-row pages of pending requests (server order, oldest first) with safe projections only (`safeArguments`, fingerprint, correlation id — never raw arguments), opaque-`nextCursor` pagination (Previous = client-side cursor stack, cursors never decoded), manual refresh, and approve/deny through `<McpApprovalDecisionDialog>` (optional ≤500-Unicode-char single-line reason with live remaining count, double-submit guard). Decision refusals map 400/403/404/409/503 to static non-secret messages; 404/409 refresh the queue honestly instead of pretending success. |
 
-**Composables:** `useMcpTools`, `useMcpTool`, `useMcpServerConfig` — all use `useApi().apiFetch`.
+**Capability gating (#2177 F1 C1c):** the approvals page and its NavBuilder link are gated by the server-authoritative session projection via `useAdmin().can('mcp.approval.view')`; decision actions additionally require `can('mcp.approval.decide')` (view-only operators see the queue with no decision buttons). Never inferred from roles; the PHP routes stay the enforcement boundary. There is deliberately no UI for `mcp.write_tier.approval.allow_self_approval` — that stays deployment config.
+
+**Composables:** `useMcpTools`, `useMcpTool`, `useMcpServerConfig`, `useMcpApprovals` — all use `useApi().apiFetch` (so decisions inherit the CSRF `X-XSRF-TOKEN` header behaviour pinned in `tests/composables/useApi.test.ts`).
 
 **Security:** `McpRegisteredClient` TypeScript type has no `token` field; only `tokenFingerprint` (16-char hex) is exposed. Enforced by compile-time type assertion in `useMcpServerConfig.test.ts`.
 
@@ -1159,6 +1165,7 @@ Read-only admin surface for the MCP endpoint. Three pages under `/mcp/`, accessi
 - **Git worktrees can't run Nuxt dev server**: Worktrees share source via symlinks but not `node_modules/.vite/` or `.nuxt/`. Vite module resolution fails with MIME type errors. Run E2E tests against the main repo's dev server, not from worktrees.
 
 <!-- Spec reviewed 2026-05-25 - mcp-endpoint-admin-m5c-01KSEFTB: MCP admin surface — tool registry browser (/mcp/tools), per-tool detail (/mcp/tools/{name}), server config viewer (/mcp/server-config). Nav group "MCP" added to NavBuilder.vue. -->
+<!-- Spec reviewed 2026-08-03 - #2177 F1 C1c: MCP approvals operator page (/mcp/approvals) — useMcpApprovals composable, McpApprovalDecisionDialog, capability-gated NavBuilder link via useAdmin().can('mcp.approval.view'); dist content pinned by AdminDistContentTest::shipped_bundle_contains_the_mcp_approvals_page. -->
 <!-- Spec reviewed 2026-05-24 - workflow guards read-only matrix section on /workflows/{id} (M4A-5 Phase 1, #1470) -->
 <!-- Spec reviewed 2026-05-25 - inertia-demotion-nuxt-standardisation-01KSEFTS - WP03 - SPA bet section added per DIR-007 -->
 <!-- Spec reviewed 2026-05-25 - media version browser page /media/{uuid}/versions (DIR-005 versioned-blob-media-abstraction-01KSEFTJ WP04) -->

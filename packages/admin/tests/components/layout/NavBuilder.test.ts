@@ -4,11 +4,12 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import NavBuilder from '~/components/layout/NavBuilder.vue'
 
-const { catalogRef, featuresRef, uiRef, runActionSpy } = vi.hoisted(() => {
+const { catalogRef, featuresRef, capabilitiesRef, uiRef, runActionSpy } = vi.hoisted(() => {
   const { ref } = require('vue') as typeof import('vue')
   return {
     catalogRef: ref<CatalogEntry[]>([]),
     featuresRef: ref<Record<string, boolean>>({ mcp: true }),
+    capabilitiesRef: ref<Record<string, boolean>>({}),
     uiRef: ref<{ headerLinks: unknown[]; sidebarItems: unknown[]; navigationMode?: 'full' | 'catalog-only' }>({
       headerLinks: [],
       sidebarItems: [],
@@ -22,6 +23,7 @@ vi.mock('~/composables/useAdmin', () => ({
     catalog: catalogRef.value,
     features: featuresRef.value,
     ui: uiRef.value,
+    can: (permission: string) => capabilitiesRef.value[permission] === true,
   }),
 }))
 
@@ -49,6 +51,7 @@ describe('NavBuilder', () => {
   beforeEach(() => {
     runActionSpy.mockReset()
     featuresRef.value = { mcp: true }
+    capabilitiesRef.value = {}
     uiRef.value = { headerLinks: [], sidebarItems: [] }
     catalogRef.value = [
       entry({ id: 'user', label: 'User', group: 'system' }),
@@ -102,6 +105,32 @@ describe('NavBuilder', () => {
     // 3 sections; links: dashboard + 2 (MCP) + 5 (Operations) + 1 (Governance) = 9.
     expect(wrapper.findAll('.nav-section')).toHaveLength(3)
     expect(wrapper.findAll('a')).toHaveLength(9)
+  })
+
+  it('renders the MCP approvals link when the session grants mcp.approval.view', async () => {
+    capabilitiesRef.value = { 'mcp.approval.view': true }
+
+    const wrapper = await mountSuspended(NavBuilder)
+
+    const link = wrapper.find('[data-testid="nav-mcp-approvals"]')
+    expect(link.exists()).toBe(true)
+    expect(link.text()).toBe('MCP Approvals')
+  })
+
+  it('omits the MCP approvals link without the view capability', async () => {
+    const wrapper = await mountSuspended(NavBuilder)
+
+    expect(wrapper.find('[data-testid="nav-mcp-tools"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="nav-mcp-approvals"]').exists()).toBe(false)
+  })
+
+  it('omits the MCP approvals link when the MCP package is not installed, capability or not', async () => {
+    featuresRef.value = { mcp: false }
+    capabilitiesRef.value = { 'mcp.approval.view': true }
+
+    const wrapper = await mountSuspended(NavBuilder)
+
+    expect(wrapper.find('[data-testid="nav-mcp-approvals"]').exists()).toBe(false)
   })
 
   it('omits the MCP menu group when the MCP package is not installed', async () => {
