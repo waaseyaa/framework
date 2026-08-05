@@ -266,10 +266,30 @@ jobs:
           work=$(mktemp -d)
           cleanup() { rm -rf "$work"; }
           trap cleanup EXIT
-          composer create-project waaseyaa/waaseyaa "$work/skel-proj" \
-            --repository='{"type":"path","url":"skeleton"}' \
-            --stability=dev \
-            --no-interaction
+          if [[ "$GITHUB_REF_NAME" == release-cut/* ]]; then
+            # The exact release commit advances the skeleton before that
+            # version can exist on Packagist. Prove the same consumer flow
+            # against this exact checkout instead of creating a circular
+            # dependency on the not-yet-published tag.
+            git -C "$GITHUB_WORKSPACE" checkout -B main
+            composer create-project waaseyaa/waaseyaa "$work/skel-proj" \
+              --repository='{"type":"path","url":"skeleton"}' \
+              --stability=dev \
+              --no-install --no-scripts \
+              --no-interaction
+            composer config --working-dir="$work/skel-proj" repositories.framework path "$GITHUB_WORKSPACE"
+            composer config --working-dir="$work/skel-proj" repositories.packages path "$GITHUB_WORKSPACE/packages/*"
+            composer require --working-dir="$work/skel-proj" waaseyaa/framework:dev-main --no-update --no-interaction
+            composer install --working-dir="$work/skel-proj" --no-interaction
+            composer run-script --working-dir="$work/skel-proj" post-create-project-cmd
+          else
+            # Ordinary PR/main CI proves the latest committed skeleton floor is
+            # resolvable from the already-published release line.
+            composer create-project waaseyaa/waaseyaa "$work/skel-proj" \
+              --repository='{"type":"path","url":"skeleton"}' \
+              --stability=dev \
+              --no-interaction
+          fi
           (cd "$work/skel-proj" && ./bin/maintenance/waaseyaa-audit-site)
 
       - name: Fresh skeleton preserves the complete discovery set without classmap optimization
