@@ -261,12 +261,17 @@ jobs:
           coverage: none
 
       - name: create-project (path skeleton) and audit-site
+        env:
+          # A release commit reaches main before its package graph can be
+          # published. Treat that one push like the pre-tag gate so split
+          # publication is not circularly blocked by Packagist availability.
+          SOURCE_SKELETON: "${{ startsWith(github.ref_name, 'release-cut/') || (github.event_name == 'push' && github.ref_name == 'main' && startsWith(github.event.head_commit.message, 'chore: release ')) }}"
         run: |
           set -euo pipefail
           work=$(mktemp -d)
           cleanup() { rm -rf "$work"; }
           trap cleanup EXIT
-          if [[ "$GITHUB_REF_NAME" == release-cut/* ]]; then
+          if [[ "$SOURCE_SKELETON" == "true" ]]; then
             # The exact release commit advances the skeleton before that
             # version can exist on Packagist. Prove the same consumer flow
             # against this exact checkout instead of creating a circular
