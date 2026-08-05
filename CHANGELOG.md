@@ -46,7 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-- **Search index trust boundary (#2211).** Classify the raw FTS5 tables as a protected derived datastore, require an access checker for every provider construction, default-deny unknown and non-entity sources, and pin the complete production SQL-reader inventory so a new autocomplete, diagnostic, or alternate provider cannot bypass review. Public non-entity corpora now require the explicit source-resolver contract planned in #2192; indexed metadata is never authorization evidence.
+- **Principal-safe search reads (#2192).** Promote the search provider and bounded request/result contracts with an explicit immutable principal on every call. FTS5 is now only a 200-candidate pointer generator: canonical entities are reloaded from the served repository revision, checked for `view`, projected inside the principal's field-read scope, and bounded before safe content alone determines matching, filters, ranking, sorting, counts, facets, pages, and plain-text snippets. Unknown or colliding non-entity namespaces deny unless an application registers an exact canonical resolver; malformed pointers and application projection failures drop only that candidate without logging content. Server timing is absent from results, candidate bodies are safely truncated to 64 KiB, and every adapter fails closed on malformed bounded input.
+- **Search index trust boundary (#2211).** Classify the raw FTS5 tables as a protected derived datastore, require a candidate resolver for every provider construction, default-deny unknown and non-entity sources, and pin the complete production SQL-reader inventory so a new autocomplete, diagnostic, or alternate provider cannot bypass review. Public non-entity corpora require an explicit exact-namespace source resolver; indexed metadata is never authorization evidence.
 
 ## [0.1.0-alpha.286] - 2026-08-04
 

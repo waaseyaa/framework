@@ -7,156 +7,122 @@ namespace Waaseyaa\Search\Tests\Integration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\Access\AccessPolicyInterface;
-use Waaseyaa\Access\AccessResult;
-use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
-use Waaseyaa\Access\Context\RequestAccountContext;
-use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DBALDatabase;
-use Waaseyaa\Entity\EntityInterface;
-use Waaseyaa\Entity\EntityTypeManagerInterface;
-use Waaseyaa\Entity\Storage\EntityStorageInterface;
-use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
-use Waaseyaa\Search\Access\EntitySearchAccessChecker;
 use Waaseyaa\Search\Fts5\Fts5SearchIndexer;
 use Waaseyaa\Search\Fts5\Fts5SearchProvider;
+use Waaseyaa\Search\SearchCandidateProjection;
+use Waaseyaa\Search\SearchCandidateReference;
+use Waaseyaa\Search\SearchCandidateResolverInterface;
 use Waaseyaa\Search\SearchIndexableInterface;
 use Waaseyaa\Search\SearchRequest;
+use Waaseyaa\Search\Tests\Support\SearchTestPrincipal;
 
-/**
- * The FTS5 index is populated automatically on entity save, so it holds rows a
- * caller may not be allowed to view (e.g. an unpublished node). The read path
- * must enforce per-document `view` access, not return every matching row.
- */
 #[CoversClass(Fts5SearchProvider::class)]
-#[CoversClass(EntitySearchAccessChecker::class)]
 final class SearchAccessTest extends TestCase
 {
     private DBALDatabase $database;
     private Fts5SearchIndexer $indexer;
+    private Fts5SearchProvider $provider;
 
     protected function setUp(): void
     {
         $this->database = DBALDatabase::createSqlite();
         $this->indexer = new Fts5SearchIndexer($this->database);
-        $this->indexer->ensureSchema();
+        $this->indexDoc('node:1', 'Restricted Label Report', 'secretterm indexed body');
+        $this->indexDoc('node:2', 'Denied Report', 'publicterm indexed body');
+        $this->indexDoc('node:3', 'Malformed Report', 'publicterm indexed body');
+        $this->indexDoc('spec:overview', 'Unknown Report', 'publicterm indexed body', 'document');
+        $this->indexDoc('', 'Corrupt Report', 'publicterm indexed body');
 
-        // Two entity-backed documents both matching the query: a viewable one
-        // ('node:1', bundle 'article') and a forbidden one ('node:2', bundle
-        // 'secret').
-        $this->indexDoc('node:1', 'node', 'Public Report');
-        $this->indexDoc('node:2', 'node', 'Secret Report');
-        // A non-entity document (crawled markdown / spec) the app indexed.
-        $this->indexDoc('spec:overview', 'document', 'Overview Report');
+        $resolver = new class implements SearchCandidateResolverInterface {
+            public function resolve(SearchCandidateReference $reference, AuthorizationPrincipalInterface $principal): ?SearchCandidateProjection
+            {
+                if ($reference->documentId === 'node:2') {
+                    throw new \RuntimeException('Broken application projection.');
+                }
+                if ($reference->documentId === 'node:3') {
+                    return new SearchCandidateProjection('node:3', 'node', "invalid \xC3\x28", '');
+                }
+                if ($reference->documentId !== 'node:1') {
+                    return null;
+                }
+
+                return new SearchCandidateProjection(
+                    id: 'node:1',
+                    entityType: 'node',
+                    title: 'Public Report',
+                    body: 'publicterm canonical summary',
+                    url: '/node/1',
+                    sourceName: 'public',
+                    contentType: 'article',
+                    topics: ['visible'],
+                );
+            }
+        };
+        $this->provider = new Fts5SearchProvider($this->database, $this->indexer, $resolver);
     }
 
     #[Test]
-    public function forbidden_entity_documents_are_excluded_from_results(): void
+    public function raw_restricted_label_and_body_never_reach_a_hit(): void
     {
-        $provider = new Fts5SearchProvider(
-            $this->database,
-            $this->indexer,
-            accessChecker: $this->accessChecker(),
-        );
+        $result = $this->provider->search(new SearchRequest('Report'), SearchTestPrincipal::create());
 
-        $hits = $provider->search(new SearchRequest('Report'))->hits;
-        $ids = array_map(static fn ($hit): string => $hit->id, $hits);
-
-        // The forbidden node and unregistered non-entity source are gone; only
-        // the entity whose view policy explicitly allows it remains.
-        self::assertContains('node:1', $ids);
-        self::assertNotContains('spec:overview', $ids, 'Unknown source failed open');
-        self::assertNotContains('node:2', $ids, 'Forbidden node leaked into search results');
+        self::assertSame(1, $result->totalHits);
+        self::assertSame('Public Report', $result->hits[0]->title);
+        self::assertSame('public', $result->hits[0]->sourceName);
+        self::assertSame('article', $result->hits[0]->contentType);
+        self::assertSame(['visible'], $result->hits[0]->topics);
+        self::assertStringNotContainsString('Restricted Label', $result->hits[0]->title);
+        self::assertStringNotContainsString('secretterm', $result->hits[0]->highlight);
+        self::assertNull($result->getFacet('source_name')?->buckets[1] ?? null);
+        self::assertSame('public', $result->getFacet('source_name')?->buckets[0]->key);
+        self::assertSame('article', $result->getFacet('content_type')?->buckets[0]->key);
+        self::assertSame('visible', $result->getFacet('topics')?->buckets[0]->key);
     }
 
     #[Test]
-    public function unregistered_and_non_entity_sources_are_denied_by_default(): void
+    public function a_match_existing_only_in_the_raw_protected_body_is_not_counted(): void
     {
-        $checker = $this->accessChecker();
+        $result = $this->provider->search(new SearchRequest('secretterm'), SearchTestPrincipal::create());
 
-        self::assertFalse($checker->canView('spec:overview', 'document'));
-        self::assertFalse($checker->canView('opaque:1', ''));
+        self::assertSame(0, $result->totalHits);
+        self::assertSame([], $result->hits);
+        self::assertSame([], $result->facets);
     }
 
-    private function accessChecker(): EntitySearchAccessChecker
+    #[Test]
+    public function denied_and_unknown_sources_do_not_affect_counts_or_pages(): void
     {
-        $article = $this->entity('node', 'article');
-        $secret = $this->entity('node', 'secret');
-
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->method('load')->willReturnMap([
-            ['1', $article],
-            ['2', $secret],
-        ]);
-
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
-        $etm->method('hasDefinition')->willReturnCallback(static fn (string $type): bool => $type === 'node');
-        $etm->method('getStorage')->with('node')->willReturn($storage);
-        // C-22 WP3: read path now goes through the canonical repository.
-        $etm->method('getRepository')->with('node')->willReturn(new StorageBackedStubRepository($storage));
-
-        // Policy: 'secret'-bundle nodes are forbidden for 'view'; everything
-        // else is allowed.
-        $policy = $this->createMock(AccessPolicyInterface::class);
-        $policy->method('appliesTo')->willReturnCallback(static fn (string $type): bool => $type === 'node');
-        $policy->method('access')->willReturnCallback(
-            static fn (EntityInterface $entity): AccessResult => $entity->bundle() === 'secret'
-                ? AccessResult::forbidden('secret content')
-                : AccessResult::allowed(),
+        $result = $this->provider->search(
+            new SearchRequest('Report', page: 1, pageSize: 1),
+            SearchTestPrincipal::create(),
         );
 
-        $context = new RequestAccountContext();
-        $context->set($this->createMock(AuthorizationPrincipalInterface::class));
-
-        return new EntitySearchAccessChecker(
-            $etm,
-            new EntityAccessHandler([$policy]),
-            $context,
-        );
+        self::assertSame(1, $result->totalHits);
+        self::assertSame(1, $result->totalPages);
+        self::assertSame('node:1', $result->hits[0]->id);
     }
 
-    private function entity(string $type, string $bundle): EntityInterface
+    private function indexDoc(string $id, string $title, string $body, string $entityType = 'node'): void
     {
-        $entity = $this->createMock(EntityInterface::class);
-        $entity->method('getEntityTypeId')->willReturn($type);
-        $entity->method('bundle')->willReturn($bundle);
-
-        return $entity;
-    }
-
-    private function indexDoc(string $id, string $entityType, string $title): void
-    {
-        $this->indexer->index(new class ($id, $entityType, $title) implements SearchIndexableInterface {
+        $this->indexer->index(new class ($id, $title, $body, $entityType) implements SearchIndexableInterface {
             public function __construct(
                 private readonly string $id,
-                private readonly string $entityType,
                 private readonly string $title,
+                private readonly string $body,
+                private readonly string $entityType,
             ) {}
 
-            public function getSearchDocumentId(): string
-            {
-                return $this->id;
-            }
-
-            /** @return array<string, string> */
-            public function toSearchDocument(): array
-            {
-                return ['title' => $this->title, 'body' => 'Report body content'];
-            }
-
-            /** @return array<string, mixed> */
+            public function getSearchDocumentId(): string { return $this->id; }
+            public function toSearchDocument(): array { return ['title' => $this->title, 'body' => $this->body]; }
             public function toSearchMetadata(): array
             {
                 return [
                     'entity_type' => $this->entityType,
-                    'content_type' => '',
-                    'source_name' => '',
-                    'quality_score' => 0,
-                    'topics' => [],
-                    'url' => '',
-                    'og_image' => '',
-                    'created_at' => '2026-06-22T00:00:00Z',
+                    'content_type' => 'secret',
+                    'source_name' => 'restricted',
+                    'topics' => ['hidden'],
                 ];
             }
         });

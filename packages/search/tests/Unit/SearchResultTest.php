@@ -63,7 +63,6 @@ final class SearchResultTest extends TestCase
             totalPages: 1,
             currentPage: 1,
             pageSize: 20,
-            tookMs: 150,
             hits: [$hit],
             facets: [$facet],
         );
@@ -85,7 +84,6 @@ final class SearchResultTest extends TestCase
             totalPages: 0,
             currentPage: 1,
             pageSize: 20,
-            tookMs: 0,
             hits: [],
             facets: [$topicsFacet, $sourcesFacet],
         );

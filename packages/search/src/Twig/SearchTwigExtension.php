@@ -6,6 +6,7 @@ namespace Waaseyaa\Search\Twig;
 
 use Twig\Extension\AbstractExtension;
 use Twig\TwigFunction;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Search\SearchFilters;
 use Waaseyaa\Search\SearchProviderInterface;
 use Waaseyaa\Search\SearchRequest;
@@ -34,29 +35,39 @@ final class SearchTwigExtension extends AbstractExtension
     /**
      * @param array<string, mixed> $filters
      */
-    public function search(string $query, array $filters = [], int $page = 1, int $pageSize = 20): SearchResult
-    {
+    public function search(
+        AuthorizationPrincipalInterface $principal,
+        string $query,
+        array $filters = [],
+        int $page = 1,
+        int $pageSize = 20,
+    ): SearchResult {
         if ($query === '') {
             return SearchResult::empty();
         }
 
-        $searchFilters = new SearchFilters(
-            topics: $this->baseTopics !== []
-                ? $this->baseTopics
-                : (isset($filters['topic']) && $filters['topic'] !== '' ? [(string) $filters['topic']] : []),
-            contentType: (string) ($filters['content_type'] ?? ''),
-            sourceNames: isset($filters['source']) && $filters['source'] !== ''
-                ? [(string) $filters['source']]
-                : [],
-            minQuality: (int) ($filters['min_quality'] ?? 0),
-        );
+        try {
+            $searchFilters = new SearchFilters(
+                topics: $this->baseTopics !== []
+                    ? $this->baseTopics
+                    : (isset($filters['topic']) && $filters['topic'] !== '' ? [(string) $filters['topic']] : []),
+                contentType: (string) ($filters['content_type'] ?? ''),
+                sourceNames: isset($filters['source']) && $filters['source'] !== ''
+                    ? [(string) $filters['source']]
+                    : [],
+                minQuality: (int) ($filters['min_quality'] ?? 0),
+            );
+            $request = new SearchRequest(
+                query: $query,
+                filters: $searchFilters,
+                page: max(1, $page),
+                pageSize: min(100, max(1, $pageSize)),
+            );
+        } catch (\InvalidArgumentException) {
+            return SearchResult::empty();
+        }
 
-        return $this->provider->search(new SearchRequest(
-            query: $query,
-            filters: $searchFilters,
-            page: max(1, $page),
-            pageSize: min(100, max(1, $pageSize)),
-        ));
+        return $this->provider->search($request, $principal);
     }
 
     public function queryParam(string $name, string $default = ''): string

@@ -25,7 +25,7 @@ final class Fts5OrthographyTest extends TestCase
     {
         $this->database = DBALDatabase::createSqlite();
         $this->indexer = new Fts5SearchIndexer($this->database);
-        $this->provider = new Fts5SearchProvider($this->database, $this->indexer, new \Waaseyaa\Search\Tests\Support\AllowAllSearchAccessChecker());
+        $this->provider = new Fts5SearchProvider($this->database, $this->indexer, new \Waaseyaa\Search\Tests\Support\IndexedSearchCandidateResolver($this->database));
     }
 
     #[Test]
@@ -70,12 +70,27 @@ final class Fts5OrthographyTest extends TestCase
         self::assertSame([], $this->idsFor('test'), 'An English Porter stem must not manufacture a match for tests/testing.');
     }
 
+    #[Test]
+    public function punctuation_is_tokenized_as_plain_search_terms_without_exposing_fts_syntax(): void
+    {
+        $this->index('hyphen', 'full text search');
+        $this->index('dot', 'node js guide');
+        $this->index('plus', 'c language guide');
+        $this->index('keywords', 'not near and or published');
+
+        self::assertSame(['hyphen'], $this->idsFor('full-text'));
+        self::assertSame(['dot'], $this->idsFor('node.js'));
+        self::assertSame(['plus'], $this->idsFor('C++'));
+        self::assertSame(['keywords'], $this->idsFor('near'));
+        self::assertSame(['keywords'], $this->idsFor('not published'));
+    }
+
     /** @return list<string> */
     private function idsFor(string $query): array
     {
         return array_map(
             static fn($hit): string => $hit->id,
-            $this->provider->search(new SearchRequest($query, includeFacets: false))->hits,
+            $this->provider->search(new SearchRequest($query, includeFacets: false), \Waaseyaa\Search\Tests\Support\SearchTestPrincipal::create())->hits,
         );
     }
 

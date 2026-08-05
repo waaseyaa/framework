@@ -7,22 +7,22 @@ namespace Waaseyaa\Search\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Database\DBALDatabase;
-use Waaseyaa\Search\Access\SearchAccessChecker;
 use Waaseyaa\Search\Fts5\Fts5SearchIndexer;
 use Waaseyaa\Search\Fts5\Fts5SearchProvider;
+use Waaseyaa\Search\SearchCandidateProjection;
+use Waaseyaa\Search\SearchCandidateReference;
+use Waaseyaa\Search\SearchCandidateResolverInterface;
 use Waaseyaa\Search\SearchIndexableInterface;
 use Waaseyaa\Search\SearchRequest;
 
 /**
  * Regression test for WP03 / §2.2 — FTS5 access oracle:
- * when an access checker is wired, totalHits and facet bucket counts must
+ * totalHits and facet bucket counts must
  * reflect only the documents the acting account may view, not the raw SQL
  * count. An anonymous visitor must not be able to infer the existence of
  * access-restricted documents through totalHits or facet counts.
- *
- * Also pins that the no-checker (doc-only) path is unchanged: both docs are
- * counted in that case.
  */
 #[CoversClass(Fts5SearchProvider::class)]
 final class Fts5SearchProviderAccessFilteredCountTest extends TestCase
@@ -66,16 +66,8 @@ final class Fts5SearchProviderAccessFilteredCountTest extends TestCase
     #[Test]
     public function total_hits_and_facets_are_filtered_when_checker_denies_one_document(): void
     {
-        // Checker allows node:1, denies node:2.
-        $checker = new class implements SearchAccessChecker {
-            public function canView(string $documentId, string $entityType): bool
-            {
-                return $documentId !== 'node:2';
-            }
-        };
-
-        $provider = new Fts5SearchProvider($this->database, $this->indexer, accessChecker: $checker);
-        $result = $provider->search(new SearchRequest('tutorial'));
+        $provider = new Fts5SearchProvider($this->database, $this->indexer, $this->resolverDenying('node:2'));
+        $result = $provider->search(new SearchRequest('tutorial'), \Waaseyaa\Search\Tests\Support\SearchTestPrincipal::create());
 
         // Only the viewable document should be counted.
         $this->assertSame(1, $result->totalHits, 'totalHits must exclude access-denied documents');
@@ -109,16 +101,12 @@ final class Fts5SearchProviderAccessFilteredCountTest extends TestCase
     #[Test]
     public function total_hits_is_zero_when_checker_denies_all_documents(): void
     {
-        // Checker denies everything — oracle must be fully closed.
-        $checker = new class implements SearchAccessChecker {
-            public function canView(string $documentId, string $entityType): bool
-            {
-                return false;
-            }
-        };
-
-        $provider = new Fts5SearchProvider($this->database, $this->indexer, accessChecker: $checker);
-        $result = $provider->search(new SearchRequest('tutorial'));
+        $resolver = new \Waaseyaa\Search\Tests\Support\IndexedSearchCandidateResolver(
+            $this->database,
+            static fn(): bool => false,
+        );
+        $provider = new Fts5SearchProvider($this->database, $this->indexer, $resolver);
+        $result = $provider->search(new SearchRequest('tutorial'), \Waaseyaa\Search\Tests\Support\SearchTestPrincipal::create());
 
         $this->assertSame(0, $result->totalHits, 'totalHits must be 0 when all docs are access-denied');
         $this->assertSame(0, $result->totalPages);
@@ -131,18 +119,48 @@ final class Fts5SearchProviderAccessFilteredCountTest extends TestCase
     {
         // When includeFacets is false, facets are not built — but totalHits must
         // still reflect the access-filtered count, not the raw SQL count.
-        $checker = new class implements SearchAccessChecker {
-            public function canView(string $documentId, string $entityType): bool
-            {
-                return $documentId !== 'node:2';
-            }
-        };
-
-        $provider = new Fts5SearchProvider($this->database, $this->indexer, accessChecker: $checker);
-        $result = $provider->search(new SearchRequest('tutorial', includeFacets: false));
+        $provider = new Fts5SearchProvider($this->database, $this->indexer, $this->resolverDenying('node:2'));
+        $result = $provider->search(new SearchRequest('tutorial', includeFacets: false), \Waaseyaa\Search\Tests\Support\SearchTestPrincipal::create());
 
         $this->assertSame(1, $result->totalHits, 'totalHits must be access-filtered even when includeFacets=false');
         $this->assertSame([], $result->facets, 'facets must be empty when includeFacets=false');
+    }
+
+    #[Test]
+    public function candidate_work_is_bounded_and_the_result_conservatively_describes_only_the_scanned_window(): void
+    {
+        for ($id = 3; $id <= 201; ++$id) {
+            $this->indexItem('node:' . $id, ['title' => 'Tutorial ' . $id, 'body' => 'Searchable tutorial'], [
+                'entity_type' => 'node',
+                'content_type' => 'article',
+                'created_at' => '2026-01-01T00:00:00Z',
+            ]);
+        }
+        $resolver = new class ($this->database) implements SearchCandidateResolverInterface {
+            public int $calls = 0;
+            private readonly \Waaseyaa\Search\Tests\Support\IndexedSearchCandidateResolver $inner;
+
+            public function __construct(DBALDatabase $database)
+            {
+                $this->inner = new \Waaseyaa\Search\Tests\Support\IndexedSearchCandidateResolver($database);
+            }
+
+            public function resolve(SearchCandidateReference $reference, AuthorizationPrincipalInterface $principal): ?SearchCandidateProjection
+            {
+                ++$this->calls;
+
+                return $this->inner->resolve($reference, $principal);
+            }
+        };
+        $provider = new Fts5SearchProvider($this->database, $this->indexer, $resolver);
+
+        $result = $provider->search(
+            new SearchRequest('tutorial'),
+            \Waaseyaa\Search\Tests\Support\SearchTestPrincipal::create(),
+        );
+
+        self::assertSame(200, $resolver->calls);
+        self::assertSame(200, $result->totalHits);
     }
 
     private function indexItem(string $id, array $document, array $metadata): void
@@ -160,5 +178,13 @@ final class Fts5SearchProviderAccessFilteredCountTest extends TestCase
 
             public function toSearchMetadata(): array { return $this->metadata; }
         });
+    }
+
+    private function resolverDenying(string $deniedId): \Waaseyaa\Search\SearchCandidateResolverInterface
+    {
+        return new \Waaseyaa\Search\Tests\Support\IndexedSearchCandidateResolver(
+            $this->database,
+            static fn(\Waaseyaa\Search\SearchCandidateReference $reference): bool => $reference->documentId !== $deniedId,
+        );
     }
 }

@@ -27,7 +27,7 @@ final class Fts5SearchIntegrationTest extends TestCase
         $this->database = DBALDatabase::createSqlite();
         $this->indexer = new Fts5SearchIndexer($this->database);
         $this->indexer->ensureSchema();
-        $this->provider = new Fts5SearchProvider($this->database, $this->indexer, new \Waaseyaa\Search\Tests\Support\AllowAllSearchAccessChecker());
+        $this->provider = new Fts5SearchProvider($this->database, $this->indexer, new \Waaseyaa\Search\Tests\Support\IndexedSearchCandidateResolver($this->database));
     }
 
     #[Test]
@@ -41,7 +41,7 @@ final class Fts5SearchIntegrationTest extends TestCase
         ]);
 
         // Search
-        $result = $this->provider->search(new SearchRequest('Waaseyaa'));
+        $result = $this->search(new SearchRequest('Waaseyaa'));
         $this->assertSame(1, $result->totalHits);
         $hit = $result->hits[0];
         $this->assertSame('node:1', $hit->id);
@@ -59,14 +59,14 @@ final class Fts5SearchIntegrationTest extends TestCase
             'og_image' => '', 'created_at' => '2026-03-20T00:00:00Z',
         ]);
 
-        $result = $this->provider->search(new SearchRequest('Waaseyaa'));
+        $result = $this->search(new SearchRequest('Waaseyaa'));
         $this->assertSame(1, $result->totalHits);
         $this->assertSame('Waaseyaa CMS', $result->hits[0]->title);
         $this->assertSame(95, $result->hits[0]->qualityScore);
 
         // Delete
         $this->indexer->remove('node:1');
-        $result = $this->provider->search(new SearchRequest('Waaseyaa'));
+        $result = $this->search(new SearchRequest('Waaseyaa'));
         $this->assertSame(0, $result->totalHits);
     }
 
@@ -89,7 +89,7 @@ final class Fts5SearchIntegrationTest extends TestCase
             'created_at' => '2026-03-20T00:00:00Z',
         ]);
 
-        $result = $this->provider->search(new SearchRequest('PHP'));
+        $result = $this->search(new SearchRequest('PHP'));
         $this->assertSame(3, $result->totalHits);
 
         // Content type facet
@@ -133,7 +133,7 @@ final class Fts5SearchIntegrationTest extends TestCase
             minQuality: 50,
         );
 
-        $result = $this->provider->search(new SearchRequest('content', $filters));
+        $result = $this->search(new SearchRequest('content', $filters));
         $this->assertSame(1, $result->totalHits);
         $this->assertSame('node:1', $result->hits[0]->id);
     }
@@ -149,7 +149,7 @@ final class Fts5SearchIntegrationTest extends TestCase
 
         $this->indexer->removeAll();
 
-        $result = $this->provider->search(new SearchRequest('First'));
+        $result = $this->search(new SearchRequest('First'));
         $this->assertSame(0, $result->totalHits);
     }
 
@@ -162,8 +162,8 @@ final class Fts5SearchIntegrationTest extends TestCase
             'created_at' => '2026-03-20T00:00:00Z',
         ]);
 
-        $this->assertSame(0, $this->provider->search(new SearchRequest('test'))->totalHits);
-        $this->assertSame(1, $this->provider->search(new SearchRequest('tests'))->totalHits);
+        $this->assertSame(0, $this->search(new SearchRequest('test'))->totalHits);
+        $this->assertSame(1, $this->search(new SearchRequest('tests'))->totalHits);
     }
 
     #[Test]
@@ -175,7 +175,7 @@ final class Fts5SearchIntegrationTest extends TestCase
             'created_at' => '2026-03-20T00:00:00Z',
         ]);
 
-        $result = $this->provider->search(new SearchRequest(''));
+        $result = $this->search(new SearchRequest(''));
         $this->assertSame(0, $result->totalHits);
     }
 
@@ -214,5 +214,10 @@ final class Fts5SearchIntegrationTest extends TestCase
             $map[$bucket->key] = $bucket->count;
         }
         return $map;
+    }
+
+    private function search(SearchRequest $request): \Waaseyaa\Search\SearchResult
+    {
+        return $this->provider->search($request, \Waaseyaa\Search\Tests\Support\SearchTestPrincipal::create());
     }
 }

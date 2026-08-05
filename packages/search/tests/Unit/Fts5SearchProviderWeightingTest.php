@@ -62,9 +62,9 @@ final class Fts5SearchProviderWeightingTest extends TestCase
     #[Test]
     public function default_weights_rank_the_body_frequency_match_first(): void
     {
-        $provider = new Fts5SearchProvider($this->database, $this->indexer, new \Waaseyaa\Search\Tests\Support\AllowAllSearchAccessChecker());
+        $provider = new Fts5SearchProvider($this->database, $this->indexer, new \Waaseyaa\Search\Tests\Support\IndexedSearchCandidateResolver($this->database));
 
-        $result = $provider->search(new SearchRequest('entity type'));
+        $result = $provider->search(new SearchRequest('entity type'), \Waaseyaa\Search\Tests\Support\SearchTestPrincipal::create());
 
         $this->assertSame(2, $result->totalHits);
         $this->assertSame('spec:access-control', $result->hits[0]->id, 'Without title weighting, raw body frequency wins.');
@@ -76,15 +76,34 @@ final class Fts5SearchProviderWeightingTest extends TestCase
         $provider = new Fts5SearchProvider(
             $this->database,
             $this->indexer,
-            new \Waaseyaa\Search\Tests\Support\AllowAllSearchAccessChecker(),
+            new \Waaseyaa\Search\Tests\Support\IndexedSearchCandidateResolver($this->database),
             titleWeight: 10.0,
             bodyWeight: 1.0,
         );
 
-        $result = $provider->search(new SearchRequest('entity type'));
+        $result = $provider->search(new SearchRequest('entity type'), \Waaseyaa\Search\Tests\Support\SearchTestPrincipal::create());
 
         $this->assertSame(2, $result->totalHits);
         $this->assertSame('spec:entity-system', $result->hits[0]->id, 'A title-column match must outrank a body-only match.');
         $this->assertGreaterThan($result->hits[1]->score, $result->hits[0]->score);
+    }
+
+    #[Test]
+    public function unsafe_weight_configurations_are_rejected(): void
+    {
+        foreach ([[-1.0, 1.0], [1.0, -1.0], [0.0, 0.0], [NAN, 1.0]] as [$titleWeight, $bodyWeight]) {
+            try {
+                new Fts5SearchProvider(
+                    $this->database,
+                    $this->indexer,
+                    new \Waaseyaa\Search\Tests\Support\IndexedSearchCandidateResolver($this->database),
+                    titleWeight: $titleWeight,
+                    bodyWeight: $bodyWeight,
+                );
+                self::fail('Expected unsafe search weights to be rejected.');
+            } catch (\InvalidArgumentException) {
+                self::addToAssertionCount(1);
+            }
+        }
     }
 }

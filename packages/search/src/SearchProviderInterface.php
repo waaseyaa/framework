@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Search;
 
-/**
- * @internal Parked until a first-party read endpoint adopts the access-checked provider.
- */
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
+
+/** Principal-explicit full-text search service. @api */
 interface SearchProviderInterface
 {
-    public function search(SearchRequest $request): SearchResult;
+    public function search(SearchRequest $request, AuthorizationPrincipalInterface $principal): SearchResult;
 }
