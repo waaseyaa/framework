@@ -2,6 +2,8 @@
 
 # Agent Executor
 
+<!-- Spec reviewed 2026-08-04 - #2191: the external MCP endpoint owner is McpEndpoint through the canonical AI tool registry; the removed McpController is not a production surface. -->
+
 Status: **Design — pending implementation mission.**
 
 This spec defines what "running an agent" means in Waaseyaa. It locks the
@@ -21,7 +23,7 @@ consumer. Specs reference these classes, but no Waaseyaa application can
 actually run an agent — there is no CLI command, no HTTP route, no worker,
 no run-state entity, no tool catalogue, no auth surface. The companion
 orphan `Waaseyaa\AI\Agent\McpServer` was deleted in PR #1508; the
-production MCP endpoint is `Waaseyaa\Mcp\McpController` at `/mcp`, which
+production MCP endpoint is `Waaseyaa\Mcp\McpEndpoint` at `/mcp`, which
 handles `tools/list` + `tools/call` for external clients but does not
 expose a path for internal agent execution.
 
