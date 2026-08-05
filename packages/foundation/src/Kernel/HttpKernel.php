@@ -722,6 +722,8 @@ final class HttpKernel extends AbstractKernel
             $paths[] = '/api/content/search';
         }
 
+        $paths[] = '/.well-known/api-catalog';
+
         return array_values(array_unique($paths));
     }
 

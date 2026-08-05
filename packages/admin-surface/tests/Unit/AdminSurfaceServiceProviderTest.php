@@ -499,6 +499,19 @@ final class AdminSurfaceServiceProviderTest extends TestCase
         $this->assertSame([], AdminSurfaceServiceProvider::defaultCapabilityAllowlist(mcpInstalled: false));
     }
 
+    #[Test]
+    public function defaultFeaturesProjectOptionalPackagesExactly(): void
+    {
+        $this->assertSame(
+            ['mcp' => true, 'wayfinding' => false],
+            AdminSurfaceServiceProvider::defaultFeatures(mcpInstalled: true, wayfindingInstalled: false),
+        );
+        $this->assertSame(
+            ['mcp' => false, 'wayfinding' => true],
+            AdminSurfaceServiceProvider::defaultFeatures(mcpInstalled: false, wayfindingInstalled: true),
+        );
+    }
+
     private function createTestHost(?AdminSurfaceSessionData $session): AbstractAdminSurfaceHost
     {
         return new class ($session) extends AbstractAdminSurfaceHost {

@@ -25,7 +25,6 @@
         "lint:fix": "eslint . --fix"
     },
     "dependencies": {
-        "@nuxt/icon": "^2.2.2",
         "nuxt": "4.4.7",
         "vue": "^3.5.35",
         "vue-router": "^5.1.0"

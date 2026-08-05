@@ -14,8 +14,11 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface;
 use Waaseyaa\Foundation\Audit\NullStrictAuditLedger;
 use Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface;
+use Waaseyaa\Foundation\Discovery\ApiCatalog\ApiCatalogEntry;
+use Waaseyaa\Foundation\Discovery\ApiCatalog\ApiCatalogTarget;
 use Waaseyaa\Foundation\Exception\ConfigException;
 use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApiCatalogEntriesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Mcp\Admin\RecentInvocationsQueryInterface;
 use Waaseyaa\Mcp\Admin\ServerConfigReadModel;
@@ -43,8 +46,20 @@ use Waaseyaa\Routing\WaaseyaaRouter;
  *
  * @api
  */
-final class McpServiceProvider extends ServiceProvider
+final class McpServiceProvider extends ServiceProvider implements ProvidesApiCatalogEntriesInterface
 {
+    public function apiCatalogEntries(): array
+    {
+        if (!$this->publicEndpointEnabled()) {
+            return [];
+        }
+
+        return [new ApiCatalogEntry(
+            endpoint: new ApiCatalogTarget('/mcp', 'application/json', 'Model Context Protocol'),
+            serviceMetadata: [new ApiCatalogTarget('/.well-known/mcp.json', 'application/json', 'MCP server card')],
+        )];
+    }
+
     /**
      * Generic entity mutations are not bundle-scoped and therefore are not a
      * safe default for a remotely callable editorial surface. Embedded agents

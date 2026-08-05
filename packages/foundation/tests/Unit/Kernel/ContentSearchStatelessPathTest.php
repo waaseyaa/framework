@@ -17,7 +17,7 @@ final class ContentSearchStatelessPathTest extends TestCase
     public function enabling_public_search_adds_its_exact_path_without_losing_operator_paths(): void
     {
         self::assertSame(
-            ['/news', '/api/content/search'],
+            ['/news', '/api/content/search', '/.well-known/api-catalog'],
             $this->paths([
                 'session' => ['stateless_paths' => ['/news']],
                 'api' => ['content_search' => ['enabled' => true]],
@@ -26,10 +26,12 @@ final class ContentSearchStatelessPathTest extends TestCase
     }
 
     #[Test]
-    public function disabled_public_search_does_not_change_session_defaults(): void
+    public function disabled_public_search_preserves_the_api_catalog_default(): void
     {
-        self::assertSame([], $this->paths([]));
-        self::assertSame([], $this->paths(['api' => ['content_search' => ['enabled' => false]]]));
+        $expected = ['/.well-known/api-catalog'];
+
+        self::assertSame($expected, $this->paths([]));
+        self::assertSame($expected, $this->paths(['api' => ['content_search' => ['enabled' => false]]]));
     }
 
     /** @param array<string, mixed> $config

@@ -6,6 +6,9 @@ namespace Waaseyaa\Wayfinding;
 
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Foundation\Discovery\ApiCatalog\ApiCatalogEntry;
+use Waaseyaa\Foundation\Discovery\ApiCatalog\ApiCatalogTarget;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApiCatalogEntriesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Routing\RouteBuilder;
 use Waaseyaa\Routing\WaaseyaaRouter;
@@ -29,8 +32,17 @@ use Waaseyaa\Wayfinding\Http\SessionTokenController;
  * authenticated write tier that exposes it is Phase 5
  * (kitty-specs/wayfinding-01KVGH5X/spec.md).
  */
-final class WayfindingServiceProvider extends ServiceProvider
+final class WayfindingServiceProvider extends ServiceProvider implements ProvidesApiCatalogEntriesInterface
 {
+    public function apiCatalogEntries(): array
+    {
+        return [new ApiCatalogEntry(new ApiCatalogTarget(
+            '/.well-known/waaseyaa-anchors.json',
+            'application/json',
+            'Waaseyaa wayfinding anchor catalog',
+        ))];
+    }
+
     public function register(): void
     {
         // The canonical registry instance, constructor-injected into both

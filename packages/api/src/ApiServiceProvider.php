@@ -10,6 +10,7 @@ use Waaseyaa\Api\Audit\ApiAuditQueryAdapter;
 use Waaseyaa\Api\Audit\AuditQueryReadModelInterface;
 use Waaseyaa\Api\ContentSearch\AtomicRateLimiterAdapter;
 use Waaseyaa\Api\ContentSearch\SearchPackageContentSearchAdapter;
+use Waaseyaa\Api\Controller\ApiCatalogController;
 use Waaseyaa\Api\Controller\AuditQueryController;
 use Waaseyaa\Api\Controller\ContentSearchController;
 use Waaseyaa\Api\Controller\McpAdminController;
@@ -21,6 +22,8 @@ use Waaseyaa\Api\Controller\OidcClientController;
 use Waaseyaa\Api\Controller\QueueController;
 use Waaseyaa\Api\Controller\SchedulerController;
 use Waaseyaa\Api\Controller\WorkflowTransitionController;
+use Waaseyaa\Api\Discovery\ApiCatalog;
+use Waaseyaa\Api\Http\Router\ApiCatalogRouter;
 use Waaseyaa\Api\Http\Router\AuditApiRouter;
 use Waaseyaa\Api\Http\Router\ContentSearchApiRouter;
 use Waaseyaa\Api\Http\Router\DiscoveryRouter;
@@ -47,7 +50,9 @@ use Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface;
 use Waaseyaa\Foundation\Exception\ConfigException;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsApiCatalogEntryProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApiCatalogEntriesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Media\Version\MediaVersionRepository;
 use Waaseyaa\Notification\NotificationDispatcher;
@@ -61,7 +66,7 @@ use Waaseyaa\Scheduler\ScheduleRunner;
 use Waaseyaa\Scheduler\Storage\ScheduleStateRepository;
 use Waaseyaa\Workflows\Transition\TransitionService;
 
-final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainRoutersInterface
+final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainRoutersInterface, AcceptsApiCatalogEntryProvidersInterface
 {
     private const string CONTENT_SEARCH_PROVIDER = 'Waaseyaa\\Search\\SearchProviderInterface';
     private const string CONTENT_SEARCH_LIMITER = 'Waaseyaa\\Auth\\AtomicRateLimiterInterface';
@@ -72,6 +77,23 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
     private array|false|null $contentSearchConfiguration = null;
 
     private ?bool $contentSearchAvailable = null;
+
+    /** @var list<ProvidesApiCatalogEntriesInterface> */
+    private array $apiCatalogEntryProviders = [];
+
+    private ?ApiCatalog $apiCatalog = null;
+
+    public function withApiCatalogEntryProviders(array $providers): void
+    {
+        $this->apiCatalogEntryProviders = array_values(array_filter(
+            $providers,
+            static fn(object $provider): bool => $provider instanceof ProvidesApiCatalogEntriesInterface,
+        ));
+        usort(
+            $this->apiCatalogEntryProviders,
+            static fn(object $left, object $right): int => $left::class <=> $right::class,
+        );
+    }
 
     public function register(): void
     {
@@ -121,6 +143,7 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
         // Resolve after every provider/app entity registration has completed so
         // strict allowlist validation fails during kernel boot, before routing.
         $this->resolve(EntityTypeApiExposurePolicy::class);
+        $this->apiCatalog = $this->buildApiCatalog();
     }
 
     public function httpDomainRouters(HttpKernel $httpKernel): iterable
@@ -174,6 +197,10 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
                 },
                 $loggerResolver,
             );
+        }
+
+        if ($this->apiCatalog !== null) {
+            $routers[] = new ApiCatalogRouter(new ApiCatalogController($this->apiCatalog));
         }
 
         // M4B WP01 (+ #1576 follow-up): admin queue dashboard. Pull the queue
@@ -352,6 +379,18 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
 
         $jsonApiRouteProvider = new JsonApiRouteProvider($entityTypeManager, exposurePolicy: $exposurePolicy);
         $jsonApiRouteProvider->registerRoutes($router);
+
+        if ($this->apiCatalog !== null) {
+            $router->addRoute(
+                'api.catalog',
+                RouteBuilder::create(ApiCatalog::PATH)
+                    ->controller('api.catalog')
+                    ->methods('GET', 'HEAD')
+                    ->allowAll()
+                    ->priority(10)
+                    ->build(),
+            );
+        }
 
         // CW-v1 WP-4 (#1920): gated on TransitionService resolving — see the
         // matching gate in httpDomainRouters() above for the full rationale.
@@ -705,6 +744,53 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
         // registration pass. Preserve that supported construction site while
         // production boot resolves the registered singleton above.
         return EntityTypeApiExposurePolicy::fromConfig($entityTypeManager, $this->config);
+    }
+
+    private function buildApiCatalog(): ?ApiCatalog
+    {
+        $section = $this->config['api_catalog'] ?? [];
+        if (!is_array($section)) {
+            throw new ConfigException('api_catalog must be a configuration map.');
+        }
+        if (array_key_exists('base_url', $section) && !is_string($section['base_url'])) {
+            throw new ConfigException('api_catalog.base_url must be a string.');
+        }
+
+        $environmentUrl = getenv('APP_URL');
+        $configuredBaseUrl = $section['base_url']
+            ?? ($environmentUrl !== false ? $environmentUrl : null);
+        $baseUrl = is_string($configuredBaseUrl) ? trim($configuredBaseUrl) : '';
+
+        $enabled = $baseUrl !== '';
+        if (array_key_exists('enabled', $section)) {
+            if (!is_bool($section['enabled'])) {
+                throw new ConfigException('api_catalog.enabled must be a boolean.');
+            }
+            $enabled = $section['enabled'];
+        }
+
+        if (!$enabled) {
+            return null;
+        }
+        if ($baseUrl === '') {
+            throw new ConfigException('api_catalog.base_url must be configured when the catalog is enabled.');
+        }
+
+        $entries = [];
+        foreach ($this->apiCatalogEntryProviders as $provider) {
+            foreach ($provider->apiCatalogEntries() as $entry) {
+                $entries[] = $entry;
+            }
+        }
+        if ($entries === []) {
+            return null;
+        }
+
+        try {
+            return new ApiCatalog($baseUrl, $entries);
+        } catch (\InvalidArgumentException $exception) {
+            throw new ConfigException('api_catalog.base_url must be a canonical HTTPS URL.', previous: $exception);
+        }
     }
 
     private static function mcpInstalled(): bool
