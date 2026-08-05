@@ -1,1 +1,0 @@
-import{r as c}from"./DtlrOVbM.js";function f(){const t=c();function n(i,a){return t.catalog.find(u=>u.id===i)?.capabilities[a]??!1}function e(i){return t.capabilities?.[i]===!0}function r(i){return t.catalog.find(a=>a.id===i)}return{catalog:t.catalog,tenant:t.tenant,features:t.features,capabilities:t.capabilities,ui:t.ui,hasCapability:n,can:e,getEntity:r}}export{f as u};
