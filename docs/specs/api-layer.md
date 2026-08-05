@@ -1,5 +1,54 @@
 # API Layer
 
+<!-- Spec reviewed 2026-08-05 - #2193: applications may opt in to GET|HEAD /api/content/search when the optional search and auth domains are installed. The endpoint passes the middleware-built immutable principal unchanged to the principal-safe SearchProviderInterface, exposes only a closed JSON:API hit/facet projection, is no-store and anonymous-session-stateless, and uses atomic deployment-global plus fixed-anonymous/hashed-principal rate-limit buckets. It never trusts forwarding headers for identity. Missing optional packages withdraw both route and domain router; installed but missing/failing bindings resolve lazily per request and return a sanitized correlated 503 rather than masquerading as absence. -->
+
+## Optional public content search
+
+`api.content_search.enabled` is a strict boolean and defaults to `false`.
+When it is exactly `true`, `ApiServiceProvider` uses Composer autoload presence
+for `SearchProviderInterface` and `AtomicRateLimiterInterface` as one cached
+scalar gate for both route and router. It does not instantiate either service
+at route-build time: both touch `DatabaseInterface`, and the atomic limiter is
+a writer covered by the #1611 request-lifecycle invariant. A truly absent
+package withdraws the surface. An installed but missing, failing, or wrong-type
+binding is resolved inside the request and produces a sanitized, correlated
+503. The controller resolver captures only the kernel-services bus and
+immutable scalar bounds; it memoizes no request service and is not stored in
+the serializable route collection.
+
+Because search and auth remain optional Composer suggestions, API source does
+not import their runtime types. API owns `ContentSearchReadModelInterface`,
+`ContentSearchRateLimiterInterface`, and validated query/page DTOs. Narrow
+adapters verify the string-resolved optional contracts, construct their public
+request objects, and copy each permitted result field into the API-owned page;
+they never enumerate source properties or copy raw body content. Composer
+`conflict` metadata bounds the supported optional-package window on both sides,
+`require-dev` drives the real integration in CI, and the architecture suite
+forbids Auth/Search imports or runtime requires from returning to API source.
+
+The exact `GET|HEAD /api/content/search` route is public, ordered ahead of
+generated `/api/{entity_type}/{id}` routes, and automatically joins the
+session-stateless path list. Session-cookie requests still resume normally, so
+authenticated search retains its principal. The router accepts only the exact
+controller reference and never creates a development or fallback account.
+
+The controller accepts a closed, bounded query vocabulary and refuses invalid
+input before consuming quota. It then atomically consumes a global bucket and
+one identity bucket. Anonymous traffic shares one fixed bucket; authenticated
+keys hash the account id, tenant, community, and claims generation. IP and
+forwarding headers are deliberately excluded: deployments therefore have no
+proxy-trust precondition and cannot create attacker-controlled bucket
+cardinality. Infrastructure or provider failure returns a static JSON:API 503
+and logs only the exception class, never its message, request, or indexed
+content.
+
+Results are rebuilt field-by-field from the principal-safe search DTOs. The
+public hit attributes are title, URL, plain-text highlight, query-local score,
+source, content type, quality score, crawl timestamp, topics, and image. Facets
+are copied only from the provider's already access-filtered facet set. Raw body,
+raw indexed metadata, denied counts, candidate caps, and execution timing are
+not observable.
+
 <!-- Spec reviewed 2026-07-24 - #2064 activation follow-up: ResourceSerializer now treats the activated entity accessor as the final Protected-read authority. If legacy field filtering is Neutral but the accessor denies or lacks a read context, the field is omitted without reading its value; an otherwise authorized entity response does not become a 500. Internal fields retain their unconditional outward-denial floors. -->
 <!-- Spec reviewed 2026-07-21 - #2101 WP-2: JSON:API create attributes an authenticated creator when an entity type declares a non-identity uid authorization-input field and the client omits it. The shape-based rule covers node, media, note, and future authored quick-entry types without a type-id allowlist, while explicitly excluding User.uid and any other identity key. Explicit uid remains subject to the entity type's field policy. -->
 <!-- Spec reviewed 2026-07-21 - #2101 WP-3: the update path accepts ConfigEntityInterface targets after the same declared-field allowlist and access checks used for FieldableInterface targets. This activates bounded PATCH support for explicitly surfaced config rows without changing identity/bookkeeping rejection. -->

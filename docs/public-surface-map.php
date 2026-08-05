@@ -540,6 +540,8 @@ return [
     'Waaseyaa\Api\MutableTranslatableInterface' => 'public',
     // Admin read-model contracts: audit, MCP admin, media versions, Mercure monitor.
     'Waaseyaa\Api\Audit\AuditQueryReadModelInterface' => 'public',
+    'Waaseyaa\Api\ContentSearch\ContentSearchRateLimiterInterface' => 'internal',
+    'Waaseyaa\Api\ContentSearch\ContentSearchReadModelInterface' => 'internal',
     'Waaseyaa\Api\McpAdmin\ServerConfigReadModelInterface' => 'public',
     'Waaseyaa\Api\McpAdmin\ToolRegistryReadModelInterface' => 'public',
     'Waaseyaa\Api\Media\MediaVersionReadModelInterface' => 'public',
