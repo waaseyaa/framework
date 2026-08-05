@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **release CI (#2246):** Make the exact release-commit skeleton gate install the newly advanced skeleton from the checked-out monorepo and split-package paths, while ordinary PR/main CI retains its published-release create-project proof. This removes the pre-publication Packagist circularity without skipping post-create setup or `audit-site`.
+
 - **release tooling (#2238):** Keep root-lock path-package metadata and the create-project skeleton in the same atomic internal-version sync as split-package manifests, and make optional-domain architecture tests derive the release-managed version. Exact release-commit CI can now validate the advanced constraints without comparing them to stale lock metadata or a hardcoded previous alpha.
 
 - **ssr (#2231):** Keep the intermediate page-render result independent of Symfony's wall-clock `Date` header. The final router-created response remains responsible for transport dating, while resolver/no-resolver rendering is byte-stable across second boundaries.

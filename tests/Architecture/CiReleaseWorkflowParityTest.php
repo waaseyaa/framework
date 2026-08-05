@@ -113,6 +113,27 @@ final class CiReleaseWorkflowParityTest extends TestCase
         );
     }
 
+    #[Test]
+    public function exact_release_gate_installs_the_advanced_skeleton_from_the_checked_out_source(): void
+    {
+        $ci = $this->read('.github/workflows/ci.yml');
+        $start = strpos($ci, '      - name: create-project (path skeleton) and audit-site');
+        $end = strpos($ci, '      - name: Fresh skeleton preserves', $start === false ? 0 : $start);
+
+        self::assertNotFalse($start);
+        self::assertNotFalse($end);
+        $step = substr($ci, $start, $end - $start);
+
+        self::assertStringContainsString('if [[ "$GITHUB_REF_NAME" == release-cut/* ]]; then', $step);
+        self::assertStringContainsString('--no-install --no-scripts', $step);
+        self::assertStringContainsString('repositories.framework path "$GITHUB_WORKSPACE"', $step);
+        self::assertStringContainsString('repositories.packages path "$GITHUB_WORKSPACE/packages/*"', $step);
+        self::assertStringContainsString('waaseyaa/framework:dev-main --no-update', $step);
+        self::assertStringContainsString('run-script --working-dir="$work/skel-proj" post-create-project-cmd', $step);
+        self::assertStringContainsString('else', $step, 'Ordinary PR/main CI must retain the published-release create-project path.');
+        self::assertStringContainsString('./bin/maintenance/waaseyaa-audit-site', $step);
+    }
+
     private function read(string $relativePath): string
     {
         $path = $this->repoRoot . '/' . $relativePath;
