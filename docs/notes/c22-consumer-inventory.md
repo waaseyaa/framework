@@ -89,7 +89,6 @@ criteria query (or a new unchecked query surface) would satisfy them.
 | `packages/seo/src/SitemapGenerator.php:100` | seo (L3) |
 | `packages/seo/src/Llms/LlmsTxtGenerator.php:109` | seo (L3) |
 | `packages/workflows/src/DomainValidationListener.php:133` | workflows (L3) |
-| `packages/northcloud/src/Sync/NcSyncService.php:144` | northcloud (L3) |
 | `packages/messaging/src/MessagingAccessPolicy.php:138` | messaging (L3) |
 | `packages/relationship/src/RelationshipValidator.php:272` | relationship (L2) |
 | `packages/relationship/src/RelationshipDeleteGuardListener.php:36,42` | relationship (L2) |
