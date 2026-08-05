@@ -9,8 +9,11 @@ use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Api\Audit\ApiAuditQueryAdapter;
 use Waaseyaa\Api\Audit\AuditQueryReadModelInterface;
 use Waaseyaa\Api\Controller\AiCatalogController;
+use Waaseyaa\Api\ContentSearch\AtomicRateLimiterAdapter;
+use Waaseyaa\Api\ContentSearch\SearchPackageContentSearchAdapter;
 use Waaseyaa\Api\Controller\ApiCatalogController;
 use Waaseyaa\Api\Controller\AuditQueryController;
+use Waaseyaa\Api\Controller\ContentSearchController;
 use Waaseyaa\Api\Controller\McpAdminController;
 use Waaseyaa\Api\Controller\McpApprovalController;
 use Waaseyaa\Api\Controller\MediaVersionController;
@@ -25,6 +28,7 @@ use Waaseyaa\Api\Discovery\ApiCatalog;
 use Waaseyaa\Api\Http\Router\AiCatalogRouter;
 use Waaseyaa\Api\Http\Router\ApiCatalogRouter;
 use Waaseyaa\Api\Http\Router\AuditApiRouter;
+use Waaseyaa\Api\Http\Router\ContentSearchApiRouter;
 use Waaseyaa\Api\Http\Router\DiscoveryRouter;
 use Waaseyaa\Api\Http\Router\McpAdminApiRouter;
 use Waaseyaa\Api\Http\Router\McpApprovalApiRouter;
@@ -70,6 +74,16 @@ use Waaseyaa\Workflows\Transition\TransitionService;
 
 final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainRoutersInterface, AcceptsApiCatalogEntryProvidersInterface, AcceptsAiCatalogEntryProvidersInterface, ProvidesAiCatalogEntriesInterface
 {
+    private const string CONTENT_SEARCH_PROVIDER = 'Waaseyaa\\Search\\SearchProviderInterface';
+    private const string CONTENT_SEARCH_LIMITER = 'Waaseyaa\\Auth\\AtomicRateLimiterInterface';
+    private const string CONTENT_SEARCH_REQUEST = 'Waaseyaa\\Search\\SearchRequest';
+    private const string CONTENT_SEARCH_FILTERS = 'Waaseyaa\\Search\\SearchFilters';
+
+    /** @var array{identity_max: int, global_max: int, window: int}|false|null */
+    private array|false|null $contentSearchConfiguration = null;
+
+    private ?bool $contentSearchAvailable = null;
+
     /** @var list<ProvidesApiCatalogEntriesInterface> */
     private array $apiCatalogEntryProviders = [];
 
@@ -181,6 +195,48 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
                 $exposurePolicy,
             ),
         ];
+
+        if ($this->contentSearchAvailable()) {
+            $configuration = $this->contentSearchConfiguration();
+            \assert(is_array($configuration));
+            $services = $this->kernelServices;
+
+            // The closures deliberately capture only the kernel-services bus
+            // and immutable scalar config. Resolving either database-backed
+            // service while building routes violates the request lifecycle and
+            // can lose rate-limit writes (#1611).
+            $loggerResolver = static function () use ($services): ?LoggerInterface {
+                try {
+                    $logger = $services?->get(LoggerInterface::class);
+                } catch (\Throwable) {
+                    return null;
+                }
+
+                return $logger instanceof LoggerInterface ? $logger : null;
+            };
+            $routers[] = new ContentSearchApiRouter(
+                static function () use ($services, $configuration, $loggerResolver): ContentSearchController {
+                    if ($services === null) {
+                        throw new \RuntimeException('The kernel-services bus is unavailable.');
+                    }
+                    $provider = $services->get(self::CONTENT_SEARCH_PROVIDER);
+                    $limiter = $services->get(self::CONTENT_SEARCH_LIMITER);
+                    if ($provider === null || $limiter === null) {
+                        throw new \RuntimeException('The optional public content search service binding is unavailable.');
+                    }
+
+                    return new ContentSearchController(
+                        provider: new SearchPackageContentSearchAdapter($provider),
+                        limiter: new AtomicRateLimiterAdapter($limiter),
+                        identityMaxAttempts: $configuration['identity_max'],
+                        globalMaxAttempts: $configuration['global_max'],
+                        windowSeconds: $configuration['window'],
+                        logger: $loggerResolver(),
+                    );
+                },
+                $loggerResolver,
+            );
+        }
 
         if ($this->apiCatalog !== null) {
             $routers[] = new ApiCatalogRouter(new ApiCatalogController($this->apiCatalog));
@@ -347,6 +403,22 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
     public function routes(WaaseyaaRouter $router, EntityTypeManager $entityTypeManager): void
     {
         $exposurePolicy = $this->exposurePolicy($entityTypeManager);
+
+        // Register the exact endpoint before generated `/api/{type}/{id}`
+        // routes and give it an explicit priority. This prevents an exposed
+        // `content` entity type from shadowing `/api/content/search`.
+        if ($this->contentSearchAvailable()) {
+            $router->addRoute(
+                'api.content_search',
+                RouteBuilder::create('/api/content/search')
+                    ->controller(ContentSearchApiRouter::CONTROLLER)
+                    ->allowAll()
+                    ->methods('GET', 'HEAD')
+                    ->priority(100)
+                    ->build(),
+            );
+        }
+
         $jsonApiRouteProvider = new JsonApiRouteProvider($entityTypeManager, exposurePolicy: $exposurePolicy);
         $jsonApiRouteProvider->registerRoutes($router);
 
@@ -842,6 +914,86 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
     private static function mcpInstalled(): bool
     {
         return class_exists('Waaseyaa\\Mcp\\McpServiceProvider');
+    }
+
+    /**
+     * One scalar install gate owns both route and domain-router registration.
+     * `interface_exists()` is the Composer-autoload presence signal for these
+     * suggested packages. Do not replace it with eager resolve(): both services
+     * reach DatabaseInterface and must be resolved inside the request (#1611).
+     */
+    private function contentSearchAvailable(): bool
+    {
+        if ($this->contentSearchAvailable !== null) {
+            return $this->contentSearchAvailable;
+        }
+
+        return $this->contentSearchAvailable = $this->contentSearchConfiguration() !== false
+            && interface_exists(self::CONTENT_SEARCH_PROVIDER)
+            && interface_exists(self::CONTENT_SEARCH_LIMITER)
+            && class_exists(self::CONTENT_SEARCH_REQUEST)
+            && class_exists(self::CONTENT_SEARCH_FILTERS);
+    }
+
+    /** @return array{identity_max: int, global_max: int, window: int}|false */
+    private function contentSearchConfiguration(): array|false
+    {
+        if ($this->contentSearchConfiguration !== null) {
+            return $this->contentSearchConfiguration;
+        }
+
+        $api = $this->config['api'] ?? [];
+        $contentSearch = is_array($api) ? ($api['content_search'] ?? []) : [];
+        if (!is_array($contentSearch)) {
+            throw new ConfigException('The api.content_search config value must be an array.');
+        }
+        if (!array_key_exists('enabled', $contentSearch)) {
+            return $this->contentSearchConfiguration = false;
+        }
+        if (!is_bool($contentSearch['enabled'])) {
+            throw new ConfigException('The api.content_search.enabled config value must be a strict boolean.');
+        }
+
+        if (!$contentSearch['enabled']) {
+            return $this->contentSearchConfiguration = false;
+        }
+
+        $rateLimit = $contentSearch['rate_limit'] ?? [];
+        if (!is_array($rateLimit)) {
+            throw new ConfigException('The api.content_search.rate_limit config value must be an array.');
+        }
+
+        $identity = self::boundedConfigInt($rateLimit, 'identity_max', 30, 1, 10_000);
+        $global = self::boundedConfigInt($rateLimit, 'global_max', 300, 1, 100_000);
+        $window = self::boundedConfigInt($rateLimit, 'window_seconds', 60, 1, 3_600);
+        if ($global < $identity) {
+            throw new ConfigException('The api.content_search.rate_limit.global_max value must be at least identity_max.');
+        }
+
+        return $this->contentSearchConfiguration = [
+            'identity_max' => $identity,
+            'global_max' => $global,
+            'window' => $window,
+        ];
+    }
+
+    /** @param array<string, mixed> $config */
+    private static function boundedConfigInt(array $config, string $key, int $default, int $minimum, int $maximum): int
+    {
+        if (!array_key_exists($key, $config)) {
+            return $default;
+        }
+        $value = $config[$key];
+        if (!is_int($value) || $value < $minimum || $value > $maximum) {
+            throw new ConfigException(sprintf(
+                'The api.content_search.rate_limit.%s config value must be an integer between %d and %d.',
+                $key,
+                $minimum,
+                $maximum,
+            ));
+        }
+
+        return $value;
     }
 
     /**

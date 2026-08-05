@@ -18,10 +18,11 @@ final class AuthServiceProvider extends ServiceProvider implements HasMiddleware
             $this->resolve(UserInternalFieldReaderInterface::class),
         ));
 
-        $this->singleton(RateLimiterInterface::class, function () {
+        $this->singleton(AtomicRateLimiterInterface::class, function () {
             $db = $this->resolve(\Waaseyaa\Database\DatabaseInterface::class);
             return new DatabaseRateLimiter($db);
         });
+        $this->singleton(RateLimiterInterface::class, fn() => $this->resolve(AtomicRateLimiterInterface::class));
 
         $authConfig = $this->config['auth'] ?? [];
         $appEnv = $this->config['app_env'] ?? ($_ENV['APP_ENV'] ?? 'production');
