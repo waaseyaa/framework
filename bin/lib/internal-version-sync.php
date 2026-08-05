@@ -239,3 +239,134 @@ function syncManifestFile(string $manifestPath, string $constraint): bool
 
     return true;
 }
+
+/**
+ * Synchronize path-package dependency metadata embedded in the root lock.
+ *
+ * Composer copies each path package's production `require` object into
+ * composer.lock. The release cut mutates package manifests without running a
+ * network-dependent Composer update, so that copied metadata must move in the
+ * same deterministic operation. Third-party packages, content-hash, versions,
+ * references, and every other lock field remain untouched.
+ *
+ * @param list<string> $manifestPaths Absolute package manifest paths.
+ *
+ * @throws \RuntimeException On malformed JSON or read/write failure.
+ */
+function syncRootLockFile(string $lockPath, array $manifestPaths): bool
+{
+    $original = file_get_contents($lockPath);
+    if ($original === false) {
+        throw new \RuntimeException(sprintf('Cannot read %s', $lockPath));
+    }
+
+    try {
+        $lock = json_decode($original, false, 512, JSON_THROW_ON_ERROR);
+    } catch (\JsonException $e) {
+        throw new \RuntimeException(sprintf('Cannot parse %s: %s', $lockPath, $e->getMessage()), 0, $e);
+    }
+    if (!$lock instanceof \stdClass) {
+        throw new \RuntimeException(sprintf('%s must contain a JSON object.', $lockPath));
+    }
+
+    /** @var array<string, array<string, string>> $requiresByPackage */
+    $requiresByPackage = [];
+    foreach ($manifestPaths as $manifestPath) {
+        $contents = file_get_contents($manifestPath);
+        if ($contents === false) {
+            throw new \RuntimeException(sprintf('Cannot read %s', $manifestPath));
+        }
+
+        try {
+            $manifest = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            throw new \RuntimeException(sprintf('Cannot parse %s: %s', $manifestPath, $e->getMessage()), 0, $e);
+        }
+
+        $name = is_array($manifest) ? ($manifest['name'] ?? null) : null;
+        $require = is_array($manifest) ? ($manifest['require'] ?? null) : null;
+        if (is_string($name) && is_array($require)) {
+            /** @var array<string, string> $require */
+            $requiresByPackage[$name] = $require;
+        }
+    }
+
+    $changed = false;
+    foreach (['packages', 'packages-dev'] as $section) {
+        $packages = $lock->{$section} ?? null;
+        if (!is_array($packages)) {
+            continue;
+        }
+
+        foreach ($packages as $package) {
+            if (!$package instanceof \stdClass) {
+                continue;
+            }
+            $name = $package->name ?? null;
+            if (!is_string($name) || !isset($requiresByPackage[$name])) {
+                continue;
+            }
+            $lockedRequireObject = $package->require ?? null;
+            $lockedRequire = $lockedRequireObject instanceof \stdClass
+                ? get_object_vars($lockedRequireObject)
+                : [];
+            $expectedRequire = $requiresByPackage[$name];
+            $lockedKeys = array_keys($lockedRequire);
+            $expectedKeys = array_keys($expectedRequire);
+            sort($lockedKeys);
+            sort($expectedKeys);
+            if ($lockedKeys !== $expectedKeys) {
+                throw new \RuntimeException(sprintf(
+                    '%s package %s has dependency-key drift; regenerate the root lock before release.',
+                    $lockPath,
+                    $name,
+                ));
+            }
+
+            foreach ($expectedRequire as $dependency => $constraint) {
+                if (!str_starts_with($dependency, 'waaseyaa/')) {
+                    if (($lockedRequire[$dependency] ?? null) !== $constraint) {
+                        throw new \RuntimeException(sprintf(
+                            '%s package %s has non-internal dependency drift for %s; regenerate the root lock before release.',
+                            $lockPath,
+                            $name,
+                            $dependency,
+                        ));
+                    }
+                    continue;
+                }
+
+                if (($lockedRequire[$dependency] ?? null) !== $constraint) {
+                    if (!$lockedRequireObject instanceof \stdClass) {
+                        throw new \RuntimeException(sprintf(
+                            '%s package %s has invalid require metadata.',
+                            $lockPath,
+                            $name,
+                        ));
+                    }
+                    $lockedRequireObject->{$dependency} = $constraint;
+                    $changed = true;
+                }
+            }
+        }
+    }
+
+    if (!$changed) {
+        return false;
+    }
+
+    try {
+        $updated = json_encode(
+            $lock,
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
+        ) . "\n";
+    } catch (\JsonException $e) {
+        throw new \RuntimeException(sprintf('Cannot encode %s: %s', $lockPath, $e->getMessage()), 0, $e);
+    }
+
+    if (file_put_contents($lockPath, $updated) === false) {
+        throw new \RuntimeException(sprintf('Cannot write %s', $lockPath));
+    }
+
+    return true;
+}

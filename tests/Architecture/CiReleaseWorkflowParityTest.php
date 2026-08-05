@@ -102,6 +102,17 @@ final class CiReleaseWorkflowParityTest extends TestCase
         self::assertLessThan($extract, $verify, 'Checksum verification must precede archive extraction.');
     }
 
+    #[Test]
+    public function release_commit_stages_every_file_mutated_by_internal_version_sync(): void
+    {
+        $release = $this->read('.github/workflows/release-cut.yml');
+
+        self::assertStringContainsString(
+            'git add CHANGELOG.md VERSION composer.lock packages/*/composer.json skeleton/composer.json',
+            $release,
+        );
+    }
+
     private function read(string $relativePath): string
     {
         $path = $this->repoRoot . '/' . $relativePath;

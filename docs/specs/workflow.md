@@ -133,8 +133,8 @@ The workflow:
    canonical section has content. The same shape guard runs in
    `composer verify`, so duplicate release-note authorities fail on ordinary
    PR CI before the release workflow is dispatched.
-6. Mutates the changelog: renames `[Unreleased]` → `[X.Y.Z] - YYYY-MM-DD`, inserts fresh `[Unreleased]`; syncs internal `waaseyaa/*` constraints; stamps `VERSION`.
-7. Commits as `github-actions[bot]` and pushes the release commit to a throwaway gate branch (`release-cut/<version>`) — **not** to main.
+6. Mutates the changelog: renames `[Unreleased]` → `[X.Y.Z] - YYYY-MM-DD`, inserts fresh `[Unreleased]`; syncs internal `waaseyaa/*` constraints in split-package manifests and the create-project skeleton; updates the corresponding path-package `require` metadata embedded in the root `composer.lock`; stamps `VERSION`. The lock sync is local and deterministic: it does not resolve or update third-party packages.
+7. Stages every release mutation (`CHANGELOG.md`, `VERSION`, root lock, split-package manifests, and skeleton manifest), commits as `github-actions[bot]`, and pushes the release commit to a throwaway gate branch (`release-cut/<version>`) — **not** to main.
 8. **Gate 2: requires green CI on the exact commit being tagged.** Dispatches `ci.yml` on the gate branch (it has a `workflow_dispatch` trigger for this) and waits for a green conclusion at the release commit's SHA.
 9. Only then creates the annotated tag and pushes main fast-forward + tag in one **atomic** push using `SPLIT_GITHUB_TOKEN`. The gate branch is deleted either way.
 

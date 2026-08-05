@@ -67,5 +67,17 @@ foreach ($manifests as $manifestPath) {
     }
 }
 
+$lockPath = $repoRoot . '/composer.lock';
+if (is_file($lockPath)) {
+    try {
+        if (syncRootLockFile($lockPath, $manifests)) {
+            ++$updatedCount;
+        }
+    } catch (\RuntimeException $e) {
+        fwrite(STDERR, 'Error: ' . $e->getMessage() . "\n");
+        exit(2);
+    }
+}
+
 echo "Updated {$updatedCount} file(s) — version {$constraint}\n";
 exit(0);

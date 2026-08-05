@@ -292,6 +292,88 @@ final class SyncInternalVersionsTest extends TestCase
     }
 
     #[Test]
+    public function sync_updates_root_lock_path_package_metadata_without_touching_unrelated_packages(): void
+    {
+        $dir = $this->makeTempPackageDir([
+            'packages/agent/composer.json' => json_encode([
+                'name' => 'waaseyaa/agent',
+                'require' => [
+                    'php' => '>=8.5',
+                    'waaseyaa/foundation' => '^0.1.0-alpha.150',
+                ],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n",
+            'composer.lock' => json_encode([
+                '_readme' => ['fixture'],
+                'content-hash' => 'unchanged-root-hash',
+                'packages' => [
+                    [
+                        'name' => 'third-party/example',
+                        'version' => '1.2.3',
+                        'require' => ['php' => '>=8.2'],
+                    ],
+                    [
+                        'name' => 'waaseyaa/agent',
+                        'version' => 'dev-main',
+                        'require' => [
+                            'php' => '>=8.5',
+                            'waaseyaa/foundation' => '^0.1.0-alpha.150',
+                        ],
+                    ],
+                ],
+                'packages-dev' => [],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n",
+        ]);
+
+        $this->runSyncScript($dir, '0.1.0-alpha.999');
+
+        $lock = $this->readManifest($dir . '/composer.lock');
+        self::assertSame('unchanged-root-hash', $lock['content-hash']);
+        self::assertSame(
+            ['php' => '>=8.2'],
+            $lock['packages'][0]['require'],
+            'Third-party lock metadata must not be rewritten.',
+        );
+        self::assertSame(
+            [
+                'php' => '>=8.5',
+                'waaseyaa/foundation' => '^0.1.0-alpha.999',
+            ],
+            $lock['packages'][1]['require'],
+        );
+
+        $first = (string) file_get_contents($dir . '/composer.lock');
+        $this->runSyncScript($dir, '0.1.0-alpha.999');
+        self::assertSame($first, file_get_contents($dir . '/composer.lock'));
+    }
+
+    #[Test]
+    public function sync_refuses_to_hide_structural_manifest_lock_drift(): void
+    {
+        $dir = $this->makeTempPackageDir([
+            'packages/agent/composer.json' => json_encode([
+                'name' => 'waaseyaa/agent',
+                'require' => [
+                    'php' => '>=8.5',
+                    'waaseyaa/foundation' => '^0.1.0-alpha.150',
+                ],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n",
+            'composer.lock' => json_encode([
+                'packages' => [[
+                    'name' => 'waaseyaa/agent',
+                    'version' => 'dev-main',
+                    'require' => ['php' => '>=8.5'],
+                ]],
+                'packages-dev' => [],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n",
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('dependency-key drift');
+
+        $this->runSyncScript($dir, '0.1.0-alpha.999');
+    }
+
+    #[Test]
     public function sync_preserves_internal_suggest_descriptions(): void
     {
         $description = 'Enables the optional CLI command integrations.';
@@ -371,6 +453,11 @@ final class SyncInternalVersionsTest extends TestCase
 
         foreach (discoverSyncManifests($repoRoot) as $manifestPath) {
             syncManifestFile($manifestPath, $constraint);
+        }
+
+        $lockPath = $repoRoot . '/composer.lock';
+        if (is_file($lockPath)) {
+            syncRootLockFile($lockPath, discoverSyncManifests($repoRoot));
         }
     }
 

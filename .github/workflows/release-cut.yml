@@ -196,14 +196,13 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # CRITICAL: also stage the packages/*/composer.json files mutated by the
-          # earlier "Sync internal waaseyaa/* version constraints" step. Forgetting
-          # this leaves the synced files dirty in the runner and they're discarded
-          # on shutdown — the resulting tag commit only promotes CHANGELOG, every
-          # internal `waaseyaa/*` constraint still points at the prior version,
-          # and the next pre-push composer-policy gate fails with 200+ CP-NEW
-          # violations. See incident: alpha.178 cut on 2026-05-14.
-          git add CHANGELOG.md VERSION packages/*/composer.json
+          # CRITICAL: stage every file mutated by the internal-version sync:
+          # package manifests, the create-project skeleton, and copied path-
+          # package metadata in the root lock. Omitting any one creates a tag
+          # whose manifests disagree with its install or consumer metadata.
+          # See alpha.178 (unstaged packages) and alpha.287 gate attempt 1
+          # (unstaged skeleton and stale root-lock metadata).
+          git add CHANGELOG.md VERSION composer.lock packages/*/composer.json skeleton/composer.json
           git commit -m "chore: release ${VERSION}"
           # The release commit goes to a throwaway gate branch FIRST. Main is
           # only fast-forwarded after Gate 2 proves CI green on this exact SHA.
