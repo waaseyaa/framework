@@ -145,14 +145,7 @@ jobs:
 
       - name: Verify CHANGELOG [Unreleased] has content
         run: |
-          if [ ! -f CHANGELOG.md ]; then
-            echo "::error::CHANGELOG.md not found"
-            exit 1
-          fi
-          if ! grep -q '^## \[Unreleased\]' CHANGELOG.md; then
-            echo "::error::no [Unreleased] section in CHANGELOG.md"
-            exit 1
-          fi
+          php bin/check-changelog-shape
           unreleased=$(sed -n '/^## \[Unreleased\]/,/^## \[/{/^## \[/d;/^$/d;/^### /d;p;}' CHANGELOG.md)
           if [ -z "$unreleased" ]; then
             echo "::error::[Unreleased] section has no entries — add bullets before cutting a release"

@@ -1,0 +1,52 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+$path = $argv[1] ?? dirname(__DIR__) . '/CHANGELOG.md';
+if (!is_file($path) || !is_readable($path)) {
+    fwrite(STDERR, sprintf("changelog-shape: cannot read %s.\n", $path));
+    exit(2);
+}
+
+$contents = (string) file_get_contents($path);
+$headings = [];
+foreach (preg_split('/\R/', $contents) ?: [] as $lineNumber => $line) {
+    if (preg_match('/^##\s+.*unreleased.*$/i', trim($line)) === 1) {
+        $headings[] = ['line' => $lineNumber + 1, 'text' => trim($line)];
+    }
+}
+
+$canonical = array_values(array_filter(
+    $headings,
+    static fn(array $heading): bool => $heading['text'] === '## [Unreleased]',
+));
+$nearMisses = array_values(array_filter(
+    $headings,
+    static fn(array $heading): bool => $heading['text'] !== '## [Unreleased]',
+));
+
+if (count($canonical) !== 1) {
+    fwrite(
+        STDERR,
+        sprintf(
+            "changelog-shape: expected exactly one canonical ## [Unreleased] heading; found %d.\n",
+            count($canonical),
+        ),
+    );
+    exit(1);
+}
+
+if ($nearMisses !== []) {
+    $locations = array_map(
+        static fn(array $heading): string => sprintf('line %d (%s)', $heading['line'], $heading['text']),
+        $nearMisses,
+    );
+    fwrite(
+        STDERR,
+        "changelog-shape: found Unreleased near-miss heading(s): " . implode(', ', $locations) . ".\n",
+    );
+    exit(1);
+}
+
+fwrite(STDOUT, "changelog-shape: exactly one canonical Unreleased section found.\n");

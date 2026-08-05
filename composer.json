@@ -471,6 +471,7 @@
     },
     "scripts": {
         "check-composer-policy": "php bin/check-composer-policy",
+        "check-changelog-shape": "php bin/check-changelog-shape",
         "check-distribution-extensions": "php bin/check-distribution-extensions",
         "check-openapi": "bash bin/check-openapi",
         "check-external-consumers": "php bin/check-external-consumers ai-agent-orphans",
@@ -510,6 +511,7 @@
         "verify": [
             "@cs-check",
             "@phpstan",
+            "@check-changelog-shape",
             "@check-phpstan-paths",
             "@check-phpunit-paths",
             "@check-contract-suite-coverage",
