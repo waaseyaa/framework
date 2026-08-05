@@ -48,11 +48,12 @@ final class AgentCapabilities
     public const PERMISSION_TOOL_ENTITY_DELETE = 'tool.entity.delete';
     public const PERMISSION_TOOL_ENTITY_SEARCH = 'tool.entity.search';
     public const PERMISSION_TOOL_CONTENT_SEARCH = 'tool.content.search';
+    public const PERMISSION_RESOURCE_CONTENT_READ = 'resource.content.read';
     public const PERMISSION_TOOL_RELATIONSHIP_TRAVERSE = 'tool.relationship.traverse';
     public const PERMISSION_TOOL_VECTOR_SEARCH = 'tool.vector.search';
 
     /**
-     * The twelve static capability identifiers shipped with the agent
+     * The thirteen static capability identifiers shipped with the agent
      * executor. Order matches data-model.md § Capabilities.
      *
      * @return list<string>
@@ -70,6 +71,7 @@ final class AgentCapabilities
             self::PERMISSION_TOOL_ENTITY_DELETE,
             self::PERMISSION_TOOL_ENTITY_SEARCH,
             self::PERMISSION_TOOL_CONTENT_SEARCH,
+            self::PERMISSION_RESOURCE_CONTENT_READ,
             self::PERMISSION_TOOL_RELATIONSHIP_TRAVERSE,
             self::PERMISSION_TOOL_VECTOR_SEARCH,
         ];
@@ -127,6 +129,10 @@ final class AgentCapabilities
             self::PERMISSION_TOOL_CONTENT_SEARCH => [
                 'title' => 'Tool: search accessible CMS content',
                 'description' => 'Use the ranked, principal-safe content-search tool from inside an agent run.',
+            ],
+            self::PERMISSION_RESOURCE_CONTENT_READ => [
+                'title' => 'Resource: read accessible CMS content',
+                'description' => 'List and read bounded principal-safe CMS content resources.',
             ],
             self::PERMISSION_TOOL_RELATIONSHIP_TRAVERSE => [
                 'title' => 'Tool: graph relationship traversal',

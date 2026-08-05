@@ -11,6 +11,8 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\DecisionAccountResolver;
+use Waaseyaa\AI\Tools\Resource\ContentResourceRegistry;
+use Waaseyaa\AI\Tools\Resource\MalformedContentResourceUriException;
 use Waaseyaa\AI\Tools\Schema\ToolInputSchemaValidator;
 use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 use Waaseyaa\Foundation\Audit\Approval\ApprovalRequest;
@@ -120,6 +122,8 @@ final readonly class McpEndpoint
         private int $maxRequestBytes = StreamableHttpTransportGuard::DEFAULT_MAX_REQUEST_BYTES,
         private ?Auth\OAuthProtectedResourceMetadata $oauthProtectedResourceMetadata = null,
         ?McpImplementationInfo $implementationInfo = null,
+        private ?ContentResourceRegistry $contentResources = null,
+        private bool $contentResourcesEnabled = false,
     ) {
         $this->implementationInfo = $implementationInfo ?? new McpImplementationInfo('Waaseyaa', '0.1.0');
 
@@ -532,6 +536,33 @@ final readonly class McpEndpoint
                 'ping' => $this->protocolExecute(fn(): McpResponse => $this->handlePing($id), $id, $correlationId, $actorUid, $method),
                 'tools/list' => $this->protocolExecute(fn(): McpResponse => $this->handleToolsList($id, $bridge), $id, $correlationId, $actorUid, $method),
                 'tools/call' => $this->handleToolsCall($id, $params, $bridge, $correlationId, $actorUid, (string) $principal->id()),
+                'resources/list' => $this->resourcesSupported()
+                    ? $this->resourceProtocolExecute(
+                        fn(): McpResponse => $this->handleResourcesList($id, $params, $principal, $tokenScopes),
+                        $id,
+                        $correlationId,
+                        $actorUid,
+                        $method,
+                    )
+                    : $this->refuseUnknownMethod($id, $method, $correlationId, $actorUid),
+                'resources/templates/list' => $this->resourcesSupported()
+                    ? $this->resourceProtocolExecute(
+                        fn(): McpResponse => $this->handleResourceTemplatesList($id, $params, $principal, $tokenScopes),
+                        $id,
+                        $correlationId,
+                        $actorUid,
+                        $method,
+                    )
+                    : $this->refuseUnknownMethod($id, $method, $correlationId, $actorUid),
+                'resources/read' => $this->resourcesSupported()
+                    ? $this->resourceProtocolExecute(
+                        fn(): McpResponse => $this->handleResourceRead($id, $params, $principal, $tokenScopes),
+                        $id,
+                        $correlationId,
+                        $actorUid,
+                        $method,
+                    )
+                    : $this->refuseUnknownMethod($id, $method, $correlationId, $actorUid),
                 default => $this->refuseUnknownMethod($id, $method, $correlationId, $actorUid),
             };
 
@@ -682,6 +713,105 @@ final readonly class McpEndpoint
         ];
     }
 
+    /**
+     * Resource protocol calls can return authored invalid/not-found errors.
+     * Record those as refusals rather than flattening every returned envelope
+     * into execution_succeeded. URI and params remain absent from audit data.
+     *
+     * @param \Closure(): McpResponse $handler
+     */
+    private function resourceProtocolExecute(
+        \Closure $handler,
+        mixed $id,
+        string $correlationId,
+        ?int $actorUid,
+        string $method,
+    ): McpResponse {
+        try {
+            $response = $handler();
+        } catch (\Throwable $e) {
+            $this->logger?->error('mcp.resource_execution_failed', [
+                'correlation_id' => $correlationId,
+                'method' => $method,
+                'exception' => $e::class,
+            ]);
+            $this->auditTerminal(
+                AuditStage::ExecutionFailed,
+                $correlationId,
+                $actorUid,
+                $method,
+                $method,
+                [],
+                ['reason' => 'resource_handler_threw', 'exception' => $e::class],
+            );
+
+            return $this->jsonRpcError(
+                -32603,
+                'Internal error. Quote the correlation id to an operator to have it diagnosed.',
+                $id,
+                ['correlation_id' => $correlationId],
+            );
+        }
+
+        $protocolResult = self::protocolResult($response);
+        if ($protocolResult['successful']) {
+            $this->emitAudit(AuditStage::ExecutionSucceeded, $correlationId, $actorUid, $method);
+
+            return $response;
+        }
+
+        $errorCode = $protocolResult['error_code'];
+        if ($errorCode === -32602) {
+            $this->auditTerminal(
+                AuditStage::InvalidParamsRefused,
+                $correlationId,
+                $actorUid,
+                $method,
+                $method,
+                [],
+                ['reason' => 'invalid_resource_params'],
+            );
+        } elseif ($errorCode === -32002) {
+            $this->auditTerminal(
+                AuditStage::AuthorizationRefused,
+                $correlationId,
+                $actorUid,
+                $method,
+                $method,
+                [],
+                ['reason' => 'resource_unavailable'],
+            );
+        } else {
+            $this->auditTerminal(
+                AuditStage::ExecutionFailed,
+                $correlationId,
+                $actorUid,
+                $method,
+                $method,
+                [],
+                $errorCode === null
+                    ? ['reason' => 'resource_response_malformed']
+                    : ['reason' => 'resource_protocol_error_returned', 'error_code' => $errorCode],
+            );
+
+            if ($errorCode === null) {
+                $this->logger?->error('mcp.resource_response_malformed', [
+                    'correlation_id' => $correlationId,
+                    'method' => $method,
+                ]);
+
+                return $this->jsonRpcError(
+                    -32603,
+                    'Internal error. Quote the correlation id to an operator to have it diagnosed.',
+                    $id,
+                    ['correlation_id' => $correlationId],
+                );
+            }
+        }
+
+        return $response;
+    }
+
     private function refuseUnknownMethod(
         mixed $id,
         string $method,
@@ -723,11 +853,14 @@ final readonly class McpEndpoint
             );
         }
 
+        $serverCapabilities = ['tools' => ['listChanged' => false]];
+        if ($this->resourcesSupported()) {
+            $serverCapabilities['resources'] = ['subscribe' => false, 'listChanged' => false];
+        }
+
         return $this->jsonRpcResult($id, [
             'protocolVersion' => McpProtocol::negotiate($requestedVersion),
-            'capabilities' => [
-                'tools' => ['listChanged' => false],
-            ],
+            'capabilities' => $serverCapabilities,
             'serverInfo' => $this->serverInfo(),
         ]);
     }
@@ -819,6 +952,115 @@ final readonly class McpEndpoint
         }
 
         return $this->jsonRpcResult($id, ['tools' => $tools]);
+    }
+
+    /** @param array<mixed> $params @param ?list<string> $tokenScopes */
+    private function handleResourcesList(
+        mixed $id,
+        array $params,
+        \Waaseyaa\Access\AuthorizationPrincipalInterface $principal,
+        ?array $tokenScopes,
+    ): McpResponse {
+        if (!$this->validListParams($params)) {
+            return $this->jsonRpcError(-32602, 'Invalid resources/list params', $id);
+        }
+        if (!$this->resourceCapabilityAllowed($principal, $tokenScopes)) {
+            return $this->jsonRpcResult($id, ['resources' => []]);
+        }
+
+        $resources = array_map(
+            static fn(\Waaseyaa\AI\Tools\Resource\ContentResourceDescriptor $resource): array => $resource->toArray(),
+            $this->contentResources?->list($principal) ?? [],
+        );
+
+        return $this->jsonRpcResult($id, ['resources' => $resources]);
+    }
+
+    /** @param array<mixed> $params @param ?list<string> $tokenScopes */
+    private function handleResourceTemplatesList(
+        mixed $id,
+        array $params,
+        \Waaseyaa\Access\AuthorizationPrincipalInterface $principal,
+        ?array $tokenScopes,
+    ): McpResponse {
+        if (!$this->validListParams($params)) {
+            return $this->jsonRpcError(-32602, 'Invalid resources/templates/list params', $id);
+        }
+        if (!$this->resourceCapabilityAllowed($principal, $tokenScopes)) {
+            return $this->jsonRpcResult($id, ['resourceTemplates' => []]);
+        }
+
+        $templates = array_map(
+            static fn(\Waaseyaa\AI\Tools\Resource\ContentResourceTemplate $template): array => $template->toArray(),
+            $this->contentResources?->templates() ?? [],
+        );
+
+        return $this->jsonRpcResult($id, ['resourceTemplates' => $templates]);
+    }
+
+    /** @param array<mixed> $params @param ?list<string> $tokenScopes */
+    private function handleResourceRead(
+        mixed $id,
+        array $params,
+        \Waaseyaa\Access\AuthorizationPrincipalInterface $principal,
+        ?array $tokenScopes,
+    ): McpResponse {
+        if (!$this->validReadParams($params)) {
+            return $this->jsonRpcError(-32602, 'Invalid resources/read params', $id);
+        }
+        if (!$this->resourceCapabilityAllowed($principal, $tokenScopes)) {
+            return $this->jsonRpcError(-32002, 'Resource not found', $id);
+        }
+
+        try {
+            $content = $this->contentResources?->read($params['uri'], $principal);
+        } catch (MalformedContentResourceUriException) {
+            return $this->jsonRpcError(-32602, 'Invalid resources/read params', $id);
+        }
+        if ($content === null) {
+            return $this->jsonRpcError(-32002, 'Resource not found', $id);
+        }
+
+        return $this->jsonRpcResult($id, ['contents' => [$content->toArray()]]);
+    }
+
+    /** @param array<mixed> $params */
+    private function validListParams(array $params): bool
+    {
+        if (array_key_exists('cursor', $params)) {
+            return false;
+        }
+
+        return $params === [] || (array_keys($params) === ['_meta'] && self::isJsonObject($params['_meta']));
+    }
+
+    /** @param array<mixed> $params */
+    private function validReadParams(array $params): bool
+    {
+        $allowed = ['uri', '_meta'];
+        foreach (array_keys($params) as $key) {
+            if (!is_string($key) || !in_array($key, $allowed, true)) {
+                return false;
+            }
+        }
+
+        return is_string($params['uri'] ?? null)
+            && strlen($params['uri']) <= 2_048
+            && (!array_key_exists('_meta', $params) || self::isJsonObject($params['_meta']));
+    }
+
+    /** @param ?list<string> $tokenScopes */
+    private function resourceCapabilityAllowed(
+        \Waaseyaa\Access\AuthorizationPrincipalInterface $principal,
+        ?array $tokenScopes,
+    ): bool {
+        return $principal->hasPermission('resource.content.read')
+            && ($tokenScopes === null || in_array('resource.content.read', $tokenScopes, true));
+    }
+
+    private function resourcesSupported(): bool
+    {
+        return $this->contentResourcesEnabled && $this->contentResources?->hasProviders() === true;
     }
 
     /**

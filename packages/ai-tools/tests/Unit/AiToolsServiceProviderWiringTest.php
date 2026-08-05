@@ -83,14 +83,16 @@ final class AiToolsServiceProviderWiringTest extends TestCase
     public function content_search_is_registered_without_resolving_its_database_backed_provider(): void
     {
         $searchResolutions = 0;
+        $catalogueResolutions = 0;
         $manifest = new PackageManifest();
         $container = $this->container([]);
         $handler = new EntityAccessHandler([]);
         $base = $this->bus($manifest, $container, $handler);
-        $bus = new class($base, $searchResolutions) implements KernelServicesInterface {
+        $bus = new class($base, $searchResolutions, $catalogueResolutions) implements KernelServicesInterface {
             public function __construct(
                 private readonly KernelServicesInterface $base,
                 private int &$searchResolutions,
+                private int &$catalogueResolutions,
             ) {}
 
             public function get(string $abstract): ?object
@@ -98,6 +100,10 @@ final class AiToolsServiceProviderWiringTest extends TestCase
                 if ($abstract === 'Waaseyaa\\Search\\SearchProviderInterface') {
                     ++$this->searchResolutions;
                     throw new \RuntimeException('must stay lazy during tools/list');
+                }
+                if ($abstract === 'Waaseyaa\\Search\\SearchContentCatalogueInterface') {
+                    ++$this->catalogueResolutions;
+                    throw new \RuntimeException('must stay lazy during resource discovery');
                 }
 
                 return $this->base->get($abstract);
@@ -108,9 +114,12 @@ final class AiToolsServiceProviderWiringTest extends TestCase
         $provider->register();
 
         $registry = $provider->resolve(ToolRegistryInterface::class);
+        $resources = $provider->resolve(\Waaseyaa\AI\Tools\Resource\ContentResourceRegistry::class);
         $tool = $registry->get('content.search');
 
         self::assertSame(0, $searchResolutions);
+        self::assertSame(0, $catalogueResolutions);
+        self::assertTrue($resources->hasProviders());
         self::assertSame('tool.content.search', $tool->capability);
         self::assertFalse($tool->destructive);
         self::assertTrue($tool->idempotent);

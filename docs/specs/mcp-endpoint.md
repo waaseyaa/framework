@@ -1,11 +1,14 @@
 # MCP Endpoint
 
-<!-- Spec reviewed 2026-08-04 - #2199: every admitted or infrastructure-refused MCP request now ends in an honest audit stage. A rate-limiter exception emits the sanitized terminal `rate_limiter_unavailable` stage before returning -32030/503; it is an infrastructure `error`, not a policy denial, and never carries the exception message. Protocol handlers that return a JSON-RPC error are no longer misclassified as `execution_succeeded`: -32602 closes as `invalid_params_refused`, while any other returned protocol error closes as `execution_failed`. -->
-<!-- Spec reviewed 2026-08-04 - #2191 contract-truth reconciliation: the live endpoint methods, stage-aware dispatch event, conditional route set, protocol-header behavior, protected admin diagnostics, and deliberate resources/prompts absence were checked against current source. Removed legacy McpController claims are no longer presented as live behavior. -->
 <!-- Spec reviewed 2026-08-05 - #2196: the enabled anonymous MCP tier contributes one deployment-neutral mcp:public artifact to the separate experimental AI Catalog seam. It points to the Waaseyaa compatibility card as application/json and is never mislabeled as an MCP Server Card. Disabling the public tier removes the contribution; write/auth/approval/admin surfaces and representative site queries are excluded. -->
 
 <!-- Spec reviewed 2026-08-04 - #1641 MCP identity and Registry discovery: `/.well-known/mcp.json` remains a Waaseyaa compatibility card and no longer embeds the invalid nested Registry projection. Official Registry `server.json` is a separate, deployment-owned `McpRegistryManifest`, pinned to schema 2025-12-11 and constructible only from an explicit namespaced id plus public HTTPS Streamable HTTP remote; no request Host is an authority source. One injected McpImplementationInfo now feeds legacy initialize, modern server metadata, the card, and the Registry manifest. Explicit mcp.implementation config wins; the framework monorepo uses its release-managed VERSION; consuming sites use Composer's installed waaseyaa/mcp version. The stale informational 0.1.0 response bytes deliberately migrate to the honest implementation version; protocol compatibility remains negotiated only by protocolVersion. Malformed identity/card/Registry config fails closed. Registry publication stays blocked until a real public deployment, namespace authentication, release, and submission-time preview-schema revalidation exist. The framework-neutral manifest model ships here; its CLI adapter is blocked on console-boundary issue #2207. -->
+
 <!-- Spec reviewed 2026-08-04 - #2205 dual-era MCP 2026-07-28: request era is selected only from params._meta["io.modelcontextprotocol/protocolVersion"], never from HTTP headers. McpProtocolRequestValidator requires object-valued per-request client capabilities, validates optional client identity, and checks the required version/method/name mirrors after authentication, rate limiting, JSON parsing, and request acceptance; mismatches close the audit pair with invalid_params_refused and expose no raw header values. Modern routing implements server/discover, tools/list, and tools/call; adds resultType and server identity metadata; uses private/ttlMs=0 plus Cache-Control: no-store for principal-varying discovery, tool catalogues, and pre-route protocol refusals; rejects unsupported modern methods with HTTP 404; and accepts no modern core notifications. The legacy initialize/ping/notification lifecycle and successful-result bytes remain unchanged. Deliberate malformed-traffic change: legacy unknown version headers now return -32022 after authentication (or 401 before it), and stray modern mirrors fail -32020. StreamableHttpTransportGuard remains era-neutral while preserving Origin, size, content type, dual Accept, POST-only, and stateless JSON-response enforcement. -->
+
+<!-- Spec reviewed 2026-08-04 - #2191 contract-truth reconciliation: the live endpoint methods, stage-aware dispatch event, conditional route set, protocol-header behavior, protected admin diagnostics, and deliberate resources/prompts absence were checked against current source. Removed legacy McpController claims are no longer presented as live behavior. -->
+
+<!-- Spec reviewed 2026-08-04 - #2199: every admitted or infrastructure-refused MCP request now ends in an honest audit stage. A rate-limiter exception emits the sanitized terminal `rate_limiter_unavailable` stage before returning -32030/503; it is an infrastructure `error`, not a policy denial, and never carries the exception message. Protocol handlers that return a JSON-RPC error are no longer misclassified as `execution_succeeded`: -32602 closes as `invalid_params_refused`, while any other returned protocol error closes as `execution_failed`. -->
 
 <!-- Spec reviewed 2026-08-04 - #2177 boundary correction: bearer-token storage and validation remain in waaseyaa/auth (L1), while the Symfony Console `bearer-token:*` presentation now lives in `Waaseyaa\CLI\Provider\BearerTokenServiceProvider` and `Waaseyaa\CLI\Command\BearerTokenConsoleCommands` (L6). This supersedes the command-ownership sentence in the 2026-08-03 F3 review note below. -->
 
@@ -98,6 +101,45 @@ into a closed output schema and rejects malformed provider output. Pagination
 is limited to a 1,000-result window. Dispatch auditing retains sort/pagination
 shape but replaces query and free-text filters with lengths or counts.
 
+### Principal-safe content resources
+
+With an installed resource provider and strict
+`mcp.public.content_resources_enabled = true`, the public endpoint implements
+MCP 2025-11-25 `resources/list`, `resources/templates/list`, and
+`resources/read`. Initialize advertises
+`resources: {subscribe: false, listChanged: false}` and the server card reports
+resources true in the same composition. Disabled or providerless surfaces do
+not advertise the capability and treat the methods as unknown; an explicitly
+enabled providerless composition fails closed.
+
+The Layer 5 `ContentResourceRegistry` is MCP-neutral and bounded. Its optional
+Search adapter resolves the database-backed catalogue only during a resource
+call and passes the exact immutable principal. Search scans no more than 500 raw
+pointers to return at most 50 safe projections; there is deliberately no
+`nextCursor`, raw count, or hidden-position signal. Exhaustive pagination waits
+for the purpose-bound AEAD sealing primitive tracked in #2220. The window is
+discovery, not a complete inventory; directly addressed visible content remains
+readable even when it is not listed. The endpoint's existing per-principal rate
+limiter runs before every resource method.
+
+Canonical resource URIs are
+`waaseyaa://content/<unpadded-base64url-public-path>`. Decoding rejects aliases,
+padding, percent encoding, dot segments, repeated slashes, controls, query,
+fragment, backslash, invalid UTF-8, and paths over 1,024 bytes. An indexed URL
+is a candidate only; the canonical access-checked projection must byte-match
+the requested public path. Malformed URIs return `-32602`; denied and missing
+well-formed reads return the same `-32002` body. Successful reads contain one
+bounded UTF-8 `text/plain` entry and no document id, protected field, draft,
+absolute path, or raw-index metadata. CMS-authored text remains untrusted input.
+
+Denied and missing reads intentionally share `AuthorizationRefused` in the
+operator audit grammar: it means the resource was not resolvable under this
+principal, without claiming whether an inaccessible canonical resource exists.
+Response structure is identical, but latency remains a weak residual channel:
+a raw path miss can finish before a colliding pointer that requires canonical
+resolution. The implementation bounds that work instead of claiming
+constant-time database/entity access.
+
 > The legacy `McpController` + `Tools/` + `Rpc/` + `Cache/` files were removed in WP17 — see "Legacy `McpController` stack — REMOVED" below.
 
 ## Package Discovery and Route Ownership
@@ -159,6 +201,7 @@ Added by mission `revision-audit-provenance-01KTWY5V` (FR-007, #1645) and
 expanded by the enterprise hardening in #2177. `McpEndpoint` emits stage-aware
 events so the audit projection records what happened rather than merely that a
 request reached routing.
+The listener projects each sanitized event into the OCAP audit log.
 
 **Event:** `Waaseyaa\Mcp\Event\McpDispatchEvent`, dispatched under
 `McpDispatchEvent::NAME = 'waaseyaa.mcp.dispatch'`.
@@ -178,15 +221,16 @@ request reached routing.
 **Firing contract:**
 
 - Fires once per meaningful **pipeline stage**, not once per request.
-  Authentication rejection, an over-limit refusal, and a rate-limiter outage
-  are recorded before routing; admitted messages emit `request_accepted` and
-  exactly one terminal stage.
-- Bodies that cannot be parsed or named honestly are rejected without an
-  acceptance event. A 401 is recorded with a null actor and no credential
-  material.
-- Returned protocol errors close as `invalid_params_refused` for `-32602` or
-  `execution_failed` otherwise; only a successful result closes as
-  `execution_succeeded`.
+  Authentication rejection, rate-limit denial, and rate-limiter outage each
+  emit one pre-acceptance terminal stage; admitted messages emit
+  `request_accepted` and exactly one terminal stage.
+- Parse-error and unnamed invalid-request bodies fire nothing because no
+  request can be honestly identified or admitted. A 401 is recorded with a
+  null actor and no credential material.
+- `execution_succeeded` is emitted only for a successful JSON-RPC result.
+  Returned `-32602` errors close as `invalid_params_refused`; all other returned
+  protocol errors and malformed internal responses close as
+  `execution_failed`.
 - The event is the best-effort compatibility projection. Strict refusal and
   write-attempt evidence uses the durable ledger; projection failure never
   changes the JSON-RPC response.
@@ -788,6 +832,8 @@ OAuth metadata, approvals, tokens, tools, and admin routes are never included.
 `/.well-known/mcp.json`. It is not an official Registry `server.json` and never
 contains Registry fields. The route controller is `McpServerCard::serve()`,
 which returns an `HttpResponse` wrapping the `toJson()` output:
+With the opt-in resource surface enabled and a provider installed, its
+`capabilities.resources` member is `true`; otherwise it is `false`.
 
 ```json
 {
@@ -805,7 +851,7 @@ which returns an `HttpResponse` wrapping the `toJson()` output:
     },
     "capabilities": {
         "tools": true,
-        "resources": false,
+        "resources": true,
         "prompts": false
     },
     "authentication": {
@@ -845,8 +891,9 @@ because the current command-provider seam crosses package layers.
 |---------|-----|--------|
 | `tools/list` | Yes | -- |
 | `tools/call` | Yes | -- |
-| `resources/list` | No | Deferred until a bounded authorization and lifecycle contract ships |
-| `resources/read` | No | Deferred until a bounded authorization and lifecycle contract ships |
+| `resources/list` | Yes, bounded and opt-in | Pagination after #2220 |
+| `resources/templates/list` | Yes, opt-in | -- |
+| `resources/read` | Yes, access-checked and opt-in | -- |
 | `prompts/list` | No | Deferred; not advertised |
 | Server card | Yes | Evolves with spec |
 | SSE streaming | No, honestly returns 405 | Optional future profile |

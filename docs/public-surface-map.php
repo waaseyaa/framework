@@ -446,6 +446,7 @@ return [
 
     // Layer 3: Services — public
     'Waaseyaa\Search\SearchProviderInterface' => 'public',
+    'Waaseyaa\Search\SearchContentCatalogueInterface' => 'public',
     'Waaseyaa\Search\SearchCandidateResolverInterface' => 'public',
     'Waaseyaa\Search\ProvidesSearchSourceResolversInterface' => 'public',
     'Waaseyaa\Search\SearchIndexerInterface' => 'public',
@@ -575,6 +576,7 @@ return [
     'Waaseyaa\AI\Tools\AgentToolResult' => 'public',
     'Waaseyaa\AI\Tools\ToolRegistryInterface' => 'public',
     'Waaseyaa\AI\Tools\ProvidesAgentToolsInterface' => 'public',
+    'Waaseyaa\AI\Tools\Resource\ContentResourceProviderInterface' => 'public',
     'Waaseyaa\AI\Tools\Attribute\AsAgentTool' => 'public',
     'Waaseyaa\AI\Vector\VectorStoreInterface' => 'public',
     'Waaseyaa\AI\Vector\EmbeddingProviderInterface' => 'public',

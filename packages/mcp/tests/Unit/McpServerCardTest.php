@@ -63,6 +63,13 @@ final class McpServerCardTest extends TestCase
     }
 
     #[Test]
+    public function resources_are_advertised_only_when_the_complete_surface_is_enabled(): void
+    {
+        self::assertTrue(new McpServerCard(resources: true)->toArray()['capabilities']['resources']);
+        self::assertFalse(new McpServerCard(resources: false)->toArray()['capabilities']['resources']);
+    }
+
+    #[Test]
     public function invalid_auth_type_fails_closed(): void
     {
         $this->expectException(ConfigException::class);

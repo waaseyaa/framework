@@ -13,7 +13,7 @@
         "waaseyaa/publishing": "^0.1.0-alpha.286"
     },
     "suggest": {
-        "waaseyaa/search": "Provides principal-safe ranked CMS content search tools"
+        "waaseyaa/search": "Provides principal-safe ranked CMS search tools and content resources"
     },
     "conflict": {
         "waaseyaa/search": "<0.1.0-alpha.287 || >=0.2.0"

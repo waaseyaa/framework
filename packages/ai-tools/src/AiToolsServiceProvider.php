@@ -10,6 +10,8 @@ use Waaseyaa\AI\Tools\Catalogue\AttributeToolRegistry;
 use Waaseyaa\AI\Tools\Catalogue\AutowiringToolContainer;
 use Waaseyaa\AI\Tools\ContentSearch\ContentSearchTool;
 use Waaseyaa\AI\Tools\ContentSearch\SearchPackageContentSearchAdapter;
+use Waaseyaa\AI\Tools\Resource\ContentResourceRegistry;
+use Waaseyaa\AI\Tools\Resource\SearchPackageContentResourceProvider;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
@@ -42,6 +44,28 @@ final class AiToolsServiceProvider extends ServiceProvider implements AcceptsAge
 
     public function register(): void
     {
+        $this->singleton(ContentResourceRegistry::class, function (): ContentResourceRegistry {
+            $registry = new ContentResourceRegistry($this->resolveLogger());
+            if (SearchPackageContentResourceProvider::isAvailable()) {
+                $services = $this->kernelServices;
+                $registry->register('search', new SearchPackageContentResourceProvider(
+                    static function () use ($services): object {
+                        if ($services === null) {
+                            throw new \RuntimeException('The kernel-services bus is unavailable.');
+                        }
+                        $catalogue = $services->get(SearchPackageContentResourceProvider::catalogueServiceId());
+                        if (!is_object($catalogue)) {
+                            throw new \RuntimeException('The optional Search content catalogue binding is unavailable.');
+                        }
+
+                        return $catalogue;
+                    },
+                ));
+            }
+
+            return $registry;
+        });
+
         $this->singleton(ToolRegistryInterface::class, function (): ToolRegistryInterface {
             $manifest = $this->resolveManifest();
             $container = $this->resolveContainer();

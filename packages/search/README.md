@@ -47,6 +47,18 @@ or place exception messages, document IDs, or raw index values in logs.
 Resolvers return `null` for ordinary access denial and deliberately malformed
 shapes without logging, so logs cannot become an authorization oracle.
 
+`SearchContentCatalogueInterface` is the companion resource-discovery/read
+contract. Its FTS5 implementation scans at most 500 protected pointers and
+returns at most 50 principal-safe projections in one deterministic window; it
+publishes no raw count, position, cursor, or hidden path. Direct public-path
+lookup treats the indexed URL only as a candidate and returns it only when the
+canonical principal-safe projection byte-matches that path. Exhaustive
+pagination is deferred until the framework owns an AEAD-sealed cursor primitive
+(#2220). This is discovery, not a complete inventory: a resource omitted from
+the window remains directly readable by canonical URI. More than 50 stale/raw
+pointers sharing one public path conservatively makes that path unreadable if
+the valid candidate falls outside the direct-read bound.
+
 The Twig helper remains `@internal` because no first-party Twig environment uses
 it; even that adapter requires an explicit principal. The write-side indexer
 remains live for existing consumers. The unused `SearchIndexJob` was deleted;
@@ -63,7 +75,7 @@ backups, replicas, diagnostics, and operator access to the same standard as
 canonical entity storage.
 
 Only `Fts5SearchIndexer` writes the raw tables and only the access-checked
-`Fts5SearchProvider` reads them. A repository architecture test enforces that
+`Fts5SearchProvider` and bounded `Fts5SearchContentCatalogue` read them. A repository architecture test enforces that
 inventory across first-party production PHP. Alternate providers,
 autocomplete/suggestion features, diagnostics, and ad-hoc readers are
 prohibited from querying the tables directly; they must enter through the

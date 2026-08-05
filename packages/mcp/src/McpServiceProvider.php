@@ -7,6 +7,7 @@ namespace Waaseyaa\Mcp;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
+use Waaseyaa\AI\Tools\Resource\ContentResourceRegistry;
 use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 use Waaseyaa\Api\McpAdmin\ServerConfigReadModelInterface;
 use Waaseyaa\Api\McpAdmin\ToolRegistryReadModelInterface;
@@ -122,10 +123,15 @@ final class McpServiceProvider extends ServiceProvider implements ProvidesApiCat
         // separate artifact and is never embedded in this response.
         $this->singleton(
             McpServerCard::class,
-            fn(): McpServerCard => new McpServerCard(
-                $serverCardConfig,
-                $this->resolve(McpImplementationInfo::class),
-            ),
+            function () use ($serverCardConfig): McpServerCard {
+                $resources = $this->resolveContentResources();
+
+                return new McpServerCard(
+                    $serverCardConfig,
+                    $this->resolve(McpImplementationInfo::class),
+                    $this->publicContentResourcesEnabled() && $resources->hasProviders(),
+                );
+            },
         );
         $this->singleton(
             McpRegistryManifest::class,
@@ -172,6 +178,8 @@ final class McpServiceProvider extends ServiceProvider implements ProvidesApiCat
                 [$limiter, $maxRequests, $windowSeconds] = $this->rateLimitSettings();
                 $logger = $this->resolveOptional(LoggerInterface::class);
                 $oauthMetadata = $this->resolveOptional(Auth\OAuthProtectedResourceMetadata::class);
+                $contentResources = $this->resolveContentResources();
+                $contentResourcesEnabled = $this->publicContentResourcesEnabled();
 
                 return new McpEndpoint(
                     auth: $this->resolvePublicAuth(),
@@ -190,6 +198,8 @@ final class McpServiceProvider extends ServiceProvider implements ProvidesApiCat
                         ? $oauthMetadata
                         : null,
                     implementationInfo: $this->resolve(McpImplementationInfo::class),
+                    contentResources: $contentResources,
+                    contentResourcesEnabled: $contentResourcesEnabled,
                     // The public read-only tier keeps its documented best-effort
                     // auditing. It mutates nothing, so a durable pre-record buys
                     // no safety, and making it fail-closed would take a read-only
@@ -460,14 +470,52 @@ final class McpServiceProvider extends ServiceProvider implements ProvidesApiCat
         $capabilities = PublicAnonymousAuth::DEFAULT_READ_CAPABILITIES;
         $mcp = $this->config['mcp'] ?? null;
         $public = \is_array($mcp) && \is_array($mcp['public'] ?? null) ? $mcp['public'] : [];
-        if (!\array_key_exists('content_search_enabled', $public)) {
-            return $capabilities;
-        }
-        if (self::requireBool($public['content_search_enabled'], 'mcp.public.content_search_enabled')) {
+        if (\array_key_exists('content_search_enabled', $public)
+            && self::requireBool($public['content_search_enabled'], 'mcp.public.content_search_enabled')
+        ) {
             $capabilities[] = 'tool.content.search';
+        }
+        if (\array_key_exists('content_resources_enabled', $public)
+            && self::requireBool($public['content_resources_enabled'], 'mcp.public.content_resources_enabled')
+        ) {
+            $capabilities[] = 'resource.content.read';
         }
 
         return $capabilities;
+    }
+
+    private function publicContentResourcesEnabled(): bool
+    {
+        $mcp = $this->config['mcp'] ?? null;
+        $public = \is_array($mcp) && \is_array($mcp['public'] ?? null) ? $mcp['public'] : [];
+        if (!\array_key_exists('content_resources_enabled', $public)) {
+            return false;
+        }
+
+        return self::requireBool($public['content_resources_enabled'], 'mcp.public.content_resources_enabled');
+    }
+
+    private function resolveContentResources(): ContentResourceRegistry
+    {
+        $registry = $this->resolveOptional(ContentResourceRegistry::class);
+        if (!$registry instanceof ContentResourceRegistry) {
+            if ($this->publicContentResourcesEnabled()) {
+                throw new ConfigException(
+                    'mcp.public.content_resources_enabled requires the ai-tools content resource registry.',
+                    ['config_key' => 'mcp.public.content_resources_enabled'],
+                );
+            }
+
+            return new ContentResourceRegistry();
+        }
+        if ($this->publicContentResourcesEnabled() && !$registry->hasProviders()) {
+            throw new ConfigException(
+                'mcp.public.content_resources_enabled requires at least one installed content resource provider.',
+                ['config_key' => 'mcp.public.content_resources_enabled'],
+            );
+        }
+
+        return $registry;
     }
 
     /**
