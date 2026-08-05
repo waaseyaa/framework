@@ -221,11 +221,10 @@ For each deviation, record:
 | 4 | northops-waaseyaa | Skeleton + app providers |
 | 5 | irc.waaseyaa.org | Autoloader / tooling recently touched |
 | 6 | dashboard-waaseyaa | Full skeleton consumer (clone if not in workspace) |
-| 7 | northcloud-search | Packagist-resolved consumer (clone if not in workspace) |
-| 8 | oneredpaperclip-waaseyaa | Partial stack, custom providers |
-| 9 | goformx-web | Metapackage / non-PHP — use **Reduced invariant set** below |
-| 10 | claudriel | Largest surface; run after smaller consumers |
-| 11 | minoo | Flagship; final invariant sweep |
+| 7 | oneredpaperclip-waaseyaa | Partial stack, custom providers |
+| 8 | goformx-web | Metapackage / non-PHP — use **Reduced invariant set** below |
+| 9 | claudriel | Largest surface; run after smaller consumers |
+| 10 | minoo | Flagship; final invariant sweep |
 
 Workspace roots that commonly host these clones (adjust to your machine): e.g. `~/dev/waaseyaa.org`, `~/dev/signalgarden`, `~/dev/scratch-waaseyaa`, `~/dev/northops-waaseyaa`, `~/dev/irc.waaseyaa.org`, `~/dev/claudriel`, `~/dev/minoo`.
 
