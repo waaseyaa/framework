@@ -3,7 +3,8 @@
 Shared agent-tool catalogue for Waaseyaa. Defines the `#[AsAgentTool]`
 attribute, the `AgentTool` value object, `AgentToolInterface`, and the
 attribute-discovered `AttributeToolRegistry` consumed by both
-`Waaseyaa\AI\Agent\AgentExecutor` and `Waaseyaa\Mcp\McpController`.
+`Waaseyaa\AI\Agent\AgentExecutor` and the live
+`Waaseyaa\Mcp\McpEndpoint` through `AgentToolRegistryBridge`.
 Tool names are globally unique: duplicate discovered or manual registrations
 raise `DuplicateToolNameException` instead of silently replacing a tool.
 

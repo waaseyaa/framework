@@ -31,6 +31,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **MCP / search contract truth (#2191).** Reconciled the MCP, AI-schema,
+  extension, operations, and search documentation with the current runtime:
+  the live endpoint supports the current released MCP tool methods but
+  not the removed legacy `tools/introspect` method or legacy search aliases;
+  resources and prompts remain honestly unadvertised; richer tool diagnostics
+  live on the protected admin API; and the access-checked FTS5 read surface has
+  no first-party HTTP consumer yet. The contributor layer table now mirrors all
+  packages enforced by `bin/check-package-layers`.
+
 ## [0.1.0-alpha.286] - 2026-08-04
 
 ### Added

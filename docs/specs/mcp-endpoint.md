@@ -1,5 +1,7 @@
 # MCP Endpoint
 
+<!-- Spec reviewed 2026-08-04 - #2191 contract-truth reconciliation: the live endpoint methods, stage-aware dispatch event, conditional route set, protocol-header behavior, protected admin diagnostics, and deliberate resources/prompts absence were checked against current source. Removed legacy McpController claims are no longer presented as live behavior. -->
+
 <!-- Spec reviewed 2026-08-04 - #2177 boundary correction: bearer-token storage and validation remain in waaseyaa/auth (L1), while the Symfony Console `bearer-token:*` presentation now lives in `Waaseyaa\CLI\Provider\BearerTokenServiceProvider` and `Waaseyaa\CLI\Command\BearerTokenConsoleCommands` (L6). This supersedes the command-ownership sentence in the 2026-08-03 F3 review note below. -->
 
 <!-- Spec reviewed 2026-08-03 - #2177 F3 (enterprise bearer-token lifecycle): the write tier's production credential path is now DURABLE. New Waaseyaa\Auth\Token\Bearer\* (waaseyaa/auth, L1): BearerTokenStoreInterface + DatabaseBearerTokenStore own the auth_bearer_token table (hashed SHA-256 verifier of the full `mbt_<16hex>.<64hex>` wire token, never plaintext at rest; non-secret id + 16-hex fingerprint; mandatory expiry 60s..90d via injected EntityClockInterface, inclusive boundary; durable idempotent revocation; transactionally atomic rotation whose partial failure can never leave two usable credentials; audience + canonicalized bounded scopes persisted per token; verify() is constant-time over the verifier with a dummy compare on unknown ids and answers null fail-closed on outage/malformed records). One-time secret reveal is IssuedBearerToken (virtual-hook secret in a WeakMap: print_r/var_dump/json_encode redact, serialize() throws). Lifecycle operator commands: bearer-token:issue/list/rotate/revoke (owned by the Layer-6 CLI BearerTokenServiceProvider). MCP side: DurableBearerTokenAuth (WriteTierAuthInterface + new ScopedMcpAuthInterface→ScopedPrincipal) verifies audience `mcp:write`, resolves the owner by ACTIVE-owner query (uid + status=1 — a Protected `status` field read pre-auth has no read context) and snapshots it through AccountPrincipalFactoryInterface, so the principal id IS the owner uid (F1 separation-of-duties preserved; token ids never become identities). McpEndpoint intersects the tier registry with the token's scopes per request (CapabilityScopedToolRegistry; empty scopes ⇒ nothing; scopes narrow, never broaden — per-tool account capability enforcement unchanged). resolveWriteTierAuth() default: app override > DurableBearerTokenAuth (when store + user repo + principal factory resolve; no tokens issued ⇒ still 401) > BearerTokenAuth([]) fail-closed. Static BearerTokenAuth is quarantined to the empty fail-closed default and test fixtures. -->
@@ -108,7 +110,7 @@ The internal dispatch method processes requests in this order:
 1. **Authenticate** -- calls `$this->auth->authenticate($authorizationHeader)`. If null is returned, responds with HTTP 401 and a JSON-RPC error (code `-32001`, message "Unauthorized"). The 401 envelope is identical for every `null` cause — missing/malformed header, unknown token, or a token whose account is blocked (#1652) — so callers cannot distinguish a blocked token from an invalid one.
 2. **Scope the acting-account context** -- immediately after successful auth (before body parsing), the endpoint captures the prior `AccountContextInterface` value and sets the bearer-auth-resolved account. The prior value is restored in `finally` -- including when a routed handler throws -- because the MCP account deliberately differs from any session account. No-op when no context was injected.
 3. **Parse one JSON-RPC message** -- decodes the body with `json_decode()`. On `JsonException`, returns HTTP 400 parse error (`-32700`). Batch arrays, a non-`2.0` envelope, an invalid request id, or a malformed request return HTTP 400 (`-32600`). Valid client response messages are accepted with HTTP 202 and no body.
-4. **Fire the dispatch event** -- see "Dispatch event seam" below. Fires exactly once per authenticated, well-formed request, immediately before method routing.
+4. **Record pipeline stages** -- see "Dispatch event seam" below. An admitted request emits `request_accepted`; authentication rejection, an over-limit refusal, parameter/method refusal, approval, and handler completion or failure emit their applicable stages.
 5. **Dispatch inside the bearer field-read scope** -- `AccountFieldReadScopeInterface::run()` scopes the guarded entity-read principal to the bearer identity for the complete routed call and restores the prior scope afterward. This is separate from `AccountContextInterface`: `FieldReadGuard` deliberately consults the immutable field-read scope, not the HTTP session or acting-account holder. The routed call then matches the JSON-RPC method to an internal handler:
    - `initialize` -- validates lifecycle params and negotiates `2025-11-25`, `2025-06-18`, or `2025-03-26` (preferring the latest), then returns capabilities and server info.
    - `notifications/initialized` and `notifications/cancelled` -- accepted as notifications with HTTP 202 and no response body. Cancellation is advisory for this synchronous, task-free server profile.
@@ -122,10 +124,10 @@ The internal dispatch method processes requests in this order:
 
 ### Dispatch event seam (`waaseyaa.mcp.dispatch`)
 
-Added by mission `revision-audit-provenance-01KTWY5V` (FR-007, #1645). The
-audit package's `McpDispatchAuditListener` had subscribed to the
-`waaseyaa.mcp.dispatch` event name since the OCAP substrate landed, but
-nothing fired it. `McpEndpoint::dispatch()` now does.
+Added by mission `revision-audit-provenance-01KTWY5V` (FR-007, #1645) and
+expanded by the enterprise hardening in #2177. `McpEndpoint` emits stage-aware
+events so the audit projection records what happened rather than merely that a
+request reached routing.
 
 **Event:** `Waaseyaa\Mcp\Event\McpDispatchEvent`, dispatched under
 `McpDispatchEvent::NAME = 'waaseyaa.mcp.dispatch'`.
@@ -133,20 +135,33 @@ nothing fired it. `McpEndpoint::dispatch()` now does.
 | Field | Type | Notes |
 |---|---|---|
 | `method` | string | JSON-RPC method (`tools/call`, `tools/list`, `initialize`, `ping`, …) |
-| `params` | array | **Raw** JSON-RPC params — the audit listener stores only a SHA-256 hash; the privacy property lives in the listener, and the dispatch site must NOT pre-hash |
-| `accountUid` | `?int` | The bearer-auth-resolved account id |
+| `params` | array | Compatibility-only property; endpoint events always leave it empty |
+| `accountUid` | `?int` | Bearer-auth-resolved account id, or null when no principal was established |
+| `correlationId` | string | Joins all stages emitted for one request |
+| `tier` | string | `public` or `write` |
+| `stage` | `?string` | Audit stage; null only for a legacy out-of-tree construction |
+| `toolName` | `?string` | Requested tool for `tools/call` |
+| `safeArguments` | array | Tool-owned redacted audit projection, never raw params |
+| `metadata` | array | Safe structural outcome metadata |
 
 **Firing contract:**
 
-- Fires **exactly once per authenticated, well-formed JSON-RPC request** —
-  after `authenticate()` succeeds and the envelope parses with a `method`
-  key, **before** method routing. Every JSON-RPC method invocation is
-  covered (the listener's documented contract), including `tools/call`.
-- Unauthenticated (401) requests and parse-error / invalid-request bodies
-  fire **nothing**.
-- **Best-effort**: the dispatch is wrapped in try/catch — an audit or
-  dispatcher failure never alters the JSON-RPC response. An absent
-  dispatcher means the event is simply not fired.
+- Fires once per meaningful **pipeline stage**, not once per request.
+  Authentication rejection and an over-limit refusal are recorded before routing;
+  admitted messages emit `request_accepted` and exactly one terminal stage.
+- A rate-limiter-unavailable `-32030` / HTTP 503 occurs before acceptance and is
+  logged, but currently emits no dispatch event. This audit-stage gap is tracked
+  in #2199.
+- Bodies that cannot be parsed or named honestly are rejected without an
+  acceptance event. A 401 is recorded with a null actor and no credential
+  material.
+- `execution_succeeded` means a protocol handler returned normally; it does not
+  assert that the returned JSON-RPC envelope was successful. A returned
+  protocol error can therefore carry that stage, while a thrown handler emits
+  `execution_failed`; #2199 tracks the semantic correction.
+- The event is the best-effort compatibility projection. Strict refusal and
+  write-attempt evidence uses the durable ledger; projection failure never
+  changes the JSON-RPC response.
 - **Name pinning**: `McpDispatchEvent::NAME ===
   McpDispatchAuditListener::EVENT_NAME` is pinned by a cross-package test.
   The string literal is intentionally duplicated — mcp must not require
@@ -634,7 +649,6 @@ All communication uses JSON-RPC 2.0 over HTTP.
 | `initialize` | Returns protocol version, capabilities, server info |
 | `ping` | Health check, returns empty result |
 | `tools/list` | Returns all registered tool definitions |
-| `tools/introspect` | Returns deterministic tool diagnostics, contract metadata, and extension hook visibility |
 | `tools/call` | Executes a tool by name with arguments |
 
 ### First-party tool contract (`ai_discover`, `editorial_*`, …) — REMOVED (WP17)
@@ -703,17 +717,21 @@ for protocol `2025-11-25` with compatibility for `2025-06-18` and
   `mcp.transport.allowed_origins` list; invalid origins return 403. Native
   clients may omit Origin.
 - Subsequent clients send `MCP-Protocol-Version`; invalid or unsupported values
-  return HTTP 400. Absence retains the specification's `2025-03-26` fallback.
+  return HTTP 400. When the header is absent the transport accepts the request;
+  protocol negotiation still occurs through `initialize`.
 
 ## Routes
 
-`McpRouteProvider` registers three routes. The public pair is conditional on `mcp.public.enabled` (see [Public-tier auth resolution and the `mcp.public.enabled` gate](#public-tier-auth-resolution-and-the-mcppublicenabled-gate)); the write tier is always registered and is independently fail-closed.
+`McpRouteProvider` registers one always-present write route, a public pair when
+`mcp.public.enabled` is enabled, and an RFC 9728 protected-resource metadata
+route when OAuth metadata is configured.
 
 | Route Name | Path | Methods | Registered when | Auth |
 |------------|------|---------|-----------------|------|
 | `mcp.endpoint` | `/mcp` | POST, GET | `mcp.public.enabled` (default true) | `McpAuthInterface` — anonymous by default |
 | `mcp.server_card` | `/.well-known/mcp.json` | GET | `mcp.public.enabled` (default true) | Public (`allowAll()`) |
 | `mcp.endpoint.write` | `/mcp/write` | POST, GET | Always | `WriteTierAuthInterface` — 401 without an application binding |
+| `mcp.oauth_protected_resource` | Configured metadata path | GET | OAuth protected-resource metadata configured | Public discovery metadata |
 
 With `mcp.public.enabled = false`, `/mcp` and `/.well-known/mcp.json` are absent from the route collection and resolve to HTTP 404.
 
@@ -751,11 +769,10 @@ With `mcp.public.enabled = false`, `/mcp` and `/.well-known/mcp.json` are absent
 | Feature | MVP | Future |
 |---------|-----|--------|
 | `tools/list` | Yes | -- |
-| `tools/introspect` | Yes | Expanded extension diagnostics |
 | `tools/call` | Yes | -- |
-| `resources/list` | No | v0.2.0+ |
-| `resources/read` | No | v0.2.0+ |
-| `prompts/list` | No | v0.3.0+ |
+| `resources/list` | No | Deferred until a bounded authorization and lifecycle contract ships |
+| `resources/read` | No | Deferred until a bounded authorization and lifecycle contract ships |
+| `prompts/list` | No | Deferred; not advertised |
 | Server card | Yes | Evolves with spec |
 | SSE streaming | No, honestly returns 405 | Optional future profile |
 | Session management | No, not advertised | Optional future profile |

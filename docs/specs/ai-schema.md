@@ -1,11 +1,13 @@
 # ai-schema
 
 <!-- Spec reviewed 2026-08-04 - #2200: the shipped package contains only EntityJsonSchemaGenerator and has no current runtime consumer outside its own tests. ai-agent, ai-pipeline, ai-tools, and mcp do not require or import it; capability-registry and MCP-resource integration remain future design, not shipped behavior. -->
+<!-- Spec reviewed 2026-08-04 - #2191: only EntityJsonSchemaGenerator is shipped here; the capability registry remains a sketch, ai-tools is already shipped with independent descriptors, and MCP does not expose entity schemas as resources. -->
 
 **Layer:** 5 — AI
 **Status:** alpha
 
-> This spec documents the shipped surface and sketches the capability-registry contract a future mission will implement.
+> This spec documents the shipped schema generator and separately sketches a
+> capability-registry contract that has not been implemented.
 
 ---
 
