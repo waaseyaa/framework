@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **admin / CI:** Consolidate the stale admin dependency queue on Node 22 and npm 10: update Nuxt, Vue, the Nuxt ESLint integration, Vue TypeScript tooling, DOM and Node test types, refresh transitive PostCSS/SVGO/tar and Vite/esbuild tooling, and remediate the brace-expansion, shell-quote, js-yaml, Vite, and esbuild audit findings. Regenerate the committed admin SPA from that exact lock and move the isolated artifact download workflow to `actions/download-artifact@v8`.
+
 - **foundation (#2222):** Keep the default-off AI Catalog route and its anonymous session-stateless exemption behind the same strict `ai_catalog.enabled === true` gate. Disabled and absent configuration no longer creates a hidden session-policy exception for a route that does not exist; the always-available RFC 9727 catalog and independently enabled public search path retain their stateless behavior.
 
 - **mcp**: Serve the opt-in principal-safe content resource registry on MCP `2026-07-28` as well as the preserved legacy protocol. Current discovery now advertises resources only for a complete enabled registry; list, template, and read results are private and immediately stale; `resources/read` validates the required `Mcp-Name` URI mirror; authorization precedes provider URI parsing; and missing or denied modern reads share the current protocol's sanitized `-32602` response while retaining cause-honest audit stages and legacy response bytes.
