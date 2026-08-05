@@ -3,6 +3,7 @@
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
          bootstrap="vendor/autoload.php"
          colors="true"
+         cacheDirectory=".phpunit.cache"
          executionOrder="depends,defects"
          displayDetailsOnTestsThatTriggerWarnings="true"
          displayDetailsOnTestsThatTriggerDeprecations="true"
@@ -22,9 +23,6 @@
             <directory>packages/analytics/tests</directory>
             <directory>packages/oauth-provider/tests</directory>
             <file>packages/bimaaji/tests/SmokeTest.php</file>
-        </testsuite>
-        <testsuite name="GitHub">
-            <directory>packages/github/tests</directory>
         </testsuite>
         <testsuite name="Integration">
             <directory>packages/*/tests/Integration</directory>

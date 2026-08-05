@@ -97,7 +97,7 @@ Compare the app’s layout and Composer metadata to the skeleton. Deviations are
 | Check | Pass |
 |-------|------|
 | `autoload` / `autoload-dev` | PSR-4 roots present and match `src/` and `tests/` (or documented alternate) |
-| `require-dev` | PHPUnit **10.5+** (skeleton allows `^10.5 \|\| ^11.0`). **PHPStan** is recommended for mature apps; minimal skeleton does not require it — if the app runs static analysis in CI, align `phpstan/phpstan` (or org standard) with lockfile |
+| `require-dev` | PHPUnit **13.x** on PHP 8.5. **PHPStan** is recommended for mature apps; minimal skeleton does not require it — if the app runs static analysis in CI, align `phpstan/phpstan` (or org standard) with lockfile |
 | `scripts` | Includes skeleton-equivalent `post-create-project-cmd` where the app is created from skeleton (chmod bins + post-create setup); existing apps may chmod in docs/CI |
 | `extra.waaseyaa.providers` | **If** the app registers a custom `App\*` (or branded-namespace) service provider, it appears under `extra.waaseyaa.providers` |
 | `config.optimize-autoloader` | `true` |

@@ -13,7 +13,7 @@
         "waaseyaa/entity-storage": "^0.1.0-alpha.261"
     },
     "require-dev": {
-        "phpunit/phpunit": "^10.5"
+        "phpunit/phpunit": "^13.0"
     },
     "autoload": {
         "psr-4": {

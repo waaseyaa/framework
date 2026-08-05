@@ -17,7 +17,7 @@
       "symfony/http-foundation": "^7.0"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {
       "waaseyaa/entity": "@dev",
@@ -44,7 +44,7 @@
       "waaseyaa/access": "@dev"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {
       "waaseyaa/ai-schema": "@dev",
@@ -70,7 +70,7 @@
       "waaseyaa/ai-vector": "@dev"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {
       "waaseyaa/entity": "@dev",
@@ -95,7 +95,7 @@
       "waaseyaa/entity": "@dev"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {
       "waaseyaa/entity": "@dev"
@@ -122,7 +122,7 @@
       "waaseyaa/workflows": "@dev"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {
       "waaseyaa/entity": "@dev",
@@ -152,7 +152,7 @@
       "waaseyaa/access": "@dev"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {
       "waaseyaa/entity": "@dev",
@@ -179,7 +179,7 @@
       "psr/simple-cache": "^3.0"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {},
     "commit_count": 11,
@@ -205,7 +205,7 @@
       "symfony/console": "^7.0"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {
       "waaseyaa/entity": "@dev",
@@ -257,7 +257,7 @@
       "symfony/yaml": "^7.0"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {},
     "commit_count": 11,
@@ -310,7 +310,7 @@
       "php": ">=8.3"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {},
     "commit_count": 10,
@@ -339,7 +339,7 @@
       "symfony/validator": "^7.3"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {
       "waaseyaa/typed-data": "@dev",
@@ -371,7 +371,7 @@
       "symfony/event-dispatcher": "^7.3"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {
       "waaseyaa/entity": "@dev",
@@ -399,7 +399,7 @@
       "waaseyaa/typed-data": "@dev"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {
       "waaseyaa/entity": "@dev",
@@ -430,7 +430,7 @@
       "waaseyaa/queue": "@dev"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {
       "waaseyaa/queue": "@dev"
@@ -478,7 +478,7 @@
       "waaseyaa/access": "^0.1"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {},
     "commit_count": 4,
@@ -498,7 +498,7 @@
       "php": ">=8.3"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {},
     "commit_count": 4,
@@ -519,7 +519,7 @@
       "waaseyaa/foundation": "@dev"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5",
+      "phpunit/phpunit": "^13.0",
       "twig/twig": "^3.0"
     },
     "dev_constraints": {
@@ -551,7 +551,7 @@
       "waaseyaa/workflows": "@dev"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {
       "waaseyaa/ai-schema": "@dev",
@@ -582,7 +582,7 @@
       "waaseyaa/entity": "@dev"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {
       "waaseyaa/entity": "@dev"
@@ -605,7 +605,7 @@
       "waaseyaa/entity": "@dev"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {
       "waaseyaa/entity": "@dev"
@@ -629,7 +629,7 @@
       "waaseyaa/access": "@dev"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {
       "waaseyaa/entity": "@dev",
@@ -654,7 +654,7 @@
       "waaseyaa/access": "@dev"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {
       "waaseyaa/entity": "@dev",
@@ -678,7 +678,7 @@
       "waaseyaa/entity": "@dev"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {
       "waaseyaa/entity": "@dev"
@@ -701,7 +701,7 @@
       "waaseyaa/cache": "*"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {},
     "commit_count": 10,
@@ -722,7 +722,7 @@
       "symfony/messenger": "^7.3"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {},
     "commit_count": 9,
@@ -773,7 +773,7 @@
       "symfony/routing": "^7.3"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {
       "waaseyaa/entity": "@dev",
@@ -798,7 +798,7 @@
       "twig/twig": "^3.0"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {},
     "commit_count": 5,
@@ -825,7 +825,7 @@
       "twig/twig": "^3.0"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {
       "waaseyaa/access": "@dev",
@@ -853,7 +853,7 @@
       "waaseyaa/database-legacy": "@dev"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {
       "waaseyaa/database-legacy": "@dev"
@@ -877,7 +877,7 @@
       "waaseyaa/access": "@dev"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {
       "waaseyaa/entity": "@dev",
@@ -900,7 +900,7 @@
       "php": ">=8.3"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {},
     "commit_count": 6,
@@ -918,7 +918,7 @@
     ],
     "require": {
       "php": ">=8.3",
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "require_dev": {},
     "dev_constraints": {},
@@ -940,7 +940,7 @@
       "symfony/validator": "^7.3"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {},
     "commit_count": 10,
@@ -964,7 +964,7 @@
       "symfony/http-foundation": "^7.0"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {
       "waaseyaa/entity": "@dev",
@@ -990,7 +990,7 @@
       "symfony/validator": "^7.3"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {
       "waaseyaa/typed-data": "@dev"
@@ -1014,7 +1014,7 @@
       "waaseyaa/entity": "@dev"
     },
     "require_dev": {
-      "phpunit/phpunit": "^10.5"
+      "phpunit/phpunit": "^13.0"
     },
     "dev_constraints": {
       "waaseyaa/access": "@dev",

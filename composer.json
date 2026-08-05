@@ -377,7 +377,7 @@
         "opis/json-schema": "^2.6",
         "phpstan/phpstan": "^2.0",
         "phpstan/phpstan-strict-rules": "^2.0",
-        "phpunit/phpunit": "^10.5",
+        "phpunit/phpunit": "^13.0",
         "sendgrid/sendgrid": "^8.1",
         "shipmonk/composer-dependency-analyser": "^1.8",
         "shipmonk/dead-code-detector": "^1.1",

@@ -90,7 +90,7 @@ final class SyncInternalVersionsTest extends TestCase
                 'waaseyaa/entity' => '^0.1.0-alpha.150',
             ],
             'require-dev' => [
-                'phpunit/phpunit' => '^10.5',
+                'phpunit/phpunit' => '^13.0',
                 'waaseyaa/testing' => '^0.1.0-alpha.150',
             ],
         ];
@@ -288,7 +288,7 @@ final class SyncInternalVersionsTest extends TestCase
         self::assertSame('^0.1.0-alpha.999', $manifest['require']['waaseyaa/foundation']);
         self::assertSame('^0.1.0-alpha.999', $manifest['require-dev']['waaseyaa/testing']);
         // Non-waaseyaa require-dev must be untouched
-        self::assertSame('^10.5', $manifest['require-dev']['phpunit/phpunit']);
+        self::assertSame('^13.0', $manifest['require-dev']['phpunit/phpunit']);
     }
 
     #[Test]

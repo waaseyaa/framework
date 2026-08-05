@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
 - **testing (#2235):** Publish the 2026 test-quality audit and a reproducible Git-tracked-only inventory for PHP, PHPUnit, Vitest, Playwright, nondeterminism, and shared-helper adoption signals. The testing doctrine now defines behavioral layers, deterministic replay, honest coverage, supported-tooling, mutation-pilot, and helper-adoption standards without prescribing a syntax rewrite.
+
+- **testing (#2240):** Upgrade the PHP 8.5 test stack to PHPUnit 13 across the root, split packages, skeleton, and packaged-form fixture; normalize all tracked PHPUnit configurations to the installed schema and isolated cache; convert the remaining docblock data providers to attributes; remove a duplicate GitHub suite that double-executed tests; and update removed mock/type APIs without weakening warning enforcement.
 
 ## [0.1.0-alpha.287] - 2026-08-05
 

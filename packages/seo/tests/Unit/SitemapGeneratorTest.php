@@ -108,7 +108,7 @@ final class SitemapGeneratorTest extends TestCase
         $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('getDefinitions')->willReturn(['article' => $articleDef]);
         $etm->method('hasDefinition')->willReturn(true);
-        $etm->method('getStorage')->with('article')->willReturn($articleStorage);
+        $etm->method('getStorage')->willReturnMap([['article', $articleStorage]]);
 
         $gen = new SitemapGenerator();
         $urls = $gen->collectFromEntityTypes(
@@ -131,9 +131,11 @@ final class SitemapGeneratorTest extends TestCase
         $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('getDefinitions')->willReturn(['article' => $def]);
         $etm->method('hasDefinition')->willReturn(true);
-        $etm->method('getStorage')->with('article')->willReturn($storage);
+        $etm->method('getStorage')->willReturnMap([['article', $storage]]);
         // C-22: the query builder now lives on the repository.
-        $etm->method('getRepository')->with('article')->willReturn(new QueryOnlyStubRepository($query));
+        $etm->method('getRepository')->willReturnMap([
+            ['article', new QueryOnlyStubRepository($query)],
+        ]);
 
         $gen = new SitemapGenerator();
         $urls = $gen->collectFromEntityTypes(

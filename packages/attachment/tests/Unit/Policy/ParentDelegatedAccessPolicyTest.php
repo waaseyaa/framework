@@ -128,13 +128,14 @@ final class ParentDelegatedAccessPolicyTest extends TestCase
         ]);
 
         $storage = $this->createStub(EntityStorageInterface::class);
-        $storage->method('load')->with('999')->willReturn(null);
+        $storage->method('load')->willReturnMap([['999', null]]);
 
         $this->entityTypeManager
             ->method('getStorage')
-            ->with('node')
-            ->willReturn($storage);
-        $this->entityTypeManager->method('getRepository')->with('node')->willReturn(new StorageBackedStubRepository($storage));
+            ->willReturnMap([['node', $storage]]);
+        $this->entityTypeManager->method('getRepository')->willReturnMap([
+            ['node', new StorageBackedStubRepository($storage)],
+        ]);
 
         $result = $this->policy->access($attachment, 'view', $this->account);
 
@@ -153,14 +154,20 @@ final class ParentDelegatedAccessPolicyTest extends TestCase
         ]);
 
         $storage = $this->createStub(EntityStorageInterface::class);
-        $storage->method('load')->with('1')->willReturn($parentEntity);
-        $this->entityTypeManager->method('getStorage')->with('node')->willReturn($storage);
-        $this->entityTypeManager->method('getRepository')->with('node')->willReturn(new StorageBackedStubRepository($storage));
+        $storage->method('load')->willReturnMap([['1', $parentEntity]]);
+        $this->entityTypeManager->method('getStorage')->willReturnMap([['node', $storage]]);
+        $this->entityTypeManager->method('getRepository')->willReturnMap([
+            ['node', new StorageBackedStubRepository($storage)],
+        ]);
 
         $this->accessHandler
             ->method('check')
-            ->with($parentEntity, 'view', $this->account)
-            ->willReturn(AccessResult::allowed('parent allows view'));
+            ->willReturnMap([[
+                $parentEntity,
+                'view',
+                $this->account,
+                AccessResult::allowed('parent allows view'),
+            ]]);
 
         $result = $this->policy->access($attachment, 'view', $this->account);
 
@@ -177,14 +184,20 @@ final class ParentDelegatedAccessPolicyTest extends TestCase
         ]);
 
         $storage = $this->createStub(EntityStorageInterface::class);
-        $storage->method('load')->with('2')->willReturn($parentEntity);
-        $this->entityTypeManager->method('getStorage')->with('node')->willReturn($storage);
-        $this->entityTypeManager->method('getRepository')->with('node')->willReturn(new StorageBackedStubRepository($storage));
+        $storage->method('load')->willReturnMap([['2', $parentEntity]]);
+        $this->entityTypeManager->method('getStorage')->willReturnMap([['node', $storage]]);
+        $this->entityTypeManager->method('getRepository')->willReturnMap([
+            ['node', new StorageBackedStubRepository($storage)],
+        ]);
 
         $this->accessHandler
             ->method('check')
-            ->with($parentEntity, 'view', $this->account)
-            ->willReturn(AccessResult::forbidden('parent forbids view'));
+            ->willReturnMap([[
+                $parentEntity,
+                'view',
+                $this->account,
+                AccessResult::forbidden('parent forbids view'),
+            ]]);
 
         $result = $this->policy->access($attachment, 'view', $this->account);
 
@@ -203,14 +216,20 @@ final class ParentDelegatedAccessPolicyTest extends TestCase
         ]);
 
         $storage = $this->createStub(EntityStorageInterface::class);
-        $storage->method('load')->with('3')->willReturn($parentEntity);
-        $this->entityTypeManager->method('getStorage')->with('node')->willReturn($storage);
-        $this->entityTypeManager->method('getRepository')->with('node')->willReturn(new StorageBackedStubRepository($storage));
+        $storage->method('load')->willReturnMap([['3', $parentEntity]]);
+        $this->entityTypeManager->method('getStorage')->willReturnMap([['node', $storage]]);
+        $this->entityTypeManager->method('getRepository')->willReturnMap([
+            ['node', new StorageBackedStubRepository($storage)],
+        ]);
 
         $this->accessHandler
             ->method('check')
-            ->with($parentEntity, 'update', $this->account)
-            ->willReturn(AccessResult::allowed('parent allows update'));
+            ->willReturnMap([[
+                $parentEntity,
+                'update',
+                $this->account,
+                AccessResult::allowed('parent allows update'),
+            ]]);
 
         $result = $this->policy->access($attachment, 'update', $this->account);
 
@@ -229,14 +248,20 @@ final class ParentDelegatedAccessPolicyTest extends TestCase
         ]);
 
         $storage = $this->createStub(EntityStorageInterface::class);
-        $storage->method('load')->with('4')->willReturn($parentEntity);
-        $this->entityTypeManager->method('getStorage')->with('node')->willReturn($storage);
-        $this->entityTypeManager->method('getRepository')->with('node')->willReturn(new StorageBackedStubRepository($storage));
+        $storage->method('load')->willReturnMap([['4', $parentEntity]]);
+        $this->entityTypeManager->method('getStorage')->willReturnMap([['node', $storage]]);
+        $this->entityTypeManager->method('getRepository')->willReturnMap([
+            ['node', new StorageBackedStubRepository($storage)],
+        ]);
 
         $this->accessHandler
             ->method('check')
-            ->with($parentEntity, 'delete', $this->account)
-            ->willReturn(AccessResult::allowed('parent allows delete'));
+            ->willReturnMap([[
+                $parentEntity,
+                'delete',
+                $this->account,
+                AccessResult::allowed('parent allows delete'),
+            ]]);
 
         $result = $this->policy->access($attachment, 'delete', $this->account);
 

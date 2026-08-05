@@ -51,7 +51,7 @@ waaseyaa-migrate-source-xml/
         "waaseyaa/migration": "^0.2"
     },
     "require-dev": {
-        "phpunit/phpunit": "^10.5"
+        "phpunit/phpunit": "^13.0"
     },
     "autoload": {
         "psr-4": {

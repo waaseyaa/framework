@@ -203,7 +203,9 @@ final class MediaDownloadRouterTest extends TestCase
         $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('load')->willReturn($media);
         $manager = $this->createStub(EntityTypeManagerInterface::class);
-        $manager->method('getRepository')->with('media')->willReturn(new StorageBackedStubRepository($storage));
+        $manager->method('getRepository')->willReturnMap([
+            ['media', new StorageBackedStubRepository($storage)],
+        ]);
 
         return new MediaDownloadRouter($manager, new EntityAccessHandler([$policy]), $this->filesRoot, $this->sourceReader);
     }

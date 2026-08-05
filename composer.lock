@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "83e6583818397a474cd0e4beea7947ce",
+    "content-hash": "87c00eaa90d66efbb47ca3394a2580f2",
     "packages": [
         {
             "name": "deployer/deployer",
@@ -462,20 +462,19 @@
         },
         {
             "name": "nikic/php-parser",
-            "version": "v5.7.0",
+            "version": "v5.8.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nikic/PHP-Parser.git",
-                "reference": "dca41cd15c2ac9d055ad70dbfd011130757d1f82"
+                "reference": "044a6a392ff8ad0d61f14370a5fbbd0a0107152f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nikic/PHP-Parser/zipball/dca41cd15c2ac9d055ad70dbfd011130757d1f82",
-                "reference": "dca41cd15c2ac9d055ad70dbfd011130757d1f82",
+                "url": "https://api.github.com/repos/nikic/PHP-Parser/zipball/044a6a392ff8ad0d61f14370a5fbbd0a0107152f",
+                "reference": "044a6a392ff8ad0d61f14370a5fbbd0a0107152f",
                 "shasum": ""
             },
             "require": {
-                "ext-ctype": "*",
                 "ext-json": "*",
                 "ext-tokenizer": "*",
                 "php": ">=7.4"
@@ -514,9 +513,9 @@
             ],
             "support": {
                 "issues": "https://github.com/nikic/PHP-Parser/issues",
-                "source": "https://github.com/nikic/PHP-Parser/tree/v5.7.0"
+                "source": "https://github.com/nikic/PHP-Parser/tree/v5.8.0"
             },
-            "time": "2025-12-06T11:56:16+00:00"
+            "time": "2026-07-04T14:30:18+00:00"
         },
         {
             "name": "psr/cache",
@@ -3187,7 +3186,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/access",
-                "reference": "9156dc5e86ed7ee10aef22db54ce465336f79d84"
+                "reference": "6818facb6e816fe2045395d37b564d125271de4c"
             },
             "require": {
                 "php": ">=8.5",
@@ -3198,7 +3197,7 @@
                 "waaseyaa/plugin": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -3236,7 +3235,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/admin-surface",
-                "reference": "f2e3c8a6f1069cc49c50dae295a2243570387351"
+                "reference": "bfe2f30a004a24bf1dc6bfba0fc412a555c1ca2f"
             },
             "require": {
                 "php": ">=8.5",
@@ -3249,10 +3248,10 @@
                 "waaseyaa/workflows": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5",
-                "waaseyaa/config": "^0.1.0-alpha.286",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.286",
-                "waaseyaa/node": "^0.1.0-alpha.286"
+                "phpunit/phpunit": "^13.0",
+                "waaseyaa/config": "^0.1.0-alpha.287",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.287",
+                "waaseyaa/node": "^0.1.0-alpha.287"
             },
             "type": "library",
             "extra": {
@@ -3290,7 +3289,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ai-pipeline",
-                "reference": "a03ba13c3cc0bbb9e07fb104430da59d0c821741"
+                "reference": "2203065fb81723160ef93cb491360268f7a5f709"
             },
             "require": {
                 "php": ">=8.5",
@@ -3298,7 +3297,7 @@
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -3336,14 +3335,14 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ai-schema",
-                "reference": "b5c866ac9dc3a5fa962b5bf0f1c8074bc99a8c51"
+                "reference": "ddbd8bf2961e9b8099926c0c21bde5b840ada209"
             },
             "require": {
                 "php": ">=8.5",
                 "waaseyaa/entity": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -3376,7 +3375,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ai-tools",
-                "reference": "ba06d6af54bd4eb99e7f8c1d2f067ceef856d7c0"
+                "reference": "b7079b398649b828e1d68274ba845882834b108d"
             },
             "require": {
                 "php": ">=8.5",
@@ -3387,9 +3386,16 @@
                 "waaseyaa/media": "^0.1.0-alpha.287",
                 "waaseyaa/publishing": "^0.1.0-alpha.287"
             },
+            "conflict": {
+                "waaseyaa/search": "<0.1.0-alpha.287 || >=0.2.0"
+            },
             "require-dev": {
-                "phpunit/phpunit": "^10.5",
-                "waaseyaa/testing": "^0.1.0-alpha.286"
+                "phpunit/phpunit": "^13.0",
+                "waaseyaa/search": "^0.1.0-alpha.287",
+                "waaseyaa/testing": "^0.1.0-alpha.287"
+            },
+            "suggest": {
+                "waaseyaa/search": "Provides principal-safe ranked CMS search tools and content resources"
             },
             "type": "library",
             "extra": {
@@ -3427,7 +3433,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ai-vector",
-                "reference": "b0661873e363b04524b114fdb63643bf5a0dea5b"
+                "reference": "9e804158b6cb018654c37c6184a0b439226e78b4"
             },
             "require": {
                 "php": ">=8.5",
@@ -3440,7 +3446,7 @@
                 "waaseyaa/workflows": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -3513,7 +3519,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/api",
-                "reference": "1a879eff1407841b6061728ba67322fe44c06886"
+                "reference": "baf8f823e6e32068611a7fa113e9825d32052695"
             },
             "require": {
                 "php": ">=8.5",
@@ -3535,16 +3541,24 @@
                 "waaseyaa/scheduler": "^0.1.0-alpha.287",
                 "waaseyaa/workflows": "^0.1.0-alpha.287"
             },
+            "conflict": {
+                "waaseyaa/auth": "<0.1.0-alpha.287 || >=0.2.0",
+                "waaseyaa/search": "<0.1.0-alpha.287 || >=0.2.0"
+            },
             "require-dev": {
                 "opis/json-schema": "^2.6",
-                "phpunit/phpunit": "^10.5",
-                "waaseyaa/audit": "^0.1.0-alpha.286",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.286",
-                "waaseyaa/media": "^0.1.0-alpha.286",
-                "waaseyaa/telescope": "^0.1.0-alpha.286"
+                "phpunit/phpunit": "^13.0",
+                "waaseyaa/audit": "^0.1.0-alpha.287",
+                "waaseyaa/auth": "^0.1.0-alpha.287",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.287",
+                "waaseyaa/media": "^0.1.0-alpha.287",
+                "waaseyaa/search": "^0.1.0-alpha.287",
+                "waaseyaa/telescope": "^0.1.0-alpha.287"
             },
             "suggest": {
-                "waaseyaa/oidc": "Provides optional OIDC client administration routes"
+                "waaseyaa/auth": "Provides atomic rate limiting for the optional public content search endpoint",
+                "waaseyaa/oidc": "Provides optional OIDC client administration routes",
+                "waaseyaa/search": "Provides principal-safe search for the optional public content search endpoint"
             },
             "type": "library",
             "extra": {
@@ -3582,7 +3596,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/attachment",
-                "reference": "e64717649ad89d950580c4e126a8f48ff7608c31"
+                "reference": "5e1bf48fdb9842aea2733f6586868e587aa94571"
             },
             "require": {
                 "php": "^8.5",
@@ -3594,9 +3608,9 @@
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5",
+                "phpunit/phpunit": "^13.0",
                 "symfony/event-dispatcher": "^7.0",
-                "waaseyaa/entity-storage": "^0.1.0-alpha.286"
+                "waaseyaa/entity-storage": "^0.1.0-alpha.287"
             },
             "type": "library",
             "extra": {
@@ -3633,7 +3647,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/audit",
-                "reference": "3793b00c4defa36cc172ca0ae5e230e281c6989e"
+                "reference": "2025b40c7f2340721b9fabc030258fbd15d22873"
             },
             "require": {
                 "php": ">=8.5",
@@ -3645,8 +3659,8 @@
                 "waaseyaa/scheduler": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5",
-                "waaseyaa/entity-storage": "^0.1.0-alpha.286"
+                "phpunit/phpunit": "^13.0",
+                "waaseyaa/entity-storage": "^0.1.0-alpha.287"
             },
             "type": "library",
             "extra": {
@@ -3684,7 +3698,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/auth",
-                "reference": "819d92d2bd127ca5605263a48a83ad55af8e8c25"
+                "reference": "79345ecd4204b75980b894870ac2d94edfbbb9ac"
             },
             "require": {
                 "php": ">=8.5",
@@ -3696,7 +3710,7 @@
                 "waaseyaa/user": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -3733,7 +3747,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/billing",
-                "reference": "3887faf5ea390728700100c5a991ceaa961d3957"
+                "reference": "801c828bd8b6244783b2405eca13783d9d77a068"
             },
             "require": {
                 "php": ">=8.5",
@@ -3741,7 +3755,7 @@
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -3778,7 +3792,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/bimaaji",
-                "reference": "2870cd2ea62bdc41a0e444197842013ee3a8f33b"
+                "reference": "56b9d4c7d71fafbb286f4e51f475b91401817c9c"
             },
             "require": {
                 "nikic/php-parser": "^5.0",
@@ -3789,7 +3803,7 @@
                 "waaseyaa/routing": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "suggest": {
                 "waaseyaa/cli": "Enables the graph:dump and bimaaji:install command integrations."
@@ -3830,14 +3844,14 @@
             "dist": {
                 "type": "path",
                 "url": "packages/cache",
-                "reference": "2f33ad6aa9b2e4dfebdb8b0a0cd54b9cc5389f33"
+                "reference": "cf7a6a481696bc2b9c1e6387272a905fd0dd4e32"
             },
             "require": {
                 "php": ">=8.5",
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "suggest": {
                 "waaseyaa/config": "^0.1.0-alpha.261",
@@ -3875,7 +3889,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/cli",
-                "reference": "5e6284049b147f8f7d0195ec061395dfafff3842"
+                "reference": "eb6e83305371b809c00d6263e30d3d66e13cb13f"
             },
             "require": {
                 "php": ">=8.5",
@@ -3903,7 +3917,7 @@
                 "waaseyaa/workflows": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "suggest": {
                 "ext-intl": "For ICU transliteration of diacritic titles to readable Latin ingest keys; a deterministic hash key is used otherwise",
@@ -3974,7 +3988,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/config",
-                "reference": "d6bbe610286a288e280b42e31396f55dda0eb6e9"
+                "reference": "50e430357826178d0e600e045afca0acfaba203c"
             },
             "require": {
                 "php": ">=8.5",
@@ -3983,7 +3997,7 @@
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -4021,14 +4035,14 @@
             "dist": {
                 "type": "path",
                 "url": "packages/database-legacy",
-                "reference": "3b634de02549d708120428e289e3eef09a3b6712"
+                "reference": "bf705f331d26a79678ceac59291e5d2ed87880e9"
             },
             "require": {
                 "doctrine/dbal": "^4.0",
                 "php": ">=8.5"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -4061,7 +4075,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/debug",
-                "reference": "47d706b0ca8e86cb049b2921164c4cbb899bf0d7"
+                "reference": "b1b9c8515cd9bd0c825abcc8df09a5825fc19586"
             },
             "require": {
                 "php": ">=8.5",
@@ -4071,7 +4085,7 @@
                 "waaseyaa/routing": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -4138,7 +4152,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/entity",
-                "reference": "de512ab41de308466c33b08231f849f6b8947c7a"
+                "reference": "95d42f213358034a113bc5dfe6aca5bca2125b44"
             },
             "require": {
                 "php": ">=8.5",
@@ -4156,7 +4170,7 @@
             },
             "require-dev": {
                 "phpstan/phpstan": "^2.0",
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "suggest": {
                 "nesbot/carbon": "Optional domain for datetime_immutable cast with domain carbon_immutable (#1183)."
@@ -4195,7 +4209,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/entity-storage",
-                "reference": "3b76f44c366e52df273e4d884c4c34e789c142c7"
+                "reference": "e314b0e1cc73531265c88f76b4bf42aabf47f7bb"
             },
             "require": {
                 "php": ">=8.5",
@@ -4210,7 +4224,7 @@
                 "waaseyaa/i18n": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -4249,14 +4263,14 @@
             "dist": {
                 "type": "path",
                 "url": "packages/error-handler",
-                "reference": "39398f0c9367effe0050bfc1aa8134008b4bfc97"
+                "reference": "5b6f5b4465ea6c6e987e5ea70da59f586f8fc6a6"
             },
             "require": {
                 "php": ">=8.5",
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -4289,7 +4303,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/field",
-                "reference": "07aa2ff83dc91be3d39b638eda8a099c04bf706a"
+                "reference": "1f337cc74c0d973f4199c281464d7c71b18e468b"
             },
             "require": {
                 "php": ">=8.5",
@@ -4303,7 +4317,7 @@
                 "waaseyaa/typed-data": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -4345,7 +4359,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/foundation",
-                "reference": "629df63a6b2b59f2b661f9c922e38d26dcf11ca7"
+                "reference": "271982acdcfd12e319dcad5ccfc6b5f6df643254"
             },
             "require": {
                 "doctrine/dbal": "^4.0",
@@ -4363,10 +4377,10 @@
                 "waaseyaa/queue": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5",
-                "waaseyaa/entity": "^0.1.0-alpha.286",
-                "waaseyaa/error-handler": "^0.1.0-alpha.286",
-                "waaseyaa/routing": "^0.1.0-alpha.286"
+                "phpunit/phpunit": "^13.0",
+                "waaseyaa/entity": "^0.1.0-alpha.287",
+                "waaseyaa/error-handler": "^0.1.0-alpha.287",
+                "waaseyaa/routing": "^0.1.0-alpha.287"
             },
             "type": "library",
             "extra": {
@@ -4408,7 +4422,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/frankenphp",
-                "reference": "6a8d114515eb23b4d1a6586475a51a4a426708c4"
+                "reference": "0589fb3fe08d4feb5defc773ab50ebddbb66ac57"
             },
             "require": {
                 "ext-json": "*",
@@ -4417,7 +4431,7 @@
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -4455,14 +4469,14 @@
             "dist": {
                 "type": "path",
                 "url": "packages/geo",
-                "reference": "0022b6e182ecfb25c9f8842d487df453f340df6d"
+                "reference": "c70b8b9426ed1ad710a92a4173672b219ed0bd28"
             },
             "require": {
                 "php": ">=8.5",
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -4530,7 +4544,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/graphql",
-                "reference": "e4562f52459db28e95a288237be5986e16422b4d"
+                "reference": "672e25bff7b0b1c7e37a4b2d8509d517145cfd4c"
             },
             "require": {
                 "php": ">=8.5",
@@ -4544,7 +4558,7 @@
                 "webonyx/graphql-php": "^15.31.5"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -4583,7 +4597,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/groups",
-                "reference": "6d42603a17a8e448abe0200b5df635d48ff2f8cd"
+                "reference": "fec742a9db3cf2eec53f5ff014a3e60716092bfc"
             },
             "require": {
                 "php": ">=8.5",
@@ -4596,8 +4610,8 @@
                 "waaseyaa/relationship": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5",
-                "waaseyaa/user": "^0.1.0-alpha.286"
+                "phpunit/phpunit": "^13.0",
+                "waaseyaa/user": "^0.1.0-alpha.287"
             },
             "type": "library",
             "extra": {
@@ -4645,13 +4659,13 @@
             "dist": {
                 "type": "path",
                 "url": "packages/http-client",
-                "reference": "a810922f90e52d5a18dc3db1d66c546f181268c3"
+                "reference": "5865db54d1b9d14277465ca7d26d362260db8e88"
             },
             "require": {
                 "php": ">=8.5"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -4684,14 +4698,14 @@
             "dist": {
                 "type": "path",
                 "url": "packages/i18n",
-                "reference": "2819ba4f59d06c82f3df88bfb41602c9a9b0330d"
+                "reference": "18b55f45be53fb6250f69382e6e1cb9846dabd7b"
             },
             "require": {
                 "php": ">=8.5",
                 "twig/twig": "^3.0"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -4724,7 +4738,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/inertia",
-                "reference": "0737fa78bd9fcfc00b570e8d3ec1f5b68ccef9d3"
+                "reference": "6e6102cdf14756344eb4e3f4fd07d6ea38c0591d"
             },
             "require": {
                 "php": ">=8.5",
@@ -4732,7 +4746,7 @@
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -4769,13 +4783,13 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ingestion",
-                "reference": "de022132fae6f0125aa67f6ceabb567166313d6f"
+                "reference": "87993306f8d354893b0b96991beeee16ab06d754"
             },
             "require": {
                 "php": ">=8.5"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -4807,7 +4821,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/listing",
-                "reference": "1013684cfb51626ab0465bcd9c8de5763b3b2c2c"
+                "reference": "c3fa6fa1ae2f6736f109537e01ed7e6d52b654ff"
             },
             "require": {
                 "php": ">=8.5",
@@ -4820,7 +4834,7 @@
                 "waaseyaa/typed-data": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -4858,14 +4872,14 @@
             "dist": {
                 "type": "path",
                 "url": "packages/mail",
-                "reference": "cd091a78785e30b5491cdaf3264a535210f72ec6"
+                "reference": "605d5e9cf269df19f44c74e8ad79e3955e8e4f15"
             },
             "require": {
                 "php": ">=8.5",
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5",
+                "phpunit/phpunit": "^13.0",
                 "twig/twig": "^3.0"
             },
             "suggest": {
@@ -4908,7 +4922,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/media",
-                "reference": "fe986e41dc739be6a9c2c0e546336210bf7a0bdc"
+                "reference": "e48f3b9810f4a75331752ce9f8c27ec3e3812a22"
             },
             "require": {
                 "php": ">=8.5",
@@ -4920,10 +4934,10 @@
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5",
-                "waaseyaa/access": "^0.1.0-alpha.286",
-                "waaseyaa/api": "^0.1.0-alpha.286",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.286"
+                "phpunit/phpunit": "^13.0",
+                "waaseyaa/access": "^0.1.0-alpha.287",
+                "waaseyaa/api": "^0.1.0-alpha.287",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.287"
             },
             "type": "library",
             "extra": {
@@ -4965,7 +4979,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/menu",
-                "reference": "6a6ee971ea2ab0d927bfed22ee2ef1310a25de6a"
+                "reference": "ae3b6c38eea8cd50bb275fdd606c9d71ebcacb19"
             },
             "require": {
                 "php": ">=8.5",
@@ -4974,7 +4988,7 @@
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -5015,14 +5029,14 @@
             "dist": {
                 "type": "path",
                 "url": "packages/mercure",
-                "reference": "4141e0db09e89a8409107fc531a6d4b853ef1b2a"
+                "reference": "d8ce68f54915929c9ea9ddb78060477c5091d8cc"
             },
             "require": {
                 "php": ">=8.5",
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -5059,7 +5073,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/migration",
-                "reference": "e1dc6dfb755978418cb8eb61b855462ed0d2df65"
+                "reference": "dbcf79ca53b5b2d15899cf29e6b197a1ba8a776f"
             },
             "require": {
                 "php": ">=8.5",
@@ -5074,7 +5088,7 @@
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5",
+                "phpunit/phpunit": "^13.0",
                 "symfony/event-dispatcher": "^7.0"
             },
             "type": "library",
@@ -5116,7 +5130,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/node",
-                "reference": "3b89223f09b418d01873c10d5a3698ef0c143231"
+                "reference": "08a66d3041c2b6f009aba8e787a09238aecab314"
             },
             "require": {
                 "php": ">=8.5",
@@ -5128,7 +5142,7 @@
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -5170,7 +5184,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/note",
-                "reference": "8045437d6111ea8df0f597845eb110f156716dcd"
+                "reference": "5dfbe370ed5031b7c0c167ca59c0c06dfcba749a"
             },
             "require": {
                 "php": ">=8.5",
@@ -5179,7 +5193,7 @@
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -5220,7 +5234,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/notification",
-                "reference": "6f150e96b3edd5cdc1510c61e3afee650eb02bfa"
+                "reference": "2b66d26df91ef2dbfb3a7dc9c10af39087a9c7c0"
             },
             "require": {
                 "php": ">=8.5",
@@ -5230,7 +5244,7 @@
                 "waaseyaa/queue": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -5268,14 +5282,14 @@
             "dist": {
                 "type": "path",
                 "url": "packages/oauth-provider",
-                "reference": "f49bd2f9d5f48f534ee353721a0b1f47ebef7ba5"
+                "reference": "c97b154dfd0ebe3ec462d86eda56c939258b2be0"
             },
             "require": {
                 "php": ">=8.5",
                 "waaseyaa/http-client": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -5307,7 +5321,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/path",
-                "reference": "ac5b9e31025240a3f69c3f0adabbe6290e090c53"
+                "reference": "b5435be00bb6f722991ac3e6729223a96e17cebf"
             },
             "require": {
                 "php": ">=8.5",
@@ -5317,7 +5331,7 @@
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -5358,14 +5372,14 @@
             "dist": {
                 "type": "path",
                 "url": "packages/plugin",
-                "reference": "769b655370a53b19725f5e4015bbca85788c652f"
+                "reference": "0efdb62781b63e35b96e17a4ce82fc1b4f2a01c5"
             },
             "require": {
                 "php": ">=8.5",
                 "waaseyaa/cache": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -5398,7 +5412,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/publishing",
-                "reference": "cba6c8514cb724775ddc3b669533dff5f2c363d9"
+                "reference": "45a3faad144690b36fd377a408f8c621d783141b"
             },
             "require": {
                 "php": ">=8.5",
@@ -5410,7 +5424,7 @@
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5",
+                "phpunit/phpunit": "^13.0",
                 "symfony/html-sanitizer": "^8.0"
             },
             "type": "library",
@@ -5444,7 +5458,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/queue",
-                "reference": "8dd210df77c449d4bd0c3e6ecf66d28b664c45c8"
+                "reference": "cae8b0392d1f9998d240232fa1357e0f94c7af9d"
             },
             "require": {
                 "php": ">=8.5",
@@ -5453,8 +5467,8 @@
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5",
-                "waaseyaa/entity": "^0.1.0-alpha.286"
+                "phpunit/phpunit": "^13.0",
+                "waaseyaa/entity": "^0.1.0-alpha.287"
             },
             "type": "library",
             "extra": {
@@ -5493,7 +5507,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/relationship",
-                "reference": "dbba9d19de1db9545e92c2be4d245b34e18bfe15"
+                "reference": "2bf4ac553d3400052cda75b0e4ef8e3dca0687fb"
             },
             "require": {
                 "php": ">=8.5",
@@ -5542,7 +5556,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/routing",
-                "reference": "b0c9f442a02212c8b4913e8fb19b97d291b68fb9"
+                "reference": "348f4cd72ab3ae1f6018ccf64ae3b3b15c5f077b"
             },
             "require": {
                 "php": ">=8.5",
@@ -5555,7 +5569,7 @@
                 "waaseyaa/user": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "suggest": {
                 "waaseyaa/oidc": "Provides optional OpenID Connect issuer routes"
@@ -5596,7 +5610,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/scheduler",
-                "reference": "b9187103d67f6a82296fe375ae6ff5e2e34036ae"
+                "reference": "5e4089df112f58a3a9b00029e96eb10553b65e51"
             },
             "require": {
                 "dragonmantank/cron-expression": "^3.0",
@@ -5606,7 +5620,7 @@
                 "waaseyaa/queue": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -5644,7 +5658,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/search",
-                "reference": "f5ba2ad9ae7978cc9f902c24b317c31b80298804"
+                "reference": "f83835078c602918c1b4aff95841b62610d065b8"
             },
             "require": {
                 "php": ">=8.5",
@@ -5657,7 +5671,7 @@
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -5695,7 +5709,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/seo",
-                "reference": "7573d57b9dd9a012e831fb96aae161a3cae23fc8"
+                "reference": "d7baa42d265b6c2785cb1c2ca7b356e3fa6120b7"
             },
             "require": {
                 "php": ">=8.5",
@@ -5705,7 +5719,7 @@
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -5743,7 +5757,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ssr",
-                "reference": "12f14941ab6f92720ee818ceccbad6f714036407"
+                "reference": "5803fe8b7f57d86b393ff53277058c207aaf169b"
             },
             "require": {
                 "php": ">=8.5",
@@ -5766,7 +5780,7 @@
                 "waaseyaa/workflows": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -5805,14 +5819,14 @@
             "dist": {
                 "type": "path",
                 "url": "packages/state",
-                "reference": "387196a33f1a4a17bf44873cb5af999c5a544d93"
+                "reference": "c14c1d9605d9eccec842079ebb4b8db6b8ece51d"
             },
             "require": {
                 "php": ">=8.5",
                 "waaseyaa/database-legacy": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -5845,7 +5859,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/structured-import",
-                "reference": "36bc6d62664ef2d8cabd869cab66383c12b48ca8"
+                "reference": "4d7f276334214eb921d425bb58d255fad2264dd1"
             },
             "require": {
                 "php": "^8.5",
@@ -5854,7 +5868,7 @@
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -5888,7 +5902,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/taxonomy",
-                "reference": "2e347d917dfe3e228ffd3d8968cee21c32e0a48a"
+                "reference": "7d481b3dac7be9f981787e45bd48860039fd3472"
             },
             "require": {
                 "php": ">=8.5",
@@ -5899,7 +5913,7 @@
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -5968,14 +5982,14 @@
             "dist": {
                 "type": "path",
                 "url": "packages/typed-data",
-                "reference": "4543218f2fbed39e95753b4e3bb952db838a37a5"
+                "reference": "dc7a5274241df0951bf61938bd8f2065befb4ea6"
             },
             "require": {
                 "php": ">=8.5",
                 "symfony/validator": "^7.0"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -6008,7 +6022,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/user",
-                "reference": "b7843d075344c98597baeaea8a8adc1bba498c59"
+                "reference": "667d91b58b03a0ef6f2fc03b2692a93d84386731"
             },
             "require": {
                 "php": ">=8.5",
@@ -6020,7 +6034,7 @@
                 "waaseyaa/mail": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -6062,7 +6076,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/validation",
-                "reference": "45f1067c0578a5ce713427fb1d0e264b30245eb1"
+                "reference": "8c8188db0dc9f2a3e3d760ca9e9dd234e37d2010"
             },
             "require": {
                 "php": ">=8.5",
@@ -6070,7 +6084,7 @@
                 "waaseyaa/typed-data": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -6103,7 +6117,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/workflows",
-                "reference": "770c9801b6a6f3daa669e58f5be2e8866257b8a8"
+                "reference": "6ed943a87039be71486505baa6b994f5126097bc"
             },
             "require": {
                 "php": ">=8.5",
@@ -6119,9 +6133,9 @@
                 "waaseyaa/relationship": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.286",
-                "waaseyaa/node": "^0.1.0-alpha.286"
+                "phpunit/phpunit": "^13.0",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.287",
+                "waaseyaa/node": "^0.1.0-alpha.287"
             },
             "type": "library",
             "extra": {
@@ -7863,35 +7877,35 @@
         },
         {
             "name": "phpunit/php-code-coverage",
-            "version": "10.1.16",
+            "version": "14.2.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/php-code-coverage.git",
-                "reference": "7e308268858ed6baedc8704a304727d20bc07c77"
+                "reference": "048a5c12bdb4580f4767ce2761793a16b170fbe4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/php-code-coverage/zipball/7e308268858ed6baedc8704a304727d20bc07c77",
-                "reference": "7e308268858ed6baedc8704a304727d20bc07c77",
+                "url": "https://api.github.com/repos/sebastianbergmann/php-code-coverage/zipball/048a5c12bdb4580f4767ce2761793a16b170fbe4",
+                "reference": "048a5c12bdb4580f4767ce2761793a16b170fbe4",
                 "shasum": ""
             },
             "require": {
                 "ext-dom": "*",
                 "ext-libxml": "*",
+                "ext-mbstring": "*",
                 "ext-xmlwriter": "*",
-                "nikic/php-parser": "^4.19.1 || ^5.1.0",
-                "php": ">=8.1",
-                "phpunit/php-file-iterator": "^4.1.0",
-                "phpunit/php-text-template": "^3.0.1",
-                "sebastian/code-unit-reverse-lookup": "^3.0.0",
-                "sebastian/complexity": "^3.2.0",
-                "sebastian/environment": "^6.1.0",
-                "sebastian/lines-of-code": "^2.0.2",
-                "sebastian/version": "^4.0.1",
-                "theseer/tokenizer": "^1.2.3"
+                "nikic/php-parser": "^5.8.0",
+                "php": ">=8.4",
+                "phpunit/php-text-template": "^6.0",
+                "sebastian/complexity": "^6.0",
+                "sebastian/environment": "^9.3.2",
+                "sebastian/git-state": "^1.0",
+                "sebastian/lines-of-code": "^5.0.1",
+                "sebastian/version": "^7.0",
+                "theseer/tokenizer": "^2.0.1"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.1"
+                "phpunit/phpunit": "^13.2.2"
             },
             "suggest": {
                 "ext-pcov": "PHP extension that provides line coverage",
@@ -7900,7 +7914,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "10.1.x-dev"
+                    "dev-main": "14.2.x-dev"
                 }
             },
             "autoload": {
@@ -7929,40 +7943,52 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/php-code-coverage/issues",
                 "security": "https://github.com/sebastianbergmann/php-code-coverage/security/policy",
-                "source": "https://github.com/sebastianbergmann/php-code-coverage/tree/10.1.16"
+                "source": "https://github.com/sebastianbergmann/php-code-coverage/tree/14.2.4"
             },
             "funding": [
                 {
                     "url": "https://github.com/sebastianbergmann",
                     "type": "github"
+                },
+                {
+                    "url": "https://liberapay.com/sebastianbergmann",
+                    "type": "liberapay"
+                },
+                {
+                    "url": "https://thanks.dev/u/gh/sebastianbergmann",
+                    "type": "thanks_dev"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/phpunit/php-code-coverage",
+                    "type": "tidelift"
                 }
             ],
-            "time": "2024-08-22T04:31:57+00:00"
+            "time": "2026-07-30T17:01:07+00:00"
         },
         {
             "name": "phpunit/php-file-iterator",
-            "version": "4.1.0",
+            "version": "7.0.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/php-file-iterator.git",
-                "reference": "a95037b6d9e608ba092da1b23931e537cadc3c3c"
+                "reference": "6e5aa1fb0a95b1703d83e721299ee18bb4e2de50"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/php-file-iterator/zipball/a95037b6d9e608ba092da1b23931e537cadc3c3c",
-                "reference": "a95037b6d9e608ba092da1b23931e537cadc3c3c",
+                "url": "https://api.github.com/repos/sebastianbergmann/php-file-iterator/zipball/6e5aa1fb0a95b1703d83e721299ee18bb4e2de50",
+                "reference": "6e5aa1fb0a95b1703d83e721299ee18bb4e2de50",
                 "shasum": ""
             },
             "require": {
-                "php": ">=8.1"
+                "php": ">=8.4"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.0"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "4.0-dev"
+                    "dev-main": "7.0-dev"
                 }
             },
             "autoload": {
@@ -7990,36 +8016,48 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/php-file-iterator/issues",
                 "security": "https://github.com/sebastianbergmann/php-file-iterator/security/policy",
-                "source": "https://github.com/sebastianbergmann/php-file-iterator/tree/4.1.0"
+                "source": "https://github.com/sebastianbergmann/php-file-iterator/tree/7.0.0"
             },
             "funding": [
                 {
                     "url": "https://github.com/sebastianbergmann",
                     "type": "github"
+                },
+                {
+                    "url": "https://liberapay.com/sebastianbergmann",
+                    "type": "liberapay"
+                },
+                {
+                    "url": "https://thanks.dev/u/gh/sebastianbergmann",
+                    "type": "thanks_dev"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/phpunit/php-file-iterator",
+                    "type": "tidelift"
                 }
             ],
-            "time": "2023-08-31T06:24:48+00:00"
+            "time": "2026-02-06T04:33:26+00:00"
         },
         {
             "name": "phpunit/php-invoker",
-            "version": "4.0.0",
+            "version": "7.0.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/php-invoker.git",
-                "reference": "f5e568ba02fa5ba0ddd0f618391d5a9ea50b06d7"
+                "reference": "42e5c5cae0c65df12d1b1a3ab52bf3f50f244d88"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/php-invoker/zipball/f5e568ba02fa5ba0ddd0f618391d5a9ea50b06d7",
-                "reference": "f5e568ba02fa5ba0ddd0f618391d5a9ea50b06d7",
+                "url": "https://api.github.com/repos/sebastianbergmann/php-invoker/zipball/42e5c5cae0c65df12d1b1a3ab52bf3f50f244d88",
+                "reference": "42e5c5cae0c65df12d1b1a3ab52bf3f50f244d88",
                 "shasum": ""
             },
             "require": {
-                "php": ">=8.1"
+                "php": ">=8.4"
             },
             "require-dev": {
                 "ext-pcntl": "*",
-                "phpunit/phpunit": "^10.0"
+                "phpunit/phpunit": "^13.0"
             },
             "suggest": {
                 "ext-pcntl": "*"
@@ -8027,7 +8065,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "4.0-dev"
+                    "dev-main": "7.0-dev"
                 }
             },
             "autoload": {
@@ -8053,40 +8091,53 @@
             ],
             "support": {
                 "issues": "https://github.com/sebastianbergmann/php-invoker/issues",
-                "source": "https://github.com/sebastianbergmann/php-invoker/tree/4.0.0"
+                "security": "https://github.com/sebastianbergmann/php-invoker/security/policy",
+                "source": "https://github.com/sebastianbergmann/php-invoker/tree/7.0.0"
             },
             "funding": [
                 {
                     "url": "https://github.com/sebastianbergmann",
                     "type": "github"
+                },
+                {
+                    "url": "https://liberapay.com/sebastianbergmann",
+                    "type": "liberapay"
+                },
+                {
+                    "url": "https://thanks.dev/u/gh/sebastianbergmann",
+                    "type": "thanks_dev"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/phpunit/php-invoker",
+                    "type": "tidelift"
                 }
             ],
-            "time": "2023-02-03T06:56:09+00:00"
+            "time": "2026-02-06T04:34:47+00:00"
         },
         {
             "name": "phpunit/php-text-template",
-            "version": "3.0.1",
+            "version": "6.0.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/php-text-template.git",
-                "reference": "0c7b06ff49e3d5072f057eb1fa59258bf287a748"
+                "reference": "a47af19f93f76aa3368303d752aa5272ca3299f4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/php-text-template/zipball/0c7b06ff49e3d5072f057eb1fa59258bf287a748",
-                "reference": "0c7b06ff49e3d5072f057eb1fa59258bf287a748",
+                "url": "https://api.github.com/repos/sebastianbergmann/php-text-template/zipball/a47af19f93f76aa3368303d752aa5272ca3299f4",
+                "reference": "a47af19f93f76aa3368303d752aa5272ca3299f4",
                 "shasum": ""
             },
             "require": {
-                "php": ">=8.1"
+                "php": ">=8.4"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.0"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "3.0-dev"
+                    "dev-main": "6.0-dev"
                 }
             },
             "autoload": {
@@ -8113,40 +8164,52 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/php-text-template/issues",
                 "security": "https://github.com/sebastianbergmann/php-text-template/security/policy",
-                "source": "https://github.com/sebastianbergmann/php-text-template/tree/3.0.1"
+                "source": "https://github.com/sebastianbergmann/php-text-template/tree/6.0.0"
             },
             "funding": [
                 {
                     "url": "https://github.com/sebastianbergmann",
                     "type": "github"
+                },
+                {
+                    "url": "https://liberapay.com/sebastianbergmann",
+                    "type": "liberapay"
+                },
+                {
+                    "url": "https://thanks.dev/u/gh/sebastianbergmann",
+                    "type": "thanks_dev"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/phpunit/php-text-template",
+                    "type": "tidelift"
                 }
             ],
-            "time": "2023-08-31T14:07:24+00:00"
+            "time": "2026-02-06T04:36:37+00:00"
         },
         {
             "name": "phpunit/php-timer",
-            "version": "6.0.0",
+            "version": "9.0.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/php-timer.git",
-                "reference": "e2a2d67966e740530f4a3343fe2e030ffdc1161d"
+                "reference": "a0e12065831f6ab0d83120dc61513eb8d9a966f6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/php-timer/zipball/e2a2d67966e740530f4a3343fe2e030ffdc1161d",
-                "reference": "e2a2d67966e740530f4a3343fe2e030ffdc1161d",
+                "url": "https://api.github.com/repos/sebastianbergmann/php-timer/zipball/a0e12065831f6ab0d83120dc61513eb8d9a966f6",
+                "reference": "a0e12065831f6ab0d83120dc61513eb8d9a966f6",
                 "shasum": ""
             },
             "require": {
-                "php": ">=8.1"
+                "php": ">=8.4"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.0"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "6.0-dev"
+                    "dev-main": "9.0-dev"
                 }
             },
             "autoload": {
@@ -8172,28 +8235,41 @@
             ],
             "support": {
                 "issues": "https://github.com/sebastianbergmann/php-timer/issues",
-                "source": "https://github.com/sebastianbergmann/php-timer/tree/6.0.0"
+                "security": "https://github.com/sebastianbergmann/php-timer/security/policy",
+                "source": "https://github.com/sebastianbergmann/php-timer/tree/9.0.0"
             },
             "funding": [
                 {
                     "url": "https://github.com/sebastianbergmann",
                     "type": "github"
+                },
+                {
+                    "url": "https://liberapay.com/sebastianbergmann",
+                    "type": "liberapay"
+                },
+                {
+                    "url": "https://thanks.dev/u/gh/sebastianbergmann",
+                    "type": "thanks_dev"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/phpunit/php-timer",
+                    "type": "tidelift"
                 }
             ],
-            "time": "2023-02-03T06:57:52+00:00"
+            "time": "2026-02-06T04:37:53+00:00"
         },
         {
             "name": "phpunit/phpunit",
-            "version": "10.5.63",
+            "version": "13.1.14",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/phpunit.git",
-                "reference": "33198268dad71e926626b618f3ec3966661e4d90"
+                "reference": "cdd419c33c040c6b570e51dba8ecbe81d399da53"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/33198268dad71e926626b618f3ec3966661e4d90",
-                "reference": "33198268dad71e926626b618f3ec3966661e4d90",
+                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/cdd419c33c040c6b570e51dba8ecbe81d399da53",
+                "reference": "cdd419c33c040c6b570e51dba8ecbe81d399da53",
                 "shasum": ""
             },
             "require": {
@@ -8206,26 +8282,24 @@
                 "myclabs/deep-copy": "^1.13.4",
                 "phar-io/manifest": "^2.0.4",
                 "phar-io/version": "^3.2.1",
-                "php": ">=8.1",
-                "phpunit/php-code-coverage": "^10.1.16",
-                "phpunit/php-file-iterator": "^4.1.0",
-                "phpunit/php-invoker": "^4.0.0",
-                "phpunit/php-text-template": "^3.0.1",
-                "phpunit/php-timer": "^6.0.0",
-                "sebastian/cli-parser": "^2.0.1",
-                "sebastian/code-unit": "^2.0.0",
-                "sebastian/comparator": "^5.0.5",
-                "sebastian/diff": "^5.1.1",
-                "sebastian/environment": "^6.1.0",
-                "sebastian/exporter": "^5.1.4",
-                "sebastian/global-state": "^6.0.2",
-                "sebastian/object-enumerator": "^5.0.0",
-                "sebastian/recursion-context": "^5.0.1",
-                "sebastian/type": "^4.0.0",
-                "sebastian/version": "^4.0.1"
-            },
-            "suggest": {
-                "ext-soap": "To be able to generate mocks based on WSDL files"
+                "php": ">=8.4.1",
+                "phpunit/php-code-coverage": "^14.1.10",
+                "phpunit/php-file-iterator": "^7.0.0",
+                "phpunit/php-invoker": "^7.0.0",
+                "phpunit/php-text-template": "^6.0.0",
+                "phpunit/php-timer": "^9.0.0",
+                "sebastian/cli-parser": "^5.0.0",
+                "sebastian/comparator": "^8.2.1",
+                "sebastian/diff": "^8.3.0",
+                "sebastian/environment": "^9.3.2",
+                "sebastian/exporter": "^8.1.0",
+                "sebastian/git-state": "^1.0",
+                "sebastian/global-state": "^9.0.1",
+                "sebastian/object-enumerator": "^8.0.0",
+                "sebastian/recursion-context": "^8.0.0",
+                "sebastian/type": "^7.0.1",
+                "sebastian/version": "^7.0.0",
+                "staabm/side-effects-detector": "^1.0.5"
             },
             "bin": [
                 "phpunit"
@@ -8233,7 +8307,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "10.5-dev"
+                    "dev-main": "13.1-dev"
                 }
             },
             "autoload": {
@@ -8265,31 +8339,15 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/phpunit/issues",
                 "security": "https://github.com/sebastianbergmann/phpunit/security/policy",
-                "source": "https://github.com/sebastianbergmann/phpunit/tree/10.5.63"
+                "source": "https://github.com/sebastianbergmann/phpunit/tree/13.1.14"
             },
             "funding": [
                 {
-                    "url": "https://phpunit.de/sponsors.html",
-                    "type": "custom"
-                },
-                {
-                    "url": "https://github.com/sebastianbergmann",
-                    "type": "github"
-                },
-                {
-                    "url": "https://liberapay.com/sebastianbergmann",
-                    "type": "liberapay"
-                },
-                {
-                    "url": "https://thanks.dev/u/gh/sebastianbergmann",
-                    "type": "thanks_dev"
-                },
-                {
-                    "url": "https://tidelift.com/funding/github/packagist/phpunit/phpunit",
-                    "type": "tidelift"
+                    "url": "https://phpunit.de/sponsoring.html",
+                    "type": "other"
                 }
             ],
-            "time": "2026-01-27T05:48:37+00:00"
+            "time": "2026-06-04T06:16:42+00:00"
         },
         {
             "name": "psr/http-server-handler",
@@ -8932,28 +8990,28 @@
         },
         {
             "name": "sebastian/cli-parser",
-            "version": "2.0.1",
+            "version": "5.0.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/cli-parser.git",
-                "reference": "c34583b87e7b7a8055bf6c450c2c77ce32a24084"
+                "reference": "eeb759ad3146b7096fb59c3195d39e071cd409e3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/cli-parser/zipball/c34583b87e7b7a8055bf6c450c2c77ce32a24084",
-                "reference": "c34583b87e7b7a8055bf6c450c2c77ce32a24084",
+                "url": "https://api.github.com/repos/sebastianbergmann/cli-parser/zipball/eeb759ad3146b7096fb59c3195d39e071cd409e3",
+                "reference": "eeb759ad3146b7096fb59c3195d39e071cd409e3",
                 "shasum": ""
             },
             "require": {
-                "php": ">=8.1"
+                "php": ">=8.4"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.0"
+                "phpunit/phpunit": "^13.2.6"
             },
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "2.0-dev"
+                    "dev-main": "5.0-dev"
                 }
             },
             "autoload": {
@@ -8977,155 +9035,59 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/cli-parser/issues",
                 "security": "https://github.com/sebastianbergmann/cli-parser/security/policy",
-                "source": "https://github.com/sebastianbergmann/cli-parser/tree/2.0.1"
+                "source": "https://github.com/sebastianbergmann/cli-parser/tree/5.0.1"
             },
             "funding": [
                 {
                     "url": "https://github.com/sebastianbergmann",
                     "type": "github"
-                }
-            ],
-            "time": "2024-03-02T07:12:49+00:00"
-        },
-        {
-            "name": "sebastian/code-unit",
-            "version": "2.0.0",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/sebastianbergmann/code-unit.git",
-                "reference": "a81fee9eef0b7a76af11d121767abc44c104e503"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/code-unit/zipball/a81fee9eef0b7a76af11d121767abc44c104e503",
-                "reference": "a81fee9eef0b7a76af11d121767abc44c104e503",
-                "shasum": ""
-            },
-            "require": {
-                "php": ">=8.1"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.0"
-            },
-            "type": "library",
-            "extra": {
-                "branch-alias": {
-                    "dev-main": "2.0-dev"
-                }
-            },
-            "autoload": {
-                "classmap": [
-                    "src/"
-                ]
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "BSD-3-Clause"
-            ],
-            "authors": [
+                },
                 {
-                    "name": "Sebastian Bergmann",
-                    "email": "sebastian@phpunit.de",
-                    "role": "lead"
-                }
-            ],
-            "description": "Collection of value objects that represent the PHP code units",
-            "homepage": "https://github.com/sebastianbergmann/code-unit",
-            "support": {
-                "issues": "https://github.com/sebastianbergmann/code-unit/issues",
-                "source": "https://github.com/sebastianbergmann/code-unit/tree/2.0.0"
-            },
-            "funding": [
+                    "url": "https://liberapay.com/sebastianbergmann",
+                    "type": "liberapay"
+                },
                 {
-                    "url": "https://github.com/sebastianbergmann",
-                    "type": "github"
-                }
-            ],
-            "time": "2023-02-03T06:58:43+00:00"
-        },
-        {
-            "name": "sebastian/code-unit-reverse-lookup",
-            "version": "3.0.0",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/sebastianbergmann/code-unit-reverse-lookup.git",
-                "reference": "5e3a687f7d8ae33fb362c5c0743794bbb2420a1d"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/code-unit-reverse-lookup/zipball/5e3a687f7d8ae33fb362c5c0743794bbb2420a1d",
-                "reference": "5e3a687f7d8ae33fb362c5c0743794bbb2420a1d",
-                "shasum": ""
-            },
-            "require": {
-                "php": ">=8.1"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^10.0"
-            },
-            "type": "library",
-            "extra": {
-                "branch-alias": {
-                    "dev-main": "3.0-dev"
-                }
-            },
-            "autoload": {
-                "classmap": [
-                    "src/"
-                ]
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "BSD-3-Clause"
-            ],
-            "authors": [
+                    "url": "https://thanks.dev/u/gh/sebastianbergmann",
+                    "type": "thanks_dev"
+                },
                 {
-                    "name": "Sebastian Bergmann",
-                    "email": "sebastian@phpunit.de"
+                    "url": "https://tidelift.com/funding/github/packagist/sebastian/cli-parser",
+                    "type": "tidelift"
                 }
             ],
-            "description": "Looks up which function or method a line of code belongs to",
-            "homepage": "https://github.com/sebastianbergmann/code-unit-reverse-lookup/",
-            "support": {
-                "issues": "https://github.com/sebastianbergmann/code-unit-reverse-lookup/issues",
-                "source": "https://github.com/sebastianbergmann/code-unit-reverse-lookup/tree/3.0.0"
-            },
-            "funding": [
-                {
-                    "url": "https://github.com/sebastianbergmann",
-                    "type": "github"
-                }
-            ],
-            "time": "2023-02-03T06:59:15+00:00"
+            "time": "2026-08-01T04:27:14+00:00"
         },
         {
             "name": "sebastian/comparator",
-            "version": "5.0.5",
+            "version": "8.2.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/comparator.git",
-                "reference": "55dfef806eb7dfeb6e7a6935601fef866f8ca48d"
+                "reference": "ce999bf08b2c387a5423fe56961c32eed3f88089"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/comparator/zipball/55dfef806eb7dfeb6e7a6935601fef866f8ca48d",
-                "reference": "55dfef806eb7dfeb6e7a6935601fef866f8ca48d",
+                "url": "https://api.github.com/repos/sebastianbergmann/comparator/zipball/ce999bf08b2c387a5423fe56961c32eed3f88089",
+                "reference": "ce999bf08b2c387a5423fe56961c32eed3f88089",
                 "shasum": ""
             },
             "require": {
                 "ext-dom": "*",
                 "ext-mbstring": "*",
-                "php": ">=8.1",
-                "sebastian/diff": "^5.0",
-                "sebastian/exporter": "^5.0"
+                "php": ">=8.4",
+                "sebastian/diff": "^8.3",
+                "sebastian/exporter": "^8.0.3"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.1.10"
+            },
+            "suggest": {
+                "ext-bcmath": "For comparing BcMath\\Number objects"
             },
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "5.0-dev"
+                    "dev-main": "8.2-dev"
                 }
             },
             "autoload": {
@@ -9165,7 +9127,7 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/comparator/issues",
                 "security": "https://github.com/sebastianbergmann/comparator/security/policy",
-                "source": "https://github.com/sebastianbergmann/comparator/tree/5.0.5"
+                "source": "https://github.com/sebastianbergmann/comparator/tree/8.2.1"
             },
             "funding": [
                 {
@@ -9185,33 +9147,33 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-01-24T09:25:16+00:00"
+            "time": "2026-05-21T04:46:40+00:00"
         },
         {
             "name": "sebastian/complexity",
-            "version": "3.2.0",
+            "version": "6.0.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/complexity.git",
-                "reference": "68ff824baeae169ec9f2137158ee529584553799"
+                "reference": "c5651c795c98093480df79350cb050813fc7a2f3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/complexity/zipball/68ff824baeae169ec9f2137158ee529584553799",
-                "reference": "68ff824baeae169ec9f2137158ee529584553799",
+                "url": "https://api.github.com/repos/sebastianbergmann/complexity/zipball/c5651c795c98093480df79350cb050813fc7a2f3",
+                "reference": "c5651c795c98093480df79350cb050813fc7a2f3",
                 "shasum": ""
             },
             "require": {
-                "nikic/php-parser": "^4.18 || ^5.0",
-                "php": ">=8.1"
+                "nikic/php-parser": "^5.0",
+                "php": ">=8.4"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.0"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "3.2-dev"
+                    "dev-main": "6.0-dev"
                 }
             },
             "autoload": {
@@ -9235,41 +9197,53 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/complexity/issues",
                 "security": "https://github.com/sebastianbergmann/complexity/security/policy",
-                "source": "https://github.com/sebastianbergmann/complexity/tree/3.2.0"
+                "source": "https://github.com/sebastianbergmann/complexity/tree/6.0.0"
             },
             "funding": [
                 {
                     "url": "https://github.com/sebastianbergmann",
                     "type": "github"
+                },
+                {
+                    "url": "https://liberapay.com/sebastianbergmann",
+                    "type": "liberapay"
+                },
+                {
+                    "url": "https://thanks.dev/u/gh/sebastianbergmann",
+                    "type": "thanks_dev"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/sebastian/complexity",
+                    "type": "tidelift"
                 }
             ],
-            "time": "2023-12-21T08:37:17+00:00"
+            "time": "2026-02-06T04:41:32+00:00"
         },
         {
             "name": "sebastian/diff",
-            "version": "5.1.1",
+            "version": "8.3.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/diff.git",
-                "reference": "c41e007b4b62af48218231d6c2275e4c9b975b2e"
+                "reference": "b36d33b6e796513de7cb7df053afb3f55eefcd47"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/diff/zipball/c41e007b4b62af48218231d6c2275e4c9b975b2e",
-                "reference": "c41e007b4b62af48218231d6c2275e4c9b975b2e",
+                "url": "https://api.github.com/repos/sebastianbergmann/diff/zipball/b36d33b6e796513de7cb7df053afb3f55eefcd47",
+                "reference": "b36d33b6e796513de7cb7df053afb3f55eefcd47",
                 "shasum": ""
             },
             "require": {
-                "php": ">=8.1"
+                "php": ">=8.4"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.0",
-                "symfony/process": "^6.4"
+                "phpunit/phpunit": "^13.0",
+                "symfony/process": "^7.2"
             },
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "5.1-dev"
+                    "dev-main": "8.3-dev"
                 }
             },
             "autoload": {
@@ -9302,35 +9276,47 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/diff/issues",
                 "security": "https://github.com/sebastianbergmann/diff/security/policy",
-                "source": "https://github.com/sebastianbergmann/diff/tree/5.1.1"
+                "source": "https://github.com/sebastianbergmann/diff/tree/8.3.0"
             },
             "funding": [
                 {
                     "url": "https://github.com/sebastianbergmann",
                     "type": "github"
+                },
+                {
+                    "url": "https://liberapay.com/sebastianbergmann",
+                    "type": "liberapay"
+                },
+                {
+                    "url": "https://thanks.dev/u/gh/sebastianbergmann",
+                    "type": "thanks_dev"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/sebastian/diff",
+                    "type": "tidelift"
                 }
             ],
-            "time": "2024-03-02T07:15:17+00:00"
+            "time": "2026-05-15T04:58:09+00:00"
         },
         {
             "name": "sebastian/environment",
-            "version": "6.1.0",
+            "version": "9.3.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/environment.git",
-                "reference": "8074dbcd93529b357029f5cc5058fd3e43666984"
+                "reference": "6c9e487c9eb706a8d258102a1c0b0a3e53e86c2e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/environment/zipball/8074dbcd93529b357029f5cc5058fd3e43666984",
-                "reference": "8074dbcd93529b357029f5cc5058fd3e43666984",
+                "url": "https://api.github.com/repos/sebastianbergmann/environment/zipball/6c9e487c9eb706a8d258102a1c0b0a3e53e86c2e",
+                "reference": "6c9e487c9eb706a8d258102a1c0b0a3e53e86c2e",
                 "shasum": ""
             },
             "require": {
-                "php": ">=8.1"
+                "php": ">=8.4"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.0"
+                "phpunit/phpunit": "^13.1.11"
             },
             "suggest": {
                 "ext-posix": "*"
@@ -9338,7 +9324,7 @@
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "6.1-dev"
+                    "dev-main": "9.3-dev"
                 }
             },
             "autoload": {
@@ -9366,42 +9352,54 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/environment/issues",
                 "security": "https://github.com/sebastianbergmann/environment/security/policy",
-                "source": "https://github.com/sebastianbergmann/environment/tree/6.1.0"
+                "source": "https://github.com/sebastianbergmann/environment/tree/9.3.2"
             },
             "funding": [
                 {
                     "url": "https://github.com/sebastianbergmann",
                     "type": "github"
+                },
+                {
+                    "url": "https://liberapay.com/sebastianbergmann",
+                    "type": "liberapay"
+                },
+                {
+                    "url": "https://thanks.dev/u/gh/sebastianbergmann",
+                    "type": "thanks_dev"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/sebastian/environment",
+                    "type": "tidelift"
                 }
             ],
-            "time": "2024-03-23T08:47:14+00:00"
+            "time": "2026-05-25T13:41:38+00:00"
         },
         {
             "name": "sebastian/exporter",
-            "version": "5.1.4",
+            "version": "8.1.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/exporter.git",
-                "reference": "0735b90f4da94969541dac1da743446e276defa6"
+                "reference": "cfaa77c750dcad6f44c9bac8f62ac486e1c82c26"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/exporter/zipball/0735b90f4da94969541dac1da743446e276defa6",
-                "reference": "0735b90f4da94969541dac1da743446e276defa6",
+                "url": "https://api.github.com/repos/sebastianbergmann/exporter/zipball/cfaa77c750dcad6f44c9bac8f62ac486e1c82c26",
+                "reference": "cfaa77c750dcad6f44c9bac8f62ac486e1c82c26",
                 "shasum": ""
             },
             "require": {
                 "ext-mbstring": "*",
-                "php": ">=8.1",
-                "sebastian/recursion-context": "^5.0"
+                "php": ">=8.4",
+                "sebastian/recursion-context": "^8.0"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.2.4"
             },
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "5.1-dev"
+                    "dev-main": "8.1-dev"
                 }
             },
             "autoload": {
@@ -9444,7 +9442,7 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/exporter/issues",
                 "security": "https://github.com/sebastianbergmann/exporter/security/policy",
-                "source": "https://github.com/sebastianbergmann/exporter/tree/5.1.4"
+                "source": "https://github.com/sebastianbergmann/exporter/tree/8.1.1"
             },
             "funding": [
                 {
@@ -9464,35 +9462,104 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-09-24T06:09:11+00:00"
+            "time": "2026-07-13T11:35:11+00:00"
         },
         {
-            "name": "sebastian/global-state",
-            "version": "6.0.2",
+            "name": "sebastian/git-state",
+            "version": "1.0.0",
             "source": {
                 "type": "git",
-                "url": "https://github.com/sebastianbergmann/global-state.git",
-                "reference": "987bafff24ecc4c9ac418cab1145b96dd6e9cbd9"
+                "url": "https://github.com/sebastianbergmann/git-state.git",
+                "reference": "792a952e0eba55b6960a48aeceb9f371aad1f76b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/global-state/zipball/987bafff24ecc4c9ac418cab1145b96dd6e9cbd9",
-                "reference": "987bafff24ecc4c9ac418cab1145b96dd6e9cbd9",
+                "url": "https://api.github.com/repos/sebastianbergmann/git-state/zipball/792a952e0eba55b6960a48aeceb9f371aad1f76b",
+                "reference": "792a952e0eba55b6960a48aeceb9f371aad1f76b",
                 "shasum": ""
             },
             "require": {
-                "php": ">=8.1",
-                "sebastian/object-reflector": "^3.0",
-                "sebastian/recursion-context": "^5.0"
+                "php": ">=8.4"
             },
             "require-dev": {
-                "ext-dom": "*",
-                "phpunit/phpunit": "^10.0"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "6.0-dev"
+                    "dev-main": "1.0-dev"
+                }
+            },
+            "autoload": {
+                "classmap": [
+                    "src/"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "BSD-3-Clause"
+            ],
+            "authors": [
+                {
+                    "name": "Sebastian Bergmann",
+                    "email": "sebastian@phpunit.de",
+                    "role": "lead"
+                }
+            ],
+            "description": "Library for describing the state of a Git checkout",
+            "homepage": "https://github.com/sebastianbergmann/git-state",
+            "support": {
+                "issues": "https://github.com/sebastianbergmann/git-state/issues",
+                "security": "https://github.com/sebastianbergmann/git-state/security/policy",
+                "source": "https://github.com/sebastianbergmann/git-state/tree/1.0.0"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/sebastianbergmann",
+                    "type": "github"
+                },
+                {
+                    "url": "https://liberapay.com/sebastianbergmann",
+                    "type": "liberapay"
+                },
+                {
+                    "url": "https://thanks.dev/u/gh/sebastianbergmann",
+                    "type": "thanks_dev"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/sebastian/git-state",
+                    "type": "tidelift"
+                }
+            ],
+            "time": "2026-03-21T12:54:28+00:00"
+        },
+        {
+            "name": "sebastian/global-state",
+            "version": "9.0.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/sebastianbergmann/global-state.git",
+                "reference": "ba68ba79da690cf7eddefd3ce5b78b20b9ba9945"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/sebastianbergmann/global-state/zipball/ba68ba79da690cf7eddefd3ce5b78b20b9ba9945",
+                "reference": "ba68ba79da690cf7eddefd3ce5b78b20b9ba9945",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.4",
+                "sebastian/object-reflector": "^6.0",
+                "sebastian/recursion-context": "^8.0"
+            },
+            "require-dev": {
+                "ext-dom": "*",
+                "phpunit/phpunit": "^13.1.13"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "9.0-dev"
                 }
             },
             "autoload": {
@@ -9518,41 +9585,53 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/global-state/issues",
                 "security": "https://github.com/sebastianbergmann/global-state/security/policy",
-                "source": "https://github.com/sebastianbergmann/global-state/tree/6.0.2"
+                "source": "https://github.com/sebastianbergmann/global-state/tree/9.0.1"
             },
             "funding": [
                 {
                     "url": "https://github.com/sebastianbergmann",
                     "type": "github"
+                },
+                {
+                    "url": "https://liberapay.com/sebastianbergmann",
+                    "type": "liberapay"
+                },
+                {
+                    "url": "https://thanks.dev/u/gh/sebastianbergmann",
+                    "type": "thanks_dev"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/sebastian/global-state",
+                    "type": "tidelift"
                 }
             ],
-            "time": "2024-03-02T07:19:19+00:00"
+            "time": "2026-06-01T15:11:33+00:00"
         },
         {
             "name": "sebastian/lines-of-code",
-            "version": "2.0.2",
+            "version": "5.0.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/lines-of-code.git",
-                "reference": "856e7f6a75a84e339195d48c556f23be2ebf75d0"
+                "reference": "d1b6f8fce682505dbd048977f1abedf1b8ad3ff8"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/lines-of-code/zipball/856e7f6a75a84e339195d48c556f23be2ebf75d0",
-                "reference": "856e7f6a75a84e339195d48c556f23be2ebf75d0",
+                "url": "https://api.github.com/repos/sebastianbergmann/lines-of-code/zipball/d1b6f8fce682505dbd048977f1abedf1b8ad3ff8",
+                "reference": "d1b6f8fce682505dbd048977f1abedf1b8ad3ff8",
                 "shasum": ""
             },
             "require": {
-                "nikic/php-parser": "^4.18 || ^5.0",
-                "php": ">=8.1"
+                "nikic/php-parser": "^5.8.0",
+                "php": ">=8.4"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.0"
+                "phpunit/phpunit": "^13.2.4"
             },
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "2.0-dev"
+                    "dev-main": "5.0-dev"
                 }
             },
             "autoload": {
@@ -9576,42 +9655,54 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/lines-of-code/issues",
                 "security": "https://github.com/sebastianbergmann/lines-of-code/security/policy",
-                "source": "https://github.com/sebastianbergmann/lines-of-code/tree/2.0.2"
+                "source": "https://github.com/sebastianbergmann/lines-of-code/tree/5.0.2"
             },
             "funding": [
                 {
                     "url": "https://github.com/sebastianbergmann",
                     "type": "github"
+                },
+                {
+                    "url": "https://liberapay.com/sebastianbergmann",
+                    "type": "liberapay"
+                },
+                {
+                    "url": "https://thanks.dev/u/gh/sebastianbergmann",
+                    "type": "thanks_dev"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/sebastian/lines-of-code",
+                    "type": "tidelift"
                 }
             ],
-            "time": "2023-12-21T08:38:20+00:00"
+            "time": "2026-07-09T08:42:34+00:00"
         },
         {
             "name": "sebastian/object-enumerator",
-            "version": "5.0.0",
+            "version": "8.0.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/object-enumerator.git",
-                "reference": "202d0e344a580d7f7d04b3fafce6933e59dae906"
+                "reference": "b39ab125fd9a7434b0ecbc4202eebce11a98cfc5"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/object-enumerator/zipball/202d0e344a580d7f7d04b3fafce6933e59dae906",
-                "reference": "202d0e344a580d7f7d04b3fafce6933e59dae906",
+                "url": "https://api.github.com/repos/sebastianbergmann/object-enumerator/zipball/b39ab125fd9a7434b0ecbc4202eebce11a98cfc5",
+                "reference": "b39ab125fd9a7434b0ecbc4202eebce11a98cfc5",
                 "shasum": ""
             },
             "require": {
-                "php": ">=8.1",
-                "sebastian/object-reflector": "^3.0",
-                "sebastian/recursion-context": "^5.0"
+                "php": ">=8.4",
+                "sebastian/object-reflector": "^6.0",
+                "sebastian/recursion-context": "^8.0"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.0"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "5.0-dev"
+                    "dev-main": "8.0-dev"
                 }
             },
             "autoload": {
@@ -9633,40 +9724,53 @@
             "homepage": "https://github.com/sebastianbergmann/object-enumerator/",
             "support": {
                 "issues": "https://github.com/sebastianbergmann/object-enumerator/issues",
-                "source": "https://github.com/sebastianbergmann/object-enumerator/tree/5.0.0"
+                "security": "https://github.com/sebastianbergmann/object-enumerator/security/policy",
+                "source": "https://github.com/sebastianbergmann/object-enumerator/tree/8.0.0"
             },
             "funding": [
                 {
                     "url": "https://github.com/sebastianbergmann",
                     "type": "github"
+                },
+                {
+                    "url": "https://liberapay.com/sebastianbergmann",
+                    "type": "liberapay"
+                },
+                {
+                    "url": "https://thanks.dev/u/gh/sebastianbergmann",
+                    "type": "thanks_dev"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/sebastian/object-enumerator",
+                    "type": "tidelift"
                 }
             ],
-            "time": "2023-02-03T07:08:32+00:00"
+            "time": "2026-02-06T04:46:36+00:00"
         },
         {
             "name": "sebastian/object-reflector",
-            "version": "3.0.0",
+            "version": "6.0.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/object-reflector.git",
-                "reference": "24ed13d98130f0e7122df55d06c5c4942a577957"
+                "reference": "3ca042c2c60b0eab094f8a1b6a7093f4d4c72200"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/object-reflector/zipball/24ed13d98130f0e7122df55d06c5c4942a577957",
-                "reference": "24ed13d98130f0e7122df55d06c5c4942a577957",
+                "url": "https://api.github.com/repos/sebastianbergmann/object-reflector/zipball/3ca042c2c60b0eab094f8a1b6a7093f4d4c72200",
+                "reference": "3ca042c2c60b0eab094f8a1b6a7093f4d4c72200",
                 "shasum": ""
             },
             "require": {
-                "php": ">=8.1"
+                "php": ">=8.4"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.0"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "3.0-dev"
+                    "dev-main": "6.0-dev"
                 }
             },
             "autoload": {
@@ -9688,40 +9792,53 @@
             "homepage": "https://github.com/sebastianbergmann/object-reflector/",
             "support": {
                 "issues": "https://github.com/sebastianbergmann/object-reflector/issues",
-                "source": "https://github.com/sebastianbergmann/object-reflector/tree/3.0.0"
+                "security": "https://github.com/sebastianbergmann/object-reflector/security/policy",
+                "source": "https://github.com/sebastianbergmann/object-reflector/tree/6.0.0"
             },
             "funding": [
                 {
                     "url": "https://github.com/sebastianbergmann",
                     "type": "github"
+                },
+                {
+                    "url": "https://liberapay.com/sebastianbergmann",
+                    "type": "liberapay"
+                },
+                {
+                    "url": "https://thanks.dev/u/gh/sebastianbergmann",
+                    "type": "thanks_dev"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/sebastian/object-reflector",
+                    "type": "tidelift"
                 }
             ],
-            "time": "2023-02-03T07:06:18+00:00"
+            "time": "2026-02-06T04:47:13+00:00"
         },
         {
             "name": "sebastian/recursion-context",
-            "version": "5.0.1",
+            "version": "8.0.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/recursion-context.git",
-                "reference": "47e34210757a2f37a97dcd207d032e1b01e64c7a"
+                "reference": "32dba72f2b4642d6a93db22d6c0a9280ff2e3ca0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/recursion-context/zipball/47e34210757a2f37a97dcd207d032e1b01e64c7a",
-                "reference": "47e34210757a2f37a97dcd207d032e1b01e64c7a",
+                "url": "https://api.github.com/repos/sebastianbergmann/recursion-context/zipball/32dba72f2b4642d6a93db22d6c0a9280ff2e3ca0",
+                "reference": "32dba72f2b4642d6a93db22d6c0a9280ff2e3ca0",
                 "shasum": ""
             },
             "require": {
-                "php": ">=8.1"
+                "php": ">=8.4"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.2.6"
             },
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "5.0-dev"
+                    "dev-main": "8.0-dev"
                 }
             },
             "autoload": {
@@ -9752,7 +9869,7 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/recursion-context/issues",
                 "security": "https://github.com/sebastianbergmann/recursion-context/security/policy",
-                "source": "https://github.com/sebastianbergmann/recursion-context/tree/5.0.1"
+                "source": "https://github.com/sebastianbergmann/recursion-context/tree/8.0.1"
             },
             "funding": [
                 {
@@ -9772,32 +9889,32 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-08-10T07:50:56+00:00"
+            "time": "2026-08-03T05:58:12+00:00"
         },
         {
             "name": "sebastian/type",
-            "version": "4.0.0",
+            "version": "7.0.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/type.git",
-                "reference": "462699a16464c3944eefc02ebdd77882bd3925bf"
+                "reference": "fee0309275847fefd7636167085e379c1dbf6990"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/type/zipball/462699a16464c3944eefc02ebdd77882bd3925bf",
-                "reference": "462699a16464c3944eefc02ebdd77882bd3925bf",
+                "url": "https://api.github.com/repos/sebastianbergmann/type/zipball/fee0309275847fefd7636167085e379c1dbf6990",
+                "reference": "fee0309275847fefd7636167085e379c1dbf6990",
                 "shasum": ""
             },
             "require": {
-                "php": ">=8.1"
+                "php": ">=8.4"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.0"
+                "phpunit/phpunit": "^13.1.10"
             },
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "4.0-dev"
+                    "dev-main": "7.0-dev"
                 }
             },
             "autoload": {
@@ -9820,37 +9937,50 @@
             "homepage": "https://github.com/sebastianbergmann/type",
             "support": {
                 "issues": "https://github.com/sebastianbergmann/type/issues",
-                "source": "https://github.com/sebastianbergmann/type/tree/4.0.0"
+                "security": "https://github.com/sebastianbergmann/type/security/policy",
+                "source": "https://github.com/sebastianbergmann/type/tree/7.0.1"
             },
             "funding": [
                 {
                     "url": "https://github.com/sebastianbergmann",
                     "type": "github"
+                },
+                {
+                    "url": "https://liberapay.com/sebastianbergmann",
+                    "type": "liberapay"
+                },
+                {
+                    "url": "https://thanks.dev/u/gh/sebastianbergmann",
+                    "type": "thanks_dev"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/sebastian/type",
+                    "type": "tidelift"
                 }
             ],
-            "time": "2023-02-03T07:10:45+00:00"
+            "time": "2026-05-20T06:49:11+00:00"
         },
         {
             "name": "sebastian/version",
-            "version": "4.0.1",
+            "version": "7.0.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/version.git",
-                "reference": "c51fa83a5d8f43f1402e3f32a005e6262244ef17"
+                "reference": "ad37a5552c8e2b88572249fdc19b6da7792e021b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/version/zipball/c51fa83a5d8f43f1402e3f32a005e6262244ef17",
-                "reference": "c51fa83a5d8f43f1402e3f32a005e6262244ef17",
+                "url": "https://api.github.com/repos/sebastianbergmann/version/zipball/ad37a5552c8e2b88572249fdc19b6da7792e021b",
+                "reference": "ad37a5552c8e2b88572249fdc19b6da7792e021b",
                 "shasum": ""
             },
             "require": {
-                "php": ">=8.1"
+                "php": ">=8.4"
             },
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "4.0-dev"
+                    "dev-main": "7.0-dev"
                 }
             },
             "autoload": {
@@ -9873,15 +10003,28 @@
             "homepage": "https://github.com/sebastianbergmann/version",
             "support": {
                 "issues": "https://github.com/sebastianbergmann/version/issues",
-                "source": "https://github.com/sebastianbergmann/version/tree/4.0.1"
+                "security": "https://github.com/sebastianbergmann/version/security/policy",
+                "source": "https://github.com/sebastianbergmann/version/tree/7.0.0"
             },
             "funding": [
                 {
                     "url": "https://github.com/sebastianbergmann",
                     "type": "github"
+                },
+                {
+                    "url": "https://liberapay.com/sebastianbergmann",
+                    "type": "liberapay"
+                },
+                {
+                    "url": "https://thanks.dev/u/gh/sebastianbergmann",
+                    "type": "thanks_dev"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/sebastian/version",
+                    "type": "tidelift"
                 }
             ],
-            "time": "2023-02-07T11:34:05+00:00"
+            "time": "2026-02-06T04:52:52+00:00"
         },
         {
             "name": "sendgrid/php-http-client",
@@ -10163,6 +10306,58 @@
                 "source": "https://github.com/shipmonk-rnd/dead-code-detector/tree/1.1.1"
             },
             "time": "2026-05-04T14:15:08+00:00"
+        },
+        {
+            "name": "staabm/side-effects-detector",
+            "version": "1.0.5",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/staabm/side-effects-detector.git",
+                "reference": "d8334211a140ce329c13726d4a715adbddd0a163"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/staabm/side-effects-detector/zipball/d8334211a140ce329c13726d4a715adbddd0a163",
+                "reference": "d8334211a140ce329c13726d4a715adbddd0a163",
+                "shasum": ""
+            },
+            "require": {
+                "ext-tokenizer": "*",
+                "php": "^7.4 || ^8.0"
+            },
+            "require-dev": {
+                "phpstan/extension-installer": "^1.4.3",
+                "phpstan/phpstan": "^1.12.6",
+                "phpunit/phpunit": "^9.6.21",
+                "symfony/var-dumper": "^5.4.43",
+                "tomasvotruba/type-coverage": "1.0.0",
+                "tomasvotruba/unused-public": "1.0.0"
+            },
+            "type": "library",
+            "autoload": {
+                "classmap": [
+                    "lib/"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "A static analysis tool to detect side effects in PHP code",
+            "keywords": [
+                "static analysis"
+            ],
+            "support": {
+                "issues": "https://github.com/staabm/side-effects-detector/issues",
+                "source": "https://github.com/staabm/side-effects-detector/tree/1.0.5"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/staabm",
+                    "type": "github"
+                }
+            ],
+            "time": "2024-10-20T05:08:20+00:00"
         },
         {
             "name": "starkbank/ecdsa",
@@ -10886,23 +11081,23 @@
         },
         {
             "name": "theseer/tokenizer",
-            "version": "1.3.1",
+            "version": "2.0.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/theseer/tokenizer.git",
-                "reference": "b7489ce515e168639d17feec34b8847c326b0b3c"
+                "reference": "7989e43bf381af0eac72e4f0ca5bcbfa81658be4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/theseer/tokenizer/zipball/b7489ce515e168639d17feec34b8847c326b0b3c",
-                "reference": "b7489ce515e168639d17feec34b8847c326b0b3c",
+                "url": "https://api.github.com/repos/theseer/tokenizer/zipball/7989e43bf381af0eac72e4f0ca5bcbfa81658be4",
+                "reference": "7989e43bf381af0eac72e4f0ca5bcbfa81658be4",
                 "shasum": ""
             },
             "require": {
                 "ext-dom": "*",
                 "ext-tokenizer": "*",
                 "ext-xmlwriter": "*",
-                "php": "^7.2 || ^8.0"
+                "php": "^8.1"
             },
             "type": "library",
             "autoload": {
@@ -10924,7 +11119,7 @@
             "description": "A small library for converting tokenized PHP source code into XML and potentially other formats",
             "support": {
                 "issues": "https://github.com/theseer/tokenizer/issues",
-                "source": "https://github.com/theseer/tokenizer/tree/1.3.1"
+                "source": "https://github.com/theseer/tokenizer/tree/2.0.1"
             },
             "funding": [
                 {
@@ -10932,7 +11127,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2025-11-17T20:03:58+00:00"
+            "time": "2025-12-08T11:19:18+00:00"
         },
         {
             "name": "waaseyaa/ai-agent",
@@ -10940,7 +11135,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ai-agent",
-                "reference": "9bad961aa73b563884bfbbac5dd8c140b5ad466b"
+                "reference": "f00eb21425bee09be19556229c75ebb58b92fc39"
             },
             "require": {
                 "php": ">=8.5",
@@ -10961,7 +11156,7 @@
                 "waaseyaa/routing": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "suggest": {
                 "waaseyaa/wayfinding": "Provides optional trail tools for AI agents"
@@ -11010,7 +11205,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ai-observability",
-                "reference": "b45aaf29dabb9601e4b83b644d4bfdecb6bea667"
+                "reference": "b31460c0abe24dfafbaf33558fd4b197754cc601"
             },
             "require": {
                 "php": ">=8.5",
@@ -11021,8 +11216,8 @@
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5",
-                "waaseyaa/access": "^0.1.0-alpha.286"
+                "phpunit/phpunit": "^13.0",
+                "waaseyaa/access": "^0.1.0-alpha.287"
             },
             "type": "library",
             "extra": {
@@ -11061,7 +11256,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/engagement",
-                "reference": "ff7a068b8dd6f18cf2a18ecc5b859617af1f3e7c"
+                "reference": "5cd672564848391318900c93089540c2374b3ad4"
             },
             "require": {
                 "php": ">=8.5",
@@ -11070,7 +11265,7 @@
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -11110,7 +11305,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/genealogy",
-                "reference": "97eb4acca2609ceafd44d0af1f7918550ea9397f"
+                "reference": "5de72e90343d040a2b777c1325d56b9efd5e6c9f"
             },
             "require": {
                 "php": ">=8.5",
@@ -11126,10 +11321,10 @@
                 "waaseyaa/workflows": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5",
-                "waaseyaa/api": "^0.1.0-alpha.286",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.286",
-                "waaseyaa/entity-storage": "^0.1.0-alpha.286"
+                "phpunit/phpunit": "^13.0",
+                "waaseyaa/api": "^0.1.0-alpha.287",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.287",
+                "waaseyaa/entity-storage": "^0.1.0-alpha.287"
             },
             "type": "library",
             "extra": {
@@ -11176,7 +11371,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/mcp",
-                "reference": "ac4032d5806d56125e6b048fd1123658642233f3"
+                "reference": "b1ee785206743993786fbba9f1174dc5c4fe49c6"
             },
             "require": {
                 "composer-runtime-api": "^2.2",
@@ -11192,8 +11387,8 @@
                 "waaseyaa/user": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5",
-                "waaseyaa/audit": "^0.1.0-alpha.286"
+                "phpunit/phpunit": "^13.0",
+                "waaseyaa/audit": "^0.1.0-alpha.287"
             },
             "type": "library",
             "extra": {
@@ -11231,7 +11426,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/messaging",
-                "reference": "efcb92a4bfbc1761920938d6716a6c9fbbe357de"
+                "reference": "e4787b529655844844465374e85f9c13de7e020e"
             },
             "require": {
                 "php": ">=8.5",
@@ -11241,7 +11436,7 @@
                 "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -11281,7 +11476,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/oidc",
-                "reference": "c2ff04a36904b2805205f59d3ac2b0225c8a7a90"
+                "reference": "111960c99bf4f1e62314cf26b04faacfd2a0e68d"
             },
             "require": {
                 "ext-sodium": "*",
@@ -11296,7 +11491,7 @@
                 "waaseyaa/user": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -11337,7 +11532,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/testing",
-                "reference": "7f98305d5860cb68e9ee518a12ddeb3cc96d0410"
+                "reference": "6c110252bf87a8f05359533628baeb53f31049de"
             },
             "require": {
                 "php": ">=8.5",
@@ -11346,7 +11541,7 @@
                 "waaseyaa/field": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "suggest": {
                 "fakerphp/faker": "Optional realistic strings and emails for EntityTypeFixtureValues (framework#1186)."
@@ -11382,7 +11577,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/wayfinding",
-                "reference": "02725e203ddb08d7b2f25eb7bb5031f9a60371b5"
+                "reference": "cd19c2d4199de851cab0846c4bd68379bee405d8"
             },
             "require": {
                 "php": ">=8.5",
@@ -11394,7 +11589,7 @@
                 "waaseyaa/routing": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^10.5"
+                "phpunit/phpunit": "^13.0"
             },
             "type": "library",
             "extra": {
@@ -11432,7 +11627,77 @@
     ],
     "aliases": [],
     "minimum-stability": "dev",
-    "stability-flags": {},
+    "stability-flags": {
+        "waaseyaa/access": 20,
+        "waaseyaa/admin-surface": 20,
+        "waaseyaa/ai-agent": 20,
+        "waaseyaa/ai-observability": 20,
+        "waaseyaa/ai-pipeline": 20,
+        "waaseyaa/ai-schema": 20,
+        "waaseyaa/ai-tools": 20,
+        "waaseyaa/ai-vector": 20,
+        "waaseyaa/analytics": 20,
+        "waaseyaa/api": 20,
+        "waaseyaa/attachment": 20,
+        "waaseyaa/auth": 20,
+        "waaseyaa/billing": 20,
+        "waaseyaa/bimaaji": 20,
+        "waaseyaa/cache": 20,
+        "waaseyaa/cli": 20,
+        "waaseyaa/config": 20,
+        "waaseyaa/database-legacy": 20,
+        "waaseyaa/debug": 20,
+        "waaseyaa/deployer": 20,
+        "waaseyaa/engagement": 20,
+        "waaseyaa/entity": 20,
+        "waaseyaa/entity-storage": 20,
+        "waaseyaa/error-handler": 20,
+        "waaseyaa/field": 20,
+        "waaseyaa/foundation": 20,
+        "waaseyaa/frankenphp": 20,
+        "waaseyaa/genealogy": 20,
+        "waaseyaa/geo": 20,
+        "waaseyaa/github": 20,
+        "waaseyaa/graphql": 20,
+        "waaseyaa/groups": 20,
+        "waaseyaa/http-client": 20,
+        "waaseyaa/i18n": 20,
+        "waaseyaa/inertia": 20,
+        "waaseyaa/ingestion": 20,
+        "waaseyaa/listing": 20,
+        "waaseyaa/mail": 20,
+        "waaseyaa/mcp": 20,
+        "waaseyaa/media": 20,
+        "waaseyaa/menu": 20,
+        "waaseyaa/mercure": 20,
+        "waaseyaa/messaging": 20,
+        "waaseyaa/migration": 20,
+        "waaseyaa/node": 20,
+        "waaseyaa/note": 20,
+        "waaseyaa/notification": 20,
+        "waaseyaa/oauth-provider": 20,
+        "waaseyaa/oidc": 20,
+        "waaseyaa/path": 20,
+        "waaseyaa/plugin": 20,
+        "waaseyaa/publishing": 20,
+        "waaseyaa/queue": 20,
+        "waaseyaa/relationship": 20,
+        "waaseyaa/routing": 20,
+        "waaseyaa/scheduler": 20,
+        "waaseyaa/search": 20,
+        "waaseyaa/seo": 20,
+        "waaseyaa/ssr": 20,
+        "waaseyaa/state": 20,
+        "waaseyaa/structured-import": 20,
+        "waaseyaa/taxonomy": 20,
+        "waaseyaa/telescope": 20,
+        "waaseyaa/testing": 20,
+        "waaseyaa/typed-data": 20,
+        "waaseyaa/user": 20,
+        "waaseyaa/validation": 20,
+        "waaseyaa/wayfinding": 20,
+        "waaseyaa/workflows": 20
+    },
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {

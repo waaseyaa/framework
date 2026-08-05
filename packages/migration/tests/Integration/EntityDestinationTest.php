@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Waaseyaa\Migration\Tests\Integration;
 
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
@@ -48,7 +47,6 @@ use Waaseyaa\Migration\Tests\Fixtures\MigrationTestWidgetType;
  * mocking the pipeline would defeat the test.
  */
 #[CoversClass(EntityDestination::class)]
-#[CoversNothing]
 final class EntityDestinationTest extends TestCase
 {
     private DBALDatabase $db;

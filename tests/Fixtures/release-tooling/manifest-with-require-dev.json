@@ -7,6 +7,6 @@
     },
     "require-dev": {
         "waaseyaa/testing": "^0.1.0-alpha.150",
-        "phpunit/phpunit": "^10.5"
+        "phpunit/phpunit": "^13.0"
     }
 }

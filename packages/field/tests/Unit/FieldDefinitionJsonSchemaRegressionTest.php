@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Field\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldTypeManager;
@@ -63,10 +64,8 @@ final class FieldDefinitionJsonSchemaRegressionTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider legacySchemaProvider
-     * @param array<string, mixed> $expected
-     */
+    /** @param array<string, mixed> $expected */
+    #[DataProvider('legacySchemaProvider')]
     public function testManagerlessFallbackEmitsLegacySchema(string $type, array $expected): void
     {
         $def = new FieldDefinition(name: 'f', type: $type);
@@ -74,10 +73,8 @@ final class FieldDefinitionJsonSchemaRegressionTest extends TestCase
         $this->assertSame($expected, $def->toJsonSchema());
     }
 
-    /**
-     * @dataProvider legacySchemaProvider
-     * @param array<string, mixed> $expected
-     */
+    /** @param array<string, mixed> $expected */
+    #[DataProvider('legacySchemaProvider')]
     public function testManagerDelegationEmitsLegacySchema(string $type, array $expected): void
     {
         $def = new FieldDefinition(

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Access\Tests\Unit;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccessStatus;
 use PHPUnit\Framework\TestCase;
@@ -75,9 +76,7 @@ class AccessResultTest extends TestCase
     // andIf combinations
     // ---------------------------------------------------------------
 
-    /**
-     * @dataProvider andIfProvider
-     */
+    #[DataProvider('andIfProvider')]
     public function testAndIf(AccessResult $a, AccessResult $b, AccessStatus $expected): void
     {
         $combined = $a->andIf($b);
@@ -178,9 +177,7 @@ class AccessResultTest extends TestCase
     // orIf combinations
     // ---------------------------------------------------------------
 
-    /**
-     * @dataProvider orIfProvider
-     */
+    #[DataProvider('orIfProvider')]
     public function testOrIf(AccessResult $a, AccessResult $b, AccessStatus $expected): void
     {
         $combined = $a->orIf($b);

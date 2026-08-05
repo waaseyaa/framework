@@ -16,7 +16,7 @@
 
 | Layer | Tooling | Scope |
 |-------|---------|--------|
-| Unit | PHPUnit 10.5, `#[Test]` attributes | Single class, deterministic collaborators |
+| Unit | PHPUnit 13, native attributes | Single class, deterministic collaborators |
 | Integration | PHPUnit, in-memory SQLite | Kernel boot, migrations, route dispatch smoke |
 | Admin SPA | Vitest (`packages/admin`) | Plugins, composables; stub `useRuntimeConfig` / `$fetch` |
 | E2E | Playwright (`packages/admin`) | Requires Nuxt + PHP backend; run from main repo |
@@ -37,7 +37,9 @@ The behavioral taxonomy is:
 
 ## Conventions
 
-- Use `#[CoversClass]` / `#[CoversNothing]` per project rules.
+- Use PHPUnit attributes for test and coverage metadata. Docblock metadata is unsupported.
+- Use stubs for collaborators whose calls are not asserted; reserve mocks for explicit interaction expectations.
+- Use `#[CoversClass]` or `#[CoversNothing]`, never both on the same test class.
 - Prefer real value objects over heavy mocks for logs and DTOs.
 - When adding packages, register `autoload-dev` PSR-4 namespaces in the **root** `composer.json` dev autoload map so CI discovers tests.
 - Prefer injected clocks and seeded generators. Do not wait for wall-clock time

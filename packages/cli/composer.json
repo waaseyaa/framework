@@ -121,7 +121,7 @@
         "waaseyaa/oidc": "Provides the optional oidc:* operator commands"
     },
     "require-dev": {
-        "phpunit/phpunit": "^10.5"
+        "phpunit/phpunit": "^13.0"
     },
     "bin": [
         "bin/waaseyaa"
