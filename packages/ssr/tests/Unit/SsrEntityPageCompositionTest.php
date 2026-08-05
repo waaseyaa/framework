@@ -187,6 +187,11 @@ final class SsrEntityPageCompositionTest extends TestCase
             new CallbackServiceResolver(static fn(string $class): ?object => null),
         )->handleRenderPage($path, $account, Request::create($path));
 
+        self::assertArrayNotHasKey(
+            'date',
+            $withoutResolver['headers'],
+            'The intermediate render result must not retain a transport-owned Date header.',
+        );
         self::assertSame($withoutResolver, $withEmptyResolver);
         self::assertStringContainsString('<framework>', (string) $withoutResolver['content']);
     }

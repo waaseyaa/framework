@@ -1591,6 +1591,14 @@ final class SsrPageHandler
     {
         $headers = [];
         foreach ($response->headers->all() as $name => $values) {
+            // Symfony assigns Date when this internal response is created, but
+            // SsrRouter constructs the real outbound response afterwards. Do
+            // not persist or compare a wall-clock transport header at this
+            // intermediate render boundary; the outbound response owns it.
+            if (strtolower($name) === 'date') {
+                continue;
+            }
+
             $presentValues = array_values(array_filter(
                 $values,
                 static fn(?string $value): bool => $value !== null,

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **ssr (#2231):** Keep the intermediate page-render result independent of Symfony's wall-clock `Date` header. The final router-created response remains responsible for transport dating, while resolver/no-resolver rendering is byte-stable across second boundaries.
+
 - **release tooling (#2234):** Require exactly one canonical `[Unreleased]` changelog section in local verification and release-cut CI, rejecting duplicate or near-miss headings before a tag can strand release notes.
 
 - **admin / CI:** Consolidate the stale admin dependency queue on Node 22 and npm 10: update Nuxt, Vue, the Nuxt ESLint integration, Vue TypeScript tooling, DOM and Node test types, refresh transitive PostCSS/SVGO/tar and Vite/esbuild tooling, and remediate the brace-expansion, shell-quote, js-yaml, Vite, and esbuild audit findings. Regenerate the committed admin SPA from that exact lock and move the isolated artifact download workflow to `actions/download-artifact@v8`.
