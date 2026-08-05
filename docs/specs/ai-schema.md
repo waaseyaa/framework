@@ -1,9 +1,12 @@
 # ai-schema
 
+<!-- Spec reviewed 2026-08-04 - #2191: only EntityJsonSchemaGenerator is shipped here; the capability registry remains a sketch, ai-tools is already shipped with independent descriptors, and MCP does not expose entity schemas as resources. -->
+
 **Layer:** 5 — AI
 **Status:** alpha
 
-> This spec documents the shipped surface and sketches the capability-registry contract a future mission will implement.
+> This spec documents the shipped schema generator and separately sketches a
+> capability-registry contract that has not been implemented.
 
 ---
 
@@ -22,12 +25,14 @@ The `waaseyaa/ai-schema` package serves two purposes:
 
 - `waaseyaa/entity` (L1) — `EntityTypeManagerInterface`, `EntityTypeInterface`
 
-Upward consumers (Layer 5 peers and Layer 6):
-
-- `waaseyaa/ai-pipeline` — uses generated schemas to validate LLM tool call arguments
-- `waaseyaa/ai-agent` — resolves entity schemas when constructing tool definitions
-- `ai-tools` (forthcoming) — declares per-tool input/output schemas via the capability registry
-- `waaseyaa/mcp` (L6) — surfaces entity schemas as MCP resource descriptions
+The package currently has no production consumer elsewhere in the monorepo;
+`EntityJsonSchemaGenerator` is a public utility applications may construct.
+`waaseyaa/ai-tools` is shipped, but its tool schemas are declared by its own
+descriptors and are not registered through this package. MCP does not currently
+expose resources or entity-schema resource descriptions. `waaseyaa/ai-agent`
+still declares a runtime Composer dependency on `waaseyaa/ai-schema`, but has no
+code import or use of it; that vestigial packaging edge is not a runtime
+integration and is tracked for removal in #2200.
 
 ---
 
@@ -107,10 +112,12 @@ The implementing mission must record the chosen strategy as an ADR and update th
 
 ## Cross-references
 
-- `waaseyaa/ai-pipeline` — pipeline orchestration; consumes schemas for tool call validation
-- `waaseyaa/ai-agent` — agent execution loop; uses schemas when building LLM tool definitions
-- `ai-tools` (forthcoming) — per-tool capability declarations; primary consumer of the capability registry
-- `waaseyaa/mcp` — surfaces entity schemas as MCP resource descriptions (Layer 6)
+- `waaseyaa/ai-tools` — shipped tool descriptors with independently declared
+  schemas; a future capability registry would need an explicit integration
+- `waaseyaa/ai-agent` — currently carries a vestigial Composer dependency on
+  this package but has no code-level integration (#2200)
+- `waaseyaa/mcp` — consumes AI tool descriptors, but does not currently expose
+  entity schemas as resources
 - `docs/specs/ai-integration.md` — broader AI integration architecture; ai-schema is a subsystem of this
 
 ---
