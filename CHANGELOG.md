@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.287] - 2026-08-05
+
 ### Changed
 
 - **release CI (#2246):** Make the exact release-commit skeleton gate install the newly advanced skeleton from the checked-out monorepo and split-package paths, while ordinary PR/main CI retains its published-release create-project proof. This removes the pre-publication Packagist circularity without skipping post-create setup or `audit-site`.
