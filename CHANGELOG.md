@@ -42,6 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no first-party HTTP consumer yet. The contributor layer table now mirrors all
   packages enforced by `bin/check-package-layers`.
 
+### Security
+
+- **Search index trust boundary (#2211).** Classify the raw FTS5 tables as a protected derived datastore, require an access checker for every provider construction, default-deny unknown and non-entity sources, and pin the complete production SQL-reader inventory so a new autocomplete, diagnostic, or alternate provider cannot bypass review. Public non-entity corpora now require the explicit source-resolver contract planned in #2192; indexed metadata is never authorization evidence.
+
 ## [0.1.0-alpha.286] - 2026-08-04
 
 ### Added

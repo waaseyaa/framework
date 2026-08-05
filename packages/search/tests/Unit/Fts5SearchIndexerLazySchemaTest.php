@@ -79,7 +79,11 @@ final class Fts5SearchIndexerLazySchemaTest extends TestCase
     {
         $database = DBALDatabase::createSqlite();
         // No ensureSchema(), no write — the lazy schema does not exist yet.
-        $provider = new Fts5SearchProvider($database, new Fts5SearchIndexer($database));
+        $provider = new Fts5SearchProvider(
+            $database,
+            new Fts5SearchIndexer($database),
+            new \Waaseyaa\Search\Tests\Support\AllowAllSearchAccessChecker(),
+        );
 
         // A non-empty query must degrade to an empty result, not throw
         // "no such table: search_index".

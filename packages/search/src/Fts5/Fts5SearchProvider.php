@@ -43,20 +43,14 @@ final class Fts5SearchProvider implements SearchProviderInterface
      */
     private bool $schemaReady = false;
 
-    /**
-     * @param ?SearchAccessChecker $accessChecker When set, every candidate hit
-     *        is filtered through it so the read path enforces per-document
-     *        access. When null (e.g. a doc-only index in a minimal setup) no
-     *        filtering is applied — the canonical {@see \Waaseyaa\Search\SearchServiceProvider}
-     *        wiring always supplies one.
-     */
+    /** Every candidate is filtered; there is no fail-open raw-index read path. */
     public function __construct(
         private readonly DatabaseInterface $database,
         private readonly SearchIndexerInterface $indexer,
+        private readonly SearchAccessChecker $accessChecker,
         ?LoggerInterface $logger = null,
         private readonly float $titleWeight = 1.0,
         private readonly float $bodyWeight = 1.0,
-        private readonly ?SearchAccessChecker $accessChecker = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -114,11 +108,7 @@ final class Fts5SearchProvider implements SearchProviderInterface
 
         // Count total hits, the requested page's rows, and facets.
         //
-        // When no access checker is wired (doc-only index, no filtering anywhere)
-        // use the fast SQL COUNT + LIMIT/OFFSET + buildFacets() path unchanged —
-        // no behaviour or performance change.
-        //
-        // When a checker is wired, totalHits, the page, AND facets must all
+        // totalHits, the page, AND facets must all
         // reflect only the documents the acting account may view — and, just as
         // importantly, must all come from the SAME ordered, access-filtered
         // basis. Deriving totalHits/facets from one access-filtered scan while
@@ -131,32 +121,15 @@ final class Fts5SearchProvider implements SearchProviderInterface
         // ordered, access-filtered basis to select page IDs, then fetches full
         // rows/snippets only for those IDs, so paging always agrees with the
         // total it is measured against.
-        if ($this->accessChecker !== null) {
-            [$totalHits, $pageRows, $facets] = $this->accessFilteredSearch(
-                $whereSQL,
-                $params,
-                $orderBy,
-                $rankExpr,
-                $request->page,
-                $request->pageSize,
-                $request->includeFacets,
-            );
-        } else {
-            $countSQL = "SELECT COUNT(*) as cnt FROM search_index si JOIN search_metadata m ON m.document_id = si.document_id WHERE $whereSQL";
-            $countRows = iterator_to_array($this->database->query($countSQL, $params));
-            $totalHits = (int) ($countRows[0]['cnt'] ?? 0);
-
-            $fetchParams = $params;
-            $fetchParams['limit'] = $request->pageSize;
-            $fetchParams['offset'] = ($request->page - 1) * $request->pageSize;
-            $sql = "SELECT m.*, si.title, snippet(search_index, 2, '<b>', '</b>', '…', 32) as highlight, $rankExpr as rank FROM search_index si JOIN search_metadata m ON m.document_id = si.document_id WHERE $whereSQL ORDER BY $orderBy LIMIT :limit OFFSET :offset";
-            $pageRows = iterator_to_array($this->database->query($sql, $fetchParams));
-
-            // Facets — run the three GROUP BY queries here, gated behind
-            // includeFacets (audit D-36: skips the json_each cross-join for
-            // callers that never render facets).
-            $facets = $request->includeFacets ? $this->buildFacets($whereSQL, $params) : [];
-        }
+        [$totalHits, $pageRows, $facets] = $this->accessFilteredSearch(
+            $whereSQL,
+            $params,
+            $orderBy,
+            $rankExpr,
+            $request->page,
+            $request->pageSize,
+            $request->includeFacets,
+        );
 
         if ($totalHits === 0) {
             $tookMs = (int) ((hrtime(true) - $startTime) / 1_000_000);
@@ -461,46 +434,4 @@ final class Fts5SearchProvider implements SearchProviderInterface
         return $rows;
     }
 
-    /**
-     * @return SearchFacet[]
-     */
-    private function buildFacets(string $whereSQL, array $params): array
-    {
-        // Remove pagination params for facet queries
-        unset($params['limit'], $params['offset']);
-
-        $facets = [];
-
-        // Content type facet
-        $sql = "SELECT m.content_type as facet_key, COUNT(*) as cnt FROM search_index si JOIN search_metadata m ON m.document_id = si.document_id WHERE $whereSQL AND m.content_type != '' GROUP BY m.content_type ORDER BY cnt DESC";
-        $buckets = [];
-        foreach ($this->database->query($sql, $params) as $row) {
-            $buckets[] = new FacetBucket($row['facet_key'], (int) $row['cnt']);
-        }
-        if ($buckets !== []) {
-            $facets[] = new SearchFacet('content_type', $buckets);
-        }
-
-        // Source name facet
-        $sql = "SELECT m.source_name as facet_key, COUNT(*) as cnt FROM search_index si JOIN search_metadata m ON m.document_id = si.document_id WHERE $whereSQL AND m.source_name != '' GROUP BY m.source_name ORDER BY cnt DESC";
-        $buckets = [];
-        foreach ($this->database->query($sql, $params) as $row) {
-            $buckets[] = new FacetBucket($row['facet_key'], (int) $row['cnt']);
-        }
-        if ($buckets !== []) {
-            $facets[] = new SearchFacet('source_name', $buckets);
-        }
-
-        // Topics facet
-        $sql = "SELECT je.value as facet_key, COUNT(*) as cnt FROM search_index si JOIN search_metadata m ON m.document_id = si.document_id, json_each(m.topics) je WHERE $whereSQL GROUP BY je.value ORDER BY cnt DESC";
-        $buckets = [];
-        foreach ($this->database->query($sql, $params) as $row) {
-            $buckets[] = new FacetBucket($row['facet_key'], (int) $row['cnt']);
-        }
-        if ($buckets !== []) {
-            $facets[] = new SearchFacet('topics', $buckets);
-        }
-
-        return $facets;
-    }
 }

@@ -25,7 +25,7 @@ final class Fts5OrthographyTest extends TestCase
     {
         $this->database = DBALDatabase::createSqlite();
         $this->indexer = new Fts5SearchIndexer($this->database);
-        $this->provider = new Fts5SearchProvider($this->database, $this->indexer);
+        $this->provider = new Fts5SearchProvider($this->database, $this->indexer, new \Waaseyaa\Search\Tests\Support\AllowAllSearchAccessChecker());
     }
 
     #[Test]

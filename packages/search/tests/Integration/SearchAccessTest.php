@@ -63,26 +63,20 @@ final class SearchAccessTest extends TestCase
         $hits = $provider->search(new SearchRequest('Report'))->hits;
         $ids = array_map(static fn ($hit): string => $hit->id, $hits);
 
-        // The forbidden node is gone; the viewable node and the non-entity
-        // document (no entity policy applies) remain.
+        // The forbidden node and unregistered non-entity source are gone; only
+        // the entity whose view policy explicitly allows it remains.
         self::assertContains('node:1', $ids);
-        self::assertContains('spec:overview', $ids);
+        self::assertNotContains('spec:overview', $ids, 'Unknown source failed open');
         self::assertNotContains('node:2', $ids, 'Forbidden node leaked into search results');
     }
 
     #[Test]
-    public function without_a_checker_the_index_leaks_every_match(): void
+    public function unregistered_and_non_entity_sources_are_denied_by_default(): void
     {
-        // Demonstrates the pre-fix behaviour: with no access checker wired the
-        // provider returns every matching row, forbidden or not.
-        $provider = new Fts5SearchProvider($this->database, $this->indexer);
+        $checker = $this->accessChecker();
 
-        $ids = array_map(
-            static fn ($hit): string => $hit->id,
-            $provider->search(new SearchRequest('Report'))->hits,
-        );
-
-        self::assertContains('node:2', $ids);
+        self::assertFalse($checker->canView('spec:overview', 'document'));
+        self::assertFalse($checker->canView('opaque:1', ''));
     }
 
     private function accessChecker(): EntitySearchAccessChecker

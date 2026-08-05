@@ -107,21 +107,6 @@ final class Fts5SearchProviderAccessFilteredCountTest extends TestCase
     }
 
     #[Test]
-    public function no_checker_path_counts_all_documents_unchanged(): void
-    {
-        // No access checker — fast SQL path; must remain unchanged and count both docs.
-        $provider = new Fts5SearchProvider($this->database, $this->indexer);
-        $result = $provider->search(new SearchRequest('tutorial'));
-
-        $this->assertSame(2, $result->totalHits, 'no-checker path must count all documents (fast SQL path unchanged)');
-        $this->assertCount(2, $result->hits);
-
-        $contentTypeFacet = $result->getFacet('content_type');
-        $this->assertNotNull($contentTypeFacet);
-        $this->assertSame(2, $contentTypeFacet->buckets[0]->count, 'no-checker facet count must include all documents');
-    }
-
-    #[Test]
     public function total_hits_is_zero_when_checker_denies_all_documents(): void
     {
         // Checker denies everything — oracle must be fully closed.
