@@ -93,12 +93,13 @@ final class HttpKernelTest extends TestCase
     }
 
     #[Test]
-    public function public_catalogs_are_always_in_the_anonymous_stateless_path_set(): void
+    public function enabled_public_catalogs_join_the_anonymous_stateless_path_set_without_duplicates(): void
     {
         $kernel = new HttpKernel('/tmp/test-project');
         $config = new \ReflectionProperty(AbstractKernel::class, 'config');
         $config->setValue($kernel, [
             'session' => ['stateless_paths' => ['/llms.txt', '/.well-known/api-catalog']],
+            'ai_catalog' => ['enabled' => true],
         ]);
         $method = new \ReflectionMethod(HttpKernel::class, 'sessionStatelessPaths');
 

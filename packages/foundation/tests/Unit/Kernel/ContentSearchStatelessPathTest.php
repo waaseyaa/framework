@@ -17,7 +17,11 @@ final class ContentSearchStatelessPathTest extends TestCase
     public function enabling_public_search_adds_its_exact_path_without_losing_operator_paths(): void
     {
         self::assertSame(
-            ['/news', '/api/content/search', '/.well-known/api-catalog', '/.well-known/ai-catalog.json'],
+            [
+                '/news',
+                '/.well-known/api-catalog',
+                '/api/content/search',
+            ],
             $this->paths([
                 'session' => ['stateless_paths' => ['/news']],
                 'api' => ['content_search' => ['enabled' => true]],
@@ -26,12 +30,25 @@ final class ContentSearchStatelessPathTest extends TestCase
     }
 
     #[Test]
-    public function disabled_public_search_preserves_catalog_defaults(): void
+    public function disabled_public_search_preserves_only_the_api_catalog_stateless_default(): void
     {
-        $expected = ['/.well-known/api-catalog', '/.well-known/ai-catalog.json'];
+        $catalogPaths = ['/.well-known/api-catalog'];
 
-        self::assertSame($expected, $this->paths([]));
-        self::assertSame($expected, $this->paths(['api' => ['content_search' => ['enabled' => false]]]));
+        self::assertSame($catalogPaths, $this->paths([]));
+        self::assertSame($catalogPaths, $this->paths(['api' => ['content_search' => ['enabled' => false]]]));
+    }
+
+    #[Test]
+    public function ai_catalog_becomes_stateless_only_when_its_public_route_is_enabled(): void
+    {
+        self::assertSame(
+            ['/.well-known/api-catalog', '/.well-known/ai-catalog.json'],
+            $this->paths(['ai_catalog' => ['enabled' => true]]),
+        );
+        self::assertSame(
+            ['/.well-known/api-catalog'],
+            $this->paths(['ai_catalog' => ['enabled' => false]]),
+        );
     }
 
     /** @param array<string, mixed> $config
