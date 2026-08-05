@@ -2,6 +2,8 @@
 
 <!-- Spec reviewed 2026-08-04 - #2199: every admitted or infrastructure-refused MCP request now ends in an honest audit stage. A rate-limiter exception emits the sanitized terminal `rate_limiter_unavailable` stage before returning -32030/503; it is an infrastructure `error`, not a policy denial, and never carries the exception message. Protocol handlers that return a JSON-RPC error are no longer misclassified as `execution_succeeded`: -32602 closes as `invalid_params_refused`, while any other returned protocol error closes as `execution_failed`. -->
 <!-- Spec reviewed 2026-08-04 - #2191 contract-truth reconciliation: the live endpoint methods, stage-aware dispatch event, conditional route set, protocol-header behavior, protected admin diagnostics, and deliberate resources/prompts absence were checked against current source. Removed legacy McpController claims are no longer presented as live behavior. -->
+<!-- Spec reviewed 2026-08-05 - #2196: the enabled anonymous MCP tier contributes one deployment-neutral mcp:public artifact to the separate experimental AI Catalog seam. It points to the Waaseyaa compatibility card as application/json and is never mislabeled as an MCP Server Card. Disabling the public tier removes the contribution; write/auth/approval/admin surfaces and representative site queries are excluded. -->
+
 <!-- Spec reviewed 2026-08-04 - #1641 MCP identity and Registry discovery: `/.well-known/mcp.json` remains a Waaseyaa compatibility card and no longer embeds the invalid nested Registry projection. Official Registry `server.json` is a separate, deployment-owned `McpRegistryManifest`, pinned to schema 2025-12-11 and constructible only from an explicit namespaced id plus public HTTPS Streamable HTTP remote; no request Host is an authority source. One injected McpImplementationInfo now feeds legacy initialize, modern server metadata, the card, and the Registry manifest. Explicit mcp.implementation config wins; the framework monorepo uses its release-managed VERSION; consuming sites use Composer's installed waaseyaa/mcp version. The stale informational 0.1.0 response bytes deliberately migrate to the honest implementation version; protocol compatibility remains negotiated only by protocolVersion. Malformed identity/card/Registry config fails closed. Registry publication stays blocked until a real public deployment, namespace authentication, release, and submission-time preview-schema revalidation exist. The framework-neutral manifest model ships here; its CLI adapter is blocked on console-boundary issue #2207. -->
 <!-- Spec reviewed 2026-08-04 - #2205 dual-era MCP 2026-07-28: request era is selected only from params._meta["io.modelcontextprotocol/protocolVersion"], never from HTTP headers. McpProtocolRequestValidator requires object-valued per-request client capabilities, validates optional client identity, and checks the required version/method/name mirrors after authentication, rate limiting, JSON parsing, and request acceptance; mismatches close the audit pair with invalid_params_refused and expose no raw header values. Modern routing implements server/discover, tools/list, and tools/call; adds resultType and server identity metadata; uses private/ttlMs=0 plus Cache-Control: no-store for principal-varying discovery, tool catalogues, and pre-route protocol refusals; rejects unsupported modern methods with HTTP 404; and accepts no modern core notifications. The legacy initialize/ping/notification lifecycle and successful-result bytes remain unchanged. Deliberate malformed-traffic change: legacy unknown version headers now return -32022 after authentication (or 401 before it), and stray modern mirrors fail -32020. StreamableHttpTransportGuard remains era-neutral while preserving Origin, size, content type, dual Accept, POST-only, and stateless JSON-response enforcement. -->
 
@@ -747,6 +749,15 @@ contributes exactly one API item: the public `/mcp` endpoint, with
 `mcp.public.enabled` is false. The authenticated `/mcp/write` tier, its OAuth
 protected-resource metadata, approval routes, and admin introspection are never
 advertised by this contribution.
+
+When the deployment explicitly enables the experimental AI Catalog, MCP also
+contributes one `mcp:public` artifact pointing to the same compatibility card.
+Its type is honestly `application/json`: the Waaseyaa compatibility card is not
+mislabelled as the separate draft MCP Server Card format. The contribution has
+only generic `ContentDiscovery` and `ReadOnlyTools` capabilities; deployment
+representative queries belong to application config. Disabling the anonymous
+MCP tier removes both its RFC 9727 and AI Catalog contributions. The write tier,
+OAuth metadata, approvals, tokens, tools, and admin routes are never included.
 
 ### Server Card
 

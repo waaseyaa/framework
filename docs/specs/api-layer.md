@@ -1,5 +1,7 @@
 # API Layer
 
+<!-- Spec reviewed 2026-08-05 - #2196: ApiServiceProvider owns an experimental, default-off ARD v0.9 extension of AI Catalog 1.0 at GET/HEAD /.well-known/ai-catalog.json. A separate Foundation capability seam contributes immutable same-origin public artifacts; it is not an overload of RFC 9727 endpoint-link semantics. The byte-pinned ARD schema at commit 4a8a6b8fdd3ac4a50dcb63213573159c1eed7856 is a dev-only validation dependency, while runtime invariants are local and network-free. Application config owns representative queries. Canonical URLs come only from ai_catalog.base_url or APP_URL, never request authority. The surface, Link response, and every entry withdraw when disabled or empty; malformed config fails boot without echoing values. -->
+
 <!-- Spec reviewed 2026-08-05 - #2193: applications may opt in to GET|HEAD /api/content/search when the optional search and auth domains are installed. The endpoint passes the middleware-built immutable principal unchanged to the principal-safe SearchProviderInterface, exposes only a closed JSON:API hit/facet projection, is no-store and anonymous-session-stateless, and uses atomic deployment-global plus fixed-anonymous/hashed-principal rate-limit buckets. It never trusts forwarding headers for identity. Missing optional packages withdraw both route and domain router; installed but missing/failing bindings resolve lazily per request and return a sanitized correlated 503 rather than masquerading as absence. -->
 
 ## Optional public content search
@@ -1224,6 +1226,53 @@ Wayfinding contributes its public JSON anchor catalog. `/mcp/write`, OAuth
 metadata, admin APIs, authenticated OpenAPI/schema enumeration, sitemap.xml,
 robots.txt, and llms.txt are not catalog items. Public content search joins this
 catalog only when its separate access-checked endpoint ships.
+
+## Experimental ARD AI Catalog
+
+`ApiServiceProvider` separately owns `GET|HEAD
+/.well-known/ai-catalog.json`. It is absent unless
+`ai_catalog.enabled` is the PHP boolean `true`, a canonical HTTPS base URL is
+available, and at least one installed provider contributes an intentionally
+public artifact through `ProvidesAiCatalogEntriesInterface`. This explicit
+opt-in is independent of RFC 9727 and does not affect API or MCP operation.
+
+The emitted document uses `application/ai-catalog+json` and literal
+`specVersion: "1.0"` as required by the schema shipped with the draft ARD v0.9
+repository. Waaseyaa pins that schema to commit
+`4a8a6b8fdd3ac4a50dcb63213573159c1eed7856` and validates representative output
+against a checksum-pinned fixture in the test suite. ARD extends the separate
+Linux Foundation AI Catalog draft with domain-anchored `urn:air` identifiers,
+capabilities, and `representativeQueries`. Where the drafts differ, the pinned
+ARD schema is the implemented compatibility target: `displayName` is always
+emitted because ARD requires it, even though the base draft recommends omitting
+it for some self-describing artifacts. This is an experimental compatibility
+promise, not a claim of final or universal adoption.
+
+Providers contribute deployment-neutral keys, public labels, media types,
+same-origin artifact paths, and optional generic capabilities. Applications
+alone may configure 2-5 public natural-language examples under
+`ai_catalog.representative_queries[entry-key]`. An unknown key is a boot error,
+so a typo cannot silently create misleading discovery metadata. Entries remain
+valid when no representative-query overlay exists. Queries are public data and
+must never contain private prompts, credentials, personal information, or
+production records.
+
+The initial closed set contains the RFC 9727 catalog when it actually exists
+and the public MCP compatibility card when the anonymous MCP tier is enabled.
+It never infers entries from the route collection and never advertises
+`/mcp/write`, OAuth or approval surfaces, admin APIs, authenticated OpenAPI or
+schema endpoints, internal filesystem paths, or tokens. Conflicting definitions
+for one key fail boot; exact duplicates collapse; providers and entries are
+sorted for stable bytes.
+
+The response supports strict content negotiation, GET/HEAD parity, ETag/304,
+five-minute public caching, `nosniff`, and public CORS without credentials. Its
+response advertises the draft `ai-catalog` link relation. Canonical artifact and
+Link URLs use only configured authority; hostile `Host` and forwarded-host
+headers are ignored. Artifact contributions reject absolute, protocol-relative,
+backslash, traversal, encoded-separator, query, fragment, and control-character
+paths. Disabling the feature or removing every contribution withdraws both the
+route and its response metadata.
 
 ## Route Building
 

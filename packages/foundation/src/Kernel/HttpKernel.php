@@ -723,6 +723,7 @@ final class HttpKernel extends AbstractKernel
         }
 
         $paths[] = '/.well-known/api-catalog';
+        $paths[] = '/.well-known/ai-catalog.json';
 
         return array_values(array_unique($paths));
     }

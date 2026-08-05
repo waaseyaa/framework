@@ -93,7 +93,7 @@ final class HttpKernelTest extends TestCase
     }
 
     #[Test]
-    public function rfc_9727_catalog_is_always_in_the_anonymous_stateless_path_set(): void
+    public function public_catalogs_are_always_in_the_anonymous_stateless_path_set(): void
     {
         $kernel = new HttpKernel('/tmp/test-project');
         $config = new \ReflectionProperty(AbstractKernel::class, 'config');
@@ -103,7 +103,7 @@ final class HttpKernelTest extends TestCase
         $method = new \ReflectionMethod(HttpKernel::class, 'sessionStatelessPaths');
 
         self::assertSame(
-            ['/llms.txt', '/.well-known/api-catalog'],
+            ['/llms.txt', '/.well-known/api-catalog', '/.well-known/ai-catalog.json'],
             $method->invoke($kernel),
         );
     }

@@ -13,6 +13,7 @@ use Waaseyaa\Auth\AtomicRateLimiterInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Exception\ConfigException;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApiCatalogEntriesInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesAiCatalogEntriesInterface;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\McpServiceProvider;
 use Waaseyaa\Mcp\McpImplementationInfo;
@@ -149,9 +150,17 @@ final class McpServiceProviderTest extends TestCase
         self::assertSame('/.well-known/mcp.json', $entries[0]->serviceMetadata[0]->path);
         self::assertStringNotContainsString('/write', json_encode($entries, JSON_THROW_ON_ERROR));
 
+        self::assertInstanceOf(ProvidesAiCatalogEntriesInterface::class, $enabled);
+        $aiEntries = $enabled->aiCatalogEntries();
+        self::assertCount(1, $aiEntries);
+        self::assertSame('mcp:public', $aiEntries[0]->key);
+        self::assertSame('/.well-known/mcp.json', $aiEntries[0]->path);
+        self::assertStringNotContainsString('/write', json_encode($aiEntries[0]->fingerprintData(), JSON_THROW_ON_ERROR));
+
         $disabled = new McpServiceProvider();
         $disabled->setKernelContext('', ['mcp' => ['public' => ['enabled' => false]]], []);
         self::assertSame([], $disabled->apiCatalogEntries());
+        self::assertSame([], $disabled->aiCatalogEntries());
     }
 
     #[Test]
