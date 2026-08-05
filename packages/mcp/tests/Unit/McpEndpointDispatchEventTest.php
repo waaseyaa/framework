@@ -20,6 +20,7 @@ use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 use Waaseyaa\Audit\Listener\McpDispatchAuditListener;
+use Waaseyaa\Auth\AtomicRateLimiterInterface;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\Event\McpDispatchEvent;
 use Waaseyaa\Mcp\McpEndpoint;
@@ -109,6 +110,128 @@ final class McpEndpointDispatchEventTest extends TestCase
             );
             self::assertSame(['request_accepted', 'execution_succeeded'], $stages, $method);
         }
+    }
+
+    #[Test]
+    public function invalidInitializeParamsEndInARefusalRatherThanExecutionSuccess(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $spy = new RecordingSymfonyDispatcher();
+
+        $endpoint = $this->makeEndpoint(dispatcher: $spy);
+        $response = $this->dispatch(
+            $endpoint,
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}',
+            'Bearer valid',
+        );
+
+        $decoded = \json_decode($response->body, true, 512, \JSON_THROW_ON_ERROR);
+        self::assertSame(-32602, $decoded['error']['code']);
+        $events = array_column($spy->dispatched, 0);
+        self::assertSame(
+            ['request_accepted', 'invalid_params_refused'],
+            array_map(static fn(McpDispatchEvent $event): ?string => $event->stage, $events),
+        );
+        self::assertSame($events[0]->correlationId, $events[1]->correlationId);
+        self::assertSame(
+            ['reason' => 'protocol_error_returned', 'error_code' => -32602],
+            $events[1]->metadata,
+        );
+    }
+
+    #[Test]
+    public function malformedInternalProtocolResponseCannotBeAuditedAsSuccess(): void
+    {
+        $spy = new RecordingSymfonyDispatcher();
+        $endpoint = $this->makeEndpoint(dispatcher: $spy);
+        $execute = new \ReflectionMethod($endpoint, 'protocolExecute');
+
+        $response = $execute->invoke(
+            $endpoint,
+            static fn(): McpResponse => new McpResponse('not-json sk-internal-response-secret'),
+            1,
+            'correlation-malformed',
+            7,
+            'ping',
+        );
+
+        self::assertInstanceOf(McpResponse::class, $response);
+        $decoded = \json_decode($response->body, true, 512, \JSON_THROW_ON_ERROR);
+        self::assertSame(-32603, $decoded['error']['code']);
+        self::assertSame('correlation-malformed', $decoded['error']['data']['correlation_id']);
+        self::assertStringNotContainsString('sk-internal-response-secret', $response->body);
+        self::assertCount(1, $spy->dispatched);
+        [$terminal] = $spy->dispatched[0];
+        self::assertInstanceOf(McpDispatchEvent::class, $terminal);
+        self::assertSame('execution_failed', $terminal->stage);
+        self::assertSame(
+            ['reason' => 'protocol_response_malformed'],
+            $terminal->metadata,
+        );
+    }
+
+    #[Test]
+    public function rateLimiterOutageEmitsOneSanitizedTerminalStage(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $spy = new RecordingSymfonyDispatcher();
+        $secret = 'limiter-dsn-password=sk-stage-secret';
+        $broken = new class ($secret) implements AtomicRateLimiterInterface {
+            public function __construct(private readonly string $secret) {}
+
+            public function consume(string $key, int $maxAttempts, int $decaySeconds): bool
+            {
+                throw new \RuntimeException($this->secret);
+            }
+
+            public function hit(string $key, int $decaySeconds): void {}
+
+            public function tooManyAttempts(string $key, int $maxAttempts): bool
+            {
+                return false;
+            }
+
+            public function attempts(string $key): int
+            {
+                return 0;
+            }
+
+            public function remaining(string $key, int $maxAttempts): int
+            {
+                return $maxAttempts;
+            }
+
+            public function clear(string $key): void {}
+        };
+
+        $endpoint = new McpEndpoint(
+            auth: $this->auth,
+            agentRegistry: $this->stubAgentRegistry([]),
+            dispatcher: $spy,
+            rateLimiter: $broken,
+            rateLimitMaxRequests: 1,
+            rateLimitWindowSeconds: 60,
+            rateLimitTier: 'write',
+        );
+        $response = $this->dispatch($endpoint, '{"jsonrpc":"2.0","id":1,"method":"ping"}', 'Bearer valid');
+
+        self::assertSame(503, $response->statusCode);
+        $decoded = \json_decode($response->body, true, 512, \JSON_THROW_ON_ERROR);
+        self::assertSame(-32030, $decoded['error']['code']);
+        self::assertCount(1, $spy->dispatched, 'The request was refused before acceptance.');
+        [$event] = $spy->dispatched[0];
+        self::assertInstanceOf(McpDispatchEvent::class, $event);
+        self::assertSame('rate_limiter_unavailable', $event->stage);
+        self::assertSame('unknown', $event->method);
+        self::assertSame('rate_limit', $event->toolName);
+        self::assertSame(7, $event->accountUid);
+        self::assertSame($decoded['error']['data']['correlation_id'], $event->correlationId);
+        self::assertSame(['reason' => 'unavailable'], $event->metadata);
+        self::assertStringNotContainsString('sk-stage-secret', $response->body);
+        self::assertStringNotContainsString(
+            'sk-stage-secret',
+            \json_encode($event, \JSON_THROW_ON_ERROR),
+        );
     }
 
     #[Test]

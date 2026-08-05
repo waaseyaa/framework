@@ -29,7 +29,7 @@ final class Fts5SearchProviderTest extends TestCase
         $this->database = DBALDatabase::createSqlite();
         $this->indexer = new Fts5SearchIndexer($this->database);
         $this->indexer->ensureSchema();
-        $this->provider = new Fts5SearchProvider($this->database, $this->indexer);
+        $this->provider = new Fts5SearchProvider($this->database, $this->indexer, new \Waaseyaa\Search\Tests\Support\AllowAllSearchAccessChecker());
     }
 
     #[Test]

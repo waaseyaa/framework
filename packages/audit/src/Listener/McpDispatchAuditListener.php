@@ -16,9 +16,10 @@ use Waaseyaa\Foundation\Log\NullLogger;
  * Subscribes to MCP JSON-RPC dispatch events and records OCAP audit entries.
  *
  * The event name `waaseyaa.mcp.dispatch` is the canonical forward-compatible
- * event dispatched by the MCP endpoint on each JSON-RPC method invocation.
- * Attributes include the method name and a SHA-256 hash of the params —
- * NEVER the raw params (privacy / confidentiality constraint).
+ * event dispatched by the MCP endpoint for each meaningful request stage.
+ * Stage-aware events contain only tool-owned safe arguments and sanitized
+ * metadata, never raw JSON-RPC params. The params hash remains solely for
+ * backwards compatibility with legacy stage-less event producers.
  *
  * Actor source: the event's `accountUid` (?int, the bearer-auth-resolved
  * account), preserved verbatim — a null or absent account stays null
@@ -31,7 +32,7 @@ use Waaseyaa\Foundation\Log\NullLogger;
  */
 final class McpDispatchAuditListener implements EventSubscriberInterface
 {
-    /** Canonical event name dispatched by packages/mcp on each JSON-RPC call. */
+    /** Canonical event name dispatched by packages/mcp for each audit stage. */
     public const EVENT_NAME = 'waaseyaa.mcp.dispatch';
 
     public function __construct(
