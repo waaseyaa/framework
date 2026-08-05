@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Mcp\Auth;
 
-use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\User\AnonymousUser;
 
 /**
@@ -52,7 +52,7 @@ final readonly class PublicAnonymousAuth implements McpAuthInterface
         $this->readCapabilities = $readCapabilities ?? self::DEFAULT_READ_CAPABILITIES;
     }
 
-    public function authenticate(?string $authorizationHeader): AccountInterface
+    public function authenticate(?string $authorizationHeader): AuthorizationPrincipalInterface
     {
         if ($this->delegate !== null) {
             $authenticated = $this->delegate->authenticate($authorizationHeader);

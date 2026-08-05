@@ -95,7 +95,7 @@ final class ServerConfigReadModelTest extends TestCase
     public function serverConfigReturnsEmptyClientsForNonBearerAuth(): void
     {
         $otherAuth = new class implements McpAuthInterface {
-            public function authenticate(?string $authorizationHeader): ?AccountInterface
+            public function authenticate(?string $authorizationHeader): ?\Waaseyaa\Access\AuthorizationPrincipalInterface
             {
                 return null;
             }

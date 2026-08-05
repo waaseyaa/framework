@@ -116,7 +116,7 @@ final class BimaajiMcpCapabilityTest extends TestCase
         $auth = new class ($account) implements McpAuthInterface {
             public function __construct(private readonly AccountInterface $account) {}
 
-            public function authenticate(?string $authorizationHeader): ?AccountInterface
+            public function authenticate(?string $authorizationHeader): ?\Waaseyaa\Access\AuthorizationPrincipalInterface
             {
                 return $authorizationHeader !== null ? $this->account : null;
             }

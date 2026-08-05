@@ -7,7 +7,7 @@ namespace Waaseyaa\Mcp\Tests\Unit\Auth;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Mcp\Auth\BearerTokenAuth;
 
 /**
@@ -44,7 +44,7 @@ final class BearerTokenAuthHardeningTest extends TestCase
     #[Test]
     public function accountWithoutIsActiveMethodAuthenticates(): void
     {
-        // Contract §6: custom AccountInterface implementations without an
+        // Contract §6: custom principal implementations without an
         // isActive() method own their liveness semantics — pass through.
         $legacy = $this->plainAccount();
         $auth = new BearerTokenAuth(['legacy-token' => $legacy]);
@@ -98,12 +98,12 @@ final class BearerTokenAuthHardeningTest extends TestCase
     }
 
     /**
-     * Anonymous class with an isActive() method on top of AccountInterface —
+     * Anonymous class with an isActive() method on top of AuthorizationPrincipalInterface —
      * createMock() cannot add non-interface methods.
      */
-    private function accountWithIsActive(bool $active): AccountInterface
+    private function accountWithIsActive(bool $active): AuthorizationPrincipalInterface
     {
-        return new class($active) implements AccountInterface {
+        return new class($active) implements AuthorizationPrincipalInterface {
             public function __construct(private readonly bool $active) {}
 
             public function id(): int|string
@@ -126,6 +126,10 @@ final class BearerTokenAuthHardeningTest extends TestCase
                 return true;
             }
 
+            public function claimsGeneration(): string { return 'test-v1'; }
+            public function tenantId(): ?string { return null; }
+            public function communityId(): ?string { return null; }
+
             public function isActive(): bool
             {
                 return $this->active;
@@ -133,9 +137,9 @@ final class BearerTokenAuthHardeningTest extends TestCase
         };
     }
 
-    private function plainAccount(): AccountInterface
+    private function plainAccount(): AuthorizationPrincipalInterface
     {
-        return new class implements AccountInterface {
+        return new class implements AuthorizationPrincipalInterface {
             public function id(): int|string
             {
                 return 7;
@@ -155,6 +159,10 @@ final class BearerTokenAuthHardeningTest extends TestCase
             {
                 return true;
             }
+
+            public function claimsGeneration(): string { return 'test-v1'; }
+            public function tenantId(): ?string { return null; }
+            public function communityId(): ?string { return null; }
         };
     }
 }

@@ -319,6 +319,7 @@ return [
     'Waaseyaa\Access\AuthorizationPrincipalInterface' => 'public',
     'Waaseyaa\Access\AccountPrincipalFactoryInterface' => 'public',
     'Waaseyaa\Access\AccountPrincipalFactory' => 'public',
+    'Waaseyaa\Access\DelegatingAuthorizationPrincipal' => 'public',
     'Waaseyaa\Access\ContextualAccountPrincipalFactoryInterface' => 'public',
     'Waaseyaa\Access\AuthorizationPrincipalBootstrapReaderInterface' => 'public',
     'Waaseyaa\Access\Middleware\FieldReadContextMiddleware' => 'public',

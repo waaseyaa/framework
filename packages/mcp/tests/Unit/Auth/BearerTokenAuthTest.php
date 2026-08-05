@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Mcp\Tests\Unit\Auth;
 
-use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Mcp\Auth\BearerTokenAuth;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -13,12 +13,12 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(BearerTokenAuth::class)]
 final class BearerTokenAuthTest extends TestCase
 {
-    private AccountInterface $account;
+    private AuthorizationPrincipalInterface $account;
     private BearerTokenAuth $auth;
 
     protected function setUp(): void
     {
-        $this->account = $this->createMock(AccountInterface::class);
+        $this->account = $this->createMock(AuthorizationPrincipalInterface::class);
         $this->account->method('id')->willReturn(1);
 
         $this->auth = new BearerTokenAuth([

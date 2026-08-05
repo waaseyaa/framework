@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\AI\Agent\AgentExecutor;
 use Waaseyaa\AI\Agent\Entity\AgentAuditLog;
 use Waaseyaa\AI\Agent\Entity\AgentRun;
@@ -207,9 +208,9 @@ final class AgentRunObservabilityTest extends TestCase
         return $run;
     }
 
-    private function fakeAccount(int $id): AccountInterface
+    private function fakeAccount(int $id): AuthorizationPrincipalInterface
     {
-        return new class ($id) implements AccountInterface {
+        return new class ($id) implements AuthorizationPrincipalInterface {
             public function __construct(private readonly int $accountId) {}
 
             public function id(): int
@@ -230,6 +231,19 @@ final class AgentRunObservabilityTest extends TestCase
             public function isAuthenticated(): bool
             {
                 return true;
+            }
+
+            public function claimsGeneration(): string
+            {
+                return 'test-v1';
+            }
+            public function tenantId(): ?string
+            {
+                return null;
+            }
+            public function communityId(): ?string
+            {
+                return null;
             }
         };
     }

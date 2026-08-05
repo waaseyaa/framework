@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Agent;
 
-use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\AI\Agent\Entity\AgentAuditLog;
 use Waaseyaa\AI\Agent\Entity\AgentRun;
@@ -128,7 +128,7 @@ final class AgentExecutor
      */
     public function executeRun(
         AgentRun $run,
-        AccountInterface $initiatorAccount,
+        AuthorizationPrincipalInterface $initiatorAccount,
         ProviderInterface $provider,
         array $messages,
         ?string $system = null,
@@ -183,7 +183,7 @@ final class AgentExecutor
      */
     private function doExecuteRun(
         AgentRun $run,
-        AccountInterface $initiatorAccount,
+        AuthorizationPrincipalInterface $initiatorAccount,
         ProviderInterface $provider,
         array $messages,
         ?string $system,
@@ -492,7 +492,7 @@ final class AgentExecutor
     public function executeTool(
         string $toolName,
         array $arguments,
-        AccountInterface $account,
+        AuthorizationPrincipalInterface $account,
         ?string $runId = null,
         int $iteration = 0,
         array $allowedToolNames = [],

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Mcp\Auth;
 
-use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 
 /**
  * STATIC in-memory bearer-token auth: an opaque token maps to an account, and
@@ -21,7 +21,7 @@ use Waaseyaa\Access\AccountInterface;
 final readonly class BearerTokenAuth implements WriteTierAuthInterface
 {
     /**
-     * @param array<string|int, AccountInterface> $tokens Token string → account
+     * @param array<string|int, AuthorizationPrincipalInterface> $tokens Token string → principal
      *        mapping. Keys are configured as strings, but PHP coerces purely
      *        numeric token strings to int array keys — the key type reflects
      *        that runtime reality (FR-005 key-coercion guard).
@@ -30,7 +30,7 @@ final readonly class BearerTokenAuth implements WriteTierAuthInterface
         private array $tokens,
     ) {}
 
-    public function authenticate(?string $authorizationHeader): ?AccountInterface
+    public function authenticate(?string $authorizationHeader): ?AuthorizationPrincipalInterface
     {
         if ($authorizationHeader === null || $authorizationHeader === '') {
             return null;
@@ -78,7 +78,7 @@ final readonly class BearerTokenAuth implements WriteTierAuthInterface
      * values (NFR-003: only the first 16 chars of SHA-256 are returned; the
      * plaintext token never leaves this class or its direct caller).
      *
-     * @return array<string|int, AccountInterface> Token → Account mapping
+     * @return array<string|int, AuthorizationPrincipalInterface> Token → principal mapping
      *         (purely numeric token strings appear as int keys — PHP
      *         array-key coercion).
      * @api

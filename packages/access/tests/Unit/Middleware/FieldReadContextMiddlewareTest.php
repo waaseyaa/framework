@@ -11,6 +11,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AccountPrincipalFactory;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\Context\RequestAccountContext;
 use Waaseyaa\Access\Middleware\FieldReadContextMiddleware;
@@ -34,17 +35,17 @@ final class FieldReadContextMiddlewareTest extends TestCase
     }
 
     #[Test]
-    public function generic_account_snapshot_does_not_invent_permissions(): void
+    public function generic_account_snapshot_is_refused_instead_of_inventing_permissions(): void
     {
-        $principal = (new AccountPrincipalFactory())->fromAccount(new class implements AccountInterface {
+        $account = new class implements AccountInterface {
             public function id(): int|string { return 42; }
             public function hasPermission(string $permission): bool { return true; }
             public function getRoles(): array { return ['member']; }
             public function isAuthenticated(): bool { return true; }
-        });
+        };
 
-        self::assertSame(['member'], $principal->getRoles());
-        self::assertFalse($principal->hasPermission('view members'));
+        $this->expectException(\LogicException::class);
+        (new AccountPrincipalFactory())->fromAccount($account);
     }
 
     #[Test]
@@ -54,11 +55,14 @@ final class FieldReadContextMiddlewareTest extends TestCase
         $accountContext = new RequestAccountContext();
         $middleware = new FieldReadContextMiddleware(new AccountPrincipalFactory(), $scope, $accountContext);
         $request = Request::create('/members');
-        $request->attributes->set('_account', new class implements AccountInterface {
+        $request->attributes->set('_account', new class implements AuthorizationPrincipalInterface {
             public function id(): int|string { return 42; }
             public function hasPermission(string $permission): bool { return $permission === 'view members'; }
             public function getRoles(): array { return ['member']; }
             public function isAuthenticated(): bool { return true; }
+            public function claimsGeneration(): string { return 'test-v1'; }
+            public function tenantId(): ?string { return null; }
+            public function communityId(): ?string { return null; }
         });
         $handler = new class($scope, $accountContext) implements HttpHandlerInterface {
             public function __construct(
@@ -85,11 +89,14 @@ final class FieldReadContextMiddlewareTest extends TestCase
         $scope = new AccountFieldReadScope();
         $middleware = new FieldReadContextMiddleware(new AccountPrincipalFactory(), $scope);
         $request = Request::create('/members.csv');
-        $request->attributes->set('_account', new class implements AccountInterface {
+        $request->attributes->set('_account', new class implements AuthorizationPrincipalInterface {
             public function id(): int|string { return 42; }
             public function hasPermission(string $permission): bool { return false; }
             public function getRoles(): array { return ['member']; }
             public function isAuthenticated(): bool { return true; }
+            public function claimsGeneration(): string { return 'test-v1'; }
+            public function tenantId(): ?string { return null; }
+            public function communityId(): ?string { return null; }
         });
         $seen = null;
         $handler = new class($scope, $seen) implements HttpHandlerInterface {

@@ -31,22 +31,10 @@ final readonly class AccountPrincipalFactory implements ContextualAccountPrincip
             return $this->bootstrapReader->fromEntity($account, $tenantId, $communityId);
         }
 
-        $roles = array_values(array_unique($account->getRoles()));
-        sort($roles);
-        $generation = hash('sha256', json_encode([
-            'id' => $account->id(),
-            'authenticated' => $account->isAuthenticated(),
-            'roles' => $roles,
-        ], JSON_THROW_ON_ERROR));
-
-        return new AuthorizationPrincipal(
-            accountId: $account->id(),
-            authenticated: $account->isAuthenticated(),
-            roles: $roles,
-            permissions: [],
-            claimsGeneration: $generation,
-            tenantId: $tenantId,
-            communityId: $communityId,
+        throw new \LogicException(
+            'A plain AccountInterface cannot be losslessly converted into an immutable authorization principal. '
+            . 'Identity providers must return AuthorizationPrincipalInterface or explicitly wrap the account '
+            . 'in DelegatingAuthorizationPrincipal with provider-owned claims.',
         );
     }
 }

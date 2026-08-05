@@ -237,8 +237,9 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `'translate'` access-policy operation | operation literal | Used by translation writes; resolves via `ContextAwareAccessPolicyInterface::access($operation, $entity, $account, ['langcode' => $lc])` (M-006, WP09) |
 | `FieldAccessPolicyInterface` | interface | Checks field-level access on an entity; open-by-default (Forbidden restricts, Neutral allows) |
 | `AuthorizationPrincipalInterface` | interface | Immutable account-facing claims used by protected field-read policies without reading an acting User entity |
-| `AccountPrincipalFactoryInterface` | interface | Closed bootstrap seam for snapshotting an account into an authorization principal |
-| `AccountPrincipalFactory` | final class | Generic account snapshotter that preserves id/authentication/roles and deliberately invents no permission claims |
+| `AccountPrincipalFactoryInterface` | interface | Closed bootstrap seam for passing through principals or snapshotting an entity-backed account through the audited reader |
+| `AccountPrincipalFactory` | final class | Principal/entity-account snapshotter that refuses lossy conversion of arbitrary plain accounts |
+| `DelegatingAuthorizationPrincipal` | final class | Explicit legacy migration principal with provider-owned claims metadata and verbatim delegated account authorization behavior |
 | `ContextualAccountPrincipalFactoryInterface` | interface | HTTP companion that binds resolved tenant/community dimensions to the immutable principal snapshot |
 | `AuthorizationPrincipalBootstrapReaderInterface` | interface | Closed bridge for strictly audited immutable principal construction from an entity-backed account |
 | `FieldReadContextMiddleware` | final class | Priority-15 HTTP seam that installs/restores the immutable principal after identity resolution and wraps deferred streams |
@@ -521,7 +522,7 @@ Charter §5.6 — listing-pipeline-v1 (M-007). Namespace `Waaseyaa\Listing\`.
 |---------|------|---------|
 | `ToolExecutorInterface` | interface | Executes an MCP tool call by name with arguments and returns structured content |
 | `ToolRegistryInterface` | interface | Provides the full list of MCP tool definitions for the protocol manifest |
-| `McpAuthInterface` | interface | Authenticates MCP requests and resolves the acting account |
+| `McpAuthInterface` | interface | Authenticates MCP requests and resolves the immutable acting authorization principal |
 | `OAuthAccessTokenValidatorInterface` | interface | Validates OAuth access tokens for one exact MCP resource and returns an active scoped principal |
 
 ### ssr
