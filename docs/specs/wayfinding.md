@@ -73,6 +73,10 @@ public catalog to learn valid anchors, then (in later phases) emits beacons via
 the **separate, authenticated** write tier. The public 221 trio is unchanged
 (C-001) — this only **adds** a read-only discovery surface.
 
+When RFC 9727 discovery is enabled, `WayfindingServiceProvider` contributes
+this public JSON anchor catalog as one API item. It does not contribute the
+authenticated beacon emit, session-token, trail mutation, or admin surfaces.
+
 ## Phase 2 — Session-scoped beacon delivery (shipped)
 
 Beacons are delivered to exactly one user session over the bounded alpha.224 SSE

@@ -12,6 +12,7 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Auth\AtomicRateLimiterInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Exception\ConfigException;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApiCatalogEntriesInterface;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\McpServiceProvider;
 use Waaseyaa\Mcp\UnavailableRateLimiter;
@@ -69,6 +70,24 @@ final class McpServiceProviderTest extends TestCase
 
         self::assertNotNull($routes->get('mcp.endpoint'));
         self::assertNotNull($routes->get('mcp.server_card'));
+    }
+
+    #[Test]
+    public function catalog_contribution_matches_only_the_enabled_public_tier(): void
+    {
+        $enabled = new McpServiceProvider();
+        $enabled->setKernelContext('', ['mcp' => ['public' => ['enabled' => true]]], []);
+        self::assertInstanceOf(ProvidesApiCatalogEntriesInterface::class, $enabled);
+
+        $entries = $enabled->apiCatalogEntries();
+        self::assertCount(1, $entries);
+        self::assertSame('/mcp', $entries[0]->endpoint->path);
+        self::assertSame('/.well-known/mcp.json', $entries[0]->serviceMetadata[0]->path);
+        self::assertStringNotContainsString('/write', json_encode($entries, JSON_THROW_ON_ERROR));
+
+        $disabled = new McpServiceProvider();
+        $disabled->setKernelContext('', ['mcp' => ['public' => ['enabled' => false]]], []);
+        self::assertSame([], $disabled->apiCatalogEntries());
     }
 
     #[Test]

@@ -21,6 +21,8 @@ require $projectRoot . '/vendor/autoload.php';
 
 putenv('APP_ENV=local');
 $_ENV['APP_ENV'] = $_SERVER['APP_ENV'] = 'local';
+putenv('APP_URL=https://catalog-smoke.example');
+$_ENV['APP_URL'] = $_SERVER['APP_URL'] = 'https://catalog-smoke.example';
 
 $expectedPresent = $shape === 'full';
 $packages = [
@@ -200,6 +202,13 @@ foreach ($routes as $package => [$method, $path, $expectedRouteName]) {
         sprintf('%s route %s %s is %s', $package, $method, $path, $expectedPresent ? 'absent' : 'present'),
     );
 }
+
+$catalogRoute = $matchRoute->invoke($kernel, '/.well-known/api-catalog', 'GET');
+$catalogRouteName = $catalogRoute instanceof Request ? $catalogRoute->attributes->get('_route') : null;
+$assert(
+    ($catalogRouteName === 'api.catalog') === $expectedPresent,
+    sprintf('RFC 9727 API catalog route is %s', $expectedPresent ? 'absent' : 'present'),
+);
 
 if ($failures !== []) {
     fwrite(STDERR, "optional-domain-install-smoke: {$shape} FAIL\n - " . implode("\n - ", $failures) . "\n");

@@ -705,15 +705,11 @@ final class HttpKernel extends AbstractKernel
     private function sessionStatelessPaths(): array
     {
         $session = $this->config['session'] ?? null;
-        if (!is_array($session)) {
-            return [];
-        }
-        $paths = $session['stateless_paths'] ?? null;
-        if (!is_array($paths)) {
-            return [];
-        }
+        $paths = is_array($session) ? ($session['stateless_paths'] ?? []) : [];
+        $paths = is_array($paths) ? $paths : [];
+        $paths[] = '/.well-known/api-catalog';
 
-        return array_values(array_filter($paths, static fn($p): bool => is_string($p) && $p !== ''));
+        return array_values(array_unique(array_filter($paths, static fn($p): bool => is_string($p) && $p !== '')));
     }
 
     /**

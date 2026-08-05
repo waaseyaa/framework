@@ -54,8 +54,10 @@ use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsAgentToolProvidersInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsApiCatalogEntryProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsContentModelProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApiCatalogEntriesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Plugin\Extension\KnowledgeToolingExtensionRunner;
 use Waaseyaa\Scheduler\Schedule;
@@ -191,6 +193,7 @@ abstract class AbstractKernel
         $this->injectMigrationProviders();
         $this->injectContentModelProviders();
         $this->injectAgentToolProviders();
+        $this->injectApiCatalogEntryProviders();
         $this->loadAppEntityTypes();
         $this->validateContentTypes();
         if (!$this->fieldAccessPreflightOnly && !$this->isDevelopmentMode()) {
@@ -556,6 +559,25 @@ abstract class AbstractKernel
         foreach ($this->providers as $provider) {
             if ($provider instanceof AcceptsAgentToolProvidersInterface) {
                 $provider->withAgentToolProviders($toolProviders);
+            }
+        }
+    }
+
+    /** Feed installed public-API contributors into the RFC 9727 catalog owner. */
+    protected function injectApiCatalogEntryProviders(): void
+    {
+        $contributors = array_values(array_filter(
+            $this->providers,
+            static fn(object $provider): bool => $provider instanceof ProvidesApiCatalogEntriesInterface,
+        ));
+        usort(
+            $contributors,
+            static fn(object $left, object $right): int => $left::class <=> $right::class,
+        );
+
+        foreach ($this->providers as $provider) {
+            if ($provider instanceof AcceptsApiCatalogEntryProvidersInterface) {
+                $provider->withApiCatalogEntryProviders($contributors);
             }
         }
     }
