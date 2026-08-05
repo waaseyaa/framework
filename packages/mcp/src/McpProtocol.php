@@ -11,12 +11,22 @@ namespace Waaseyaa\Mcp;
  */
 final class McpProtocol
 {
-    public const string LATEST = '2025-11-25';
+    public const string CURRENT = '2026-07-28';
+    public const string LATEST = self::CURRENT;
     public const string LEGACY_HTTP_DEFAULT = '2025-03-26';
+    public const string VERSION_META_KEY = 'io.modelcontextprotocol/protocolVersion';
 
     /** @var non-empty-list<string> */
     public const array SUPPORTED = [
-        self::LATEST,
+        self::CURRENT,
+        '2025-11-25',
+        '2025-06-18',
+        self::LEGACY_HTTP_DEFAULT,
+    ];
+
+    /** @var non-empty-list<string> */
+    public const array LEGACY_SUPPORTED = [
+        '2025-11-25',
         '2025-06-18',
         self::LEGACY_HTTP_DEFAULT,
     ];
@@ -28,6 +38,11 @@ final class McpProtocol
 
     public static function negotiate(string $requested): string
     {
-        return self::isSupported($requested) ? $requested : self::LATEST;
+        return self::isLegacySupported($requested) ? $requested : self::LEGACY_SUPPORTED[0];
+    }
+
+    public static function isLegacySupported(string $version): bool
+    {
+        return \in_array($version, self::LEGACY_SUPPORTED, true);
     }
 }

@@ -5,15 +5,20 @@ verifiable framework contract, not a claim that every optional MCP primitive
 must be enabled. A deployment may expose only tools, but every capability it
 advertises must be complete, secure, interoperable, and operationally owned.
 
-The protocol baseline is MCP 2025-11-25. The official MCP specification remains
+The protocol baseline is MCP 2026-07-28 with an explicit dual-era compatibility
+path for legacy lifecycle clients. The official MCP specification remains
 authoritative when this profile and the protocol disagree.
 
 ## Protocol and transport
 
-- Support `initialize`, `notifications/initialized`, `ping`, `tools/list`, and
-  `tools/call` with strict JSON-RPC 2.0 envelope validation.
-- Negotiate supported protocol revisions and reject unsupported
-  `MCP-Protocol-Version` headers.
+- Support current `server/discover`, `tools/list`, and `tools/call` with
+  per-request protocol metadata and strict HTTP mirror validation. Preserve the
+  legacy `initialize`, `notifications/initialized`, `ping`, `tools/list`, and
+  `tools/call` lifecycle without changing its serialized responses.
+- Classify era only from body metadata. Reject header/body mismatches and
+  unsupported revisions with their current protocol error and HTTP contracts.
+- Treat discovery and tool catalogues as principal-varying: advertise private,
+  zero-TTL caching and emit `Cache-Control: no-store`.
 - Implement Streamable HTTP media negotiation and Origin validation. A
   stateless JSON-response deployment must decline SSE, sessions, termination,
   and resumability honestly rather than advertising unimplemented behavior.

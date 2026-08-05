@@ -19,6 +19,7 @@ use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\Auth\OAuthProtectedResourceMetadata;
 use Waaseyaa\Mcp\Auth\OAuthProtectedResourceMetadataConfig;
 use Waaseyaa\Mcp\McpEndpoint;
+use Waaseyaa\Mcp\McpProtocol;
 use Waaseyaa\Mcp\McpResponse;
 
 #[CoversClass(McpEndpoint::class)]
@@ -48,9 +49,16 @@ final class McpEndpointTest extends TestCase
         );
     }
 
-    private function dispatch(McpEndpoint $endpoint, string $method, string $body, ?string $authorizationHeader): McpResponse
+    /** @param array<string, string> $protocolHeaders */
+    private function dispatch(
+        McpEndpoint $endpoint,
+        string $method,
+        string $body,
+        ?string $authorizationHeader,
+        array $protocolHeaders = [],
+    ): McpResponse
     {
-        $headers = [];
+        $headers = $protocolHeaders;
         if ($authorizationHeader !== null) {
             $headers['HTTP_AUTHORIZATION'] = $authorizationHeader;
         }
@@ -245,6 +253,279 @@ final class McpEndpointTest extends TestCase
     }
 
     #[Test]
+    public function legacy_tools_list_response_bytes_do_not_change(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+
+        $response = $this->dispatch(
+            $this->createEndpoint(),
+            'POST',
+            '{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
+            'Bearer valid-token',
+        );
+
+        self::assertSame('{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}', $response->body);
+        self::assertSame([], $response->headers);
+    }
+
+    #[Test]
+    public function legacy_initialize_and_tool_call_response_bytes_do_not_change(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $this->tools = [$this->makeTool('read_node')];
+        $endpoint = $this->createEndpoint();
+
+        $initialize = $this->dispatch($endpoint, 'POST', \json_encode([
+            'jsonrpc' => '2.0',
+            'id' => 1,
+            'method' => 'initialize',
+            'params' => [
+                'protocolVersion' => '2025-11-25',
+                'capabilities' => [],
+                'clientInfo' => ['name' => 'legacy-client', 'version' => '1.0.0'],
+            ],
+        ], \JSON_THROW_ON_ERROR), 'Bearer valid-token');
+        self::assertSame(
+            '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":"Waaseyaa","version":"0.1.0"}}}',
+            $initialize->body,
+        );
+
+        $call = $this->dispatch($endpoint, 'POST', \json_encode([
+            'jsonrpc' => '2.0',
+            'id' => 2,
+            'method' => 'tools/call',
+            'params' => ['name' => 'read_node', 'arguments' => ['id' => 42]],
+        ], \JSON_THROW_ON_ERROR), 'Bearer valid-token');
+        self::assertSame(
+            '{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"{\\"operation\\":\\"echo\\",\\"id\\":42}"}]}}',
+            $call->body,
+        );
+    }
+
+    #[Test]
+    public function modern_server_discover_reports_the_current_stateless_private_surface(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+
+        $response = $this->dispatchModern($this->createEndpoint(), 'server/discover');
+        $decoded = \json_decode($response->body, true, 512, \JSON_THROW_ON_ERROR);
+
+        self::assertSame(200, $response->statusCode);
+        self::assertSame('no-store', $response->headers['Cache-Control'] ?? null);
+        self::assertSame([
+            'jsonrpc' => '2.0',
+            'id' => 1,
+            'result' => [
+                'supportedVersions' => McpProtocol::SUPPORTED,
+                'capabilities' => ['tools' => ['listChanged' => false]],
+                'instructions' => 'List available tools before calling them. Tool visibility and execution are restricted to the authenticated principal.',
+                'ttlMs' => 0,
+                'cacheScope' => 'private',
+                'resultType' => 'complete',
+                '_meta' => [
+                    'io.modelcontextprotocol/serverInfo' => [
+                        'name' => 'Waaseyaa',
+                        'version' => '0.1.0',
+                    ],
+                ],
+            ],
+        ], $decoded);
+    }
+
+    #[Test]
+    public function modern_tools_list_has_complete_result_metadata_and_private_cache_policy(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $this->tools = [$this->makeTool('read_node')];
+
+        $response = $this->dispatchModern($this->createEndpoint(), 'tools/list');
+        $result = \json_decode($response->body, true, 512, \JSON_THROW_ON_ERROR)['result'];
+
+        self::assertSame('read_node', $result['tools'][0]['name']);
+        self::assertSame('complete', $result['resultType']);
+        self::assertSame(0, $result['ttlMs']);
+        self::assertSame('private', $result['cacheScope']);
+        self::assertSame('Waaseyaa', $result['_meta']['io.modelcontextprotocol/serverInfo']['name']);
+        self::assertSame('no-store', $response->headers['Cache-Control'] ?? null);
+    }
+
+    #[Test]
+    public function modern_tools_call_requires_and_accepts_the_matching_name_header(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $this->tools = [$this->makeTool('read_node')];
+        $body = \json_encode([
+            'jsonrpc' => '2.0',
+            'id' => 2,
+            'method' => 'tools/call',
+            'params' => [
+                'name' => 'read_node',
+                'arguments' => ['id' => 42],
+                '_meta' => [
+                    McpProtocol::VERSION_META_KEY => McpProtocol::CURRENT,
+                    'io.modelcontextprotocol/clientCapabilities' => [],
+                ],
+            ],
+        ], \JSON_THROW_ON_ERROR);
+        $baseHeaders = [
+            'HTTP_MCP_PROTOCOL_VERSION' => McpProtocol::CURRENT,
+            'HTTP_MCP_METHOD' => 'tools/call',
+        ];
+
+        $missing = $this->dispatch($this->createEndpoint(), 'POST', $body, 'Bearer valid-token', $baseHeaders);
+        self::assertSame(-32020, \json_decode($missing->body, true)['error']['code']);
+
+        $response = $this->dispatch($this->createEndpoint(), 'POST', $body, 'Bearer valid-token', $baseHeaders + [
+            'HTTP_MCP_NAME' => '=?base64?' . \base64_encode('read_node') . '?=',
+        ]);
+        $result = \json_decode($response->body, true, 512, \JSON_THROW_ON_ERROR)['result'];
+        self::assertSame('complete', $result['resultType']);
+        self::assertSame('text', $result['content'][0]['type']);
+        self::assertSame('no-store', $response->headers['Cache-Control'] ?? null);
+    }
+
+    #[Test]
+    public function modern_core_notifications_are_refused_without_a_jsonrpc_response(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $method = 'notifications/cancelled';
+        $body = \json_encode([
+            'jsonrpc' => '2.0',
+            'method' => $method,
+            'params' => [
+                'requestId' => 7,
+                '_meta' => [
+                    McpProtocol::VERSION_META_KEY => McpProtocol::CURRENT,
+                    'io.modelcontextprotocol/clientCapabilities' => [],
+                ],
+            ],
+        ], \JSON_THROW_ON_ERROR);
+
+        $response = $this->dispatch($this->createEndpoint(), 'POST', $body, 'Bearer valid-token', [
+            'HTTP_MCP_PROTOCOL_VERSION' => McpProtocol::CURRENT,
+            'HTTP_MCP_METHOD' => $method,
+        ]);
+
+        self::assertSame(400, $response->statusCode);
+        self::assertSame('', $response->body);
+        self::assertSame('no-store', $response->headers['Cache-Control'] ?? null);
+    }
+
+    #[Test]
+    public function streamable_http_adapter_preserves_transport_defenses_and_modern_headers(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $method = 'server/discover';
+        $request = HttpRequest::create('/mcp', 'POST', server: [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_ACCEPT' => 'application/json, text/event-stream',
+            'HTTP_AUTHORIZATION' => 'Bearer valid-token',
+            'HTTP_MCP_PROTOCOL_VERSION' => McpProtocol::CURRENT,
+            'HTTP_MCP_METHOD' => $method,
+        ], content: $this->modernBody($method));
+
+        $response = $this->createEndpoint()->serve($this->account, $request);
+        $decoded = \json_decode((string) $response->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
+        self::assertStringContainsString('private', (string) $response->headers->get('Cache-Control'));
+        self::assertSame('complete', $decoded['result']['resultType']);
+    }
+
+    #[Test]
+    public function modern_header_mismatch_and_unsupported_version_use_current_error_codes(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $endpoint = $this->createEndpoint();
+        $body = $this->modernBody('tools/list');
+
+        $mismatch = $this->dispatch($endpoint, 'POST', $body, 'Bearer valid-token', [
+            'HTTP_MCP_PROTOCOL_VERSION' => McpProtocol::CURRENT,
+            'HTTP_MCP_METHOD' => 'tools/call',
+        ]);
+        self::assertSame(400, $mismatch->statusCode);
+        self::assertSame('no-store', $mismatch->headers['Cache-Control'] ?? null);
+        self::assertSame([
+            'jsonrpc' => '2.0',
+            'error' => ['code' => -32020, 'message' => 'HeaderMismatch'],
+            'id' => 1,
+        ], \json_decode($mismatch->body, true, 512, \JSON_THROW_ON_ERROR));
+
+        $unsupported = $this->dispatch($endpoint, 'POST', \str_replace(McpProtocol::CURRENT, '2099-01-01', $body), 'Bearer valid-token', [
+            'HTTP_MCP_PROTOCOL_VERSION' => '2099-01-01',
+            'HTTP_MCP_METHOD' => 'tools/list',
+        ]);
+        self::assertSame(400, $unsupported->statusCode);
+        self::assertSame('no-store', $unsupported->headers['Cache-Control'] ?? null);
+        self::assertSame([
+            'jsonrpc' => '2.0',
+            'error' => [
+                'code' => -32022,
+                'message' => 'Unsupported protocol version',
+                'data' => [
+                    'supported' => McpProtocol::SUPPORTED,
+                    'requested' => '2099-01-01',
+                ],
+            ],
+            'id' => 1,
+        ], \json_decode($unsupported->body, true, 512, \JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
+    public function malformed_modern_metadata_is_refused_with_no_store(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $body = \json_encode([
+            'jsonrpc' => '2.0',
+            'id' => 1,
+            'method' => 'tools/list',
+            'params' => [
+                '_meta' => [McpProtocol::VERSION_META_KEY => McpProtocol::CURRENT],
+            ],
+        ], \JSON_THROW_ON_ERROR);
+
+        $response = $this->dispatch($this->createEndpoint(), 'POST', $body, 'Bearer valid-token', [
+            'HTTP_MCP_PROTOCOL_VERSION' => McpProtocol::CURRENT,
+            'HTTP_MCP_METHOD' => 'tools/list',
+        ]);
+
+        self::assertSame(400, $response->statusCode);
+        self::assertSame(-32602, \json_decode($response->body, true)['error']['code']);
+        self::assertSame('no-store', $response->headers['Cache-Control'] ?? null);
+    }
+
+    #[Test]
+    public function legacy_unknown_version_is_checked_after_authentication_and_returns_current_error(): void
+    {
+        $this->auth->method('authenticate')->willReturn(null, $this->account);
+        $headers = ['HTTP_MCP_PROTOCOL_VERSION' => '2099-01-01'];
+        $body = '{"jsonrpc":"2.0","id":1,"method":"tools/list"}';
+        $endpoint = $this->createEndpoint();
+
+        $unauthorized = $this->dispatch($endpoint, 'POST', $body, null, $headers);
+        self::assertSame(401, $unauthorized->statusCode);
+
+        $unsupported = $this->dispatch($endpoint, 'POST', $body, 'Bearer valid-token', $headers);
+        self::assertSame(400, $unsupported->statusCode);
+        self::assertSame(-32022, \json_decode($unsupported->body, true)['error']['code']);
+        self::assertSame('2099-01-01', \json_decode($unsupported->body, true)['error']['data']['requested']);
+        self::assertSame('no-store', $unsupported->headers['Cache-Control'] ?? null);
+    }
+
+    #[Test]
+    public function legacy_only_methods_are_not_found_under_the_modern_protocol(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+
+        foreach (['initialize', 'ping'] as $method) {
+            $response = $this->dispatchModern($this->createEndpoint(), $method);
+            self::assertSame(404, $response->statusCode);
+            self::assertSame(-32601, \json_decode($response->body, true)['error']['code']);
+        }
+    }
+
+    #[Test]
     public function toolsCallExecutesToolAndReturnsResult(): void
     {
         $this->auth->method('authenticate')->willReturn($this->account);
@@ -343,6 +624,29 @@ final class McpEndpointTest extends TestCase
 
             self::assertSame($expected, \json_decode($response->body, true)['result']['protocolVersion']);
         }
+    }
+
+    private function dispatchModern(McpEndpoint $endpoint, string $method): McpResponse
+    {
+        return $this->dispatch($endpoint, 'POST', $this->modernBody($method), 'Bearer valid-token', [
+            'HTTP_MCP_PROTOCOL_VERSION' => McpProtocol::CURRENT,
+            'HTTP_MCP_METHOD' => $method,
+        ]);
+    }
+
+    private function modernBody(string $method): string
+    {
+        return \json_encode([
+            'jsonrpc' => '2.0',
+            'id' => 1,
+            'method' => $method,
+            'params' => [
+                '_meta' => [
+                    McpProtocol::VERSION_META_KEY => McpProtocol::CURRENT,
+                    'io.modelcontextprotocol/clientCapabilities' => [],
+                ],
+            ],
+        ], \JSON_THROW_ON_ERROR);
     }
 
     #[Test]
