@@ -39,7 +39,7 @@
         "waaseyaa/access": "^0.1.0-alpha.287"
     },
     "require-dev": {
-        "phpunit/phpunit": "^10.5"
+        "phpunit/phpunit": "^13.0"
     },
     "autoload": {
         "psr-4": {

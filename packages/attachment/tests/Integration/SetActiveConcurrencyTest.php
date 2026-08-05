@@ -35,7 +35,6 @@ use Waaseyaa\EntityStorage\EntityRepository;
  *
  * See: research.md Q6 (setActive atomicity rationale), NFR-010.
  *
- * @requires extension pcntl
  */
 #[CoversNothing]
 #[RequiresPhpExtension('pcntl')]

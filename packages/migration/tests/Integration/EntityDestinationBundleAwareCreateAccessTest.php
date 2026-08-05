@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Waaseyaa\Migration\Tests\Integration;
 
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
@@ -46,7 +45,6 @@ use Waaseyaa\Node\NodeAccessPolicy;
  */
 #[CoversClass(EntityDestination::class)]
 #[CoversClass(EntityAccessGate::class)]
-#[CoversNothing]
 final class EntityDestinationBundleAwareCreateAccessTest extends TestCase
 {
     private const string MIGRATION_ID = 'migration_test_bundle_aware';

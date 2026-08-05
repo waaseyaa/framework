@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Waaseyaa\Migration\Tests\Integration;
 
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
@@ -43,7 +42,6 @@ use Waaseyaa\Migration\Tests\Fixtures\MigrationTestWidget;
  * policy like `NodeAccessPolicy`.
  */
 #[CoversClass(EntityDestination::class)]
-#[CoversNothing]
 final class EntityDestinationSystemAccountAccessTest extends TestCase
 {
     private const string MIGRATION_ID = 'migration_test_system_account';

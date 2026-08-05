@@ -101,7 +101,7 @@ final class EntityValidatorTest extends TestCase
         $symfonyValidator = $this->createMock(ValidatorInterface::class);
         $symfonyValidator->expects($this->once())
             ->method('validate')
-            ->with('', $this->isType('array'))
+            ->with('', $this->isArray())
             ->willReturn(new ConstraintViolationList([$violation]));
 
         $validator = new EntityValidator($symfonyValidator);

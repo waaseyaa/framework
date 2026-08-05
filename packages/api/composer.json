@@ -112,7 +112,7 @@
     },
     "require-dev": {
         "opis/json-schema": "^2.6",
-        "phpunit/phpunit": "^10.5",
+        "phpunit/phpunit": "^13.0",
         "waaseyaa/auth": "^0.1.0-alpha.287",
         "waaseyaa/audit": "^0.1.0-alpha.287",
         "waaseyaa/database-legacy": "^0.1.0-alpha.287",

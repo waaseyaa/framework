@@ -24,7 +24,7 @@
         "waaseyaa/database-legacy": "^0.1.0-alpha.287"
     },
     "require-dev": {
-        "phpunit/phpunit": "^10.5",
+        "phpunit/phpunit": "^13.0",
         "waaseyaa/entity": "^0.1.0-alpha.287"
     },
     "autoload": {

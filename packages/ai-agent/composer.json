@@ -79,7 +79,7 @@
         "waaseyaa/wayfinding": "Provides optional trail tools for AI agents"
     },
     "require-dev": {
-        "phpunit/phpunit": "^10.5"
+        "phpunit/phpunit": "^13.0"
     },
     "autoload": {
         "psr-4": {

@@ -222,9 +222,11 @@ final class ParentDelegatedAccessTest extends TestCase
     private function buildEntityTypeManager(string $entityTypeId, EntityStorageInterface $storage): EntityTypeManagerInterface
     {
         $manager = $this->createStub(EntityTypeManagerInterface::class);
-        $manager->method('getStorage')->with($entityTypeId)->willReturn($storage);
+        $manager->method('getStorage')->willReturnMap([[$entityTypeId, $storage]]);
         // C-22 WP3: read path now goes through the canonical repository.
-        $manager->method('getRepository')->with($entityTypeId)->willReturn(new StorageBackedStubRepository($storage));
+        $manager->method('getRepository')->willReturnMap([
+            [$entityTypeId, new StorageBackedStubRepository($storage)],
+        ]);
 
         return $manager;
     }
