@@ -173,6 +173,21 @@ final readonly class McpEndpoint
         return $this->dispatch(
             $request->getContent(),
             $request->headers->get('Authorization'),
+            self::protocolHeaders($request),
+        );
+    }
+
+    private static function protocolHeaders(HttpRequest $request): McpRequestHeaders
+    {
+        $versions = $request->headers->all('MCP-Protocol-Version');
+        $methods = $request->headers->all('Mcp-Method');
+        $names = $request->headers->all('Mcp-Name');
+
+        return new McpRequestHeaders(
+            protocolVersion: \count($versions) === 1 ? $versions[0] : null,
+            method: \count($methods) === 1 ? $methods[0] : null,
+            name: \count($names) === 1 ? $names[0] : null,
+            malformed: \count($versions) > 1 || \count($methods) > 1 || \count($names) > 1,
         );
     }
 
@@ -189,7 +204,6 @@ final readonly class McpEndpoint
         $transportRequest = new StreamableHttpRequestSnapshot(
             method: $request->getMethod(),
             origin: $request->headers->get('Origin'),
-            protocolVersion: $request->headers->get('MCP-Protocol-Version'),
             contentLength: $request->headers->get('Content-Length'),
             contentType: $request->headers->get('Content-Type'),
             accept: $request->headers->get('Accept'),
@@ -231,6 +245,7 @@ final readonly class McpEndpoint
     private function dispatch(
         string $body,
         ?string $authorizationHeader,
+        McpRequestHeaders $headers,
     ): McpResponse {
         // One id per request, shared by every record and returned to the caller.
         $correlationId = \bin2hex(\random_bytes(8));
@@ -460,11 +475,54 @@ final readonly class McpEndpoint
                 return $this->jsonRpcError(-32602, 'Invalid params: must be an object', $id);
             }
 
+            try {
+                $protocol = new McpProtocolRequestValidator()->validate($request, $headers);
+            } catch (McpProtocolRequestException $e) {
+                $this->auditTerminal(
+                    AuditStage::InvalidParamsRefused,
+                    $correlationId,
+                    $actorUid,
+                    $method,
+                    $method,
+                    [],
+                    ['reason' => $e->reason],
+                );
+
+                return self::withNoStore($this->jsonRpcError(
+                    $e->jsonRpcCode,
+                    $e->getMessage(),
+                    $id,
+                    $e->data,
+                    $e->httpStatus,
+                ));
+            }
+
             if (!$hasId) {
+                if ($protocol->modern) {
+                    $this->auditTerminal(
+                        AuditStage::InvalidParamsRefused,
+                        $correlationId,
+                        $actorUid,
+                        $method,
+                        $method,
+                        [],
+                        ['reason' => 'modern_notification_not_supported'],
+                    );
+
+                    return new McpResponse('', 400, headers: ['Cache-Control' => 'no-store']);
+                }
+
                 return $this->handleNotification($method, $params, $correlationId, $actorUid);
             }
 
-            $route = fn(): McpResponse => match ($method) {
+            $route = fn(): McpResponse => $protocol->modern
+                ? match ($method) {
+                    'server/discover' => $this->protocolExecute(fn(): McpResponse => $this->handleServerDiscover($id), $id, $correlationId, $actorUid, $method),
+                    'tools/list' => $this->protocolExecute(fn(): McpResponse => $this->handleToolsList($id, $bridge), $id, $correlationId, $actorUid, $method),
+                    'tools/call' => $this->handleToolsCall($id, $params, $bridge, $correlationId, $actorUid, (string) $principal->id()),
+                    default => $this->refuseUnknownMethod($id, $method, $correlationId, $actorUid, 404),
+                }
+            : match ($method) {
                 'initialize' => $this->protocolExecute(fn(): McpResponse => $this->handleInitialize($id, $params), $id, $correlationId, $actorUid, $method),
                 'ping' => $this->protocolExecute(fn(): McpResponse => $this->handlePing($id), $id, $correlationId, $actorUid, $method),
                 'tools/list' => $this->protocolExecute(fn(): McpResponse => $this->handleToolsList($id, $bridge), $id, $correlationId, $actorUid, $method),
@@ -476,9 +534,13 @@ final readonly class McpEndpoint
             // The HTTP session account is deliberately irrelevant on both MCP
             // tiers, especially the authenticated write tier where a
             // production request commonly has an anonymous session.
-            return $this->fieldReadScope !== null
+            $response = $this->fieldReadScope !== null
                 ? $this->fieldReadScope->run($principal, $route)
                 : $route();
+
+            return $protocol->modern
+                ? $this->modernizeResponse($response, $method)
+                : $response;
         } finally {
             $this->accountContext?->set($previousActor);
         }
@@ -620,6 +682,7 @@ final readonly class McpEndpoint
         string $method,
         string $correlationId,
         ?int $actorUid,
+        int $statusCode = 200,
     ): McpResponse {
         // The requested method name is the same class of safe structural
         // metadata as an unknown tool name — recorded so probing is visible.
@@ -633,7 +696,7 @@ final readonly class McpEndpoint
             ['reason' => 'method_not_found'],
         );
 
-        return $this->jsonRpcError(-32601, "Method not found: {$method}", $id);
+        return $this->jsonRpcError(-32601, "Method not found: {$method}", $id, statusCode: $statusCode);
     }
 
     /** @param array<mixed> $params */
@@ -660,10 +723,20 @@ final readonly class McpEndpoint
             'capabilities' => [
                 'tools' => ['listChanged' => false],
             ],
-            'serverInfo' => [
-                'name' => 'Waaseyaa',
-                'version' => '0.1.0',
+            'serverInfo' => self::serverInfo(),
+        ]);
+    }
+
+    private function handleServerDiscover(mixed $id): McpResponse
+    {
+        return $this->jsonRpcResult($id, [
+            'supportedVersions' => McpProtocol::SUPPORTED,
+            'capabilities' => [
+                'tools' => ['listChanged' => false],
             ],
+            'instructions' => 'List available tools before calling them. Tool visibility and execution are restricted to the authenticated principal.',
+            'ttlMs' => 0,
+            'cacheScope' => 'private',
         ]);
     }
 
@@ -1476,9 +1549,64 @@ final readonly class McpEndpoint
         );
     }
 
+    private function modernizeResponse(McpResponse $response, string $method): McpResponse
+    {
+        $headers = ['Cache-Control' => 'no-store'] + $response->headers;
+        if ($response->body === '') {
+            return new McpResponse('', $response->statusCode, $response->contentType, $headers);
+        }
+
+        try {
+            $envelope = \json_decode($response->body, true, 512, \JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return new McpResponse($response->body, $response->statusCode, $response->contentType, $headers);
+        }
+        if (!\is_array($envelope) || !\is_array($envelope['result'] ?? null)) {
+            return new McpResponse($response->body, $response->statusCode, $response->contentType, $headers);
+        }
+
+        $result = $envelope['result'];
+        $result['resultType'] ??= 'complete';
+        $meta = \is_array($result['_meta'] ?? null) ? $result['_meta'] : [];
+        $meta['io.modelcontextprotocol/serverInfo'] = self::serverInfo();
+        $result['_meta'] = $meta;
+        if ($method === 'tools/list') {
+            $result['ttlMs'] = 0;
+            $result['cacheScope'] = 'private';
+        }
+        $envelope['result'] = $result;
+
+        return new McpResponse(
+            \json_encode($envelope, \JSON_THROW_ON_ERROR),
+            $response->statusCode,
+            $response->contentType,
+            $headers,
+        );
+    }
+
+    private static function withNoStore(McpResponse $response): McpResponse
+    {
+        return new McpResponse(
+            $response->body,
+            $response->statusCode,
+            $response->contentType,
+            ['Cache-Control' => 'no-store'] + $response->headers,
+        );
+    }
+
+    /** @return array{name: string, version: string} */
+    private static function serverInfo(): array
+    {
+        // The implementation-version source of truth is tracked separately by
+        // #1641. Keeping the existing value here preserves legacy bytes while
+        // giving both protocol eras one identity projection.
+        return ['name' => 'Waaseyaa', 'version' => '0.1.0'];
+    }
+
     /**
      * @param array<string, mixed> $data Optional safe `error.data` members
-     *        (e.g. `correlation_id`). Never exception detail or raw params.
+     *        (e.g. `correlation_id`, or the protocol-required caller-reflected
+     *        `requested` version). Never exception detail or raw params.
      */
     private function jsonRpcError(
         int $code,

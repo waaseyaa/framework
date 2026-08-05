@@ -24,6 +24,7 @@ use Waaseyaa\Auth\AtomicRateLimiterInterface;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\Event\McpDispatchEvent;
 use Waaseyaa\Mcp\McpEndpoint;
+use Waaseyaa\Mcp\McpProtocol;
 use Waaseyaa\Mcp\McpResponse;
 use Waaseyaa\Mcp\Tests\Support\RecordingLogger;
 
@@ -349,6 +350,40 @@ final class McpEndpointDispatchEventTest extends TestCase
         self::assertStringNotContainsString(
             'raw-string-payload',
             \json_encode(array_column($spy->dispatched, 0), \JSON_THROW_ON_ERROR),
+        );
+    }
+
+    #[Test]
+    public function modern_header_refusal_closes_the_accepted_audit_pair_without_recording_header_values(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $spy = new RecordingSymfonyDispatcher();
+        $body = \json_encode([
+            'jsonrpc' => '2.0',
+            'id' => 1,
+            'method' => 'tools/list',
+            'params' => [
+                '_meta' => [
+                    McpProtocol::VERSION_META_KEY => McpProtocol::CURRENT,
+                    'io.modelcontextprotocol/clientCapabilities' => [],
+                ],
+            ],
+        ], \JSON_THROW_ON_ERROR);
+
+        $response = $this->dispatch($this->makeEndpoint(dispatcher: $spy), $body, 'Bearer valid', [
+            'HTTP_MCP_PROTOCOL_VERSION' => McpProtocol::CURRENT,
+            'HTTP_MCP_METHOD' => 'sk-raw-header-value',
+        ]);
+
+        self::assertSame(-32020, \json_decode($response->body, true)['error']['code']);
+        $stages = \array_map(
+            static fn(array $pair): ?string => $pair[0] instanceof McpDispatchEvent ? $pair[0]->stage : null,
+            $spy->dispatched,
+        );
+        self::assertSame(['request_accepted', 'invalid_params_refused'], $stages);
+        self::assertStringNotContainsString(
+            'sk-raw-header-value',
+            \json_encode(\array_column($spy->dispatched, 0), \JSON_THROW_ON_ERROR),
         );
     }
 
@@ -837,9 +872,15 @@ final class McpEndpointDispatchEventTest extends TestCase
         );
     }
 
-    private function dispatch(McpEndpoint $endpoint, string $body, ?string $authorizationHeader): McpResponse
+    /** @param array<string, string> $protocolHeaders */
+    private function dispatch(
+        McpEndpoint $endpoint,
+        string $body,
+        ?string $authorizationHeader,
+        array $protocolHeaders = [],
+    ): McpResponse
     {
-        $headers = [];
+        $headers = $protocolHeaders;
         if ($authorizationHeader !== null) {
             $headers['HTTP_AUTHORIZATION'] = $authorizationHeader;
         }
