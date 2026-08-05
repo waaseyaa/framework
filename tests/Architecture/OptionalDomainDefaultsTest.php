@@ -124,4 +124,33 @@ final class OptionalDomainDefaultsTest extends TestCase
             );
         }
     }
+
+    #[Test]
+    public function ai_tools_declares_content_search_as_an_optional_version_coupled_domain(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $manifest = json_decode(
+            (string) file_get_contents($root . '/packages/ai-tools/composer.json'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
+
+        self::assertArrayNotHasKey('waaseyaa/search', $manifest['require']);
+        self::assertArrayHasKey('waaseyaa/search', $manifest['suggest']);
+        self::assertSame('^0.1.0-alpha.286', $manifest['require-dev']['waaseyaa/search']);
+        self::assertSame('<0.1.0-alpha.287 || >=0.2.0', $manifest['conflict']['waaseyaa/search']);
+    }
+
+    #[Test]
+    public function ai_tools_source_keeps_optional_search_types_behind_its_local_adapter(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $source = (string) file_get_contents(
+            $root . '/packages/ai-tools/src/ContentSearch/SearchPackageContentSearchAdapter.php',
+        );
+
+        self::assertStringNotContainsString('use Waaseyaa\\Search\\', $source);
+        self::assertStringContainsString("private const string PROVIDER = 'Waaseyaa\\\\Search\\\\SearchProviderInterface';", $source);
+    }
 }

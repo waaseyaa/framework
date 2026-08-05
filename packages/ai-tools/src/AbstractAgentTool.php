@@ -112,6 +112,18 @@ abstract class AbstractAgentTool implements AgentToolInterface
         return SanitizedToolError::result($correlationId);
     }
 
+    /** Sanitized refusal for an optional backend that cannot be resolved. */
+    protected function unavailableError(string $toolName, \Throwable $e): AgentToolResult
+    {
+        $correlationId = SanitizedToolError::correlationId();
+        ($this->logger ?? new NullLogger())->error(
+            'agent_tool.backend_unavailable',
+            SanitizedToolError::logContext($e, $correlationId, $toolName),
+        );
+
+        return SanitizedToolError::unavailableResult($correlationId);
+    }
+
     /**
      * Attach a policy gate so write/read operations consult the entity
      * AccessPolicy for (entity, operation, account) in addition to the

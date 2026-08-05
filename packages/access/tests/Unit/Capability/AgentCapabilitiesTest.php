@@ -14,11 +14,11 @@ use Waaseyaa\Access\PermissionHandler;
 final class AgentCapabilitiesTest extends TestCase
 {
     #[Test]
-    public function allExposesElevenStaticCapabilityNames(): void
+    public function allExposesTwelveStaticCapabilityNames(): void
     {
         $all = AgentCapabilities::all();
 
-        self::assertCount(11, $all);
+        self::assertCount(12, $all);
         self::assertContains('agent.run', $all);
         self::assertContains('agent.run.approve', $all);
         self::assertContains('agent.run.bypass_ownership', $all);
@@ -28,6 +28,7 @@ final class AgentCapabilitiesTest extends TestCase
         self::assertContains('tool.entity.update', $all);
         self::assertContains('tool.entity.delete', $all);
         self::assertContains('tool.entity.search', $all);
+        self::assertContains('tool.content.search', $all);
         self::assertContains('tool.relationship.traverse', $all);
         self::assertContains('tool.vector.search', $all);
     }

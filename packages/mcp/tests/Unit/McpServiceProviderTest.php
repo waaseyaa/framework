@@ -34,6 +34,15 @@ final class McpServiceProviderTest extends TestCase
         return $router->getRouteCollection();
     }
 
+    /** @return list<string> */
+    private function publicReadCapabilitiesFor(array $config): array
+    {
+        $provider = new McpServiceProvider();
+        $provider->setKernelContext('', $config, []);
+
+        return new \ReflectionMethod(McpServiceProvider::class, 'publicReadCapabilities')->invoke($provider);
+    }
+
     #[Test]
     public function registers_mcp_routes_through_the_package_service_provider(): void
     {
@@ -161,6 +170,29 @@ final class McpServiceProviderTest extends TestCase
         $disabled->setKernelContext('', ['mcp' => ['public' => ['enabled' => false]]], []);
         self::assertSame([], $disabled->apiCatalogEntries());
         self::assertSame([], $disabled->aiCatalogEntries());
+    }
+
+    #[Test]
+    public function anonymous_content_search_is_default_off_and_requires_an_explicit_flag(): void
+    {
+        self::assertNotContains('tool.content.search', $this->publicReadCapabilitiesFor([]));
+        self::assertContains('tool.content.search', $this->publicReadCapabilitiesFor([
+            'mcp' => ['public' => ['content_search_enabled' => true]],
+        ]));
+        self::assertNotContains('tool.content.search', $this->publicReadCapabilitiesFor([
+            'mcp' => ['public' => ['content_search_enabled' => false]],
+        ]));
+    }
+
+    #[Test]
+    public function malformed_anonymous_content_search_flag_fails_boot_without_guessing(): void
+    {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessageMatches('/mcp\.public\.content_search_enabled/');
+
+        $this->publicReadCapabilitiesFor([
+            'mcp' => ['public' => ['content_search_enabled' => 'flase']],
+        ]);
     }
 
     #[Test]
