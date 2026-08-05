@@ -14,6 +14,10 @@
         },
         {
             "type": "path",
+            "url": "../auth"
+        },
+        {
+            "type": "path",
             "url": "../cache"
         },
         {
@@ -66,6 +70,10 @@
         },
         {
             "type": "path",
+            "url": "../search"
+        },
+        {
+            "type": "path",
             "url": "../workflows"
         },
         {
@@ -94,13 +102,21 @@
         "waaseyaa/workflows": "^0.1.0-alpha.286"
     },
     "suggest": {
+        "waaseyaa/auth": "Provides atomic rate limiting for the optional public content search endpoint",
+        "waaseyaa/search": "Provides principal-safe search for the optional public content search endpoint",
         "waaseyaa/oidc": "Provides optional OIDC client administration routes"
+    },
+    "conflict": {
+        "waaseyaa/auth": "<0.1.0-alpha.287 || >=0.2.0",
+        "waaseyaa/search": "<0.1.0-alpha.287 || >=0.2.0"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5",
+        "waaseyaa/auth": "^0.1.0-alpha.286",
         "waaseyaa/audit": "^0.1.0-alpha.286",
         "waaseyaa/database-legacy": "^0.1.0-alpha.286",
         "waaseyaa/media": "^0.1.0-alpha.286",
+        "waaseyaa/search": "^0.1.0-alpha.286",
         "waaseyaa/telescope": "^0.1.0-alpha.286"
     },
     "autoload": {

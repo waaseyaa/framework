@@ -704,12 +704,27 @@ final class HttpKernel extends AbstractKernel
      */
     private function sessionStatelessPaths(): array
     {
+        $paths = [];
         $session = $this->config['session'] ?? null;
-        $paths = is_array($session) ? ($session['stateless_paths'] ?? []) : [];
-        $paths = is_array($paths) ? $paths : [];
+        if (is_array($session) && is_array($session['stateless_paths'] ?? null)) {
+            $paths = array_values(array_filter(
+                $session['stateless_paths'],
+                static fn($path): bool => is_string($path) && $path !== '',
+            ));
+        }
+
+        // The opt-in public search endpoint is read-only and never needs to
+        // create an anonymous session. Requests carrying a session cookie are
+        // still resumed by SessionMiddleware, preserving authenticated search.
+        $api = $this->config['api'] ?? null;
+        $contentSearch = is_array($api) ? ($api['content_search'] ?? null) : null;
+        if (is_array($contentSearch) && ($contentSearch['enabled'] ?? false) === true) {
+            $paths[] = '/api/content/search';
+        }
+
         $paths[] = '/.well-known/api-catalog';
 
-        return array_values(array_unique(array_filter($paths, static fn($p): bool => is_string($p) && $p !== '')));
+        return array_values(array_unique($paths));
     }
 
     /**
