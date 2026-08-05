@@ -93,8 +93,8 @@ When the mapping is not obvious, search under `docs/specs/` (e.g. `rg -n "TopicO
 |---|---|---|
 | 0 | Foundation | analytics, cache, database-legacy, error-handler, foundation, geo, http-client, i18n, ingestion, mail, mercure, oauth-provider, plugin, queue, scheduler, state, typed-data, validation |
 | 1 | Core Data | entity, entity-storage, access, audit, user, config, field, auth, oidc, testing |
-| 2 | Content Types | attachment, node, taxonomy, media, path, menu, note, relationship, groups, engagement |
-| 3 | Services | workflows, search, seo, notification, billing, github, migration, northcloud, structured-import, listing, messaging, publishing |
+| 2 | Content Types | node, taxonomy, media, path, menu, note, relationship, groups, engagement |
+| 3 | Services | workflows, search, seo, notification, billing, github, migration, listing, messaging, publishing |
 | 4 | API | api, bimaaji, routing, wayfinding |
 | 5 | AI | ai-agent, ai-observability, ai-pipeline, ai-schema, ai-tools, ai-vector |
 | 6 | Interfaces | cli, frankenphp, admin-surface, genealogy, graphql, mcp, ssr, telescope, deployer, inertia, debug, workspace |

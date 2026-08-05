@@ -90,10 +90,6 @@
         },
         {
             "type": "path",
-            "url": "packages/northcloud"
-        },
-        {
-            "type": "path",
             "url": "packages/taxonomy"
         },
         {
@@ -353,7 +349,6 @@
         "waaseyaa/mercure": "self.version",
         "waaseyaa/migration": "self.version",
         "waaseyaa/node": "self.version",
-        "waaseyaa/northcloud": "self.version",
         "waaseyaa/note": "self.version",
         "waaseyaa/notification": "self.version",
         "waaseyaa/oauth-provider": "self.version",

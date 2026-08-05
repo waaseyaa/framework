@@ -70,7 +70,6 @@ This is the canonical, package-level mirror of the seven-layer architecture enfo
 | taxonomy | 2 | |
 | billing | 3 | |
 | github | 3 | |
-| northcloud | 3 | |
 | notification | 3 | |
 | search | 3 | |
 | seo | 3 | |
