@@ -40,13 +40,6 @@ final readonly class StreamableHttpTransportGuard
             return self::error(403, -32040, 'Forbidden origin');
         }
 
-        $version = $request->protocolVersion;
-        if ($version !== null && !McpProtocol::isSupported($version)) {
-            return self::error(400, -32602, 'Unsupported MCP-Protocol-Version', [
-                'supported' => McpProtocol::SUPPORTED,
-            ]);
-        }
-
         if ($request->method === 'GET') {
             if (!self::accepts($request, 'text/event-stream')) {
                 return self::error(406, -32041, 'GET requires Accept: text/event-stream');

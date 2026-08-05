@@ -16,7 +16,6 @@ final readonly class StreamableHttpRequestSnapshot
     public function __construct(
         public string $method,
         public ?string $origin,
-        public ?string $protocolVersion,
         public ?string $contentLength,
         public ?string $contentType,
         public ?string $accept,

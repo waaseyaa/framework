@@ -23,7 +23,7 @@ final class McpServerCardTest extends TestCase
         self::assertSame('0.1.0', $card['version']);
         self::assertSame('/mcp', $card['endpoint']);
         self::assertSame('streamable-http', $card['transport']);
-        self::assertSame(['2025-11-25', '2025-06-18', '2025-03-26'], $card['protocolVersions']);
+        self::assertSame(['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26'], $card['protocolVersions']);
         self::assertSame([
             'jsonResponse' => true,
             'sse' => false,

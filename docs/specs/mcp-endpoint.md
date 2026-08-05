@@ -2,6 +2,7 @@
 
 <!-- Spec reviewed 2026-08-04 - #2199: every admitted or infrastructure-refused MCP request now ends in an honest audit stage. A rate-limiter exception emits the sanitized terminal `rate_limiter_unavailable` stage before returning -32030/503; it is an infrastructure `error`, not a policy denial, and never carries the exception message. Protocol handlers that return a JSON-RPC error are no longer misclassified as `execution_succeeded`: -32602 closes as `invalid_params_refused`, while any other returned protocol error closes as `execution_failed`. -->
 <!-- Spec reviewed 2026-08-04 - #2191 contract-truth reconciliation: the live endpoint methods, stage-aware dispatch event, conditional route set, protocol-header behavior, protected admin diagnostics, and deliberate resources/prompts absence were checked against current source. Removed legacy McpController claims are no longer presented as live behavior. -->
+<!-- Spec reviewed 2026-08-04 - #2205 dual-era MCP 2026-07-28: request era is selected only from params._meta["io.modelcontextprotocol/protocolVersion"], never from HTTP headers. McpProtocolRequestValidator requires object-valued per-request client capabilities, validates optional client identity, and checks the required version/method/name mirrors after authentication, rate limiting, JSON parsing, and request acceptance; mismatches close the audit pair with invalid_params_refused and expose no raw header values. Modern routing implements server/discover, tools/list, and tools/call; adds resultType and server identity metadata; uses private/ttlMs=0 plus Cache-Control: no-store for principal-varying discovery, tool catalogues, and pre-route protocol refusals; rejects unsupported modern methods with HTTP 404; and accepts no modern core notifications. The legacy initialize/ping/notification lifecycle and successful-result bytes remain unchanged. Deliberate malformed-traffic change: legacy unknown version headers now return -32022 after authentication (or 401 before it), and stray modern mirrors fail -32020. StreamableHttpTransportGuard remains era-neutral while preserving Origin, size, content type, dual Accept, POST-only, and stateless JSON-response enforcement. -->
 
 <!-- Spec reviewed 2026-08-04 - #2177 boundary correction: bearer-token storage and validation remain in waaseyaa/auth (L1), while the Symfony Console `bearer-token:*` presentation now lives in `Waaseyaa\CLI\Provider\BearerTokenServiceProvider` and `Waaseyaa\CLI\Command\BearerTokenConsoleCommands` (L6). This supersedes the command-ownership sentence in the 2026-08-03 F3 review note below. -->
 
@@ -106,19 +107,20 @@ This follows the typed `AppControllerRouter` contract (see **`docs/specs/app-con
 The internal dispatch method processes requests in this order:
 
 0. **Guard Streamable HTTP in `serve()`** -- before dispatch, validate Origin,
-   method, media types, and any `MCP-Protocol-Version` header. A transport
+   method, request size, and media types. A transport
    refusal never reaches authentication, rate limiting, JSON parsing, or tools.
 1. **Authenticate** -- calls `$this->auth->authenticate($authorizationHeader)`. If null is returned, responds with HTTP 401 and a JSON-RPC error (code `-32001`, message "Unauthorized"). The 401 envelope is identical for every `null` cause — missing/malformed header, unknown token, or a token whose account is blocked (#1652) — so callers cannot distinguish a blocked token from an invalid one.
 2. **Scope the acting-account context** -- immediately after successful auth (before body parsing), the endpoint captures the prior `AccountContextInterface` value and sets the bearer-auth-resolved account. The prior value is restored in `finally` -- including when a routed handler throws -- because the MCP account deliberately differs from any session account. No-op when no context was injected.
 3. **Parse one JSON-RPC message** -- decodes the body with `json_decode()`. On `JsonException`, returns HTTP 400 parse error (`-32700`). Batch arrays, a non-`2.0` envelope, an invalid request id, or a malformed request return HTTP 400 (`-32600`). Valid client response messages are accepted with HTTP 202 and no body.
-4. **Record pipeline stages** -- see "Dispatch event seam" below. An admitted request emits `request_accepted`; authentication rejection, an over-limit refusal, parameter/method refusal, approval, and handler completion or failure emit their applicable stages.
-5. **Dispatch inside the bearer field-read scope** -- `AccountFieldReadScopeInterface::run()` scopes the guarded entity-read principal to the bearer identity for the complete routed call and restores the prior scope afterward. This is separate from `AccountContextInterface`: `FieldReadGuard` deliberately consults the immutable field-read scope, not the HTTP session or acting-account holder. The routed call then matches the JSON-RPC method to an internal handler:
-   - `initialize` -- validates lifecycle params and negotiates `2025-11-25`, `2025-06-18`, or `2025-03-26` (preferring the latest), then returns capabilities and server info.
+4. **Accept and audit the request** -- see "Dispatch event seam" below. Every authenticated, parsed request with a valid method and id emits `request_accepted` before parameter, protocol, or route validation, and then exactly one terminal stage.
+5. **Classify and validate the protocol era** -- body metadata is authoritative. A request carrying `params._meta["io.modelcontextprotocol/protocolVersion"] = "2026-07-28"` is modern, must also carry object-valued `io.modelcontextprotocol/clientCapabilities`, and must carry matching `MCP-Protocol-Version` and `Mcp-Method` headers, plus a matching `Mcp-Name` on `tools/call` (including the protocol's Base64 sentinel form). Optional client identity must have string `name` and `version`. Missing, malformed, or mismatched mirrors return HTTP 400 / `-32020`; unsupported body or legacy header versions return HTTP 400 / `-32022`; malformed modern metadata returns HTTP 400 / `-32602`. Headers can never reclassify a legacy body. Validation failures close the accepted audit pair without recording raw header values.
+6. **Dispatch inside the bearer field-read scope** -- `AccountFieldReadScopeInterface::run()` scopes the guarded entity-read principal to the bearer identity for the complete routed call and restores the prior scope afterward. This is separate from `AccountContextInterface`: `FieldReadGuard` deliberately consults the immutable field-read scope, not the HTTP session or acting-account holder. The routed call then uses the selected era:
+   - Legacy `initialize` validates lifecycle params and negotiates `2025-11-25`, `2025-06-18`, or `2025-03-26` (preferring the latest legacy revision), then returns capabilities and server info.
    - `notifications/initialized` and `notifications/cancelled` -- accepted as notifications with HTTP 202 and no response body. Cancellation is advisory for this synchronous, task-free server profile.
-   - `ping` -- returns an empty result.
-   - `tools/list` -- returns tool definitions via the per-request bridge.
-   - `tools/call` -- validates the `params` envelope (`name` must be a string, `arguments` must be a JSON object), looks up the tool, enforces the tool's declared input schema, and executes it via the per-request bridge. See "Input-schema enforcement (`tools/call`)" below.
-   - Any other method returns a "Method not found" error (code `-32601`).
+   - Legacy `ping` returns an empty result.
+   - Modern `server/discover` reports every supported revision, the principal-scoped tool capability, server identity, and private zero-TTL caching.
+   - Both eras support `tools/list` and `tools/call` through the same per-request access-checked bridge. Modern successful results add `resultType: complete` and server identity metadata; modern tool catalogues add `ttlMs: 0`, `cacheScope: private`, and `Cache-Control: no-store`.
+   - A legacy unknown method returns `-32601` with the historical HTTP 200. A modern unsupported method returns the same JSON-RPC code with HTTP 404. Modern core notifications are not defined by the current protocol and are refused without a JSON-RPC response.
 
    A `params` member that is not a JSON object is rejected with `-32602`
    before routing rather than substituting an empty parameter bag.
@@ -697,14 +699,16 @@ The 12 first-party tools (`search_entities`/`search_teachings`/`ai_discover`, `g
 | `-32700` | Parse error (invalid JSON) |
 | `-32600` | Invalid request (missing `method` field) |
 | `-32601` | Method not found |
-| `-32602` | Invalid params (missing tool name, unknown tool) |
+| `-32602` | Invalid params (malformed modern metadata or tool-call envelope) |
 | `-32001` | Unauthorized (auth failure) |
+| `-32020` | Modern HTTP header/body mismatch |
+| `-32022` | Unsupported protocol version |
 
 ### Transport
 
-The endpoint implements the stateless JSON-response profile of Streamable HTTP
-for protocol `2025-11-25` with compatibility for `2025-06-18` and
-`2025-03-26`:
+The endpoint implements a dual-era stateless JSON-response profile of
+Streamable HTTP: current per-request MCP `2026-07-28`, plus legacy lifecycle
+compatibility for `2025-11-25`, `2025-06-18`, and `2025-03-26`:
 
 - POST carries exactly one JSON-RPC request, notification, or response.
 - POST requires `Content-Type: application/json` and `Accept` listing both
@@ -715,9 +719,9 @@ for protocol `2025-11-25` with compatibility for `2025-06-18` and
 - A present Origin is validated against the request origin plus the explicit
   `mcp.transport.allowed_origins` list; invalid origins return 403. Native
   clients may omit Origin.
-- Subsequent clients send `MCP-Protocol-Version`; invalid or unsupported values
-  return HTTP 400. When the header is absent the transport accepts the request;
-  protocol negotiation still occurs through `initialize`.
+- Legacy clients may send a supported `MCP-Protocol-Version`; absence retains
+  the `2025-03-26` fallback. Modern clients declare `2026-07-28` in body
+  metadata and mirror the version, method, and applicable name in HTTP headers.
 
 ## Routes
 
@@ -752,7 +756,7 @@ advertised by this contribution.
     "description": "AI-native content management system",
     "endpoint": "/mcp",
     "transport": "streamable-http",
-    "protocolVersions": ["2025-11-25", "2025-06-18", "2025-03-26"],
+    "protocolVersions": ["2026-07-28", "2025-11-25", "2025-06-18", "2025-03-26"],
     "transportCapabilities": {
         "jsonResponse": true,
         "sse": false,

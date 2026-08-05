@@ -8,13 +8,11 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
-use Waaseyaa\Mcp\McpProtocol;
 use Waaseyaa\Mcp\StreamableHttpRequestSnapshot;
 use Waaseyaa\Mcp\StreamableHttpTransportGuard;
 
 #[CoversClass(StreamableHttpTransportGuard::class)]
 #[CoversClass(StreamableHttpRequestSnapshot::class)]
-#[CoversClass(McpProtocol::class)]
 final class StreamableHttpTransportGuardTest extends TestCase
 {
     #[Test]
@@ -102,19 +100,11 @@ final class StreamableHttpTransportGuardTest extends TestCase
     }
 
     #[Test]
-    public function supported_protocol_headers_are_admitted_and_unknown_versions_fail_http_400(): void
+    public function protocol_header_is_admitted_for_post_parse_era_validation(): void
     {
-        foreach (McpProtocol::SUPPORTED as $version) {
-            self::assertNull(new StreamableHttpTransportGuard()->validate($this->post([
-                'HTTP_MCP_PROTOCOL_VERSION' => $version,
-            ])));
-        }
-
-        $response = new StreamableHttpTransportGuard()->validate($this->post([
+        self::assertNull(new StreamableHttpTransportGuard()->validate($this->post([
             'HTTP_MCP_PROTOCOL_VERSION' => '2099-01-01',
-        ]));
-        self::assertSame(400, $response?->statusCode);
-        self::assertStringContainsString('supported', $response?->body ?? '');
+        ])));
     }
 
     #[Test]
@@ -148,7 +138,6 @@ final class StreamableHttpTransportGuardTest extends TestCase
         return new StreamableHttpRequestSnapshot(
             method: $request->getMethod(),
             origin: $request->headers->get('Origin'),
-            protocolVersion: $request->headers->get('MCP-Protocol-Version'),
             contentLength: $request->headers->get('Content-Length'),
             contentType: $request->headers->get('Content-Type'),
             accept: $request->headers->get('Accept'),

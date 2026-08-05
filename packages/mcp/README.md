@@ -15,9 +15,10 @@ account's permissions.
 
 ## Quick reference
 
-- **Endpoint:** `POST /mcp` (JSON-RPC; methods: `initialize`, `ping`,
-  `tools/list`, `tools/call`). Protocol revisions `2025-11-25`, `2025-06-18`,
-  and `2025-03-26` are supported; the latest is preferred.
+- **Endpoint:** `POST /mcp` (JSON-RPC). Modern MCP `2026-07-28` exposes
+  `server/discover`, `tools/list`, and `tools/call` with per-request metadata
+  and required HTTP mirrors. Legacy `2025-11-25`, `2025-06-18`, and
+  `2025-03-26` retain `initialize`, `ping`, notifications, and tool methods.
 - **Transport profile:** stateless Streamable HTTP with JSON responses. POST
   requires `Content-Type: application/json` and an `Accept` header listing both
   `application/json` and `text/event-stream`. GET returns 405 because this
@@ -202,10 +203,11 @@ separately.
 > and revocable scoped bearer tokens, atomic default-on rate limiting, bounded
 > authenticated introspection, deterministic duplicate-name refusal, and a
 > curated write-tool boundary are framework-owned. The endpoint implements the
-> stateless JSON-response profile of MCP Streamable HTTP 2025-11-25, including
-> lifecycle negotiation, notification semantics, media negotiation, protocol
-> headers, and Origin validation. SSE, server-initiated requests, transport
-> sessions, and resumability are intentionally absent and advertised as such.
+> dual-era stateless JSON-response profile of MCP Streamable HTTP: current
+> per-request MCP 2026-07-28 plus the legacy initialization lifecycle. It
+> validates media negotiation, protocol header/body coherence, and Origin.
+> SSE, server-initiated requests, transport sessions, and resumability are
+> intentionally absent and advertised as such.
 >
 > Keep the tier behind a curated capability allowlist
 > (`mcp.write_tier.capabilities`). The canonical editorial surface is
