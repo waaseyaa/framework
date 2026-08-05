@@ -87,7 +87,7 @@ final class DatabaseBootstrapper
 
         // Ensure the parent directory exists so SQLite can create the file.
         $dir = dirname($dbPath);
-        if (!is_dir($dir) && !mkdir($dir, 0o755, recursive: true) && !is_dir($dir)) {
+        if (!is_dir($dir) && !@mkdir($dir, 0o755, recursive: true) && !is_dir($dir)) {
             throw new \RuntimeException(sprintf(
                 'Failed to create the database directory "%s" for the SQLite database at "%s". '
                 . 'Check that the parent path exists and is writable.',

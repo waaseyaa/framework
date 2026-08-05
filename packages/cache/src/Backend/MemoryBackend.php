@@ -18,13 +18,18 @@ use Waaseyaa\Cache\TaggedCacheInterface;
 final class MemoryBackend implements TagAwareCacheInterface, TaggedCacheInterface
 {
     private readonly ProjectionDeprecationDiagnostic $projectionDiagnostic;
+    /** @var \Closure(): int */
+    private readonly \Closure $clock;
 
-    public function __construct(?ProjectionDeprecationDiagnostic $projectionDiagnostic = null)
-    {
+    public function __construct(
+        ?ProjectionDeprecationDiagnostic $projectionDiagnostic = null,
+        ?callable $clock = null,
+    ) {
         $this->projectionDiagnostic = $projectionDiagnostic ?? ProjectionDeprecationDiagnostic::forEntityPayloads(
             static function (): void {},
             EntityPayloadBoundaryConfig::enforced(),
         );
+        $this->clock = $clock === null ? time(...) : \Closure::fromCallable($clock);
     }
 
     /** @var array<string, CacheItem> */
@@ -63,7 +68,7 @@ final class MemoryBackend implements TagAwareCacheInterface, TaggedCacheInterfac
 
         // Check expiration: expired items are removed and return false.
         // PERMANENT items never expire.
-        if ($item->expire !== CacheBackendInterface::PERMANENT && $item->expire < time()) {
+        if ($item->expire !== CacheBackendInterface::PERMANENT && $item->expire < ($this->clock)()) {
             unset($this->cache[$cid]);
             return false;
         }
@@ -97,7 +102,7 @@ final class MemoryBackend implements TagAwareCacheInterface, TaggedCacheInterfac
         $this->cache[$cid] = new CacheItem(
             cid: $cid,
             data: $data,
-            created: time(),
+            created: ($this->clock)(),
             expire: $expire,
             tags: $tags,
             valid: true,
@@ -199,7 +204,7 @@ final class MemoryBackend implements TagAwareCacheInterface, TaggedCacheInterfac
         // expired (rejected by the existing get() path on next read).
         $expire = $ttl === null
             ? CacheBackendInterface::PERMANENT
-            : time() + $ttl;
+            : (int) (($this->clock)() + $ttl);
 
         // Reuse existing set() so legacy CacheItem::$tags and ::$expire stay
         // populated for any subscriber that reads them.

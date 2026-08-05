@@ -5,7 +5,7 @@ declare(strict_types=1);
 
 $root = dirname(__DIR__);
 $format = 'json';
-foreach (array_slice($argv, 1) as $argument) {
+foreach (array_slice($_SERVER['argv'] ?? [], 1) as $argument) {
     if (str_starts_with($argument, '--format=')) {
         $format = substr($argument, strlen('--format='));
     }
@@ -36,7 +36,10 @@ if ($exitCode !== 0 || $stdout === false) {
     exit(1);
 }
 
-$trackedFiles = array_values(array_filter(explode("\0", $stdout)));
+$trackedFiles = array_values(array_filter(
+    explode("\0", $stdout),
+    static fn(string $path): bool => $path !== '',
+));
 $phpTestFiles = [];
 $phpunitConfigs = [];
 $vitestFiles = [];
@@ -74,6 +77,33 @@ $signals = [
     'medium_group_files' => 0,
     'large_group_files' => 0,
 ];
+$determinism = [
+    'randomness' => [
+        'cryptographic_entropy' => [],
+        'bounded_selection' => [],
+        'fixture_uniqueness' => [],
+    ],
+    'waits' => [
+        'subprocess_polling' => [],
+        'filesystem_retry' => [],
+        'unclassified' => [],
+    ],
+    'conditional_skips' => [
+        'environment_capability' => [],
+        'optional_dependency' => [],
+        'fixture_or_provenance_availability' => [],
+        'framework_gap' => [],
+        'unclassified' => [],
+    ],
+    'state_boundaries' => [
+        'wall_clock' => [],
+        'process_globals' => [],
+        'filesystem' => [],
+        'database' => [],
+        'subprocess' => [],
+        'network_or_port' => [],
+    ],
+];
 
 foreach ($phpTestFiles as $path) {
     $contents = file_get_contents($root . '/' . $path);
@@ -103,7 +133,72 @@ foreach ($phpTestFiles as $path) {
     $signals['small_group_files'] += preg_match('/#\[Small\b/', $contents);
     $signals['medium_group_files'] += preg_match('/#\[Medium\b/', $contents);
     $signals['large_group_files'] += preg_match('/#\[Large\b/', $contents);
+
+    if (preg_match('/\brandom_bytes\s*\(/', $contents) === 1) {
+        $determinism['randomness']['cryptographic_entropy'][] = $path;
+    }
+    if (preg_match('/\b(?:random_int|mt_rand|array_rand|shuffle)\s*\(/', $contents) === 1) {
+        $determinism['randomness']['bounded_selection'][] = $path;
+    }
+    if (preg_match('/\buniqid\s*\(/', $contents) === 1) {
+        $determinism['randomness']['fixture_uniqueness'][] = $path;
+    }
+
+    if (preg_match('/\b(?:sleep|usleep)\s*\(/', $contents) === 1) {
+        $waitCategory = match ($path) {
+            'tests/Integration/FieldReadPagePerformance/PagePerformanceHarnessContractTest.php',
+            'tests/Integration/FreshInstall/CutoverFreshInstallSmokeTest.php' => 'subprocess_polling',
+            'tests/Integration/Phase13/SsrHttpKernelIntegrationTest.php' => 'filesystem_retry',
+            default => 'unclassified',
+        };
+        $determinism['waits'][$waitCategory][] = $path;
+    }
+
+    if (preg_match('/\bmarkTest(?:Skipped|Incomplete)\s*\(/', $contents) === 1) {
+        $skipCategories = [];
+        if (preg_match('/full kernel boot|framework gap/i', $contents) === 1) {
+            $skipCategories[] = 'framework_gap';
+        }
+        if (preg_match('/not installed|requires ext-|Carbon not installed/i', $contents) === 1) {
+            $skipCategories[] = 'optional_dependency';
+        }
+        if (preg_match('/not found|No semver git tags|No vX\.Y\.Z git tag/i', $contents) === 1) {
+            $skipCategories[] = 'fixture_or_provenance_availability';
+        }
+        if (preg_match('/extension|SAPI|symlink|chmod|root|FTS5|JSON1|pcntl|proc_open|tempnam|server unavailable|not permitted|not supported/i', $contents) === 1) {
+            $skipCategories[] = 'environment_capability';
+        }
+        if ($skipCategories === []) {
+            $skipCategories[] = 'unclassified';
+        }
+        foreach (array_unique($skipCategories) as $skipCategory) {
+            $determinism['conditional_skips'][$skipCategory][] = $path;
+        }
+    }
+
+    $statePatterns = [
+        'wall_clock' => '/\b(?:time|microtime|hrtime|new\s+\\?DateTimeImmutable)\s*\(/',
+        'process_globals' => '/\b(?:getenv|putenv|ini_set|ini_restore|session_start|session_id)\s*\(|\$_(?:ENV|SERVER|SESSION)\b/',
+        'filesystem' => '/\b(?:file_put_contents|file_get_contents|mkdir|rmdir|unlink|rename|copy|touch|chmod|tempnam)\s*\(/',
+        'database' => '/\b(?:PDO|DBALDatabase|createSqlite|sqlite:)\b/',
+        'subprocess' => '/\b(?:proc_open|shell_exec|exec|passthru)\s*\(|new\s+Process\s*\(/',
+        'network_or_port' => '/\b(?:stream_socket_server|fsockopen|curl_init)\s*\(|127\.0\.0\.1:\d/',
+    ];
+    foreach ($statePatterns as $category => $pattern) {
+        if (preg_match($pattern, $contents) === 1) {
+            $determinism['state_boundaries'][$category][] = $path;
+        }
+    }
 }
+
+foreach ($determinism as &$categories) {
+    foreach ($categories as &$files) {
+        $files = array_values(array_unique($files));
+        sort($files);
+    }
+    unset($files);
+}
+unset($categories);
 
 $testingHelperConsumers = 0;
 foreach ($trackedFiles as $path) {
@@ -138,6 +233,7 @@ $inventory = [
     'testing_package' => [
         'consumer_test_files_outside_package' => $testingHelperConsumers,
     ],
+    'determinism' => $determinism,
 ];
 
 if ($format === 'json') {
@@ -159,3 +255,9 @@ echo "| Files with conditional skip signals | {$inventory['php']['conditional_sk
 echo "| Vitest files | {$inventory['admin']['vitest_files']} |\n";
 echo "| Playwright files | {$inventory['admin']['playwright_files']} |\n";
 echo "| External consumers of waaseyaa/testing | {$inventory['testing_package']['consumer_test_files_outside_package']} |\n";
+echo "\n## Determinism classification\n\n";
+foreach ($inventory['determinism'] as $signal => $categories) {
+    foreach ($categories as $category => $files) {
+        echo '| ' . str_replace('_', ' ', $signal . ': ' . $category) . ' | ' . count($files) . " |\n";
+    }
+}

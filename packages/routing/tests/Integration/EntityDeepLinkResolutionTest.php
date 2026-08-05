@@ -21,8 +21,8 @@ use Waaseyaa\Routing\WaaseyaaRouter;
  *   - 404 response when entity ID is not found in storage
  *   - 401/403 access-policy enforcement via AccessChecker
  *
- * These access-policy and param-conversion behaviours are deferred per DIR-003:
- * ship working partial coverage over fake-green stubs.
+ * Those behaviours are covered by the production-shaped WP10 E2E suite rather
+ * than represented here by permanently skipped placeholder tests.
  */
 #[CoversNothing]
 final class EntityDeepLinkResolutionTest extends TestCase
@@ -117,22 +117,5 @@ final class EntityDeepLinkResolutionTest extends TestCase
         $parameters = $registeredRoute->getOption('parameters');
         $this->assertIsArray($parameters);
         $this->assertSame(['type' => 'entity:node'], $parameters['id']);
-    }
-
-    // -------------------------------------------------------------------------
-    // Access-policy and entity-hydration assertions require full kernel boot.
-    // Marked as skipped per DIR-003 guidance — see WP10 E2E tests.
-    // -------------------------------------------------------------------------
-
-    #[Test]
-    public function entityNotFoundReturns404SkippedRequiresKernelBoot(): void
-    {
-        $this->markTestSkipped('Requires full kernel boot with EntityTypeManager. See WP10 E2E test.');
-    }
-
-    #[Test]
-    public function accessPolicyEnforcementSkippedRequiresKernelBoot(): void
-    {
-        $this->markTestSkipped('Requires full kernel boot with AccessChecker and session middleware. See WP10 E2E test.');
     }
 }

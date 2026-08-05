@@ -34,14 +34,15 @@ final class HttpKernelBootFailureTest extends TestCase
         // Point to a non-existent directory so PDO cannot create the file.
         file_put_contents(
             $root . '/config/waaseyaa.php',
-            "<?php return ['database' => '/nonexistent/deep/path/db.sqlite'];",
+            "<?php return ['environment' => 'local', 'database' => '/nonexistent/deep/path/db.sqlite'];",
         );
 
         $kernel = new HttpKernel($root);
         $boot = new \ReflectionMethod(AbstractKernel::class, 'boot');
 
         try {
-            $this->expectException(\Throwable::class);
+            $this->expectException(\RuntimeException::class);
+            $this->expectExceptionMessage('Failed to create the database directory');
             $boot->invoke($kernel);
         } finally {
             @unlink($root . '/config/waaseyaa.php');

@@ -23,6 +23,18 @@ use Waaseyaa\User\User;
 #[CoversClass(SessionMiddleware::class)]
 final class SessionMiddlewareTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $_SESSION = [];
+    }
+
+    protected function tearDown(): void
+    {
+        $_SESSION = [];
+        parent::tearDown();
+    }
+
     #[Test]
     public function sets_anonymous_user_when_no_session(): void
     {

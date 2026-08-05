@@ -11,7 +11,7 @@ use PHPUnit\Framework\TestCase;
 #[CoversNothing]
 final class TestQualityInventoryTest extends TestCase
 {
-    private string $repoRoot;
+    private string $repoRoot = '';
 
     protected function setUp(): void
     {
@@ -30,6 +30,13 @@ final class TestQualityInventoryTest extends TestCase
         self::assertSame(20, $inventory['phpunit']['config_files']);
         self::assertGreaterThan(50, $inventory['admin']['vitest_files']);
         self::assertGreaterThan(10, $inventory['admin']['playwright_files']);
+        self::assertSame([], $inventory['determinism']['waits']['unclassified']);
+        self::assertSame([], $inventory['determinism']['conditional_skips']['framework_gap']);
+        self::assertSame([], $inventory['determinism']['conditional_skips']['unclassified']);
+        self::assertCount(3, array_merge(
+            $inventory['determinism']['waits']['subprocess_polling'],
+            $inventory['determinism']['waits']['filesystem_retry'],
+        ));
     }
 
     #[Test]

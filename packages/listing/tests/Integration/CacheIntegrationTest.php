@@ -257,7 +257,10 @@ final class CacheIntegrationTest extends TestCase
     {
         $driver = new InMemoryStorageDriver();
         $this->seedThreeRows($driver);
-        $cache = new MemoryBackend();
+        $now = 1_800_000_000;
+        $cache = new MemoryBackend(clock: static function () use (&$now): int {
+            return $now;
+        });
         $resolver = $this->buildResolver($driver, $cache, new ListingCacheKeyBuilder());
 
         // 1-second TTL — short enough to expire mid-test without burning CI budget.
@@ -273,8 +276,7 @@ final class CacheIntegrationTest extends TestCase
         // Mutate the underlying storage. A cache hit would mask this change.
         $driver->write('article', '4', ['id' => '4', 'title' => 'd', 'status' => 1, 'weight' => 40]);
 
-        // Sleep just over the TTL boundary.
-        sleep(2);
+        $now += 2;
 
         $second = $resolver->resolve($def);
 
