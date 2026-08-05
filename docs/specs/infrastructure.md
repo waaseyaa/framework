@@ -1,4 +1,7 @@
 # Infrastructure
+
+<!-- Spec reviewed 2026-08-05 - #2196: Foundation adds a second layer-safe discovery seam for AI artifacts: immutable AiCatalogEntry values plus ProvidesAiCatalogEntriesInterface and AcceptsAiCatalogEntryProvidersInterface. AbstractKernel deterministically injects installed contributors before boot. This is deliberately separate from RFC 9727 because AI Catalog artifact identity/type/query semantics are not API Linkset semantics. Foundation imports no API or MCP class. HttpKernel treats /.well-known/ai-catalog.json as anonymous-stateless even while its owning feature remains default-off. -->
+
 <!-- Spec reviewed 2026-08-04 - #2195: Foundation adds the layer-safe RFC 9727 contribution seam: immutable same-origin ApiCatalogEntry/ApiCatalogTarget values, ProvidesApiCatalogEntriesInterface contributors, and AcceptsApiCatalogEntryProvidersInterface receiver. AbstractKernel collects contributors, sorts them by provider class, and injects them before provider boot. Foundation imports no API, MCP, Wayfinding, or new Symfony type for this seam. HttpKernel treats /.well-known/api-catalog as anonymous-stateless by default. -->
 <!-- Spec reviewed 2026-08-04 - #2191: the cache_mcp_read contract and its legacy discovery/search/traversal tools were removed with the unrouted McpController stack; the live endpoint has no equivalent cache contract. -->
 <!-- Spec reviewed 2026-07-30 - #2154 (follow-up to #2146): a session.stateless_paths entry of exactly "/" now means the ROOT PATH only, not a prefix of every path. Prefix-matching it made every anonymous GET stateless including /admin/login (a GET that must mint a CSRF token, withheld when no session exists), so an app could not express a cookie-free homepage without silently breaking its own authentication. Named prefixes are unchanged. See middleware-pipeline.md "Stateless path gate". -->
@@ -1829,6 +1832,26 @@ Anonymous GET/HEAD requests to `/.well-known/api-catalog` are always included
 in `HttpKernel`'s stateless path set, even when an application has not added the
 path to `session.stateless_paths`. Existing session cookies still resume under
 the established `SessionMiddleware` rule.
+
+### AI-catalog provider composition
+
+Experimental AI Catalog discovery mirrors the installed-provider lifecycle but
+uses a separate contract. Packages implement
+`ProvidesAiCatalogEntriesInterface` and return immutable `AiCatalogEntry`
+values. `AbstractKernel` sorts contributors by provider class and injects them
+into `AcceptsAiCatalogEntryProvidersInterface` receivers before boot. The
+Layer-4 API package owns configuration, application query overlays,
+serialization, schema validation, and HTTP; Foundation owns only the safe
+value and capability contracts. It therefore imports no API, MCP, or draft
+standards implementation.
+
+`AiCatalogEntry` accepts a deployment-neutral two-segment key, public display
+metadata, a media type, and a same-origin root-relative artifact path. It has no
+field for a host, bearer token, inline artifact body, or arbitrary metadata.
+The API owner derives a domain-anchored `urn:air` identifier and absolute URL
+from its configured canonical HTTPS base. Anonymous GET/HEAD requests to
+`/.well-known/ai-catalog.json` are stateless by default; the route itself is
+still absent unless an application explicitly enables a non-empty catalog.
 
 The kernel boot sequence is decomposed into extracted bootstrapper classes in `packages/foundation/src/Kernel/Bootstrap/`. `AbstractKernel` delegates to these rather than inlining the logic.
 

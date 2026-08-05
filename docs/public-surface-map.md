@@ -29,6 +29,8 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `SchemaRegistryInterface` | interface | Stores and retrieves JSON Schema entries by entity type ID |
 | `ServiceProviderInterface` | interface | Contract for packages to register and boot their services |
 | `ServiceProvider` | abstract class | Base class for service providers with DI binding and resolution helpers |
+| `Capability\AcceptsAiCatalogEntryProvidersInterface` | interface | Receives the deterministic installed-provider set used to assemble experimental AI Catalog discovery |
+| `Capability\ProvidesAiCatalogEntriesInterface` | interface | Contributes same-origin, intentionally public AI artifact references without deployment-specific language |
 | `Capability\AcceptsApiCatalogEntryProvidersInterface` | interface | Receives the deterministic installed-provider set used to assemble RFC 9727 discovery |
 | `Capability\ProvidesApiCatalogEntriesInterface` | interface | Contributes same-origin, intentionally public API endpoints and bounded description links |
 | `DomainEvent` | abstract class | Base class for all domain events carrying aggregate identity and actor context |

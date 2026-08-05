@@ -54,9 +54,11 @@ use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsAgentToolProvidersInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsAiCatalogEntryProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsApiCatalogEntryProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsContentModelProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesAiCatalogEntriesInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApiCatalogEntriesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Plugin\Extension\KnowledgeToolingExtensionRunner;
@@ -194,6 +196,7 @@ abstract class AbstractKernel
         $this->injectContentModelProviders();
         $this->injectAgentToolProviders();
         $this->injectApiCatalogEntryProviders();
+        $this->injectAiCatalogEntryProviders();
         $this->loadAppEntityTypes();
         $this->validateContentTypes();
         if (!$this->fieldAccessPreflightOnly && !$this->isDevelopmentMode()) {
@@ -578,6 +581,25 @@ abstract class AbstractKernel
         foreach ($this->providers as $provider) {
             if ($provider instanceof AcceptsApiCatalogEntryProvidersInterface) {
                 $provider->withApiCatalogEntryProviders($contributors);
+            }
+        }
+    }
+
+    /** Feed installed public-artifact contributors into the AI Catalog owner. */
+    protected function injectAiCatalogEntryProviders(): void
+    {
+        $contributors = array_values(array_filter(
+            $this->providers,
+            static fn(object $provider): bool => $provider instanceof ProvidesAiCatalogEntriesInterface,
+        ));
+        usort(
+            $contributors,
+            static fn(object $left, object $right): int => $left::class <=> $right::class,
+        );
+
+        foreach ($this->providers as $provider) {
+            if ($provider instanceof AcceptsAiCatalogEntryProvidersInterface) {
+                $provider->withAiCatalogEntryProviders($contributors);
             }
         }
     }

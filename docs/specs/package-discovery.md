@@ -1,5 +1,7 @@
 # Package Discovery
 
+<!-- Spec reviewed 2026-08-05 - #2196 AI-catalog composition: installed providers may separately contribute bounded public AI artifacts through ProvidesAiCatalogEntriesInterface; the kernel sorts and injects them into AcceptsAiCatalogEntryProvidersInterface receivers before boot. The separate contract prevents experimental ARD/AI Catalog fields from contaminating RFC 9727 endpoint semantics. -->
+
 <!-- Spec reviewed 2026-08-04 - #2195 API-catalog composition: installed providers may contribute bounded public API-catalog entries through ProvidesApiCatalogEntriesInterface; the kernel sorts contributors and injects them into AcceptsApiCatalogEntryProvidersInterface receivers before boot, preserving Layer-0 ownership and Composer installation as the activation boundary. -->
 <!-- Spec reviewed 2026-08-04 - #2187 retirement: waaseyaa/northcloud is removed from Composer discovery, CLI ownership, package-layer inventories, and the split-package release matrix. -->
 <!-- Spec reviewed 2026-07-21 - #2091 modularity: Composer installation is the activation boundary; optional routes, admin navigation, entity/catalogue definitions, and conditional agent tools are absent until their owning or required package is installed. -->
@@ -213,6 +215,8 @@ Beyond `register()` / `boot()`, a provider opts into kernel-invoked hooks by imp
 | `HasRenderCacheListenersInterface` | `registerRenderCacheListeners(...)` | Render cache listeners |
 | `AcceptsMigrationProvidersInterface` | `withMigrationProviders(list)` | Migration registry |
 | `AcceptsAgentToolProvidersInterface` | `withAgentToolProviders(list)` | Agent-tool registry provider |
+| `AcceptsAiCatalogEntryProvidersInterface` | `withAiCatalogEntryProviders(list)` | experimental AI-catalog registry provider |
+| `ProvidesAiCatalogEntriesInterface` | `aiCatalogEntries(): iterable` | intentionally public AI artifacts |
 | `AcceptsApiCatalogEntryProvidersInterface` | `withApiCatalogEntryProviders(list)` | API-catalog registry provider |
 | `ProvidesApiCatalogEntriesInterface` | `apiCatalogEntries(): iterable` | RFC 9727 public API catalog |
 | `ProvidesRolesInterface` | `roles(): iterable` (yields `Waaseyaa\User\Role`) | `RoleRepository` |
@@ -222,6 +226,16 @@ Beyond `register()` / `boot()`, a provider opts into kernel-invoked hooks by imp
 Agent-tool contribution uses the same cross-layer pattern. Application providers implement the Layer-5 `Waaseyaa\AI\Tools\ProvidesAgentToolsInterface`; the kernel detects that contract by string FQCN, sorts contributors by provider class, and hands them to the Foundation-owned `AcceptsAgentToolProvidersInterface` receiver before provider boot. `AiToolsServiceProvider` invokes each contributor once when the canonical registry singleton is first constructed. This keeps Foundation free of a compile-time Layer-5 dependency and keeps application tools independent of route registration.
 
 API-catalog contribution stays entirely within Foundation-owned contracts. Installed providers implement `ProvidesApiCatalogEntriesInterface`; the kernel sorts contributors by provider class and hands them to each `AcceptsApiCatalogEntryProvidersInterface` receiver before provider boot. The API package validates, normalizes, and publishes the resulting public entries. Uninstalled packages cannot contribute, and providers must omit authenticated, administrative, write, or otherwise non-public surfaces.
+
+AI-catalog contribution uses a parallel Foundation-owned contract because an
+AI artifact identifier, media type, capabilities, and representative queries
+are not RFC 9727 API endpoint relations. Installed providers implement
+`ProvidesAiCatalogEntriesInterface`; the kernel injects them into
+`AcceptsAiCatalogEntryProvidersInterface` receivers in the same deterministic
+phase. Providers supply only deployment-neutral public artifact metadata. The
+API package applies application-owned representative queries and publishes the
+default-off experimental document. Installation can add a candidate artifact,
+but application configuration remains the publication boundary.
 
 ## PackageManifest
 

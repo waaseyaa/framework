@@ -708,6 +708,7 @@ final class HttpKernel extends AbstractKernel
         $paths = is_array($session) ? ($session['stateless_paths'] ?? []) : [];
         $paths = is_array($paths) ? $paths : [];
         $paths[] = '/.well-known/api-catalog';
+        $paths[] = '/.well-known/ai-catalog.json';
 
         return array_values(array_unique(array_filter($paths, static fn($p): bool => is_string($p) && $p !== '')));
     }

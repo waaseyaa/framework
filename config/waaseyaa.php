@@ -23,6 +23,15 @@ return [
         'base_url' => getenv('APP_URL') ?: '',
     ],
 
+    // Experimental ARD v0.9 / AI Catalog 1.0 discovery. This is deliberately
+    // off by default. Applications opt in and own any public representative
+    // queries; installed packages contribute only deployment-neutral artifacts.
+    'ai_catalog' => [
+        'enabled' => false,
+        'base_url' => getenv('APP_URL') ?: '',
+        'representative_queries' => [],
+    ],
+
     // SQLite database path. Null means "resolve in kernel":
     // WAASEYAA_DB env var -> {projectRoot}/storage/waaseyaa.sqlite fallback.
     // Set an explicit path here to override both.

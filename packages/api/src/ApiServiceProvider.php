@@ -8,6 +8,7 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Api\Audit\ApiAuditQueryAdapter;
 use Waaseyaa\Api\Audit\AuditQueryReadModelInterface;
+use Waaseyaa\Api\Controller\AiCatalogController;
 use Waaseyaa\Api\Controller\ApiCatalogController;
 use Waaseyaa\Api\Controller\AuditQueryController;
 use Waaseyaa\Api\Controller\McpAdminController;
@@ -19,7 +20,9 @@ use Waaseyaa\Api\Controller\OidcClientController;
 use Waaseyaa\Api\Controller\QueueController;
 use Waaseyaa\Api\Controller\SchedulerController;
 use Waaseyaa\Api\Controller\WorkflowTransitionController;
+use Waaseyaa\Api\Discovery\AiCatalog;
 use Waaseyaa\Api\Discovery\ApiCatalog;
+use Waaseyaa\Api\Http\Router\AiCatalogRouter;
 use Waaseyaa\Api\Http\Router\ApiCatalogRouter;
 use Waaseyaa\Api\Http\Router\AuditApiRouter;
 use Waaseyaa\Api\Http\Router\DiscoveryRouter;
@@ -43,11 +46,14 @@ use Waaseyaa\Api\MercureMonitor\SubscriberObserverInterface;
 // is a require-dev dep. The singleton factory resolves it by string (C-002).
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface;
+use Waaseyaa\Foundation\Discovery\AiCatalog\AiCatalogEntry;
 use Waaseyaa\Foundation\Exception\ConfigException;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsAiCatalogEntryProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsApiCatalogEntryProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesAiCatalogEntriesInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApiCatalogEntriesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Media\Version\MediaVersionRepository;
@@ -62,12 +68,16 @@ use Waaseyaa\Scheduler\ScheduleRunner;
 use Waaseyaa\Scheduler\Storage\ScheduleStateRepository;
 use Waaseyaa\Workflows\Transition\TransitionService;
 
-final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainRoutersInterface, AcceptsApiCatalogEntryProvidersInterface
+final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainRoutersInterface, AcceptsApiCatalogEntryProvidersInterface, AcceptsAiCatalogEntryProvidersInterface, ProvidesAiCatalogEntriesInterface
 {
     /** @var list<ProvidesApiCatalogEntriesInterface> */
     private array $apiCatalogEntryProviders = [];
 
+    /** @var list<ProvidesAiCatalogEntriesInterface> */
+    private array $aiCatalogEntryProviders = [];
+
     private ?ApiCatalog $apiCatalog = null;
+    private ?AiCatalog $aiCatalog = null;
 
     public function withApiCatalogEntryProviders(array $providers): void
     {
@@ -79,6 +89,34 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
             $this->apiCatalogEntryProviders,
             static fn(object $left, object $right): int => $left::class <=> $right::class,
         );
+    }
+
+    public function withAiCatalogEntryProviders(array $providers): void
+    {
+        $this->aiCatalogEntryProviders = array_values(array_filter(
+            $providers,
+            static fn(object $provider): bool => $provider instanceof ProvidesAiCatalogEntriesInterface,
+        ));
+        usort(
+            $this->aiCatalogEntryProviders,
+            static fn(object $left, object $right): int => $left::class <=> $right::class,
+        );
+    }
+
+    public function aiCatalogEntries(): array
+    {
+        if ($this->apiCatalog === null) {
+            return [];
+        }
+
+        return [new AiCatalogEntry(
+            key: 'api:catalog',
+            displayName: 'Waaseyaa public API catalog',
+            type: ApiCatalog::MEDIA_TYPE,
+            path: ApiCatalog::PATH,
+            description: 'Standards-based index of intentionally public APIs.',
+            capabilities: ['PublicApiDiscovery'],
+        )];
     }
 
     public function register(): void
@@ -130,6 +168,7 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
         // strict allowlist validation fails during kernel boot, before routing.
         $this->resolve(EntityTypeApiExposurePolicy::class);
         $this->apiCatalog = $this->buildApiCatalog();
+        $this->aiCatalog = $this->buildAiCatalog();
     }
 
     public function httpDomainRouters(HttpKernel $httpKernel): iterable
@@ -145,6 +184,9 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
 
         if ($this->apiCatalog !== null) {
             $routers[] = new ApiCatalogRouter(new ApiCatalogController($this->apiCatalog));
+        }
+        if ($this->aiCatalog !== null) {
+            $routers[] = new AiCatalogRouter(new AiCatalogController($this->aiCatalog));
         }
 
         // M4B WP01 (+ #1576 follow-up): admin queue dashboard. Pull the queue
@@ -313,6 +355,18 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
                 'api.catalog',
                 RouteBuilder::create(ApiCatalog::PATH)
                     ->controller('api.catalog')
+                    ->methods('GET', 'HEAD')
+                    ->allowAll()
+                    ->priority(10)
+                    ->build(),
+            );
+        }
+
+        if ($this->aiCatalog !== null) {
+            $router->addRoute(
+                'ai.catalog',
+                RouteBuilder::create(AiCatalog::PATH)
+                    ->controller('ai.catalog')
                     ->methods('GET', 'HEAD')
                     ->allowAll()
                     ->priority(10)
@@ -718,6 +772,70 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
             return new ApiCatalog($baseUrl, $entries);
         } catch (\InvalidArgumentException $exception) {
             throw new ConfigException('api_catalog.base_url must be a canonical HTTPS URL.', previous: $exception);
+        }
+    }
+
+    private function buildAiCatalog(): ?AiCatalog
+    {
+        $section = $this->config['ai_catalog'] ?? [];
+        if (!is_array($section)) {
+            throw new ConfigException('ai_catalog must be a configuration map.');
+        }
+        $unknown = array_diff(array_keys($section), ['enabled', 'base_url', 'representative_queries']);
+        if ($unknown !== []) {
+            throw new ConfigException('ai_catalog contains unsupported configuration keys.');
+        }
+        if (array_key_exists('enabled', $section) && !is_bool($section['enabled'])) {
+            throw new ConfigException('ai_catalog.enabled must be a boolean.');
+        }
+        if (array_key_exists('base_url', $section) && !is_string($section['base_url'])) {
+            throw new ConfigException('ai_catalog.base_url must be a string.');
+        }
+        if (array_key_exists('representative_queries', $section) && !is_array($section['representative_queries'])) {
+            throw new ConfigException('ai_catalog.representative_queries must be a configuration map.');
+        }
+        try {
+            /** @var array<mixed, mixed> $configuredQueries */
+            $configuredQueries = $section['representative_queries'] ?? [];
+            AiCatalog::assertRepresentativeQueries($configuredQueries);
+        } catch (\InvalidArgumentException $exception) {
+            throw new ConfigException('ai_catalog.representative_queries is invalid.', previous: $exception);
+        }
+
+        $entries = [];
+        foreach ($this->aiCatalogEntryProviders as $provider) {
+            foreach ($provider->aiCatalogEntries() as $entry) {
+                $entries[] = $entry;
+            }
+        }
+        try {
+            AiCatalog::assertEntryQueryCompatibility($entries, $configuredQueries);
+        } catch (\InvalidArgumentException $exception) {
+            throw new ConfigException('ai_catalog configuration is invalid.', previous: $exception);
+        }
+
+        if (($section['enabled'] ?? false) !== true) {
+            return null;
+        }
+
+        $environmentUrl = getenv('APP_URL');
+        $configuredBaseUrl = $section['base_url'] ?? ($environmentUrl !== false ? $environmentUrl : null);
+        $baseUrl = is_string($configuredBaseUrl) ? trim($configuredBaseUrl) : '';
+        if ($baseUrl === '') {
+            throw new ConfigException('ai_catalog.base_url must be configured when the catalog is enabled.');
+        }
+
+        if ($entries === []) {
+            return null;
+        }
+
+        try {
+            /** @var array<mixed, mixed> $representativeQueries */
+            $representativeQueries = $section['representative_queries'] ?? [];
+
+            return new AiCatalog($baseUrl, $entries, $representativeQueries);
+        } catch (\InvalidArgumentException $exception) {
+            throw new ConfigException('ai_catalog configuration is invalid.', previous: $exception);
         }
     }
 

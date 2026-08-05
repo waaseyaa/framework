@@ -14,10 +14,12 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface;
 use Waaseyaa\Foundation\Audit\NullStrictAuditLedger;
 use Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface;
+use Waaseyaa\Foundation\Discovery\AiCatalog\AiCatalogEntry;
 use Waaseyaa\Foundation\Discovery\ApiCatalog\ApiCatalogEntry;
 use Waaseyaa\Foundation\Discovery\ApiCatalog\ApiCatalogTarget;
 use Waaseyaa\Foundation\Exception\ConfigException;
 use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesAiCatalogEntriesInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApiCatalogEntriesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Mcp\Admin\RecentInvocationsQueryInterface;
@@ -48,7 +50,7 @@ use Waaseyaa\Routing\WaaseyaaRouter;
  *
  * @api
  */
-final class McpServiceProvider extends ServiceProvider implements ProvidesApiCatalogEntriesInterface
+final class McpServiceProvider extends ServiceProvider implements ProvidesApiCatalogEntriesInterface, ProvidesAiCatalogEntriesInterface
 {
     public function apiCatalogEntries(): array
     {
@@ -59,6 +61,24 @@ final class McpServiceProvider extends ServiceProvider implements ProvidesApiCat
         return [new ApiCatalogEntry(
             endpoint: new ApiCatalogTarget('/mcp', 'application/json', 'Model Context Protocol'),
             serviceMetadata: [new ApiCatalogTarget('/.well-known/mcp.json', 'application/json', 'MCP server card')],
+        )];
+    }
+
+    public function aiCatalogEntries(): array
+    {
+        if (!$this->publicEndpointEnabled()) {
+            return [];
+        }
+
+        return [new AiCatalogEntry(
+            key: 'mcp:public',
+            displayName: 'Waaseyaa public MCP',
+            // The Waaseyaa compatibility card is intentionally not mislabeled
+            // as the separate draft MCP Server Card media type.
+            type: 'application/json',
+            path: '/.well-known/mcp.json',
+            description: 'Public read-only Model Context Protocol discovery.',
+            capabilities: ['ContentDiscovery', 'ReadOnlyTools'],
         )];
     }
 

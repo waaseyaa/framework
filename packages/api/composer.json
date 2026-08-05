@@ -97,6 +97,7 @@
         "waaseyaa/oidc": "Provides optional OIDC client administration routes"
     },
     "require-dev": {
+        "opis/json-schema": "^2.6",
         "phpunit/phpunit": "^10.5",
         "waaseyaa/audit": "^0.1.0-alpha.286",
         "waaseyaa/database-legacy": "^0.1.0-alpha.286",

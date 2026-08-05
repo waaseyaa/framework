@@ -16,6 +16,7 @@ use ReflectionNamedType;
 use SplFileInfo;
 use Waaseyaa\Foundation\Http\LanguagePathStripperInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsApiCatalogEntryProvidersInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsAiCatalogEntryProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsContentModelProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsAgentToolProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface;
@@ -79,6 +80,7 @@ final class ServiceProviderContractTest extends TestCase
      */
     private const array CAPABILITY_INTERFACES = [
         'withAgentToolProviders' => AcceptsAgentToolProvidersInterface::class,
+        'withAiCatalogEntryProviders' => AcceptsAiCatalogEntryProvidersInterface::class,
         'withApiCatalogEntryProviders' => AcceptsApiCatalogEntryProvidersInterface::class,
         'withMigrationProviders' => AcceptsMigrationProvidersInterface::class,
         'withContentModelProviders' => AcceptsContentModelProvidersInterface::class,
