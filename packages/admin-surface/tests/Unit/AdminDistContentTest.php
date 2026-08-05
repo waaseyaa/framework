@@ -83,6 +83,41 @@ final class AdminDistContentTest extends TestCase
         );
     }
 
+    #[Test]
+    public function admin_source_and_shipped_bundle_do_not_depend_on_external_icon_infrastructure(): void
+    {
+        $adminDir = dirname(__DIR__, 3) . '/admin';
+        foreach (['nuxt.config.ts', 'package.json', 'package-lock.json'] as $relativePath) {
+            self::assertFalse(
+                str_contains((string) file_get_contents($adminDir . '/' . $relativePath), '@nuxt/icon'),
+                sprintf(
+                    'The admin SPA must remain self-contained; %s must not restore the runtime icon-provider dependency.',
+                    $relativePath,
+                ),
+            );
+        }
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($this->distDir(), \FilesystemIterator::SKIP_DOTS),
+        );
+        foreach ($iterator as $file) {
+            if (!$file->isFile()) {
+                continue;
+            }
+            $contents = (string) file_get_contents($file->getPathname());
+            foreach (['api.iconify.design', 'api.simplesvg.com', 'api.unisvg.com'] as $forbiddenOrigin) {
+                self::assertFalse(
+                    str_contains($contents, $forbiddenOrigin),
+                    sprintf(
+                        'The shipped admin file %s must not contact the external icon origin %s.',
+                        $file->getPathname(),
+                        $forbiddenOrigin,
+                    ),
+                );
+            }
+        }
+    }
+
     private function concatenatedBundleJs(): string
     {
         $nuxtDir = $this->distDir() . '/_nuxt';
