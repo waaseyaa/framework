@@ -124,7 +124,9 @@ final class BroadcastStorageTest extends TestCase
     public function pruneRemovesOldMessages(): void
     {
         $this->storage->push('admin', 'old', []);
-        usleep(10_000); // Ensure the message timestamp is strictly in the past.
+        $connection = $this->database->getConnection()->getNativeConnection();
+        self::assertInstanceOf(\PDO::class, $connection);
+        $connection->exec('UPDATE _broadcast_log SET created_at = created_at - 1');
         $this->storage->prune(0); // prune everything older than 0 seconds
 
         $messages = $this->storage->poll(0);

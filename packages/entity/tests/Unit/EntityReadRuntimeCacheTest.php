@@ -22,6 +22,18 @@ use Waaseyaa\Field\FieldReadDefinitionInterface;
 
 final class EntityReadRuntimeCacheTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->resetImmutableSemanticTemplates();
+    }
+
+    protected function tearDown(): void
+    {
+        $this->resetImmutableSemanticTemplates();
+        parent::tearDown();
+    }
+
     #[Test]
     public function immutable_semantic_templates_are_shared_without_sharing_registry_generation_authority(): void
     {
@@ -630,6 +642,13 @@ final class EntityReadRuntimeCacheTest extends TestCase
         $properties = (new \ReflectionClass(EntityReadRuntime::class))->getStaticProperties();
 
         return count($properties['immutableSemanticTemplates']);
+    }
+
+    private function resetImmutableSemanticTemplates(): void
+    {
+        $property = (new \ReflectionClass(EntityReadRuntime::class))
+            ->getProperty('immutableSemanticTemplates');
+        $property->setValue(null, []);
     }
 
     private function resolvedLayoutCacheCountFor(FieldDefinitionRegistryInterface $registry): int

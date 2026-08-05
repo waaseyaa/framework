@@ -1,0 +1,55 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+$root = dirname(__DIR__);
+$seed = null;
+$phpunitArguments = [];
+
+foreach (array_slice($_SERVER['argv'] ?? [], 1) as $argument) {
+    if (str_starts_with($argument, '--seed=')) {
+        if ($seed !== null) {
+            fwrite(STDERR, "The random-order seed may be specified only once.\n");
+            exit(2);
+        }
+        $seed = substr($argument, strlen('--seed='));
+        continue;
+    }
+
+    $phpunitArguments[] = $argument;
+}
+
+if ($seed === null) {
+    $environmentSeed = getenv('TEST_RANDOM_SEED');
+    $seed = $environmentSeed === false || $environmentSeed === ''
+        ? (string) random_int(1, 2_147_483_647)
+        : $environmentSeed;
+}
+
+if (preg_match('/^[1-9][0-9]*$/', $seed) !== 1 || (int) $seed > 2_147_483_647) {
+    fwrite(STDERR, "The random-order seed must be a positive integer no greater than 2147483647.\n");
+    exit(2);
+}
+
+echo "PHPUnit random-order seed: {$seed}\n";
+echo "Replay: TEST_RANDOM_SEED={$seed} composer test:random\n";
+flush();
+
+$path = getenv('PATH');
+putenv('PATH=' . dirname(PHP_BINARY) . PATH_SEPARATOR . ($path === false ? '' : $path));
+
+$command = [
+    PHP_BINARY,
+    '-d',
+    'memory_limit=1G',
+    $root . '/vendor/bin/phpunit',
+    '--no-coverage',
+    '--order-by=random',
+    '--random-order-seed=' . $seed,
+    ...$phpunitArguments,
+];
+
+$escapedCommand = implode(' ', array_map(escapeshellarg(...), $command));
+passthru($escapedCommand, $exitCode);
+exit($exitCode);

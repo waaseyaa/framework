@@ -209,14 +209,16 @@ final class SyncInternalVersionsTest extends TestCase
 
         $this->runSyncScript($dir, '0.1.0-alpha.999');
 
-        $mtimeBefore = filemtime($dir . '/packages/mypackage/composer.json');
-
-        // Small sleep to ensure mtime would differ if file was rewritten
-        usleep(10000);
+        $manifest = $dir . '/packages/mypackage/composer.json';
+        $controlledMtime = time() - 10;
+        touch($manifest, $controlledMtime);
+        clearstatcache(true, $manifest);
+        $mtimeBefore = filemtime($manifest);
 
         $this->runSyncScript($dir, '0.1.0-alpha.999');
 
-        $mtimeAfter = filemtime($dir . '/packages/mypackage/composer.json');
+        clearstatcache(true, $manifest);
+        $mtimeAfter = filemtime($manifest);
 
         self::assertSame($mtimeBefore, $mtimeAfter, 'Second run must not touch already-current files.');
     }

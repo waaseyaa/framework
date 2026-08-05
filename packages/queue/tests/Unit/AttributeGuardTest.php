@@ -112,10 +112,8 @@ final class AttributeGuardTest extends TestCase
             public function handle(): void {}
         };
 
-        // Lock duration is 0 s — the lock expires immediately, so even a tiny
-        // sleep allows a second dispatch.  We use usleep to avoid flakiness.
+        // A zero-duration lock is inactive immediately.
         $this->assertTrue($this->guard->allows($job));
-        usleep(1_000); // 1 ms — more than enough for a 0-second lock
         $this->assertTrue($this->guard->allows($job));
     }
 
@@ -191,10 +189,8 @@ final class AttributeGuardTest extends TestCase
             public function handle(): void {}
         };
 
-        // decaySeconds is 0 — the window is already expired for any previous
-        // attempt recorded at the same moment.  usleep ensures clock advances.
+        // A zero-duration rate window retains no previous attempt.
         $this->assertTrue($this->guard->allows($job));
-        usleep(1_000); // 1 ms
         $this->assertTrue($this->guard->allows($job));
     }
 

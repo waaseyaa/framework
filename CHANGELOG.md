@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **testing (#2240):** Upgrade the PHP 8.5 test stack to PHPUnit 13 across the root, split packages, skeleton, and packaged-form fixture; normalize all tracked PHPUnit configurations to the installed schema and isolated cache; convert the remaining docblock data providers to attributes; remove a duplicate GitHub suite that double-executed tests; and update removed mock/type APIs without weakening warning enforcement.
 
+- **testing (#2241):** Add a dedicated replayable PHPUnit random-order CI lane and machine-readable determinism classification for random inputs, waits, conditional skips, clocks, process globals, filesystems, databases, subprocesses, and ports. Repair leaked session and static-cache state, make expected database bootstrap failures warning-free, keep child-process PHP selection hermetic, replace controllable wall-clock sleeps with direct state, and reject unclassified waits, unclassified skips, and framework-gap skips.
+
 ## [0.1.0-alpha.287] - 2026-08-05
 
 ### Changed
