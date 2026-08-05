@@ -479,6 +479,7 @@
         "check-no-secrets": "bash bin/check-no-secrets",
         "check-package-layers": "php bin/check-package-layers",
         "check-symfony-imports": "php bin/check-symfony-imports",
+        "test:inventory": "php bin/test-quality-inventory --format=json",
         "hooks:install": "bash bin/project-hooks install",
         "hooks:doctor": "bash bin/project-hooks doctor",
         "cs-check": "php-cs-fixer fix --dry-run --diff",
@@ -551,7 +552,8 @@
         "dev": "Start the PHP dev server (delegates to dev:php). For the admin SPA, run `composer dev:admin` in a second terminal — see docs/specs/operations-playbooks.md.",
         "dev:admin": "Start the Nuxt admin SPA dev server. NUXT_BACKEND_URL points at the PHP server (default :8080); set APP_PORT to override.",
         "dev:php": "Start the PHP built-in dev server via bin/waaseyaa serve. Single typed long-running process with no shell forking.",
-        "verify": "Run all repo-wide gates: cs-check, phpstan, composer-policy, package-layers, no-secrets, ingestion-defaults, symfony-imports, dead-code (fail-on-new), and the test suite. Canonical CI entry point — see docs/specs/operations-playbooks.md."
+        "verify": "Run all repo-wide gates: cs-check, phpstan, composer-policy, package-layers, no-secrets, ingestion-defaults, symfony-imports, dead-code (fail-on-new), and the test suite. Canonical CI entry point — see docs/specs/operations-playbooks.md.",
+        "test:inventory": "Emit a reproducible Git-tracked-only JSON inventory of PHP, PHPUnit, Vitest, Playwright, nondeterminism, and shared-helper adoption signals."
     },
     "minimum-stability": "dev",
     "prefer-stable": true,

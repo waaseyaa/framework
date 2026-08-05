@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **testing (#2235):** Publish the 2026 test-quality audit and a reproducible Git-tracked-only inventory for PHP, PHPUnit, Vitest, Playwright, nondeterminism, and shared-helper adoption signals. The testing doctrine now defines behavioral layers, deterministic replay, honest coverage, supported-tooling, mutation-pilot, and helper-adoption standards without prescribing a syntax rewrite.
+
 ## [0.1.0-alpha.287] - 2026-08-05
 
 ### Changed

@@ -1,0 +1,161 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+$root = dirname(__DIR__);
+$format = 'json';
+foreach (array_slice($argv, 1) as $argument) {
+    if (str_starts_with($argument, '--format=')) {
+        $format = substr($argument, strlen('--format='));
+    }
+}
+
+if (!in_array($format, ['json', 'markdown'], true)) {
+    fwrite(STDERR, "Usage: php bin/test-quality-inventory [--format=json|markdown]\n");
+    exit(2);
+}
+
+$process = proc_open(
+    [$root . '/bin/git', '-C', $root, 'ls-files', '-z'],
+    [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+    $pipes,
+);
+if (!is_resource($process)) {
+    fwrite(STDERR, "Unable to enumerate tracked files.\n");
+    exit(1);
+}
+
+$stdout = stream_get_contents($pipes[1]);
+$stderr = stream_get_contents($pipes[2]);
+fclose($pipes[1]);
+fclose($pipes[2]);
+$exitCode = proc_close($process);
+if ($exitCode !== 0 || $stdout === false) {
+    fwrite(STDERR, trim((string) $stderr) . "\n");
+    exit(1);
+}
+
+$trackedFiles = array_values(array_filter(explode("\0", $stdout)));
+$phpTestFiles = [];
+$phpunitConfigs = [];
+$vitestFiles = [];
+$playwrightFiles = [];
+
+foreach ($trackedFiles as $path) {
+    if (preg_match('#(?:^|/)tests/(?:.*/)?[^/]+Test\.php$#', $path) === 1) {
+        $phpTestFiles[] = $path;
+    }
+    if (preg_match('#(?:^|/)phpunit(?:\.[^/]+)?\.xml(?:\.dist)?$#', $path) === 1) {
+        $phpunitConfigs[] = $path;
+    }
+    if (
+        str_starts_with($path, 'packages/admin/tests/')
+        && preg_match('/\.(?:test|spec)\.[cm]?[jt]sx?$/', $path) === 1
+    ) {
+        $vitestFiles[] = $path;
+    }
+    if (
+        str_starts_with($path, 'packages/admin/e2e/')
+        && preg_match('/\.(?:test|spec)\.[cm]?[jt]sx?$/', $path) === 1
+    ) {
+        $playwrightFiles[] = $path;
+    }
+}
+
+$signals = [
+    'test_methods' => 0,
+    'assertion_calls' => 0,
+    'coverage_metadata_files' => 0,
+    'randomness_signal_files' => 0,
+    'sleep_signal_files' => 0,
+    'conditional_skip_files' => 0,
+    'small_group_files' => 0,
+    'medium_group_files' => 0,
+    'large_group_files' => 0,
+];
+
+foreach ($phpTestFiles as $path) {
+    $contents = file_get_contents($root . '/' . $path);
+    if ($contents === false) {
+        fwrite(STDERR, "Unable to read tracked test file: {$path}\n");
+        exit(1);
+    }
+
+    $attributeTests = preg_match_all('/#\[Test(?:\([^\]]*\))?\]/', $contents);
+    $namedTests = preg_match_all('/\bfunction\s+test[A-Za-z0-9_]*\s*\(/', $contents);
+    $attributedNamedTests = preg_match_all(
+        '/#\[Test(?:\([^\]]*\))?\](?:(?!\bfunction\b).)*\bfunction\s+test[A-Za-z0-9_]*\s*\(/s',
+        $contents,
+    );
+    $signals['test_methods'] += $attributeTests + $namedTests - $attributedNamedTests;
+    $signals['assertion_calls'] += preg_match_all(
+        '/(?:\b(?:self|static)::|\$this->)assert[A-Z][A-Za-z0-9_]*/',
+        $contents,
+    );
+    $signals['coverage_metadata_files'] += preg_match('/#\[(?:CoversClass|CoversNothing)\b/', $contents);
+    $signals['randomness_signal_files'] += preg_match(
+        '/\b(?:random_int|random_bytes|mt_rand|array_rand|shuffle|uniqid)\s*\(/',
+        $contents,
+    );
+    $signals['sleep_signal_files'] += preg_match('/\b(?:sleep|usleep)\s*\(/', $contents);
+    $signals['conditional_skip_files'] += preg_match('/\bmarkTest(?:Skipped|Incomplete)\s*\(/', $contents);
+    $signals['small_group_files'] += preg_match('/#\[Small\b/', $contents);
+    $signals['medium_group_files'] += preg_match('/#\[Medium\b/', $contents);
+    $signals['large_group_files'] += preg_match('/#\[Large\b/', $contents);
+}
+
+$testingHelperConsumers = 0;
+foreach ($trackedFiles as $path) {
+    if (
+        !str_ends_with($path, '.php')
+        || str_starts_with($path, 'packages/testing/')
+        || !str_contains($path, '/tests/') && !str_starts_with($path, 'tests/')
+    ) {
+        continue;
+    }
+
+    $contents = file_get_contents($root . '/' . $path);
+    if ($contents !== false && str_contains($contents, 'Waaseyaa\\Testing')) {
+        ++$testingHelperConsumers;
+    }
+}
+
+$inventory = [
+    'schema_version' => 1,
+    'scope' => 'git-tracked files only',
+    'php' => [
+        'test_files' => count($phpTestFiles),
+        ...$signals,
+    ],
+    'phpunit' => [
+        'config_files' => count($phpunitConfigs),
+    ],
+    'admin' => [
+        'vitest_files' => count($vitestFiles),
+        'playwright_files' => count($playwrightFiles),
+    ],
+    'testing_package' => [
+        'consumer_test_files_outside_package' => $testingHelperConsumers,
+    ],
+];
+
+if ($format === 'json') {
+    echo json_encode($inventory, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), "\n";
+    exit(0);
+}
+
+echo "# Test quality inventory\n\n";
+echo "Scope: Git-tracked files only. Counts are lexical signals, not quality scores.\n\n";
+echo "| Signal | Count |\n|---|---:|\n";
+echo "| PHP test files | {$inventory['php']['test_files']} |\n";
+echo "| PHP test methods | {$inventory['php']['test_methods']} |\n";
+echo "| Explicit assertion calls | {$inventory['php']['assertion_calls']} |\n";
+echo "| PHPUnit configuration files | {$inventory['phpunit']['config_files']} |\n";
+echo "| Tests with coverage metadata | {$inventory['php']['coverage_metadata_files']} |\n";
+echo "| Files with randomness signals | {$inventory['php']['randomness_signal_files']} |\n";
+echo "| Files with sleep signals | {$inventory['php']['sleep_signal_files']} |\n";
+echo "| Files with conditional skip signals | {$inventory['php']['conditional_skip_files']} |\n";
+echo "| Vitest files | {$inventory['admin']['vitest_files']} |\n";
+echo "| Playwright files | {$inventory['admin']['playwright_files']} |\n";
+echo "| External consumers of waaseyaa/testing | {$inventory['testing_package']['consumer_test_files_outside_package']} |\n";
