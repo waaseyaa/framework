@@ -76,6 +76,7 @@ describe('AdminShell mobile off-canvas navigation', () => {
     expect(toggle.attributes('aria-controls')).toBe('admin-sidebar')
     expect(toggle.attributes('aria-expanded')).toBe('false')
     expect(toggle.classes()).toContain('touch-target')
+    expect(toggle.get('svg.topbar-toggle-icon').attributes('aria-hidden')).toBe('true')
     expect(sidebar.attributes('inert')).toBeDefined()
     expect(sidebar.attributes('aria-hidden')).toBe('true')
     expect(sidebar.attributes('data-pointer-state')).toBe('disabled')

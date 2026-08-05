@@ -1,6 +1,12 @@
 # Changelog
 
+## Unreleased
+
 - **mcp**: Add dual-era MCP 2026-07-28 support without changing legacy lifecycle or successful-result bytes. The request body now authoritatively selects the modern protocol through `params._meta["io.modelcontextprotocol/protocolVersion"]`; modern requests require object-valued per-request client capabilities, validate optional client identity, and reconcile required `MCP-Protocol-Version`, `Mcp-Method`, and `Mcp-Name` HTTP mirrors after authentication and parsing. Modern clients gain mandatory `server/discover`, `resultType`, server identity metadata, explicit private/no-store cache semantics, and HTTP 404 for unsupported methods. Deliberate hardening change for malformed legacy traffic: unknown version headers now reach the authenticated protocol validator and return the current `-32022` error (or 401 before authentication), while stray modern mirror headers on a legacy body fail `-32020`; these requests may therefore parse and consume authenticated rate-limit budget before refusal. Transport origin, size, media-type, statelessness, and audit-pair boundaries remain enforced.
+
+- **admin / admin-surface / wayfinding (#2181):** Gate the Wayfinding overlay, broadcast stream, and session-token discovery on both authenticated state and an exact server-projected optional-package feature flag; abort and clear discovery state when authentication is lost.
+
+- **admin / admin-surface (#2186):** Make the admin SPA self-contained by replacing its only provider-backed icon with an inline decorative SVG, removing `@nuxt/icon`, and pinning the absence of external icon-provider origins in the shipped bundle.
 
 - **api / foundation / mcp / wayfinding**: Publish an opt-in RFC 9727 API Catalog at `/.well-known/api-catalog` when `APP_URL` (or `api_catalog.base_url`) names a canonical HTTPS deployment and at least one installed provider contributes a public API. The response is a deterministic RFC 9264 JSON Linkset with the registered profile, GET/HEAD parity, required `api-catalog` discovery link, strict content negotiation, cache validators, and anonymous stateless handling. A Foundation-owned provider seam keeps package dependencies downward-only; MCP contributes only its enabled anonymous tier and server card, Wayfinding contributes only its public anchor catalog, and write/auth/admin/schema routes plus sitemap and llms.txt documents remain undisclosed. Canonical URLs never derive from request Host headers.
 

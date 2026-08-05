@@ -112,9 +112,10 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
             workflowBindingResolver: $workflowBindingResolver instanceof WorkflowBindingResolver
                 ? $workflowBindingResolver
                 : null,
-            features: [
-                'mcp' => class_exists('Waaseyaa\\Mcp\\McpServiceProvider'),
-            ],
+            features: self::defaultFeatures(
+                mcpInstalled: class_exists('Waaseyaa\\Mcp\\McpServiceProvider'),
+                wayfindingInstalled: class_exists('Waaseyaa\\Wayfinding\\WayfindingServiceProvider'),
+            ),
             capabilityAllowlist: self::defaultCapabilityAllowlist(
                 mcpInstalled: class_exists('Waaseyaa\\Mcp\\McpServiceProvider'),
             ),
@@ -183,6 +184,24 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
     public static function defaultCapabilityAllowlist(bool $mcpInstalled): array
     {
         return $mcpInstalled ? McpApprovalCapabilities::all() : [];
+    }
+
+    /**
+     * Project optional framework packages into the authenticated SPA session.
+     *
+     * Class-string detection keeps this L6 package independent of optional
+     * package imports and Composer requirements. Clients treat only exact true
+     * as available, so a slim install cannot activate unsupported UI or network
+     * work.
+     *
+     * @return array{mcp: bool, wayfinding: bool}
+     */
+    public static function defaultFeatures(bool $mcpInstalled, bool $wayfindingInstalled): array
+    {
+        return [
+            'mcp' => $mcpInstalled,
+            'wayfinding' => $wayfindingInstalled,
+        ];
     }
 
     /**
