@@ -88,6 +88,7 @@ final class OptionalDomainDefaultsTest extends TestCase
     public function api_declares_public_search_as_an_optional_version_coupled_domain(): void
     {
         $root = dirname(__DIR__, 2);
+        $releaseConstraint = '^' . trim((string) file_get_contents($root . '/VERSION'));
         $manifest = json_decode(
             (string) file_get_contents($root . '/packages/api/composer.json'),
             true,
@@ -98,7 +99,7 @@ final class OptionalDomainDefaultsTest extends TestCase
         foreach (['waaseyaa/auth', 'waaseyaa/search'] as $package) {
             self::assertArrayNotHasKey($package, $manifest['require']);
             self::assertArrayHasKey($package, $manifest['suggest']);
-            self::assertSame('^0.1.0-alpha.286', $manifest['require-dev'][$package]);
+            self::assertSame($releaseConstraint, $manifest['require-dev'][$package]);
             self::assertSame('<0.1.0-alpha.287 || >=0.2.0', $manifest['conflict'][$package]);
         }
     }
@@ -129,6 +130,7 @@ final class OptionalDomainDefaultsTest extends TestCase
     public function ai_tools_declares_content_search_as_an_optional_version_coupled_domain(): void
     {
         $root = dirname(__DIR__, 2);
+        $releaseConstraint = '^' . trim((string) file_get_contents($root . '/VERSION'));
         $manifest = json_decode(
             (string) file_get_contents($root . '/packages/ai-tools/composer.json'),
             true,
@@ -138,7 +140,7 @@ final class OptionalDomainDefaultsTest extends TestCase
 
         self::assertArrayNotHasKey('waaseyaa/search', $manifest['require']);
         self::assertArrayHasKey('waaseyaa/search', $manifest['suggest']);
-        self::assertSame('^0.1.0-alpha.286', $manifest['require-dev']['waaseyaa/search']);
+        self::assertSame($releaseConstraint, $manifest['require-dev']['waaseyaa/search']);
         self::assertSame('<0.1.0-alpha.287 || >=0.2.0', $manifest['conflict']['waaseyaa/search']);
     }
 
