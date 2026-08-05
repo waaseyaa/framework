@@ -1,5 +1,7 @@
 # Admin SPA
 
+<!-- Spec reviewed 2026-08-04 - #2181 pre-auth optionality: the authenticated session projects exact optional-package feature booleans. The Wayfinding overlay, SSE consumer, and session-token request activate only when an account exists and `features.wayfinding === true`; auth loss unmounts the overlay and aborts/clears token discovery. -->
+
 <!-- Spec reviewed 2026-08-04 - #2186 self-contained admin: the navigation toggle ships its decorative SVG inline. The SPA has no runtime icon-provider module, dependency, or external icon origin in its committed distribution. -->
 
 <!-- Spec reviewed 2026-08-04 - #2185/#2187 retire NorthCloud: the generic dashboard retains only its catalog-gated ingest_log counters; all NC Sync requests, state, routes, translations, markup, and shipped assets are removed. -->
