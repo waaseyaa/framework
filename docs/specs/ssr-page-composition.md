@@ -127,6 +127,10 @@ headers otherwise remain intact. A future shared-cache opt-in requires a
 separate dependency-metadata contract.
 Repeatable response headers remain repeatable across the handler/router
 boundary; in particular, multiple `Set-Cookie` values are not flattened.
+The intermediate handler result excludes Symfony's automatically generated
+`Date` header. `SsrRouter` constructs the final outbound response and owns its
+transport date, keeping intermediate render output deterministic without
+removing HTTP response dating.
 
 ## Cache partition
 
