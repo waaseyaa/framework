@@ -440,11 +440,12 @@ return [
     'Waaseyaa\Relationship\VisibilityFilterInterface' => 'public',
 
     // Layer 3: Services — public
-    'Waaseyaa\Search\SearchProviderInterface' => 'internal',
+    'Waaseyaa\Search\SearchProviderInterface' => 'public',
+    'Waaseyaa\Search\SearchCandidateResolverInterface' => 'public',
+    'Waaseyaa\Search\ProvidesSearchSourceResolversInterface' => 'public',
     'Waaseyaa\Search\SearchIndexerInterface' => 'public',
     'Waaseyaa\Search\BatchSearchIndexerInterface' => 'public',
     'Waaseyaa\Search\SearchIndexableInterface' => 'public',
-    'Waaseyaa\Search\Access\SearchAccessChecker' => 'public',
     'Waaseyaa\Notification\NotificationInterface' => 'public',
     'Waaseyaa\Notification\NotifiableInterface' => 'public',
     'Waaseyaa\Notification\NotifiableTrait' => 'public',

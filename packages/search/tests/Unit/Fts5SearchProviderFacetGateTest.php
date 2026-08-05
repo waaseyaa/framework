@@ -31,7 +31,7 @@ final class Fts5SearchProviderFacetGateTest extends TestCase
         $this->database = DBALDatabase::createSqlite();
         $this->indexer = new Fts5SearchIndexer($this->database);
         $this->indexer->ensureSchema();
-        $this->provider = new Fts5SearchProvider($this->database, $this->indexer, new \Waaseyaa\Search\Tests\Support\AllowAllSearchAccessChecker());
+        $this->provider = new Fts5SearchProvider($this->database, $this->indexer, new \Waaseyaa\Search\Tests\Support\IndexedSearchCandidateResolver($this->database));
 
         $this->indexItem('node:1', ['title' => 'Article One', 'body' => 'Content'], [
             'entity_type' => 'node', 'content_type' => 'article', 'source_name' => 'blog',
@@ -48,7 +48,7 @@ final class Fts5SearchProviderFacetGateTest extends TestCase
     #[Test]
     public function facets_are_returned_by_default(): void
     {
-        $result = $this->provider->search(new SearchRequest('Content'));
+        $result = $this->provider->search(new SearchRequest('Content'), \Waaseyaa\Search\Tests\Support\SearchTestPrincipal::create());
 
         $this->assertNotNull($result->getFacet('content_type'));
         $this->assertNotNull($result->getFacet('source_name'));
@@ -59,7 +59,7 @@ final class Fts5SearchProviderFacetGateTest extends TestCase
     #[Test]
     public function facets_are_suppressed_when_disabled(): void
     {
-        $result = $this->provider->search(new SearchRequest('Content', includeFacets: false));
+        $result = $this->provider->search(new SearchRequest('Content', includeFacets: false), \Waaseyaa\Search\Tests\Support\SearchTestPrincipal::create());
 
         // Hits are unaffected; only the three GROUP BY facet scans are skipped.
         $this->assertSame(2, $result->totalHits);

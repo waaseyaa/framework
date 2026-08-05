@@ -15,10 +15,13 @@ use Waaseyaa\Database\SchemaInterface;
 use Waaseyaa\Database\SelectInterface;
 use Waaseyaa\Database\TransactionInterface;
 use Waaseyaa\Database\UpdateInterface;
-use Waaseyaa\Search\Access\SearchAccessChecker;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Search\Fts5\Fts5SearchIndexer;
 use Waaseyaa\Search\Fts5\Fts5SearchProvider;
 use Waaseyaa\Search\SearchFilters;
+use Waaseyaa\Search\SearchCandidateProjection;
+use Waaseyaa\Search\SearchCandidateReference;
+use Waaseyaa\Search\SearchCandidateResolverInterface;
 use Waaseyaa\Search\SearchIndexableInterface;
 use Waaseyaa\Search\SearchRequest;
 
@@ -26,7 +29,7 @@ use Waaseyaa\Search\SearchRequest;
 final class Fts5SearchProviderTwoPhaseFetchTest extends TestCase
 {
     #[Test]
-    public function access_scan_is_lightweight_then_snippets_are_fetched_only_for_selected_page_ids(): void
+    public function raw_scan_fetches_only_pointers_and_canonical_resolver_supplies_page_content(): void
     {
         $database = DBALDatabase::createSqlite();
         $indexer = new Fts5SearchIndexer($database);
@@ -35,13 +38,24 @@ final class Fts5SearchProviderTwoPhaseFetchTest extends TestCase
         $this->index($indexer, 'node:3', '2026-01-03T00:00:00Z');
 
         $recording = new RecordingSearchDatabase($database);
-        $checker = new class implements SearchAccessChecker {
-            public function canView(string $documentId, string $entityType): bool
+        $resolver = new class implements SearchCandidateResolverInterface {
+            public function resolve(SearchCandidateReference $reference, AuthorizationPrincipalInterface $principal): ?SearchCandidateProjection
             {
-                return $documentId !== 'node:2';
+                if ($reference->documentId === 'node:2') {
+                    return null;
+                }
+                $day = $reference->documentId === 'node:1' ? '01' : '03';
+
+                return new SearchCandidateProjection(
+                    id: $reference->documentId,
+                    entityType: 'node',
+                    title: 'Searchable',
+                    body: 'Canonical searchable body',
+                    crawledAt: "2026-01-{$day}T00:00:00Z",
+                );
             }
         };
-        $provider = new Fts5SearchProvider($recording, $indexer, accessChecker: $checker);
+        $provider = new Fts5SearchProvider($recording, $indexer, $resolver);
 
         $result = $provider->search(new SearchRequest(
             'Searchable',
@@ -49,24 +63,21 @@ final class Fts5SearchProviderTwoPhaseFetchTest extends TestCase
             page: 2,
             pageSize: 1,
             includeFacets: false,
-        ));
+        ), \Waaseyaa\Search\Tests\Support\SearchTestPrincipal::create());
 
         self::assertSame('node:3', $result->hits[0]->id);
         $searchQueries = array_values(array_filter(
             $recording->queries,
             static fn(array $query): bool => str_contains($query['sql'], 'search_index MATCH'),
         ));
-        self::assertCount(2, $searchQueries, 'Access search must use one bounded scan and one targeted page fetch.');
+        self::assertCount(1, $searchQueries, 'The raw index may only generate opaque candidate pointers.');
 
-        [$scan, $fetch] = $searchQueries;
+        [$scan] = $searchQueries;
         self::assertStringNotContainsString('snippet(', $scan['sql']);
         self::assertStringNotContainsString('si.title', $scan['sql']);
+        self::assertStringNotContainsString('si.body', $scan['sql']);
+        self::assertStringNotContainsString('m.*', $scan['sql']);
         self::assertStringContainsString('LIMIT :scanCap', $scan['sql']);
-
-        self::assertStringContainsString('snippet(', $fetch['sql']);
-        self::assertStringContainsString('m.document_id IN (:page_0)', $fetch['sql']);
-        self::assertSame('node:3', $fetch['args']['page_0']);
-        self::assertNotContains('node:2', $fetch['args'], 'Denied IDs must never reach the snippet fetch.');
     }
 
     private function index(Fts5SearchIndexer $indexer, string $id, string $createdAt): void

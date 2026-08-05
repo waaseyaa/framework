@@ -136,14 +136,15 @@ interface VectorStoreInterface
 
 ```
 ai-schema        depends on: entity
-ai-tools         depends on: entity, access, ai-schema, ai-vector
-ai-agent         depends on: ai-schema, ai-tools, access, entity-storage, queue
-ai-pipeline      depends on: entity, queue
-ai-vector        depends on: entity
-ai-observability depends on: ai-agent, telescope
+ai-tools         depends on: access, entity, entity-storage, foundation, media, publishing
+ai-agent         depends on: access, ai-observability, ai-tools, api, audit, bimaaji, config,
+                             database-legacy, entity, entity-storage, foundation, http-client, routing
+ai-pipeline      depends on: entity, foundation
+ai-vector        depends on: access, api, entity, entity-storage, foundation, queue, workflows
+ai-observability depends on: ai-agent, database-legacy, entity, entity-storage, foundation
 ```
 
-Layer discipline: ai-tools / ai-agent / ai-pipeline / ai-vector / ai-observability are in layer 5 (AI). They depend downward on layer 1 (entity, entity-storage, access) and layer 0 (queue). They must never import from layer 6 (interfaces).
+Layer discipline: ai-tools / ai-agent / ai-pipeline / ai-vector / ai-observability are in layer 5 (AI). Their direct package edges must match runtime imports, remain at layer 5 or below, and never import from layer 6 (interfaces).
 
 ### Namespace Conventions
 
