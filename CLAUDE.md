@@ -193,6 +193,12 @@ Substantive work follows the **design-first flow** — brainstorm → spec in `d
 - `composer test` must pass before any commit.
 - Open PRs via `gh`; require CI green on the exact pushed head before merge.
 
+### Project hooks
+
+- Run `composer hooks:install` once per clone and `composer hooks:doctor` when hook behavior is suspect. The tracked `bin/project-hooks` script is the source of truth; installed Git hooks are worktree-aware shims only.
+- Pre-push runs quick architecture checks. `composer verify` and CI are the complete publication gates.
+- Claude startup receives only bounded branch and working-tree context. Run `tools/drift-detector.sh origin/main` explicitly when reviewing specification impact; do not inject full drift reports into session context.
+
 ## Agent context
 
 - **Constitution (this file):** Session-hot rules — orchestration table, layer graph, checklists, gotchas.

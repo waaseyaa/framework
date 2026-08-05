@@ -2,7 +2,7 @@
 
 ## Goals
 
-- **Fast feedback:** `packages/*/tests/Unit` run on every push (lefthook `phpunit` + CI).
+- **Fast feedback:** local pre-push hooks run quick architecture gates; CI runs the complete unit suite.
 - **Integration where contracts matter:** HTTP kernel, routing, entity storage, and multi-package flows use SQLite (`DBALDatabase::createSqlite()` or project fixtures) under `tests/Integration/` or package integration suites.
 - **No network in unit tests:** Mock HTTP, mail, and external services; reserve real I/O for explicit integration cases.
 
@@ -23,5 +23,7 @@
 
 ## CI / Hooks
 
-- **Pre-push:** `lefthook` runs composer policy, drift detector (`tools/drift-detector.sh`), phpstan (on PHP changes), and the **Unit** test suite.
-- **Full suite:** `./vendor/bin/phpunit` locally before release branches; worktrees may use narrower targets if documented in `CLAUDE.md`.
+- **Pre-commit:** the tracked project hook runs the code-style check when PHP is staged.
+- **Pre-push:** the tracked project hook runs Composer policy, Symfony import, and package-layer gates sequentially. Spec drift is advisory locally and blocking in CI.
+- **Full gate:** `composer verify` is the canonical complete local gate. CI is authoritative for published revisions.
+- **Installation:** `composer hooks:install` installs small worktree-aware shims; `composer hooks:doctor` verifies them. Unknown user hooks are never overwritten.

@@ -103,14 +103,19 @@ Create `.github/CODEOWNERS` if it doesn't exist:
 ## 5. Local Development Setup
 
 ```bash
-# Install git hooks (pre-push lint + static analysis)
-bash scripts/install-git-hooks.sh
+# Install and verify the tracked project hooks
+composer hooks:install
+composer hooks:doctor
 
 # Run quick local checks
 composer validate
 composer phpstan
 ./vendor/bin/phpunit --testsuite Unit
 ```
+
+Hook installation is explicit because linked worktrees share the repository's
+Git hook directory. The installer is idempotent, upgrades generated Lefthook
+shims, and refuses to overwrite an unknown hook.
 
 ## 6. Timing Note
 

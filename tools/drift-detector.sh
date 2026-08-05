@@ -115,6 +115,7 @@ declare -A PATTERN_TO_SPEC=(
   ["packages/media/"]="docs/specs/entity-storage-two-axis.md"
   ["packages/messaging/"]="docs/specs/messaging.md"
   ["packages/migration/"]="docs/specs/migration-platform.md"
+  ["packages/search/"]="docs/specs/search.md"
   ["packages/ssr/"]="docs/specs/app-controller-invocation.md"
   ["packages/workspace/"]="docs/specs/workspace-chat-surface.md"
   ["packages/workflows/"]="docs/specs/content-workflow.md"

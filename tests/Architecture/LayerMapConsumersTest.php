@@ -75,20 +75,22 @@ final class LayerMapConsumersTest extends TestCase
         self::assertDoesNotMatchRegularExpression('/^\s*- packages\/[^\/]+\/src\s*$/m', $phpstan);
 
         $drift = (string) file_get_contents($this->root . '/tools/drift-detector.sh');
-        foreach (['attachment', 'bimaaji', 'cli', 'genealogy', 'listing', 'media', 'messaging', 'migration', 'ssr', 'workspace'] as $package) {
+        foreach (['attachment', 'bimaaji', 'cli', 'genealogy', 'listing', 'media', 'messaging', 'migration', 'search', 'ssr', 'workspace'] as $package) {
             self::assertStringContainsString('["packages/' . $package . '/"]=', $drift);
         }
     }
 
     #[Test]
-    public function lefthook_is_the_only_documented_hook_path_and_describes_ci_truthfully(): void
+    public function tracked_project_hooks_are_the_only_documented_hook_path(): void
     {
         self::assertFileDoesNotExist($this->root . '/scripts/install-git-hooks.sh');
         self::assertFileDoesNotExist($this->root . '/tools/git-hooks/pre-push');
 
-        $lefthook = (string) file_get_contents($this->root . '/lefthook.yml');
-        self::assertStringContainsString('blocking CI', $lefthook);
-        self::assertStringNotContainsString('Drift is not enforced by CI', $lefthook);
-        self::assertStringNotContainsString('message / PR body', $lefthook);
+        self::assertFileDoesNotExist($this->root . '/lefthook.yml');
+        self::assertFileExists($this->root . '/bin/project-hooks');
+
+        $composer = json_decode((string) file_get_contents($this->root . '/composer.json'), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame('bash bin/project-hooks install', $composer['scripts']['hooks:install'] ?? null);
+        self::assertSame('bash bin/project-hooks doctor', $composer['scripts']['hooks:doctor'] ?? null);
     }
 }
