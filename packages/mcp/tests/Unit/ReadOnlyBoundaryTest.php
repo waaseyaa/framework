@@ -171,10 +171,21 @@ final class ReadOnlyBoundaryTest extends TestCase
         self::assertTrue($account->hasPermission(self::READ_CAP));
         self::assertFalse($account->hasPermission('bimaaji.read'));
         self::assertTrue($account->hasPermission('tool.relationship.traverse'));
+        self::assertFalse($account->hasPermission('tool.content.search'));
         // The write capability is NOT granted — a write tool's requireCapability
         // would fail even if it somehow reached execution.
         self::assertFalse($account->hasPermission(self::WRITE_CAP));
         self::assertFalse($account->hasPermission('tool.entity.delete'));
+    }
+
+    #[Test]
+    public function content_search_can_be_granted_explicitly_without_widening_other_defaults(): void
+    {
+        $capabilities = [...PublicAnonymousAuth::DEFAULT_READ_CAPABILITIES, 'tool.content.search'];
+        $account = new PublicAnonymousAuth($capabilities)->authenticate(null);
+
+        self::assertTrue($account->hasPermission('tool.content.search'));
+        self::assertFalse($account->hasPermission(self::WRITE_CAP));
     }
 
     #[Test]

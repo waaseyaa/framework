@@ -8,6 +8,8 @@ use Psr\Container\ContainerInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AI\Tools\Catalogue\AttributeToolRegistry;
 use Waaseyaa\AI\Tools\Catalogue\AutowiringToolContainer;
+use Waaseyaa\AI\Tools\ContentSearch\ContentSearchTool;
+use Waaseyaa\AI\Tools\ContentSearch\SearchPackageContentSearchAdapter;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
@@ -60,6 +62,40 @@ final class AiToolsServiceProvider extends ServiceProvider implements AcceptsAge
 
             foreach ($this->agentToolProviders as $provider) {
                 $provider->registerAgentTools($registry);
+            }
+
+            // Installing Search is the explicit composition opt-in for the
+            // principal-safe rich search tool. Availability probes only touch
+            // autoload metadata: resolving SearchProviderInterface here would
+            // open the database during boot or tools/list (#1611). The service
+            // is resolved lazily by the tool for the acting request instead.
+            if (SearchPackageContentSearchAdapter::isAvailable()) {
+                $services = $this->kernelServices;
+                $impl = new ContentSearchTool(static function () use ($services): object {
+                    if ($services === null) {
+                        throw new \RuntimeException('The kernel-services bus is unavailable.');
+                    }
+                    $provider = $services->get(SearchPackageContentSearchAdapter::providerServiceId());
+                    if (!is_object($provider)) {
+                        throw new \RuntimeException('The optional content search service binding is unavailable.');
+                    }
+
+                    return $provider;
+                });
+                $impl->setLogger($logger);
+                $registry->register(new AgentTool(
+                    name: 'content.search',
+                    capability: 'tool.content.search',
+                    destructive: false,
+                    dryRunSupported: false,
+                    category: 'content',
+                    inputSchema: $impl->inputSchema(),
+                    impl: $impl,
+                    title: 'Search CMS content',
+                    outputSchema: ContentSearchTool::outputSchema(),
+                    idempotent: true,
+                    openWorld: false,
+                ));
             }
 
             return $registry;

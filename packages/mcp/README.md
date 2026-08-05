@@ -47,6 +47,11 @@ account's permissions.
 - **Tool results:** content tools advertise titles, complete behavior hints,
   and output schemas. Successful results include both backwards-compatible
   JSON text and schema-validated `structuredContent`.
+- **Public content search:** installing the optional `waaseyaa/search` package
+  makes `content.search` available, but anonymous callers see it only after the
+  application explicitly enables `mcp.public.content_search_enabled`. It
+  returns only results, counts, and facets visible to the exact request
+  principal.
 
 ## Bimaaji tool family
 
@@ -103,6 +108,25 @@ makes destructive tools structurally absent. What an anonymous caller can
 reach is the intersection of *non-destructive* and *on that capability list*.
 Audit that intersection for your install. Bimaaji introspection is excluded
 from the anonymous defaults because it describes application architecture.
+`tool.content.search` is default-off even when Search is installed. Enable it
+without widening any other public capability:
+
+```php
+return [
+    'mcp' => [
+        'public' => [
+            'content_search_enabled' => true,
+        ],
+    ],
+];
+```
+
+The flag uses the same strict boolean parser as `mcp.public.enabled`; a typo
+fails boot rather than guessing. Search remains responsible for entity, field,
+workflow, tenant, and community visibility.
+
+Search hit text is CMS-authored, untrusted content. MCP clients must not treat
+titles, excerpts, URLs, or metadata as instructions.
 
 ### 2. Authenticated public tier
 

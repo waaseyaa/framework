@@ -35,11 +35,18 @@ final class SanitizedToolError
     /** Machine-readable code; stable across releases so agents can branch on it. */
     public const string CODE = 'INTERNAL_ERROR';
 
+    /** Stable code for an installed tool whose optional backend cannot resolve. */
+    public const string UNAVAILABLE_CODE = 'TOOL_UNAVAILABLE';
+
     /**
      * The only human-readable text a caller ever receives for an internal
      * failure. A fixed literal: it interpolates nothing, so it cannot leak.
      */
     public const string MESSAGE = 'The tool failed because of an internal error. '
+        . 'Quote the correlation id to an operator to have it diagnosed.';
+
+    /** Fixed caller text for an optional backend wiring failure. */
+    public const string UNAVAILABLE_MESSAGE = 'The tool is temporarily unavailable. '
         . 'Quote the correlation id to an operator to have it diagnosed.';
 
     /**
@@ -80,6 +87,24 @@ final class SanitizedToolError
             isError: true,
             content: [['type' => 'text', 'text' => self::json($correlationId)]],
             summary: \sprintf('%s (correlation_id=%s)', self::CODE, $correlationId),
+        );
+    }
+
+    public static function unavailableResult(string $correlationId): AgentToolResult
+    {
+        $body = [
+            'code' => self::UNAVAILABLE_CODE,
+            'message' => self::UNAVAILABLE_MESSAGE,
+            'meta' => ['correlation_id' => $correlationId],
+        ];
+
+        return new AgentToolResult(
+            isError: true,
+            content: [[
+                'type' => 'text',
+                'text' => \json_encode($body, \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES),
+            ]],
+            summary: \sprintf('%s (correlation_id=%s)', self::UNAVAILABLE_CODE, $correlationId),
         );
     }
 

@@ -230,6 +230,19 @@ final class SanitizedToolErrorTest extends TestCase
     }
 
     #[Test]
+    public function optional_backend_unavailability_has_a_stable_sanitized_code(): void
+    {
+        $result = SanitizedToolError::unavailableResult('abcdef0123456789');
+        $body = json_decode($result->content[0]['text'], true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertTrue($result->isError);
+        self::assertSame(SanitizedToolError::UNAVAILABLE_CODE, $body['code']);
+        self::assertSame(SanitizedToolError::UNAVAILABLE_MESSAGE, $body['message']);
+        self::assertSame(['correlation_id' => 'abcdef0123456789'], $body['meta']);
+        self::assertStringNotContainsString('%', SanitizedToolError::UNAVAILABLE_MESSAGE);
+    }
+
+    #[Test]
     public function correlation_ids_are_unique_across_calls(): void
     {
         $ids = [];

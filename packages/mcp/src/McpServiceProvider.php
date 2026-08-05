@@ -166,7 +166,7 @@ final class McpServiceProvider extends ServiceProvider implements ProvidesApiCat
                 // rejected by tools/call regardless of the resolved account.
                 $readOnlyRegistry = new ReadOnlyToolRegistry(
                     $this->resolve(AgentToolRegistryInterface::class),
-                    PublicAnonymousAuth::DEFAULT_READ_CAPABILITIES,
+                    $this->publicReadCapabilities(),
                 );
 
                 [$limiter, $maxRequests, $windowSeconds] = $this->rateLimitSettings();
@@ -445,7 +445,29 @@ final class McpServiceProvider extends ServiceProvider implements ProvidesApiCat
     {
         $auth = $this->resolveOptional(McpAuthInterface::class);
 
-        return $auth instanceof McpAuthInterface ? $auth : new PublicAnonymousAuth();
+        return $auth instanceof McpAuthInterface ? $auth : new PublicAnonymousAuth($this->publicReadCapabilities());
+    }
+
+    /**
+     * Capabilities visible on the anonymous tier. Rich content search is an
+     * explicit application decision because installing an optional package must
+     * not silently widen a public network surface.
+     *
+     * @return list<string>
+     */
+    private function publicReadCapabilities(): array
+    {
+        $capabilities = PublicAnonymousAuth::DEFAULT_READ_CAPABILITIES;
+        $mcp = $this->config['mcp'] ?? null;
+        $public = \is_array($mcp) && \is_array($mcp['public'] ?? null) ? $mcp['public'] : [];
+        if (!\array_key_exists('content_search_enabled', $public)) {
+            return $capabilities;
+        }
+        if (self::requireBool($public['content_search_enabled'], 'mcp.public.content_search_enabled')) {
+            $capabilities[] = 'tool.content.search';
+        }
+
+        return $capabilities;
     }
 
     /**
@@ -553,7 +575,7 @@ final class McpServiceProvider extends ServiceProvider implements ProvidesApiCat
             \sprintf(
                 'Configuration key "%s" must be %s; got a value of type %s. '
                 . 'This key gates a public network surface, so an unrecognised value is refused '
-                . 'rather than guessed. Remove the key to accept the default (enabled). '
+                . 'rather than guessed. Remove the key to accept its documented default. '
                 . '(The value is omitted from this message because configuration may hold secrets.)',
                 $key,
                 $expectation,

@@ -80,6 +80,45 @@ final class AiToolsServiceProviderWiringTest extends TestCase
     }
 
     #[Test]
+    public function content_search_is_registered_without_resolving_its_database_backed_provider(): void
+    {
+        $searchResolutions = 0;
+        $manifest = new PackageManifest();
+        $container = $this->container([]);
+        $handler = new EntityAccessHandler([]);
+        $base = $this->bus($manifest, $container, $handler);
+        $bus = new class($base, $searchResolutions) implements KernelServicesInterface {
+            public function __construct(
+                private readonly KernelServicesInterface $base,
+                private int &$searchResolutions,
+            ) {}
+
+            public function get(string $abstract): ?object
+            {
+                if ($abstract === 'Waaseyaa\\Search\\SearchProviderInterface') {
+                    ++$this->searchResolutions;
+                    throw new \RuntimeException('must stay lazy during tools/list');
+                }
+
+                return $this->base->get($abstract);
+            }
+        };
+        $provider = new AiToolsServiceProvider();
+        $provider->setKernelServices($bus);
+        $provider->register();
+
+        $registry = $provider->resolve(ToolRegistryInterface::class);
+        $tool = $registry->get('content.search');
+
+        self::assertSame(0, $searchResolutions);
+        self::assertSame('tool.content.search', $tool->capability);
+        self::assertFalse($tool->destructive);
+        self::assertTrue($tool->idempotent);
+        self::assertFalse($tool->openWorld);
+        self::assertSame('object', $tool->outputSchema['type'] ?? null);
+    }
+
+    #[Test]
     public function the_provider_wires_the_kernel_access_handler_onto_hydrated_tools(): void
     {
         $repo = new InMemoryToolRepository();

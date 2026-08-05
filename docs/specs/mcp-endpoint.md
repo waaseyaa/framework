@@ -75,6 +75,29 @@ Kernel-level failures before MCP dispatch are governed by the JSON-first HTTP er
 | `src/Bridge/AgentToolRegistryBridge.php` | Adapts the framework-wide `Waaseyaa\AI\Tools` registry directly to MCP descriptors and calls |
 | `src/ReadOnlyToolRegistry.php` / `src/CapabilityScopedToolRegistry.php` | Tool-visibility wrappers for the public read-only `/mcp` and the `/mcp/write` tier |
 
+### Optional content search tool
+
+Installing `waaseyaa/search` is the explicit composition opt-in for
+`content.search`. The Layer 5 ai-tools package owns the adapter; MCP has no
+runtime or development dependency on Search. Catalogue construction checks
+class/interface availability without resolving services, so boot and
+`tools/list` do not open the database. The provider is resolved only for an
+authorized call. If Search is absent the tool is absent; if an installed
+binding is broken the listed tool returns a sanitized correlated error.
+The error uses the stable `TOOL_UNAVAILABLE` code so clients can avoid blind
+retries without learning anything about the binding failure.
+
+The tool is non-destructive, idempotent, closed-world, and uses the distinct
+`tool.content.search` capability. Anonymous exposure is default-off even when
+Search is installed and requires the strict boolean
+`mcp.public.content_search_enabled`; malformed values fail boot. It passes the
+exact immutable request principal to Search, whose safe-read boundary owns
+entity, field, workflow, tenant, and community visibility and computes
+counts/facets only after authorization. The adapter copies bounded properties
+into a closed output schema and rejects malformed provider output. Pagination
+is limited to a 1,000-result window. Dispatch auditing retains sort/pagination
+shape but replaces query and free-text filters with lengths or counts.
+
 > The legacy `McpController` + `Tools/` + `Rpc/` + `Cache/` files were removed in WP17 — see "Legacy `McpController` stack — REMOVED" below.
 
 ## Package Discovery and Route Ownership
