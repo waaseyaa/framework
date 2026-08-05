@@ -71,6 +71,8 @@ return [
     // wiring via this named interface instead of a Layer-3 concrete edge.
     'Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsAgentToolProvidersInterface' => 'public',
+    'Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsApiCatalogEntryProvidersInterface' => 'public',
+    'Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApiCatalogEntriesInterface' => 'public',
     // Content-model-provider injection capability (G-026, #1940): mirrors
     // AcceptsMigrationProvidersInterface immediately above — kernel guards
     // provider wiring via this named interface instead of a Layer-3 concrete edge.

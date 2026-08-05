@@ -1,4 +1,6 @@
 # Infrastructure
+
+<!-- Spec reviewed 2026-08-04 - #2195: Foundation adds the layer-safe RFC 9727 contribution seam: immutable same-origin ApiCatalogEntry/ApiCatalogTarget values, ProvidesApiCatalogEntriesInterface contributors, and AcceptsApiCatalogEntryProvidersInterface receiver. AbstractKernel collects contributors, sorts them by provider class, and injects them before provider boot. Foundation imports no API, MCP, Wayfinding, or new Symfony type for this seam. HttpKernel treats /.well-known/api-catalog as anonymous-stateless by default. -->
 <!-- Spec reviewed 2026-07-30 - #2154 (follow-up to #2146): a session.stateless_paths entry of exactly "/" now means the ROOT PATH only, not a prefix of every path. Prefix-matching it made every anonymous GET stateless including /admin/login (a GET that must mint a CSRF token, withheld when no session exists), so an app could not express a cookie-free homepage without silently breaking its own authentication. Named prefixes are unchanged. See middleware-pipeline.md "Stateless path gate". -->
 
 <!-- Spec reviewed 2026-07-30 - #2146 stateless session paths: SessionMiddleware gains an opt-in session.stateless_paths gate (anonymous GET/HEAD on configured prefixes skip session_start; session-cookie-carrying requests resume; other methods unchanged; default [] is exact behavior parity). Access-control semantics unchanged: skipped sessions resolve to AnonymousUser under deny-unless-granted. Full contract in middleware-pipeline.md "SessionMiddleware". -->
@@ -1836,6 +1838,28 @@ The legacy concrete `FailedJobRepository` class (a thin facade delegating to `In
 `CreateQueueTables` (`packages/queue/src/Migration/CreateQueueTables.php`) and timestamped migrations under `packages/queue/migrations/` (registered via `extra.waaseyaa.migrations` in `packages/queue/composer.json`) create **`waaseyaa_queue_jobs`** and **`waaseyaa_failed_jobs`**. Older docs may refer to unprefixed names; the DDL above is authoritative.
 
 ## Kernel Bootstrap
+
+### API-catalog provider composition
+
+The RFC 9727 catalog follows the same explicit receiver-capability pattern as
+agent-tool and migration provider injection. Packages that own an intentionally
+public API implement
+`Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApiCatalogEntriesInterface`
+and return immutable `ApiCatalogEntry` values. `AbstractKernel` sorts those
+providers by class name and passes them to the one
+`AcceptsApiCatalogEntryProvidersInterface` receiver before providers boot.
+
+Foundation owns only the contribution values and capability interfaces. The
+Layer-4 API package owns serialization, HTTP routing, content negotiation, and
+configuration. This keeps every dependency downward-only and prevents the
+kernel from importing MCP, Wayfinding, or other optional packages. The target
+value accepts only root-relative same-origin paths; canonical origin selection
+belongs exclusively to the API package.
+
+Anonymous GET/HEAD requests to `/.well-known/api-catalog` are always included
+in `HttpKernel`'s stateless path set, even when an application has not added the
+path to `session.stateless_paths`. Existing session cookies still resume under
+the established `SessionMiddleware` rule.
 
 The kernel boot sequence is decomposed into extracted bootstrapper classes in `packages/foundation/src/Kernel/Bootstrap/`. `AbstractKernel` delegates to these rather than inlining the logic.
 

@@ -717,6 +717,13 @@ for protocol `2025-11-25` with compatibility for `2025-06-18` and
 
 With `mcp.public.enabled = false`, `/mcp` and `/.well-known/mcp.json` are absent from the route collection and resolve to HTTP 404.
 
+When the deployment also enables the RFC 9727 API Catalog, the MCP provider
+contributes exactly one API item: the public `/mcp` endpoint, with
+`/.well-known/mcp.json` as `service-meta`. The contribution is empty when
+`mcp.public.enabled` is false. The authenticated `/mcp/write` tier, its OAuth
+protected-resource metadata, approval routes, and admin introspection are never
+advertised by this contribution.
+
 ### Server Card
 
 `McpServerCard` generates the `/.well-known/mcp.json` response. The route controller is `McpServerCard::serve()`, which returns an `HttpResponse` wrapping the `toJson()` output:
