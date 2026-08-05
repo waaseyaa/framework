@@ -13,10 +13,8 @@ namespace Waaseyaa\Foundation\Audit;
  * of the enum is that "something went wrong" is never flattened into a single
  * `allowed` outcome.
  *
- * `ApprovalRequired` / `ApprovalRefused` are declared but NOT yet emitted: the
- * human-approval gate is F1, tracked separately. They live here so the ledger's
- * stage vocabulary does not need a breaking change when F1 lands, and so a
- * reader of this enum can see where approval will sit in the order.
+ * `ApprovalRequired` / `ApprovalRefused` are emitted by the human-approval
+ * gate for destructive write-tier calls.
  *
  * @api
  */
@@ -27,6 +25,9 @@ enum AuditStage: string
 
     /** The principal authenticated but exceeded its request budget. */
     case RateLimited = 'rate_limited';
+
+    /** The limiter could not make a durable admission decision, so the request failed closed. */
+    case RateLimiterUnavailable = 'rate_limiter_unavailable';
 
     /** The request authenticated, parsed, and was admitted for routing. */
     case RequestAccepted = 'request_accepted';
@@ -83,7 +84,9 @@ enum AuditStage: string
             self::ApprovalRefused => 'denied',
             // AuditUnavailableRefused is an infrastructure failure, not a policy
             // decision — the caller was refused because something BROKE.
-            self::AuditUnavailableRefused, self::ExecutionFailed => 'error',
+            self::RateLimiterUnavailable,
+            self::AuditUnavailableRefused,
+            self::ExecutionFailed => 'error',
         };
     }
 
@@ -92,7 +95,9 @@ enum AuditStage: string
     {
         return match ($this) {
             self::RequestAccepted, self::ExecutionSucceeded => 'info',
-            self::ExecutionFailed, self::AuditUnavailableRefused => 'warning',
+            self::RateLimiterUnavailable,
+            self::ExecutionFailed,
+            self::AuditUnavailableRefused => 'warning',
             default => 'notice',
         };
     }

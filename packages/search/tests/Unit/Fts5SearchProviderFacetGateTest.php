@@ -31,7 +31,7 @@ final class Fts5SearchProviderFacetGateTest extends TestCase
         $this->database = DBALDatabase::createSqlite();
         $this->indexer = new Fts5SearchIndexer($this->database);
         $this->indexer->ensureSchema();
-        $this->provider = new Fts5SearchProvider($this->database, $this->indexer);
+        $this->provider = new Fts5SearchProvider($this->database, $this->indexer, new \Waaseyaa\Search\Tests\Support\AllowAllSearchAccessChecker());
 
         $this->indexItem('node:1', ['title' => 'Article One', 'body' => 'Content'], [
             'entity_type' => 'node', 'content_type' => 'article', 'source_name' => 'blog',

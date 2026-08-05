@@ -11,7 +11,7 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 
 /**
  * Default {@see SearchAccessChecker}: enforces entity `view` access for
- * entity-backed documents and lets non-entity documents through.
+ * entity-backed documents and denies every source it cannot prove.
  *
  * - **Entity-backed** hits (the `entity_type` names a registered entity type —
  *   e.g. `node`, `user`) are loaded and gated on `view` for the acting account
@@ -19,10 +19,10 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
  *   explicitly allows it (fail-closed: a missing acting context, an
  *   unparseable id, an entity that no longer loads, or a neutral/forbidden
  *   policy result all deny).
- * - **Non-entity** hits (`entity_type` is empty or not a registered entity
- *   type — e.g. crawled markdown / spec documents indexed as `document`) carry
- *   no entity access policy. They are content the application deliberately
- *   indexed and are returned as-is.
+ * - **Non-entity or unknown** hits carry no entity access policy and are denied.
+ *   Deliberately public files or synchronized corpora require an explicit
+ *   source resolver when #2192 promotes the read surface; index metadata is
+ *   never authorization evidence.
  */
 final class EntitySearchAccessChecker implements SearchAccessChecker
 {
@@ -36,7 +36,7 @@ final class EntitySearchAccessChecker implements SearchAccessChecker
     public function canView(string $documentId, string $entityType): bool
     {
         if ($entityType === '' || !$this->entityTypeManager->hasDefinition($entityType)) {
-            return true;
+            return false;
         }
 
         // Entity-backed document: prove `view` for the acting account. With no

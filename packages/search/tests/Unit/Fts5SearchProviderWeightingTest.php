@@ -62,7 +62,7 @@ final class Fts5SearchProviderWeightingTest extends TestCase
     #[Test]
     public function default_weights_rank_the_body_frequency_match_first(): void
     {
-        $provider = new Fts5SearchProvider($this->database, $this->indexer);
+        $provider = new Fts5SearchProvider($this->database, $this->indexer, new \Waaseyaa\Search\Tests\Support\AllowAllSearchAccessChecker());
 
         $result = $provider->search(new SearchRequest('entity type'));
 
@@ -73,7 +73,13 @@ final class Fts5SearchProviderWeightingTest extends TestCase
     #[Test]
     public function title_weighting_floats_the_title_match_above_the_body_only_match(): void
     {
-        $provider = new Fts5SearchProvider($this->database, $this->indexer, null, 10.0, 1.0);
+        $provider = new Fts5SearchProvider(
+            $this->database,
+            $this->indexer,
+            new \Waaseyaa\Search\Tests\Support\AllowAllSearchAccessChecker(),
+            titleWeight: 10.0,
+            bodyWeight: 1.0,
+        );
 
         $result = $provider->search(new SearchRequest('entity type'));
 
