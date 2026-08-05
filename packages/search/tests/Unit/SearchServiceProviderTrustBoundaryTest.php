@@ -11,9 +11,13 @@ use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Search\SearchCandidateResolverInterface;
 use Waaseyaa\Search\SearchCandidateResolverRegistry;
+use Waaseyaa\Search\SearchContentCatalogueInterface;
+use Waaseyaa\Search\Fts5\Fts5SearchContentCatalogue;
 use Waaseyaa\Search\SearchServiceProvider;
 
 #[CoversClass(SearchServiceProvider::class)]
@@ -25,11 +29,13 @@ final class SearchServiceProviderTrustBoundaryTest extends TestCase
         $entityTypeManager = $this->createStub(EntityTypeManagerInterface::class);
         $accessHandler = new EntityAccessHandler([]);
         $fieldReadScope = new AccountFieldReadScope();
-        $services = new class ($entityTypeManager, $accessHandler, $fieldReadScope) implements KernelServicesInterface {
+        $database = DBALDatabase::createSqlite();
+        $services = new class ($entityTypeManager, $accessHandler, $fieldReadScope, $database) implements KernelServicesInterface {
             public function __construct(
                 private readonly EntityTypeManagerInterface $entityTypeManager,
                 private readonly EntityAccessHandler $accessHandler,
                 private readonly AccountFieldReadScopeInterface $fieldReadScope,
+                private readonly DatabaseInterface $database,
             ) {}
 
             public function get(string $abstract): ?object
@@ -38,6 +44,7 @@ final class SearchServiceProviderTrustBoundaryTest extends TestCase
                     EntityTypeManagerInterface::class => $this->entityTypeManager,
                     EntityAccessHandler::class => $this->accessHandler,
                     AccountFieldReadScopeInterface::class => $this->fieldReadScope,
+                    DatabaseInterface::class => $this->database,
                     default => null,
                 };
             }
@@ -50,6 +57,10 @@ final class SearchServiceProviderTrustBoundaryTest extends TestCase
         self::assertInstanceOf(
             SearchCandidateResolverRegistry::class,
             $provider->resolve(SearchCandidateResolverInterface::class),
+        );
+        self::assertInstanceOf(
+            Fts5SearchContentCatalogue::class,
+            $provider->resolve(SearchContentCatalogueInterface::class),
         );
     }
 }

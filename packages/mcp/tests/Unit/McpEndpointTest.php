@@ -15,6 +15,12 @@ use Waaseyaa\AI\Tools\AgentToolInterface;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
+use Waaseyaa\AI\Tools\Resource\ContentResourceContent;
+use Waaseyaa\AI\Tools\Resource\ContentResourceDescriptor;
+use Waaseyaa\AI\Tools\Resource\ContentResourceProviderInterface;
+use Waaseyaa\AI\Tools\Resource\ContentResourceRegistry;
+use Waaseyaa\AI\Tools\Resource\ContentResourceTemplate;
+use Waaseyaa\AI\Tools\Resource\MalformedContentResourceUriException;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\Auth\OAuthProtectedResourceMetadata;
 use Waaseyaa\Mcp\Auth\OAuthProtectedResourceMetadataConfig;
@@ -22,6 +28,8 @@ use Waaseyaa\Mcp\McpEndpoint;
 use Waaseyaa\Mcp\McpImplementationInfo;
 use Waaseyaa\Mcp\McpProtocol;
 use Waaseyaa\Mcp\McpResponse;
+use Waaseyaa\Mcp\Event\McpDispatchEvent;
+use Waaseyaa\Foundation\Audit\AuditStage;
 
 #[CoversClass(McpEndpoint::class)]
 #[CoversClass(McpResponse::class)]
@@ -44,14 +52,57 @@ final class McpEndpointTest extends TestCase
     private function createEndpoint(
         ?string $unauthorizedChallenge = null,
         ?McpImplementationInfo $implementationInfo = null,
+        ?ContentResourceRegistry $resources = null,
+        bool $resourcesEnabled = false,
+        ?\Symfony\Contracts\EventDispatcher\EventDispatcherInterface $dispatcher = null,
     ): McpEndpoint
     {
         return new McpEndpoint(
             auth: $this->auth,
             agentRegistry: $this->stubAgentRegistry($this->tools),
+            dispatcher: $dispatcher,
             unauthorizedChallenge: $unauthorizedChallenge,
             implementationInfo: $implementationInfo,
+            contentResources: $resources,
+            contentResourcesEnabled: $resourcesEnabled,
         );
+    }
+
+    private function resourceRegistry(bool $denyReads = false): ContentResourceRegistry
+    {
+        $uri = 'waaseyaa://content/L2Fib3V0';
+        $registry = new ContentResourceRegistry();
+        $registry->register('test', new class($uri, $denyReads) implements ContentResourceProviderInterface {
+            public function __construct(private string $uri, private bool $denyReads) {}
+
+            public function list(AuthorizationPrincipalInterface $principal): array
+            {
+                return [new ContentResourceDescriptor($this->uri, 'content:L2Fib3V0', 'About', 'Public page')];
+            }
+
+            public function templates(): array
+            {
+                return [new ContentResourceTemplate(
+                    'waaseyaa://content/{public_path_token}',
+                    'content-by-public-path',
+                    'CMS content by public path',
+                    'Canonical token.',
+                )];
+            }
+
+            public function read(string $uri, AuthorizationPrincipalInterface $principal): ?ContentResourceContent
+            {
+                if (str_starts_with($uri, 'waaseyaa://content/') && str_contains($uri, '=')) {
+                    throw new MalformedContentResourceUriException();
+                }
+
+                return !$this->denyReads && $uri === $this->uri
+                    ? new ContentResourceContent($uri, 'Safe about body')
+                    : null;
+            }
+        });
+
+        return $registry;
     }
 
     /** @param array<string, string> $protocolHeaders */
@@ -363,6 +414,53 @@ final class McpEndpointTest extends TestCase
         self::assertSame(
             $identity->toArray(),
             \json_decode($modern->body, true, 512, \JSON_THROW_ON_ERROR)['result']['_meta']['io.modelcontextprotocol/serverInfo'],
+        );
+    }
+
+    #[Test]
+    public function combined_discovery_preserves_identity_and_the_released_resource_capability(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $identity = new McpImplementationInfo('Sheg CMS', '3.2.1');
+        $endpoint = $this->createEndpoint(
+            implementationInfo: $identity,
+            resources: $this->resourceRegistry(),
+            resourcesEnabled: true,
+        );
+
+        $legacy = $this->rpc($endpoint, 'initialize', [
+            'protocolVersion' => '2025-11-25',
+            'capabilities' => [],
+            'clientInfo' => ['name' => 'integration-test', 'version' => '1'],
+        ]);
+        $modern = \json_decode(
+            $this->dispatchModern($endpoint, 'server/discover')->body,
+            true,
+            512,
+            \JSON_THROW_ON_ERROR,
+        );
+
+        self::assertSame($identity->toArray(), $legacy['result']['serverInfo']);
+        self::assertSame(
+            ['subscribe' => false, 'listChanged' => false],
+            $legacy['result']['capabilities']['resources'],
+        );
+        self::assertSame(
+            $identity->toArray(),
+            $modern['result']['_meta']['io.modelcontextprotocol/serverInfo'],
+        );
+        self::assertSame(
+            ['tools' => ['listChanged' => false]],
+            $modern['result']['capabilities'],
+            'The draft discovery response must not advertise resources until that protocol era defines them.',
+        );
+
+        $modernResourceCall = $this->dispatchModern($endpoint, 'resources/list');
+        self::assertSame(404, $modernResourceCall->statusCode);
+        self::assertSame(
+            -32601,
+            \json_decode($modernResourceCall->body, true, 512, \JSON_THROW_ON_ERROR)['error']['code'],
+            'A protocol era that does not advertise resources must not serve their methods.',
         );
     }
 
@@ -695,6 +793,180 @@ final class McpEndpointTest extends TestCase
         ], \JSON_THROW_ON_ERROR), 'Bearer valid-token');
 
         self::assertSame(-32602, \json_decode($response->body, true)['error']['code']);
+    }
+
+    #[Test]
+    public function resources_are_advertised_and_dispatched_only_with_the_complete_enabled_registry(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $endpoint = $this->createEndpoint(resources: $this->resourceRegistry(), resourcesEnabled: true);
+        $initialize = $this->dispatch($endpoint, 'POST', json_encode([
+            'jsonrpc' => '2.0',
+            'id' => 1,
+            'method' => 'initialize',
+            'params' => [
+                'protocolVersion' => '2025-11-25',
+                'capabilities' => [],
+                'clientInfo' => ['name' => 'test', 'version' => '1'],
+            ],
+        ], JSON_THROW_ON_ERROR), 'Bearer valid');
+        $initialized = json_decode($initialize->body, true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame(
+            ['subscribe' => false, 'listChanged' => false],
+            $initialized['result']['capabilities']['resources'],
+        );
+
+        $listed = $this->rpc($endpoint, 'resources/list');
+        self::assertCount(1, $listed['result']['resources']);
+        self::assertArrayNotHasKey('nextCursor', $listed['result']);
+
+        $templates = $this->rpc($endpoint, 'resources/templates/list');
+        self::assertSame(
+            'waaseyaa://content/{public_path_token}',
+            $templates['result']['resourceTemplates'][0]['uriTemplate'],
+        );
+
+        $read = $this->rpc($endpoint, 'resources/read', ['uri' => 'waaseyaa://content/L2Fib3V0']);
+        self::assertSame('Safe about body', $read['result']['contents'][0]['text']);
+        self::assertSame('text/plain', $read['result']['contents'][0]['mimeType']);
+    }
+
+    #[Test]
+    public function denied_and_missing_resource_reads_are_byte_identical(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $endpoint = $this->createEndpoint(resources: $this->resourceRegistry(true), resourcesEnabled: true);
+
+        $denied = $this->rpcResponse($endpoint, 'resources/read', ['uri' => 'waaseyaa://content/L2Fib3V0']);
+        $missing = $this->rpcResponse($endpoint, 'resources/read', ['uri' => 'waaseyaa://content/L21pc3Npbmc']);
+
+        self::assertSame($denied->body, $missing->body);
+        self::assertSame(-32002, json_decode($denied->body, true, 512, JSON_THROW_ON_ERROR)['error']['code']);
+        self::assertStringNotContainsString('L2Fib3V0', $denied->body);
+    }
+
+    #[Test]
+    public function malformed_resource_uri_is_invalid_params_but_disabled_resources_are_unknown_methods(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $enabled = $this->createEndpoint(resources: $this->resourceRegistry(), resourcesEnabled: true);
+
+        self::assertSame(
+            -32602,
+            $this->rpc($enabled, 'resources/read', ['uri' => 'waaseyaa://content/L2Fib3V0='])['error']['code'],
+        );
+        self::assertSame(
+            -32602,
+            $this->rpc($enabled, 'resources/list', ['cursor' => 'unsupported'])['error']['code'],
+        );
+
+        $disabled = $this->createEndpoint(resources: $this->resourceRegistry(), resourcesEnabled: false);
+        self::assertSame(-32601, $this->rpc($disabled, 'resources/list')['error']['code']);
+        $absent = $this->createEndpoint(resourcesEnabled: true);
+        self::assertSame(-32601, $this->rpc($absent, 'resources/list')['error']['code']);
+        $initialize = $this->rpc($disabled, 'initialize', [
+            'protocolVersion' => '2025-11-25',
+            'capabilities' => [],
+            'clientInfo' => ['name' => 'test', 'version' => '1'],
+        ]);
+        self::assertArrayNotHasKey('resources', $initialize['result']['capabilities']);
+    }
+
+    #[Test]
+    public function a_principal_without_the_resource_capability_sees_no_listing_or_read_oracle(): void
+    {
+        $principal = $this->createMock(AuthorizationPrincipalInterface::class);
+        $principal->method('id')->willReturn(9);
+        $principal->method('hasPermission')->willReturn(false);
+        $this->auth->method('authenticate')->willReturn($principal);
+        $endpoint = $this->createEndpoint(resources: $this->resourceRegistry(), resourcesEnabled: true);
+
+        self::assertSame([], $this->rpc($endpoint, 'resources/list')['result']['resources']);
+        self::assertSame([], $this->rpc($endpoint, 'resources/templates/list')['result']['resourceTemplates']);
+        self::assertSame(
+            -32002,
+            $this->rpc($endpoint, 'resources/read', ['uri' => 'waaseyaa://content/L2Fib3V0'])['error']['code'],
+        );
+    }
+
+    #[Test]
+    public function resource_provider_failure_is_a_sanitized_correlated_protocol_error(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $events = [];
+        $dispatcher = new \Symfony\Component\EventDispatcher\EventDispatcher();
+        $dispatcher->addListener(McpDispatchEvent::NAME, static function (McpDispatchEvent $event) use (&$events): void {
+            $events[] = $event;
+        });
+        $registry = new ContentResourceRegistry();
+        $registry->register('broken', new class implements ContentResourceProviderInterface {
+            public function list(AuthorizationPrincipalInterface $principal): array
+            {
+                throw new \RuntimeException('sqlite:////private/path?credential=value');
+            }
+            public function templates(): array { return []; }
+            public function read(string $uri, AuthorizationPrincipalInterface $principal): ?ContentResourceContent { return null; }
+        });
+        $response = $this->rpc(
+            $this->createEndpoint(resources: $registry, resourcesEnabled: true, dispatcher: $dispatcher),
+            'resources/list',
+        );
+        $encoded = json_encode($response, JSON_THROW_ON_ERROR);
+
+        self::assertSame(-32603, $response['error']['code']);
+        self::assertArrayHasKey('correlation_id', $response['error']['data']);
+        self::assertStringNotContainsString('sqlite', $encoded);
+        self::assertStringNotContainsString('private', $encoded);
+        self::assertStringNotContainsString('credential', $encoded);
+        self::assertSame(
+            [AuditStage::RequestAccepted->value, AuditStage::ExecutionFailed->value],
+            array_map(static fn(McpDispatchEvent $event): ?string => $event->stage, $events),
+            'An internal resource failure must emit exactly one honest terminal audit stage.',
+        );
+    }
+
+    #[Test]
+    public function resource_protocol_calls_emit_honest_terminal_audit_stages_without_uri_data(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $events = [];
+        $dispatcher = new \Symfony\Component\EventDispatcher\EventDispatcher();
+        $dispatcher->addListener(McpDispatchEvent::NAME, static function (McpDispatchEvent $event) use (&$events): void {
+            $events[] = $event;
+        });
+        $endpoint = $this->createEndpoint(
+            resources: $this->resourceRegistry(true),
+            resourcesEnabled: true,
+            dispatcher: $dispatcher,
+        );
+
+        $this->rpc($endpoint, 'resources/read', ['uri' => 'waaseyaa://content/L21pc3Npbmc']);
+
+        self::assertSame(
+            [AuditStage::RequestAccepted->value, AuditStage::AuthorizationRefused->value],
+            array_map(static fn(McpDispatchEvent $event): ?string => $event->stage, $events),
+        );
+        $encoded = json_encode($events, JSON_THROW_ON_ERROR);
+        self::assertStringNotContainsString('L21pc3Npbmc', $encoded);
+        self::assertStringNotContainsString('/missing', $encoded);
+    }
+
+    /** @param array<string, mixed> $params @return array<string, mixed> */
+    private function rpc(McpEndpoint $endpoint, string $method, array $params = []): array
+    {
+        return json_decode($this->rpcResponse($endpoint, $method, $params)->body, true, 512, JSON_THROW_ON_ERROR);
+    }
+
+    /** @param array<string, mixed> $params */
+    private function rpcResponse(McpEndpoint $endpoint, string $method, array $params = []): McpResponse
+    {
+        return $this->dispatch($endpoint, 'POST', json_encode([
+            'jsonrpc' => '2.0',
+            'id' => 1,
+            'method' => $method,
+            'params' => $params,
+        ], JSON_THROW_ON_ERROR), 'Bearer valid');
     }
 
     #[Test]

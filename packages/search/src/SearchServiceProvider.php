@@ -13,6 +13,7 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Search\Access\EntitySearchCandidateResolver;
 use Waaseyaa\Search\EventSubscriber\SearchIndexSubscriber;
+use Waaseyaa\Search\Fts5\Fts5SearchContentCatalogue;
 use Waaseyaa\Search\Fts5\Fts5SearchIndexer;
 use Waaseyaa\Search\Fts5\Fts5SearchProvider;
 
@@ -61,6 +62,13 @@ final class SearchServiceProvider extends ServiceProvider
                 $this->getSearchDatabase(),
                 $this->resolve(SearchIndexerInterface::class),
                 candidateResolver: $this->resolve(SearchCandidateResolverInterface::class),
+            );
+        });
+
+        $this->singleton(SearchContentCatalogueInterface::class, function (): SearchContentCatalogueInterface {
+            return new Fts5SearchContentCatalogue(
+                $this->getSearchDatabase(),
+                $this->resolve(SearchCandidateResolverInterface::class),
             );
         });
     }

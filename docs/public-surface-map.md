@@ -385,6 +385,7 @@ Configuration Management v1 — active/sync store split, six `config:*` CLI comm
 | Element | Type | Purpose |
 |---------|------|---------|
 | `SearchProviderInterface` | interface | Executes principal-scoped full-text search queries and returns safe ranked results |
+| `SearchContentCatalogueInterface` | interface | Lists and reads bounded canonical content projections under an explicit immutable principal |
 | `SearchCandidateResolverInterface` | interface | Resolves an opaque index pointer to a canonical principal-safe projection |
 | `ProvidesSearchSourceResolversInterface` | interface | Contributes exact-namespace resolvers for canonical non-entity search sources |
 | `SearchIndexerInterface` | interface | Adds, updates, and removes documents from the search index |
@@ -482,6 +483,12 @@ Charter §5.6 — listing-pipeline-v1 (M-007). Namespace `Waaseyaa\Listing\`.
 ---
 
 ## Layer 5: AI
+
+### ai-tools
+
+| Element | Type | Purpose |
+|---------|------|---------|
+| `ContentResourceProviderInterface` | interface | Contributes bounded principal-explicit content resources without coupling MCP to content packages |
 
 ### ai-agent
 

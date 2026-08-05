@@ -34,6 +34,17 @@ Titles, excerpts, URLs, and metadata are CMS-authored, untrusted data. Agent
 integrators must treat returned hit text as evidence to inspect, never as
 instructions that override the agent's policy or tool contract.
 
+## Principal-safe content resources
+
+The MCP-neutral `ContentResourceRegistry` accepts bounded, principal-explicit
+resource contributions. When Search is installed, a lazy string-resolved
+adapter contributes up to 50 access-checked public-path resources plus the
+`waaseyaa://content/{public_path_token}` RFC 6570 template. Canonical tokens are
+strict unpadded base64url encodings of public routes, never entity IDs or
+filesystem paths. Reads return bounded UTF-8 `text/plain` only. Denied and
+missing reads both return no content; the MCP adapter owns their identical
+protocol response.
+
 ## Remote editorial mutations
 
 `Content\ContentToolSet` is the canonical MCP editing surface. Applications

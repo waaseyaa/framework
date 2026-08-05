@@ -24,6 +24,7 @@ final readonly class McpServerCard
     public function __construct(
         ?McpServerCardConfig $config = null,
         ?McpImplementationInfo $implementation = null,
+        private bool $resources = false,
     ) {
         $this->config = $config ?? new McpServerCardConfig();
         $this->implementation = $implementation ?? new McpImplementationInfo('Waaseyaa', '0.1.0');
@@ -47,7 +48,7 @@ final readonly class McpServerCard
             ],
             'capabilities' => [
                 'tools' => true,
-                'resources' => false,
+                'resources' => $this->resources,
                 'prompts' => false,
             ],
             'authentication' => [

@@ -146,11 +146,15 @@ final class OptionalDomainDefaultsTest extends TestCase
     public function ai_tools_source_keeps_optional_search_types_behind_its_local_adapter(): void
     {
         $root = dirname(__DIR__, 2);
-        $source = (string) file_get_contents(
+        $searchTool = (string) file_get_contents(
             $root . '/packages/ai-tools/src/ContentSearch/SearchPackageContentSearchAdapter.php',
         );
+        $resources = (string) file_get_contents(
+            $root . '/packages/ai-tools/src/Resource/SearchPackageContentResourceProvider.php',
+        );
 
-        self::assertStringNotContainsString('use Waaseyaa\\Search\\', $source);
-        self::assertStringContainsString("private const string PROVIDER = 'Waaseyaa\\\\Search\\\\SearchProviderInterface';", $source);
+        self::assertStringNotContainsString('use Waaseyaa\\Search\\', $searchTool . $resources);
+        self::assertStringContainsString("private const string PROVIDER = 'Waaseyaa\\\\Search\\\\SearchProviderInterface';", $searchTool);
+        self::assertStringContainsString("private const string CATALOGUE = 'Waaseyaa\\\\Search\\\\SearchContentCatalogueInterface';", $resources);
     }
 }

@@ -185,6 +185,43 @@ final class McpServiceProviderTest extends TestCase
     }
 
     #[Test]
+    public function anonymous_content_resources_are_default_off_and_require_an_explicit_flag(): void
+    {
+        self::assertNotContains('resource.content.read', $this->publicReadCapabilitiesFor([]));
+        self::assertContains('resource.content.read', $this->publicReadCapabilitiesFor([
+            'mcp' => ['public' => ['content_resources_enabled' => true]],
+        ]));
+        self::assertNotContains('resource.content.read', $this->publicReadCapabilitiesFor([
+            'mcp' => ['public' => ['content_resources_enabled' => false]],
+        ]));
+    }
+
+    #[Test]
+    public function malformed_anonymous_content_resources_flag_fails_boot_without_guessing(): void
+    {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessageMatches('/mcp\.public\.content_resources_enabled/');
+
+        $this->publicReadCapabilitiesFor([
+            'mcp' => ['public' => ['content_resources_enabled' => 'flase']],
+        ]);
+    }
+
+    #[Test]
+    public function enabling_content_resources_without_a_provider_fails_closed(): void
+    {
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessageMatches('/content_resources_enabled/');
+
+        $this->resolveThroughProviders(
+            ['mcp' => ['public' => ['content_resources_enabled' => true]]],
+            null,
+            null,
+            \Waaseyaa\Mcp\McpEndpoint::class,
+        );
+    }
+
+    #[Test]
     public function malformed_anonymous_content_search_flag_fails_boot_without_guessing(): void
     {
         $this->expectException(ConfigException::class);

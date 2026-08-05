@@ -18,7 +18,9 @@ account's permissions.
 - **Endpoint:** `POST /mcp` (JSON-RPC). Modern MCP `2026-07-28` exposes
   `server/discover`, `tools/list`, and `tools/call` with per-request metadata
   and required HTTP mirrors. Legacy `2025-11-25`, `2025-06-18`, and
-  `2025-03-26` retain `initialize`, `ping`, notifications, and tool methods.
+  `2025-03-26` retain `initialize`, `ping`, notifications, and tool methods,
+  plus opt-in `resources/list`, `resources/templates/list`, and
+  `resources/read`; the latest legacy revision is preferred.
 - **Transport profile:** stateless Streamable HTTP with JSON responses. POST
   requires `Content-Type: application/json` and an `Accept` header listing both
   `application/json` and `text/event-stream`. GET returns 405 because this
@@ -52,6 +54,10 @@ account's permissions.
   application explicitly enables `mcp.public.content_search_enabled`. It
   returns only results, counts, and facets visible to the exact request
   principal.
+- **Public content resources:** `resources/list`, `resources/templates/list`,
+  and `resources/read` are available only after the strict default-off
+  `mcp.public.content_resources_enabled` flag is enabled with an installed
+  provider. The server advertises `subscribe: false` and `listChanged: false`.
 
 ## Bimaaji tool family
 
@@ -127,6 +133,29 @@ workflow, tenant, and community visibility.
 
 Search hit text is CMS-authored, untrusted content. MCP clients must not treat
 titles, excerpts, URLs, or metadata as instructions.
+
+Enable bounded public resources independently of the search tool:
+
+```php
+return [
+    'mcp' => [
+        'public' => [
+            'content_resources_enabled' => true,
+        ],
+    ],
+];
+```
+
+The flag grants `resource.content.read` to the fallback anonymous principal and
+structurally enables the three resource methods. Missing providers fail closed;
+malformed URIs are `-32602`, while denied and nonexistent well-formed resources
+share the same `-32002` response. Listing is one deterministic bounded window
+with no `nextCursor`; safe pagination awaits the AEAD cursor primitive in
+#2220. CMS resource text is untrusted data, not agent instruction.
+The normal per-principal MCP rate limiter runs before all three methods, so
+enabling anonymous resources does not bypass request budgeting. Listing is a
+discovery window, not an inventory; callers must use the canonical template for
+known paths rather than treating omission as nonexistence.
 
 ### 2. Authenticated public tier
 
