@@ -46,6 +46,23 @@ modern discovery now reports the same implementation version as the card and
 Registry manifest; MCP protocol compatibility still comes exclusively from
 `protocolVersion`.
 
+### MCP and agent identities must be authorization principals
+
+`McpAuthInterface::authenticate()`, `AgentToolInterface::execute()` / `dryRun()`,
+and `AgentExecutor` now use `AuthorizationPrincipalInterface`. Existing tool
+implementations that accept the wider `AccountInterface` remain compatible by
+PHP parameter contravariance. Custom MCP authentication providers must return
+an immutable principal.
+
+If an identity provider still owns a legacy `AccountInterface`, wrap it
+explicitly in `DelegatingAuthorizationPrincipal` and supply the provider's
+claims generation plus optional tenant/community claims. The decorator forwards
+permission and role decisions live and verbatim while its claims metadata is
+frozen at construction. `AccountPrincipalFactory` now refuses
+plain non-entity accounts instead of silently producing a snapshot with no
+permissions; principal instances pass through and entity-backed accounts still
+use the audited bootstrap reader.
+
 ### Field-API item/value-object layer removed — custom field types extend `AbstractFieldType` (Waaseyaa\Field)
 
 The dead Drupal-lineage field item-object layer was removed (audit C-24). The

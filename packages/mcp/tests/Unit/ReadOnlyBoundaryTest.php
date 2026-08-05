@@ -189,11 +189,11 @@ final class ReadOnlyBoundaryTest extends TestCase
     #[Test]
     public function delegate_authenticated_account_takes_precedence(): void
     {
-        $delegateAccount = $this->createMock(AccountInterface::class);
+        $delegateAccount = $this->createMock(\Waaseyaa\Access\AuthorizationPrincipalInterface::class);
         $delegate = new class ($delegateAccount) implements \Waaseyaa\Mcp\Auth\McpAuthInterface {
-            public function __construct(private readonly AccountInterface $account) {}
+            public function __construct(private readonly \Waaseyaa\Access\AuthorizationPrincipalInterface $account) {}
 
-            public function authenticate(?string $authorizationHeader): ?AccountInterface
+            public function authenticate(?string $authorizationHeader): ?\Waaseyaa\Access\AuthorizationPrincipalInterface
             {
                 return $authorizationHeader === 'Bearer good' ? $this->account : null;
             }

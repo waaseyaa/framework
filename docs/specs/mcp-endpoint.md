@@ -203,11 +203,11 @@ A second, older tool controller — `McpController` (`handleRpc()`/`manifest()`)
 ```php
 interface McpAuthInterface
 {
-    public function authenticate(?string $authorizationHeader): ?AccountInterface;
+    public function authenticate(?string $authorizationHeader): ?AuthorizationPrincipalInterface;
 }
 ```
 
-Takes the raw `Authorization` header value. Returns the authenticated `AccountInterface` or `null` on failure. The interface is deliberately minimal so implementations can be swapped without changing the endpoint.
+Takes the raw `Authorization` header value. Returns the immutable authenticated `AuthorizationPrincipalInterface` or `null` on failure. This is the same actor contract used by `AgentToolInterface` and principal-aware domain services, so a transport-valid identity can invoke every tool advertised to it without a lossy runtime conversion. Legacy providers migrate explicitly through `DelegatingAuthorizationPrincipal`; the framework never guesses missing claims or discards arbitrary permission behavior.
 
 ### Public-tier auth resolution and the `mcp.public.enabled` gate
 
@@ -253,7 +253,7 @@ MVP implementation that maps opaque bearer tokens to user accounts, hardened by 
 ```php
 final readonly class BearerTokenAuth implements McpAuthInterface
 {
-    /** @param array<string|int, AccountInterface> $tokens */
+    /** @param array<string|int, AuthorizationPrincipalInterface> $tokens */
     public function __construct(private array $tokens) {}
 }
 ```

@@ -50,7 +50,7 @@ final class McpEndpointTokenScopeTest extends TestCase
                 private readonly ?array $scopes,
             ) {}
 
-            public function authenticate(?string $authorizationHeader): ?AccountInterface
+            public function authenticate(?string $authorizationHeader): ?\Waaseyaa\Access\AuthorizationPrincipalInterface
             {
                 return $this->authenticateWithScopes($authorizationHeader)?->account;
             }
@@ -73,7 +73,7 @@ final class McpEndpointTokenScopeTest extends TestCase
         return new class($account) implements McpAuthInterface {
             public function __construct(private readonly AccountInterface $account) {}
 
-            public function authenticate(?string $authorizationHeader): ?AccountInterface
+            public function authenticate(?string $authorizationHeader): ?\Waaseyaa\Access\AuthorizationPrincipalInterface
             {
                 return $authorizationHeader === 'Bearer good' ? $this->account : null;
             }

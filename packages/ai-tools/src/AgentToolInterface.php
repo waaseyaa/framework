@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Tools;
 
-use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 
 /**
  * Contract implemented by every framework-shipped or third-party agent tool.
@@ -31,7 +31,7 @@ interface AgentToolInterface
      * @param array<string, mixed> $arguments
      * @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account
      */
-    public function execute(array $arguments, AccountInterface $account): AgentToolResult;
+    public function execute(array $arguments, AuthorizationPrincipalInterface $account): AgentToolResult;
 
     /**
      * Perform a side-effect-free preview of {@see execute()}.
@@ -45,7 +45,7 @@ interface AgentToolInterface
      * @param array<string, mixed> $arguments
      * @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account
      */
-    public function dryRun(array $arguments, AccountInterface $account): AgentToolResult;
+    public function dryRun(array $arguments, AuthorizationPrincipalInterface $account): AgentToolResult;
 
     /**
      * Return a redacted view of {@see $arguments} for audit-log storage.

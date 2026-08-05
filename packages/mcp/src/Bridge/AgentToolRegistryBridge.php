@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Mcp\Bridge;
 
-use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Error\SanitizedToolError;
@@ -48,7 +48,7 @@ final class AgentToolRegistryBridge
      */
     public function __construct(
         private readonly AgentToolRegistryInterface $registry,
-        private readonly AccountInterface $account,
+        private readonly AuthorizationPrincipalInterface $account,
         ?LoggerInterface $logger = null,
     ) {
         $this->logger = $logger ?? new NullLogger();

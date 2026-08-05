@@ -6,6 +6,7 @@ namespace Waaseyaa\Mcp\Auth;
 
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AccountPrincipalFactoryInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Auth\Token\Bearer\BearerTokenStoreInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -48,7 +49,7 @@ final readonly class DurableBearerTokenAuth implements WriteTierAuthInterface, S
         private ?LoggerInterface $logger = null,
     ) {}
 
-    public function authenticate(?string $authorizationHeader): ?AccountInterface
+    public function authenticate(?string $authorizationHeader): ?AuthorizationPrincipalInterface
     {
         return $this->authenticateWithScopes($authorizationHeader)?->account;
     }

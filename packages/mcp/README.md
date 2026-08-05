@@ -117,14 +117,18 @@ final class AppMcpServiceProvider extends ServiceProvider
         $this->singleton(
             McpAuthInterface::class,
             fn(): McpAuthInterface => new BearerTokenAuth([
-                $_ENV['MCP_READ_TOKEN'] => $this->resolve(AccountRepository::class)->load(42),
+                $_ENV['MCP_READ_TOKEN'] => $this->resolve(AuthorizationPrincipalInterface::class),
             ]),
         );
     }
 }
 ```
 
-`BearerTokenAuth` fails closed: an absent, unknown, or inactive-account token
+Every `McpAuthInterface` implementation returns an immutable
+`AuthorizationPrincipalInterface`. Legacy identity providers can migrate with
+`DelegatingAuthorizationPrincipal`, supplying their own claims generation and
+optional tenant/community claims while permission checks continue to delegate
+verbatim. `BearerTokenAuth` fails closed: an absent, unknown, or inactive-account token
 yields HTTP 401. To keep anonymous access *and* recognise tokens, wrap it —
 `new PublicAnonymousAuth(delegate: $bearerAuth)` tries the token first and
 falls back to anonymous.

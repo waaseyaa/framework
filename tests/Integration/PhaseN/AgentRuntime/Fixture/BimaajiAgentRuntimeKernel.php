@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Waaseyaa\Tests\Integration\PhaseN\AgentRuntime\Fixture;
 
 use Symfony\Component\EventDispatcher\EventDispatcher;
-use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Agent\AgentExecutor;
 use Waaseyaa\AI\Agent\Entity\AgentAuditLog;
 use Waaseyaa\AI\Agent\Entity\AgentRun;
@@ -227,9 +226,9 @@ final class BimaajiAgentRuntimeKernel
      *
      * @param list<string> $permissions
      */
-    public function accountWith(int $id, array $permissions): AccountInterface
+    public function accountWith(int $id, array $permissions): \Waaseyaa\Access\AuthorizationPrincipalInterface
     {
-        return new class ($id, $permissions) implements AccountInterface {
+        return new class ($id, $permissions) implements \Waaseyaa\Access\AuthorizationPrincipalInterface {
             /** @param list<string> $permissions */
             public function __construct(
                 private readonly int $accountId,
@@ -254,6 +253,19 @@ final class BimaajiAgentRuntimeKernel
             public function isAuthenticated(): bool
             {
                 return true;
+            }
+
+            public function claimsGeneration(): string
+            {
+                return 'test-v1';
+            }
+            public function tenantId(): ?string
+            {
+                return null;
+            }
+            public function communityId(): ?string
+            {
+                return null;
             }
         };
     }

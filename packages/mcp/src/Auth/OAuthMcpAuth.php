@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Mcp\Auth;
 
-use Waaseyaa\Access\AccountInterface;
+use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 
 /** OAuth 2.1 resource-server authentication for an MCP write tier. */
@@ -16,7 +16,7 @@ final readonly class OAuthMcpAuth implements WriteTierAuthInterface, ScopedMcpAu
         private ?LoggerInterface $logger = null,
     ) {}
 
-    public function authenticate(?string $authorizationHeader): ?AccountInterface
+    public function authenticate(?string $authorizationHeader): ?AuthorizationPrincipalInterface
     {
         return $this->authenticateWithScopes($authorizationHeader)?->account;
     }
