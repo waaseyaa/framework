@@ -2,6 +2,50 @@
 
 ## Unreleased
 
+### MCP identity and Registry configuration are now separate
+
+`mcp.server_card` no longer owns `name` or `version`, and no longer accepts
+`registry_name`, `repository_url`, `website_url`, or `schema_url`. Move shared
+identity to `mcp.implementation` and official Registry inputs to
+`mcp.registry`:
+
+```php
+'mcp' => [
+    'implementation' => [
+        'name' => 'Waaseyaa',
+        // Optional. A framework checkout uses VERSION; an installed site uses
+        // the installed waaseyaa/mcp package version when this is absent.
+        'version' => '0.1.0-alpha.286',
+    ],
+    'server_card' => [
+        'description' => 'AI-native content management system',
+        'endpoint' => '/mcp',
+        'auth_type' => 'none',
+    ],
+    'registry' => [
+        'name' => 'io.github.waaseyaa/framework',
+        'description' => 'Access-controlled CMS content and editorial tools',
+        'remote_url' => 'https://cms.example/mcp',
+        'repository_url' => 'https://github.com/waaseyaa/framework',
+        'website_url' => 'https://waaseyaa.org',
+    ],
+],
+```
+
+The compatibility card remains at `/.well-known/mcp.json`. The distinct
+`McpRegistryManifest` service produces official `server.json` content pinned to
+the Registry's 2025-12-11 schema. It refuses missing, loopback, relative, or
+plain-HTTP remote URLs. Do not configure or publish a Registry manifest until
+the named deployment is publicly reachable and namespace ownership can be
+authenticated.
+
+Malformed values now raise `ConfigException` instead of falling back. In
+particular, an unknown card `auth_type` no longer silently advertises `none`.
+The informational `serverInfo.version` returned by legacy `initialize` and
+modern discovery now reports the same implementation version as the card and
+Registry manifest; MCP protocol compatibility still comes exclusively from
+`protocolVersion`.
+
 ### Field-API item/value-object layer removed — custom field types extend `AbstractFieldType` (Waaseyaa\Field)
 
 The dead Drupal-lineage field item-object layer was removed (audit C-24). The

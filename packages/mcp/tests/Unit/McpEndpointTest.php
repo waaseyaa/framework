@@ -19,6 +19,7 @@ use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\Auth\OAuthProtectedResourceMetadata;
 use Waaseyaa\Mcp\Auth\OAuthProtectedResourceMetadataConfig;
 use Waaseyaa\Mcp\McpEndpoint;
+use Waaseyaa\Mcp\McpImplementationInfo;
 use Waaseyaa\Mcp\McpProtocol;
 use Waaseyaa\Mcp\McpResponse;
 
@@ -40,12 +41,16 @@ final class McpEndpointTest extends TestCase
         $this->tools = [];
     }
 
-    private function createEndpoint(?string $unauthorizedChallenge = null): McpEndpoint
+    private function createEndpoint(
+        ?string $unauthorizedChallenge = null,
+        ?McpImplementationInfo $implementationInfo = null,
+    ): McpEndpoint
     {
         return new McpEndpoint(
             auth: $this->auth,
             agentRegistry: $this->stubAgentRegistry($this->tools),
             unauthorizedChallenge: $unauthorizedChallenge,
+            implementationInfo: $implementationInfo,
         );
     }
 
@@ -330,6 +335,35 @@ final class McpEndpointTest extends TestCase
                 ],
             ],
         ], $decoded);
+    }
+
+    #[Test]
+    public function one_injected_implementation_identity_feeds_both_protocol_eras(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $identity = new McpImplementationInfo('Waaseyaa', '0.1.0-alpha.286');
+        $endpoint = $this->createEndpoint(implementationInfo: $identity);
+
+        $legacy = $this->dispatch($endpoint, 'POST', \json_encode([
+            'jsonrpc' => '2.0',
+            'id' => 1,
+            'method' => 'initialize',
+            'params' => [
+                'protocolVersion' => '2025-11-25',
+                'capabilities' => [],
+                'clientInfo' => ['name' => 'legacy-client', 'version' => '1.0.0'],
+            ],
+        ], \JSON_THROW_ON_ERROR), 'Bearer valid-token');
+        $modern = $this->dispatchModern($endpoint, 'server/discover');
+
+        self::assertSame(
+            $identity->toArray(),
+            \json_decode($legacy->body, true, 512, \JSON_THROW_ON_ERROR)['result']['serverInfo'],
+        );
+        self::assertSame(
+            $identity->toArray(),
+            \json_decode($modern->body, true, 512, \JSON_THROW_ON_ERROR)['result']['_meta']['io.modelcontextprotocol/serverInfo'],
+        );
     }
 
     #[Test]

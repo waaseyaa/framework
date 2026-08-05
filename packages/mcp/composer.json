@@ -46,6 +46,7 @@
         }
     ],
     "require": {
+        "composer-runtime-api": "^2.2",
         "php": ">=8.5",
         "waaseyaa/access": "^0.1.0-alpha.286",
         "waaseyaa/ai-tools": "^0.1.0-alpha.286",

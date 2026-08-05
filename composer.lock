@@ -10978,6 +10978,7 @@
                 "reference": "8c4c1358e3350fa07be5dd28c9f58e45e31ee7f1"
             },
             "require": {
+                "composer-runtime-api": "^2.2",
                 "php": ">=8.5",
                 "waaseyaa/access": "^0.1.0-alpha.276",
                 "waaseyaa/ai-tools": "^0.1.0-alpha.276",

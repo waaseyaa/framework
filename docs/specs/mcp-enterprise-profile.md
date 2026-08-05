@@ -14,7 +14,9 @@ authoritative when this profile and the protocol disagree.
 - Support current `server/discover`, `tools/list`, and `tools/call` with
   per-request protocol metadata and strict HTTP mirror validation. Preserve the
   legacy `initialize`, `notifications/initialized`, `ping`, `tools/list`, and
-  `tools/call` lifecycle without changing its serialized responses.
+  `tools/call` lifecycle. Informational implementation identity may change when
+  correcting provenance; protocol negotiation and tool-result bytes remain
+  backward compatible.
 - Classify era only from body metadata. Reject header/body mismatches and
   unsupported revisions with their current protocol error and HTTP contracts.
 - Treat discovery and tool catalogues as principal-varying: advertise private,
@@ -30,6 +32,23 @@ authoritative when this profile and the protocol disagree.
 
 Evidence: `StreamableHttpTransportGuard`, `McpProtocol`, `McpEndpoint`,
 `StreamableHttpTransportGuardTest`, and `McpEndpointTest`.
+
+## Discovery and Registry identity
+
+- Project one injected implementation name/version through legacy initialize,
+  current server metadata, the compatibility card, and official Registry
+  metadata. Never maintain independent hardcoded identity values.
+- Treat `/.well-known/mcp.json` as the Waaseyaa compatibility card, not as an
+  official `server.json` or an unstandardized server-card media type.
+- Build official Registry metadata as a separate deployment-owned artifact,
+  pinned to a reviewed schema revision. Require a namespaced id and an explicit
+  public HTTPS remote; never derive canonical URLs from request Host headers.
+- Do not claim Registry publication until the remote is publicly reachable,
+  namespace ownership is authenticated, and the preview schema is revalidated.
+  Composer is not an official MCP Registry package type.
+
+Evidence: `McpImplementationInfo`, `McpServerCard`, `McpRegistryManifest`, and
+their provider, endpoint, card, and Registry contract tests.
 
 ## Authentication and authorization
 

@@ -4,17 +4,13 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Mcp;
 
+use Waaseyaa\Foundation\Exception\ConfigException;
+
 /**
- * Configurable identity + advertisement for the MCP server card served at
- * `/.well-known/mcp.json`, and the fields needed to prepare an MCP-registry
- * listing.
- *
- * Registry-field note: the field set below targets the modelcontextprotocol
- * registry `server.json` shape (namespaced `name`, `description`, `version`,
- * `repository`, `websiteUrl`, `$schema`). The live registry schema URL evolves;
- * this environment cannot reach it to pin the exact revision, so the implemented
- * fields are listed here and flagged — verify against the current
- * `server.json` schema before submitting a listing.
+ * Configurable advertisement for the compatibility card served at
+ * `/.well-known/mcp.json`. Shared name/version identity belongs to
+ * {@see McpImplementationInfo}; official Registry metadata belongs to
+ * `Registry\\McpRegistryManifestConfig`.
  *
  * @api
  */
@@ -24,23 +20,28 @@ final readonly class McpServerCardConfig
      * @param 'none'|'bearer'|'oauth2' $authType Declared auth scheme. OAuth
      *        deployments pair this card with RFC 9728 protected-resource
      *        metadata and an OAuthAccessTokenValidatorInterface implementation.
-     * @param ?string $registryName Namespaced registry id (e.g. `io.github.owner/server`).
-     * @param ?string $repositoryUrl Source repository URL (registry `repository.url`).
-     * @param ?string $websiteUrl Project/site URL (registry `websiteUrl`).
-     * @param ?string $schemaUrl  registry `$schema` pointer (verify current revision).
      */
     public function __construct(
-        public string $name = 'Waaseyaa',
         public string $description = 'AI-native content management system',
-        public string $version = '0.1.0',
         public string $endpoint = '/mcp',
         public string $authType = 'none',
         public ?string $url = null,
-        public ?string $registryName = null,
-        public ?string $repositoryUrl = null,
-        public ?string $websiteUrl = null,
-        public ?string $schemaUrl = null,
-    ) {}
+    ) {
+        if ($this->description === ''
+            || $this->description !== \trim($this->description)
+            || \preg_match('//u', $this->description) !== 1
+            || \preg_match('/[\x00-\x1F\x7F]/', $this->description) === 1
+        ) {
+            throw self::malformed('description', 'non-empty trimmed UTF-8 text without control characters');
+        }
+        self::assertEndpoint($this->endpoint);
+        if (!\in_array($this->authType, ['none', 'bearer', 'oauth2'], true)) {
+            throw self::malformed('auth_type', 'one of none, bearer, or oauth2');
+        }
+        if ($this->url !== null) {
+            self::assertSecureAbsoluteUri($this->url, 'url');
+        }
+    }
 
     /**
      * Build from a config array (e.g. `mcp.server_card` in config sync).
@@ -49,23 +50,88 @@ final readonly class McpServerCardConfig
      */
     public static function fromArray(array $config): self
     {
-        $string = static fn(string $key, ?string $default): ?string
-            => isset($config[$key]) && \is_string($config[$key]) && $config[$key] !== '' ? $config[$key] : $default;
+        foreach (['name', 'version'] as $legacyIdentityKey) {
+            if (\array_key_exists($legacyIdentityKey, $config)) {
+                throw new ConfigException('mcp.server_card.' . $legacyIdentityKey . ' moved to mcp.implementation.');
+            }
+        }
+        foreach (['registry_name', 'repository_url', 'website_url', 'schema_url'] as $legacyRegistryKey) {
+            if (\array_key_exists($legacyRegistryKey, $config)) {
+                throw new ConfigException('mcp.server_card.' . $legacyRegistryKey . ' moved to mcp.registry.');
+            }
+        }
+        foreach (\array_keys($config) as $key) {
+            if (!\in_array($key, ['description', 'endpoint', 'auth_type', 'url'], true)) {
+                throw self::malformed($key, 'a supported compatibility-card key');
+            }
+        }
 
-        $authType = $string('auth_type', 'none');
-        $authType = \in_array($authType, ['none', 'bearer', 'oauth2'], true) ? $authType : 'none';
+        $description = self::string($config, 'description', 'AI-native content management system');
+        $endpoint = self::string($config, 'endpoint', '/mcp');
+
+        $authType = self::string($config, 'auth_type', 'none');
+
+        $url = self::nullableString($config, 'url');
 
         return new self(
-            name: $string('name', 'Waaseyaa') ?? 'Waaseyaa',
-            description: $string('description', 'AI-native content management system') ?? 'AI-native content management system',
-            version: $string('version', '0.1.0') ?? '0.1.0',
-            endpoint: $string('endpoint', '/mcp') ?? '/mcp',
+            description: $description,
+            endpoint: $endpoint,
             authType: $authType,
-            url: $string('url', null),
-            registryName: $string('registry_name', null),
-            repositoryUrl: $string('repository_url', null),
-            websiteUrl: $string('website_url', null),
-            schemaUrl: $string('schema_url', null),
+            url: $url,
         );
+    }
+
+    /** @param array<string, mixed> $config */
+    private static function string(array $config, string $key, string $default): string
+    {
+        return self::nullableString($config, $key) ?? $default;
+    }
+
+    /** @param array<string, mixed> $config */
+    private static function nullableString(array $config, string $key): ?string
+    {
+        if (!\array_key_exists($key, $config)) {
+            return null;
+        }
+        if (!\is_string($config[$key]) || $config[$key] === '' || $config[$key] !== \trim($config[$key])) {
+            throw self::malformed($key, 'a non-empty trimmed string');
+        }
+
+        return $config[$key];
+    }
+
+    private static function assertSecureAbsoluteUri(string $uri, string $key): void
+    {
+        $parts = \parse_url($uri);
+        if (!\is_array($parts)
+            || !isset($parts['scheme'], $parts['host'])
+            || isset($parts['user'])
+            || isset($parts['pass'])
+            || isset($parts['query'])
+            || isset($parts['fragment'])
+            || !\in_array(\strtolower($parts['scheme']), ['http', 'https'], true)
+        ) {
+            throw self::malformed($key, 'an absolute HTTP(S) URI without credentials, query, or fragment');
+        }
+        $host = \strtolower($parts['host']);
+        if (\strtolower($parts['scheme']) !== 'https' && !\in_array($host, ['localhost', '127.0.0.1', '::1'], true)) {
+            throw self::malformed($key, 'HTTPS except on a loopback host');
+        }
+    }
+
+    private static function assertEndpoint(string $endpoint): void
+    {
+        if (!\str_starts_with($endpoint, '/')
+            || \str_starts_with($endpoint, '//')
+            || \str_contains($endpoint, '?')
+            || \str_contains($endpoint, '#')
+        ) {
+            throw self::malformed('endpoint', 'an absolute-path reference without query or fragment');
+        }
+    }
+
+    private static function malformed(string $key, string $expectation): ConfigException
+    {
+        return new ConfigException('mcp.server_card.' . $key . ' must be ' . $expectation . '.');
     }
 }

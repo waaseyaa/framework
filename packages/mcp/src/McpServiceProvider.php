@@ -27,6 +27,8 @@ use Waaseyaa\Mcp\Auth\BearerTokenAuth;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\Auth\PublicAnonymousAuth;
 use Waaseyaa\Mcp\Auth\WriteTierAuthInterface;
+use Waaseyaa\Mcp\Registry\McpRegistryManifest;
+use Waaseyaa\Mcp\Registry\McpRegistryManifestConfig;
 use Waaseyaa\Routing\WaaseyaaRouter;
 
 /**
@@ -84,10 +86,33 @@ final class McpServiceProvider extends ServiceProvider implements ProvidesApiCat
         // The anonymous default is applied at the point of use instead, by
         // resolvePublicAuth() below.
 
-        // Configurable server card (identity + declared auth + registry fields).
+        $implementationInfo = new McpImplementationInfoResolver(
+            $this->installedMcpPackageVersion(),
+        )->resolve($this->projectRoot, $this->config);
+        $serverCardConfig = $this->serverCardConfig();
+
+        // One implementation identity feeds initialize, server/discover, the
+        // compatibility card, and the official Registry manifest projection.
+        $this->singleton(
+            McpImplementationInfo::class,
+            static fn(): McpImplementationInfo => $implementationInfo,
+        );
+
+        // Configurable compatibility card. Official Registry server.json is a
+        // separate artifact and is never embedded in this response.
         $this->singleton(
             McpServerCard::class,
-            fn(): McpServerCard => new McpServerCard($this->serverCardConfig()),
+            fn(): McpServerCard => new McpServerCard(
+                $serverCardConfig,
+                $this->resolve(McpImplementationInfo::class),
+            ),
+        );
+        $this->singleton(
+            McpRegistryManifest::class,
+            fn(): McpRegistryManifest => new McpRegistryManifest(
+                $this->registryManifestConfig(),
+                $this->resolve(McpImplementationInfo::class),
+            ),
         );
 
         $oauthResource = $this->writeTierOAuthResourceConfig();
@@ -144,6 +169,7 @@ final class McpServiceProvider extends ServiceProvider implements ProvidesApiCat
                     oauthProtectedResourceMetadata: $oauthMetadata instanceof Auth\OAuthProtectedResourceMetadata
                         ? $oauthMetadata
                         : null,
+                    implementationInfo: $this->resolve(McpImplementationInfo::class),
                     // The public read-only tier keeps its documented best-effort
                     // auditing. It mutates nothing, so a durable pre-record buys
                     // no safety, and making it fail-closed would take a read-only
@@ -208,6 +234,7 @@ final class McpServiceProvider extends ServiceProvider implements ProvidesApiCat
                     allowedOrigins: $this->transportAllowedOrigins(),
                     unauthorizedChallenge: $this->writeTierOAuthResourceConfig()?->challenge(),
                     maxRequestBytes: $this->transportMaxRequestBytes(),
+                    implementationInfo: $this->resolve(McpImplementationInfo::class),
                 );
 
                 return new AuthenticatedMcpEndpoint($inner);
@@ -720,6 +747,29 @@ final class McpServiceProvider extends ServiceProvider implements ProvidesApiCat
         $card = \is_array($mcp) && \is_array($mcp['server_card'] ?? null) ? $mcp['server_card'] : [];
 
         return McpServerCardConfig::fromArray($card);
+    }
+
+    /** Official Registry metadata is deployment-owned and lazy-resolved. */
+    private function registryManifestConfig(): McpRegistryManifestConfig
+    {
+        $mcp = $this->config['mcp'] ?? null;
+        if (\is_array($mcp) && \array_key_exists('registry', $mcp) && !\is_array($mcp['registry'])) {
+            throw new ConfigException('mcp.registry must be a configuration map.');
+        }
+        $registry = \is_array($mcp) && \is_array($mcp['registry'] ?? null) ? $mcp['registry'] : [];
+
+        return McpRegistryManifestConfig::fromArray($registry);
+    }
+
+    private function installedMcpPackageVersion(): ?string
+    {
+        if (!\class_exists(\Composer\InstalledVersions::class)
+            || !\Composer\InstalledVersions::isInstalled('waaseyaa/mcp')
+        ) {
+            return null;
+        }
+
+        return \Composer\InstalledVersions::getPrettyVersion('waaseyaa/mcp');
     }
 
     private function writeTierOAuthResourceConfig(): ?Auth\OAuthProtectedResourceMetadataConfig
