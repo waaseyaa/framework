@@ -105,8 +105,6 @@
     "packages/messaging/src/EventSubscriber/ThreadParticipantBootstrapSubscriber.php",
     "packages/migration/src/Plugin/Destination/EntityDestination.php",
     "packages/migration/src/Runner/MigrationRunner.php",
-    "packages/northcloud/src/Command/NcSyncCommand.php",
-    "packages/northcloud/src/Provider/NorthCloudServiceProvider.php",
     "packages/oidc/src/Authorize/AuthorizeController.php",
     "packages/oidc/src/Consent/ConsentScreenController.php",
     "packages/oidc/src/Discovery/DiscoveryController.php",

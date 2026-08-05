@@ -69,8 +69,6 @@ Available commands:
   migrate:defaults       Migrate default content type enablement for tenants
   migrate:rollback       Roll back the last batch of migrations
   migrate:status         Show the status of each migration
- northcloud
-  northcloud:sync        Pull content from the NorthCloud Search API and persist entities via registered mappers
  optimize
   optimize:clear         Remove all cached optimization artifacts
   optimize:config        Compile and cache all configuration

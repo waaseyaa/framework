@@ -14,15 +14,4 @@ final readonly class SearchRequest
         public int $pageSize = 20,
         public bool $includeFacets = true,
     ) {}
-
-    public function cacheKey(): string
-    {
-        return hash('sha256', serialize([
-            $this->query,
-            $this->filters,
-            $this->page,
-            $this->pageSize,
-            $this->includeFacets,
-        ]));
-    }
 }

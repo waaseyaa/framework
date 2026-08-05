@@ -219,7 +219,7 @@ final class RequireParityTest extends TestCase
             'attachment' => 2, 'node' => 2, 'taxonomy' => 2, 'media' => 2, 'path' => 2, 'menu' => 2,
             'note' => 2, 'relationship' => 2, 'groups' => 2, 'engagement' => 2,
             'workflows' => 3, 'search' => 3, 'seo' => 3, 'notification' => 3, 'billing' => 3, 'github' => 3,
-            'northcloud' => 3, 'structured-import' => 3, 'migration' => 3, 'listing' => 3, 'messaging' => 3,
+            'structured-import' => 3, 'migration' => 3, 'listing' => 3, 'messaging' => 3,
             'api' => 4, 'routing' => 4, 'bimaaji' => 4, 'wayfinding' => 4,
             'ai-schema' => 5, 'ai-agent' => 5, 'ai-pipeline' => 5, 'ai-tools' => 5, 'ai-vector' => 5,
             'ai-observability' => 5,

@@ -40,22 +40,4 @@ final class SearchRequestTest extends TestCase
         $this->assertSame(2, $request->page);
         $this->assertFalse($request->filters->isEmpty());
     }
-
-    #[Test]
-    public function cache_key_is_deterministic(): void
-    {
-        $a = new SearchRequest(query: 'test', page: 1);
-        $b = new SearchRequest(query: 'test', page: 1);
-
-        $this->assertSame($a->cacheKey(), $b->cacheKey());
-    }
-
-    #[Test]
-    public function cache_key_differs_for_different_requests(): void
-    {
-        $a = new SearchRequest(query: 'test', page: 1);
-        $b = new SearchRequest(query: 'test', page: 2);
-
-        $this->assertNotSame($a->cacheKey(), $b->cacheKey());
-    }
 }

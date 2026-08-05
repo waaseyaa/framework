@@ -9,7 +9,7 @@
 Today every entity stores all field values in a single `_data` JSON CLOB via `SqlEntityStorage`. Audit mission M3 will add column-backed fields. Beyond M3, two further pressures are visible on the public-surface-map:
 
 - **AI-vector storage** (Layer 5, `ai-vector`) is a legitimate entity concern: a `dictionary_entry` having a `vec` field that lives in pgvector / Qdrant / sqlite-vss is not exotic, it's the canonical case for a 2026 framework. SQL is the wrong backend for it.
-- **Remote/foreign-system fields** — pulling a `band_office` from a NorthCloud API into an entity instance without persisting it to local SQL. Drupal's "external entity" pattern.
+- **Remote/foreign-system fields** — pulling a `band_office` from a remote provider API into an entity instance without persisting it to local SQL. Drupal's "external entity" pattern.
 
 The decision: SQL-only with everything else outside the entity system, or multi-backend with storage selection as a first-class field concern.
 
@@ -77,7 +77,7 @@ Existing entity types stay on `sql-blob` until per-type migration. M3 introduces
 - **AI-vector becomes a first-class entity concern.** Vector storage rides the entity access policy, lifecycle events, and event dispatch — not bolted on.
 - **Storage plugin contract becomes stable surface.** Adding/removing backend ids follows the deprecation cycle.
 - **Query layer becomes more complex.** Cross-backend joins are forbidden; the query builder errors loudly when asked to filter on a non-queryable backend.
-- **The "external entity" pattern (remote fields) becomes possible without a separate entity type system.** A `remote` backend reading from NorthCloud API is a future package, not a framework change.
+- **The "external entity" pattern (remote fields) becomes possible without a separate entity type system.** A `remote` backend reading from an external provider API is a future package, not a framework change.
 
 ## References
 

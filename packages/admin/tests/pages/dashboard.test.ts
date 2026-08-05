@@ -4,13 +4,20 @@ import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
 import Dashboard from '~/pages/index.vue'
 
-const { catalogRef, listSpy } = vi.hoisted(() => {
+const { apiFetchSpy, catalogRef, listSpy } = vi.hoisted(() => {
   const { ref } = require('vue') as typeof import('vue')
   return {
+    apiFetchSpy: vi.fn(),
     catalogRef: ref<CatalogEntry[]>([]),
     listSpy: vi.fn(),
   }
 })
+
+vi.mock('~/composables/useApi', () => ({
+  useApi: () => ({
+    apiFetch: apiFetchSpy,
+  }),
+}))
 
 vi.mock('~/composables/useAdmin', () => ({
   useAdmin: () => ({
@@ -26,8 +33,17 @@ vi.mock('~/composables/useEntity', () => ({
 
 describe('Dashboard onboarding', () => {
   beforeEach(() => {
+    apiFetchSpy.mockReset()
     catalogRef.value = []
     listSpy.mockReset()
+  })
+
+  it('does not request a retired integration endpoint', async () => {
+    const wrapper = await mountSuspended(Dashboard)
+    await flushPromises()
+
+    expect(apiFetchSpy).not.toHaveBeenCalled()
+    expect(wrapper.text()).not.toContain('NC Sync')
   })
 
   it('shows onboarding prompt when no content types exist', async () => {
