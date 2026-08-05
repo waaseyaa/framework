@@ -128,7 +128,11 @@ The workflow:
 2. Guards `v1.0*` tags against missing `release-approvals/v1.0.approved` (same gate `split.yml` runs after the fact — fails earlier).
 3. **Gate 1: requires green CI on the release base.** `bin/wait-for-green-ci` polls the Actions API for a completed, successful `ci.yml` run at main HEAD. A red base fails the cut before anything is mutated.
 4. Verifies the tag does not already exist (locally or on origin).
-5. Verifies `CHANGELOG.md` has a `[Unreleased]` section with content.
+5. Runs `bin/check-changelog-shape`, which requires exactly one canonical
+   `## [Unreleased]` heading and rejects near-miss variants, then verifies that
+   canonical section has content. The same shape guard runs in
+   `composer verify`, so duplicate release-note authorities fail on ordinary
+   PR CI before the release workflow is dispatched.
 6. Mutates the changelog: renames `[Unreleased]` → `[X.Y.Z] - YYYY-MM-DD`, inserts fresh `[Unreleased]`; syncs internal `waaseyaa/*` constraints; stamps `VERSION`.
 7. Commits as `github-actions[bot]` and pushes the release commit to a throwaway gate branch (`release-cut/<version>`) — **not** to main.
 8. **Gate 2: requires green CI on the exact commit being tagged.** Dispatches `ci.yml` on the gate branch (it has a `workflow_dispatch` trigger for this) and waits for a green conclusion at the release commit's SHA.

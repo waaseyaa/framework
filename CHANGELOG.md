@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Changed
+
+- **release tooling (#2234):** Require exactly one canonical `[Unreleased]` changelog section in local verification and release-cut CI, rejecting duplicate or near-miss headings before a tag can strand release notes.
 
 - **admin / CI:** Consolidate the stale admin dependency queue on Node 22 and npm 10: update Nuxt, Vue, the Nuxt ESLint integration, Vue TypeScript tooling, DOM and Node test types, refresh transitive PostCSS/SVGO/tar and Vite/esbuild tooling, and remediate the brace-expansion, shell-quote, js-yaml, Vite, and esbuild audit findings. Regenerate the committed admin SPA from that exact lock and move the isolated artifact download workflow to `actions/download-artifact@v8`.
 
@@ -47,15 +56,6 @@
 - **mcp / ai-tools**: Make `ContentToolSet` the canonical remotely callable editorial mutation surface. `/mcp/write` now structurally withholds the five cross-bundle generic `entity.*` mutation tools even when their broad capabilities are allowlisted; applications must set the strict `mcp.write_tier.allow_generic_entity_mutations=true` escape hatch to accept that risk. The embedded agent catalogue remains unchanged.
 
 - **mcp / bimaaji / ai-agent**: Remove privileged `bimaaji.read` architectural introspection from anonymous MCP defaults and make filesystem spec indexing explicit opt-in via `bimaaji.specs_directory`. Graph failures now use the shared sanitized internal-error envelope, spec-search queries are bounded and reject control characters, and results expose only logical filenames rather than absolute server paths.
-
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [Unreleased]
-
-### Changed
 
 - **MCP / search contract truth (#2191).** Reconciled the MCP, AI-schema,
   extension, operations, and search documentation with the current runtime:
