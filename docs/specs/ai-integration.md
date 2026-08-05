@@ -1,5 +1,7 @@
 # AI Integration
 
+<!-- Spec reviewed 2026-08-04 - #2200: ai-schema ships only EntityJsonSchemaGenerator and has no current agent-runtime or MCP consumer. Retired the nonexistent McpToolDefinition, McpToolGenerator, TranslationToolGenerator, McpToolExecutor, and SchemaRegistry surfaces and the fictional accessCheck(false) path. Agent tools own and validate their declared schemas in ai-tools; MCP transports those descriptors without an ai-schema dependency. -->
+
 <!-- Spec reviewed 2026-08-03 - #2177 F1 slice B: `AgentTool::toMcpDescriptor()` now always emits the spec-standard MCP `annotations.destructiveHint`, projected from the tool's declared `$destructive`. It is advisory display metadata for MCP clients; server-side enforcement (the write tier's human-approval gate, see docs/specs/mcp-endpoint.md §"Human-approval gate") reads `$destructive` itself and never the hint. On a gated endpoint the MCP layer additionally decorates destructive tools' tools/list descriptors with `_meta["ai.waaseyaa.mcp/approval"]="required"` — that decoration lives in `McpEndpoint`, not in AgentTool. Acceptance: AgentToolDescriptorTest. -->
 
 <!-- Spec reviewed 2026-08-03 - #2177 F6 (mcp-public-boundary): the 11 generic `catch (\Throwable)` arms across the entity/relationship/vector tools no longer embed `$e->getMessage()` in the returned AgentToolResult (nor in its `summary`, the audit/transcript line) — they call `AbstractAgentTool::internalError()`, which returns a fixed INTERNAL_ERROR envelope plus a random correlation id via the new `Waaseyaa\AI\Tools\Error\SanitizedToolError`. The logger (attached at hydration by AttributeToolRegistry, mirroring the EntityAccessHandler mechanism) receives safe diagnostic METADATA only — correlation id, tool, exception class, file, line, integer code — never the message, trace, or the Throwable object. Typed domain catches (validation, revision conflict, key refusal, not-revisionable, forbidden) are untouched and remain machine-readable. See the new "Tool failure contract" section. -->
@@ -25,7 +27,7 @@ Waaseyaa's AI layer (architecture layer 5) provides four packages that enable AI
 
 | Package | Namespace | Path | Purpose |
 |---------|-----------|------|---------|
-| ai-schema | `Waaseyaa\AI\Schema\` | `packages/ai-schema/src/` | JSON Schema generation, MCP tool definitions, tool execution |
+| ai-schema | `Waaseyaa\AI\Schema\` | `packages/ai-schema/src/` | Standalone JSON Schema generation from entity definitions |
 | ai-agent | `Waaseyaa\AI\Agent\` | `packages/ai-agent/src/` | Agent executor, audit logging, MCP server adapter |
 | ai-pipeline | `Waaseyaa\AI\Pipeline\` | `packages/ai-pipeline/src/` | Pipeline configuration entity; no execution or queue surface |
 | ai-vector | `Waaseyaa\AI\Vector\` | `packages/ai-vector/src/` | Vector embeddings, similarity search, distance metrics |
@@ -34,12 +36,17 @@ Waaseyaa's AI layer (architecture layer 5) provides four packages that enable AI
 
 ```
 ai-schema   -> entity
-ai-agent    -> ai-schema, access
-ai-pipeline -> entity, queue
-ai-vector   -> entity
+ai-agent    -> access, ai-observability, ai-tools, api, audit, bimaaji, config,
+               database-legacy, entity, entity-storage, foundation, http-client, routing
+ai-pipeline -> entity, foundation
+ai-vector   -> access, api, entity, entity-storage, foundation, queue, workflows
 ```
 
-`ai-agent` depends on `ai-schema` for `McpToolExecutor` and on `access` for `AccountInterface`. `ai-pipeline` depends on `queue` for async dispatch via `QueueInterface`. `ai-vector` and `ai-schema` depend only on `entity`.
+`ai-schema` is an independently shipped utility; no agent runtime or MCP
+resource currently consumes it. `ai-agent` declares only the packages its
+executor, persistence, tool, API, routing, and remote-client paths use. Any
+future schema capability-registry integration must add a deliberate dependency
+and an executable contract test.
 
 ## Schema Generation
 
@@ -76,105 +83,21 @@ The generated schema maps entity keys to JSON Schema properties:
 
 The output always includes `'$schema' => 'https://json-schema.org/draft/2020-12/schema'` and sets `'additionalProperties' => true` to allow non-key fields.
 
-## MCP Tool System
+## Agent Tool System
 
 ### Application tool contribution
 
 Framework packages normally contribute `#[AsAgentTool]` classes through the compiled package manifest. Applications and providers that assemble tools from application-owned configuration implement `Waaseyaa\AI\Tools\ProvidesAgentToolsInterface`. During kernel boot, contributors are sorted by provider class and injected into `AiToolsServiceProvider`; each receives the canonical `ToolRegistryInterface` when that singleton is first constructed. Registration is therefore independent of HTTP route declaration, works for embedded-agent and MCP consumers alike, and preserves the registry's fail-closed duplicate-name rule. Contributors must not resolve the registry recursively or capture request-scoped services.
 
-### McpToolDefinition
+### Schema ownership
 
-**File:** `packages/ai-schema/src/Mcp/McpToolDefinition.php`
-**Class:** `Waaseyaa\AI\Schema\Mcp\McpToolDefinition`
-
-Readonly value object matching the MCP tool registration format:
-
-```php
-final readonly class McpToolDefinition
-{
-    public function __construct(
-        public string $name,        // snake_case, e.g. "create_node"
-        public string $description, // human-readable
-        public array $inputSchema,  // JSON Schema for input params
-    ) {}
-
-    public function toArray(): array; // MCP-compliant serialization
-}
-```
-
-### McpToolGenerator
-
-**File:** `packages/ai-schema/src/Mcp/McpToolGenerator.php`
-**Class:** `Waaseyaa\AI\Schema\Mcp\McpToolGenerator`
-
-For each registered entity type, generates five CRUD+query tools:
-
-| Tool Pattern | Operation | Required Arguments |
-|-------------|-----------|-------------------|
-| `create_{type}` | Create entity | `attributes` |
-| `read_{type}` | Read by ID | `id` |
-| `update_{type}` | Update entity | `id`, `attributes` |
-| `delete_{type}` | Delete by ID | `id` |
-| `query_{type}` | Query with filters | (all optional) |
-
-All tools accept optional `langcode` and `fallback` parameters for multilingual operations. The query tool supports `filters` (array of `{field, value, operator}`), `sort` (prefix `-` for descending), `limit` (default 50), and `offset` (default 0).
-
-### TranslationToolGenerator
-
-**File:** `packages/ai-schema/src/Mcp/TranslationToolGenerator.php`
-**Class:** `Waaseyaa\AI\Schema\Mcp\TranslationToolGenerator`
-
-Generates four translation-specific tools per entity type:
-
-| Tool Pattern | Required Arguments |
-|-------------|-------------------|
-| `{type}_translations_list` | `id` |
-| `{type}_translation_create` | `id`, `langcode`, `attributes` |
-| `{type}_translation_update` | `id`, `langcode`, `attributes` |
-| `{type}_translation_delete` | `id`, `langcode` |
-
-### McpToolExecutor
-
-**File:** `packages/ai-schema/src/Mcp/McpToolExecutor.php`
-**Class:** `Waaseyaa\AI\Schema\Mcp\McpToolExecutor`
-
-Executes MCP tool calls against the entity system. Parses tool names by iterating known operations (`create`, `read`, `update`, `delete`, `query`) and extracting the entity type ID from the suffix.
-
-```php
-public function execute(string $toolName, array $arguments): array
-```
-
-Returns MCP-compliant result arrays: `{content: [{type: 'text', text: JSON}]}` on success, with `isError: true` on failure. All JSON encoding uses `JSON_THROW_ON_ERROR`.
-
-**Important:** The query operation calls `$query->accessCheck(false)` because MCP tool calls run in an AI agent context where access is managed at the agent level, not the query level.
-
-**Important:** The update operation checks `$entity instanceof FieldableInterface` before calling `set()`. Non-fieldable entities return an error.
-
-**Cast-aware payloads (#1181):** Successful `read`, `update`, and `query` results embed entity rows under **`data` using `EntityValues::toCastAwareMap($entity)`** so MCP clients see the same domain-shaped field values as `get()` (enums, datetimes, decoded JSON arrays). See `docs/specs/entity-system.md` and `docs/specs/jsonapi.md`.
-
-## SchemaRegistry
-
-**File:** `packages/ai-schema/src/SchemaRegistry.php`
-**Class:** `Waaseyaa\AI\Schema\SchemaRegistry`
-
-Central facade combining JSON Schema and MCP tool outputs. Provides a unified API for AI agents to discover the full CMS surface area.
-
-```php
-final class SchemaRegistry
-{
-    public function __construct(
-        private readonly EntityJsonSchemaGenerator $schemaGenerator,
-        private readonly McpToolGenerator $toolGenerator,
-    ) {}
-
-    public function getSchema(string $entityTypeId): array;
-    public function getAllSchemas(): array;
-    public function getTools(): array;          // cached via null coalescing
-    public function getTool(string $name): ?McpToolDefinition;
-}
-```
-
-Tool definitions are cached in-memory via `$this->toolCache ??= $this->toolGenerator->generateAll()`. The cache lives for the request lifetime only.
+`Waaseyaa\AI\Tools\AgentTool` owns the protocol-visible input and output
+schemas for shipped tools. `ToolInputSchemaValidator` validates the exact
+advertised input schema before execution, and MCP serializes those descriptors
+through its `AgentToolRegistryBridge`. None of those paths imports
+`waaseyaa/ai-schema`; `EntityJsonSchemaGenerator` remains an independent
+utility until a future capability-registry integration is deliberately built
+and tested.
 
 ## Agent Execution
 
@@ -254,7 +177,10 @@ Wraps agent execution with safety guarantees and audit logging. Five execution p
 4. `executeWithProvider(AgentInterface, AgentContext, ProviderInterface): AgentResult` -- Multi-turn tool loop with an LLM provider. Checks `AgentContext::maxIterations` per iteration; throws `MaxIterationsException` when exceeded.
 5. `streamWithProvider(AgentInterface, AgentContext, StreamingProviderInterface, callable $onChunk): AgentResult` -- Streaming variant forwarding `StreamChunk` objects in real time.
 
-All paths log to an in-memory audit log. Exceptions are caught and converted to failure results, never propagated. The `executeTool()` method delegates to `McpToolExecutor::execute()`.
+Tool execution resolves the allowlisted descriptor through
+`Waaseyaa\AI\Tools\ToolRegistryInterface` and invokes its `AgentToolInterface`
+implementation as the supplied account. The agent runtime does not route tool
+calls through `ai-schema`.
 
 ### Audit Logging
 
@@ -613,8 +539,6 @@ flowchart LR
   end
 ```
 
-**MCP tool responses:** `McpToolExecutor` includes **`'data' => EntityValues::toCastAwareMap($entity)`** in read/update/query results so agents see cast-aware shapes aligned with JSON:API.
-
 **Vector search guards:** `SearchController` uses **`EntityValues::toCastAwareMap`** + **`statusToInt`** when filtering relationship/public context — do not switch those paths to raw `toArray()`.
 
 Canonical rules: `docs/specs/entity-system.md` (Casting & hydration architecture).
@@ -759,11 +683,10 @@ MCP tool execution has the following safety properties:
 2. **Audit trail:** Every agent execution, dry-run, and tool call is recorded in `AgentAuditLog` with the agent ID, account ID, action type, success status, message, and timestamp. Tool arguments are redacted for the audit row via `AbstractAgentTool::argumentsForAudit()`, which recurses over arbitrarily-keyed payloads — list-valued arguments (integer keys, e.g. an `entity.create` `values.blocks`/`tags`) are preserved without error and never matched against credential names. The redaction runs on raw model-controlled input at the audit step, outside the `execute()` try/catch, so it must never raise (#1637).
 3. **User context:** Agents always execute as a specific `AccountInterface`. The account ID is logged in every audit entry.
 4. **Dry-run support:** All agents must implement `dryRun()` to preview changes without mutations.
-5. **Query access bypass (legacy `McpToolExecutor` path only):** `McpToolExecutor` (`packages/ai-schema/`) sets `accessCheck(false)` on entity queries; access control on *that* path is enforced at the agent/endpoint level, not the individual query level. This bypass does **not** apply to the stock `ai-tools` entity tools (`entity.read/list/search/create/update/delete`), which enforce the per-entity AccessPolicy directly — see property 7.
-6. **FieldableInterface check:** Updates verify the entity implements `FieldableInterface` before calling `set()`.
-7. **Per-entity access on the stock entity tools (mandatory, fail-closed — C-12):** The stock `ai-tools` entity tools enforce the framework's per-entity `AccessPolicy` (the same `view`/`update`/`delete`/`create` gate the REST/GraphQL surfaces use), not just the coarse `tool.entity.*` capability. `AiToolsServiceProvider` injects the kernel `EntityAccessHandler` into the `AttributeToolRegistry`, which stamps every tool it hydrates so the gate is **always** active in production — it is not opt-in. Enforcement is **fail-closed**: if the handler is ever unavailable in a context that requires enforcement, the per-entity guards **deny** (single reads/writes return a `forbidden` error; `entity.list`/`entity.search` drop every candidate) rather than silently allowing — a wiring gap can never degrade to allow-all. The only place the guards no-op (allow) is bare/unit construction that never wires a handler and never stamps enforcement (capability-only mode), preserving the historical contract for hosts with no entity-access policy.
+5. **FieldableInterface check:** Updates verify the entity implements `FieldableInterface` before calling `set()`.
+6. **Per-entity access on the stock entity tools (mandatory, fail-closed — C-12):** The stock `ai-tools` entity tools enforce the framework's per-entity `AccessPolicy` (the same `view`/`update`/`delete`/`create` gate the REST/GraphQL surfaces use), not just the coarse `tool.entity.*` capability. `AiToolsServiceProvider` injects the kernel `EntityAccessHandler` into the `AttributeToolRegistry`, which stamps every tool it hydrates so the gate is **always** active in production — it is not opt-in. Enforcement is **fail-closed**: if the handler is ever unavailable in a context that requires enforcement, the per-entity guards **deny** (single reads/writes return a `forbidden` error; `entity.list`/`entity.search` drop every candidate) rather than silently allowing — a wiring gap can never degrade to allow-all. The only place the guards no-op (allow) is bare/unit construction that never wires a handler and never stamps enforcement (capability-only mode), preserving the historical contract for hosts with no entity-access policy.
 
-8. **Declared-schema enforcement on the MCP transport (#2145):** a tool's `inputSchema` is a *contract*, not documentation. `Waaseyaa\AI\Tools\Schema\ToolInputSchemaValidator` validates arguments against it before `execute()` runs, so a handler never sees input violating the shape it advertised through `tools/list`. See below.
+7. **Declared-schema enforcement on the MCP transport (#2145):** a tool's `inputSchema` is a *contract*, not documentation. `Waaseyaa\AI\Tools\Schema\ToolInputSchemaValidator` validates arguments against it before `execute()` runs, so a handler never sees input violating the shape it advertised through `tools/list`. See below.
 
 ## Declared input-schema validation (`ToolInputSchemaValidator`, #2145)
 
@@ -960,11 +883,6 @@ Pipeline uses `syncStepsToValues()` to maintain a single source of truth. Called
 | File | Class | Role |
 |------|-------|------|
 | `packages/ai-schema/src/EntityJsonSchemaGenerator.php` | `EntityJsonSchemaGenerator` | JSON Schema draft 2020-12 from entity types |
-| `packages/ai-schema/src/SchemaRegistry.php` | `SchemaRegistry` | Unified schema + tool facade |
-| `packages/ai-schema/src/Mcp/McpToolDefinition.php` | `McpToolDefinition` | MCP tool value object |
-| `packages/ai-schema/src/Mcp/McpToolGenerator.php` | `McpToolGenerator` | CRUD tool generation per entity type |
-| `packages/ai-schema/src/Mcp/McpToolExecutor.php` | `McpToolExecutor` | Tool call execution against entity system |
-| `packages/ai-schema/src/Mcp/TranslationToolGenerator.php` | `TranslationToolGenerator` | Translation-specific tool generation |
 | `packages/ai-agent/src/AgentInterface.php` | `AgentInterface` | Agent contract: execute, dryRun, describe |
 | `packages/ai-agent/src/AgentExecutor.php` | `AgentExecutor` | Safety wrapper + audit logging |
 | `packages/ai-agent/src/AgentContext.php` | `AgentContext` | Execution context with account + params |

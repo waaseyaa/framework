@@ -1,5 +1,7 @@
 # ai-schema
 
+<!-- Spec reviewed 2026-08-04 - #2200: the shipped package contains only EntityJsonSchemaGenerator and has no current runtime consumer outside its own tests. ai-agent, ai-pipeline, ai-tools, and mcp do not require or import it; capability-registry and MCP-resource integration remain future design, not shipped behavior. -->
+
 **Layer:** 5 — AI
 **Status:** alpha
 
@@ -22,12 +24,11 @@ The `waaseyaa/ai-schema` package serves two purposes:
 
 - `waaseyaa/entity` (L1) — `EntityTypeManagerInterface`, `EntityTypeInterface`
 
-Upward consumers (Layer 5 peers and Layer 6):
-
-- `waaseyaa/ai-pipeline` — uses generated schemas to validate LLM tool call arguments
-- `waaseyaa/ai-agent` — resolves entity schemas when constructing tool definitions
-- `ai-tools` (forthcoming) — declares per-tool input/output schemas via the capability registry
-- `waaseyaa/mcp` (L6) — surfaces entity schemas as MCP resource descriptions
+There is no current runtime consumer. The root and `waaseyaa/full`
+distributions ship the utility explicitly, while its own tests exercise the
+public generator. `ai-agent`, `ai-pipeline`, `ai-tools`, and `mcp` neither
+require nor import it. The Layer-5/Layer-6 integrations below are future design
+space and must not be read as active dependency edges or advertised resources.
 
 ---
 
@@ -107,14 +108,15 @@ The implementing mission must record the chosen strategy as an ADR and update th
 
 ## Cross-references
 
-- `waaseyaa/ai-pipeline` — pipeline orchestration; consumes schemas for tool call validation
-- `waaseyaa/ai-agent` — agent execution loop; uses schemas when building LLM tool definitions
-- `ai-tools` (forthcoming) — per-tool capability declarations; primary consumer of the capability registry
-- `waaseyaa/mcp` — surfaces entity schemas as MCP resource descriptions (Layer 6)
-- `docs/specs/ai-integration.md` — broader AI integration architecture; ai-schema is a subsystem of this
+- `waaseyaa/ai-tools` — owns current per-tool schemas and validation without an ai-schema dependency
+- `waaseyaa/ai-agent` — executes declared tools without consuming entity-schema generation
+- `waaseyaa/mcp` — transports ai-tools descriptors; no ai-schema resources are advertised
+- `docs/specs/ai-integration.md` — broader AI integration architecture and current dependency truth
 
 ---
 
 ## Gotchas
 
-_To be populated by the capability-registry implementing mission._
+- Do not add a consumer edge merely to make the future capability-registry
+  sketch appear wired. The first real integration must own an executable
+  contract and update the package graph deliberately.

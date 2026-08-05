@@ -87,7 +87,7 @@ Repositories live in `packages/ai-agent/src/Repository/`. The legacy in-memory `
 
 Every change to this package MUST keep the following green:
 
-- `bin/check-package-layers` — ai-agent imports only from layer ≤ 5 (entity, entity-storage, access, queue, ai-schema, ai-tools).
+- `bin/check-package-layers` — ai-agent imports remain at layer 5 or below and every sibling-package import has a matching direct requirement.
 - `bin/check-dead-code` — no new findings beyond `phpstan-dead-code-baseline.neon`.
 - `composer check-composer-policy` — CP002 / CP003 / CP-NEW.
 - `composer phpstan` — level 5.

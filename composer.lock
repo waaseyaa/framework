@@ -10789,26 +10789,25 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ai-agent",
-                "reference": "eb223c8f3fdc9a4ebc84d7d1b52b2e258e0fdae4"
+                "reference": "9bad961aa73b563884bfbbac5dd8c140b5ad466b"
             },
             "require": {
                 "php": ">=8.5",
                 "symfony/messenger": "^7.0",
                 "symfony/uid": "^7.0",
-                "waaseyaa/access": "^0.1.0-alpha.276",
-                "waaseyaa/ai-observability": "^0.1.0-alpha.276",
-                "waaseyaa/ai-schema": "^0.1.0-alpha.276",
-                "waaseyaa/ai-tools": "^0.1.0-alpha.276",
-                "waaseyaa/api": "^0.1.0-alpha.276",
-                "waaseyaa/audit": "^0.1.0-alpha.276",
-                "waaseyaa/bimaaji": "^0.1.0-alpha.276",
-                "waaseyaa/config": "^0.1.0-alpha.276",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.276",
-                "waaseyaa/entity": "^0.1.0-alpha.276",
-                "waaseyaa/entity-storage": "^0.1.0-alpha.276",
-                "waaseyaa/foundation": "^0.1.0-alpha.276",
-                "waaseyaa/http-client": "^0.1.0-alpha.276",
-                "waaseyaa/routing": "^0.1.0-alpha.276"
+                "waaseyaa/access": "^0.1.0-alpha.286",
+                "waaseyaa/ai-observability": "^0.1.0-alpha.286",
+                "waaseyaa/ai-tools": "^0.1.0-alpha.286",
+                "waaseyaa/api": "^0.1.0-alpha.286",
+                "waaseyaa/audit": "^0.1.0-alpha.286",
+                "waaseyaa/bimaaji": "^0.1.0-alpha.286",
+                "waaseyaa/config": "^0.1.0-alpha.286",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.286",
+                "waaseyaa/entity": "^0.1.0-alpha.286",
+                "waaseyaa/entity-storage": "^0.1.0-alpha.286",
+                "waaseyaa/foundation": "^0.1.0-alpha.286",
+                "waaseyaa/http-client": "^0.1.0-alpha.286",
+                "waaseyaa/routing": "^0.1.0-alpha.286"
             },
             "require-dev": {
                 "phpunit/phpunit": "^10.5"
