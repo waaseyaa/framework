@@ -1235,6 +1235,9 @@ catalog only when its separate access-checked endpoint ships.
 available, and at least one installed provider contributes an intentionally
 public artifact through `ProvidesAiCatalogEntriesInterface`. This explicit
 opt-in is independent of RFC 9727 and does not affect API or MCP operation.
+The route joins the anonymous session-stateless path set only under that same
+strict enablement gate, so disabled or absent configuration creates neither a
+route nor a hidden session-policy exception.
 
 The emitted document uses `application/ai-catalog+json` and literal
 `specVersion: "1.0"` as required by the schema shipped with the draft ARD v0.9

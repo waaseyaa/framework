@@ -713,6 +713,12 @@ final class HttpKernel extends AbstractKernel
             ));
         }
 
+        $paths[] = '/.well-known/api-catalog';
+        $aiCatalog = $this->config['ai_catalog'] ?? null;
+        if (is_array($aiCatalog) && ($aiCatalog['enabled'] ?? false) === true) {
+            $paths[] = '/.well-known/ai-catalog.json';
+        }
+
         // The opt-in public search endpoint is read-only and never needs to
         // create an anonymous session. Requests carrying a session cookie are
         // still resumed by SessionMiddleware, preserving authenticated search.
@@ -721,9 +727,6 @@ final class HttpKernel extends AbstractKernel
         if (is_array($contentSearch) && ($contentSearch['enabled'] ?? false) === true) {
             $paths[] = '/api/content/search';
         }
-
-        $paths[] = '/.well-known/api-catalog';
-        $paths[] = '/.well-known/ai-catalog.json';
 
         return array_values(array_unique($paths));
     }
