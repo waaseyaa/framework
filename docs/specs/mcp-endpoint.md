@@ -2,6 +2,7 @@
 
 <!-- Spec reviewed 2026-08-04 - #2199: every admitted or infrastructure-refused MCP request now ends in an honest audit stage. A rate-limiter exception emits the sanitized terminal `rate_limiter_unavailable` stage before returning -32030/503; it is an infrastructure `error`, not a policy denial, and never carries the exception message. Protocol handlers that return a JSON-RPC error are no longer misclassified as `execution_succeeded`: -32602 closes as `invalid_params_refused`, while any other returned protocol error closes as `execution_failed`. -->
 <!-- Spec reviewed 2026-08-04 - #2191 contract-truth reconciliation: the live endpoint methods, stage-aware dispatch event, conditional route set, protocol-header behavior, protected admin diagnostics, and deliberate resources/prompts absence were checked against current source. Removed legacy McpController claims are no longer presented as live behavior. -->
+<!-- Spec reviewed 2026-08-04 - #1641 MCP identity and Registry discovery: `/.well-known/mcp.json` remains a Waaseyaa compatibility card and no longer embeds the invalid nested Registry projection. Official Registry `server.json` is a separate, deployment-owned `McpRegistryManifest`, pinned to schema 2025-12-11 and constructible only from an explicit namespaced id plus public HTTPS Streamable HTTP remote; no request Host is an authority source. One injected McpImplementationInfo now feeds legacy initialize, modern server metadata, the card, and the Registry manifest. Explicit mcp.implementation config wins; the framework monorepo uses its release-managed VERSION; consuming sites use Composer's installed waaseyaa/mcp version. The stale informational 0.1.0 response bytes deliberately migrate to the honest implementation version; protocol compatibility remains negotiated only by protocolVersion. Malformed identity/card/Registry config fails closed. Registry publication stays blocked until a real public deployment, namespace authentication, release, and submission-time preview-schema revalidation exist. The framework-neutral manifest model ships here; its CLI adapter is blocked on console-boundary issue #2207. -->
 <!-- Spec reviewed 2026-08-04 - #2205 dual-era MCP 2026-07-28: request era is selected only from params._meta["io.modelcontextprotocol/protocolVersion"], never from HTTP headers. McpProtocolRequestValidator requires object-valued per-request client capabilities, validates optional client identity, and checks the required version/method/name mirrors after authentication, rate limiting, JSON parsing, and request acceptance; mismatches close the audit pair with invalid_params_refused and expose no raw header values. Modern routing implements server/discover, tools/list, and tools/call; adds resultType and server identity metadata; uses private/ttlMs=0 plus Cache-Control: no-store for principal-varying discovery, tool catalogues, and pre-route protocol refusals; rejects unsupported modern methods with HTTP 404; and accepts no modern core notifications. The legacy initialize/ping/notification lifecycle and successful-result bytes remain unchanged. Deliberate malformed-traffic change: legacy unknown version headers now return -32022 after authentication (or 401 before it), and stray modern mirrors fail -32020. StreamableHttpTransportGuard remains era-neutral while preserving Origin, size, content type, dual Accept, POST-only, and stateless JSON-response enforcement. -->
 
 <!-- Spec reviewed 2026-08-04 - #2177 boundary correction: bearer-token storage and validation remain in waaseyaa/auth (L1), while the Symfony Console `bearer-token:*` presentation now lives in `Waaseyaa\CLI\Provider\BearerTokenServiceProvider` and `Waaseyaa\CLI\Command\BearerTokenConsoleCommands` (L6). This supersedes the command-ownership sentence in the 2026-08-03 F3 review note below. -->
@@ -63,6 +64,8 @@ Kernel-level failures before MCP dispatch are governed by the JSON-first HTTP er
 | `src/McpServiceProvider.php` | Package-owned service provider that registers MCP routes via `McpRouteProvider` |
 | `src/McpRouteProvider.php` | Registers `/mcp` and `/.well-known/mcp.json` routes |
 | `src/McpServerCard.php` | Generates the `/.well-known/mcp.json` server card |
+| `src/McpImplementationInfo.php` | Shared implementation name/version projected by every MCP discovery response |
+| `src/Registry/McpRegistryManifest.php` | Generates the official, schema-pinned deployment `server.json` artifact |
 | `src/Auth/McpAuthInterface.php` | Pluggable authentication contract |
 | `src/Auth/ScopedMcpAuthInterface.php` / `src/Auth/ScopedPrincipal.php` | Scope-aware auth contract: account + explicit token scopes (#2177 F3) |
 | `src/Auth/DurableBearerTokenAuth.php` | Production write-tier auth over the durable `Waaseyaa\Auth\Token\Bearer` store (#2177 F3) |
@@ -747,12 +750,15 @@ advertised by this contribution.
 
 ### Server Card
 
-`McpServerCard` generates the `/.well-known/mcp.json` response. The route controller is `McpServerCard::serve()`, which returns an `HttpResponse` wrapping the `toJson()` output:
+`McpServerCard` generates the Waaseyaa compatibility response at
+`/.well-known/mcp.json`. It is not an official Registry `server.json` and never
+contains Registry fields. The route controller is `McpServerCard::serve()`,
+which returns an `HttpResponse` wrapping the `toJson()` output:
 
 ```json
 {
     "name": "Waaseyaa",
-    "version": "0.1.0",
+    "version": "0.1.0-alpha.286",
     "description": "AI-native content management system",
     "endpoint": "/mcp",
     "transport": "streamable-http",
@@ -769,10 +775,35 @@ advertised by this contribution.
         "prompts": false
     },
     "authentication": {
-        "type": "bearer"
+        "type": "none"
     }
 }
 ```
+
+Name and version come from the same `McpImplementationInfo` instance used by
+legacy `initialize` and modern server metadata. `mcp.implementation.name` and
+`mcp.implementation.version` are strict explicit overrides. Without a version
+override, a framework checkout reads its release-managed `VERSION`; an
+installed application reports Composer's installed `waaseyaa/mcp` version.
+The version is implementation provenance, not a protocol-compatibility signal.
+
+### Official Registry `server.json`
+
+`McpRegistryManifest` is a separate, non-routed publication artifact pinned to
+`https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json`.
+It emits only the official remote-server shape: namespaced `name`, title,
+bounded description, the shared implementation version, optional repository
+and website metadata, and `remotes: [{type: "streamable-http", url: ...}]`.
+
+The deployment must explicitly configure `mcp.registry.name`, `description`,
+and `remote_url`. The remote must be an absolute public HTTPS URL; the framework
+does not derive it from the request Host, invent a default deployment, or
+publish a Composer package as an unsupported Registry package type. Official
+submission remains blocked until the URL is publicly reachable, namespace
+ownership is authenticated, the framework release exists, and the preview
+schema is revalidated at submission time. A framework-neutral manifest service
+is available to applications; the generic console adapter is tracked by #2207
+because the current command-provider seam crosses package layers.
 
 ## MCP Feature Scope
 

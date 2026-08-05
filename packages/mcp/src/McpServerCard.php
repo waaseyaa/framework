@@ -9,28 +9,32 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
 /**
  * Serves the MCP server card at `/.well-known/mcp.json`.
  *
- * Identity, endpoint, declared auth, and registry-listing fields come from
- * {@see McpServerCardConfig}, so deployments configure them without code
- * changes. The public read-only deployment advertises `authentication.type =
- * none`.
+ * Shared identity comes from {@see McpImplementationInfo}; endpoint and
+ * declared auth come from {@see McpServerCardConfig}. Official Registry
+ * metadata is deliberately absent. The public read-only deployment advertises
+ * `authentication.type = none`.
  *
  * @api
  */
 final readonly class McpServerCard
 {
     private McpServerCardConfig $config;
+    private McpImplementationInfo $implementation;
 
-    public function __construct(?McpServerCardConfig $config = null)
-    {
+    public function __construct(
+        ?McpServerCardConfig $config = null,
+        ?McpImplementationInfo $implementation = null,
+    ) {
         $this->config = $config ?? new McpServerCardConfig();
+        $this->implementation = $implementation ?? new McpImplementationInfo('Waaseyaa', '0.1.0');
     }
 
     /** @return array<string, mixed> */
     public function toArray(): array
     {
         $card = [
-            'name' => $this->config->name,
-            'version' => $this->config->version,
+            'name' => $this->implementation->name,
+            'version' => $this->implementation->version,
             'description' => $this->config->description,
             'endpoint' => $this->config->endpoint,
             'transport' => 'streamable-http',
@@ -53,21 +57,6 @@ final readonly class McpServerCard
 
         if ($this->config->url !== null) {
             $card['url'] = $this->config->url;
-        }
-
-        // Registry-listing fields (modelcontextprotocol registry server.json shape).
-        // Verify against the current registry schema before submission.
-        $registry = array_filter([
-            '$schema' => $this->config->schemaUrl,
-            'name' => $this->config->registryName,
-            'repository' => $this->config->repositoryUrl !== null
-                ? ['url' => $this->config->repositoryUrl, 'source' => 'github']
-                : null,
-            'websiteUrl' => $this->config->websiteUrl,
-        ], static fn(mixed $v): bool => $v !== null);
-
-        if ($registry !== []) {
-            $card['registry'] = $registry;
         }
 
         return $card;

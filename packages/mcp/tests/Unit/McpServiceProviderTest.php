@@ -15,6 +15,7 @@ use Waaseyaa\Foundation\Exception\ConfigException;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApiCatalogEntriesInterface;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\McpServiceProvider;
+use Waaseyaa\Mcp\McpImplementationInfo;
 use Waaseyaa\Mcp\UnavailableRateLimiter;
 use Waaseyaa\Routing\WaaseyaaRouter;
 
@@ -61,6 +62,69 @@ final class McpServiceProviderTest extends TestCase
             'McpServiceProvider must not bind McpAuthInterface locally — a local binding '
             . 'takes precedence over the kernel-services bus and shadows the application.',
         );
+    }
+
+    #[Test]
+    public function provider_resolves_one_configured_identity_for_all_mcp_projections(): void
+    {
+        $provider = new McpServiceProvider();
+        $provider->setKernelContext('', [
+            'mcp' => ['implementation' => ['name' => 'Sheg CMS', 'version' => '3.2.1']],
+        ], []);
+        $provider->register();
+
+        $identity = $provider->resolve(McpImplementationInfo::class);
+        self::assertSame(['name' => 'Sheg CMS', 'version' => '3.2.1'], $identity->toArray());
+        self::assertSame(
+            $identity->toArray(),
+            \array_intersect_key(
+                $provider->resolve(\Waaseyaa\Mcp\McpServerCard::class)->toArray(),
+                ['name' => true, 'version' => true],
+            ),
+        );
+    }
+
+    #[Test]
+    public function provider_wires_a_deployment_registry_manifest_to_the_same_identity(): void
+    {
+        $provider = new McpServiceProvider();
+        $provider->setKernelContext('', ['mcp' => [
+            'implementation' => ['name' => 'Sheg CMS', 'version' => '3.2.1'],
+            'registry' => [
+                'name' => 'ca.sheguiandah/site',
+                'description' => 'Sheguiandah public CMS content',
+                'remote_url' => 'https://sheguiandah.example/mcp',
+            ],
+        ]], []);
+        $provider->register();
+
+        $manifest = $provider->resolve(\Waaseyaa\Mcp\Registry\McpRegistryManifest::class)->toArray();
+        self::assertSame('Sheg CMS', $manifest['title']);
+        self::assertSame('3.2.1', $manifest['version']);
+        self::assertSame('https://sheguiandah.example/mcp', $manifest['remotes'][0]['url']);
+    }
+
+    #[Test]
+    public function non_map_registry_config_fails_when_manifest_is_resolved(): void
+    {
+        $provider = new McpServiceProvider();
+        $provider->setKernelContext('', ['mcp' => ['registry' => true]], []);
+        $provider->register();
+
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('mcp.registry');
+        $provider->resolve(\Waaseyaa\Mcp\Registry\McpRegistryManifest::class);
+    }
+
+    #[Test]
+    public function malformed_server_card_config_fails_during_provider_registration(): void
+    {
+        $provider = new McpServiceProvider();
+        $provider->setKernelContext('', ['mcp' => ['server_card' => ['auth_type' => 'oauth']]], []);
+
+        $this->expectException(ConfigException::class);
+        $this->expectExceptionMessage('mcp.server_card.auth_type');
+        $provider->register();
     }
 
     #[Test]
