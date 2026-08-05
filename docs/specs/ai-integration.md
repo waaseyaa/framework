@@ -1,5 +1,6 @@
 # AI Integration
 
+<!-- Spec reviewed 2026-08-05 - #2216: `AgentToolInterface::execute()` and `dryRun()`, plus `AgentExecutor`, now require `AuthorizationPrincipalInterface` so agent entry points cannot accept identity objects that lack the framework's immutable authorization-claims contract. Existing tool implementations may retain the wider `AccountInterface` parameter through PHP contravariance. MCP authentication providers and the registry bridge use the same principal contract end to end. -->
 <!-- Spec reviewed 2026-08-04 - #2200: ai-schema ships only EntityJsonSchemaGenerator and has no current agent-runtime or MCP consumer. Retired the nonexistent McpToolDefinition, McpToolGenerator, TranslationToolGenerator, McpToolExecutor, and SchemaRegistry surfaces and the fictional accessCheck(false) path. Agent tools own and validate their declared schemas in ai-tools; MCP transports those descriptors without an ai-schema dependency. -->
 <!-- Spec reviewed 2026-08-04 - #2191: the legacy McpController discovery blend, search aliases, and stable-meta claims are explicitly retired; new remote search must use the canonical access-checked agent-tool lifecycle. -->
 
