@@ -2,12 +2,10 @@
 import { useLanguage } from '~/composables/useLanguage'
 import { useEntity } from '~/composables/useEntity'
 import { useAdmin } from '~/composables/useAdmin'
-import { useApi } from '~/composables/useApi'
 
 const { t } = useLanguage()
 const { list } = useEntity()
 const { catalog } = useAdmin()
-const { apiFetch } = useApi()
 
 const counts = ref<Record<string, number>>({
   pending_review: 0,
@@ -20,14 +18,6 @@ const loading = ref(true)
 const error = ref(false)
 
 const hidden = ref(false)
-const ncSync = ref<{
-  last_sync?: string
-  created?: number
-  skipped?: number
-  failed?: number
-  fetch_failed?: boolean
-} | null>(null)
-
 type IngestLogStatus = 'pending_review' | 'approved' | 'rejected' | 'failed'
 
 function isIngestLogStatus(value: string | undefined): value is IngestLogStatus {
@@ -74,17 +64,6 @@ async function fetchCounts() {
 }
 
 onMounted(fetchCounts)
-
-async function fetchNcSyncStatus() {
-  try {
-    const result = await apiFetch<{ status: typeof ncSync.value }>('/api/staff/nc-sync-status')
-    ncSync.value = result.status ?? null
-  } catch {
-    ncSync.value = null
-  }
-}
-
-onMounted(fetchNcSyncStatus)
 </script>
 
 <template>
@@ -109,20 +88,6 @@ onMounted(fetchNcSyncStatus)
           <span class="ingest-counter-value">{{ counts[status] }}</span>
           <span class="ingest-counter-label">{{ t(`ingest_status_${status}`) }}</span>
         </NuxtLink>
-      </div>
-      <div v-if="ncSync" class="nc-sync-panel">
-        <div class="nc-sync-header">{{ t('nc_sync_widget_title') }}</div>
-        <div class="nc-sync-metrics">
-          <span>{{ t('nc_sync_last_sync') }}: {{ ncSync.last_sync || t('na') }}</span>
-          <span>{{ t('nc_sync_created') }}: {{ ncSync.created ?? 0 }}</span>
-          <span>{{ t('nc_sync_skipped') }}: {{ ncSync.skipped ?? 0 }}</span>
-          <span>{{ t('nc_sync_failed') }}: {{ ncSync.failed ?? 0 }}</span>
-        </div>
-        <div class="nc-sync-links">
-          <NuxtLink to="/staff/ingestion">{{ t('nc_sync_open_dashboard') }}</NuxtLink>
-          <NuxtLink to="/teaching">{{ t('nc_sync_view_teachings') }}</NuxtLink>
-          <NuxtLink to="/event">{{ t('nc_sync_view_events') }}</NuxtLink>
-        </div>
       </div>
     </template>
   </div>
@@ -179,28 +144,5 @@ onMounted(fetchNcSyncStatus)
 .ingest-widget-error {
   font-size: 13px;
   color: var(--color-muted);
-}
-.nc-sync-panel {
-  margin-top: 12px;
-  border-top: 1px solid var(--color-border);
-  padding-top: 12px;
-}
-.nc-sync-header {
-  font-size: 13px;
-  font-weight: 600;
-  margin-bottom: 6px;
-}
-.nc-sync-metrics {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  font-size: 12px;
-  color: var(--color-muted);
-}
-.nc-sync-links {
-  display: flex;
-  gap: 12px;
-  margin-top: 8px;
-  font-size: 13px;
 }
 </style>

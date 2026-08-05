@@ -373,7 +373,7 @@ jobs:
     # check-external-consumers is intentionally NOT here: it is a mission-scoped pre-deletion
     # tripwire (WP01 ai-tools migration, key 'ai-agent-orphans'), not a permanent invariant —
     # its accessCheck(false) scan flags legitimate system-context usage framework-wide
-    # (northcloud/seo/path/user/groups/field) because its excludes snapshot went stale. It was
+    # (seo/path/user/groups/field) because its excludes snapshot went stale. It was
     # reclassified out of `composer verify` so verify == this CI gate set; run it on demand via
     # `composer check-external-consumers`. See roadmap triage for the retire/narrow follow-up.
     runs-on: ubuntu-latest
