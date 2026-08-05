@@ -1,5 +1,7 @@
 # API Layer
 
+<!-- Spec reviewed 2026-08-04 - #2195: ApiServiceProvider now owns an opt-in RFC 9727 catalog at GET/HEAD /.well-known/api-catalog. It assembles a deterministic, closed-world RFC 9264 JSON Linkset from kernel-injected ProvidesApiCatalogEntriesInterface providers. Canonical absolute URLs come only from api_catalog.base_url or APP_URL and must be HTTPS; request Host/X-Forwarded-Host is never reflected. The route is absent without canonical configuration or without an installed public API contribution. Authenticated/write/admin/schema surfaces and non-API discovery documents are never inferred from the route collection. -->
+
 <!-- Spec reviewed 2026-07-24 - #2064 activation follow-up: ResourceSerializer now treats the activated entity accessor as the final Protected-read authority. If legacy field filtering is Neutral but the accessor denies or lacks a read context, the field is omitted without reading its value; an otherwise authorized entity response does not become a 500. Internal fields retain their unconditional outward-denial floors. -->
 <!-- Spec reviewed 2026-07-21 - #2101 WP-2: JSON:API create attributes an authenticated creator when an entity type declares a non-identity uid authorization-input field and the client omits it. The shape-based rule covers node, media, note, and future authored quick-entry types without a type-id allowlist, while explicitly excluding User.uid and any other identity key. Explicit uid remains subject to the entity type's field policy. -->
 <!-- Spec reviewed 2026-07-21 - #2101 WP-3: the update path accepts ConfigEntityInterface targets after the same declared-field allowlist and access checks used for FieldableInterface targets. This activates bounded PATCH support for explicitly surfaced config rows without changing identity/bookkeeping rejection. -->
@@ -1136,6 +1138,43 @@ GET /api/node?filter[uuid][operator]=IN&filter[uuid][value][]=550e8400-...&filte
 ```
 
 The `value` parameter must be an array when using `IN`. `QueryParser` passes the array value through to `QueryFilter`, and `QueryApplier` translates it to a SQL `IN (...)` clause via `EntityQueryInterface::condition()`.
+
+## RFC 9727 API Catalog
+
+`ApiServiceProvider` owns the optional `api.catalog` route at
+`GET|HEAD /.well-known/api-catalog`. It is registered only when both conditions
+hold:
+
+1. `api_catalog.base_url` (falling back to `APP_URL`) is a canonical HTTPS URL;
+2. at least one installed provider contributes an intentionally public endpoint
+   through `ProvidesApiCatalogEntriesInterface`.
+
+The catalog never derives an origin from `Host` or `X-Forwarded-Host`. An
+explicit `api_catalog.enabled: true` without a base URL fails boot; an absent
+setting and absent URL leaves the route absent. The response is an RFC 9264
+JSON Linkset with `linkset` as its sole top-level member, deterministic
+path-sorted `item` targets, and optional RFC 8631 `service-desc`, `service-doc`,
+and `service-meta` contexts. Exact duplicate definitions collapse; two
+different definitions for one endpoint fail boot. Contributor targets are
+root-relative, same-origin paths with no fragments, foreign schemes, control
+characters, or header-injectable media types.
+
+`GET` returns
+`application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"`.
+`HEAD` returns no body, the representation headers and content length GET would
+have returned, and the RFC 9727 `Link: <...>; rel="api-catalog"` discovery
+relation. Unsupported `Accept` media ranges receive 406. Both methods are
+anonymous and stateless, with a deterministic ETag, five-minute public cache
+policy, `Vary: Accept`, and `X-Content-Type-Options: nosniff`. Matching weak or
+strong `If-None-Match` validators receive a bodyless 304; a 406 names the one
+available representation without disclosing application state.
+
+The stock catalog is deliberately narrower than the set of public URLs. MCP
+contributes `/mcp` and its server card only while the anonymous tier is enabled;
+Wayfinding contributes its public JSON anchor catalog. `/mcp/write`, OAuth
+metadata, admin APIs, authenticated OpenAPI/schema enumeration, sitemap.xml,
+robots.txt, and llms.txt are not catalog items. Public content search joins this
+catalog only when its separate access-checked endpoint ships.
 
 ## Route Building
 

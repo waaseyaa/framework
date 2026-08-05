@@ -1,5 +1,6 @@
 # Package Discovery
 
+<!-- Spec reviewed 2026-08-04 - #2195 API-catalog composition: installed providers may contribute bounded public API-catalog entries through ProvidesApiCatalogEntriesInterface; the kernel sorts contributors and injects them into AcceptsApiCatalogEntryProvidersInterface receivers before boot, preserving Layer-0 ownership and Composer installation as the activation boundary. -->
 <!-- Spec reviewed 2026-08-04 - #2187 retirement: waaseyaa/northcloud is removed from Composer discovery, CLI ownership, package-layer inventories, and the split-package release matrix. -->
 <!-- Spec reviewed 2026-07-21 - #2091 modularity: Composer installation is the activation boundary; optional routes, admin navigation, entity/catalogue definitions, and conditional agent tools are absent until their owning or required package is installed. -->
 <!-- Spec reviewed 2026-07-14 - #2020 security: attribute discovery unions Composer's classmap with every eligible PSR-4 namespace, so optimization cannot change enforcement or catalogues. Installed packages declare their access-policy inventory in extra.waaseyaa.policies; a missing declared class or manifest entry is a hard boot failure. -->
@@ -212,11 +213,15 @@ Beyond `register()` / `boot()`, a provider opts into kernel-invoked hooks by imp
 | `HasRenderCacheListenersInterface` | `registerRenderCacheListeners(...)` | Render cache listeners |
 | `AcceptsMigrationProvidersInterface` | `withMigrationProviders(list)` | Migration registry |
 | `AcceptsAgentToolProvidersInterface` | `withAgentToolProviders(list)` | Agent-tool registry provider |
+| `AcceptsApiCatalogEntryProvidersInterface` | `withApiCatalogEntryProviders(list)` | API-catalog registry provider |
+| `ProvidesApiCatalogEntriesInterface` | `apiCatalogEntries(): iterable` | RFC 9727 public API catalog |
 | `ProvidesRolesInterface` | `roles(): iterable` (yields `Waaseyaa\User\Role`) | `RoleRepository` |
 
 `ProvidesRolesInterface::roles()` returns an untyped `iterable` rather than a typed return, exactly as `HasNativeCommandsInterface::nativeCommands()` yields Layer-6 `CommandDefinition`s without importing them. Keeping the return untyped lets the Foundation (Layer 0) interface yield `Waaseyaa\User\Role` (Layer 1) without Foundation importing the User package; the concrete element type is resolved by the Layer-1 collector (`RoleRepository::fromProviders()`) at runtime. The full kernel-call-site table lives in `docs/specs/infrastructure.md`.
 
 Agent-tool contribution uses the same cross-layer pattern. Application providers implement the Layer-5 `Waaseyaa\AI\Tools\ProvidesAgentToolsInterface`; the kernel detects that contract by string FQCN, sorts contributors by provider class, and hands them to the Foundation-owned `AcceptsAgentToolProvidersInterface` receiver before provider boot. `AiToolsServiceProvider` invokes each contributor once when the canonical registry singleton is first constructed. This keeps Foundation free of a compile-time Layer-5 dependency and keeps application tools independent of route registration.
+
+API-catalog contribution stays entirely within Foundation-owned contracts. Installed providers implement `ProvidesApiCatalogEntriesInterface`; the kernel sorts contributors by provider class and hands them to each `AcceptsApiCatalogEntryProvidersInterface` receiver before provider boot. The API package validates, normalizes, and publishes the resulting public entries. Uninstalled packages cannot contribute, and providers must omit authenticated, administrative, write, or otherwise non-public surfaces.
 
 ## PackageManifest
 

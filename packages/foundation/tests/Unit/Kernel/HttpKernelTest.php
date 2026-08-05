@@ -93,6 +93,22 @@ final class HttpKernelTest extends TestCase
     }
 
     #[Test]
+    public function rfc_9727_catalog_is_always_in_the_anonymous_stateless_path_set(): void
+    {
+        $kernel = new HttpKernel('/tmp/test-project');
+        $config = new \ReflectionProperty(AbstractKernel::class, 'config');
+        $config->setValue($kernel, [
+            'session' => ['stateless_paths' => ['/llms.txt', '/.well-known/api-catalog']],
+        ]);
+        $method = new \ReflectionMethod(HttpKernel::class, 'sessionStatelessPaths');
+
+        self::assertSame(
+            ['/llms.txt', '/.well-known/api-catalog'],
+            $method->invoke($kernel),
+        );
+    }
+
+    #[Test]
     public function resolve_cors_headers_for_allowed_origin(): void
     {
         $handler = new CorsHandler(allowedOrigins: ['http://localhost:3000']);
