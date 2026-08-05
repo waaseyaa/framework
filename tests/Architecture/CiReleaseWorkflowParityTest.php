@@ -124,7 +124,12 @@ final class CiReleaseWorkflowParityTest extends TestCase
         self::assertNotFalse($end);
         $step = substr($ci, $start, $end - $start);
 
-        self::assertStringContainsString('if [[ "$GITHUB_REF_NAME" == release-cut/* ]]; then', $step);
+        self::assertStringContainsString('SOURCE_SKELETON: "${{', $step);
+        self::assertStringContainsString("startsWith(github.ref_name, 'release-cut/')", $step);
+        self::assertStringContainsString("github.event_name == 'push'", $step);
+        self::assertStringContainsString("github.ref_name == 'main'", $step);
+        self::assertStringContainsString("startsWith(github.event.head_commit.message, 'chore: release ')", $step);
+        self::assertStringContainsString('if [[ "$SOURCE_SKELETON" == "true" ]]; then', $step);
         self::assertStringContainsString('--no-install --no-scripts', $step);
         self::assertStringContainsString('repositories.framework path "$GITHUB_WORKSPACE"', $step);
         self::assertStringContainsString('repositories.packages path "$GITHUB_WORKSPACE/packages/*"', $step);

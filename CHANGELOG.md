@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **release CI (#2248):** Use the exact-source skeleton consumer path for the release commit's post-tag push to main as well as the pre-tag gate. This prevents unpublished package constraints from failing main CI and circularly blocking split-package publication, while ordinary pull requests and non-release main pushes retain the published-release proof.
+
 - **release CI (#2246):** Make the exact release-commit skeleton gate install the newly advanced skeleton from the checked-out monorepo and split-package paths, while ordinary PR/main CI retains its published-release create-project proof. This removes the pre-publication Packagist circularity without skipping post-create setup or `audit-site`.
 
 - **release tooling (#2238):** Keep root-lock path-package metadata and the create-project skeleton in the same atomic internal-version sync as split-package manifests, and make optional-domain architecture tests derive the release-managed version. Exact release-commit CI can now validate the advanced constraints without comparing them to stale lock metadata or a hardcoded previous alpha.
