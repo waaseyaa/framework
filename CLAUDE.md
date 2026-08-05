@@ -93,11 +93,11 @@ When the mapping is not obvious, search under `docs/specs/` (e.g. `rg -n "TopicO
 |---|---|---|
 | 0 | Foundation | analytics, cache, database-legacy, error-handler, foundation, geo, http-client, i18n, ingestion, mail, mercure, oauth-provider, plugin, queue, scheduler, state, typed-data, validation |
 | 1 | Core Data | entity, entity-storage, access, audit, user, config, field, auth, oidc, testing |
-| 2 | Content Types | node, taxonomy, media, path, menu, note, relationship, groups, engagement |
-| 3 | Services | workflows, search, seo, notification, billing, github, migration, northcloud, listing, messaging, publishing |
+| 2 | Content Types | attachment, node, taxonomy, media, path, menu, note, relationship, groups, engagement |
+| 3 | Services | workflows, search, seo, notification, billing, github, migration, northcloud, structured-import, listing, messaging, publishing |
 | 4 | API | api, bimaaji, routing, wayfinding |
-| 5 | AI | ai-agent, ai-observability, ai-pipeline, ai-schema, ai-vector |
-| 6 | Interfaces | cli, frankenphp, admin-surface, graphql, mcp, ssr, telescope, deployer, inertia, debug, workspace |
+| 5 | AI | ai-agent, ai-observability, ai-pipeline, ai-schema, ai-tools, ai-vector |
+| 6 | Interfaces | cli, frankenphp, admin-surface, genealogy, graphql, mcp, ssr, telescope, deployer, inertia, debug, workspace |
 
 **Rule:** Packages can only import from their own layer or lower. *Behavioural* coupling across layers is decoupled via the Symfony event dispatcher: a higher layer dispatches a lifecycle event and a lower layer subscribes by string event name, so the higher layer never imports the lower-layer listener. Note this does **not** eliminate upward *type* imports — a lower-layer listener still `use`s the higher-layer event type it subscribes to (e.g. L0 `cache` listeners import L1 `Waaseyaa\Entity\Event\EntityEvent` / `EntityEvents`). Those upward type imports are permitted only via the explicit `KERNEL_EXEMPT_FILES` allowlist in `bin/check-package-layers` (each entry carries a one-line rationale). The framework-wide `DomainEvent` base (`packages/foundation/src/Event/DomainEvent.php`) is a serialization/audit envelope with two concrete subclasses (`EntitySaved`, `EntityDeleted`); it is **not** the type that lifecycle listeners consume — the live `EntityEvent`/`TranslationEvent` lifecycle events extend Symfony `Event` directly.
 

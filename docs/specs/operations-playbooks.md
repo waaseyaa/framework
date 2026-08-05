@@ -1,5 +1,7 @@
 # Operations Playbooks
 
+<!-- Spec reviewed 2026-08-04 - #2191: MCP operations now use the shipped tools/list method and protected admin read models; removed legacy aliases, read-cache metadata, and tools/introspect are documented as absent. -->
+
 <!-- Spec reviewed 2026-06-21 - issue #1707 `waaseyaa dev` port preflight (packages/frankenphp): before printing "Serving …" and exec'ing FrankenPHP, the `dev` command now connect-probes the resolved listen address (DevCommand.php). A connect probe — Windows SO_REUSEADDR-safe, unlike a test bind — detects an already-bound address (e.g. an orphaned prior dev server) and the command fails fast with one actionable line plus a port-release hint, instead of printing "Serving" then exiting silently and leaving the browser at ERR_CONNECTION_REFUSED. The probe is injectable; covered by DevCommandPortPreflightTest. No other dev/install behavior changed. -->
 <!-- Spec reviewed 2026-07-13 - CW-v1 option-1 PR-7 (#1920, design §8): Playbook H step 5 rewritten from
      "Do NOT bind in production" to the real production binding procedure — precondition (steps 1-4 unchanged),
@@ -24,18 +26,16 @@ Use this as the default runbook for upgrades, baseline refreshes, and verificati
 
 ### MCP
 
-- `tools/call` payload meta remains stable with:
-  - `contract_version`
-  - `contract_stability`
-  - `tool`
-  - `tool_invoked`
-- `search_teachings` remains a supported legacy alias of `search_entities`.
-- `tools/introspect` provides deterministic diagnostics for:
-  - contract metadata,
-  - cache context and scope,
-  - visibility policy hints,
-  - permission boundaries,
-  - execution path and failure-mode hints.
+- `initialize`, `ping`, `tools/list`, and `tools/call` are the shipped MCP
+  methods. Resources and prompts are not advertised.
+- `tools/list` is the protocol-visible source for names, descriptions, schemas,
+  and standard tool annotations. Capability requirements are deliberately
+  available only through the protected admin read model.
+- Authenticated administrators inspect richer registry and server diagnostics
+  through `GET /api/mcp/tools`, `GET /api/mcp/tools/{name}`, and
+  `GET /api/mcp/server-config`. Those admin routes are not MCP methods.
+- Legacy `search_entities`, `search_teachings`, and `tools/introspect` belonged
+  to the removed `McpController` stack and are not served by `McpEndpoint`.
 
 ### Workflow and Visibility
 
@@ -133,8 +133,9 @@ The glob is safe only because of one naming convention: `phpunit.xml.dist` sets 
 3. Verify command catalog and MCP routes are available:
    - `php bin/waaseyaa list --no-ansi`
 4. Run contract-focused tests:
-   - `./vendor/bin/phpunit --configuration phpunit.xml.dist packages/mcp/tests/Unit/McpControllerTest.php`
-5. Confirm no stable contract regressions in MCP meta fields.
+   - `./vendor/bin/phpunit --configuration phpunit.xml.dist packages/mcp/tests/Unit/McpEndpointTest.php packages/mcp/tests/Unit/McpRouteProviderTest.php`
+5. Confirm the negotiated protocol versions, routed method set, tool descriptors,
+   and public/write authentication boundaries remain intentional.
 
 ### Playbook B: Semantic Baseline Refresh
 
@@ -159,11 +160,13 @@ The glob is safe only because of one naming convention: `phpunit.xml.dist` sets 
 ### Playbook D: MCP Tool Failure Triage
 
 1. Inspect tool contract and execution boundaries:
-   - call MCP `tools/introspect` with target tool name.
+   - call MCP `tools/list` and locate the exact target tool name;
+   - when authenticated as an administrator, inspect
+     `GET /api/mcp/tools/{name}` for the richer server-side read model.
 2. Validate:
-   - cache scope (`anonymous` vs `authenticated`),
-   - permission boundaries (view/update/workflow),
-   - visibility policy hints.
+   - advertised input/output schemas and annotations;
+   - token-scope intersection and account capability requirements;
+   - public-tier versus write-tier registry membership.
 3. Re-run failing tool via `tools/call` using same argument payload.
 4. Resolve by category:
    - `-32602`: invalid arguments or unknown tool/state/type.

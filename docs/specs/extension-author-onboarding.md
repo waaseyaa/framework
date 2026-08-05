@@ -1,5 +1,7 @@
 # Extension Author Onboarding Kit
 
+<!-- Spec reviewed 2026-08-04 - #2191: extension tool verification uses the canonical application tool contribution lifecycle, MCP tools/list, and protected admin diagnostics; the removed tools/introspect contract is not advertised. -->
+
 ## Goal
 
 Provide a fast, deterministic path for external authors to build and validate Waaseyaa extensions.
@@ -13,8 +15,10 @@ Provide a fast, deterministic path for external authors to build and validate Wa
    - `extensions.plugin_directories[] = <path-to-extension-src>`
 4. Validate bootstrap integration:
    - `php bin/waaseyaa list --no-ansi`
-5. Validate MCP diagnostics contract:
-   - call MCP `tools/introspect` on target tools and verify extension hooks/registration metadata.
+5. Validate any contributed agent tools:
+   - call MCP `tools/list` and verify their names, schemas, and annotations;
+   - use the authenticated `GET /api/mcp/tools/{name}` admin endpoint when the
+     richer registry read model is needed.
 
 ## Reference Example
 
@@ -28,7 +32,10 @@ See:
 - Workflow context: `alterWorkflowContext(array $context): array`
 - Traversal context: `alterTraversalContext(array $context): array`
 - Discovery context: `alterDiscoveryContext(array $context): array`
-- MCP diagnostics: extension registration metadata surfaced via `tools/introspect`
+- MCP catalogue: application-contributed agent tools surface through the
+  canonical AI tool registry and `tools/list`; capability requirements are on
+  the protected admin read model, and MCP does not expose plugin-hook
+  diagnostics.
 
 ## Verification Checklist
 
@@ -36,7 +43,7 @@ See:
 - Waaseyaa compatibility matrix checks pass.
 - Cross-repo harness run is green:
   - `tools/integration/run-v1.3-cross-repo-harness.sh`
-- MCP introspection shows expected extension hooks.
+- MCP `tools/list` shows the expected contributed tools, when applicable.
 
 ## Troubleshooting
 
@@ -46,10 +53,11 @@ See:
 - Verify class has `#[WaaseyaaPlugin(...)]` attribute.
 - Verify class autoload namespace matches `composer.json` PSR-4 map.
 
-### MCP introspection missing extension hooks
+### Contributed MCP tool is missing
 
-- Verify extension registration payload includes target tools.
-- Verify canonical tool naming (`search_teachings` maps to `search_entities`).
+- Verify the application contributes the tool through
+  `ProvidesAgentToolsInterface` and that its name is unique.
+- Verify the target tier includes the tool and the credential scope permits it.
 
 ### Context mutations not visible
 
