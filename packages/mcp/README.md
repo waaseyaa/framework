@@ -16,11 +16,11 @@ account's permissions.
 ## Quick reference
 
 - **Endpoint:** `POST /mcp` (JSON-RPC). Modern MCP `2026-07-28` exposes
-  `server/discover`, `tools/list`, and `tools/call` with per-request metadata
-  and required HTTP mirrors. Legacy `2025-11-25`, `2025-06-18`, and
-  `2025-03-26` retain `initialize`, `ping`, notifications, and tool methods,
-  plus opt-in `resources/list`, `resources/templates/list`, and
-  `resources/read`; the latest legacy revision is preferred.
+  `server/discover`, `tools/list`, `tools/call`, and the three resource methods
+  with per-request metadata and required HTTP mirrors. Legacy `2025-11-25`,
+  `2025-06-18`, and `2025-03-26` retain `initialize`, `ping`, notifications,
+  tool methods, and the same opt-in resources; the latest legacy revision is
+  preferred.
 - **Transport profile:** stateless Streamable HTTP with JSON responses. POST
   requires `Content-Type: application/json` and an `Accept` header listing both
   `application/json` and `text/event-stream`. GET returns 405 because this
@@ -149,7 +149,12 @@ return [
 The flag grants `resource.content.read` to the fallback anonymous principal and
 structurally enables the three resource methods. Missing providers fail closed;
 malformed URIs are `-32602`, while denied and nonexistent well-formed resources
-share the same `-32002` response. Listing is one deterministic bounded window
+share one sanitized response (`-32602` on modern MCP, the preserved `-32002` on
+legacy MCP). Modern resource reads require the specification's exact
+`Mcp-Name` mirror of `params.uri`; provider parsing occurs only after capability
+authorization. Complete modern list/read results are principal-private and
+immediately stale (`cacheScope: private`, `ttlMs: 0`, plus HTTP `no-store`).
+Listing is one deterministic bounded window
 with no `nextCursor`; safe pagination awaits the AEAD cursor primitive in
 #2220. CMS resource text is untrusted data, not agent instruction.
 The normal per-principal MCP rate limiter runs before all three methods, so

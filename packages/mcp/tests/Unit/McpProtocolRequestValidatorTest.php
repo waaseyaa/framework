@@ -185,6 +185,56 @@ final class McpProtocolRequestValidatorTest extends TestCase
     }
 
     #[Test]
+    public function resource_read_name_header_must_match_the_uri_and_supports_the_required_encoding(): void
+    {
+        $uri = "waaseyaa://content/\u{00E9}";
+        $request = $this->modernRequest('resources/read');
+        $request['params']['uri'] = $uri;
+
+        $context = $this->validator->validate(
+            $request,
+            new McpRequestHeaders(
+                McpProtocol::CURRENT,
+                'resources/read',
+                '=?base64?' . \base64_encode($uri) . '?=',
+            ),
+        );
+
+        self::assertTrue($context->modern);
+
+        foreach ([null, 'waaseyaa://content/different', '=?base64?not valid!?='] as $name) {
+            try {
+                $this->validator->validate(
+                    $request,
+                    new McpRequestHeaders(McpProtocol::CURRENT, 'resources/read', $name),
+                );
+                self::fail('Expected a resource URI header mismatch refusal.');
+            } catch (McpProtocolRequestException $e) {
+                self::assertSame(-32020, $e->jsonRpcCode);
+                self::assertSame('name_mismatch', $e->reason);
+            }
+        }
+    }
+
+    #[Test]
+    public function non_string_resource_uri_is_refused_as_an_unmatchable_required_name_mirror(): void
+    {
+        $request = $this->modernRequest('resources/read');
+        $request['params']['uri'] = ['not-a-string'];
+
+        try {
+            $this->validator->validate(
+                $request,
+                new McpRequestHeaders(McpProtocol::CURRENT, 'resources/read', 'not-a-string'),
+            );
+            self::fail('Expected a name-header mismatch refusal.');
+        } catch (McpProtocolRequestException $e) {
+            self::assertSame(-32020, $e->jsonRpcCode);
+            self::assertSame('name_mismatch', $e->reason);
+        }
+    }
+
+    #[Test]
     public function missing_malformed_or_mismatched_tool_name_header_is_refused(): void
     {
         $request = $this->modernRequest('tools/call');

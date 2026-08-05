@@ -529,6 +529,35 @@ final readonly class McpEndpoint
                     'server/discover' => $this->protocolExecute(fn(): McpResponse => $this->handleServerDiscover($id), $id, $correlationId, $actorUid, $method),
                     'tools/list' => $this->protocolExecute(fn(): McpResponse => $this->handleToolsList($id, $bridge), $id, $correlationId, $actorUid, $method),
                     'tools/call' => $this->handleToolsCall($id, $params, $bridge, $correlationId, $actorUid, (string) $principal->id()),
+                    'resources/list' => $this->resourcesSupported()
+                        ? $this->resourceProtocolExecute(
+                            fn(): McpResponse => $this->handleResourcesList($id, $params, $principal, $tokenScopes),
+                            $id,
+                            $correlationId,
+                            $actorUid,
+                            $method,
+                        )
+                        : $this->refuseUnknownMethod($id, $method, $correlationId, $actorUid, 404),
+                    'resources/templates/list' => $this->resourcesSupported()
+                        ? $this->resourceProtocolExecute(
+                            fn(): McpResponse => $this->handleResourceTemplatesList($id, $params, $principal, $tokenScopes),
+                            $id,
+                            $correlationId,
+                            $actorUid,
+                            $method,
+                        )
+                        : $this->refuseUnknownMethod($id, $method, $correlationId, $actorUid, 404),
+                    'resources/read' => $this->resourcesSupported()
+                        ? $this->executeResourceRead(
+                            $id,
+                            $params,
+                            $principal,
+                            $tokenScopes,
+                            $correlationId,
+                            $actorUid,
+                            -32602,
+                        )
+                        : $this->refuseUnknownMethod($id, $method, $correlationId, $actorUid, 404),
                     default => $this->refuseUnknownMethod($id, $method, $correlationId, $actorUid, 404),
                 }
             : match ($method) {
@@ -555,12 +584,14 @@ final readonly class McpEndpoint
                     )
                     : $this->refuseUnknownMethod($id, $method, $correlationId, $actorUid),
                 'resources/read' => $this->resourcesSupported()
-                    ? $this->resourceProtocolExecute(
-                        fn(): McpResponse => $this->handleResourceRead($id, $params, $principal, $tokenScopes),
+                    ? $this->executeResourceRead(
                         $id,
+                        $params,
+                        $principal,
+                        $tokenScopes,
                         $correlationId,
                         $actorUid,
-                        $method,
+                        -32002,
                     )
                     : $this->refuseUnknownMethod($id, $method, $correlationId, $actorUid),
                 default => $this->refuseUnknownMethod($id, $method, $correlationId, $actorUid),
@@ -771,16 +802,6 @@ final readonly class McpEndpoint
                 [],
                 ['reason' => 'invalid_resource_params'],
             );
-        } elseif ($errorCode === -32002) {
-            $this->auditTerminal(
-                AuditStage::AuthorizationRefused,
-                $correlationId,
-                $actorUid,
-                $method,
-                $method,
-                [],
-                ['reason' => 'resource_unavailable'],
-            );
         } else {
             $this->auditTerminal(
                 AuditStage::ExecutionFailed,
@@ -867,12 +888,17 @@ final readonly class McpEndpoint
 
     private function handleServerDiscover(mixed $id): McpResponse
     {
+        $capabilities = ['tools' => ['listChanged' => false]];
+        if ($this->resourcesSupported()) {
+            $capabilities['resources'] = ['subscribe' => false, 'listChanged' => false];
+        }
+
         return $this->jsonRpcResult($id, [
             'supportedVersions' => McpProtocol::SUPPORTED,
-            'capabilities' => [
-                'tools' => ['listChanged' => false],
-            ],
-            'instructions' => 'List available tools before calling them. Tool visibility and execution are restricted to the authenticated principal.',
+            'capabilities' => $capabilities,
+            'instructions' => $this->resourcesSupported()
+                ? 'List available tools and resources before using them. Visibility and execution are restricted to the authenticated principal.'
+                : 'List available tools before calling them. Tool visibility and execution are restricted to the authenticated principal.',
             'ttlMs' => 0,
             'cacheScope' => 'private',
         ]);
@@ -999,29 +1025,106 @@ final readonly class McpEndpoint
     }
 
     /** @param array<mixed> $params @param ?list<string> $tokenScopes */
-    private function handleResourceRead(
+    private function executeResourceRead(
         mixed $id,
         array $params,
         \Waaseyaa\Access\AuthorizationPrincipalInterface $principal,
         ?array $tokenScopes,
+        string $correlationId,
+        ?int $actorUid,
+        int $unavailableCode,
     ): McpResponse {
+        $method = 'resources/read';
         if (!$this->validReadParams($params)) {
+            $this->auditTerminal(
+                AuditStage::InvalidParamsRefused,
+                $correlationId,
+                $actorUid,
+                $method,
+                $method,
+                [],
+                ['reason' => 'invalid_resource_params'],
+            );
+
             return $this->jsonRpcError(-32602, 'Invalid resources/read params', $id);
         }
+
+        // Capability is decided before provider selection or URI parsing. A
+        // caller without resource-content access therefore receives the same
+        // response for valid, malformed, existing, and absent provider URIs.
         if (!$this->resourceCapabilityAllowed($principal, $tokenScopes)) {
-            return $this->jsonRpcError(-32002, 'Resource not found', $id);
+            $this->auditTerminal(
+                AuditStage::AuthorizationRefused,
+                $correlationId,
+                $actorUid,
+                $method,
+                $method,
+                [],
+                ['reason' => 'resource_unavailable'],
+            );
+
+            return $this->jsonRpcError($unavailableCode, 'Resource not found', $id);
         }
 
         try {
             $content = $this->contentResources?->read($params['uri'], $principal);
+            if ($content === null) {
+                $this->auditTerminal(
+                    AuditStage::AuthorizationRefused,
+                    $correlationId,
+                    $actorUid,
+                    $method,
+                    $method,
+                    [],
+                    ['reason' => 'resource_unavailable'],
+                );
+
+                return $this->jsonRpcError($unavailableCode, 'Resource not found', $id);
+            }
+
+            // Provider-authored metadata is serialized inside the same guarded
+            // boundary as provider execution. An invalid UTF-8 URI or MIME
+            // value must fail sanitized before any success stage is emitted.
+            $response = $this->jsonRpcResult($id, ['contents' => [$content->toArray()]]);
         } catch (MalformedContentResourceUriException) {
+            $this->auditTerminal(
+                AuditStage::InvalidParamsRefused,
+                $correlationId,
+                $actorUid,
+                $method,
+                $method,
+                [],
+                ['reason' => 'invalid_resource_params'],
+            );
+
             return $this->jsonRpcError(-32602, 'Invalid resources/read params', $id);
-        }
-        if ($content === null) {
-            return $this->jsonRpcError(-32002, 'Resource not found', $id);
+        } catch (\Throwable $e) {
+            $this->logger?->error('mcp.resource_execution_failed', [
+                'correlation_id' => $correlationId,
+                'method' => $method,
+                'exception' => $e::class,
+            ]);
+            $this->auditTerminal(
+                AuditStage::ExecutionFailed,
+                $correlationId,
+                $actorUid,
+                $method,
+                $method,
+                [],
+                ['reason' => 'resource_handler_threw', 'exception' => $e::class],
+            );
+
+            return $this->jsonRpcError(
+                -32603,
+                'Internal error. Quote the correlation id to an operator to have it diagnosed.',
+                $id,
+                ['correlation_id' => $correlationId],
+            );
         }
 
-        return $this->jsonRpcResult($id, ['contents' => [$content->toArray()]]);
+        $this->emitAudit(AuditStage::ExecutionSucceeded, $correlationId, $actorUid, $method);
+
+        return $response;
     }
 
     /** @param array<mixed> $params */
@@ -1817,7 +1920,12 @@ final readonly class McpEndpoint
         $meta = \is_array($result['_meta'] ?? null) ? $result['_meta'] : [];
         $meta['io.modelcontextprotocol/serverInfo'] = $this->serverInfo();
         $result['_meta'] = $meta;
-        if ($method === 'tools/list') {
+        if (\in_array($method, [
+            'tools/list',
+            'resources/list',
+            'resources/templates/list',
+            'resources/read',
+        ], true)) {
             $result['ttlMs'] = 0;
             $result['cacheScope'] = 'private';
         }
