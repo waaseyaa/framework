@@ -29,13 +29,13 @@ final class Fts5SearchProviderTest extends TestCase
         $this->database = DBALDatabase::createSqlite();
         $this->indexer = new Fts5SearchIndexer($this->database);
         $this->indexer->ensureSchema();
-        $this->provider = new Fts5SearchProvider($this->database, $this->indexer, new \Waaseyaa\Search\Tests\Support\AllowAllSearchAccessChecker());
+        $this->provider = new Fts5SearchProvider($this->database, $this->indexer, new \Waaseyaa\Search\Tests\Support\IndexedSearchCandidateResolver($this->database));
     }
 
     #[Test]
     public function it_returns_empty_result_for_no_matches(): void
     {
-        $result = $this->provider->search(new SearchRequest('nonexistent'));
+        $result = $this->search(new SearchRequest('nonexistent'));
 
         $this->assertSame(0, $result->totalHits);
         $this->assertSame([], $result->hits);
@@ -50,7 +50,7 @@ final class Fts5SearchProviderTest extends TestCase
             'og_image' => '', 'created_at' => '2026-03-20T00:00:00Z',
         ]);
 
-        $result = $this->provider->search(new SearchRequest('PHP'));
+        $result = $this->search(new SearchRequest('PHP'));
 
         $this->assertSame(1, $result->totalHits);
         $this->assertSame('node:1', $result->hits[0]->id);
@@ -71,7 +71,7 @@ final class Fts5SearchProviderTest extends TestCase
             'created_at' => '2026-03-20T00:00:00Z',
         ]);
 
-        $result = $this->provider->search(new SearchRequest('Content', new SearchFilters(contentType: 'article')));
+        $result = $this->search(new SearchRequest('Content', new SearchFilters(contentType: 'article')));
 
         $this->assertSame(1, $result->totalHits);
         $this->assertSame('node:1', $result->hits[0]->id);
@@ -91,7 +91,7 @@ final class Fts5SearchProviderTest extends TestCase
             'created_at' => '2026-03-20T00:00:00Z',
         ]);
 
-        $result = $this->provider->search(new SearchRequest('Test', new SearchFilters(minQuality: 50)));
+        $result = $this->search(new SearchRequest('Test', new SearchFilters(minQuality: 50)));
 
         $this->assertSame(1, $result->totalHits);
         $this->assertSame('node:2', $result->hits[0]->id);
@@ -111,7 +111,7 @@ final class Fts5SearchProviderTest extends TestCase
             'created_at' => '2026-03-20T00:00:00Z',
         ]);
 
-        $result = $this->provider->search(new SearchRequest('Post', new SearchFilters(topics: ['php'])));
+        $result = $this->search(new SearchRequest('Post', new SearchFilters(topics: ['php'])));
 
         $this->assertSame(1, $result->totalHits);
         $this->assertSame('node:1', $result->hits[0]->id);
@@ -131,7 +131,7 @@ final class Fts5SearchProviderTest extends TestCase
             'created_at' => '2026-03-20T00:00:00Z',
         ]);
 
-        $result = $this->provider->search(new SearchRequest('Content'));
+        $result = $this->search(new SearchRequest('Content'));
 
         $contentTypeFacet = $result->getFacet('content_type');
         $this->assertNotNull($contentTypeFacet);
@@ -155,7 +155,7 @@ final class Fts5SearchProviderTest extends TestCase
             ]);
         }
 
-        $result = $this->provider->search(new SearchRequest('Searchable', pageSize: 2));
+        $result = $this->search(new SearchRequest('Searchable', pageSize: 2));
 
         $this->assertSame(5, $result->totalHits);
         $this->assertSame(3, $result->totalPages);
@@ -173,7 +173,7 @@ final class Fts5SearchProviderTest extends TestCase
         ]);
 
         // Should not throw — operators are escaped
-        $result = $this->provider->search(new SearchRequest('AND OR NOT'));
+        $result = $this->search(new SearchRequest('AND OR NOT'));
 
         $this->assertInstanceOf(\Waaseyaa\Search\SearchResult::class, $result);
     }
@@ -191,5 +191,10 @@ final class Fts5SearchProviderTest extends TestCase
             public function toSearchDocument(): array { return $this->document; }
             public function toSearchMetadata(): array { return $this->metadata; }
         });
+    }
+
+    private function search(SearchRequest $request): \Waaseyaa\Search\SearchResult
+    {
+        return $this->provider->search($request, \Waaseyaa\Search\Tests\Support\SearchTestPrincipal::create());
     }
 }

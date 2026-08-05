@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace Waaseyaa\Search;
 
 /**
- * @internal Parked with the first-party search read surface.
+ * Principal-safe search hit. `highlight` is bounded plain text, not markup.
+ * `score` is a query-local weighted term-frequency value; it is suitable for
+ * ordering this result set, not for comparison across queries or providers.
+ *
+ * @api
  */
 final readonly class SearchHit
 {

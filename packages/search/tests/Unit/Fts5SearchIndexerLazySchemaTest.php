@@ -82,12 +82,12 @@ final class Fts5SearchIndexerLazySchemaTest extends TestCase
         $provider = new Fts5SearchProvider(
             $database,
             new Fts5SearchIndexer($database),
-            new \Waaseyaa\Search\Tests\Support\AllowAllSearchAccessChecker(),
+            new \Waaseyaa\Search\Tests\Support\IndexedSearchCandidateResolver($database),
         );
 
         // A non-empty query must degrade to an empty result, not throw
         // "no such table: search_index".
-        $result = $provider->search(new SearchRequest('anything'));
+        $result = $provider->search(new SearchRequest('anything'), \Waaseyaa\Search\Tests\Support\SearchTestPrincipal::create());
 
         $this->assertSame(0, $result->totalHits);
         $this->assertSame([], $result->hits);

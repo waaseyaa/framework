@@ -379,7 +379,9 @@ Configuration Management v1 — active/sync store split, six `config:*` CLI comm
 
 | Element | Type | Purpose |
 |---------|------|---------|
-| `SearchProviderInterface` | interface | Executes full-text search queries and returns ranked results |
+| `SearchProviderInterface` | interface | Executes principal-scoped full-text search queries and returns safe ranked results |
+| `SearchCandidateResolverInterface` | interface | Resolves an opaque index pointer to a canonical principal-safe projection |
+| `ProvidesSearchSourceResolversInterface` | interface | Contributes exact-namespace resolvers for canonical non-entity search sources |
 | `SearchIndexerInterface` | interface | Adds, updates, and removes documents from the search index |
 | `SearchIndexableInterface` | interface | Marks an entity as searchable and provides its document ID and text fields |
 

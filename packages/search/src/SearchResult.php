@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Search;
 
-/**
- * @internal Parked with the first-party search read surface.
- */
+/** Bounded principal-safe search result. @api */
 final readonly class SearchResult
 {
     /**
@@ -18,7 +16,6 @@ final readonly class SearchResult
         public int $totalPages,
         public int $currentPage,
         public int $pageSize,
-        public int $tookMs,
         public array $hits,
         public array $facets = [],
     ) {}
@@ -30,7 +27,6 @@ final readonly class SearchResult
             totalPages: 0,
             currentPage: 1,
             pageSize: 20,
-            tookMs: 0,
             hits: [],
         );
     }

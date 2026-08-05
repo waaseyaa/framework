@@ -8,7 +8,6 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DBALDatabase;
-use Waaseyaa\Search\Access\SearchAccessChecker;
 use Waaseyaa\Search\Fts5\Fts5SearchIndexer;
 use Waaseyaa\Search\Fts5\Fts5SearchProvider;
 use Waaseyaa\Search\SearchFilters;
@@ -57,14 +56,12 @@ final class Fts5SearchProviderPaginationAccessFilteredTest extends TestCase
         $this->indexItem('node:2', '2026-01-02T00:00:00Z');
         $this->indexItem('node:3', '2026-01-03T00:00:00Z');
 
-        $checker = new class implements SearchAccessChecker {
-            public function canView(string $documentId, string $entityType): bool
-            {
-                return $documentId !== 'node:2';
-            }
-        };
+        $resolver = new \Waaseyaa\Search\Tests\Support\IndexedSearchCandidateResolver(
+            $this->database,
+            static fn(\Waaseyaa\Search\SearchCandidateReference $reference): bool => $reference->documentId !== 'node:2',
+        );
 
-        $this->provider = new Fts5SearchProvider($this->database, $this->indexer, accessChecker: $checker);
+        $this->provider = new Fts5SearchProvider($this->database, $this->indexer, $resolver);
     }
 
     #[Test]
@@ -72,8 +69,9 @@ final class Fts5SearchProviderPaginationAccessFilteredTest extends TestCase
     {
         $filters = new SearchFilters(sortField: 'created_at', sortOrder: 'asc');
 
-        $page1 = $this->provider->search(new SearchRequest('Searchable', $filters, page: 1, pageSize: 1));
-        $page2 = $this->provider->search(new SearchRequest('Searchable', $filters, page: 2, pageSize: 1));
+        $principal = \Waaseyaa\Search\Tests\Support\SearchTestPrincipal::create();
+        $page1 = $this->provider->search(new SearchRequest('Searchable', $filters, page: 1, pageSize: 1), $principal);
+        $page2 = $this->provider->search(new SearchRequest('Searchable', $filters, page: 2, pageSize: 1), $principal);
 
         // totalHits/totalPages reflect only the 2 accessible documents,
         // consistently across both requests.

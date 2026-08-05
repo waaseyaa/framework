@@ -5,15 +5,13 @@ declare(strict_types=1);
 namespace Waaseyaa\Search;
 
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
-use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
-use Waaseyaa\Search\Access\EntitySearchAccessChecker;
-use Waaseyaa\Search\Access\SearchAccessChecker;
+use Waaseyaa\Search\Access\EntitySearchCandidateResolver;
 use Waaseyaa\Search\EventSubscriber\SearchIndexSubscriber;
 use Waaseyaa\Search\Fts5\Fts5SearchIndexer;
 use Waaseyaa\Search\Fts5\Fts5SearchProvider;
@@ -33,12 +31,28 @@ final class SearchServiceProvider extends ServiceProvider
             return new Fts5SearchIndexer($database);
         });
 
-        $this->singleton(SearchAccessChecker::class, function (): SearchAccessChecker {
-            return new EntitySearchAccessChecker(
-                $this->resolve(EntityTypeManagerInterface::class),
-                $this->resolve(EntityAccessHandler::class),
-                $this->resolve(AccountContextInterface::class),
-                $this->resolveOptional(AccountFieldReadScopeInterface::class),
+        $this->singleton(SearchCandidateResolverInterface::class, function (): SearchCandidateResolverInterface {
+            $entityTypeManager = $this->resolve(EntityTypeManagerInterface::class);
+            if (!$entityTypeManager instanceof EntityTypeManagerInterface) {
+                throw new \LogicException('Search requires EntityTypeManagerInterface.');
+            }
+            $accessHandler = $this->resolve(EntityAccessHandler::class);
+            if (!$accessHandler instanceof EntityAccessHandler) {
+                throw new \LogicException('Search requires EntityAccessHandler.');
+            }
+            $fieldReadScope = $this->resolve(AccountFieldReadScopeInterface::class);
+            if (!$fieldReadScope instanceof AccountFieldReadScopeInterface) {
+                throw new \LogicException('Search requires AccountFieldReadScopeInterface.');
+            }
+            $sourceProvider = $this->resolveOptional(ProvidesSearchSourceResolversInterface::class);
+            if ($sourceProvider !== null && !$sourceProvider instanceof ProvidesSearchSourceResolversInterface) {
+                throw new \LogicException('Search source resolver provider must implement ProvidesSearchSourceResolversInterface.');
+            }
+
+            return new SearchCandidateResolverRegistry(
+                $entityTypeManager,
+                new EntitySearchCandidateResolver($entityTypeManager, $accessHandler, $fieldReadScope),
+                $sourceProvider?->searchSourceResolvers() ?? [],
             );
         });
 
@@ -46,7 +60,7 @@ final class SearchServiceProvider extends ServiceProvider
             return new Fts5SearchProvider(
                 $this->getSearchDatabase(),
                 $this->resolve(SearchIndexerInterface::class),
-                accessChecker: $this->resolve(SearchAccessChecker::class),
+                candidateResolver: $this->resolve(SearchCandidateResolverInterface::class),
             );
         });
     }
