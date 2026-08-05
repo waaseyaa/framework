@@ -1,5 +1,7 @@
 # AI Integration
 
+<!-- Spec reviewed 2026-08-04 - #2191: the legacy McpController discovery blend, search aliases, and stable-meta claims are explicitly retired; new remote search must use the canonical access-checked agent-tool lifecycle. -->
+
 <!-- Spec reviewed 2026-08-03 - #2177 F1 slice B: `AgentTool::toMcpDescriptor()` now always emits the spec-standard MCP `annotations.destructiveHint`, projected from the tool's declared `$destructive`. It is advisory display metadata for MCP clients; server-side enforcement (the write tier's human-approval gate, see docs/specs/mcp-endpoint.md §"Human-approval gate") reads `$destructive` itself and never the hint. On a gated endpoint the MCP layer additionally decorates destructive tools' tools/list descriptors with `_meta["ai.waaseyaa.mcp/approval"]="required"` — that decoration lives in `McpEndpoint`, not in AgentTool. Acceptance: AgentToolDescriptorTest. -->
 
 <!-- Spec reviewed 2026-08-03 - #2177 F6 (mcp-public-boundary): the 11 generic `catch (\Throwable)` arms across the entity/relationship/vector tools no longer embed `$e->getMessage()` in the returned AgentToolResult (nor in its `summary`, the audit/transcript line) — they call `AbstractAgentTool::internalError()`, which returns a fixed INTERNAL_ERROR envelope plus a random correlation id via the new `Waaseyaa\AI\Tools\Error\SanitizedToolError`. The logger (attached at hydration by AttributeToolRegistry, mirroring the EntityAccessHandler mechanism) receives safe diagnostic METADATA only — correlation id, tool, exception class, file, line, integer code — never the message, trace, or the Throwable object. Typed domain catches (validation, revision conflict, key refusal, not-revisionable, forbidden) are untouched and remain machine-readable. See the new "Tool failure contract" section. -->
@@ -440,33 +442,14 @@ When graph reranking changes order, JSON:API response meta includes:
 
 Workflow visibility remains enforced at search output: node entities are only returned when resolved workflow state is `published`.
 
-## AI-Assisted Discovery Blend Contract (v1.0)
+## Legacy AI-Assisted Discovery Blend Contract — REMOVED
 
-The MCP discovery surface now exposes a deterministic blend contract via the `ai_discover` tool (`Waaseyaa\Mcp\McpController`):
-
-- Input:
-  - `query` (required, non-empty)
-  - `type` (optional, defaults to `node`)
-  - `limit` (optional, clamped `1..100`)
-  - optional anchor pair `anchor_type` + `anchor_id` (must be provided together)
-- Search foundation:
-  - delegates to `SearchController` to preserve semantic/keyword fallback behavior and workflow visibility (`published` only for node output).
-- Explainability output:
-  - recommendations include deterministic explanation fields:
-    - `semantic_score`
-    - `graph_context_score`
-    - `combined_score`
-    - `base_rank`
-    - `visibility_contract` (`published_only`)
-- Graph context output:
-  - when anchor is present, response includes anchor graph summary (`outbound`, `inbound`, `total`, and relationship type counts) computed with published-only relationship traversal.
-- Enforcement:
-  - anchor entity must exist and pass `view` access checks,
-  - node anchors must be public (`workflow_state=published` or equivalent status),
-  - invalid params return JSON-RPC `-32602`; authorization/publicity failures return execution error `-32000`.
-- Stable metadata:
-  - MCP tool payloads include `meta.contract_version = v1.0` and `meta.contract_stability = stable`.
-  - `search_entities` is the canonical MCP semantic search tool name; `search_teachings` is a deprecated alias retained for compatibility.
+The `ai_discover`, `search_entities`, and `search_teachings` MCP tools belonged
+to the unrouted legacy `Waaseyaa\Mcp\McpController` stack removed in WP17
+(#1738). They are not served by the live `Waaseyaa\Mcp\McpEndpoint`, and their
+former blend payload and metadata are not current compatibility contracts.
+Applications that need a remotely callable content-search tool must register a
+new, access-checked agent tool through the canonical AI tool registry.
 
 ## Pipeline System
 

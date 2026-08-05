@@ -4,7 +4,11 @@
 
 Full-text and structured search for Waaseyaa applications.
 
-Provides a search index abstraction and query builder for finding entities across types. Supports indexed field selection, faceting, and relevance ranking. Integrates with the API layer for search endpoints.
+Provides a search index abstraction and query builder for finding entities
+across types. The FTS5 implementation indexes a fixed title/body document,
+supports faceting and relevance ranking, preserves Indigenous orthography in
+tokenization, and performs bounded access-filtered pagination. No first-party
+API endpoint currently calls this read surface.
 
 Key classes: `SearchRequest`, `SearchResult`, `SearchProviderInterface`.
 

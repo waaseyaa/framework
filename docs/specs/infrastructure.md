@@ -1,4 +1,5 @@
 # Infrastructure
+<!-- Spec reviewed 2026-08-04 - #2191: the cache_mcp_read contract and its legacy discovery/search/traversal tools were removed with the unrouted McpController stack; the live endpoint has no equivalent cache contract. -->
 <!-- Spec reviewed 2026-07-30 - #2154 (follow-up to #2146): a session.stateless_paths entry of exactly "/" now means the ROOT PATH only, not a prefix of every path. Prefix-matching it made every anonymous GET stateless including /admin/login (a GET that must mint a CSRF token, withheld when no session exists), so an app could not express a cookie-free homepage without silently breaking its own authentication. Named prefixes are unchanged. See middleware-pipeline.md "Stateless path gate". -->
 
 <!-- Spec reviewed 2026-07-30 - #2146 stateless session paths: SessionMiddleware gains an opt-in session.stateless_paths gate (anonymous GET/HEAD on configured prefixes skip session_start; session-cookie-carrying requests resume; other methods unchanged; default [] is exact behavior parity). Access-control semantics unchanged: skipped sessions resolve to AnonymousUser under deny-unless-granted. Full contract in middleware-pipeline.md "SessionMiddleware". -->
@@ -688,44 +689,14 @@ Invalidation:
   - plus broad discovery-surface tags for relationship/node graph-impact changes
 - Fallback path (non tag-aware backends): `deleteAll()` for correctness.
 
-## MCP Read-Path Caching (v1.1)
+## Legacy MCP Read-Path Cache — REMOVED
 
-The HTTP kernel maintains a dedicated MCP read cache bin (database-backed, table `cache_mcp_read`) for read-heavy tool calls served by `Waaseyaa\Mcp\McpController`:
-
-- `search_entities` / `search_teachings`
-- `ai_discover`
-- `traverse_relationships`
-- `get_related_entities`
-- `get_knowledge_graph`
-
-Cache key contract:
-
-- Stable hash of `{contract_version, tool, arguments, account_context}`.
-- `arguments` are recursively normalized with deterministic associative-key sorting.
-- `account_context` includes:
-  - `authenticated` flag
-  - account ID
-  - sorted role list
-
-This prevents cross-account and anonymous/authenticated cache leakage while preserving deterministic replay for identical callers and inputs.
-
-Runtime behavior:
-
-- Tool result payloads are cached with 120-second TTL.
-- Payload contract remains unchanged (`meta.contract_version`, `meta.contract_stability`, tool metadata).
-- Cache writes include tags:
-  - `mcp_read`
-  - `mcp_read:contract:v1.0`
-  - `mcp_read:tool:{tool}`
-  - entity tags extracted from arguments/payload (`mcp_read:entity:{type}` and `mcp_read:entity:{type}:{id}`).
-
-Invalidation:
-
-- Preferred path (tag-aware backends): targeted `invalidateByTags()` on entity save/delete:
-  - `mcp_read`
-  - `mcp_read:entity:{type}`
-  - `mcp_read:entity:{type}:{id}`
-- Fallback path (non tag-aware backends): `deleteAll()`.
+The `cache_mcp_read` stack and the legacy discovery, search, and traversal tools
+were reachable only through the unrouted `Waaseyaa\Mcp\McpController` removed
+in WP17 (#1738). The live `Waaseyaa\Mcp\McpEndpoint` has no MCP read-cache bin
+or compatibility contract for those tool names. A future search/resource
+surface must define its own access-aware cache partitioning and invalidation
+contract before shipping.
 
 ## SSR Render Cache Variant Contract (v1.2)
 
