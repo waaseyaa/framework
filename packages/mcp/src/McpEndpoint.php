@@ -58,6 +58,8 @@ final readonly class McpEndpoint
      */
     private const string APPROVAL_REQUEST_ID_PATTERN = '/^apr_[0-9a-f]{32}$/';
 
+    private McpImplementationInfo $implementationInfo;
+
     /**
      * @param ?EventDispatcherInterface $dispatcher     Optional — when absent the
      *                                                  `waaseyaa.mcp.dispatch` event is silently
@@ -117,7 +119,10 @@ final readonly class McpEndpoint
         private ?string $unauthorizedChallenge = null,
         private int $maxRequestBytes = StreamableHttpTransportGuard::DEFAULT_MAX_REQUEST_BYTES,
         private ?Auth\OAuthProtectedResourceMetadata $oauthProtectedResourceMetadata = null,
+        ?McpImplementationInfo $implementationInfo = null,
     ) {
+        $this->implementationInfo = $implementationInfo ?? new McpImplementationInfo('Waaseyaa', '0.1.0');
+
         // The endpoint's OWN fail-closed contract, independent of provider
         // wiring: a durable-audit endpoint with no ledger — or with the
         // record-nothing NullStrictAuditLedger — is a write surface that LOOKS
@@ -723,7 +728,7 @@ final readonly class McpEndpoint
             'capabilities' => [
                 'tools' => ['listChanged' => false],
             ],
-            'serverInfo' => self::serverInfo(),
+            'serverInfo' => $this->serverInfo(),
         ]);
     }
 
@@ -1568,7 +1573,7 @@ final readonly class McpEndpoint
         $result = $envelope['result'];
         $result['resultType'] ??= 'complete';
         $meta = \is_array($result['_meta'] ?? null) ? $result['_meta'] : [];
-        $meta['io.modelcontextprotocol/serverInfo'] = self::serverInfo();
+        $meta['io.modelcontextprotocol/serverInfo'] = $this->serverInfo();
         $result['_meta'] = $meta;
         if ($method === 'tools/list') {
             $result['ttlMs'] = 0;
@@ -1595,12 +1600,9 @@ final readonly class McpEndpoint
     }
 
     /** @return array{name: string, version: string} */
-    private static function serverInfo(): array
+    private function serverInfo(): array
     {
-        // The implementation-version source of truth is tracked separately by
-        // #1641. Keeping the existing value here preserves legacy bytes while
-        // giving both protocol eras one identity projection.
-        return ['name' => 'Waaseyaa', 'version' => '0.1.0'];
+        return $this->implementationInfo->toArray();
     }
 
     /**
