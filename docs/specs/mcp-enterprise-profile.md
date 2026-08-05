@@ -92,7 +92,12 @@ workflow transition tests, publishing tests, and content tool tests.
   finalizes the actual outcome. A finalization outage leaves a detectable
   dangling reservation rather than a false success record.
 - Rate limiting is shared, atomic, principal-scoped, default-on, and fail-closed
-  when no durable decision can be made.
+  when no durable decision can be made. A limiter outage is recorded as a
+  sanitized infrastructure error before the request is refused.
+- Every accepted request closes with exactly one honest terminal audit stage.
+  A JSON-RPC error returned by a protocol handler is a refusal or failure,
+  never an execution success; malformed internal protocol output also fails
+  toward `execution_failed`.
 - Caller errors and logs exclude secrets, raw binary payloads, exception
   messages, and traces. Correlation identifiers join safe client and operator
   evidence.

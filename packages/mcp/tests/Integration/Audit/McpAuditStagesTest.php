@@ -21,6 +21,7 @@ use Waaseyaa\Audit\Listener\McpDispatchAuditListener;
 use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
 use Waaseyaa\Audit\Storage\AppendOnlyAuditDatabase;
 use Waaseyaa\Audit\Writer\AuditEventWriter;
+use Waaseyaa\Auth\AtomicRateLimiterInterface;
 use Waaseyaa\Auth\DatabaseRateLimiter;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Mcp\Auth\BearerTokenAuth;
@@ -197,6 +198,7 @@ final class McpAuditStagesTest extends TestCase
         AccountInterface $account,
         ?ToolRegistryInterface $registry = null,
         int $rateLimitMax = 0,
+        ?AtomicRateLimiterInterface $rateLimiter = null,
     ): McpEndpoint {
         $inner = $registry ?? $this->registry($this->writeTool());
 
@@ -204,7 +206,7 @@ final class McpAuditStagesTest extends TestCase
             auth: new BearerTokenAuth([self::TOKEN => $account]),
             agentRegistry: new CapabilityScopedToolRegistry($inner, [self::WRITE_CAP]),
             dispatcher: $this->dispatcher,
-            rateLimiter: $rateLimitMax > 0 ? new DatabaseRateLimiter($this->db) : null,
+            rateLimiter: $rateLimiter ?? ($rateLimitMax > 0 ? new DatabaseRateLimiter($this->db) : null),
             rateLimitMaxRequests: $rateLimitMax,
             rateLimitWindowSeconds: 60,
             rateLimitTier: 'write',
@@ -353,6 +355,67 @@ final class McpAuditStagesTest extends TestCase
 
         $stages = array_column(array_column($this->auditRows(), 'attributes'), 'stage');
         self::assertContains('rate_limited', $stages, 'A 429 decision must be audited.');
+    }
+
+    #[Test]
+    public function a_rate_limiter_outage_is_audited_as_an_infrastructure_error(): void
+    {
+        $secret = 'sqlite://operator:sk-limiter-secret@audit';
+        $broken = new class ($secret) implements AtomicRateLimiterInterface {
+            public function __construct(private readonly string $secret) {}
+
+            public function consume(string $key, int $maxAttempts, int $decaySeconds): bool
+            {
+                throw new \RuntimeException($this->secret);
+            }
+
+            public function hit(string $key, int $decaySeconds): void {}
+
+            public function tooManyAttempts(string $key, int $maxAttempts): bool
+            {
+                return false;
+            }
+
+            public function attempts(string $key): int
+            {
+                return 0;
+            }
+
+            public function remaining(string $key, int $maxAttempts): int
+            {
+                return $maxAttempts;
+            }
+
+            public function clear(string $key): void {}
+        };
+
+        $response = $this->call(
+            $this->endpoint($this->account(7), rateLimitMax: 1, rateLimiter: $broken),
+            'ping',
+        );
+
+        self::assertSame(503, $response->getStatusCode());
+        $rows = $this->auditRows();
+        self::assertCount(1, $rows);
+        self::assertSame('rate_limiter_unavailable', $rows[0]['attributes']['stage']);
+        self::assertSame('error', $rows[0]['outcome']);
+        self::assertSame('warning', $rows[0]['severity']);
+        self::assertStringNotContainsString('sk-limiter-secret', $this->auditBytes());
+    }
+
+    #[Test]
+    public function a_returned_protocol_error_is_audited_as_a_refusal(): void
+    {
+        $response = $this->call($this->endpoint($this->account(7)), 'initialize');
+
+        self::assertSame(-32602, \json_decode($response->getContent(), true, 512, \JSON_THROW_ON_ERROR)['error']['code']);
+        $rows = $this->auditRows();
+        self::assertSame(
+            ['request_accepted', 'invalid_params_refused'],
+            array_column(array_column($rows, 'attributes'), 'stage'),
+        );
+        self::assertSame(['allowed', 'denied'], array_column($rows, 'outcome'));
+        self::assertSame(-32602, $rows[1]['attributes']['metadata']['error_code']);
     }
 
     // ------------------------------------------------ DEFECT: only a params hash retained

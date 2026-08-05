@@ -2,6 +2,8 @@
 
 - **ai-agent / ai-schema**: Remove the vestigial `ai-agent` to `ai-schema` production dependency (#2200). The agent runtime has no schema-package imports or generated-manifest integration; `ai-schema` remains a standalone public utility shipped by the root and full distributions, and any future capability-registry integration must restore an explicit, tested edge. The AI specs now retire the nonexistent legacy MCP generator/executor/registry surfaces and distinguish future schema integration from shipped behavior.
 
+- **mcp / foundation / audit**: Close two MCP audit-stage gaps (#2199). A rate-limiter outage now emits one sanitized `rate_limiter_unavailable` infrastructure-error stage before the request fails closed, and protocol handlers that return JSON-RPC errors can no longer be recorded as successful executions: invalid params close as a refusal, while other returned errors and malformed internal responses close as execution failures. Malformed internal output is replaced with a correlation-only `-32603` response rather than reaching the caller.
+
 - **northcloud / cli / admin / search (#2185, #2187):** Retire the abandoned NorthCloud integration from the active framework and release graph. The package, root and CLI Composer dependencies, sync command/provider, split-package publishing entry, layer/import/public-surface inventories, and current operator/spec references are removed. The generic admin dashboard no longer calls the ownerless `/api/staff/nc-sync-status` endpoint or ships its state, routes, translations, markup, or styles; its catalog-gated `ingest_log` counters remain. The internal `SearchRequest::cacheKey()` helper, whose sole production consumer was NorthCloud, is removed with it instead of preserving an ownerless cache contract.
 
 - **foundation / ai-tools / cli / audit**: Close the framework-boundary gaps found during MCP hardening. Bearer-token operator commands now live in the Layer-6 CLI package while auth owns only the credential domain; the new MCP approval projection registers through Waaseyaa's event-dispatcher port without adding a Symfony subscriber exception; and applications now have a deterministic, kernel-injected `ProvidesAgentToolsInterface` lifecycle instead of mutating the tool registry from route registration.
@@ -41,6 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   live on the protected admin API; and the access-checked FTS5 read surface has
   no first-party HTTP consumer yet. The contributor layer table now mirrors all
   packages enforced by `bin/check-package-layers`.
+
+### Security
+
+- **Search index trust boundary (#2211).** Classify the raw FTS5 tables as a protected derived datastore, require an access checker for every provider construction, default-deny unknown and non-entity sources, and pin the complete production SQL-reader inventory so a new autocomplete, diagnostic, or alternate provider cannot bypass review. Public non-entity corpora now require the explicit source-resolver contract planned in #2192; indexed metadata is never authorization evidence.
 
 ## [0.1.0-alpha.286] - 2026-08-04
 

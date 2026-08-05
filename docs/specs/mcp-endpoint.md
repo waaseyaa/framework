@@ -1,5 +1,6 @@
 # MCP Endpoint
 
+<!-- Spec reviewed 2026-08-04 - #2199: every admitted or infrastructure-refused MCP request now ends in an honest audit stage. A rate-limiter exception emits the sanitized terminal `rate_limiter_unavailable` stage before returning -32030/503; it is an infrastructure `error`, not a policy denial, and never carries the exception message. Protocol handlers that return a JSON-RPC error are no longer misclassified as `execution_succeeded`: -32602 closes as `invalid_params_refused`, while any other returned protocol error closes as `execution_failed`. -->
 <!-- Spec reviewed 2026-08-04 - #2191 contract-truth reconciliation: the live endpoint methods, stage-aware dispatch event, conditional route set, protocol-header behavior, protected admin diagnostics, and deliberate resources/prompts absence were checked against current source. Removed legacy McpController claims are no longer presented as live behavior. -->
 
 <!-- Spec reviewed 2026-08-04 - #2177 boundary correction: bearer-token storage and validation remain in waaseyaa/auth (L1), while the Symfony Console `bearer-token:*` presentation now lives in `Waaseyaa\CLI\Provider\BearerTokenServiceProvider` and `Waaseyaa\CLI\Command\BearerTokenConsoleCommands` (L6). This supersedes the command-ownership sentence in the 2026-08-03 F3 review note below. -->
@@ -147,18 +148,15 @@ request reached routing.
 **Firing contract:**
 
 - Fires once per meaningful **pipeline stage**, not once per request.
-  Authentication rejection and an over-limit refusal are recorded before routing;
-  admitted messages emit `request_accepted` and exactly one terminal stage.
-- A rate-limiter-unavailable `-32030` / HTTP 503 occurs before acceptance and is
-  logged, but currently emits no dispatch event. This audit-stage gap is tracked
-  in #2199.
+  Authentication rejection, an over-limit refusal, and a rate-limiter outage
+  are recorded before routing; admitted messages emit `request_accepted` and
+  exactly one terminal stage.
 - Bodies that cannot be parsed or named honestly are rejected without an
   acceptance event. A 401 is recorded with a null actor and no credential
   material.
-- `execution_succeeded` means a protocol handler returned normally; it does not
-  assert that the returned JSON-RPC envelope was successful. A returned
-  protocol error can therefore carry that stage, while a thrown handler emits
-  `execution_failed`; #2199 tracks the semantic correction.
+- Returned protocol errors close as `invalid_params_refused` for `-32602` or
+  `execution_failed` otherwise; only a successful result closes as
+  `execution_succeeded`.
 - The event is the best-effort compatibility projection. Strict refusal and
   write-attempt evidence uses the durable ledger; projection failure never
   changes the JSON-RPC response.
@@ -485,8 +483,9 @@ A request now emits one record per meaningful **stage** (`Waaseyaa\Foundation\Au
 |---|---|---|
 | `authentication_rejected` | `denied` | absent / unknown / malformed token, or inactive principal |
 | `rate_limited` | `denied` | the limiter refused the request |
+| `rate_limiter_unavailable` | `error` | the limiter could not make a durable admission decision; the request failed closed |
 | `request_accepted` | `allowed` | authenticated, parsed, admitted for routing |
-| `invalid_params_refused` | `denied` | malformed JSON-RPC envelope: non-object `params`, missing/non-string `name`, non-object `arguments` |
+| `invalid_params_refused` | `denied` | malformed JSON-RPC envelope or protocol params: non-object `params`, missing/non-string `name`, non-object `arguments`, or a handler-returned `-32602` |
 | `method_lookup_refused` | `denied` | no handler for the requested JSON-RPC method on this endpoint |
 | `tool_lookup_refused` | `denied` | no tool of that name is visible on this tier |
 | `input_validation_refused` | `denied` | arguments violate the declared `inputSchema` |
@@ -494,14 +493,14 @@ A request now emits one record per meaningful **stage** (`Waaseyaa\Foundation\Au
 | `authorization_refused` | `denied` | the tool's own capability / entity / field guard refused |
 | `approval_required` | `denied` | F1 gate: a destructive call was durably challenged (or re-challenged while pending) and is waiting on a human decision |
 | `approval_refused` | `denied` | F1 gate: a supplied approval id was unknown / tuple-mismatched / denied / expired / consumed, or the once-only consume was lost to a race |
-| `execution_succeeded` | `allowed` | the routed operation — a tool call **or a protocol method** — ran and reported success |
-| `execution_failed` | `error` | the tool returned or threw a failure |
+| `execution_succeeded` | `allowed` | the routed operation — a tool call **or a protocol method** — ran and returned a success result |
+| `execution_failed` | `error` | a tool or protocol handler returned or threw a failure |
 
 **F1 approval-controller prerequisite (landed, #2177):** the CSRF machinery the approval HTTP endpoint needs is in place. The approval controller's route must be declared with `RouteBuilder::requireCsrf()` (`_csrf = true`), which makes `CsrfMiddleware` validate the token on state-changing methods **even for `application/json` / `application/vnd.api+json`** — the default content-type exemption does not protect a cookie-authenticated JSON endpoint, and an approval decision is exactly such an endpoint (the admin operator approves from a session-cookie-authenticated SPA, unlike the bearer-authenticated `/mcp/write` tier itself, which stays `csrfExempt()`). The admin SPA receives the `XSRF-TOKEN` cookie on API responses carrying both an authenticated account and the `waaseyaa_uid` login-session marker (`CsrfMiddleware::attachCookieIfAuthenticated()`, seeded at boot by `GET /api/user/me`); bearer-only requests do not receive it. `useApi().apiFetch` forwards the token as `X-XSRF-TOKEN` on non-safe methods to same-origin destinations only. **Origin check (landed with the C1b controller):** an exact-match `Origin` check against the deployment's allowed origins. It is deliberately *not* in `CsrfMiddleware` — the CORS allowlist lives at the kernel (`CorsHandler`), and a blanket middleware same-origin guard would break the supported cross-port Nuxt-dev deployment — so `McpApprovalController::decide()` performs it as defense-in-depth: the `Origin` header must be present and strictly identical to the request's own `scheme://host[:port]` or to one `cors_origins` entry (no substring, suffix, wildcard, regex, or host-only matching; the `CorsHandler` dev-localhost regex mode is deliberately NOT reused).
 
 `request_accepted` is legitimately `allowed` — the request *was* admitted. The load-bearing property is that the **terminal** stage states what actually happened.
 
-**The pair invariant:** every authenticated, parsed, accepted request emits `request_accepted` and then **exactly one honest terminal stage** — no request is left as a bare admission. That includes the mutation-free protocol methods (`initialize`, `ping`, `tools/list` → `execution_succeeded` — their handlers run as closures inside the routing wrapper's try/catch, so a handler that *throws* (e.g. tool-registry enumeration failing under `tools/list`) still closes the pair with `execution_failed`, answers with a sanitized JSON-RPC `-32603` whose `error.data.correlation_id` matches the pair, and logs safe metadata only under `mcp.protocol_execution_failed`: correlation id, method, exception class — never message, trace, or params), an unknown method (`method_lookup_refused`), a non-object top-level `params` (`invalid_params_refused`), and each early malformed `tools/call` envelope shape (missing `name`, non-string `name`, non-object `arguments` → `invalid_params_refused`). Only their *type* is ever recorded for malformed members — a malformed value is raw caller input and never rides into any record. Two refusals happen **before** acceptance and therefore emit nothing: a JSON parse error (`-32700`) and an Invalid Request whose `method` is missing or not a string (`-32600`) — a request that cannot be honestly named cannot be honestly audited, so nothing is admitted and no `request_accepted` is left unpaired. Successful protocol reads are **projection-only** (best-effort `audit_event`, no durable row): the strict ledger evidences refusals and write attempts, and a durable row per `ping` would be amplification with no durability guarantee behind it. Terminal *refusals* of accepted requests are durably `record()`ed on the write tier.
+**The pair invariant:** every authenticated, parsed, accepted request emits `request_accepted` and then **exactly one honest terminal stage** — no request is left as a bare admission. Mutation-free protocol methods (`initialize`, `ping`, `tools/list`) close with `execution_succeeded` only when their returned JSON-RPC envelope is a valid success result. A returned `-32602` closes with `invalid_params_refused`; another returned protocol error, a malformed internal protocol response, or a thrown handler failure closes with `execution_failed`. Thrown failures and malformed internal responses answer with a sanitized JSON-RPC `-32603` whose `error.data.correlation_id` matches the pair and log safe metadata only: correlation id, method, and exception class when one exists — never an internal response body, exception message, trace, or params. An unknown method closes with `method_lookup_refused`; a non-object top-level `params` and every early malformed `tools/call` envelope shape close with `invalid_params_refused`. Only malformed members' *type* is recorded — a malformed value is raw caller input and never rides into any record. A rate-limiter outage happens before acceptance and emits the single `rate_limiter_unavailable` terminal. Two refusals emit nothing: a JSON parse error (`-32700`) and an Invalid Request whose `method` is missing or not a string (`-32600`) — a request that cannot be honestly named cannot be audited or admitted. Successful protocol reads are **projection-only** (best-effort `audit_event`, no durable row): the strict ledger evidences refusals and write attempts, and a durable row per `ping` would be amplification with no durability guarantee behind it. Terminal *refusals* of accepted requests are durably `record()`ed on the write tier.
 
 ### The durability guarantee, and its exact limit
 

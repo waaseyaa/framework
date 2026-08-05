@@ -286,49 +286,28 @@ final readonly class McpEndpoint
 
         // Per-principal rate limiting (post-auth so 401s never consume budget).
         if ($this->rateLimiter !== null && $this->rateLimitMaxRequests > 0) {
+            $key = sprintf('mcp:%s:%s', $this->rateLimitTier, (string) $principal->id());
             try {
-                $key = sprintf('mcp:%s:%s', $this->rateLimitTier, (string) $principal->id());
-                if (!$this->rateLimiter->consume(
+                $admitted = $this->rateLimiter->consume(
                     $key,
                     $this->rateLimitMaxRequests,
                     $this->rateLimitWindowSeconds,
-                )) {
-                    // Audited OUTSIDE the limiter's own try/catch semantics: the
-                    // algorithm is untouched (atomicity remains F7), only the
-                    // decision is recorded. Recording happens once per refused
-                    // request, so it cannot amplify the very traffic being
-                    // limited.
-                    $this->auditTerminal(
-                        AuditStage::RateLimited,
-                        $correlationId,
-                        $actorUid,
-                        'unknown',
-                        'rate_limit',
-                        [],
-                        ['retry_after_seconds' => $this->rateLimitWindowSeconds],
-                    );
-
-                    return new McpResponse(
-                        body: \json_encode([
-                            'jsonrpc' => '2.0',
-                            'error' => [
-                                'code' => -32029,
-                                'message' => 'Rate limit exceeded',
-                                'data' => [
-                                    'retry_after_seconds' => $this->rateLimitWindowSeconds,
-                                    'correlation_id' => $correlationId,
-                                ],
-                            ],
-                            'id' => null,
-                        ], \JSON_THROW_ON_ERROR),
-                        statusCode: 429,
-                    );
-                }
+                );
             } catch (\Throwable $e) {
                 $this->logger?->error('MCP rate limiter could not make a durable decision.', [
                     'exception_class' => $e::class,
                     'tier' => $this->rateLimitTier,
                 ]);
+
+                $this->auditTerminal(
+                    AuditStage::RateLimiterUnavailable,
+                    $correlationId,
+                    $actorUid,
+                    'unknown',
+                    'rate_limit',
+                    [],
+                    ['reason' => 'unavailable'],
+                );
 
                 return new McpResponse(
                     body: \json_encode([
@@ -341,6 +320,37 @@ final readonly class McpEndpoint
                         'id' => null,
                     ], \JSON_THROW_ON_ERROR),
                     statusCode: 503,
+                );
+            }
+
+            if (!$admitted) {
+                // The limiter decision is complete. Audit and response work sit
+                // outside its exception boundary so they cannot be mistaken for
+                // an admission-decision outage or produce a second terminal.
+                $this->auditTerminal(
+                    AuditStage::RateLimited,
+                    $correlationId,
+                    $actorUid,
+                    'unknown',
+                    'rate_limit',
+                    [],
+                    ['retry_after_seconds' => $this->rateLimitWindowSeconds],
+                );
+
+                return new McpResponse(
+                    body: \json_encode([
+                        'jsonrpc' => '2.0',
+                        'error' => [
+                            'code' => -32029,
+                            'message' => 'Rate limit exceeded',
+                            'data' => [
+                                'retry_after_seconds' => $this->rateLimitWindowSeconds,
+                                'correlation_id' => $correlationId,
+                            ],
+                        ],
+                        'id' => null,
+                    ], \JSON_THROW_ON_ERROR),
+                    statusCode: 429,
                 );
             }
         }
@@ -530,9 +540,79 @@ final readonly class McpEndpoint
             );
         }
 
+        $protocolResult = self::protocolResult($response);
+        if (!$protocolResult['successful']) {
+            $errorCode = $protocolResult['error_code'];
+            $metadata = $errorCode === null
+                ? ['reason' => 'protocol_response_malformed']
+                : ['reason' => 'protocol_error_returned', 'error_code' => $errorCode];
+
+            $this->auditTerminal(
+                $errorCode === -32602 ? AuditStage::InvalidParamsRefused : AuditStage::ExecutionFailed,
+                $correlationId,
+                $actorUid,
+                $method,
+                $method,
+                [],
+                $metadata,
+            );
+
+            if ($errorCode === null) {
+                $this->logger?->error('mcp.protocol_response_malformed', [
+                    'correlation_id' => $correlationId,
+                    'method' => $method,
+                ]);
+
+                return $this->jsonRpcError(
+                    -32603,
+                    'Internal error. Quote the correlation id to an operator to have it diagnosed.',
+                    $id,
+                    ['correlation_id' => $correlationId],
+                );
+            }
+
+            return $response;
+        }
+
         $this->emitAudit(AuditStage::ExecutionSucceeded, $correlationId, $actorUid, $method);
 
         return $response;
+    }
+
+    /**
+     * Classify an internally-generated JSON-RPC response without treating a
+     * malformed body as success.
+     *
+     * @return array{successful: bool, error_code: ?int}
+     */
+    private static function protocolResult(McpResponse $response): array
+    {
+        try {
+            $payload = \json_decode($response->body, true, 512, \JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return ['successful' => false, 'error_code' => null];
+        }
+
+        if (!\is_array($payload)) {
+            return ['successful' => false, 'error_code' => null];
+        }
+
+        $hasResult = \array_key_exists('result', $payload);
+        $hasError = \array_key_exists('error', $payload);
+        if ($hasResult === $hasError) {
+            return ['successful' => false, 'error_code' => null];
+        }
+
+        if ($hasResult) {
+            return ['successful' => true, 'error_code' => null];
+        }
+
+        $code = \is_array($payload['error']) ? ($payload['error']['code'] ?? null) : null;
+
+        return [
+            'successful' => false,
+            'error_code' => \is_int($code) ? $code : null,
+        ];
     }
 
     private function refuseUnknownMethod(
