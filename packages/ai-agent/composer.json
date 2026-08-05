@@ -14,10 +14,6 @@
         },
         {
             "type": "path",
-            "url": "../ai-schema"
-        },
-        {
-            "type": "path",
             "url": "../ai-tools"
         },
         {
@@ -67,7 +63,6 @@
         "symfony/uid": "^7.0",
         "waaseyaa/access": "^0.1.0-alpha.286",
         "waaseyaa/ai-observability": "^0.1.0-alpha.286",
-        "waaseyaa/ai-schema": "^0.1.0-alpha.286",
         "waaseyaa/ai-tools": "^0.1.0-alpha.286",
         "waaseyaa/api": "^0.1.0-alpha.286",
         "waaseyaa/bimaaji": "^0.1.0-alpha.286",
