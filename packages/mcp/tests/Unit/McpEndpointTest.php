@@ -450,17 +450,19 @@ final class McpEndpointTest extends TestCase
             $modern['result']['_meta']['io.modelcontextprotocol/serverInfo'],
         );
         self::assertSame(
-            ['tools' => ['listChanged' => false]],
+            [
+                'tools' => ['listChanged' => false],
+                'resources' => ['subscribe' => false, 'listChanged' => false],
+            ],
             $modern['result']['capabilities'],
-            'The draft discovery response must not advertise resources until that protocol era defines them.',
+            'Current discovery must advertise the complete enabled resource registry.',
         );
 
         $modernResourceCall = $this->dispatchModern($endpoint, 'resources/list');
-        self::assertSame(404, $modernResourceCall->statusCode);
-        self::assertSame(
-            -32601,
-            \json_decode($modernResourceCall->body, true, 512, \JSON_THROW_ON_ERROR)['error']['code'],
-            'A protocol era that does not advertise resources must not serve their methods.',
+        self::assertSame(200, $modernResourceCall->statusCode);
+        self::assertCount(
+            1,
+            \json_decode($modernResourceCall->body, true, 512, \JSON_THROW_ON_ERROR)['result']['resources'],
         );
     }
 
@@ -758,21 +760,40 @@ final class McpEndpointTest extends TestCase
         }
     }
 
-    private function dispatchModern(McpEndpoint $endpoint, string $method): McpResponse
+    /** @param array<string, mixed> $params */
+    private function dispatchModern(
+        McpEndpoint $endpoint,
+        string $method,
+        array $params = [],
+        ?string $name = null,
+    ): McpResponse
     {
-        return $this->dispatch($endpoint, 'POST', $this->modernBody($method), 'Bearer valid-token', [
+        $headers = [
             'HTTP_MCP_PROTOCOL_VERSION' => McpProtocol::CURRENT,
             'HTTP_MCP_METHOD' => $method,
-        ]);
+        ];
+        if ($name !== null) {
+            $headers['HTTP_MCP_NAME'] = $name;
+        }
+
+        return $this->dispatch(
+            $endpoint,
+            'POST',
+            $this->modernBody($method, $params),
+            'Bearer valid-token',
+            $headers,
+        );
     }
 
-    private function modernBody(string $method): string
+    /** @param array<string, mixed> $params */
+    private function modernBody(string $method, array $params = []): string
     {
         return \json_encode([
             'jsonrpc' => '2.0',
             'id' => 1,
             'method' => $method,
             'params' => [
+                ...$params,
                 '_meta' => [
                     McpProtocol::VERSION_META_KEY => McpProtocol::CURRENT,
                     'io.modelcontextprotocol/clientCapabilities' => [],
@@ -830,6 +851,212 @@ final class McpEndpointTest extends TestCase
         $read = $this->rpc($endpoint, 'resources/read', ['uri' => 'waaseyaa://content/L2Fib3V0']);
         self::assertSame('Safe about body', $read['result']['contents'][0]['text']);
         self::assertSame('text/plain', $read['result']['contents'][0]['mimeType']);
+    }
+
+    #[Test]
+    public function modern_resources_are_served_with_complete_private_immediately_stale_results(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $endpoint = $this->createEndpoint(resources: $this->resourceRegistry(), resourcesEnabled: true);
+
+        foreach (['resources/list' => 'resources', 'resources/templates/list' => 'resourceTemplates'] as $method => $member) {
+            $response = $this->dispatchModern($endpoint, $method);
+            $result = json_decode($response->body, true, 512, JSON_THROW_ON_ERROR)['result'];
+
+            self::assertNotEmpty($result[$member]);
+            self::assertSame('complete', $result['resultType']);
+            self::assertSame(0, $result['ttlMs']);
+            self::assertSame('private', $result['cacheScope']);
+            self::assertSame('no-store', $response->headers['Cache-Control'] ?? null);
+        }
+
+        $uri = 'waaseyaa://content/L2Fib3V0';
+        $read = $this->dispatchModern($endpoint, 'resources/read', ['uri' => $uri], $uri);
+        $result = json_decode($read->body, true, 512, JSON_THROW_ON_ERROR)['result'];
+        self::assertSame('Safe about body', $result['contents'][0]['text']);
+        self::assertSame(0, $result['ttlMs']);
+        self::assertSame('private', $result['cacheScope']);
+        self::assertSame('Waaseyaa', $result['_meta']['io.modelcontextprotocol/serverInfo']['name']);
+        self::assertSame('no-store', $read->headers['Cache-Control'] ?? null);
+    }
+
+    #[Test]
+    public function modern_resource_read_requires_a_matching_name_header_and_audits_rejections(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $events = [];
+        $dispatcher = new \Symfony\Component\EventDispatcher\EventDispatcher();
+        $dispatcher->addListener(McpDispatchEvent::NAME, static function (McpDispatchEvent $event) use (&$events): void {
+            $events[] = $event;
+        });
+        $endpoint = $this->createEndpoint(
+            resources: $this->resourceRegistry(),
+            resourcesEnabled: true,
+            dispatcher: $dispatcher,
+        );
+        $uri = 'waaseyaa://content/L2Fib3V0';
+
+        foreach ([null, 'waaseyaa://content/different'] as $name) {
+            $response = $this->dispatchModern($endpoint, 'resources/read', ['uri' => $uri], $name);
+            self::assertSame(400, $response->statusCode);
+            self::assertSame(-32020, json_decode($response->body, true, 512, JSON_THROW_ON_ERROR)['error']['code']);
+        }
+        $unexpected = $this->dispatchModern($endpoint, 'resources/list', name: $uri);
+        self::assertSame(-32020, json_decode($unexpected->body, true, 512, JSON_THROW_ON_ERROR)['error']['code']);
+        self::assertSame([
+            AuditStage::RequestAccepted->value,
+            AuditStage::InvalidParamsRefused->value,
+            AuditStage::RequestAccepted->value,
+            AuditStage::InvalidParamsRefused->value,
+            AuditStage::RequestAccepted->value,
+            AuditStage::InvalidParamsRefused->value,
+        ], array_map(static fn(McpDispatchEvent $event): ?string => $event->stage, $events));
+    }
+
+    #[Test]
+    public function modern_resource_refusals_are_non_oracular_and_audited_by_cause(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $events = [];
+        $dispatcher = new \Symfony\Component\EventDispatcher\EventDispatcher();
+        $dispatcher->addListener(McpDispatchEvent::NAME, static function (McpDispatchEvent $event) use (&$events): void {
+            $events[] = $event;
+        });
+        $endpoint = $this->createEndpoint(
+            resources: $this->resourceRegistry(true),
+            resourcesEnabled: true,
+            dispatcher: $dispatcher,
+        );
+        $deniedUri = 'waaseyaa://content/L2Fib3V0';
+        $missingUri = 'waaseyaa://content/L21pc3Npbmc';
+
+        $denied = $this->dispatchModern($endpoint, 'resources/read', ['uri' => $deniedUri], $deniedUri);
+        $missing = $this->dispatchModern($endpoint, 'resources/read', ['uri' => $missingUri], $missingUri);
+        self::assertSame($denied->body, $missing->body);
+        self::assertSame(-32602, json_decode($denied->body, true, 512, JSON_THROW_ON_ERROR)['error']['code']);
+        self::assertSame([
+            AuditStage::RequestAccepted->value,
+            AuditStage::AuthorizationRefused->value,
+            AuditStage::RequestAccepted->value,
+            AuditStage::AuthorizationRefused->value,
+        ], array_map(static fn(McpDispatchEvent $event): ?string => $event->stage, $events));
+    }
+
+    #[Test]
+    public function unauthorized_modern_resource_read_refuses_before_provider_uri_parsing(): void
+    {
+        $principal = $this->createMock(AuthorizationPrincipalInterface::class);
+        $principal->method('id')->willReturn(9);
+        $principal->method('hasPermission')->willReturn(false);
+        $this->auth->method('authenticate')->willReturn($principal);
+        $endpoint = $this->createEndpoint(resources: $this->resourceRegistry(), resourcesEnabled: true);
+        $malformed = 'waaseyaa://content/L2Fib3V0=';
+
+        $response = $this->dispatchModern($endpoint, 'resources/read', ['uri' => $malformed], $malformed);
+
+        self::assertSame(-32602, json_decode($response->body, true, 512, JSON_THROW_ON_ERROR)['error']['code']);
+        self::assertSame('Resource not found', json_decode($response->body, true, 512, JSON_THROW_ON_ERROR)['error']['message']);
+    }
+
+    #[Test]
+    public function modern_resource_read_distinguishes_invalid_input_from_sanitized_provider_failure_in_audit(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $events = [];
+        $dispatcher = new \Symfony\Component\EventDispatcher\EventDispatcher();
+        $dispatcher->addListener(McpDispatchEvent::NAME, static function (McpDispatchEvent $event) use (&$events): void {
+            $events[] = $event;
+        });
+        $registry = new ContentResourceRegistry();
+        $registry->register('broken', new class implements ContentResourceProviderInterface {
+            public function list(AuthorizationPrincipalInterface $principal): array { return []; }
+            public function templates(): array { return []; }
+            public function read(string $uri, AuthorizationPrincipalInterface $principal): ?ContentResourceContent
+            {
+                if (str_contains($uri, '=')) {
+                    throw new MalformedContentResourceUriException();
+                }
+
+                throw new \RuntimeException('sqlite:////private/path?credential=value');
+            }
+        });
+        $endpoint = $this->createEndpoint(resources: $registry, resourcesEnabled: true, dispatcher: $dispatcher);
+
+        $malformed = 'waaseyaa://content/L2Fib3V0=';
+        $invalid = $this->dispatchModern($endpoint, 'resources/read', ['uri' => $malformed], $malformed);
+        self::assertSame(-32602, json_decode($invalid->body, true, 512, JSON_THROW_ON_ERROR)['error']['code']);
+
+        $uri = 'waaseyaa://content/L2Fib3V0';
+        $failed = $this->dispatchModern($endpoint, 'resources/read', ['uri' => $uri], $uri);
+        self::assertSame(-32603, json_decode($failed->body, true, 512, JSON_THROW_ON_ERROR)['error']['code']);
+        self::assertStringNotContainsString('sqlite', $failed->body);
+        self::assertSame([
+            AuditStage::RequestAccepted->value,
+            AuditStage::InvalidParamsRefused->value,
+            AuditStage::RequestAccepted->value,
+            AuditStage::ExecutionFailed->value,
+        ], array_map(static fn(McpDispatchEvent $event): ?string => $event->stage, $events));
+    }
+
+    #[Test]
+    public function unserializable_provider_content_fails_sanitized_before_success_in_both_protocol_eras(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        $events = [];
+        $dispatcher = new \Symfony\Component\EventDispatcher\EventDispatcher();
+        $dispatcher->addListener(McpDispatchEvent::NAME, static function (McpDispatchEvent $event) use (&$events): void {
+            $events[] = $event;
+        });
+        $registry = new ContentResourceRegistry();
+        $registry->register('invalid-metadata', new class implements ContentResourceProviderInterface {
+            public function list(AuthorizationPrincipalInterface $principal): array { return []; }
+            public function templates(): array { return []; }
+            public function read(string $uri, AuthorizationPrincipalInterface $principal): ?ContentResourceContent
+            {
+                return new ContentResourceContent("waaseyaa://content/\xFF", 'safe body');
+            }
+        });
+        $endpoint = $this->createEndpoint(resources: $registry, resourcesEnabled: true, dispatcher: $dispatcher);
+        $uri = 'waaseyaa://content/L2Fib3V0';
+
+        $modern = $this->dispatchModern($endpoint, 'resources/read', ['uri' => $uri], $uri);
+        $legacy = $this->rpcResponse($endpoint, 'resources/read', ['uri' => $uri]);
+
+        foreach ([$modern, $legacy] as $response) {
+            $decoded = json_decode($response->body, true, 512, JSON_THROW_ON_ERROR);
+            self::assertSame(-32603, $decoded['error']['code']);
+            self::assertArrayHasKey('correlation_id', $decoded['error']['data']);
+            self::assertStringNotContainsString('Malformed UTF-8', $response->body);
+        }
+        self::assertSame([
+            AuditStage::RequestAccepted->value,
+            AuditStage::ExecutionFailed->value,
+            AuditStage::RequestAccepted->value,
+            AuditStage::ExecutionFailed->value,
+        ], array_map(static fn(McpDispatchEvent $event): ?string => $event->stage, $events));
+    }
+
+    #[Test]
+    public function modern_resource_methods_fail_closed_for_every_incomplete_registry_configuration(): void
+    {
+        $this->auth->method('authenticate')->willReturn($this->account);
+        foreach ([
+            $this->createEndpoint(resourcesEnabled: false),
+            $this->createEndpoint(resources: $this->resourceRegistry(), resourcesEnabled: false),
+            $this->createEndpoint(resourcesEnabled: true),
+        ] as $endpoint) {
+            $discovery = json_decode($this->dispatchModern($endpoint, 'server/discover')->body, true, 512, JSON_THROW_ON_ERROR);
+            self::assertArrayNotHasKey('resources', $discovery['result']['capabilities']);
+            foreach (['resources/list', 'resources/templates/list'] as $method) {
+                $response = $this->dispatchModern($endpoint, $method);
+                self::assertSame(404, $response->statusCode);
+                self::assertSame(-32601, json_decode($response->body, true, 512, JSON_THROW_ON_ERROR)['error']['code']);
+            }
+            $uri = 'waaseyaa://content/L2Fib3V0';
+            $read = $this->dispatchModern($endpoint, 'resources/read', ['uri' => $uri], $uri);
+            self::assertSame(404, $read->statusCode);
+            self::assertSame(-32601, json_decode($read->body, true, 512, JSON_THROW_ON_ERROR)['error']['code']);
+        }
     }
 
     #[Test]

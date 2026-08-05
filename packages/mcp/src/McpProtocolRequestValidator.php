@@ -38,8 +38,10 @@ final readonly class McpProtocolRequestValidator
             }
             $this->requireExact($headers->method, \is_string($method) ? $method : null, 'method_mismatch');
 
-            if ($method === 'tools/call') {
-                $bodyName = $params['name'] ?? null;
+            if ($method === 'tools/call' || $method === 'resources/read') {
+                $bodyName = $method === 'tools/call'
+                    ? ($params['name'] ?? null)
+                    : ($params['uri'] ?? null);
                 $headerName = self::decodeName($headers->name);
                 $this->requireExact($headerName, \is_string($bodyName) ? $bodyName : null, 'name_mismatch');
             } elseif ($headers->name !== null) {
