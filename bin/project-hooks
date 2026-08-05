@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+MARKER="waaseyaa-project-hooks-v1"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+fail() {
+  echo "project-hooks: $*" >&2
+  exit 1
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || fail "required command '$1' is unavailable. Install it, then retry."
+}
+
+hooks_dir() {
+  local directory
+  directory="$(git -C "$REPO_ROOT" rev-parse --git-path hooks)"
+  if [[ "$directory" != /* ]]; then
+    directory="$REPO_ROOT/$directory"
+  fi
+  printf '%s\n' "$directory"
+}
+
+write_hook() {
+  local target="$1" action="$2"
+  # The single quotes intentionally defer expansion to hook invocation.
+  # shellcheck disable=SC2016
+  printf '%s\n' \
+    '#!/bin/sh' \
+    "# $MARKER" \
+    'repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 1' \
+    "exec \"\$repo_root/bin/project-hooks\" $action \"\$@\"" > "$target"
+  chmod +x "$target"
+}
+
+install_hooks() {
+  require_command git
+  local directory
+  directory="$(hooks_dir)"
+  mkdir -p "$directory"
+  for hook in pre-commit pre-push; do
+    if [[ -f "$directory/$hook" ]] && ! grep -q "$MARKER\|call_lefthook" "$directory/$hook"; then
+      fail "refusing to replace unknown hook: $directory/$hook"
+    fi
+  done
+  write_hook "$directory/pre-commit" pre-commit
+  write_hook "$directory/pre-push" pre-push
+
+  if [[ -f "$directory/prepare-commit-msg" ]] && grep -q 'call_lefthook' "$directory/prepare-commit-msg"; then
+    rm "$directory/prepare-commit-msg"
+  fi
+  echo "Project hooks installed in $directory"
+}
+
+doctor() {
+  require_command git
+  local directory problem=0
+  directory="$(hooks_dir)"
+  for hook in pre-commit pre-push; do
+    if [[ ! -x "$directory/$hook" ]] || ! grep -q "$MARKER" "$directory/$hook"; then
+      echo "project-hooks: $hook is missing or stale; run 'composer hooks:install'." >&2
+      problem=1
+    fi
+  done
+  if [[ -f "$directory/prepare-commit-msg" ]] && grep -q 'call_lefthook' "$directory/prepare-commit-msg"; then
+    echo "project-hooks: unused Lefthook prepare-commit-msg remains; run 'composer hooks:install'." >&2
+    problem=1
+  fi
+  [[ "$problem" -eq 0 ]] || exit 1
+  echo "Project hooks are installed and current."
+}
+
+claude_session() {
+  require_command git
+  local branch base status_count summary
+  branch="$(git -C "$REPO_ROOT" branch --show-current 2>/dev/null || true)"
+  [[ -n "$branch" ]] || branch="detached HEAD"
+  if git -C "$REPO_ROOT" rev-parse --verify --quiet 'origin/main^{commit}' >/dev/null; then
+    base="origin/main"
+  elif git -C "$REPO_ROOT" rev-parse --verify --quiet 'main^{commit}' >/dev/null; then
+    base="main"
+  else
+    base="HEAD"
+  fi
+  summary="$(git -C "$REPO_ROOT" diff --shortstat "$base"...HEAD 2>/dev/null || true)"
+  [[ -n "$summary" ]] || summary="no committed changes"
+  status_count="$(git -C "$REPO_ROOT" status --porcelain | wc -l | tr -d ' ')"
+  echo "Waaseyaa repository context"
+  echo "Branch: $branch"
+  echo "Base: $base"
+  echo "Committed diff: $summary"
+  echo "Working tree: $status_count changed path(s)"
+  echo "Publication gate: run composer verify; spec drift is checked on push."
+}
+
+pre_commit() {
+  require_command git
+  if ! git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMR | grep -qE '\.php$'; then
+    exit 0
+  fi
+  require_command php
+  require_command composer
+  cd "$REPO_ROOT"
+  composer cs-check
+}
+
+pre_push() {
+  require_command php
+  cd "$REPO_ROOT"
+  php bin/check-composer-policy
+  php bin/check-symfony-imports
+  php bin/check-package-layers
+  if ! bash tools/drift-detector.sh origin/main; then
+    echo "project-hooks: spec drift is advisory locally but blocking in CI." >&2
+    echo "project-hooks: update the spec or commit a 'spec-reviewed: <spec-path> - <reason>' trailer." >&2
+  fi
+  echo "Fast pre-push checks passed. Run 'composer verify' for the complete local gate."
+}
+
+case "${1:-}" in
+  install) install_hooks ;;
+  doctor) doctor ;;
+  claude-session) claude_session ;;
+  pre-commit) pre_commit ;;
+  pre-push) pre_push ;;
+  *) fail "usage: bin/project-hooks {install|doctor|claude-session|pre-commit|pre-push}" ;;
+esac

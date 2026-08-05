@@ -71,6 +71,24 @@ final class DriftDetectorAcknowledgementTest extends TestCase
         self::assertStringContainsString('STALE: docs/specs/entity-system.md', $output);
     }
 
+    #[Test]
+    public function search_source_is_coupled_to_its_spec(): void
+    {
+        mkdir($this->fixtureRoot . '/packages/search/src', 0o777, true);
+        file_put_contents($this->fixtureRoot . '/packages/search/src/Indexer.php', "<?php\nfinal class Indexer {}\n");
+        file_put_contents($this->fixtureRoot . '/docs/specs/search.md', "# Search\n");
+        $this->executeCommand('git add .');
+        $this->executeCommand("git commit --quiet -m 'test: add search baseline'");
+        file_put_contents($this->fixtureRoot . '/packages/search/src/Indexer.php', "<?php\nfinal class Indexer { public const CHANGED = true; }\n");
+        $this->executeCommand('git add packages/search/src/Indexer.php');
+        $this->executeCommand("git commit --quiet -m 'feat: change search contract'");
+
+        [$exitCode, $output] = $this->executeCommand('bash tools/drift-detector.sh HEAD~1', allowFailure: true);
+
+        self::assertSame(1, $exitCode, $output);
+        self::assertStringContainsString('STALE: docs/specs/search.md', $output);
+    }
+
     /** @return array{int, string} */
     private function executeCommand(string $command, bool $allowFailure = false): array
     {

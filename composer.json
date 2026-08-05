@@ -478,6 +478,8 @@
         "check-no-secrets": "bash bin/check-no-secrets",
         "check-package-layers": "php bin/check-package-layers",
         "check-symfony-imports": "php bin/check-symfony-imports",
+        "hooks:install": "bash bin/project-hooks install",
+        "hooks:doctor": "bash bin/project-hooks doctor",
         "cs-check": "php-cs-fixer fix --dry-run --diff",
         "cs-fix": "php-cs-fixer fix",
         "dev": [

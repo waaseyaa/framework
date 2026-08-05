@@ -123,15 +123,16 @@ npx playwright show-trace test-results/<test-name>/trace.zip
 Install with:
 
 ```bash
-bash scripts/install-git-hooks.sh
+composer hooks:install
+composer hooks:doctor
 ```
 
 ### pre-push
 
-Runs automatically before `git push`:
-- PHP syntax check on changed files
-- `composer validate`
-- PHPStan (if configured)
+Runs sequential, fast architecture checks before `git push`: Composer policy,
+Symfony import boundaries, package layers, and the advisory local spec-drift
+check. CI remains authoritative. Run `composer verify` for the complete local
+gate before publication.
 
 ## Release Scripts
 

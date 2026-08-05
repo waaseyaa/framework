@@ -1,28 +1,16 @@
 {
   "mcpServers": {},
   "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "tools/drift-detector.sh 5 2>&1",
-            "if": "Bash(git push*)",
-            "timeout": 30,
-            "statusMessage": "Checking for spec drift..."
-          }
-        ]
-      }
-    ],
     "SessionStart": [
       {
-        "matcher": "",
+        "matcher": "startup",
         "hooks": [
           {
             "type": "command",
-            "command": "tools/drift-detector.sh 5 2>&1",
-            "show_output": true
+            "command": "${CLAUDE_PROJECT_DIR}/bin/project-hooks",
+            "args": ["claude-session"],
+            "timeout": 5,
+            "statusMessage": "Loading concise branch context..."
           }
         ]
       }
