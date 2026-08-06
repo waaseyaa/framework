@@ -51,6 +51,8 @@ use Waaseyaa\Api\MercureMonitor\SubscriberObserverInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface;
 use Waaseyaa\Foundation\Discovery\AiCatalog\AiCatalogEntry;
+use Waaseyaa\Foundation\Discovery\ApiCatalog\ApiCatalogEntry;
+use Waaseyaa\Foundation\Discovery\ApiCatalog\ApiCatalogTarget;
 use Waaseyaa\Foundation\Exception\ConfigException;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -72,7 +74,7 @@ use Waaseyaa\Scheduler\ScheduleRunner;
 use Waaseyaa\Scheduler\Storage\ScheduleStateRepository;
 use Waaseyaa\Workflows\Transition\TransitionService;
 
-final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainRoutersInterface, AcceptsApiCatalogEntryProvidersInterface, AcceptsAiCatalogEntryProvidersInterface, ProvidesAiCatalogEntriesInterface
+final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainRoutersInterface, AcceptsApiCatalogEntryProvidersInterface, AcceptsAiCatalogEntryProvidersInterface, ProvidesApiCatalogEntriesInterface, ProvidesAiCatalogEntriesInterface
 {
     private const string CONTENT_SEARCH_PROVIDER = 'Waaseyaa\\Search\\SearchProviderInterface';
     private const string CONTENT_SEARCH_LIMITER = 'Waaseyaa\\Auth\\AtomicRateLimiterInterface';
@@ -117,20 +119,47 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
         );
     }
 
-    public function aiCatalogEntries(): array
+    public function apiCatalogEntries(): array
     {
-        if ($this->apiCatalog === null) {
+        if (!$this->contentSearchAvailable()) {
             return [];
         }
 
-        return [new AiCatalogEntry(
-            key: 'api:catalog',
-            displayName: 'Waaseyaa public API catalog',
-            type: ApiCatalog::MEDIA_TYPE,
-            path: ApiCatalog::PATH,
-            description: 'Standards-based index of intentionally public APIs.',
-            capabilities: ['PublicApiDiscovery'],
+        return [new ApiCatalogEntry(
+            endpoint: new ApiCatalogTarget(
+                '/api/content/search',
+                'application/vnd.api+json',
+                'Public content search',
+            ),
         )];
+    }
+
+    public function aiCatalogEntries(): array
+    {
+        $entries = [];
+        if ($this->contentSearchAvailable()) {
+            $entries[] = new AiCatalogEntry(
+                key: 'api:content-search',
+                displayName: 'Waaseyaa public content search',
+                type: 'application/vnd.api+json',
+                path: '/api/content/search',
+                description: 'Principal-safe search across intentionally public CMS content.',
+                capabilities: ['ContentDiscovery', 'ReadOnlySearch'],
+            );
+        }
+
+        if ($this->apiCatalog !== null) {
+            $entries[] = new AiCatalogEntry(
+                key: 'api:catalog',
+                displayName: 'Waaseyaa public API catalog',
+                type: ApiCatalog::MEDIA_TYPE,
+                path: ApiCatalog::PATH,
+                description: 'Standards-based index of intentionally public APIs.',
+                capabilities: ['PublicApiDiscovery'],
+            );
+        }
+
+        return $entries;
     }
 
     public function register(): void
