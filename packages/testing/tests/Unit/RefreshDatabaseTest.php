@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Waaseyaa\Testing\Tests\Unit;
 
 use Waaseyaa\Testing\Traits\RefreshDatabase;
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
-#[CoversClass(RefreshDatabase::class)]
+#[CoversTrait(RefreshDatabase::class)]
 final class RefreshDatabaseTest extends TestCase
 {
     use RefreshDatabase;

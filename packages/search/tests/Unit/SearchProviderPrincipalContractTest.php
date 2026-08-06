@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Search\Tests\Unit;
 
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Search\SearchProviderInterface;
 
-#[CoversClass(SearchProviderInterface::class)]
+#[CoversNothing]
 final class SearchProviderPrincipalContractTest extends TestCase
 {
     #[Test]

@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Waaseyaa\EntityStorage\Tests\Unit;
 
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Entity\RevisionableEntityTrait;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestRevisionableEntity;
 
-#[CoversClass(RevisionableEntityTrait::class)]
+#[CoversTrait(RevisionableEntityTrait::class)]
 final class RevisionableEntityTraitTest extends TestCase
 {
     #[Test]

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Entity\Tests\Unit;
 
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
@@ -15,7 +15,7 @@ use Waaseyaa\Entity\Exception\EntityTranslationException;
 use Waaseyaa\Entity\TranslatableEntityTrait;
 use Waaseyaa\Entity\TranslatableInterface;
 
-#[CoversClass(TranslatableEntityTrait::class)]
+#[CoversTrait(TranslatableEntityTrait::class)]
 final class TranslatableEntityTraitTest extends TestCase
 {
     private EntityTypeManager $manager;

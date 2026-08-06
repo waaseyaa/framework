@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Waaseyaa\SSR\Tests\Unit\Support;
 
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\ExpectationFailedException;
 use PHPUnit\Framework\TestCase;
 use Twig\Error\LoaderError;
 use Waaseyaa\SSR\Tests\Support\InteractsWithRenderer;
 
-#[CoversClass(InteractsWithRenderer::class)]
+#[CoversNothing]
 final class InteractsWithRendererTest extends TestCase
 {
     use InteractsWithRenderer;

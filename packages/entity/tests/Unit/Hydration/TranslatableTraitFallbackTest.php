@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Entity\Tests\Unit\Hydration;
 
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversTrait;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
@@ -21,7 +21,7 @@ use Waaseyaa\Entity\TranslatableEntityTrait;
  * FR-038, FR-039) without altering behaviour for non-translatable types
  * (NFR-001 invariant).
  */
-#[CoversClass(TranslatableEntityTrait::class)]
+#[CoversTrait(TranslatableEntityTrait::class)]
 #[CoversClass(FallbackChainResolver::class)]
 final class TranslatableTraitFallbackTest extends TestCase
 {

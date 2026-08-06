@@ -308,13 +308,16 @@ jobs:
             --coverage-clover build/logs/clover.xml \
             --coverage-text=build/logs/coverage.txt
 
+      - name: Summarize package coverage
+        run: php bin/summarize-php-coverage build/logs/clover.xml > build/logs/coverage-summary.json
+
+      - name: Enforce PHP coverage baselines
+        run: php bin/check-php-coverage-baseline build/logs/coverage-summary.json
+
       - name: Enforce changed PHP coverage
         env:
           COVERAGE_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
         run: php bin/check-changed-php-coverage --clover=build/logs/clover.xml --base="$COVERAGE_BASE_SHA" --threshold=80
-
-      - name: Summarize package coverage
-        run: php bin/summarize-php-coverage build/logs/clover.xml > build/logs/coverage-summary.json
 
       - name: Upload PHP coverage
         uses: actions/upload-artifact@v7

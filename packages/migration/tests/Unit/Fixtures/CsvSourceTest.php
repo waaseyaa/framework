@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Migration\Tests\Unit\Fixtures;
 
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Migration\Exception\SourceReadException;
@@ -21,7 +21,7 @@ use Waaseyaa\Migration\Tests\Fixtures\CsvSource;
  *
  * @spec FR-052 — reference CSV source
  */
-#[CoversClass(CsvSource::class)]
+#[CoversNothing]
 final class CsvSourceTest extends TestCase
 {
     private string $tmpDir = '';
