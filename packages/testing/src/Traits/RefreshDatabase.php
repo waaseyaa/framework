@@ -14,9 +14,9 @@ namespace Waaseyaa\Testing\Traits;
  * method. Override this method in your test class to return the
  * PDO instance used by your test infrastructure.
  *
+ * @api
  * @deprecated since 0.1.0-alpha.288. Use TemporarySqliteDatabase and the
  *   framework DatabaseInterface instead of exposing raw PDO to tests.
- * @api
  */
 trait RefreshDatabase
 {

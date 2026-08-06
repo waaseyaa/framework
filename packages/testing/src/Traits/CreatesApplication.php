@@ -11,9 +11,9 @@ namespace Waaseyaa\Testing\Traits;
  * database and a default configuration. Override bootApplication()
  * in your test class for custom setup.
  *
+ * @api
  * @deprecated since 0.1.0-alpha.288. Use KernelServicesFixture with real
  *   service-provider contracts; this trait is a compatibility-only service bag.
- * @api
  */
 trait CreatesApplication
 {

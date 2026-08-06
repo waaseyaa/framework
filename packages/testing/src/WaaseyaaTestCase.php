@@ -17,9 +17,10 @@ use Waaseyaa\Testing\Traits\InteractsWithEvents;
  * class instead of PHPUnit\Framework\TestCase for tests that
  * need the Waaseyaa application environment.
  *
+ * @internal
+ * @api
  * @deprecated since 0.1.0-alpha.288. Extend PHPUnit TestCase directly and
  *   compose the focused real-contract fixtures needed by the test.
- * @internal
  */
 abstract class WaaseyaaTestCase extends TestCase
 {

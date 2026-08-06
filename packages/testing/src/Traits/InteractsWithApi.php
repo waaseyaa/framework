@@ -12,9 +12,9 @@ namespace Waaseyaa\Testing\Traits;
  * HTTP calls; instead it builds structured request data that
  * test infrastructure can interpret.
  *
+ * @api
  * @deprecated since 0.1.0-alpha.288. Build a real request in the higher-layer
  *   HTTP or protocol owner instead of modeling transport as an array.
- * @api
  */
 trait InteractsWithApi
 {

@@ -11,9 +11,9 @@ namespace Waaseyaa\Testing\Traits;
  * simulate acting as a specific user without depending on
  * a full auth subsystem.
  *
+ * @api
  * @deprecated since 0.1.0-alpha.288. Use AuthorizationPrincipalFactory and
  *   pass the resulting real principal through the production boundary.
- * @api
  */
 trait InteractsWithAuth
 {
