@@ -36,6 +36,8 @@ that has not actually regressed.
 In addition, at least 80 percent of executable statements added or replaced in
 `packages/admin/app` must be covered. This keeps new components, composables,
 and adapters accountable even when the repository-wide percentage is stable.
+After `npm run test:coverage`, reproduce that comparison locally with
+`COVERAGE_BASE_SHA=origin/main node scripts/check-changed-coverage.mjs`.
 
 ## Changing a floor
 

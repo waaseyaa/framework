@@ -306,7 +306,7 @@ jobs:
           mkdir -p build/logs
           time php -d memory_limit=1G vendor/bin/phpunit \
             --coverage-clover build/logs/clover.xml \
-            --coverage-text build/logs/coverage.txt
+            --coverage-text=build/logs/coverage.txt
 
       - name: Enforce changed PHP coverage
         env:
@@ -656,7 +656,7 @@ jobs:
       - name: Enforce changed admin coverage
         env:
           COVERAGE_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
-        run: npm run test:coverage:changed
+        run: node scripts/check-changed-coverage.mjs
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7
