@@ -30,7 +30,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '25'
+          node-version-file: '.nvmrc'
           cache: 'npm'
           cache-dependency-path: packages/admin/package-lock.json
 
@@ -88,7 +88,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '25'
+          node-version-file: '.nvmrc'
           cache: 'npm'
           cache-dependency-path: packages/admin/package-lock.json
 
@@ -133,7 +133,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '25'
+          node-version-file: '.nvmrc'
           cache: 'npm'
           cache-dependency-path: packages/admin/package-lock.json
 
@@ -142,6 +142,10 @@ jobs:
 
       - name: Run Playwright integration tests
         run: cd packages/admin && npx playwright test --project=chromium
+
+      - name: Summarize Playwright retries
+        if: always()
+        run: cd packages/admin && npm run test:e2e:summary
 
   adapters:
     name: admin/adapters
@@ -155,7 +159,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '25'
+          node-version-file: '.nvmrc'
           cache: 'npm'
           cache-dependency-path: packages/admin/package-lock.json
 
@@ -179,7 +183,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '25'
+          node-version-file: '.nvmrc'
           cache: 'npm'
           cache-dependency-path: packages/admin/package-lock.json
 

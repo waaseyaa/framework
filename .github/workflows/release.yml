@@ -79,7 +79,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '25'
+          node-version-file: '.nvmrc'
           cache: 'npm'
           cache-dependency-path: packages/admin/package-lock.json
 
@@ -96,6 +96,10 @@ jobs:
 
       - name: Run full Playwright suite
         run: cd packages/admin && npx playwright test --project=chromium
+
+      - name: Summarize Playwright retries
+        if: always()
+        run: cd packages/admin && npm run test:e2e:summary
 
       - name: Upload Playwright artifacts
         uses: actions/upload-artifact@v7
@@ -185,7 +189,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '25'
+          node-version-file: '.nvmrc'
           cache: 'npm'
           cache-dependency-path: packages/admin/package-lock.json
 
@@ -202,6 +206,10 @@ jobs:
 
       - name: Run post-deploy smoke tests
         run: cd packages/admin && npx playwright test --project=chromium
+
+      - name: Summarize Playwright retries
+        if: always()
+        run: cd packages/admin && npm run test:e2e:summary
 
       - name: Upload smoke test artifacts
         uses: actions/upload-artifact@v7

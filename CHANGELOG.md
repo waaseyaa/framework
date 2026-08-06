@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **admin testing (#2245):** Standardize every development, CI, dependency, distribution, and release workflow on the repository's Node 24 LTS pin; align the admin engine and Node types; and make Playwright retries observable through retained JSON evidence and GitHub job summaries. Chromium and Firefox remain the supported production-shaped browser matrix; WebKit remains evidence-driven rather than speculative.
+
 - **security (#2258):** Upgrade Symfony HtmlSanitizer from 8.0.8 to 8.1.1, clearing the five current URL-attribute and parser-differential sanitization advisories reported by Composer audit.
 
 - **testing (#2235):** Publish the 2026 test-quality audit and a reproducible Git-tracked-only inventory for PHP, PHPUnit, Vitest, Playwright, nondeterminism, and shared-helper adoption signals. The testing doctrine now defines behavioral layers, deterministic replay, honest coverage, supported-tooling, mutation-pilot, and helper-adoption standards without prescribing a syntax rewrite.

@@ -5,7 +5,7 @@
     "type": "module",
     "description": "Schema-driven admin SPA for Waaseyaa (monorepo workspace member, not published to npm)",
     "engines": {
-        "node": ">=22.12.0"
+        "node": ">=24 <25"
     },
     "scripts": {
         "dev": "nuxt dev",
@@ -19,6 +19,7 @@
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
         "test:e2e": "playwright test",
+        "test:e2e:summary": "node scripts/summarize-playwright-flakes.mjs",
         "test:e2e:ui": "playwright test --ui",
         "typecheck": "vue-tsc --noEmit",
         "lint": "eslint .",
@@ -33,7 +34,7 @@
         "@nuxt/eslint": "^1.16.0",
         "@nuxt/test-utils": "^4.0.3",
         "@playwright/test": "^1.59.1",
-        "@types/node": "^26.1.0",
+        "@types/node": "^24.13.3",
         "@vitest/coverage-v8": "^4.1.6",
         "@vue/test-utils": "^2.4.11",
         "eslint": "^10.4.1",
