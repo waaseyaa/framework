@@ -1,8 +1,12 @@
 import { describe, it, expect, vi } from 'vitest'
+import { mockNuxtImport } from '@nuxt/test-utils/runtime'
 import { useApi } from '../../../app/composables/useApi'
 
-const mockFetch = vi.fn().mockResolvedValue({ data: 'test' })
-vi.stubGlobal('$fetch', mockFetch)
+const { mockFetch } = vi.hoisted(() => ({
+  mockFetch: vi.fn().mockResolvedValue({ data: 'test' }),
+}))
+
+mockNuxtImport('$fetch', () => mockFetch)
 
 describe('useApi', () => {
   it('uses the canonical root API base when the SPA is mounted under /admin', async () => {

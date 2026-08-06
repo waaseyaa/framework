@@ -2,13 +2,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mockNuxtImport } from '@nuxt/test-utils/runtime'
 
 // vi.hoisted runs before all imports — safe to use in mockNuxtImport factories
-const { userRef, checkedRef } = vi.hoisted(() => {
+const { userRef, checkedRef, nuxtFetchMock } = vi.hoisted(() => {
   const { ref } = require('vue') as typeof import('vue')
   return {
     userRef: ref<unknown>(null),
     checkedRef: ref<boolean>(false),
+    nuxtFetchMock: vi.fn(),
   }
 })
+
+mockNuxtImport('$fetch', () => nuxtFetchMock)
 
 mockNuxtImport('useState', () => {
   return <T>(key: string, init: () => T) => {
@@ -28,14 +31,14 @@ describe('useAuth', () => {
   beforeEach(() => {
     userRef.value = null
     checkedRef.value = false
-    vi.unstubAllGlobals()
+    nuxtFetchMock.mockReset()
   })
 
   describe('login()', () => {
     it('returns success with account when API returns data.id', async () => {
-      vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({
+      nuxtFetchMock.mockResolvedValue({
         data: { id: '42', name: 'Admin User', email: 'admin@example.com', roles: ['administrator'] },
-      }))
+      })
 
       const { useAuth } = await import('~/composables/useAuth')
       const { login } = useAuth()
@@ -54,9 +57,9 @@ describe('useAuth', () => {
     })
 
     it('returns failure with error detail from API errors array', async () => {
-      vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({
+      nuxtFetchMock.mockResolvedValue({
         errors: [{ status: '401', title: 'Unauthorized', detail: 'Bad credentials.' }],
-      }))
+      })
 
       const { useAuth } = await import('~/composables/useAuth')
       const { login } = useAuth()
@@ -69,7 +72,7 @@ describe('useAuth', () => {
     })
 
     it('returns generic failure when API returns no data and no errors', async () => {
-      vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({}))
+      nuxtFetchMock.mockResolvedValue({})
 
       const { useAuth } = await import('~/composables/useAuth')
       const { login } = useAuth()
@@ -81,7 +84,7 @@ describe('useAuth', () => {
     })
 
     it('returns network error message when $fetch throws', async () => {
-      vi.stubGlobal('$fetch', vi.fn().mockRejectedValue(new Error('Network error')))
+      nuxtFetchMock.mockRejectedValue(new Error('Network error'))
 
       const { useAuth } = await import('~/composables/useAuth')
       const { login } = useAuth()
@@ -94,9 +97,9 @@ describe('useAuth', () => {
     })
 
     it('coerces numeric id to string', async () => {
-      vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({
+      nuxtFetchMock.mockResolvedValue({
         data: { id: 1, name: 'Admin', email: 'a@b.com', roles: [] },
-      }))
+      })
 
       const { useAuth } = await import('~/composables/useAuth')
       const { login } = useAuth()
@@ -110,7 +113,7 @@ describe('useAuth', () => {
 
   describe('logout()', () => {
     it('clears currentUser and authChecked after logout', async () => {
-      vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({}))
+      nuxtFetchMock.mockResolvedValue({})
 
       const { useAuth } = await import('~/composables/useAuth')
       const { logout } = useAuth()
@@ -126,7 +129,7 @@ describe('useAuth', () => {
     })
 
     it('still clears state even if logout API call throws', async () => {
-      vi.stubGlobal('$fetch', vi.fn().mockRejectedValue(new Error('Server error')))
+      nuxtFetchMock.mockRejectedValue(new Error('Server error'))
 
       const { useAuth } = await import('~/composables/useAuth')
       const { logout } = useAuth()
@@ -143,9 +146,9 @@ describe('useAuth', () => {
 
   describe('checkAuth()', () => {
     it('sets currentUser from API response', async () => {
-      vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({
+      nuxtFetchMock.mockResolvedValue({
         data: { id: '5', name: 'Editor', email: 'e@example.com', roles: ['editor'] },
-      }))
+      })
 
       const { useAuth } = await import('~/composables/useAuth')
       const { checkAuth } = useAuth()
@@ -162,7 +165,7 @@ describe('useAuth', () => {
     })
 
     it('sets currentUser to null when API returns no id', async () => {
-      vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ data: {} }))
+      nuxtFetchMock.mockResolvedValue({ data: {} })
 
       const { useAuth } = await import('~/composables/useAuth')
       const { checkAuth } = useAuth()
@@ -173,8 +176,7 @@ describe('useAuth', () => {
     })
 
     it('skips API call if authChecked is already true', async () => {
-      const mockFetch = vi.fn()
-      vi.stubGlobal('$fetch', mockFetch)
+      const mockFetch = nuxtFetchMock
 
       const { useAuth } = await import('~/composables/useAuth')
       const { checkAuth } = useAuth()
@@ -188,7 +190,7 @@ describe('useAuth', () => {
 
   describe('isAuthenticated', () => {
     it('is false when currentUser is null', async () => {
-      vi.stubGlobal('$fetch', vi.fn())
+      nuxtFetchMock.mockResolvedValue(undefined)
 
       const { useAuth } = await import('~/composables/useAuth')
       const { isAuthenticated } = useAuth()
@@ -197,7 +199,7 @@ describe('useAuth', () => {
     })
 
     it('is true when currentUser is set', async () => {
-      vi.stubGlobal('$fetch', vi.fn())
+      nuxtFetchMock.mockResolvedValue(undefined)
 
       userRef.value = { id: '1', name: 'Admin', roles: [] }
 

@@ -15,6 +15,15 @@ coverage is measured and recorded, while changed executable statements must
 remain at least 80 percent covered. The changed-code ratchet is the merge gate;
 global percentages are evidence and must not be presented as perfect coverage.
 
+Nuxt 4.5 corrected source-map accounting for 16 untested page components that
+Nuxt 4.4 omitted from the V8 denominator. The honest baseline is therefore
+66.31 percent lines, 64.42 percent statements, 64.86 percent functions, and
+62.16 percent branches, with conservative integer floors of 66/64/64/62. The
+covered counts stayed effectively flat across the upgrade; the denominator
+grew from 3,214 to 3,772 statements. Raising these global floors requires
+tests, while the 80 percent changed-statement ratchet prevents new code from
+expanding the debt.
+
 ## Browser matrix and retries
 
 The required production-shaped smoke suite runs Chromium and Firefox. WebKit

@@ -1,4 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { mockNuxtImport } from '@nuxt/test-utils/runtime'
+
+const { nuxtFetchMock } = vi.hoisted(() => ({
+  nuxtFetchMock: vi.fn(),
+}))
+
+mockNuxtImport('$fetch', () => nuxtFetchMock)
 
 function setXsrfCookie(value: string) {
   document.cookie = `XSRF-TOKEN=${value}; path=/`
@@ -9,9 +16,8 @@ function clearXsrfCookie() {
 }
 
 function fetchMock() {
-  const mock = vi.fn().mockResolvedValue({ data: {} })
-  vi.stubGlobal('$fetch', mock)
-  return mock
+  nuxtFetchMock.mockReset().mockResolvedValue({ data: {} })
+  return nuxtFetchMock
 }
 
 function headersOfLastCall(mock: ReturnType<typeof vi.fn>): Record<string, string> {
@@ -22,7 +28,7 @@ function headersOfLastCall(mock: ReturnType<typeof vi.fn>): Record<string, strin
 describe('useApi', () => {
   beforeEach(() => {
     clearXsrfCookie()
-    vi.unstubAllGlobals()
+    nuxtFetchMock.mockReset()
   })
 
   it('sends X-XSRF-TOKEN on POST when the cookie is present, URL-decoded', async () => {

@@ -54,4 +54,28 @@ final class AdminTestPolicyTest extends TestCase
         self::assertStringContainsString('test-results/', $workflow);
         self::assertStringContainsString('first-attempt failures', $documentation);
     }
+
+    #[Test]
+    public function nuxt_developer_tools_are_never_enabled_in_production(): void
+    {
+        $config = (string) file_get_contents($this->root . '/packages/admin/nuxt.config.ts');
+        $package = json_decode((string) file_get_contents($this->root . '/packages/admin/package.json'), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertTrue(version_compare($package['dependencies']['nuxt'] ?? '0', '4.5.2', '>='));
+        self::assertStringContainsString("devtools: { enabled: process.env.NODE_ENV !== 'production' }", $config);
+        self::assertStringNotContainsString('devtools: { enabled: true }', $config);
+    }
+
+    #[Test]
+    public function admin_coverage_uses_the_honest_nuxt_45_baseline(): void
+    {
+        $config = (string) file_get_contents($this->root . '/packages/admin/vitest.config.ts');
+        $documentation = (string) file_get_contents($this->root . '/docs/testing/admin.md');
+
+        foreach (['lines: 66', 'statements: 64', 'functions: 64', 'branches: 62'] as $threshold) {
+            self::assertStringContainsString($threshold, $config);
+        }
+        self::assertStringContainsString('grew from 3,214 to 3,772 statements', $documentation);
+        self::assertStringContainsString('80 percent changed-statement ratchet', $documentation);
+    }
 }
