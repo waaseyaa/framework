@@ -22,11 +22,13 @@ covered and executable counts, while the artifact preserves visibility into
 every other package without turning a first measurement into an arbitrary
 target.
 
-The first PHP measurement covered 50,036 of 68,960 executable lines (72.56
-percent). On the GitHub-hosted PHP 8.5 runner, the PCOV suite took 5 minutes 5
-seconds versus 3 minutes 47 seconds for the local coverage-free suite used
-during this change. Coverage therefore remains one parallel CI lane and is not
-part of the default local test command.
+The first clean PHP measurement covered 50,127 of 68,960 executable lines
+(72.69 percent). On the GitHub-hosted PHP 8.5 runner, the PCOV suite took 4
+minutes 6 seconds and the complete coverage job took 4 minutes 25 seconds. The
+coverage-free local suite used during this change took 3 minutes 47 seconds.
+These are different runners rather than a controlled benchmark, so the durable
+decision is structural: coverage remains one parallel CI lane and is not part
+of the default local test command.
 
 Pull requests and ordinary pushes must cover at least 80 percent of executable
 PHP source lines added or replaced by the diff. Deletions, comments, signatures,
@@ -45,6 +47,10 @@ statements, 76.70 percent functions, and 67.64 percent branches across 2,840
 executable lines. Blocking floors are rounded down to 77, 75, 76, and 67
 percent respectively so ordinary instrumentation variance cannot fail a run
 that has not actually regressed.
+
+The same baseline reproduced exactly under CI's Node 22 runtime. The Vitest
+coverage step took 50 seconds and the build-plus-coverage job took 1 minute 29
+seconds on the GitHub-hosted runner.
 
 In addition, at least 80 percent of executable statements added or replaced in
 `packages/admin/app` must be covered. This keeps new components, composables,

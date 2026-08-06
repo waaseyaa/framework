@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
   "measured_at": "2026-08-06",
-  "source_run_url": "https://github.com/waaseyaa/framework/actions/runs/31060304442",
+  "source_run_url": "https://github.com/waaseyaa/framework/actions/runs/31060927592",
   "overall": {
     "measured_executable_lines": 68960,
-    "measured_covered_lines": 50036,
-    "measured_line_percentage": 72.56,
+    "measured_covered_lines": 50127,
+    "measured_line_percentage": 72.69,
     "line_percentage_floor": 72
   },
   "package_measurements": {
-    "access": 82.83,
+    "access": 83.87,
     "admin-surface": 87.12,
     "ai-agent": 41.84,
     "ai-observability": 70.2,
@@ -30,7 +30,7 @@
     "database-legacy": 78.53,
     "debug": 68.97,
     "engagement": 77.12,
-    "entity": 85.38,
+    "entity": 87.11,
     "entity-storage": 70.66,
     "error-handler": 42.67,
     "field": 77.31,
@@ -71,7 +71,7 @@
     "state": 92.31,
     "structured-import": 90.76,
     "taxonomy": 85.65,
-    "testing": 73.45,
+    "testing": 85.52,
     "typed-data": 76.92,
     "user": 77.4,
     "validation": 91.4,
@@ -81,8 +81,8 @@
   },
   "critical_packages": {
     "access": {
-      "measured_line_percentage": 82.83,
-      "line_percentage_floor": 82
+      "measured_line_percentage": 83.87,
+      "line_percentage_floor": 83
     },
     "ai-tools": {
       "measured_line_percentage": 79.93,

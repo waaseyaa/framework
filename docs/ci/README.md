@@ -6,25 +6,36 @@ Runs on every PR and push to `main`.
 
 ### Required Status Checks
 
-The repository ruleset is authoritative. These quality checks must pass before
-a PR can be merged:
+The repository ruleset is authoritative. Its required checks are:
 
 | Check | What it does | Typical runtime |
 |---|---|---|
-| `ci/lint` | PHP syntax, CS Fixer (dry-run), PHPStan static analysis | ~1 min |
-| `ci/unit-tests` | PHPUnit unit + integration test suites | ~2 min |
-| `ci/playwright-smoke` | Starts PHP + Nuxt servers, runs Playwright e2e tests | ~3 min |
-| `ci/random-order` | Replays the complete PHP suite in a logged random order | ~4 min |
-| `ci/coverage` | Produces PCOV reports and enforces changed PHP line coverage | ~4 min |
+| `Frontend build` | Builds Admin SPA, produces V8 coverage, and enforces changed-statement coverage | ~1.5 min |
+| `Ingestion defaults` | Validates ingestion schema metadata | ~10 sec |
+| `Manifest conformance` | Validates `defaults/*.yaml` project versioning | ~15 sec |
+| `Release publish shape` | Verifies release workflow and publication invariants | ~10 sec |
+| `Security defaults` | Scans default manifests and structural secret guards | ~20 sec |
+| `check-dead-code` | Rejects new PHPStan dead-code findings | ~20 sec |
+| `ci/core-only-boot` | Proves the minimal framework boot boundary | ~20 sec |
+| `ci/coverage` | Produces PCOV reports and enforces baseline and changed-line ratchets | ~4.5 min |
+| `ci/lint` | PHP syntax, CS Fixer (dry-run), and PHPStan | ~2.5 min |
+| `ci/playwright-smoke` | Starts PHP and Nuxt servers and exercises Chromium plus Firefox | ~2.5 min |
+| `ci/random-order` | Replays the complete PHP suite in a logged random order | ~3.5 min |
+| `ci/skeleton-create-project` | Installs and boots the exact consumer skeleton | ~45 sec |
+| `ci/unit-tests` | Runs PHPUnit unit, architecture, and integration suites | ~4.75 min |
+| `ci/verify-gates` | Runs the fast repository invariant gates | ~40 sec |
+| `composer-policy` | Enforces dependency and package-layer policy | ~10 sec |
+| `packaged-form` | Verifies the distributable framework shape | ~15 sec |
 
 ### Additional Checks (informational)
 
 | Check | What it does |
 |---|---|
-| `Frontend build` | Builds Admin SPA, produces V8 coverage, and enforces changed-statement coverage |
-| `Manifest conformance` | Validates `defaults/*.yaml` have `project_versioning` |
-| `Ingestion defaults` | Validates ingestion schema metadata |
-| `Security defaults` | Scans for secrets in `defaults/`, runs structural secrets tests |
+| `Changelog discipline check` | Requires an Unreleased changelog entry when production behavior changes |
+| `Public-surface-map parity check` | Guards exported framework surface metadata |
+| `Release pipeline fixtures` | Exercises publication-decision fixtures |
+| `composer-deps-audit (warn-only)` | Reports dependency ownership debt without blocking |
+| `admin/*` | Runs path-scoped admin contract, adapter, build, and integration checks |
 
 ### Artifacts
 
