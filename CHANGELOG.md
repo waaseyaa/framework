@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **admin distribution (#2233):** Make committed Nuxt SPA builds byte reproducible by deriving the build identity and normalized metadata timestamp from the complete admin source signature. The normalizer fails closed on unknown generated shapes, while freshness checks and compiled-asset differences remain visible.
+
 - **testing (#2261):** Strengthen workflow mutation coverage around translation-save bypass, first-publish establishment, nullable account contexts, group-constrained any-of authorization, revision-contract fallbacks, and malformed persisted state without pinning diagnostic prose or behavior-equivalent implementation details.
 
 - **admin security (#2263):** Upgrade Nuxt to 4.5.2 to clear the current high and critical production advisories, explicitly disable developer tools in production, and update API/auth tests to mock the Nuxt auto-import boundary supported by current Nuxt Test Utils. Nuxt 4.5 also corrected V8 source-map accounting for 16 previously omitted untested pages; global floors now pin the honest larger denominator while the 80 percent changed-statement ratchet remains unchanged.

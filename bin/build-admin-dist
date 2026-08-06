@@ -8,12 +8,17 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SIGNATURE="$(php "$ROOT/bin/check-admin-dist-fresh" --print)"
+BUILD_ID="waaseyaa-${SIGNATURE:0:32}"
 
 echo "==> Installing admin SPA dependencies (npm ci)"
 ( cd "$ROOT/packages/admin" && npm ci )
 
 echo "==> Generating static Nuxt SPA"
-( cd "$ROOT/packages/admin" && npm run generate )
+( cd "$ROOT/packages/admin" && WAASEYAA_ADMIN_BUILD_ID="$BUILD_ID" npm run generate )
+
+echo "==> Normalizing volatile Nuxt metadata"
+php "$ROOT/bin/normalize-admin-dist" "$ROOT/packages/admin/.output/public" "$SIGNATURE"
 
 echo "==> Copying build output to packages/admin-surface/dist"
 rm -rf "$ROOT/packages/admin-surface/dist"

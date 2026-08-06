@@ -1,0 +1,135 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Normalize the two volatile values emitted by a static Nuxt build.
+ *
+ * The build ID is already deterministic when this script runs. Nuxt still
+ * records wall-clock timestamps in its build manifests and prerender payloads.
+ * Replace only those known fields with a timestamp derived from the complete
+ * admin source signature. Unexpected shapes fail closed instead of hiding new
+ * kinds of generated drift.
+ *
+ * Usage: php bin/normalize-admin-dist <dist-directory> <64-char-source-signature>
+ */
+
+$dist = $argv[1] ?? '';
+$signature = $argv[2] ?? '';
+
+if (!is_dir($dist) || !preg_match('/^[a-f0-9]{64}$/D', $signature)) {
+    fwrite(STDERR, "Usage: php bin/normalize-admin-dist <dist-directory> <64-char-source-signature>\n");
+    exit(1);
+}
+
+$dist = rtrim((string) realpath($dist), DIRECTORY_SEPARATOR);
+$buildId = 'waaseyaa-' . substr($signature, 0, 32);
+$timestamp = 1_600_000_000_000 + hexdec(substr($signature, 0, 8));
+
+try {
+    normalizeBuildManifests($dist, $buildId, $timestamp);
+    normalizeHtmlPayloads($dist, $buildId, $timestamp);
+} catch (Throwable $exception) {
+    fwrite(STDERR, "ERROR: {$exception->getMessage()}\n");
+    exit(1);
+}
+
+fwrite(STDOUT, "admin dist metadata normalized: {$buildId} at {$timestamp}\n");
+exit(0);
+
+function normalizeBuildManifests(string $dist, string $buildId, int $timestamp): void
+{
+    $builds = $dist . '/_nuxt/builds';
+    $latestPath = $builds . '/latest.json';
+    $metaDir = $builds . '/meta';
+    $metaPath = $metaDir . '/' . $buildId . '.json';
+
+    $metaFiles = glob($metaDir . '/*.json');
+    if (!is_file($latestPath) || !is_file($metaPath) || $metaFiles === false || count($metaFiles) !== 1) {
+        throw new RuntimeException('expected exactly one deterministic Nuxt build manifest.');
+    }
+
+    $latest = readJsonObject($latestPath);
+    $meta = readJsonObject($metaPath);
+    if (($latest['id'] ?? null) !== $buildId || ($meta['id'] ?? null) !== $buildId) {
+        throw new RuntimeException('Nuxt manifests do not contain the expected deterministic build ID.');
+    }
+    if (!is_int($latest['timestamp'] ?? null) || !is_int($meta['timestamp'] ?? null)) {
+        throw new RuntimeException('Nuxt manifest timestamp shape changed.');
+    }
+
+    $latest['timestamp'] = $timestamp;
+    $meta['timestamp'] = $timestamp;
+    writeJsonObject($latestPath, $latest);
+    writeJsonObject($metaPath, $meta);
+}
+
+function normalizeHtmlPayloads(string $dist, string $buildId, int $timestamp): void
+{
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($dist, FilesystemIterator::SKIP_DOTS),
+    );
+    $htmlCount = 0;
+    foreach ($iterator as $file) {
+        if (!$file->isFile() || strtolower($file->getExtension()) !== 'html') {
+            continue;
+        }
+        ++$htmlCount;
+        $path = $file->getPathname();
+        $contents = (string) file_get_contents($path);
+        if (substr_count($contents, 'buildId:"' . $buildId . '"') !== 1) {
+            throw new RuntimeException("{$path} does not contain exactly one expected deterministic build ID.");
+        }
+
+        $pattern = '#(<script type="application/json" data-nuxt-data="[^"]+"[^>]*>)(.*?)(</script>)#s';
+        if (preg_match_all($pattern, $contents, $matches, PREG_OFFSET_CAPTURE) !== 1) {
+            throw new RuntimeException("{$path} does not contain exactly one Nuxt data payload.");
+        }
+        $payloadText = $matches[2][0][0];
+        $payload = json_decode($payloadText, true, 512, JSON_THROW_ON_ERROR);
+        if (!is_array($payload) || !is_array($payload[0] ?? null)) {
+            throw new RuntimeException("{$path} has an unexpected Nuxt data payload shape.");
+        }
+        $timestampIndex = $payload[0]['prerenderedAt'] ?? null;
+        if (!is_int($timestampIndex) || !is_int($payload[$timestampIndex] ?? null)) {
+            throw new RuntimeException("{$path} has an unexpected prerender timestamp reference.");
+        }
+        $payload[$timestampIndex] = $timestamp;
+        $normalizedPayload = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $payloadOffset = $matches[2][0][1];
+        $contents = substr_replace($contents, $normalizedPayload, $payloadOffset, strlen($payloadText));
+        writeContents($path, $contents);
+    }
+
+    if ($htmlCount === 0) {
+        throw new RuntimeException('admin dist contains no generated HTML files.');
+    }
+}
+
+/** @return array<string, mixed> */
+function readJsonObject(string $path): array
+{
+    $value = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+    if (!is_array($value) || array_is_list($value)) {
+        throw new RuntimeException("{$path} is not a JSON object.");
+    }
+
+    return $value;
+}
+
+/** @param array<string, mixed> $value */
+function writeJsonObject(string $path, array $value): void
+{
+    writeContents(
+        $path,
+        json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+    );
+}
+
+function writeContents(string $path, string $contents): void
+{
+    if (file_put_contents($path, $contents) === false) {
+        throw new RuntimeException("could not write normalized output to {$path}.");
+    }
+}
