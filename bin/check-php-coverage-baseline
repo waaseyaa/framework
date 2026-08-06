@@ -1,0 +1,69 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+$summaryPath = $_SERVER['argv'][1] ?? '';
+$baselinePath = $_SERVER['argv'][2] ?? dirname(__DIR__) . '/tools/php-coverage-baseline.json';
+
+if ($summaryPath === '') {
+    fwrite(STDERR, "Usage: php bin/check-php-coverage-baseline <coverage-summary.json> [baseline.json]\n");
+    exit(2);
+}
+
+try {
+    $summaryContents = @file_get_contents($summaryPath);
+    $baselineContents = @file_get_contents($baselinePath);
+    if ($summaryContents === false || $baselineContents === false) {
+        throw new RuntimeException('one or both files could not be read');
+    }
+    $summary = json_decode($summaryContents, true, 512, JSON_THROW_ON_ERROR);
+    $baseline = json_decode($baselineContents, true, 512, JSON_THROW_ON_ERROR);
+} catch (Throwable $exception) {
+    fwrite(STDERR, "Unable to read PHP coverage baseline inputs: {$exception->getMessage()}\n");
+    exit(2);
+}
+
+if (!is_array($summary) || !is_array($baseline) || ($summary['schema_version'] ?? null) !== 1 || ($baseline['schema_version'] ?? null) !== 1) {
+    fwrite(STDERR, "PHP coverage summary and baseline must use schema_version 1.\n");
+    exit(2);
+}
+if (!is_array($baseline['critical_packages'] ?? null)) {
+    fwrite(STDERR, "PHP coverage baseline must define critical_packages.\n");
+    exit(2);
+}
+
+$failed = false;
+$check = static function (string $label, mixed $measurement, mixed $floor) use (&$failed): void {
+    if (!is_array($measurement) || !is_numeric($measurement['executable_lines'] ?? null) || !is_numeric($measurement['covered_lines'] ?? null) || !is_numeric($floor)) {
+        fwrite(STDERR, "Invalid PHP coverage baseline entry: {$label}.\n");
+        $failed = true;
+
+        return;
+    }
+    $executable = (int) $measurement['executable_lines'];
+    $covered = (int) $measurement['covered_lines'];
+    $required = (float) $floor;
+    if ($executable < 0 || $covered < 0 || $covered > $executable || $required < 0 || $required > 100) {
+        fwrite(STDERR, "Invalid PHP coverage baseline values: {$label}.\n");
+        $failed = true;
+
+        return;
+    }
+    $percentage = $executable === 0 ? 100.0 : ($covered / $executable) * 100;
+    printf("php-coverage-baseline: %s %d/%d lines (%.2f%%, floor %.2f%%).\n", $label, $covered, $executable, $percentage, $required);
+    if ($percentage + 0.00001 < $required) {
+        $failed = true;
+    }
+};
+
+$check('overall', $summary['overall'] ?? null, $baseline['overall']['line_percentage_floor'] ?? null);
+foreach ($baseline['critical_packages'] as $package => $policy) {
+    $check(
+        'package ' . $package,
+        $summary['packages'][$package] ?? null,
+        is_array($policy) ? ($policy['line_percentage_floor'] ?? null) : null,
+    );
+}
+
+exit($failed ? 1 : 0);

@@ -1,0 +1,58 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+$cloverPath = $_SERVER['argv'][1] ?? '';
+if ($cloverPath === '') {
+    fwrite(STDERR, "Usage: php bin/summarize-php-coverage <clover.xml>\n");
+    exit(2);
+}
+
+$previous = libxml_use_internal_errors(true);
+$xml = simplexml_load_file($cloverPath, options: LIBXML_NONET | LIBXML_NOBLANKS);
+libxml_use_internal_errors($previous);
+if (!$xml instanceof SimpleXMLElement) {
+    fwrite(STDERR, "Unable to parse Clover report: {$cloverPath}\n");
+    exit(2);
+}
+
+/** @var array<string, array{executable_lines: int, covered_lines: int}> $packages */
+$packages = [];
+foreach ($xml->xpath('//file') ?: [] as $file) {
+    $name = str_replace('\\', '/', (string) $file['name']);
+    if (preg_match('#(?:^|/)packages/([^/]+)/src/#', $name, $matches) !== 1) {
+        continue;
+    }
+    $package = $matches[1];
+    $packages[$package] ??= ['executable_lines' => 0, 'covered_lines' => 0];
+    foreach ($file->line as $line) {
+        if ((string) $line['type'] !== 'stmt') {
+            continue;
+        }
+        ++$packages[$package]['executable_lines'];
+        if ((int) $line['count'] > 0) {
+            ++$packages[$package]['covered_lines'];
+        }
+    }
+}
+
+ksort($packages);
+$overall = ['executable_lines' => 0, 'covered_lines' => 0];
+foreach ($packages as &$package) {
+    $overall['executable_lines'] += $package['executable_lines'];
+    $overall['covered_lines'] += $package['covered_lines'];
+    $package['line_percentage'] = $package['executable_lines'] === 0
+        ? 100.0
+        : round(($package['covered_lines'] / $package['executable_lines']) * 100, 2);
+}
+unset($package);
+$overall['line_percentage'] = $overall['executable_lines'] === 0
+    ? 100.0
+    : round(($overall['covered_lines'] / $overall['executable_lines']) * 100, 2);
+
+echo json_encode([
+    'schema_version' => 1,
+    'overall' => $overall,
+    'packages' => $packages,
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), "\n";

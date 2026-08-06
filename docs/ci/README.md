@@ -6,28 +6,44 @@ Runs on every PR and push to `main`.
 
 ### Required Status Checks
 
-These three checks must pass before a PR can be merged:
+The repository ruleset is authoritative. Its required checks are:
 
 | Check | What it does | Typical runtime |
 |---|---|---|
-| `ci/lint` | PHP syntax, CS Fixer (dry-run), PHPStan static analysis | ~1 min |
-| `ci/unit-tests` | PHPUnit unit + integration test suites | ~2 min |
-| `ci/playwright-smoke` | Starts PHP + Nuxt servers, runs Playwright e2e tests | ~3 min |
+| `Frontend build` | Builds Admin SPA, produces V8 coverage, and enforces changed-statement coverage | ~1.5 min |
+| `Ingestion defaults` | Validates ingestion schema metadata | ~10 sec |
+| `Manifest conformance` | Validates `defaults/*.yaml` project versioning | ~15 sec |
+| `Release publish shape` | Verifies release workflow and publication invariants | ~10 sec |
+| `Security defaults` | Scans default manifests and structural secret guards | ~20 sec |
+| `check-dead-code` | Rejects new PHPStan dead-code findings | ~20 sec |
+| `ci/core-only-boot` | Proves the minimal framework boot boundary | ~20 sec |
+| `ci/coverage` | Produces PCOV reports and enforces baseline and changed-line ratchets | ~4.5 min |
+| `ci/lint` | PHP syntax, CS Fixer (dry-run), and PHPStan | ~2.5 min |
+| `ci/playwright-smoke` | Starts PHP and Nuxt servers and exercises Chromium plus Firefox | ~2.5 min |
+| `ci/random-order` | Replays the complete PHP suite in a logged random order | ~3.5 min |
+| `ci/skeleton-create-project` | Installs and boots the exact consumer skeleton | ~45 sec |
+| `ci/unit-tests` | Runs PHPUnit unit, architecture, and integration suites | ~4.75 min |
+| `ci/verify-gates` | Runs the fast repository invariant gates | ~40 sec |
+| `composer-policy` | Enforces dependency and package-layer policy | ~10 sec |
+| `packaged-form` | Verifies the distributable framework shape | ~15 sec |
 
 ### Additional Checks (informational)
 
 | Check | What it does |
 |---|---|
-| `Frontend build` | Builds Admin SPA (Nuxt 3), runs Vitest unit tests |
-| `Manifest conformance` | Validates `defaults/*.yaml` have `project_versioning` |
-| `Ingestion defaults` | Validates ingestion schema metadata |
-| `Security defaults` | Scans for secrets in `defaults/`, runs structural secrets tests |
+| `Changelog discipline check` | Requires an Unreleased changelog entry when production behavior changes |
+| `Public-surface-map parity check` | Guards exported framework surface metadata |
+| `Release pipeline fixtures` | Exercises publication-decision fixtures |
+| `composer-deps-audit (warn-only)` | Reports dependency ownership debt without blocking |
+| `admin/*` | Runs path-scoped admin contract, adapter, build, and integration checks |
 
 ### Artifacts
 
 | Artifact | Location | Retention |
 |---|---|---|
-| `test-results` | `build/logs/junit-unit.xml`, `build/logs/junit-integration.xml`, `build/logs/clover.xml` | 30 days |
+| `test-results` | `build/logs/junit-unit.xml`, `build/logs/junit-architecture.xml`, `build/logs/junit-integration.xml` | 30 days |
+| `php-coverage` | Clover, text, and package-summary coverage reports | 30 days |
+| `frontend-coverage` | V8/Istanbul JSON, JSON summary, text, and LCOV reports | 30 days |
 | `frontend-build` | `packages/admin/.output/` | 14 days |
 | `playwright-smoke-results` | `packages/admin/test-results/`, `packages/admin/playwright-report/` | 30 days |
 | `server-logs` | `/tmp/php-server.log`, `/tmp/nuxt-server.log` (on failure only) | 7 days |
@@ -47,6 +63,10 @@ composer phpstan
 
 # Frontend build + tests
 cd packages/admin && npm ci && npm run build && npm test
+
+# Coverage (PCOV or Xdebug is required for PHP)
+php -d memory_limit=1G vendor/bin/phpunit --coverage-clover build/logs/clover.xml
+cd packages/admin && npm run test:coverage
 
 # Playwright smoke tests (matches ci/playwright-smoke)
 # Terminal 1: PHP backend
@@ -97,7 +117,8 @@ main push → Deploy staging → Full Playwright sweep → [Approval gate] → D
 
 Label a PR with `auto-merge-when-green` to enable automatic squash merge when:
 
-1. All three required status checks pass (`ci/lint`, `ci/unit-tests`, `ci/playwright-smoke`)
+1. Every status check required by the repository ruleset passes, including the
+   deterministic random-order replay and coverage ratchets
 2. PR is open with no merge conflicts
 3. PR has a milestone assigned
 

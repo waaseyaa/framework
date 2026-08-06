@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "measured_at": "2026-08-06",
+  "source_run_url": "https://github.com/waaseyaa/framework/actions/runs/31060927592",
+  "overall": {
+    "measured_executable_lines": 68960,
+    "measured_covered_lines": 50127,
+    "measured_line_percentage": 72.69,
+    "line_percentage_floor": 72
+  },
+  "package_measurements": {
+    "access": 83.87,
+    "admin-surface": 87.12,
+    "ai-agent": 41.84,
+    "ai-observability": 70.2,
+    "ai-pipeline": 100,
+    "ai-schema": 100,
+    "ai-tools": 79.93,
+    "ai-vector": 77.69,
+    "analytics": 77.36,
+    "api": 83,
+    "attachment": 71.07,
+    "audit": 63.89,
+    "auth": 84.26,
+    "billing": 81.48,
+    "bimaaji": 75.94,
+    "cache": 95.99,
+    "cli": 60.39,
+    "config": 80.57,
+    "database-legacy": 78.53,
+    "debug": 68.97,
+    "engagement": 77.12,
+    "entity": 87.11,
+    "entity-storage": 70.66,
+    "error-handler": 42.67,
+    "field": 77.31,
+    "foundation": 77.77,
+    "frankenphp": 47.03,
+    "genealogy": 51.33,
+    "geo": 95.65,
+    "github": 50.53,
+    "graphql": 87.21,
+    "groups": 78,
+    "http-client": 64,
+    "i18n": 98.71,
+    "inertia": 91.74,
+    "ingestion": 100,
+    "listing": 54.96,
+    "mail": 80,
+    "mcp": 83.85,
+    "media": 75.3,
+    "menu": 100,
+    "mercure": 39.53,
+    "messaging": 74.81,
+    "migration": 72.66,
+    "node": 70.48,
+    "note": 77.84,
+    "notification": 53.93,
+    "oauth-provider": 97.28,
+    "oidc": 70.02,
+    "path": 61.82,
+    "plugin": 97.32,
+    "publishing": 79.53,
+    "queue": 81.66,
+    "relationship": 75.81,
+    "routing": 57.79,
+    "scheduler": 85.65,
+    "search": 81.49,
+    "seo": 93.47,
+    "ssr": 66.24,
+    "state": 92.31,
+    "structured-import": 90.76,
+    "taxonomy": 85.65,
+    "testing": 85.52,
+    "typed-data": 76.92,
+    "user": 77.4,
+    "validation": 91.4,
+    "wayfinding": 75.64,
+    "workflows": 72.56,
+    "workspace": 42.86
+  },
+  "critical_packages": {
+    "access": {
+      "measured_line_percentage": 83.87,
+      "line_percentage_floor": 83
+    },
+    "ai-tools": {
+      "measured_line_percentage": 79.93,
+      "line_percentage_floor": 79
+    },
+    "audit": {
+      "measured_line_percentage": 63.89,
+      "line_percentage_floor": 63
+    },
+    "auth": {
+      "measured_line_percentage": 84.26,
+      "line_percentage_floor": 84
+    },
+    "mcp": {
+      "measured_line_percentage": 83.85,
+      "line_percentage_floor": 83
+    },
+    "publishing": {
+      "measured_line_percentage": 79.53,
+      "line_percentage_floor": 79
+    },
+    "workflows": {
+      "measured_line_percentage": 72.56,
+      "line_percentage_floor": 72
+    }
+  }
+}

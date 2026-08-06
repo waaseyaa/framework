@@ -2,8 +2,8 @@ name: Auto-merge when green
 
 # Native GitHub auto-merge (#1934): this workflow *enables* auto-merge on
 # labeled PRs. GitHub then re-evaluates as checks complete and merges when the
-# main-protection ruleset's required checks (ci/verify-gates, composer-policy,
-# ci/lint, ci/unit-tests, ci/playwright-smoke) pass — no fire-once race.
+# main-protection ruleset's complete required-check set passes — no stale
+# duplicated check list and no fire-once race.
 #
 # Post-merge CI on main is restored by chain-dispatch, not a PAT: merges made
 # with the default GITHUB_TOKEN suppress push-triggered workflows, but GitHub

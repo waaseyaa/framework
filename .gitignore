@@ -51,6 +51,7 @@ packages/admin/.nuxt/
 packages/admin/.nuxtrc
 packages/admin/.output/
 packages/admin/node_modules/
+packages/admin/coverage/
 
 # Admin SPA pre-built distribution (committed by CI)
 !packages/admin-surface/dist/

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Listing\Tests\Unit\Discovery;
 
-use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
@@ -12,7 +12,7 @@ use ReflectionNamedType;
 use Waaseyaa\Listing\HasListingsInterface;
 use Waaseyaa\Listing\ListingDefinition;
 
-#[CoversClass(HasListingsInterface::class)]
+#[CoversNothing]
 final class HasListingsInterfaceTest extends TestCase
 {
     #[Test]

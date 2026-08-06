@@ -6,12 +6,27 @@ namespace Waaseyaa\Entity\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityStructure;
 use Waaseyaa\Entity\Exception\EntitySerializationForbidden;
 use Waaseyaa\Entity\FieldReadLevel;
 
 final class FieldReadContractsTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        EntityReadRuntime::installGuard(null);
+        EntityReadRuntime::installFieldRegistry(null);
+    }
+
+    protected function tearDown(): void
+    {
+        EntityReadRuntime::installGuard(null);
+        EntityReadRuntime::installFieldRegistry(null);
+        parent::tearDown();
+    }
+
     #[Test]
     public function read_levels_have_stable_wire_values(): void
     {

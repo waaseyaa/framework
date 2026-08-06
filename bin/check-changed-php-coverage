@@ -1,0 +1,104 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+$root = dirname(__DIR__);
+$options = getopt('', ['clover:', 'base::', 'diff-file::', 'threshold::']);
+$cloverPath = $options['clover'] ?? '';
+$base = $options['base'] ?? '';
+$diffFile = $options['diff-file'] ?? '';
+$threshold = isset($options['threshold']) ? (float) $options['threshold'] : 80.0;
+
+if (!is_string($cloverPath) || $cloverPath === '' || $threshold < 0 || $threshold > 100) {
+    fwrite(STDERR, "Usage: php bin/check-changed-php-coverage --clover=<path> [--base=<sha>|--diff-file=<path>] [--threshold=80]\n");
+    exit(2);
+}
+
+if ($diffFile !== '') {
+    $diff = file_get_contents((string) $diffFile);
+    if ($diff === false) {
+        fwrite(STDERR, "Unable to read coverage diff file: {$diffFile}\n");
+        exit(2);
+    }
+} elseif ($base !== '') {
+    $process = proc_open(
+        [$root . '/bin/git', '-C', $root, 'diff', '--unified=0', $base . '...HEAD', '--', 'packages'],
+        [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes,
+    );
+    if (!is_resource($process)) {
+        fwrite(STDERR, "Unable to start git diff for changed coverage.\n");
+        exit(1);
+    }
+    $diff = stream_get_contents($pipes[1]);
+    $error = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    if (proc_close($process) !== 0 || $diff === false) {
+        fwrite(STDERR, trim((string) $error) . "\n");
+        exit(1);
+    }
+} else {
+    echo "changed-php-coverage: no base SHA supplied; report published without a diff ratchet.\n";
+    exit(0);
+}
+
+/** @var array<string, array<int, true>> $changedLines */
+$changedLines = [];
+$path = null;
+foreach (preg_split('/\R/', $diff) ?: [] as $line) {
+    if (preg_match('#^\+\+\+ b/(packages/[^/]+/src/.+\.php)$#', $line, $matches) === 1) {
+        $path = $matches[1];
+        continue;
+    }
+    if ($path !== null && preg_match('/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/', $line, $matches) === 1) {
+        $start = (int) $matches[1];
+        $count = isset($matches[2]) ? (int) $matches[2] : 1;
+        for ($number = $start; $number < $start + $count; ++$number) {
+            $changedLines[$path][$number] = true;
+        }
+    }
+}
+
+if ($changedLines === []) {
+    echo "changed-php-coverage: no changed PHP source lines.\n";
+    exit(0);
+}
+
+$previous = libxml_use_internal_errors(true);
+$xml = simplexml_load_file($cloverPath, options: LIBXML_NONET | LIBXML_NOBLANKS);
+libxml_use_internal_errors($previous);
+if (!$xml instanceof SimpleXMLElement) {
+    fwrite(STDERR, "Unable to parse Clover report: {$cloverPath}\n");
+    exit(2);
+}
+
+$executable = 0;
+$covered = 0;
+foreach ($xml->xpath('//file') ?: [] as $file) {
+    $name = str_replace('\\', '/', (string) $file['name']);
+    $relative = str_starts_with($name, $root . '/') ? substr($name, strlen($root) + 1) : $name;
+    if (!isset($changedLines[$relative])) {
+        continue;
+    }
+    foreach ($file->line as $line) {
+        $number = (int) $line['num'];
+        if (!isset($changedLines[$relative][$number]) || (string) $line['type'] !== 'stmt') {
+            continue;
+        }
+        ++$executable;
+        if ((int) $line['count'] > 0) {
+            ++$covered;
+        }
+    }
+}
+
+if ($executable === 0) {
+    echo "changed-php-coverage: changed PHP source contains no executable Clover lines.\n";
+    exit(0);
+}
+
+$percentage = ($covered / $executable) * 100;
+printf("changed-php-coverage: %d/%d executable changed lines covered (%.2f%%, required %.2f%%).\n", $covered, $executable, $percentage, $threshold);
+exit($percentage + 0.00001 >= $threshold ? 0 : 1);

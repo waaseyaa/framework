@@ -9,8 +9,15 @@ export default defineVitestConfig({
     exclude: ['**/node_modules/**', '**/e2e/**'],
     coverage: {
       provider: 'v8',
+      reporter: ['text', 'json', 'json-summary', 'lcov'],
       include: ['app/**/*.{ts,vue}'],
       exclude: ['app/**/*.d.ts'],
+      thresholds: {
+        lines: 77,
+        statements: 75,
+        functions: 76,
+        branches: 67,
+      },
     },
   },
 })
