@@ -1311,6 +1311,41 @@ final class WorkflowStateGuardTest extends TestCase
     }
 
     #[Test]
+    public function state_change_accepts_a_satisfied_group_constraint(): void
+    {
+        $workflow = $this->workflowWithAnyOfGroupConstraint();
+        $manager = $this->entityTypeManager($workflow);
+        $guard = new WorkflowStateGuard(
+            $this->bindings($workflow, $manager),
+            $manager,
+            $this->accountContext($this->account(['use editorial transition department_publish'])),
+            $this->groupConstraintChecker(true),
+        );
+        $entity = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'draft'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $original));
+
+        $this->assertSame('published', $entity->get('workflow_state'));
+    }
+
+    #[Test]
+    public function id_less_create_never_loads_or_inherits_a_published_pointer(): void
+    {
+        $workflow = $this->editorialWorkflow();
+        $unrelatedPublished = $this->entity(['id' => 99, 'workflow_state' => 'published', 'status' => 1], isNew: false);
+        $manager = $this->entityTypeManager($workflow, $unrelatedPublished);
+        $guard = new WorkflowStateGuard($this->bindings($workflow, $manager), $manager);
+        $entity = $this->disciplinedEntity([], isNew: true);
+
+        $guard->onPreSave(new EntityEvent($entity));
+
+        $this->assertFalse($entity->isDefaultRevisionDisciplined());
+        $this->assertSame('draft', $entity->get('workflow_state'));
+        $this->assertSame(0, $entity->get('status'));
+    }
+
+    #[Test]
     public function legacy_revision_override_controls_same_state_republish_arming(): void
     {
         $workflow = $this->editorialWorkflow();
