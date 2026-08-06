@@ -26,22 +26,41 @@ both files as the `mutation-pilot` artifact.
 
 ## Baseline and gate
 
-Two successful CI runs at commit `5ec989307` produced identical results:
+The original two-run baseline at commit `5ec989307` established the pilot and
+its conservative 84 percent floor. Issue #2261 then added behavior-focused
+tests for every actionable workflow survivor. The first unchanged run of the
+remediated source and test set produced:
 
-| Attempt | Mutants | Killed | Escaped | Covered | MSI / covered MSI | Errors / timeouts | Mutation step |
+| Baseline | Mutants | Killed | Escaped | Covered | MSI / covered MSI | Errors / timeouts | Mutation step |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| 1 | 343 | 289 | 54 | 100% | 84.26% | 0 / 0 | 50s |
-| 2 | 343 | 289 | 54 | 100% | 84.26% | 0 / 0 | 53s |
+| Initial attempt 1 | 343 | 289 | 54 | 100% | 84.26% | 0 / 0 | 50s |
+| Initial attempt 2 | 343 | 289 | 54 | 100% | 84.26% | 0 / 0 | 53s |
+| #2261 remediated attempt 1 | 349 | 319 | 30 | 100% | 91.40% | 0 / 0 | 54s |
+| #2261 remediated attempt 2 | 349 | 319 | 30 | 100% | 91.40% | 0 / 0 | 52s |
 
-The 54 survivors classify into 27 diagnostic or behavior-equivalent mutations
-(21 exception-message concatenations, five cache-key spellings that remain
-distinct for valid entity identifiers, and the sanitizer's equivalent empty
-input fast path) and 27 actionable workflow defensive-branch gaps. The latter
-remain tracked in issue #2261; they are not hidden with ignore directives.
+The six-mutant denominator increase is honest: the new tests reach defensive
+branches that the covering-test selection could not previously associate with
+a test. All 27 originally actionable workflow mutations are now killed. The 30
+survivors are behavior-equivalent or deliberately diagnostic:
 
-The stable evidence supports blocking floors of 84% MSI and 84% covered MSI,
-leaving a small margin below the measured 84.26%. The bounded pilot job is a
-merge gate. Repository-wide mutation testing is not.
+- 21 exception-message concatenations whose reason code and refusal behavior
+  remain unchanged;
+- five cache-key spellings that remain distinct over valid entity type and
+  bundle identifiers;
+- the sanitizer's equivalent empty-input fast-path removal;
+- two coalescing reversals around an injected `WorkflowEntitySnapshotReader`,
+  which is final, stateless, and has no configurable constructor; and
+- one boolean rewrite over `WorkflowEntitySnapshot::workflowState`, whose
+  closed type is already normalized to non-empty `string|null` by that reader.
+
+No Infection ignore directive hides these survivors. A behavior change in any
+of the guarded authorization, revision, or state-projection branches fails a
+focused test.
+
+The remediated evidence supports blocking floors of 91% MSI and 91% covered
+MSI, leaving a small margin below the measured 91.40%. The bounded pilot job is
+a merge gate. Repository-wide mutation testing is not. Two unchanged runs
+reproduced the final result before the threshold was accepted.
 
 Any change to the source list, test filter, mutator profile, thread count, or
 Infection version resets the two-run baseline requirement.

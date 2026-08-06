@@ -51,6 +51,21 @@ final class WorkflowPointerMoveGuardTest extends TestCase
         ]);
     }
 
+    private function reviewRequiredWorkflow(): Workflow
+    {
+        return new Workflow(['id' => 'editorial', 'label' => 'Editorial', 'initial_state' => 'draft',
+            'states' => [
+                'draft' => ['label' => 'Draft'],
+                'review' => ['label' => 'Review'],
+                'published' => ['label' => 'Published', 'published' => true, 'default_revision' => true],
+            ],
+            'transitions' => [
+                'submit_for_review' => ['label' => 'Submit', 'from' => ['draft'], 'to' => 'review'],
+                'publish' => ['label' => 'Publish', 'from' => ['review'], 'to' => 'published'],
+            ],
+        ]);
+    }
+
     /**
      * @param array<int, ?string> $revisionStates revisionId => workflow_state (absent key => missing revision)
      */
@@ -352,11 +367,11 @@ final class WorkflowPointerMoveGuardTest extends TestCase
             fromRevisionId: 10,
             toRevisionId: null,
             actorUid: 7,
-            revisionValues: ['some_field' => 'translated value'],
+            revisionValues: ['type' => 'article', 'some_field' => 'translated value'],
         );
 
         $guard->onBeforePointerMove($event);
-        $this->addToAssertionCount(1);
+        $this->assertFalse($event->defaultRevisionSemantics());
     }
 
     #[Test]
@@ -372,7 +387,7 @@ final class WorkflowPointerMoveGuardTest extends TestCase
         // 'published' — the any-of loop's only candidate — so this still
         // passes, but for the ESTABLISHMENT reason now, not because
         // 'draft -> published' happens to be a real edge in this fixture.
-        $guard = $this->guard($this->editorialWorkflow(), [], $this->account(['use editorial transition publish']));
+        $guard = $this->guard($this->reviewRequiredWorkflow(), [], $this->account(['use editorial transition publish']));
         $event = new BeforeRevisionPointerMoveEvent(
             entityTypeId: 'fixture',
             entityId: '1',
@@ -384,7 +399,48 @@ final class WorkflowPointerMoveGuardTest extends TestCase
         );
 
         $guard->onBeforePointerMove($event);
-        $this->addToAssertionCount(1);
+        $this->assertTrue($event->defaultRevisionSemantics());
+    }
+
+    #[Test]
+    public function bundle_values_are_normalized_to_strings_before_binding_lookup(): void
+    {
+        $bundle = new class implements \Stringable {
+            public function __toString(): string { return 'article'; }
+        };
+        $guard = $this->guard($this->editorialWorkflow(), [10 => 'draft'], null);
+        $event = new BeforeRevisionPointerMoveEvent(
+            entityTypeId: 'fixture',
+            entityId: '1',
+            operation: 'revert',
+            fromRevisionId: 10,
+            toRevisionId: 20,
+            actorUid: null,
+            revisionValues: ['type' => $bundle, 'workflow_state' => 'draft'],
+        );
+
+        $guard->onBeforePointerMove($event);
+
+        $this->assertFalse($event->defaultRevisionSemantics());
+    }
+
+    #[Test]
+    public function non_string_non_empty_state_falls_back_to_the_workflow_initial_state(): void
+    {
+        $guard = $this->guard($this->editorialWorkflow(), [10 => 'draft'], null);
+        $event = new BeforeRevisionPointerMoveEvent(
+            entityTypeId: 'fixture',
+            entityId: '1',
+            operation: 'revert',
+            fromRevisionId: 10,
+            toRevisionId: 20,
+            actorUid: null,
+            revisionValues: ['type' => 'article', 'workflow_state' => 1],
+        );
+
+        $guard->onBeforePointerMove($event);
+
+        $this->assertFalse($event->defaultRevisionSemantics());
     }
 
     #[Test]

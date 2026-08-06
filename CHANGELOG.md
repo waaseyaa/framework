@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **testing (#2261):** Strengthen workflow mutation coverage around translation-save bypass, first-publish establishment, nullable account contexts, group-constrained any-of authorization, revision-contract fallbacks, and malformed persisted state without pinning diagnostic prose or behavior-equivalent implementation details.
+
 - **admin security (#2263):** Upgrade Nuxt to 4.5.2 to clear the current high and critical production advisories, explicitly disable developer tools in production, and update API/auth tests to mock the Nuxt auto-import boundary supported by current Nuxt Test Utils. Nuxt 4.5 also corrected V8 source-map accounting for 16 previously omitted untested pages; global floors now pin the honest larger denominator while the 80 percent changed-statement ratchet remains unchanged.
 
 - **admin testing (#2245):** Standardize every development, CI, dependency, distribution, and release workflow on the repository's Node 24 LTS pin; align the admin engine and Node types; and make Playwright retries observable through retained JSON evidence and GitHub job summaries. Chromium and Firefox remain the supported production-shaped browser matrix; WebKit remains evidence-driven rather than speculative.
