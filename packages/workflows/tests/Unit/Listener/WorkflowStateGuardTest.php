@@ -22,6 +22,8 @@ use Waaseyaa\Entity\RevisionableEntityTrait;
 use Waaseyaa\Entity\RevisionableInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
+use Waaseyaa\Groups\Membership\GroupMembershipService;
+use Waaseyaa\Relationship\Relationship;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 use Waaseyaa\Workflows\Group\GroupConstraintChecker;
 use Waaseyaa\Workflows\Listener\WorkflowStateGuard;
@@ -729,6 +731,59 @@ final class WorkflowStateGuardTest extends TestCase
         ]);
     }
 
+    private function workflowWithAnyOfGroupConstraint(): Workflow
+    {
+        return new Workflow(['id' => 'editorial', 'label' => 'Editorial', 'initial_state' => 'draft',
+            'states' => [
+                'draft' => ['label' => 'Draft'],
+                'published' => ['label' => 'Published', 'published' => true, 'default_revision' => true],
+            ],
+            'transitions' => [
+                'department_publish' => [
+                    'label' => 'Department publish',
+                    'from' => ['draft'],
+                    'to' => 'published',
+                    'group_constraint' => 'content_groups',
+                ],
+                'site_publish' => [
+                    'label' => 'Site publish',
+                    'from' => ['draft'],
+                    'to' => 'published',
+                ],
+            ],
+        ]);
+    }
+
+    private function groupConstraintChecker(bool $member): GroupConstraintChecker
+    {
+        $query = $this->createStub(EntityQueryInterface::class);
+        $query->method('accessCheck')->willReturnSelf();
+        $query->method('condition')->willReturnSelf();
+        $query->method('execute')->willReturnOnConsecutiveCalls(['content-edge'], ['membership-edge']);
+
+        $content = new Relationship([
+            'rid' => 'content-edge',
+            'relationship_type' => 'group_content',
+            'to_entity_type' => 'group',
+            'to_entity_id' => '10',
+        ], 'relationship', ['id' => 'rid']);
+        $membership = new Relationship([
+            'rid' => 'membership-edge',
+            'relationship_type' => 'group_membership',
+            'to_entity_type' => 'group',
+            'to_entity_id' => $member ? '10' : '99',
+        ], 'relationship', ['id' => 'rid']);
+
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $repository->method('getQuery')->willReturn($query);
+        $repository->method('findMany')->willReturnOnConsecutiveCalls([$content], [$membership]);
+
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
+        $manager->method('getRepository')->willReturn($repository);
+
+        return new GroupConstraintChecker(new GroupMembershipService($manager));
+    }
+
     #[Test]
     public function a_null_checker_denies_a_group_constrained_update_fail_closed_when_an_account_context_exists(): void
     {
@@ -1104,4 +1159,295 @@ final class WorkflowStateGuardTest extends TestCase
 
         $this->assertFalse($marker->consume($entity));
     }
+
+    #[Test]
+    public function create_guard_never_falls_through_to_update_logic(): void
+    {
+        $guard = $this->guard($this->editorialWorkflow(), null);
+        $entity = $this->entity(['workflow_state' => 'draft'], isNew: true);
+        $unexpectedOriginal = $this->entity(['id' => 1, 'workflow_state' => 'review'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $unexpectedOriginal));
+
+        $this->assertSame('draft', $entity->get('workflow_state'));
+        $this->assertSame(0, $entity->get('status'));
+    }
+
+    #[Test]
+    public function create_with_an_absent_account_context_denies_a_privileged_initial_jump(): void
+    {
+        $workflow = $this->editorialWorkflow();
+        $manager = $this->entityTypeManager($workflow);
+        $guard = new WorkflowStateGuard($this->bindings($workflow, $manager), $manager, null);
+        $entity = $this->entity(['workflow_state' => 'published'], isNew: true);
+
+        try {
+            $guard->onPreSave(new EntityEvent($entity));
+            $this->fail('Expected TransitionDeniedException');
+        } catch (TransitionDeniedException $exception) {
+            $this->assertSame(TransitionDeniedException::REASON_PERMISSION, $exception->reason);
+        }
+    }
+
+    #[Test]
+    public function update_with_an_absent_account_context_checks_only_edge_legality(): void
+    {
+        $workflow = $this->editorialWorkflow();
+        $manager = $this->entityTypeManager($workflow);
+        $guard = new WorkflowStateGuard($this->bindings($workflow, $manager), $manager, null);
+        $entity = $this->entity(['id' => 1, 'workflow_state' => 'review'], isNew: false);
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'draft'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $original));
+
+        $this->assertSame('review', $entity->get('workflow_state'));
+    }
+
+    #[Test]
+    public function same_state_republish_with_an_absent_account_context_still_arms(): void
+    {
+        $workflow = $this->editorialWorkflow();
+        $published = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $workingCopy = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $manager = $this->entityTypeManager($workflow, $published, $workingCopy);
+        $marker = new RepublishMarker();
+        $guard = new WorkflowStateGuard($this->bindings($workflow, $manager), $manager, null, null, $marker);
+        $entity = $this->disciplinedEntity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $published));
+
+        $this->assertTrue($marker->consume($entity));
+    }
+
+    #[Test]
+    public function any_of_republish_skips_an_unauthorized_first_candidate(): void
+    {
+        $workflow = $this->workflowWithAnyOfGroupConstraint();
+        $published = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $marker = new RepublishMarker();
+        $guard = $this->fullGuard(
+            $workflow,
+            $this->account(['use editorial transition site_publish']),
+            $published,
+            $published,
+            $marker,
+            $this->groupConstraintChecker(false),
+        );
+        $entity = $this->disciplinedEntity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $published));
+
+        $this->assertTrue($marker->consume($entity));
+    }
+
+    #[Test]
+    public function any_of_republish_accepts_a_satisfied_constrained_candidate(): void
+    {
+        $workflow = $this->workflowWithAnyOfGroupConstraint();
+        $published = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $marker = new RepublishMarker();
+        $guard = $this->fullGuard(
+            $workflow,
+            $this->account(['use editorial transition department_publish']),
+            $published,
+            $published,
+            $marker,
+            $this->groupConstraintChecker(true),
+        );
+        $entity = $this->disciplinedEntity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $published));
+
+        $this->assertTrue($marker->consume($entity));
+    }
+
+    #[Test]
+    public function any_of_republish_skips_an_unsatisfied_constraint_for_a_later_candidate(): void
+    {
+        $workflow = $this->workflowWithAnyOfGroupConstraint();
+        $published = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $marker = new RepublishMarker();
+        $guard = $this->fullGuard(
+            $workflow,
+            $this->account([
+                'use editorial transition department_publish',
+                'use editorial transition site_publish',
+            ]),
+            $published,
+            $published,
+            $marker,
+            $this->groupConstraintChecker(false),
+        );
+        $entity = $this->disciplinedEntity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $published));
+
+        $this->assertTrue($marker->consume($entity));
+    }
+
+    #[Test]
+    public function any_of_republish_denies_when_its_only_permitted_candidate_fails_its_constraint(): void
+    {
+        $workflow = $this->workflowWithAnyOfGroupConstraint();
+        $published = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $marker = new RepublishMarker();
+        $guard = $this->fullGuard(
+            $workflow,
+            $this->account(['use editorial transition department_publish']),
+            $published,
+            $published,
+            $marker,
+            $this->groupConstraintChecker(false),
+        );
+        $entity = $this->disciplinedEntity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+
+        try {
+            $guard->onPreSave(new EntityEvent($entity, $published));
+            $this->fail('Expected TransitionDeniedException');
+        } catch (TransitionDeniedException $exception) {
+            $this->assertSame(TransitionDeniedException::REASON_PERMISSION, $exception->reason);
+            $this->assertFalse($marker->consume($entity));
+        }
+    }
+
+    #[Test]
+    public function legacy_revision_override_controls_same_state_republish_arming(): void
+    {
+        $workflow = $this->editorialWorkflow();
+        $published = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $marker = new RepublishMarker();
+        $guard = $this->fullGuard(
+            $workflow,
+            $this->account(['use editorial transition publish']),
+            $published,
+            $published,
+            $marker,
+        );
+        $entity = $this->revisionableEntity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $entity->setNewRevision(false);
+
+        $guard->onPreSave(new EntityEvent($entity, $published));
+
+        $this->assertFalse($marker->consume($entity));
+    }
+
+    #[Test]
+    public function modern_revision_entity_without_optional_override_uses_type_default(): void
+    {
+        $workflow = $this->editorialWorkflow();
+        $published = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $marker = new RepublishMarker();
+        $guard = $this->fullGuard(
+            $workflow,
+            $this->account(['use editorial transition publish']),
+            $published,
+            $published,
+            $marker,
+        );
+        $entity = new MinimalModernRevisionEntity(['id' => 1, 'workflow_state' => 'published']);
+
+        $guard->onPreSave(new EntityEvent($entity, $published));
+
+        $this->assertTrue($marker->consume($entity));
+    }
+
+    #[Test]
+    public function modern_revision_contract_is_forced_on_state_change(): void
+    {
+        $workflow = $this->editorialWorkflow();
+        $published = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $guard = $this->guard($workflow, $this->account(['use editorial transition revise']), $published);
+        $entity = $this->disciplinedEntity(['id' => 1, 'workflow_state' => 'draft'], isNew: false);
+        $entity->setNewRevision(false);
+
+        $guard->onPreSave(new EntityEvent($entity, $published));
+
+        $this->assertTrue($entity->isNewRevision());
+    }
+
+    #[Test]
+    public function revision_duck_method_without_a_revision_contract_is_not_called(): void
+    {
+        $workflow = $this->editorialWorkflow();
+        $published = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $guard = $this->guard($workflow, $this->account(['use editorial transition revise']), $published);
+        $entity = new DuckRevisionEntity(['id' => 1, 'workflow_state' => 'draft']);
+
+        $guard->onPreSave(new EntityEvent($entity, $published));
+
+        $this->assertSame(0, $entity->newRevisionWrites);
+    }
+
+    #[Test]
+    public function entity_implementing_both_revision_contracts_is_forced_once(): void
+    {
+        $workflow = $this->editorialWorkflow();
+        $published = $this->entity(['id' => 1, 'workflow_state' => 'published'], isNew: false);
+        $guard = $this->guard($workflow, $this->account(['use editorial transition revise']), $published);
+        $entity = new DualRevisionEntity(['id' => 1, 'workflow_state' => 'draft']);
+
+        $guard->onPreSave(new EntityEvent($entity, $published));
+
+        $this->assertSame(1, $entity->newRevisionWrites);
+        $this->assertTrue($entity->isNewRevision());
+    }
+
+    #[Test]
+    public function same_unknown_state_projects_to_unpublished_without_dereferencing_a_missing_state(): void
+    {
+        $guard = $this->guard($this->editorialWorkflow(), null);
+        $entity = $this->entity(['id' => 1, 'workflow_state' => 'legacy_state', 'status' => 1], isNew: false);
+        $original = $this->entity(['id' => 1, 'workflow_state' => 'legacy_state', 'status' => 1], isNew: false);
+
+        $guard->onPreSave(new EntityEvent($entity, $original));
+
+        $this->assertSame(0, $entity->get('status'));
+    }
+}
+
+abstract class MutationRevisionEntity implements EntityInterface
+{
+    /** @param array<string, mixed> $values */
+    public function __construct(protected array $values) {}
+    public function id(): int|string|null { return $this->values['id'] ?? null; }
+    public function uuid(): string { return 'mutation-revision-entity'; }
+    public function label(): string { return 'Mutation revision entity'; }
+    public function getEntityTypeId(): string { return 'fixture'; }
+    public function bundle(): string { return 'article'; }
+    public function isNew(): bool { return false; }
+    public function get(string $name): mixed { return $this->values[$name] ?? null; }
+    public function set(string $name, mixed $value): static { $this->values[$name] = $value; return $this; }
+    public function toArray(): array { return $this->values; }
+    public function language(): string { return 'en'; }
+}
+
+final class MinimalModernRevisionEntity extends MutationRevisionEntity implements RevisionableEntityInterface
+{
+    public function revisionId(): int|string|null { return null; }
+    public function isCurrentRevision(): bool { return true; }
+    public function revisionMetadata(): ?\Waaseyaa\Entity\RevisionMetadata { return null; }
+}
+
+final class DuckRevisionEntity extends MutationRevisionEntity
+{
+    public int $newRevisionWrites = 0;
+    public function setNewRevision(bool $value): void { ++$this->newRevisionWrites; }
+}
+
+final class DualRevisionEntity extends MutationRevisionEntity implements RevisionableInterface, RevisionableEntityInterface
+{
+    public int $newRevisionWrites = 0;
+    private ?bool $newRevision = null;
+    private ?string $revisionLog = null;
+
+    public function revisionId(): int|string|null { return null; }
+    public function isCurrentRevision(): bool { return true; }
+    public function revisionMetadata(): ?\Waaseyaa\Entity\RevisionMetadata { return null; }
+    public function getRevisionId(): ?int { return null; }
+    public function isDefaultRevision(): bool { return true; }
+    public function isLatestRevision(): bool { return true; }
+    public function setNewRevision(bool $value): void { ++$this->newRevisionWrites; $this->newRevision = $value; }
+    public function isNewRevision(): ?bool { return $this->newRevision; }
+    public function setRevisionLog(?string $log): void { $this->revisionLog = $log; }
+    public function getRevisionLog(): ?string { return $this->revisionLog; }
 }
