@@ -47,6 +47,9 @@ final class MutationPilotTest extends TestCase
 
         self::assertStringNotContainsString('--min-msi', $runner);
         self::assertStringNotContainsString('--min-covered-msi', $runner);
+        self::assertStringContainsString('--only-covering-test-cases', $runner);
+        self::assertStringContainsString('FirstPublishEstablishmentFlowTest', $runner);
+        self::assertStringContainsString('GroupConstraintSaveGuardTest', $runner);
         self::assertStringContainsString('mutation-summary.json', $runner);
         self::assertStringContainsString('name: ci/mutation-pilot', $workflow);
         self::assertStringContainsString('coverage: pcov', $workflow);

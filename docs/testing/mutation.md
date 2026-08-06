@@ -17,8 +17,10 @@ Run it with a PHP 8.5 runtime that has PCOV or Xdebug line coverage enabled:
 php bin/test-mutation-pilot
 ```
 
-The command runs 131 focused PHPUnit tests, mutates only the six named source
-files, uses two workers to keep resource use predictable, and writes
+The command runs the focused unit contracts plus the existing workflow
+integration spines, mutates only the six named source files, selects only
+covering tests for each mutant, uses two workers to keep resource use
+predictable, and writes
 `build/logs/mutation-summary.json` plus `build/logs/mutation.log`. CI retains
 both files as the `mutation-pilot` artifact.
 

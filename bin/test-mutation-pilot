@@ -22,6 +22,17 @@ $testFilter = implode('|', [
     'WorkflowBindingResolverTest',
     'WorkflowPointerMoveGuardTest',
     'WorkflowStateGuardTest',
+    'DepartmentRoutingFlowTest',
+    'EditorialFlowTest',
+    'FirstPublishEstablishmentFlowTest',
+    'ForwardDraftFlowTest',
+    'ForwardDraftIntegrationTest',
+    'GroupConstraintPointerMoveGuardTest',
+    'GroupConstraintSaveGuardTest',
+    'GroupConstraintTransitionTest',
+    'ImportSaveContextGuardTest',
+    'OptOutBundleSameStateRepublishTest',
+    'ShippedEditorialForwardDraftFlowTest',
 ]);
 
 $command = [
@@ -31,6 +42,7 @@ $command = [
     '--threads=2',
     '--no-interaction',
     '--no-progress',
+    '--only-covering-test-cases',
     '--logger-summary-json=' . $logDirectory . '/mutation-summary.json',
     '--logger-text=' . $logDirectory . '/mutation.log',
     '--test-framework-extra-args=--filter ' . $testFilter,
