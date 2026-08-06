@@ -566,7 +566,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version-file: '.nvmrc'
 
       - name: Cache Composer dependencies
         uses: actions/cache@v6
@@ -636,7 +636,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version-file: '.nvmrc'
           cache: 'npm'
           cache-dependency-path: packages/admin/package-lock.json
 
@@ -665,6 +665,10 @@ jobs:
 
       - name: Run Playwright smoke tests
         run: cd packages/admin && npx playwright test --project=chromium --project=firefox
+
+      - name: Summarize Playwright retries
+        if: always()
+        run: cd packages/admin && npm run test:e2e:summary
 
       - name: Upload Playwright artifacts
         uses: actions/upload-artifact@v7
@@ -701,7 +705,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version-file: '.nvmrc'
           cache: 'npm'
           cache-dependency-path: packages/admin/package-lock.json
 
@@ -774,7 +778,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version-file: '.nvmrc'
 
       - name: Install ajv-cli
         run: npm install -g ajv-cli
