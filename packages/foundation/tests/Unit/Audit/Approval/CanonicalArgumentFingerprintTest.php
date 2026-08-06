@@ -21,6 +21,18 @@ final class CanonicalArgumentFingerprintTest extends TestCase
     }
 
     #[Test]
+    public function wire_fingerprint_has_a_stable_known_answer(): void
+    {
+        self::assertSame(
+            '2edaa3e9f959685c2f18292c2daf2b7c6ce60d8f5010ccb8c9f27a68efd8d412',
+            CanonicalArgumentFingerprint::compute(
+                'node_update',
+                ['name' => 'café', 'url' => 'https://example.test/a'],
+            ),
+        );
+    }
+
+    #[Test]
     public function map_key_order_does_not_change_the_fingerprint(): void
     {
         self::assertSame(

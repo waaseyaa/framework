@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Waaseyaa\Access\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccessStatus;
-use PHPUnit\Framework\TestCase;
 
 /**
  * @covers \Waaseyaa\Access\AccessResult
@@ -372,5 +372,14 @@ class AccessResultTest extends TestCase
         $this->assertSame(AccessStatus::NEUTRAL, AccessStatus::from('neutral'));
         $this->assertSame(AccessStatus::FORBIDDEN, AccessStatus::from('forbidden'));
         $this->assertSame(AccessStatus::UNAUTHENTICATED, AccessStatus::from('unauthenticated'));
+    }
+
+    public function testCombinatorsPreserveTheWinningResultInstance(): void
+    {
+        $leftAllowed = AccessResult::allowed('left allowed');
+        $rightAllowed = AccessResult::allowed('right allowed');
+
+        $this->assertSame($leftAllowed, $leftAllowed->andIf($rightAllowed));
+        $this->assertSame($leftAllowed, $leftAllowed->orIf($rightAllowed));
     }
 }

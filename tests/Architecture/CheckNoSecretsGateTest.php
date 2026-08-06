@@ -48,7 +48,13 @@ final class CheckNoSecretsGateTest extends TestCase
     #[Test]
     public function excludes_generated_dependency_and_distribution_trees(): void
     {
-        foreach (['vendor/dependency.txt', 'node_modules/dependency.txt', 'packages/admin/dist/bundle.js', 'packages/admin/build/bundle.js'] as $relative) {
+        foreach ([
+            'vendor/dependency.txt',
+            'node_modules/dependency.txt',
+            'packages/admin/dist/bundle.js',
+            'packages/admin/build/bundle.js',
+            '.claude/worktrees/agent-copy/fixture.txt',
+        ] as $relative) {
             $path = $this->tmpRoot . '/' . $relative;
             mkdir(dirname($path), 0o755, true);
             file_put_contents($path, 'token=' . 'ghp_' . str_repeat('b', 24) . "\n");
