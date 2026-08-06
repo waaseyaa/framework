@@ -45,8 +45,8 @@ final class MutationPilotTest extends TestCase
             self::assertStringContainsString($source, $runner);
         }
 
-        self::assertStringNotContainsString('--min-msi', $runner);
-        self::assertStringNotContainsString('--min-covered-msi', $runner);
+        self::assertStringContainsString('--min-msi=84', $runner);
+        self::assertStringContainsString('--min-covered-msi=84', $runner);
         self::assertStringContainsString('--only-covering-test-cases', $runner);
         self::assertStringContainsString('FirstPublishEstablishmentFlowTest', $runner);
         self::assertStringContainsString('GroupConstraintSaveGuardTest', $runner);
@@ -54,7 +54,8 @@ final class MutationPilotTest extends TestCase
         self::assertStringContainsString('name: ci/mutation-pilot', $workflow);
         self::assertStringContainsString('coverage: pcov', $workflow);
         self::assertStringContainsString('name: mutation-pilot', $workflow);
-        self::assertStringContainsString('two successful CI runs', $documentation);
+        self::assertStringContainsString('Two successful CI runs', $documentation);
+        self::assertStringContainsString('84.26%', $documentation);
     }
 
     #[Test]

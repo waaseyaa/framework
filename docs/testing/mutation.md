@@ -24,14 +24,24 @@ predictable, and writes
 `build/logs/mutation-summary.json` plus `build/logs/mutation.log`. CI retains
 both files as the `mutation-pilot` artifact.
 
-## Baseline policy
+## Baseline and gate
 
-The pilot initially reports Mutation Score Indicator (MSI), covered-code MSI,
-escaped mutants, uncovered mutants, errors, and runtime without enforcing a
-score. After two successful CI runs on unchanged source and tests, record the
-observed range and classify surviving mutants as test gaps, equivalent mutants,
-or intentionally out of scope. Only then may a pull request propose stable
-blocking thresholds. Repository-wide mutation testing is not a merge gate.
+Two successful CI runs at commit `5ec989307` produced identical results:
+
+| Attempt | Mutants | Killed | Escaped | Covered | MSI / covered MSI | Errors / timeouts | Mutation step |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 343 | 289 | 54 | 100% | 84.26% | 0 / 0 | 50s |
+| 2 | 343 | 289 | 54 | 100% | 84.26% | 0 / 0 | 53s |
+
+The 54 survivors classify into 27 diagnostic or behavior-equivalent mutations
+(21 exception-message concatenations, five cache-key spellings that remain
+distinct for valid entity identifiers, and the sanitizer's equivalent empty
+input fast path) and 27 actionable workflow defensive-branch gaps. The latter
+remain tracked in issue #2261; they are not hidden with ignore directives.
+
+The stable evidence supports blocking floors of 84% MSI and 84% covered MSI,
+leaving a small margin below the measured 84.26%. The bounded pilot job is a
+merge gate. Repository-wide mutation testing is not.
 
 Any change to the source list, test filter, mutator profile, thread count, or
 Infection version resets the two-run baseline requirement.
