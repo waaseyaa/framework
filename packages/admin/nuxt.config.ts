@@ -2,6 +2,9 @@ const backendUrl = process.env.NUXT_BACKEND_URL ?? 'http://127.0.0.1:8080'
 
 export default defineNuxtConfig({
   compatibilityDate: '2025-01-01',
+  // bin/build-admin-dist derives this from the complete source signature so
+  // unchanged release builds use the same Nuxt manifest identity.
+  buildId: process.env.WAASEYAA_ADMIN_BUILD_ID,
   devtools: { enabled: process.env.NODE_ENV !== 'production' },
   ssr: false,
 

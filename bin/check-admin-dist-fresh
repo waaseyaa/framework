@@ -19,6 +19,7 @@ declare(strict_types=1);
  *
  * Usage:
  *   php bin/check-admin-dist-fresh            # verify (CI gate; non-zero on stale)
+ *   php bin/check-admin-dist-fresh --print    # print the deterministic source signature
  *   php bin/check-admin-dist-fresh --write    # (re)write the signature; called by bin/build-admin-dist
  */
 
@@ -26,6 +27,11 @@ $root = dirname(__DIR__);
 $marker = $root . '/packages/admin-surface/dist.signature';
 
 $signature = computeAdminSourceSignature($root);
+
+if (in_array('--print', $argv, true)) {
+    fwrite(STDOUT, $signature . "\n");
+    exit(0);
+}
 
 if (in_array('--write', $argv, true)) {
     file_put_contents($marker, $signature . "\n");
@@ -81,6 +87,10 @@ function computeAdminSourceSignature(string $root): string
     // 2. Build-determining top-level files (dependency pins + nuxt config) — a
     //    dependency bump or config change also changes the bundle.
     $topLevel = [
+        '.nvmrc',
+        'bin/build-admin-dist',
+        'bin/check-admin-dist-fresh',
+        'bin/normalize-admin-dist',
         'packages/admin/nuxt.config.ts',
         'packages/admin/app.config.ts',
         'packages/admin/package.json',
