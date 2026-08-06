@@ -14,7 +14,7 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\Audit\Approval\ApprovalTuple;
 use Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface;
 use Waaseyaa\Foundation\Exception\ConfigException;
-use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
+use Waaseyaa\Testing\Kernel\KernelServicesFixture;
 
 /**
  * #2177 F1 slice B: `AuditServiceProvider` wires the durable approval store —
@@ -36,14 +36,9 @@ final class AuditServiceProviderApprovalStoreTest extends TestCase
     {
         $provider = new AuditServiceProvider();
         $provider->setKernelContext('', $config, []);
-        $provider->setKernelServices(new class ($this->database) implements KernelServicesInterface {
-            public function __construct(private readonly DatabaseInterface $database) {}
-
-            public function get(string $abstract): ?object
-            {
-                return $abstract === DatabaseInterface::class ? $this->database : null;
-            }
-        });
+        $provider->setKernelServices(new KernelServicesFixture([
+            DatabaseInterface::class => $this->database,
+        ]));
         $provider->register();
 
         return $provider;

@@ -22,7 +22,7 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\FieldReadLevel;
-use Waaseyaa\Entity\Tests\Helper\TestEntityType;
+use Waaseyaa\Testing\Factory\EntityTypeFactory;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionRegistry;
 
@@ -33,7 +33,7 @@ final class ResourceSerializerCastAwareTest extends TestCase
     public function serializeUsesGetSoBackedEnumCastExposesBackingValueInAttributes(): void
     {
         $manager = new EntityTypeManager(new EventDispatcher());
-        $manager->registerEntityType(TestEntityType::stub(
+        $manager->registerEntityType(EntityTypeFactory::create(
             'cast_article',
             keys: TestEntity::definitionKeys(),
             class: CastAwareSerializeTestEntity::class,
@@ -60,7 +60,7 @@ final class ResourceSerializerCastAwareTest extends TestCase
     public function serializeFormatsDatetimeImmutableFromCastWhenFieldDefIsTimestamp(): void
     {
         $manager = new EntityTypeManager(new EventDispatcher());
-        $manager->registerEntityType(TestEntityType::stub(
+        $manager->registerEntityType(EntityTypeFactory::create(
             'cast_article',
             ['published_at' => new FieldDefinition(name: 'published_at', type: 'timestamp')],
             keys: TestEntity::definitionKeys(),

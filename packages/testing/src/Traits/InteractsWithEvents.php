@@ -9,6 +9,9 @@ namespace Waaseyaa\Testing\Traits;
  *
  * Allows tests to set up expected events and to "fake" events
  * by capturing dispatched events without executing real listeners.
+ *
+ * @deprecated since 0.1.0-alpha.288. Attach listeners to the real Symfony
+ *   event dispatcher used by the system under test.
  * @api
  */
 trait InteractsWithEvents

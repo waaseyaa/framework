@@ -18,10 +18,10 @@ use Waaseyaa\Database\SchemaInterface;
 use Waaseyaa\Database\SelectInterface;
 use Waaseyaa\Database\TransactionInterface;
 use Waaseyaa\Database\UpdateInterface;
-use Waaseyaa\Entity\DateTime\EntityClockInterface;
 use Waaseyaa\Foundation\Audit\Approval\ApprovalRequest;
 use Waaseyaa\Foundation\Audit\Approval\ApprovalStatus;
 use Waaseyaa\Foundation\Audit\Approval\ApprovalTuple;
+use Waaseyaa\Testing\Clock\MutableEntityClock;
 
 #[CoversNothing]
 final class OperationApprovalStoreListPendingTest extends TestCase
@@ -34,8 +34,7 @@ final class OperationApprovalStoreListPendingTest extends TestCase
     /** @var list<string> SELECT statements observed by the counting decorator */
     private array $observedSelects = [];
 
-    /** @var EntityClockInterface&object{now: \DateTimeImmutable} */
-    private EntityClockInterface $clock;
+    private MutableEntityClock $clock;
 
     private DatabaseOperationApprovalStore $store;
 
@@ -43,19 +42,7 @@ final class OperationApprovalStoreListPendingTest extends TestCase
     {
         $this->database = DBALDatabase::createSqlite();
         new ApprovalEventSchema($this->database)->ensure();
-        $this->clock = new class implements EntityClockInterface {
-            public \DateTimeImmutable $now;
-
-            public function __construct()
-            {
-                $this->now = new \DateTimeImmutable(OperationApprovalStoreListPendingTest::START, new \DateTimeZone('UTC'));
-            }
-
-            public function now(): \DateTimeImmutable
-            {
-                return $this->now;
-            }
-        };
+        $this->clock = new MutableEntityClock(new \DateTimeImmutable(self::START, new \DateTimeZone('UTC')));
         $this->store = new DatabaseOperationApprovalStore($this->countingDatabase(), $this->clock, ttlSeconds: 900);
     }
 
@@ -160,7 +147,7 @@ final class OperationApprovalStoreListPendingTest extends TestCase
     public function list_pending_omits_expired_approved_denied_and_consumed_requests(): void
     {
         $expired = $this->open(1);
-        $this->clock->now = $this->clock->now->modify('+900 seconds');
+        $this->clock->advance(new \DateInterval('PT900S'));
 
         $pending = $this->open(2);
         $approved = $this->open(3);
@@ -185,10 +172,10 @@ final class OperationApprovalStoreListPendingTest extends TestCase
         $request = $this->store->find($id);
         self::assertNotNull($request);
 
-        $this->clock->now = $request->expiresAt->modify('-1 microsecond');
+        $this->clock->set($request->expiresAt->modify('-1 microsecond'));
         self::assertSame([$id], $this->idsOf($this->store->listPending()->requests));
 
-        $this->clock->now = $request->expiresAt;
+        $this->clock->set($request->expiresAt);
         self::assertSame([], $this->store->listPending()->requests);
     }
 

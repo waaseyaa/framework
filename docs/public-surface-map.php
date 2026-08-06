@@ -147,11 +147,6 @@ return [
     'Waaseyaa\Queue\Envelope\QueueAuthorityScopeInterface' => 'public',
     'Waaseyaa\Queue\Envelope\QueueEnvelopeFactoryInterface' => 'public',
     'Waaseyaa\Queue\PersistentPayloadReplayInterface' => 'public',
-    'Waaseyaa\Testing\Traits\CreatesApplication' => 'public',
-    'Waaseyaa\Testing\Traits\InteractsWithApi' => 'public',
-    'Waaseyaa\Testing\Traits\InteractsWithAuth' => 'public',
-    'Waaseyaa\Testing\Traits\InteractsWithEvents' => 'public',
-    'Waaseyaa\Testing\Traits\RefreshDatabase' => 'public',
     'Waaseyaa\ErrorHandler\SolutionInterface' => 'public',
     'Waaseyaa\ErrorHandler\SolutionProviderInterface' => 'public',
 
@@ -176,9 +171,22 @@ return [
     'Waaseyaa\HttpClient\HttpClientInterface' => 'internal',
     'Waaseyaa\Ingestion\PayloadValidatorInterface' => 'internal',
     'Waaseyaa\Ingestion\EnvelopeValidator' => 'internal',
-    'Waaseyaa\Testing\WaaseyaaTestCase' => 'internal',
 
     // Layer 1: Core Data — public
+    // Deprecated compatibility helpers. New tests use the typed fixtures below.
+    'Waaseyaa\Testing\Traits\CreatesApplication' => 'public',
+    'Waaseyaa\Testing\Traits\InteractsWithApi' => 'public',
+    'Waaseyaa\Testing\Traits\InteractsWithAuth' => 'public',
+    'Waaseyaa\Testing\Traits\InteractsWithEvents' => 'public',
+    'Waaseyaa\Testing\Traits\RefreshDatabase' => 'public',
+    'Waaseyaa\Testing\Clock\MutableEntityClock' => 'public',
+    'Waaseyaa\Testing\Database\TemporarySqliteDatabase' => 'public',
+    'Waaseyaa\Testing\Factory\AuthorizationPrincipalFactory' => 'public',
+    'Waaseyaa\Testing\Factory\EntityFactory' => 'public',
+    'Waaseyaa\Testing\Factory\EntityTypeFactory' => 'public',
+    'Waaseyaa\Testing\Factory\EntityTypeFixtureValues' => 'public',
+    'Waaseyaa\Testing\Filesystem\TemporaryDirectory' => 'public',
+    'Waaseyaa\Testing\Kernel\KernelServicesFixture' => 'public',
     'Waaseyaa\Entity\EntityInterface' => 'public',
     'Waaseyaa\Entity\FieldReadLevel' => 'public',
     // Closed registry-generation seam used only to invalidate compiled entity
@@ -432,6 +440,7 @@ return [
     'Waaseyaa\Field\Classification\ClassificationParentResolverInterface' => 'public',
 
     // Layer 1: Core Data — internal
+    'Waaseyaa\Testing\WaaseyaaTestCase' => 'internal',
     'Waaseyaa\EntityStorage\Hydration\EntityInstantiator' => 'internal',
     'Waaseyaa\Access\ErrorPageRendererInterface' => 'internal',
     'Waaseyaa\Auth\Token\AuthTokenRepositoryInterface' => 'internal',

@@ -79,6 +79,10 @@
         {
             "type": "path",
             "url": "../telescope"
+        },
+        {
+            "type": "path",
+            "url": "../testing"
         }
     ],
     "require": {
@@ -118,7 +122,8 @@
         "waaseyaa/database-legacy": "^0.1.0-alpha.287",
         "waaseyaa/media": "^0.1.0-alpha.287",
         "waaseyaa/search": "^0.1.0-alpha.287",
-        "waaseyaa/telescope": "^0.1.0-alpha.287"
+        "waaseyaa/telescope": "^0.1.0-alpha.287",
+        "waaseyaa/testing": "^0.1.0-alpha.287"
     },
     "autoload": {
         "psr-4": {

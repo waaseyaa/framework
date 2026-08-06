@@ -9,7 +9,7 @@ use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\Entity\Tests\Helper\TestEntityType;
+use Waaseyaa\Testing\Factory\EntityTypeFactory;
 use Waaseyaa\Field\FieldDefinition;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -25,7 +25,7 @@ final class ResourceSerializerTest extends TestCase
     protected function setUp(): void
     {
         $this->entityTypeManager = new EntityTypeManager(new EventDispatcher());
-        $this->entityTypeManager->registerEntityType(TestEntityType::stub(
+        $this->entityTypeManager->registerEntityType(EntityTypeFactory::create(
             'article',
             [
                 'status' => new FieldDefinition(name: 'status', type: 'boolean'),
@@ -69,7 +69,7 @@ final class ResourceSerializerTest extends TestCase
         // Fields whose FieldDefinition sets `settings['internal'] => true`
         // (e.g. User::two_factor_secret) must not appear in serialized output.
         $entityTypeManager = new EntityTypeManager(new EventDispatcher());
-        $entityTypeManager->registerEntityType(TestEntityType::stub(
+        $entityTypeManager->registerEntityType(EntityTypeFactory::create(
             'article',
             [
                 'two_factor_secret' => new FieldDefinition(

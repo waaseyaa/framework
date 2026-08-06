@@ -7,10 +7,8 @@ namespace Waaseyaa\Mcp\Tests\Unit;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Waaseyaa\Access\AccountInterface;
-use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\AgentToolResult;
@@ -22,6 +20,8 @@ use Waaseyaa\Mcp\Auth\PublicAnonymousAuth;
 use Waaseyaa\Mcp\CapabilityScopedToolRegistry;
 use Waaseyaa\Mcp\McpEndpoint;
 use Waaseyaa\Mcp\ReadOnlyToolRegistry;
+use Waaseyaa\Mcp\Tests\Support\McpRequestFactory;
+use Waaseyaa\Testing\Factory\AuthorizationPrincipalFactory;
 
 /**
  * End-to-end acceptance for the authenticated MCP write tier (Phase 5):
@@ -195,12 +195,7 @@ final class AuthenticatedMcpEndpointTest extends TestCase
      */
     private function rpc(string $method, array $params = []): string
     {
-        return \json_encode([
-            'jsonrpc' => '2.0',
-            'id' => 1,
-            'method' => $method,
-            'params' => $params,
-        ], \JSON_THROW_ON_ERROR);
+        return McpRequestFactory::body($method, $params);
     }
 
     private function serve(AuthenticatedMcpEndpoint $endpoint, string $body, ?string $authorizationHeader): HttpResponse
@@ -208,17 +203,9 @@ final class AuthenticatedMcpEndpointTest extends TestCase
         return $endpoint->serve($this->account(99, hasCapability: false), $this->request($body, $authorizationHeader));
     }
 
-    private function request(string $body, ?string $authorizationHeader): HttpRequest
+    private function request(string $body, ?string $authorizationHeader): \Symfony\Component\HttpFoundation\Request
     {
-        $server = [
-            'CONTENT_TYPE' => 'application/json',
-            'HTTP_ACCEPT' => 'application/json, text/event-stream',
-        ];
-        if ($authorizationHeader !== null) {
-            $server['HTTP_AUTHORIZATION'] = $authorizationHeader;
-        }
-
-        return HttpRequest::create('/mcp/write', 'POST', [], [], [], $server, $body);
+        return McpRequestFactory::request('/mcp/write', $body, $authorizationHeader);
     }
 
     /**
@@ -234,13 +221,13 @@ final class AuthenticatedMcpEndpointTest extends TestCase
 
     private function account(int $id, bool $hasCapability): AccountInterface
     {
-        $account = $this->createMock(AuthorizationPrincipalInterface::class);
-        $account->method('id')->willReturn($id);
-        $account->method('isAuthenticated')->willReturn($id > 0);
-        $account->method('hasPermission')->willReturnCallback(
-            static fn(string $permission): bool => $hasCapability && $permission === self::WRITE_CAP,
-        );
+        if ($id === 0) {
+            return AuthorizationPrincipalFactory::anonymous();
+        }
 
-        return $account;
+        return AuthorizationPrincipalFactory::authenticated(
+            id: $id,
+            permissions: $hasCapability ? [self::WRITE_CAP] : [],
+        );
     }
 }

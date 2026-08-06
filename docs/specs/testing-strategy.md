@@ -49,6 +49,14 @@ The behavioral taxonomy is:
   Request-shaped arrays, raw PDO shortcuts, and identity-shaped arrays are not
   substitutes for Symfony requests, the framework DBAL, or decision
   principals.
+- Protocol-specific test helpers stay with the package that owns the protocol.
+  For example, MCP JSON-RPC fixtures live under MCP's test autoload namespace;
+  moving them into the Layer 1 testing package would invert the layer graph.
+- Independently runnable split-package suites must install from their own
+  declared `require` and `require-dev` closure, must not import another
+  package's `autoload-dev` namespace, and must have an executable CI proof.
+  The current required set is `waaseyaa/access`, exercised by
+  `bin/test-isolated-package access` under `ci/package-isolation`.
 - Keep PHPUnit, Vitest, and Playwright as the canonical tools. A second test
   syntax or mocking framework requires a demonstrated capability gap.
 
@@ -61,6 +69,9 @@ The behavioral taxonomy is:
 - **Inventory:** `composer test:inventory` reports Git-tracked-only PHP,
   PHPUnit, Vitest, Playwright, nondeterminism, and helper-adoption signals.
   These counts are inputs to review, not quality scores.
+- **Split packages:** `bin/test-isolated-package access` copies source into an
+  owned temporary tree, performs a clean package-local Composer install, and
+  executes the package suite without the monorepo root dev autoloader.
 
 ## Modernization policy
 

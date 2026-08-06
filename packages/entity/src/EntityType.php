@@ -20,7 +20,8 @@ use Waaseyaa\Field\FieldStorage;
  * Content entity types should be built via {@see self::fromClass()}, which
  * reflects on the class's `#[ContentEntityType]`, `#[ContentEntityKeys]`, and
  * `#[Field]` attributes. The constructor's `$_fieldDefinitions` slot is
- * `@internal` and is reserved for that factory plus the test stub helper.
+ * `@internal` and is reserved for that factory plus the package-local and
+ * `waaseyaa/testing` synthetic entity-type helpers.
  */
 final readonly class EntityType implements EntityTypeInterface, ApiExposableEntityTypeInterface, EntityTypeForeignKeyDefinitionInterface
 {
@@ -55,7 +56,7 @@ final readonly class EntityType implements EntityTypeInterface, ApiExposableEnti
      * @param bool $api Whether generic JSON:API routes are deliberately exposed.
      * @param array<string, FieldDefinitionInterface|array<string, mixed>> $_fieldDefinitions
      *   @internal Field definitions keyed by field name. Populated only by
-     *   {@see self::fromClass()} and {@see \Waaseyaa\Entity\Tests\Helper\TestEntityType::stub()}.
+     *   {@see self::fromClass()} and reviewed synthetic test helpers.
      *   Application code MUST NOT pass this argument; doing so is unsupported.
      *
      * @throws \InvalidArgumentException If `$tenancy` is provided and does not match `['scope' => 'community']`.

@@ -8,25 +8,25 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
-use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Waaseyaa\Access\AccountInterface;
-use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentTool;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Mcp\Auth\BearerTokenAuth;
 use Waaseyaa\Mcp\Auth\McpAuthInterface;
 use Waaseyaa\Mcp\Auth\PublicAnonymousAuth;
 use Waaseyaa\Mcp\McpEndpoint;
 use Waaseyaa\Mcp\McpServiceProvider;
+use Waaseyaa\Mcp\Tests\Support\McpRequestFactory;
 use Waaseyaa\Routing\Exception\RouteNotFoundException;
 use Waaseyaa\Routing\WaaseyaaRouter;
+use Waaseyaa\Testing\Factory\AuthorizationPrincipalFactory;
+use Waaseyaa\Testing\Kernel\KernelServicesFixture;
 
 /**
  * Release gate for F2: a downstream application controls the public `/mcp` tier.
@@ -210,21 +210,15 @@ final class PublicTierAuthOverrideTest extends TestCase
         // Mirrors ProviderRegistryKernelServices::get() — first provider holding
         // the binding wins. Because McpServiceProvider no longer binds
         // McpAuthInterface, the app's binding is what the bus returns.
-        $bus = new class (static fn(): array => $providers) implements KernelServicesInterface {
-            /** @param \Closure(): list<ServiceProvider> $providers */
-            public function __construct(private \Closure $providers) {}
-
-            public function get(string $abstract): ?object
-            {
-                foreach (($this->providers)() as $provider) {
+        $bus = new KernelServicesFixture(fallback: static function (string $abstract) use (&$providers): ?object {
+                foreach ($providers as $provider) {
                     if (isset($provider->getBindings()[$abstract])) {
                         return $provider->resolve($abstract);
                     }
                 }
 
                 return null;
-            }
-        };
+            });
 
         foreach ($providers as $provider) {
             // This acceptance test isolates auth override semantics; default-on
@@ -342,25 +336,12 @@ final class PublicTierAuthOverrideTest extends TestCase
     /** @param array<string, mixed> $params */
     private function rpc(string $method, array $params = []): string
     {
-        return \json_encode([
-            'jsonrpc' => '2.0',
-            'id' => 1,
-            'method' => $method,
-            'params' => $params,
-        ], \JSON_THROW_ON_ERROR);
+        return McpRequestFactory::body($method, $params);
     }
 
     private function serve(McpEndpoint $endpoint, string $body, ?string $authorizationHeader): HttpResponse
     {
-        $server = [];
-        if ($authorizationHeader !== null) {
-            $server['HTTP_AUTHORIZATION'] = $authorizationHeader;
-        }
-        $server += [
-            'CONTENT_TYPE' => 'application/json',
-            'HTTP_ACCEPT' => 'application/json, text/event-stream',
-        ];
-        $request = HttpRequest::create('/mcp', 'POST', [], [], [], $server, $body);
+        $request = McpRequestFactory::request('/mcp', $body, $authorizationHeader);
 
         // The session account is forwarded for AppControllerRouter contract
         // compliance; the endpoint resolves the MCP actor from the header.
@@ -378,11 +359,6 @@ final class PublicTierAuthOverrideTest extends TestCase
 
     private function account(int $id): AccountInterface
     {
-        $account = $this->createMock(AuthorizationPrincipalInterface::class);
-        $account->method('id')->willReturn($id);
-        $account->method('isAuthenticated')->willReturn($id > 0);
-        $account->method('hasPermission')->willReturn(true);
-
-        return $account;
+        return AuthorizationPrincipalFactory::authenticated(id: $id, roles: ['administrator']);
     }
 }

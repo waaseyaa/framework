@@ -19,13 +19,14 @@ use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 use Waaseyaa\Auth\Token\Bearer\DatabaseBearerTokenStore;
-use Waaseyaa\Database\DBALDatabase;
-use Waaseyaa\Entity\DateTime\EntityClockInterface;
+use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Mcp\Auth\DurableBearerTokenAuth;
 use Waaseyaa\Mcp\McpEndpoint;
 use Waaseyaa\User\User;
+use Waaseyaa\Testing\Clock\MutableEntityClock;
+use Waaseyaa\Testing\Database\TemporarySqliteDatabase;
 
 /**
  * End-to-end #2177 F3 lifecycle: a real sqlite-backed token store composed
@@ -38,10 +39,11 @@ final class DurableBearerTokenLifecycleTest extends TestCase
 {
     public const string START = '2026-08-03 10:00:00.000000';
 
-    private DBALDatabase $database;
+    private TemporarySqliteDatabase $databaseFixture;
 
-    /** @var EntityClockInterface&object{now: \DateTimeImmutable} */
-    private EntityClockInterface $clock;
+    private DatabaseInterface $database;
+
+    private MutableEntityClock $clock;
 
     private DatabaseBearerTokenStore $store;
 
@@ -49,20 +51,9 @@ final class DurableBearerTokenLifecycleTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->database = DBALDatabase::createSqlite();
-        $this->clock = new class implements EntityClockInterface {
-            public \DateTimeImmutable $now;
-
-            public function __construct()
-            {
-                $this->now = new \DateTimeImmutable(DurableBearerTokenLifecycleTest::START, new \DateTimeZone('UTC'));
-            }
-
-            public function now(): \DateTimeImmutable
-            {
-                return $this->now;
-            }
-        };
+        $this->databaseFixture = new TemporarySqliteDatabase();
+        $this->database = $this->databaseFixture->database();
+        $this->clock = new MutableEntityClock(new \DateTimeImmutable(self::START, new \DateTimeZone('UTC')));
         $this->store = new DatabaseBearerTokenStore($this->database, $this->clock);
 
         $owner = new User(['uid' => 42]);
@@ -88,6 +79,12 @@ final class DurableBearerTokenLifecycleTest extends TestCase
             auth: new DurableBearerTokenAuth($this->store, $accounts, $principals),
             agentRegistry: $this->registry(),
         );
+    }
+
+    protected function tearDown(): void
+    {
+        $this->databaseFixture->remove();
+        parent::tearDown();
     }
 
     private function dispatch(?string $bearer, array $payload): array
@@ -139,16 +136,16 @@ final class DurableBearerTokenLifecycleTest extends TestCase
         self::assertSame(['guide.publish'], $this->toolsVisibleWith($rotated->secret));
 
         // Expiry boundary: at the instant, dead.
-        $this->clock->now = $this->clock->now->modify('+3599 seconds');
+        $this->clock->advance(new \DateInterval('PT3599S'));
         self::assertSame(['guide.publish'], $this->toolsVisibleWith($rotated->secret));
-        $this->clock->now = $this->clock->now->modify('+1 seconds');
+        $this->clock->advance(new \DateInterval('PT1S'));
         self::assertSame(
             401,
             $this->dispatch($rotated->secret, ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/list'])['status'],
         );
 
         // Revocation is immediate.
-        $this->clock->now = new \DateTimeImmutable(self::START, new \DateTimeZone('UTC'));
+        $this->clock->set(new \DateTimeImmutable(self::START, new \DateTimeZone('UTC')));
         $fresh = $this->store->issue(42, 'mcp:write', ['wayfinding'], 3600, '');
         self::assertSame(['guide.publish'], $this->toolsVisibleWith($fresh->secret));
         $this->store->revoke($fresh->record->id);

@@ -129,7 +129,18 @@ every package.
 
 ### F5. `waaseyaa/testing` is disconnected from the real suite
 
-No tracked test outside `packages/testing` consumes its namespace. Its README
+**Remediated after the baseline:** the package now supplies only focused typed
+fixtures for mutable entity time, immutable principals, synthetic entity
+types, owned temporary files and DBAL SQLite databases, and kernel-service
+resolution. Access, Auth, Audit, API, Admin Surface, and MCP provide
+representative consumers. The former array, no-op service-bag, event-recorder,
+and raw-PDO surfaces are deprecated, and MCP keeps its transport fixture in its
+Layer 6 test namespace. Access is the first mechanically isolated split-package
+suite: CI clean-installs it, runs all package tests, and statically rejects an
+undeclared sibling or another package's `autoload-dev` namespace.
+
+At the audit baseline, no tracked test outside `packages/testing` consumed its
+namespace. Its README
 claims shared in-memory storage and integration bootstrap utilities that its
 public surface does not provide. `CreatesApplication` is a no-op service bag,
 `InteractsWithApi` returns request-shaped arrays instead of Symfony requests,

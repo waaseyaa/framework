@@ -11,7 +11,6 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AccountPrincipalFactory;
-use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\Context\RequestAccountContext;
 use Waaseyaa\Access\Middleware\FieldReadContextMiddleware;
@@ -19,6 +18,7 @@ use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Access\Middleware\AuthorizationMiddleware;
 use Waaseyaa\User\Middleware\SessionMiddleware;
+use Waaseyaa\Testing\Factory\AuthorizationPrincipalFactory;
 
 final class FieldReadContextMiddlewareTest extends TestCase
 {
@@ -55,15 +55,11 @@ final class FieldReadContextMiddlewareTest extends TestCase
         $accountContext = new RequestAccountContext();
         $middleware = new FieldReadContextMiddleware(new AccountPrincipalFactory(), $scope, $accountContext);
         $request = Request::create('/members');
-        $request->attributes->set('_account', new class implements AuthorizationPrincipalInterface {
-            public function id(): int|string { return 42; }
-            public function hasPermission(string $permission): bool { return $permission === 'view members'; }
-            public function getRoles(): array { return ['member']; }
-            public function isAuthenticated(): bool { return true; }
-            public function claimsGeneration(): string { return 'test-v1'; }
-            public function tenantId(): ?string { return null; }
-            public function communityId(): ?string { return null; }
-        });
+        $request->attributes->set('_account', AuthorizationPrincipalFactory::authenticated(
+            id: 42,
+            roles: ['member'],
+            permissions: ['view members'],
+        ));
         $handler = new class($scope, $accountContext) implements HttpHandlerInterface {
             public function __construct(
                 private readonly AccountFieldReadScope $scope,
@@ -89,15 +85,10 @@ final class FieldReadContextMiddlewareTest extends TestCase
         $scope = new AccountFieldReadScope();
         $middleware = new FieldReadContextMiddleware(new AccountPrincipalFactory(), $scope);
         $request = Request::create('/members.csv');
-        $request->attributes->set('_account', new class implements AuthorizationPrincipalInterface {
-            public function id(): int|string { return 42; }
-            public function hasPermission(string $permission): bool { return false; }
-            public function getRoles(): array { return ['member']; }
-            public function isAuthenticated(): bool { return true; }
-            public function claimsGeneration(): string { return 'test-v1'; }
-            public function tenantId(): ?string { return null; }
-            public function communityId(): ?string { return null; }
-        });
+        $request->attributes->set('_account', AuthorizationPrincipalFactory::authenticated(
+            id: 42,
+            roles: ['member'],
+        ));
         $seen = null;
         $handler = new class($scope, $seen) implements HttpHandlerInterface {
             public function __construct(private readonly AccountFieldReadScope $scope, private mixed &$seen) {}

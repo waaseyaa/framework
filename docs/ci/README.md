@@ -19,6 +19,7 @@ The repository ruleset is authoritative. Its required checks are:
 | `ci/core-only-boot` | Proves the minimal framework boot boundary | ~20 sec |
 | `ci/coverage` | Produces PCOV reports and enforces baseline and changed-line ratchets | ~4.5 min |
 | `ci/lint` | PHP syntax, CS Fixer (dry-run), and PHPStan | ~2.5 min |
+| `ci/package-isolation` | Clean-installs and runs declared split-package suites without root dev autoload | ~30 sec |
 | `ci/playwright-smoke` | Starts PHP and Nuxt servers and exercises Chromium plus Firefox | ~2.5 min |
 | `ci/random-order` | Replays the complete PHP suite in a logged random order | ~3.5 min |
 | `ci/skeleton-create-project` | Installs and boots the exact consumer skeleton | ~45 sec |
@@ -118,7 +119,7 @@ main push → Deploy staging → Full Playwright sweep → [Approval gate] → D
 Label a PR with `auto-merge-when-green` to enable automatic squash merge when:
 
 1. Every status check required by the repository ruleset passes, including the
-   deterministic random-order replay and coverage ratchets
+   deterministic random-order replay, split-package isolation, and coverage ratchets
 2. PR is open with no merge conflicts
 3. PR has a milestone assigned
 

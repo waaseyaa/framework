@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **testing (#2242):** Replace the nonexistent Clover upload with dedicated PCOV coverage, package-level PHP summaries, and V8/Istanbul admin reports. Publish both report families as retained CI artifacts, require 80 percent coverage of changed executable PHP lines and admin statements, ratchet measured overall and critical-boundary baselines, and correct invalid trait, interface, and test-fixture coverage metadata exposed by PHPUnit 13 without imposing a repository-wide perfect-coverage target.
 
+- **testing (#2243, #2251):** Rebuild `waaseyaa/testing` around real framework contracts: mutable entity time, immutable authorization principals, synthetic entity types, owned temporary files and DBAL SQLite databases, and typed kernel-service resolution. Adopt the fixtures across Access, Auth, Audit, API, Admin Surface, and MCP while keeping Symfony HTTP and MCP protocol fixtures in their higher-layer owners. Deprecate the unadopted array, no-op service-bag, event-recorder, and raw-PDO compatibility helpers. The Access split package now declares every test dependency, rejects sibling `autoload-dev` imports, and passes a clean package-local install and PHPUnit suite in the required `ci/package-isolation` lane.
+
 ## [0.1.0-alpha.287] - 2026-08-05
 
 ### Changed

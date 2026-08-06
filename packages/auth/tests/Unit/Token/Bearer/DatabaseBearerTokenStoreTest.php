@@ -12,55 +12,45 @@ use Waaseyaa\Auth\Token\Bearer\BearerTokenStoreException;
 use Waaseyaa\Auth\Token\Bearer\BearerTokenStoreInterface;
 use Waaseyaa\Auth\Token\Bearer\DatabaseBearerTokenStore;
 use Waaseyaa\Database\DatabaseInterface;
-use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Database\DeleteInterface;
 use Waaseyaa\Database\InsertInterface;
 use Waaseyaa\Database\SchemaInterface;
 use Waaseyaa\Database\SelectInterface;
 use Waaseyaa\Database\TransactionInterface;
 use Waaseyaa\Database\UpdateInterface;
-use Waaseyaa\Entity\DateTime\EntityClockInterface;
+use Waaseyaa\Testing\Clock\MutableEntityClock;
+use Waaseyaa\Testing\Database\TemporarySqliteDatabase;
 
 #[CoversClass(DatabaseBearerTokenStore::class)]
 final class DatabaseBearerTokenStoreTest extends TestCase
 {
     public const string START = '2026-08-03 10:00:00.000000';
 
-    private DBALDatabase $database;
+    private TemporarySqliteDatabase $databaseFixture;
 
-    /** @var EntityClockInterface&object{now: \DateTimeImmutable} */
-    private EntityClockInterface $clock;
+    private DatabaseInterface $database;
+
+    private MutableEntityClock $clock;
 
     private DatabaseBearerTokenStore $store;
 
     protected function setUp(): void
     {
-        $this->database = DBALDatabase::createSqlite();
-        $this->clock = self::fixedClock();
+        $this->databaseFixture = new TemporarySqliteDatabase();
+        $this->database = $this->databaseFixture->database();
+        $this->clock = new MutableEntityClock(new \DateTimeImmutable(self::START, new \DateTimeZone('UTC')));
         $this->store = new DatabaseBearerTokenStore($this->database, $this->clock);
     }
 
-    /** @return EntityClockInterface&object{now: \DateTimeImmutable} */
-    private static function fixedClock(): EntityClockInterface
+    protected function tearDown(): void
     {
-        return new class implements EntityClockInterface {
-            public \DateTimeImmutable $now;
-
-            public function __construct()
-            {
-                $this->now = new \DateTimeImmutable(DatabaseBearerTokenStoreTest::START, new \DateTimeZone('UTC'));
-            }
-
-            public function now(): \DateTimeImmutable
-            {
-                return $this->now;
-            }
-        };
+        $this->databaseFixture->remove();
+        parent::tearDown();
     }
 
     private function advanceClock(int $seconds): void
     {
-        $this->clock->now = $this->clock->now->modify(sprintf('+%d seconds', $seconds));
+        $this->clock->advance(new \DateInterval(sprintf('PT%dS', $seconds)));
     }
 
     // ── Issuance ────────────────────────────────────────────────────────
@@ -154,7 +144,7 @@ final class DatabaseBearerTokenStoreTest extends TestCase
     {
         $issued = $this->store->issue(42, 'mcp:write', ['s']);
 
-        $expected = $this->clock->now->modify(
+        $expected = $this->clock->now()->modify(
             sprintf('+%d seconds', BearerTokenStoreInterface::DEFAULT_TTL_SECONDS),
         );
         self::assertEquals($expected, $issued->record->expiresAt);
@@ -399,7 +389,7 @@ final class DatabaseBearerTokenStoreTest extends TestCase
         $rotated = $this->store->rotate($issued->record->id);
 
         self::assertEquals(
-            $this->clock->now->modify('+3600 seconds'),
+            $this->clock->now()->modify('+3600 seconds'),
             $rotated->record->expiresAt,
         );
     }

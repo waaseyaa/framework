@@ -18,7 +18,7 @@ use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\Entity\Tests\Helper\TestEntityType;
+use Waaseyaa\Testing\Factory\EntityTypeFactory;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\ViewModeConfigInterface;
 
@@ -30,7 +30,7 @@ final class EntityMarkdownPresenterTest extends TestCase
     protected function setUp(): void
     {
         $this->entityTypeManager = new EntityTypeManager(new EventDispatcher());
-        $this->entityTypeManager->registerEntityType(TestEntityType::stub(
+        $this->entityTypeManager->registerEntityType(EntityTypeFactory::create(
             'article',
             [
                 'title' => new FieldDefinition(name: 'title', type: 'string'),

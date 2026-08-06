@@ -12,7 +12,7 @@ use Waaseyaa\Auth\AuthServiceProvider;
 use Waaseyaa\Auth\DatabaseRateLimiter;
 use Waaseyaa\Auth\RateLimiterInterface;
 use Waaseyaa\Database\DatabaseInterface;
-use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
+use Waaseyaa\Testing\Kernel\KernelServicesFixture;
 
 #[CoversClass(AuthServiceProvider::class)]
 final class AuthServiceProviderAtomicRateLimiterTest extends TestCase
@@ -23,14 +23,9 @@ final class AuthServiceProviderAtomicRateLimiterTest extends TestCase
         $database = $this->createStub(DatabaseInterface::class);
         $provider = new AuthServiceProvider();
         $provider->setKernelContext('/tmp/test-project', ['environment' => 'testing'], []);
-        $provider->setKernelServices(new class ($database) implements KernelServicesInterface {
-            public function __construct(private readonly DatabaseInterface $database) {}
-
-            public function get(string $abstract): ?object
-            {
-                return $abstract === DatabaseInterface::class ? $this->database : null;
-            }
-        });
+        $provider->setKernelServices(new KernelServicesFixture([
+            DatabaseInterface::class => $database,
+        ]));
         $provider->register();
 
         $atomic = $provider->resolve(AtomicRateLimiterInterface::class);
