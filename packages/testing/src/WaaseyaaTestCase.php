@@ -19,6 +19,8 @@ use Waaseyaa\Testing\Traits\InteractsWithEvents;
  *
  * @internal
  * @api
+ * @deprecated since 0.1.0-alpha.288. Extend PHPUnit TestCase directly and
+ *   compose the focused real-contract fixtures needed by the test.
  */
 abstract class WaaseyaaTestCase extends TestCase
 {

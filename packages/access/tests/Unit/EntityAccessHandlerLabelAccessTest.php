@@ -16,7 +16,7 @@ use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\Entity\Tests\Helper\TestEntityType;
+use Waaseyaa\Testing\Factory\EntityTypeFactory;
 
 /**
  * R7 WP1 exploit-closed regression.
@@ -39,7 +39,7 @@ final class EntityAccessHandlerLabelAccessTest extends TestCase
     private function entityTypeManager(): EntityTypeManager
     {
         $manager = new EntityTypeManager(new EventDispatcher());
-        $manager->registerEntityType(TestEntityType::stub(
+        $manager->registerEntityType(EntityTypeFactory::create(
             'article',
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title'],
         ));
@@ -112,7 +112,7 @@ final class EntityAccessHandlerLabelAccessTest extends TestCase
     public function returns_the_label_unchanged_when_the_entity_type_has_no_label_key(): void
     {
         $manager = new EntityTypeManager(new EventDispatcher());
-        $manager->registerEntityType(TestEntityType::stub('widget', keys: ['id' => 'id']));
+        $manager->registerEntityType(EntityTypeFactory::create('widget', keys: ['id' => 'id']));
 
         $entity = new class (['id' => 5], 'widget', ['id' => 'id']) extends EntityBase {};
         $handler = $this->forbidLabelFieldHandler();

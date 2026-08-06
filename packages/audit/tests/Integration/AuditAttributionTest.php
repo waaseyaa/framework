@@ -8,7 +8,6 @@ use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
-use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Context\RequestAccountContext;
 use Waaseyaa\Audit\Listener\AgentToolAuditListener;
 use Waaseyaa\Audit\Listener\EntityLifecycleAuditListener;
@@ -23,6 +22,7 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Event\RevisionPointerMovedEvent;
+use Waaseyaa\Testing\Factory\AuthorizationPrincipalFactory;
 
 /**
  * NFR-002 at 100%: ALL FOUR #1645 mis-attribution surfaces pinned through
@@ -94,7 +94,7 @@ final class AuditAttributionTest extends TestCase
 
         // The acting session is account 42; the saved entity is OWNED by
         // account 99 (its `uid` field) — the pre-mission listener recorded 99.
-        $this->context->set(new AttributionStubAccount(42));
+        $this->context->set(AuthorizationPrincipalFactory::authenticated(id: 42));
 
         $entity = new AttributionOwnedEntity(['id' => '1', 'uid' => 99, 'title' => 'Owned by 99']);
         $entity->enforceIsNew(true);
@@ -178,7 +178,7 @@ final class AuditAttributionTest extends TestCase
         };
 
         // Context fallback.
-        $this->context->set(new AttributionStubAccount(12));
+        $this->context->set(AuthorizationPrincipalFactory::authenticated(id: 12));
         $this->dispatcher->dispatch($eventNoAccount, AgentToolAuditListener::AGENT_TOOL_CALL_EVENT);
 
         // Neither event nor context → null.
@@ -340,32 +340,6 @@ final class AuditAttributionTest extends TestCase
         $this->assertCount(1, $events);
         $this->assertNull($events[0]->getActorUid(), 'Rows that predate the column must read actorUid null');
         $this->assertSame(9, $events[0]->getAccountUid(), 'The legacy accessor is untouched');
-    }
-}
-
-/** Minimal account stub: id-only. */
-final class AttributionStubAccount implements AccountInterface
-{
-    public function __construct(private readonly int $uid) {}
-
-    public function id(): int|string
-    {
-        return $this->uid;
-    }
-
-    public function hasPermission(string $permission): bool
-    {
-        return false;
-    }
-
-    public function getRoles(): array
-    {
-        return [];
-    }
-
-    public function isAuthenticated(): bool
-    {
-        return $this->uid > 0;
     }
 }
 

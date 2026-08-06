@@ -39,6 +39,10 @@
         {
             "type": "path",
             "url": "../database-legacy"
+        },
+        {
+            "type": "path",
+            "url": "../testing"
         }
     ],
     "require": {
@@ -55,7 +59,8 @@
         "phpunit/phpunit": "^13.0",
         "waaseyaa/config": "^0.1.0-alpha.287",
         "waaseyaa/database-legacy": "^0.1.0-alpha.287",
-        "waaseyaa/node": "^0.1.0-alpha.287"
+        "waaseyaa/node": "^0.1.0-alpha.287",
+        "waaseyaa/testing": "^0.1.0-alpha.287"
     },
     "autoload": {
         "psr-4": {

@@ -23,7 +23,7 @@ use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\FieldReadLevel;
-use Waaseyaa\Entity\Tests\Helper\TestEntityType;
+use Waaseyaa\Testing\Factory\EntityTypeFactory;
 use Waaseyaa\AdminSurface\Query\SurfaceFilterOperator;
 use Waaseyaa\AdminSurface\Query\SurfaceQuery;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
@@ -1397,7 +1397,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $etm = $this->createMock(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinitions')->willReturn([
-            TestEntityType::stub(
+            EntityTypeFactory::create(
                 id: 'event',
                 class: \stdClass::class,
                 keys: ['id' => 'eid'],
@@ -1408,7 +1408,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             ),
         ]);
         $etm->method('getDefinition')->willReturn(
-            TestEntityType::stub(
+            EntityTypeFactory::create(
                 id: 'event',
                 class: \stdClass::class,
                 keys: ['id' => 'eid'],

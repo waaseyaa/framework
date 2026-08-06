@@ -10,7 +10,10 @@ namespace Waaseyaa\Testing\Traits;
  * Tracks the "current user" during a test so that tests can
  * simulate acting as a specific user without depending on
  * a full auth subsystem.
+ *
  * @api
+ * @deprecated since 0.1.0-alpha.288. Use AuthorizationPrincipalFactory and
+ *   pass the resulting real principal through the production boundary.
  */
 trait InteractsWithAuth
 {

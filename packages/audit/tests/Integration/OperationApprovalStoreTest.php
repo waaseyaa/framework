@@ -10,12 +10,14 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Audit\Storage\AppendOnlyAuditDatabase;
 use Waaseyaa\Audit\Storage\ApprovalEventSchema;
 use Waaseyaa\Audit\Writer\DatabaseOperationApprovalStore;
+use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
-use Waaseyaa\Entity\DateTime\EntityClockInterface;
 use Waaseyaa\Foundation\Audit\Approval\ApprovalAlreadyDecidedException;
 use Waaseyaa\Foundation\Audit\Approval\ApprovalStatus;
 use Waaseyaa\Foundation\Audit\Approval\ApprovalStoreException;
 use Waaseyaa\Foundation\Audit\Approval\ApprovalTuple;
+use Waaseyaa\Testing\Clock\MutableEntityClock;
+use Waaseyaa\Testing\Database\TemporarySqliteDatabase;
 
 #[CoversNothing]
 final class OperationApprovalStoreTest extends TestCase
@@ -23,31 +25,27 @@ final class OperationApprovalStoreTest extends TestCase
     private const string RAW_SECRET = 'hunter2-raw-secret-value';
     public const string START = '2026-08-03 10:00:00.000000';
 
-    private DBALDatabase $database;
+    private TemporarySqliteDatabase $databaseFixture;
 
-    /** @var EntityClockInterface&object{now: \DateTimeImmutable} */
-    private EntityClockInterface $clock;
+    private DatabaseInterface $database;
+
+    private MutableEntityClock $clock;
 
     private DatabaseOperationApprovalStore $store;
 
     protected function setUp(): void
     {
-        $this->database = DBALDatabase::createSqlite();
+        $this->databaseFixture = new TemporarySqliteDatabase();
+        $this->database = $this->databaseFixture->database();
         new ApprovalEventSchema($this->database)->ensure();
-        $this->clock = new class implements EntityClockInterface {
-            public \DateTimeImmutable $now;
-
-            public function __construct()
-            {
-                $this->now = new \DateTimeImmutable(OperationApprovalStoreTest::START, new \DateTimeZone('UTC'));
-            }
-
-            public function now(): \DateTimeImmutable
-            {
-                return $this->now;
-            }
-        };
+        $this->clock = new MutableEntityClock(new \DateTimeImmutable(self::START, new \DateTimeZone('UTC')));
         $this->store = new DatabaseOperationApprovalStore($this->database, $this->clock, ttlSeconds: 900);
+    }
+
+    protected function tearDown(): void
+    {
+        $this->databaseFixture->remove();
+        parent::tearDown();
     }
 
     #[Test]
@@ -103,7 +101,7 @@ final class OperationApprovalStoreTest extends TestCase
     public function open_does_not_reuse_expired_or_already_decided_requests(): void
     {
         $expired = $this->store->open($this->tuple(), 'corr-1', []);
-        $this->clock->now = $this->clock->now->modify('+900 seconds');
+        $this->clock->advance(new \DateInterval('PT900S'));
         $afterExpiry = $this->store->open($this->tuple(), 'corr-2', []);
         self::assertNotSame($expired->id, $afterExpiry->id);
 
@@ -128,10 +126,10 @@ final class OperationApprovalStoreTest extends TestCase
     {
         $request = $this->store->open($this->tuple(), 'corr-1', []);
 
-        $this->clock->now = $request->expiresAt->modify('-1 microsecond');
+        $this->clock->set($request->expiresAt->modify('-1 microsecond'));
         self::assertSame(ApprovalStatus::Pending, $this->store->find($request->id)?->status);
 
-        $this->clock->now = $request->expiresAt;
+        $this->clock->set($request->expiresAt);
         self::assertSame(ApprovalStatus::Expired, $this->store->find($request->id)?->status);
     }
 
@@ -304,7 +302,7 @@ final class OperationApprovalStoreTest extends TestCase
     public function decide_rejects_expired_requests_even_at_the_exact_boundary(): void
     {
         $request = $this->store->open($this->tuple(), 'corr-1', []);
-        $this->clock->now = $request->expiresAt;
+        $this->clock->set($request->expiresAt);
 
         try {
             $this->store->decide($request->id, approved: true, operatorUid: 42);
@@ -331,7 +329,7 @@ final class OperationApprovalStoreTest extends TestCase
         $request = $this->store->open($this->tuple(), 'corr-1', []);
         $this->store->decide($request->id, approved: true, operatorUid: 42);
 
-        $this->clock->now = $request->expiresAt;
+        $this->clock->set($request->expiresAt);
 
         self::assertSame(ApprovalStatus::Expired, $this->store->find($request->id)?->status);
         self::assertFalse($this->store->consume($request->id, 'receipt-1', 'corr-retry'));
@@ -407,7 +405,7 @@ final class OperationApprovalStoreTest extends TestCase
             [],
         );
         $this->store->decide($expiring->id, approved: true, operatorUid: 42);
-        $this->clock->now = $expiring->expiresAt;
+        $this->clock->set($expiring->expiresAt);
         self::assertFalse($this->store->consume($expiring->id, 'receipt-1', 'corr-retry'));
     }
 
@@ -417,7 +415,7 @@ final class OperationApprovalStoreTest extends TestCase
         $request = $this->store->open($this->tuple(), 'corr-1', []);
         $this->store->decide($request->id, approved: true, operatorUid: 42);
 
-        $this->clock->now = $request->expiresAt->modify('-1 microsecond');
+        $this->clock->set($request->expiresAt->modify('-1 microsecond'));
         self::assertTrue($this->store->consume($request->id, 'receipt-1', 'corr-retry'));
 
         $late = $this->store->open(
@@ -426,7 +424,7 @@ final class OperationApprovalStoreTest extends TestCase
             [],
         );
         $this->store->decide($late->id, approved: true, operatorUid: 42);
-        $this->clock->now = $late->expiresAt;
+        $this->clock->set($late->expiresAt);
         self::assertFalse($this->store->consume($late->id, 'receipt-2', 'corr-retry-2'));
     }
 

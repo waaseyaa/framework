@@ -39,17 +39,41 @@ flush();
 $path = getenv('PATH');
 putenv('PATH=' . dirname(PHP_BINARY) . PATH_SEPARATOR . ($path === false ? '' : $path));
 
-$command = [
-    PHP_BINARY,
-    '-d',
-    'memory_limit=1G',
-    $root . '/vendor/bin/phpunit',
-    '--no-coverage',
-    '--order-by=random',
-    '--random-order-seed=' . $seed,
-    ...$phpunitArguments,
-];
+$selectionArguments = ['--list-suites', '--list-tests', '--list-groups'];
+$hasExplicitSelection = array_any(
+    $phpunitArguments,
+    static fn(string $argument): bool => str_starts_with($argument, '--testsuite')
+        || in_array($argument, $selectionArguments, true),
+);
 
-$escapedCommand = implode(' ', array_map(escapeshellarg(...), $command));
-passthru($escapedCommand, $exitCode);
-exit($exitCode);
+// A single shuffled process retained every suite's fixtures until exit and
+// exceeded hosted-runner memory for some valid seeds. PHPUnit suites are
+// isolation boundaries: shuffle each one with the same replayable seed in a
+// fresh process, while explicit selection/discovery commands remain one run.
+$suites = $hasExplicitSelection ? [null] : ['Unit', 'Integration', 'Architecture'];
+foreach ($suites as $suite) {
+    $command = [
+        PHP_BINARY,
+        '-d',
+        'memory_limit=1G',
+        $root . '/vendor/bin/phpunit',
+        '--no-coverage',
+        '--order-by=random',
+        '--random-order-seed=' . $seed,
+    ];
+    if ($suite !== null) {
+        echo "PHPUnit random-order suite: {$suite}\n";
+        $command[] = '--testsuite';
+        $command[] = $suite;
+    }
+    array_push($command, ...$phpunitArguments);
+    flush();
+
+    $escapedCommand = implode(' ', array_map(escapeshellarg(...), $command));
+    passthru($escapedCommand, $exitCode);
+    if ($exitCode !== 0) {
+        exit($exitCode);
+    }
+}
+
+exit(0);

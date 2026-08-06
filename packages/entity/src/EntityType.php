@@ -20,7 +20,8 @@ use Waaseyaa\Field\FieldStorage;
  * Content entity types should be built via {@see self::fromClass()}, which
  * reflects on the class's `#[ContentEntityType]`, `#[ContentEntityKeys]`, and
  * `#[Field]` attributes. The constructor's `$_fieldDefinitions` slot is
- * `@internal` and is reserved for that factory plus the test stub helper.
+ * `@internal` and is reserved for that factory plus the package-local and
+ * `waaseyaa/testing` synthetic entity-type helpers.
  */
 final readonly class EntityType implements EntityTypeInterface, ApiExposableEntityTypeInterface, EntityTypeForeignKeyDefinitionInterface
 {
@@ -55,7 +56,7 @@ final readonly class EntityType implements EntityTypeInterface, ApiExposableEnti
      * @param bool $api Whether generic JSON:API routes are deliberately exposed.
      * @param array<string, FieldDefinitionInterface|array<string, mixed>> $_fieldDefinitions
      *   @internal Field definitions keyed by field name. Populated only by
-     *   {@see self::fromClass()} and {@see \Waaseyaa\Entity\Tests\Helper\TestEntityType::stub()}.
+     *   {@see self::fromClass()} and reviewed synthetic test helpers.
      *   Application code MUST NOT pass this argument; doing so is unsupported.
      *
      * @throws \InvalidArgumentException If `$tenancy` is provided and does not match `['scope' => 'community']`.
@@ -177,10 +178,10 @@ final readonly class EntityType implements EntityTypeInterface, ApiExposableEnti
      * Pass overrides for any EntityType property that isn't class-derived
      * (e.g. group, storageClass, revisionable, bundleEntityType).
      *
-     * Results are cached by class name; repeated calls with the same class
-     * return the identical instance (===). Callers that need different
-     * overrides per class should not rely on per-call override variation —
-     * the framework norm is one canonical EntityType per class.
+     * Results are cached by class name and the complete override set; repeated
+     * calls with identical arguments return the identical instance (===).
+     * Different non-tenancy overrides produce isolated definitions so an
+     * exploratory/default lookup cannot poison a later provider registration.
      *
      * @param class-string<ContentEntityBase> $class
      * @param class-string<Storage\EntityStorageInterface>|string $storageClass
@@ -193,11 +194,9 @@ final readonly class EntityType implements EntityTypeInterface, ApiExposableEnti
      *   non-tenancy overrides it is first-call-wins under the per-class cache.
      *
      * @throws \LogicException When the class has already been resolved with a
-     *   different `$tenancy` slot. The cache treats most overrides as
-     *   presentation-grade ("framework norm: one canonical EntityType per
-     *   class"), but tenancy is a security boundary — silently returning a
-     *   cached non-tenant instance to a caller that asked for community
-     *   scoping (or vice versa) would disable isolation. Mismatch fails loud.
+     *   different `$tenancy` slot. Tenancy is a security boundary: unlike
+     *   other overrides, two tenancy definitions for one entity class are not
+     *   allowed to coexist in a process. Mismatch fails loud.
      */
     public static function fromClass(
         string $class,
@@ -212,8 +211,19 @@ final readonly class EntityType implements EntityTypeInterface, ApiExposableEnti
         bool $discoverable = true,
     ): self {
         $cache = &self::fromClassCacheRef();
-        if (isset($cache[$class])) {
-            $cached = $cache[$class];
+        $arguments = [
+            'storageClass' => $storageClass,
+            'revisionable' => $revisionable,
+            'revisionDefault' => $revisionDefault,
+            'translatable' => $translatable,
+            'bundleEntityType' => $bundleEntityType,
+            'constraints' => $constraints,
+            'group' => $group,
+            'tenancy' => $tenancy,
+            'discoverable' => $discoverable,
+        ];
+        foreach ($cache[$class] ?? [] as $entry) {
+            $cached = $entry['entityType'];
             if ($cached->getTenancy() !== $tenancy) {
                 throw new \LogicException(\sprintf(
                     'EntityType::fromClass() received a tenancy override for "%s" that conflicts with the '
@@ -226,7 +236,9 @@ final readonly class EntityType implements EntityTypeInterface, ApiExposableEnti
                     self::describeTenancy($tenancy),
                 ));
             }
-            return $cached;
+            if ($entry['arguments'] === $arguments) {
+                return $cached;
+            }
         }
 
         $metadata = EntityMetadataReader::forClass($class);
@@ -241,7 +253,7 @@ final readonly class EntityType implements EntityTypeInterface, ApiExposableEnti
         $label = $metadata->label !== '' ? $metadata->label : \ucfirst($metadata->typeId);
         $description = $metadata->description !== '' ? $metadata->description : null;
 
-        return $cache[$class] = new self(
+        $entityType = new self(
             id: $metadata->typeId,
             label: $label,
             class: $class,
@@ -263,6 +275,9 @@ final readonly class EntityType implements EntityTypeInterface, ApiExposableEnti
             primaryStorageBackend: $metadata->storageBackend !== '' ? $metadata->storageBackend : null,
             _fieldDefinitions: $metadata->fields,
         );
+        $cache[$class][] = ['arguments' => $arguments, 'entityType' => $entityType];
+
+        return $entityType;
     }
 
     /**
@@ -282,11 +297,11 @@ final readonly class EntityType implements EntityTypeInterface, ApiExposableEnti
      * Stored as a function-static instead of a class-static because PHP
      * disallows static properties on `readonly` classes.
      *
-     * @return array<class-string, self>
+     * @return array<class-string, list<array{arguments: array<string, mixed>, entityType: self}>>
      */
     private static function &fromClassCacheRef(): array
     {
-        /** @var array<class-string, self> $cache */
+        /** @var array<class-string, list<array{arguments: array<string, mixed>, entityType: self}>> $cache */
         static $cache = [];
 
         return $cache;

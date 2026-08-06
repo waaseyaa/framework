@@ -26,7 +26,7 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\Entity\Testing\StorageBackedStubRepository;
-use Waaseyaa\Entity\Tests\Helper\TestEntityType;
+use Waaseyaa\Testing\Factory\EntityTypeFactory;
 use Waaseyaa\User\User;
 use Waaseyaa\User\UserAccessPolicy;
 
@@ -330,7 +330,7 @@ final class GenericAdminSurfaceHostFieldAccessOracleTest extends TestCase
      */
     private function docTypeWithEntities(): array
     {
-        $docType = TestEntityType::stub(
+        $docType = EntityTypeFactory::create(
             id: 'doc',
             fieldDefinitions: [
                 'title' => ['type' => 'string', 'label' => 'Title'],

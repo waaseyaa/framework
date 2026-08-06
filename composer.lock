@@ -1497,22 +1497,22 @@
         },
         {
             "name": "symfony/html-sanitizer",
-            "version": "v8.0.8",
+            "version": "v8.1.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/html-sanitizer.git",
-                "reference": "b0e4a2d9a82ab6bdcc742a63398781f6dae64fe5"
+                "reference": "09e1f2f9a3c8dcdca072587dc71999c1921c07cb"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/html-sanitizer/zipball/b0e4a2d9a82ab6bdcc742a63398781f6dae64fe5",
-                "reference": "b0e4a2d9a82ab6bdcc742a63398781f6dae64fe5",
+                "url": "https://api.github.com/repos/symfony/html-sanitizer/zipball/09e1f2f9a3c8dcdca072587dc71999c1921c07cb",
+                "reference": "09e1f2f9a3c8dcdca072587dc71999c1921c07cb",
                 "shasum": ""
             },
             "require": {
                 "ext-dom": "*",
                 "league/uri": "^6.5|^7.0",
-                "php": ">=8.4"
+                "php": ">=8.4.1"
             },
             "type": "library",
             "autoload": {
@@ -1545,7 +1545,7 @@
                 "sanitizer"
             ],
             "support": {
-                "source": "https://github.com/symfony/html-sanitizer/tree/v8.0.8"
+                "source": "https://github.com/symfony/html-sanitizer/tree/v8.1.1"
             },
             "funding": [
                 {
@@ -1565,7 +1565,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-03-30T15:14:47+00:00"
+            "time": "2026-06-06T11:11:44+00:00"
         },
         {
             "name": "symfony/http-foundation",
@@ -3186,7 +3186,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/access",
-                "reference": "6818facb6e816fe2045395d37b564d125271de4c"
+                "reference": "2465fd76897e328df17aeb2e4af4358e5805598f"
             },
             "require": {
                 "php": ">=8.5",
@@ -3197,7 +3197,9 @@
                 "waaseyaa/plugin": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^13.0"
+                "phpunit/phpunit": "^13.0",
+                "waaseyaa/testing": "^0.1.0-alpha.287",
+                "waaseyaa/user": "^0.1.0-alpha.287"
             },
             "type": "library",
             "extra": {
@@ -3235,7 +3237,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/admin-surface",
-                "reference": "bfe2f30a004a24bf1dc6bfba0fc412a555c1ca2f"
+                "reference": "6b8b25f303aa17524a6d545d6b7fe3ffded63274"
             },
             "require": {
                 "php": ">=8.5",
@@ -3251,7 +3253,8 @@
                 "phpunit/phpunit": "^13.0",
                 "waaseyaa/config": "^0.1.0-alpha.287",
                 "waaseyaa/database-legacy": "^0.1.0-alpha.287",
-                "waaseyaa/node": "^0.1.0-alpha.287"
+                "waaseyaa/node": "^0.1.0-alpha.287",
+                "waaseyaa/testing": "^0.1.0-alpha.287"
             },
             "type": "library",
             "extra": {
@@ -3519,7 +3522,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/api",
-                "reference": "baf8f823e6e32068611a7fa113e9825d32052695"
+                "reference": "2f579eab2558dbb047b5f5a0ea583f114f0481e6"
             },
             "require": {
                 "php": ">=8.5",
@@ -3553,7 +3556,8 @@
                 "waaseyaa/database-legacy": "^0.1.0-alpha.287",
                 "waaseyaa/media": "^0.1.0-alpha.287",
                 "waaseyaa/search": "^0.1.0-alpha.287",
-                "waaseyaa/telescope": "^0.1.0-alpha.287"
+                "waaseyaa/telescope": "^0.1.0-alpha.287",
+                "waaseyaa/testing": "^0.1.0-alpha.287"
             },
             "suggest": {
                 "waaseyaa/auth": "Provides atomic rate limiting for the optional public content search endpoint",
@@ -3647,7 +3651,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/audit",
-                "reference": "2025b40c7f2340721b9fabc030258fbd15d22873"
+                "reference": "b30e36e304c2559cd0dd3d38a160c308437aadbd"
             },
             "require": {
                 "php": ">=8.5",
@@ -3660,7 +3664,8 @@
             },
             "require-dev": {
                 "phpunit/phpunit": "^13.0",
-                "waaseyaa/entity-storage": "^0.1.0-alpha.287"
+                "waaseyaa/entity-storage": "^0.1.0-alpha.287",
+                "waaseyaa/testing": "^0.1.0-alpha.287"
             },
             "type": "library",
             "extra": {
@@ -3698,7 +3703,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/auth",
-                "reference": "79345ecd4204b75980b894870ac2d94edfbbb9ac"
+                "reference": "b26d65039c526d9d780d546b269ebe511e63ec0d"
             },
             "require": {
                 "php": ">=8.5",
@@ -3710,7 +3715,8 @@
                 "waaseyaa/user": "^0.1.0-alpha.287"
             },
             "require-dev": {
-                "phpunit/phpunit": "^13.0"
+                "phpunit/phpunit": "^13.0",
+                "waaseyaa/testing": "^0.1.0-alpha.287"
             },
             "type": "library",
             "extra": {
@@ -11371,7 +11377,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/mcp",
-                "reference": "b1ee785206743993786fbba9f1174dc5c4fe49c6"
+                "reference": "87226752a80f01952238c98105e16a9b28d26408"
             },
             "require": {
                 "composer-runtime-api": "^2.2",
@@ -11388,7 +11394,8 @@
             },
             "require-dev": {
                 "phpunit/phpunit": "^13.0",
-                "waaseyaa/audit": "^0.1.0-alpha.287"
+                "waaseyaa/audit": "^0.1.0-alpha.287",
+                "waaseyaa/testing": "^0.1.0-alpha.287"
             },
             "type": "library",
             "extra": {
@@ -11532,13 +11539,15 @@
             "dist": {
                 "type": "path",
                 "url": "packages/testing",
-                "reference": "6c110252bf87a8f05359533628baeb53f31049de"
+                "reference": "8834b183363c5099dcfafe3ff11a4992e8e23dd8"
             },
             "require": {
                 "php": ">=8.5",
-                "symfony/event-dispatcher": "^7.0",
+                "waaseyaa/access": "^0.1.0-alpha.287",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.287",
                 "waaseyaa/entity": "^0.1.0-alpha.287",
-                "waaseyaa/field": "^0.1.0-alpha.287"
+                "waaseyaa/field": "^0.1.0-alpha.287",
+                "waaseyaa/foundation": "^0.1.0-alpha.287"
             },
             "require-dev": {
                 "phpunit/phpunit": "^13.0"
@@ -11566,7 +11575,7 @@
             "license": [
                 "GPL-2.0-or-later"
             ],
-            "description": "Testing utilities for Waaseyaa — base test case, entity factories, and helper traits.",
+            "description": "Typed framework-contract fixtures and compatibility testing utilities for Waaseyaa.",
             "transport-options": {
                 "relative": true
             }

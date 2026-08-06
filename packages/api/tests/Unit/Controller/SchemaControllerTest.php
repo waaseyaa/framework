@@ -20,7 +20,7 @@ use Waaseyaa\Api\Tests\Fixtures\ThrowingPrototypeTestEntity;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
-use Waaseyaa\Entity\Tests\Helper\TestEntityType;
+use Waaseyaa\Testing\Factory\EntityTypeFactory;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionRegistry;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -278,7 +278,7 @@ final class SchemaControllerTest extends TestCase
         $storage = new InMemoryEntityStorage('node');
         $manager = new EntityTypeManager(new EventDispatcher(), fn() => $storage);
 
-        $manager->registerEntityType(TestEntityType::stub(
+        $manager->registerEntityType(EntityTypeFactory::create(
             'node',
             [
                 'status' => new FieldDefinition(
@@ -353,7 +353,7 @@ final class SchemaControllerTest extends TestCase
         $storage = new InMemoryEntityStorage('throwing_prototype');
         $manager = new EntityTypeManager(new EventDispatcher(), fn() => $storage);
 
-        $manager->registerEntityType(TestEntityType::stub(
+        $manager->registerEntityType(EntityTypeFactory::create(
             'throwing_prototype',
             [
                 'secret' => new FieldDefinition(
@@ -433,7 +433,7 @@ final class SchemaControllerTest extends TestCase
         $storage = new InMemoryEntityStorage('required_field');
         $manager = new EntityTypeManager(new EventDispatcher(), fn() => $storage);
 
-        $manager->registerEntityType(TestEntityType::stub(
+        $manager->registerEntityType(EntityTypeFactory::create(
             'required_field',
             [
                 'owner_id' => new FieldDefinition(

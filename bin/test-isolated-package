@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+PACKAGE="${1:-}"
+
+if [[ "$PACKAGE" != "access" ]]; then
+  echo "Usage: bin/test-isolated-package access" >&2
+  exit 2
+fi
+
+TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-${PACKAGE}-isolation.XXXXXX")"
+cleanup() {
+  case "$TMP_ROOT" in
+    "${TMPDIR:-/tmp}/waaseyaa-${PACKAGE}-isolation."*) rm -rf -- "$TMP_ROOT" ;;
+    *) echo "Refusing to remove unexpected isolation path: $TMP_ROOT" >&2 ;;
+  esac
+}
+trap cleanup EXIT
+
+mkdir -p "$TMP_ROOT/repository"
+tar \
+  --exclude='vendor' \
+  --exclude='composer.lock' \
+  -cf - \
+  -C "$ROOT_DIR" \
+  packages \
+  | tar -xf - -C "$TMP_ROOT/repository"
+
+cd "$TMP_ROOT/repository/packages/$PACKAGE"
+
+# The access/entity package graph already contains a reviewed runtime cycle.
+# A split-package checkout has no VCS-derived root version, so declare the
+# canonical development line explicitly for Composer's root self-resolution.
+COMPOSER_ROOT_VERSION=dev-main composer install \
+  --no-interaction \
+  --no-progress \
+  --prefer-dist
+
+php vendor/bin/phpunit \
+  --no-configuration \
+  --bootstrap vendor/autoload.php \
+  --do-not-cache-result \
+  tests

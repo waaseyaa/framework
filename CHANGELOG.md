@@ -9,13 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **security (#2258):** Upgrade Symfony HtmlSanitizer from 8.0.8 to 8.1.1, clearing the five current URL-attribute and parser-differential sanitization advisories reported by Composer audit.
+
 - **testing (#2235):** Publish the 2026 test-quality audit and a reproducible Git-tracked-only inventory for PHP, PHPUnit, Vitest, Playwright, nondeterminism, and shared-helper adoption signals. The testing doctrine now defines behavioral layers, deterministic replay, honest coverage, supported-tooling, mutation-pilot, and helper-adoption standards without prescribing a syntax rewrite.
 
 - **testing (#2240):** Upgrade the PHP 8.5 test stack to PHPUnit 13 across the root, split packages, skeleton, and packaged-form fixture; normalize all tracked PHPUnit configurations to the installed schema and isolated cache; convert the remaining docblock data providers to attributes; remove a duplicate GitHub suite that double-executed tests; and update removed mock/type APIs without weakening warning enforcement.
 
 - **testing (#2241):** Add a dedicated replayable PHPUnit random-order CI lane and machine-readable determinism classification for random inputs, waits, conditional skips, clocks, process globals, filesystems, databases, subprocesses, and ports. Repair leaked session and static-cache state, make expected database bootstrap failures warning-free, keep child-process PHP selection hermetic, replace controllable wall-clock sleeps with direct state, and reject unclassified waits, unclassified skips, and framework-gap skips.
 
+- **entity / testing (#2241):** Key `EntityType::fromClass()` instances by their complete override set while retaining the fail-loud tenancy conflict. A default metadata lookup can no longer poison a later provider registration by silently replacing revision, translation, storage, bundle, constraint, group, or discovery settings under random test or application boot order.
+
 - **testing (#2242):** Replace the nonexistent Clover upload with dedicated PCOV coverage, package-level PHP summaries, and V8/Istanbul admin reports. Publish both report families as retained CI artifacts, require 80 percent coverage of changed executable PHP lines and admin statements, ratchet measured overall and critical-boundary baselines, and correct invalid trait, interface, and test-fixture coverage metadata exposed by PHPUnit 13 without imposing a repository-wide perfect-coverage target.
+
+- **testing (#2243, #2251):** Rebuild `waaseyaa/testing` around real framework contracts: mutable entity time, immutable authorization principals, synthetic entity types, owned temporary files and DBAL SQLite databases, and typed kernel-service resolution. Adopt the fixtures across Access, Auth, Audit, API, Admin Surface, and MCP while keeping Symfony HTTP and MCP protocol fixtures in their higher-layer owners. Deprecate the unadopted array, no-op service-bag, event-recorder, and raw-PDO compatibility helpers. The Access split package now declares every test dependency, rejects sibling `autoload-dev` imports, and passes a clean package-local install and PHPUnit suite in the required `ci/package-isolation` lane.
 
 ## [0.1.0-alpha.287] - 2026-08-05
 

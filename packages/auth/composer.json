@@ -27,6 +27,10 @@
         {
             "type": "path",
             "url": "../mail"
+        },
+        {
+            "type": "path",
+            "url": "../testing"
         }
     ],
     "require": {
@@ -39,7 +43,8 @@
         "waaseyaa/mail": "^0.1.0-alpha.287"
     },
     "require-dev": {
-        "phpunit/phpunit": "^13.0"
+        "phpunit/phpunit": "^13.0",
+        "waaseyaa/testing": "^0.1.0-alpha.287"
     },
     "autoload": {
         "psr-4": {

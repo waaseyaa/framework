@@ -15,7 +15,7 @@ use Waaseyaa\Access\Middleware\AuthorizationMiddleware;
 use Waaseyaa\Access\RedirectValidator;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Access\AccessChecker;
-use Waaseyaa\User\AnonymousUser;
+use Waaseyaa\Testing\Factory\AuthorizationPrincipalFactory;
 
 #[CoversClass(AuthorizationMiddleware::class)]
 #[CoversClass(RedirectValidator::class)]
@@ -27,7 +27,7 @@ final class AuthorizationMiddlewareTest extends TestCase
         $route = new Route('/api/node');
         $route->setOption('_permission', 'access content');
 
-        $account = new AnonymousUser();
+        $account = AuthorizationPrincipalFactory::anonymous();
         $accessChecker = new AccessChecker();
         $middleware = new AuthorizationMiddleware($accessChecker);
 
@@ -54,7 +54,7 @@ final class AuthorizationMiddlewareTest extends TestCase
         $route = new Route('/api/node');
         $route->setOption('_public', true);
 
-        $account = new AnonymousUser();
+        $account = AuthorizationPrincipalFactory::anonymous();
         $accessChecker = new AccessChecker();
         $middleware = new AuthorizationMiddleware($accessChecker);
 
@@ -80,7 +80,7 @@ final class AuthorizationMiddlewareTest extends TestCase
     {
         $route = new Route('/api/test');
 
-        $account = new AnonymousUser();
+        $account = AuthorizationPrincipalFactory::anonymous();
         $accessChecker = new AccessChecker();
         $middleware = new AuthorizationMiddleware($accessChecker);
 
@@ -103,7 +103,7 @@ final class AuthorizationMiddlewareTest extends TestCase
     #[Test]
     public function passes_through_when_no_route_object(): void
     {
-        $account = new AnonymousUser();
+        $account = AuthorizationPrincipalFactory::anonymous();
         $accessChecker = new AccessChecker();
         $middleware = new AuthorizationMiddleware($accessChecker);
 
@@ -128,7 +128,7 @@ final class AuthorizationMiddlewareTest extends TestCase
         $route = new Route('/api/node');
         $route->setOption('_authenticated', true);
 
-        $account = new AnonymousUser();
+        $account = AuthorizationPrincipalFactory::anonymous();
         $accessChecker = new AccessChecker();
         $middleware = new AuthorizationMiddleware($accessChecker);
 
@@ -185,7 +185,7 @@ final class AuthorizationMiddlewareTest extends TestCase
         $route->setOption('_authenticated', true);
         $route->setOption('_render', true);
 
-        $account = new AnonymousUser();
+        $account = AuthorizationPrincipalFactory::anonymous();
         $accessChecker = new AccessChecker();
         $middleware = new AuthorizationMiddleware($accessChecker);
 
@@ -213,7 +213,7 @@ final class AuthorizationMiddlewareTest extends TestCase
         $route->setOption('_permission', 'administer site');
         $route->setOption('_render', true);
 
-        $account = new AnonymousUser();
+        $account = AuthorizationPrincipalFactory::anonymous();
         $accessChecker = new AccessChecker();
         $middleware = new AuthorizationMiddleware($accessChecker);
 
@@ -242,7 +242,7 @@ final class AuthorizationMiddlewareTest extends TestCase
         $route = new Route('/api/admin');
         $route->setOption('_permission', 'administer site');
 
-        $account = new AnonymousUser();
+        $account = AuthorizationPrincipalFactory::anonymous();
         $accessChecker = new AccessChecker();
         $middleware = new AuthorizationMiddleware($accessChecker);
 
@@ -277,7 +277,7 @@ final class AuthorizationMiddlewareTest extends TestCase
             }
         };
 
-        $account = new AnonymousUser();
+        $account = AuthorizationPrincipalFactory::anonymous();
         $accessChecker = new AccessChecker();
         $middleware = new AuthorizationMiddleware($accessChecker, $renderer);
 
@@ -314,7 +314,7 @@ final class AuthorizationMiddlewareTest extends TestCase
             }
         };
 
-        $account = new AnonymousUser();
+        $account = AuthorizationPrincipalFactory::anonymous();
         $accessChecker = new AccessChecker();
         $middleware = new AuthorizationMiddleware($accessChecker, $renderer);
 
@@ -354,7 +354,7 @@ final class AuthorizationMiddlewareTest extends TestCase
             }
         };
 
-        $account = new AnonymousUser();
+        $account = AuthorizationPrincipalFactory::anonymous();
         $accessChecker = new AccessChecker();
         $middleware = new AuthorizationMiddleware($accessChecker, $renderer);
 
@@ -396,7 +396,7 @@ final class AuthorizationMiddlewareTest extends TestCase
             }
         };
 
-        $account = new AnonymousUser();
+        $account = AuthorizationPrincipalFactory::anonymous();
         $accessChecker = new AccessChecker();
         $middleware = new AuthorizationMiddleware($accessChecker, $renderer);
 
@@ -431,7 +431,7 @@ final class AuthorizationMiddlewareTest extends TestCase
         $route = new Route('/api/node');
         $route->setOption('_permission', 'access content');
 
-        $account = new AnonymousUser();
+        $account = AuthorizationPrincipalFactory::anonymous();
         $accessChecker = new AccessChecker();
         $middleware = new AuthorizationMiddleware($accessChecker);
 
@@ -458,7 +458,7 @@ final class AuthorizationMiddlewareTest extends TestCase
         $route = new Route('/api/node');
         $route->setOption('_authenticated', true);
 
-        $account = new AnonymousUser();
+        $account = AuthorizationPrincipalFactory::anonymous();
         $accessChecker = new AccessChecker();
         $middleware = new AuthorizationMiddleware($accessChecker);
 
@@ -511,7 +511,7 @@ final class AuthorizationMiddlewareTest extends TestCase
         $route->setOption('_permission', 'administer site');
         $route->setOption('_render', true);
 
-        $account = new AnonymousUser();
+        $account = AuthorizationPrincipalFactory::anonymous();
         $accessChecker = new AccessChecker();
         $middleware = new AuthorizationMiddleware($accessChecker);
 
