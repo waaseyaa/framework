@@ -39,6 +39,9 @@ final class RandomOrderRunnerTest extends TestCase
 
         $runner = (string) file_get_contents($this->repoRoot . '/bin/test-random-order');
         self::assertStringContainsString("putenv('PATH=' . dirname(PHP_BINARY)", $runner);
+        self::assertStringContainsString("['Unit', 'Integration', 'Architecture']", $runner);
+        self::assertStringContainsString("\$command[] = '--testsuite';", $runner);
+        self::assertStringContainsString('PHPUnit random-order suite:', $runner);
     }
 
     #[Test]

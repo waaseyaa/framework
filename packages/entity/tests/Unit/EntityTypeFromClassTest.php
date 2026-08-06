@@ -177,15 +177,25 @@ final class EntityTypeFromClassTest extends TestCase
         self::assertGreaterThanOrEqual(12, \count($type->getFieldDefinitions()));
     }
 
-    public function testFromClassCacheIsClassKeyedNotOverrideKeyed(): void
+    public function testFromClassCacheKeepsDistinctOverrideSetsIsolated(): void
     {
-        // Per spec risk note: cache key is class name only. Same class →
-        // same instance regardless of override params on the second call.
         $first = EntityType::fromClass(SimpleFixture::class, group: 'one');
         $second = EntityType::fromClass(SimpleFixture::class, group: 'two');
+        $firstAgain = EntityType::fromClass(SimpleFixture::class, group: 'one');
 
-        self::assertSame($first, $second);
+        self::assertNotSame($first, $second);
+        self::assertSame($first, $firstAgain);
         self::assertSame('one', $first->getGroup());
+        self::assertSame('two', $second->getGroup());
+    }
+
+    public function testDefaultLookupCannotPoisonLaterRevisionableDefinition(): void
+    {
+        $default = EntityType::fromClass(RevisionableFixture::class);
+        $revisionable = EntityType::fromClass(RevisionableFixture::class, revisionable: true);
+
+        self::assertFalse($default->isRevisionable());
+        self::assertTrue($revisionable->isRevisionable());
     }
 
     public function testPassingFieldDefinitionsAsNamedArgumentToConstructorThrows(): void
