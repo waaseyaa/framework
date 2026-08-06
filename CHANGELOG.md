@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **api discovery (#2268):** Project enabled public content search through the same availability gate into its exact HTTP route, RFC 9727 API Catalog entry, and ARD/AI Catalog entry. Applications can attach representative queries to the stable `api:content-search` key, while disabled or unavailable search withdraws all three surfaces without resolving database-backed services during catalog construction.
+
 ## [0.1.0-alpha.288] - 2026-08-06
 
 ### Changed
