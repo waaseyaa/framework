@@ -6,19 +6,22 @@ Runs on every PR and push to `main`.
 
 ### Required Status Checks
 
-These three checks must pass before a PR can be merged:
+The repository ruleset is authoritative. These quality checks must pass before
+a PR can be merged:
 
 | Check | What it does | Typical runtime |
 |---|---|---|
 | `ci/lint` | PHP syntax, CS Fixer (dry-run), PHPStan static analysis | ~1 min |
 | `ci/unit-tests` | PHPUnit unit + integration test suites | ~2 min |
 | `ci/playwright-smoke` | Starts PHP + Nuxt servers, runs Playwright e2e tests | ~3 min |
+| `ci/random-order` | Replays the complete PHP suite in a logged random order | ~4 min |
+| `ci/coverage` | Produces PCOV reports and enforces changed PHP line coverage | ~4 min |
 
 ### Additional Checks (informational)
 
 | Check | What it does |
 |---|---|
-| `Frontend build` | Builds Admin SPA (Nuxt 3), runs Vitest unit tests |
+| `Frontend build` | Builds Admin SPA, produces V8 coverage, and enforces changed-statement coverage |
 | `Manifest conformance` | Validates `defaults/*.yaml` have `project_versioning` |
 | `Ingestion defaults` | Validates ingestion schema metadata |
 | `Security defaults` | Scans for secrets in `defaults/`, runs structural secrets tests |
@@ -27,7 +30,9 @@ These three checks must pass before a PR can be merged:
 
 | Artifact | Location | Retention |
 |---|---|---|
-| `test-results` | `build/logs/junit-unit.xml`, `build/logs/junit-integration.xml`, `build/logs/clover.xml` | 30 days |
+| `test-results` | `build/logs/junit-unit.xml`, `build/logs/junit-architecture.xml`, `build/logs/junit-integration.xml` | 30 days |
+| `php-coverage` | Clover, text, and package-summary coverage reports | 30 days |
+| `frontend-coverage` | V8/Istanbul JSON, JSON summary, text, and LCOV reports | 30 days |
 | `frontend-build` | `packages/admin/.output/` | 14 days |
 | `playwright-smoke-results` | `packages/admin/test-results/`, `packages/admin/playwright-report/` | 30 days |
 | `server-logs` | `/tmp/php-server.log`, `/tmp/nuxt-server.log` (on failure only) | 7 days |
@@ -47,6 +52,10 @@ composer phpstan
 
 # Frontend build + tests
 cd packages/admin && npm ci && npm run build && npm test
+
+# Coverage (PCOV or Xdebug is required for PHP)
+php -d memory_limit=1G vendor/bin/phpunit --coverage-clover build/logs/clover.xml
+cd packages/admin && npm run test:coverage
 
 # Playwright smoke tests (matches ci/playwright-smoke)
 # Terminal 1: PHP backend
@@ -97,7 +106,8 @@ main push → Deploy staging → Full Playwright sweep → [Approval gate] → D
 
 Label a PR with `auto-merge-when-green` to enable automatic squash merge when:
 
-1. All three required status checks pass (`ci/lint`, `ci/unit-tests`, `ci/playwright-smoke`)
+1. Every status check required by the repository ruleset passes, including the
+   deterministic random-order replay and coverage ratchets
 2. PR is open with no merge conflicts
 3. PR has a milestone assigned
 

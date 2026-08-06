@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **testing (#2241):** Add a dedicated replayable PHPUnit random-order CI lane and machine-readable determinism classification for random inputs, waits, conditional skips, clocks, process globals, filesystems, databases, subprocesses, and ports. Repair leaked session and static-cache state, make expected database bootstrap failures warning-free, keep child-process PHP selection hermetic, replace controllable wall-clock sleeps with direct state, and reject unclassified waits, unclassified skips, and framework-gap skips.
 
+- **testing (#2242):** Replace the nonexistent Clover upload with dedicated PCOV coverage, package-level PHP summaries, and V8/Istanbul admin reports. Publish both report families as retained CI artifacts, require 80 percent coverage of changed executable PHP lines and admin statements, and ratchet the measured admin baseline without imposing a repository-wide perfect-coverage target.
+
 ## [0.1.0-alpha.287] - 2026-08-05
 
 ### Changed

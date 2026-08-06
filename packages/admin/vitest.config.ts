@@ -11,6 +11,12 @@ export default defineVitestConfig({
       provider: 'v8',
       include: ['app/**/*.{ts,vue}'],
       exclude: ['app/**/*.d.ts'],
+      thresholds: {
+        lines: 77,
+        statements: 75,
+        functions: 76,
+        branches: 67,
+      },
     },
   },
 })
