@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.288] - 2026-08-06
+
 ### Changed
 
 - **admin distribution (#2233):** Make committed Nuxt SPA builds byte reproducible by deriving the build identity and normalized metadata timestamp from the complete admin source signature. The normalizer fails closed on unknown generated shapes, while freshness checks and compiled-asset differences remain visible.
