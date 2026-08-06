@@ -19,6 +19,7 @@ The repository ruleset is authoritative. Its required checks are:
 | `ci/core-only-boot` | Proves the minimal framework boot boundary | ~20 sec |
 | `ci/coverage` | Produces PCOV reports and enforces baseline and changed-line ratchets | ~4.5 min |
 | `ci/lint` | PHP syntax, CS Fixer (dry-run), and PHPStan | ~2.5 min |
+| `ci/mutation-pilot` | Enforces the stable 84% Infection floors on bounded critical boundaries | ~1.25 min |
 | `ci/package-isolation` | Clean-installs and runs declared split-package suites without root dev autoload | ~30 sec |
 | `ci/playwright-smoke` | Starts PHP and Nuxt servers and exercises Chromium plus Firefox | ~2.5 min |
 | `ci/random-order` | Replays each PHP suite in an isolated process with one logged random seed | ~3.5 min |
@@ -36,7 +37,6 @@ The repository ruleset is authoritative. Its required checks are:
 | `Public-surface-map parity check` | Guards exported framework surface metadata |
 | `Release pipeline fixtures` | Exercises publication-decision fixtures |
 | `composer-deps-audit (warn-only)` | Reports dependency ownership debt without blocking |
-| `ci/mutation-pilot` | Reports advisory Infection results for bounded critical boundaries |
 | `admin/*` | Runs path-scoped admin contract, adapter, build, and integration checks |
 
 ### Artifacts
