@@ -1,0 +1,1 @@
+import{x as e}from"./D0fxnkzy.js";var t=`Admin runtime is unavailable. Ensure the admin plugin has bootstrapped before calling admin composables.`;function n(n=e()){let r=n.$admin;if(!r)throw Error(t);return r}export{n as t};
