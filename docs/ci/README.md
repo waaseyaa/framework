@@ -21,7 +21,7 @@ The repository ruleset is authoritative. Its required checks are:
 | `ci/lint` | PHP syntax, CS Fixer (dry-run), and PHPStan | ~2.5 min |
 | `ci/package-isolation` | Clean-installs and runs declared split-package suites without root dev autoload | ~30 sec |
 | `ci/playwright-smoke` | Starts PHP and Nuxt servers and exercises Chromium plus Firefox | ~2.5 min |
-| `ci/random-order` | Replays the complete PHP suite in a logged random order | ~3.5 min |
+| `ci/random-order` | Replays each PHP suite in an isolated process with one logged random seed | ~3.5 min |
 | `ci/skeleton-create-project` | Installs and boots the exact consumer skeleton | ~45 sec |
 | `ci/unit-tests` | Runs PHPUnit unit, architecture, and integration suites | ~4.75 min |
 | `ci/verify-gates` | Runs the fast repository invariant gates | ~40 sec |
@@ -36,6 +36,7 @@ The repository ruleset is authoritative. Its required checks are:
 | `Public-surface-map parity check` | Guards exported framework surface metadata |
 | `Release pipeline fixtures` | Exercises publication-decision fixtures |
 | `composer-deps-audit (warn-only)` | Reports dependency ownership debt without blocking |
+| `ci/mutation-pilot` | Reports advisory Infection results for bounded critical boundaries |
 | `admin/*` | Runs path-scoped admin contract, adapter, build, and integration checks |
 
 ### Artifacts
@@ -44,6 +45,7 @@ The repository ruleset is authoritative. Its required checks are:
 |---|---|---|
 | `test-results` | `build/logs/junit-unit.xml`, `build/logs/junit-architecture.xml`, `build/logs/junit-integration.xml` | 30 days |
 | `php-coverage` | Clover, text, and package-summary coverage reports | 30 days |
+| `mutation-pilot` | Infection summary JSON and surviving-mutant text report | 30 days |
 | `frontend-coverage` | V8/Istanbul JSON, JSON summary, text, and LCOV reports | 30 days |
 | `frontend-build` | `packages/admin/.output/` | 14 days |
 | `playwright-smoke-results` | `packages/admin/test-results/`, `packages/admin/playwright-report/` | 30 days |
@@ -68,6 +70,9 @@ cd packages/admin && npm ci && npm run build && npm test
 # Coverage (PCOV or Xdebug is required for PHP)
 php -d memory_limit=1G vendor/bin/phpunit --coverage-clover build/logs/clover.xml
 cd packages/admin && npm run test:coverage
+
+# Bounded mutation pilot (PCOV or Xdebug is required)
+php bin/test-mutation-pilot
 
 # Playwright smoke tests (matches ci/playwright-smoke)
 # Terminal 1: PHP backend

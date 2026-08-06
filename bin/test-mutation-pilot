@@ -1,0 +1,48 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+$root = dirname(__DIR__);
+if (!extension_loaded('pcov') && !extension_loaded('xdebug')) {
+    fwrite(STDERR, "Mutation testing requires PCOV or Xdebug line coverage.\n");
+    exit(2);
+}
+
+$logDirectory = $root . '/build/logs';
+if (!is_dir($logDirectory) && !mkdir($logDirectory, 0o777, true) && !is_dir($logDirectory)) {
+    fwrite(STDERR, "Unable to create {$logDirectory}.\n");
+    exit(2);
+}
+
+$testFilter = implode('|', [
+    'AccessResultTest',
+    'RichTextSanitizerTest',
+    'CanonicalArgumentFingerprintTest',
+    'WorkflowBindingResolverTest',
+    'WorkflowPointerMoveGuardTest',
+    'WorkflowStateGuardTest',
+]);
+
+$command = [
+    PHP_BINARY,
+    $root . '/vendor/bin/infection',
+    '--configuration=' . $root . '/infection.json5',
+    '--threads=2',
+    '--no-interaction',
+    '--no-progress',
+    '--logger-summary-json=' . $logDirectory . '/mutation-summary.json',
+    '--logger-text=' . $logDirectory . '/mutation.log',
+    '--test-framework-extra-args=--filter ' . $testFilter,
+    $root . '/packages/access/src/AccessResult.php',
+    $root . '/packages/api/src/Sanitizer/RichTextSanitizer.php',
+    $root . '/packages/foundation/src/Audit/Approval/CanonicalArgumentFingerprint.php',
+    $root . '/packages/workflows/src/Binding/WorkflowBindingResolver.php',
+    $root . '/packages/workflows/src/Listener/WorkflowPointerMoveGuard.php',
+    $root . '/packages/workflows/src/Listener/WorkflowStateGuard.php',
+    ...array_slice($_SERVER['argv'] ?? [], 1),
+];
+
+$escapedCommand = implode(' ', array_map(escapeshellarg(...), $command));
+passthru($escapedCommand, $exitCode);
+exit($exitCode);

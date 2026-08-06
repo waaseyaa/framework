@@ -14,33 +14,20 @@ final class SearchIndexTrustBoundaryTest extends TestCase
     {
         $root = dirname(__DIR__, 2);
         $readers = [];
-        $directories = new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS);
-        $productionFiles = new \RecursiveCallbackFilterIterator(
-            $directories,
-            static function (\SplFileInfo $file): bool {
-                if (!$file->isDir()) {
-                    return true;
-                }
+        $command = escapeshellarg($root . '/bin/git')
+            . ' -C '
+            . escapeshellarg($root)
+            . ' ls-files -z';
+        exec($command, $output, $exitCode);
+        self::assertSame(0, $exitCode, 'Unable to enumerate tracked files through the repository git guard.');
 
-                return !in_array($file->getFilename(), [
-                    '.git',
-                    'node_modules',
-                    'storage',
-                    'testing',
-                    'tests',
-                    'tmp',
-                    'vendor',
-                ], true);
-            },
-        );
-        $iterator = new \RecursiveIteratorIterator($productionFiles);
-
-        foreach ($iterator as $file) {
-            $path = str_replace('\\', '/', $file->getPathname());
-            if (!$file->isFile() || $file->getExtension() !== 'php') {
+        foreach (array_filter(explode("\0", implode("\n", $output))) as $relativePath) {
+            $relativePath = str_replace('\\', '/', $relativePath);
+            if (!preg_match('#^packages/[^/]+/src/.+\.php$#', $relativePath)) {
                 continue;
             }
-            $contents = file_get_contents($file->getPathname());
+            $path = $root . '/' . $relativePath;
+            $contents = file_get_contents($path);
             if ($contents === false) {
                 continue;
             }
@@ -56,7 +43,7 @@ final class SearchIndexTrustBoundaryTest extends TestCase
             if (!str_contains($productionCode, 'search_index') && !str_contains($productionCode, 'search_metadata')) {
                 continue;
             }
-            $readers[] = str_replace($root . '/', '', $path);
+            $readers[] = $relativePath;
         }
 
         sort($readers);

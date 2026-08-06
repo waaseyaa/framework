@@ -373,6 +373,7 @@
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.50",
+        "infection/infection": "^0.34",
         "nesbot/carbon": "^3.0",
         "opis/json-schema": "^2.6",
         "phpstan/phpstan": "^2.0",
@@ -560,7 +561,9 @@
     "prefer-stable": true,
     "config": {
         "sort-packages": true,
-        "allow-plugins": {}
+        "allow-plugins": {
+            "infection/extension-installer": true
+        }
     },
     "extra": {
         "waaseyaa": {

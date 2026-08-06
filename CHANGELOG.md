@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **testing (#2243, #2251):** Rebuild `waaseyaa/testing` around real framework contracts: mutable entity time, immutable authorization principals, synthetic entity types, owned temporary files and DBAL SQLite databases, and typed kernel-service resolution. Adopt the fixtures across Access, Auth, Audit, API, Admin Surface, and MCP while keeping Symfony HTTP and MCP protocol fixtures in their higher-layer owners. Deprecate the unadopted array, no-op service-bag, event-recorder, and raw-PDO compatibility helpers. The Access split package now declares every test dependency, rejects sibling `autoload-dev` imports, and passes a clean package-local install and PHPUnit suite in the required `ci/package-isolation` lane.
 
+- **testing (#2244):** Add an advisory Infection mutation-testing pilot for access-result composition, rich-text sanitization, MCP approval fingerprints, and workflow binding and transition guards. CI publishes MSI, covered-code MSI, surviving-mutant details, and runtime without imposing a score until two unchanged baseline runs establish a stable threshold.
+
+- **tooling (#2244):** Scope the secret-pattern gate to tracked and non-ignored files in the active Git worktree, with a generated-tree-safe fallback for fixture directories, and make the search-index trust inventory enumerate production files through the repository Git guard. Ignored agent-worktree copies can no longer make an otherwise clean checkout fail verification.
+
 ## [0.1.0-alpha.287] - 2026-08-05
 
 ### Changed

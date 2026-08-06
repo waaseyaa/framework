@@ -355,6 +355,45 @@ jobs:
             build/logs/coverage-summary.json
           retention-days: 30
 
+  mutation-pilot:
+    name: ci/mutation-pilot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Set up PHP with PCOV
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite, sqlite3, mbstring, xml
+          coverage: pcov
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v6
+        with:
+          path: vendor
+          key: composer-v2-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-v2-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Measure the bounded mutation pilot
+        run: time php bin/test-mutation-pilot
+
+      - name: Upload mutation evidence
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: mutation-pilot
+          path: |
+            build/logs/mutation-summary.json
+            build/logs/mutation.log
+          if-no-files-found: error
+          retention-days: 30
+
   skeleton-create-project:
     name: ci/skeleton-create-project
     runs-on: ubuntu-latest

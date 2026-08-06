@@ -88,4 +88,6 @@ The behavioral taxonomy is:
 - Track first-attempt browser failures even when Playwright retry succeeds.
 
 The baseline evidence and staged exit measures live in
-`docs/audits/2026-08-05-test-quality-modernization.md`.
+`docs/audits/2026-08-05-test-quality-modernization.md`. The bounded mutation
+surface, command, artifact contract, and threshold policy live in
+`docs/testing/mutation.md`.
