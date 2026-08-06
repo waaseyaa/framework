@@ -36,6 +36,7 @@ remediated source and test set produced:
 | Initial attempt 1 | 343 | 289 | 54 | 100% | 84.26% | 0 / 0 | 50s |
 | Initial attempt 2 | 343 | 289 | 54 | 100% | 84.26% | 0 / 0 | 53s |
 | #2261 remediated attempt 1 | 349 | 319 | 30 | 100% | 91.40% | 0 / 0 | 54s |
+| #2261 remediated attempt 2 | 349 | 319 | 30 | 100% | 91.40% | 0 / 0 | 52s |
 
 The six-mutant denominator increase is honest: the new tests reach defensive
 branches that the covering-test selection could not previously associate with
@@ -58,8 +59,8 @@ focused test.
 
 The remediated evidence supports blocking floors of 91% MSI and 91% covered
 MSI, leaving a small margin below the measured 91.40%. The bounded pilot job is
-a merge gate. Repository-wide mutation testing is not. The final threshold is
-accepted only after a second unchanged run reproduces the table above.
+a merge gate. Repository-wide mutation testing is not. Two unchanged runs
+reproduced the final result before the threshold was accepted.
 
 Any change to the source list, test filter, mutator profile, thread count, or
 Infection version resets the two-run baseline requirement.
