@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **stacked pull request CI (#2286):** Run framework, Admin SPA, changelog-discipline, and public-surface validation for pull requests targeting any review branch so every dependency-ordered head receives exact GitHub evidence.
 
+- **admin accessibility (#2273):** Render a localized `(Untitled)` placeholder for an empty declared label and include the stable entity identifier in row and action accessible names without inventing values for unrelated empty cells.
+
 - **admin surface (#2271):** Project workflow state and publication status into authenticated admin lists through one closed, capability-audited reader used consistently for display, filtering, and sorting without exposing protected fields through ordinary JSON:API serialization.
 
 - **strict audit concurrency (#2275):** Batch related admin publication projections into transactional strict-ledger reservations and outcomes. Evidence remains entity-scoped and fail-closed without creating one competing SQLite writer transaction per row.
