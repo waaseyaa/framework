@@ -18,6 +18,8 @@ final readonly class SearchResult
         public int $pageSize,
         public array $hits,
         public array $facets = [],
+        /** False when a provider stopped at its documented candidate window. */
+        public bool $isComplete = true,
     ) {}
 
     public static function empty(): self

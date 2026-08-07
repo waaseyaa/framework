@@ -204,6 +204,7 @@ final class ContentSearchController
                 'totalPages' => $result->totalPages,
                 'currentPage' => $result->currentPage,
                 'pageSize' => $result->pageSize,
+                'isComplete' => $result->isComplete,
                 'facets' => $result->safeFacets(),
             ],
         ];

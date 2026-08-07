@@ -16,7 +16,11 @@ use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Exception\FieldReadDenied;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
+use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Search\Access\EntitySearchCandidateResolver;
+use Waaseyaa\Search\Document\SearchDocument;
+use Waaseyaa\Search\Projection\EntitySearchProjectionRegistry;
+use Waaseyaa\Search\Projection\EntitySearchProjectorInterface;
 use Waaseyaa\Search\SearchCandidateReference;
 use Waaseyaa\Search\SearchIndexableInterface;
 use Waaseyaa\Search\Tests\Support\SearchTestPrincipal;
@@ -146,11 +150,209 @@ final class EntitySearchCandidateResolverTest extends TestCase
         self::assertSame(\Waaseyaa\Search\SearchCandidateProjection::MAX_TOPIC_LENGTH, mb_strlen($projection->topics[0]));
     }
 
+    #[Test]
+    public function a_projector_backed_entity_resolves_inside_the_principal_scope(): void
+    {
+        $scope = new AccountFieldReadScope();
+        $projector = new class ($scope) implements EntitySearchProjectorInterface {
+            public function __construct(private readonly AccountFieldReadScope $scope) {}
+
+            public function supports(EntityInterface $entity): bool
+            {
+                return $entity->getEntityTypeId() === 'node';
+            }
+
+            public function project(EntityInterface $entity): ?SearchIndexableInterface
+            {
+                if ($this->scope->current()?->id() !== 42) {
+                    throw new \LogicException('Projection ran outside the supplied principal scope.');
+                }
+
+                return new SearchDocument('node:1', 'Projected title', 'Projected body', [
+                    'entity_type' => 'node',
+                    'content_type' => 'page',
+                ]);
+            }
+        };
+        $resolver = $this->resolver(
+            $this->plainEntity(),
+            $scope,
+            true,
+            registry: new EntitySearchProjectionRegistry([$projector]),
+        );
+
+        $projection = $resolver->resolve(new SearchCandidateReference('node:1', 'node'), SearchTestPrincipal::create(42));
+
+        self::assertNotNull($projection);
+        self::assertSame('Projected title', $projection->title);
+        self::assertSame('Projected body', $projection->body);
+        self::assertSame('page', $projection->contentType);
+        self::assertNull($scope->current(), 'Principal scope must be restored after projection.');
+    }
+
+    #[Test]
+    public function a_projector_backed_entity_still_requires_entity_view_access(): void
+    {
+        $scope = new AccountFieldReadScope();
+        $projector = new class implements EntitySearchProjectorInterface {
+            public int $projectCalls = 0;
+
+            public function supports(EntityInterface $entity): bool
+            {
+                return true;
+            }
+
+            public function project(EntityInterface $entity): ?SearchIndexableInterface
+            {
+                ++$this->projectCalls;
+
+                return new SearchDocument('node:1', 't', 'b', ['entity_type' => 'node']);
+            }
+        };
+        $resolver = $this->resolver(
+            $this->plainEntity(),
+            $scope,
+            false,
+            registry: new EntitySearchProjectionRegistry([$projector]),
+        );
+
+        self::assertNull($resolver->resolve(new SearchCandidateReference('node:1', 'node'), SearchTestPrincipal::create()));
+        self::assertSame(0, $projector->projectCalls, 'Denied entities must never be projected.');
+    }
+
+    #[Test]
+    public function a_projected_document_id_mismatch_fails_closed(): void
+    {
+        $scope = new AccountFieldReadScope();
+        $projector = new class implements EntitySearchProjectorInterface {
+            public function supports(EntityInterface $entity): bool
+            {
+                return true;
+            }
+
+            public function project(EntityInterface $entity): ?SearchIndexableInterface
+            {
+                return new SearchDocument('node:2', 't', 'b', ['entity_type' => 'node']);
+            }
+        };
+        $resolver = $this->resolver(
+            $this->plainEntity(),
+            $scope,
+            true,
+            registry: new EntitySearchProjectionRegistry([$projector]),
+        );
+
+        self::assertNull($resolver->resolve(new SearchCandidateReference('node:1', 'node'), SearchTestPrincipal::create()));
+    }
+
+    #[Test]
+    public function an_entity_no_projector_supports_fails_closed(): void
+    {
+        $scope = new AccountFieldReadScope();
+        $projector = new class implements EntitySearchProjectorInterface {
+            public function supports(EntityInterface $entity): bool
+            {
+                return false;
+            }
+
+            public function project(EntityInterface $entity): ?SearchIndexableInterface
+            {
+                return new SearchDocument('node:1', 't', 'b', ['entity_type' => 'node']);
+            }
+        };
+        $resolver = $this->resolver(
+            $this->plainEntity(),
+            $scope,
+            true,
+            registry: new EntitySearchProjectionRegistry([$projector]),
+        );
+
+        self::assertNull($resolver->resolve(new SearchCandidateReference('node:1', 'node'), SearchTestPrincipal::create()));
+    }
+
+    #[Test]
+    public function a_projector_field_denial_drops_the_entire_candidate(): void
+    {
+        $scope = new AccountFieldReadScope();
+        $projector = new class implements EntitySearchProjectorInterface {
+            public function supports(EntityInterface $entity): bool
+            {
+                return true;
+            }
+
+            public function project(EntityInterface $entity): ?SearchIndexableInterface
+            {
+                throw new FieldReadDenied('strict projector');
+            }
+        };
+        $resolver = $this->resolver(
+            $this->plainEntity(),
+            $scope,
+            true,
+            registry: new EntitySearchProjectionRegistry([$projector]),
+        );
+
+        self::assertNull($resolver->resolve(new SearchCandidateReference('node:1', 'node'), SearchTestPrincipal::create()));
+    }
+
+    #[Test]
+    public function a_projector_failure_is_logged_without_entity_values(): void
+    {
+        $scope = new AccountFieldReadScope();
+        $projector = new class implements EntitySearchProjectorInterface {
+            public function supports(EntityInterface $entity): bool { return true; }
+            public function project(EntityInterface $entity): ?SearchIndexableInterface
+            {
+                throw new \RuntimeException('private body must never be logged');
+            }
+        };
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())
+            ->method('warning')
+            ->with(
+                'Search candidate projection failed; candidate omitted.',
+                self::callback(static function (array $context): bool {
+                    self::assertSame(\RuntimeException::class, $context['exception_class']);
+                    self::assertSame('node', $context['entity_type']);
+                    self::assertStringNotContainsString('private', json_encode($context, JSON_THROW_ON_ERROR));
+
+                    return true;
+                }),
+            );
+        $resolver = $this->resolver(
+            $this->plainEntity(),
+            $scope,
+            true,
+            registry: new EntitySearchProjectionRegistry([$projector]),
+            logger: $logger,
+        );
+
+        self::assertNull($resolver->resolve(new SearchCandidateReference('node:1', 'node'), SearchTestPrincipal::create()));
+    }
+
+    private function plainEntity(): EntityInterface
+    {
+        return new class implements EntityInterface {
+            public function id(): int|string|null { return 1; }
+            public function uuid(): string { return 'uuid-1'; }
+            public function label(): string { return 'Plain node'; }
+            public function getEntityTypeId(): string { return 'node'; }
+            public function bundle(): string { return 'page'; }
+            public function isNew(): bool { return false; }
+            public function get(string $name): mixed { return null; }
+            public function set(string $name, mixed $value): static { return $this; }
+            public function toArray(): array { return []; }
+            public function language(): string { return 'en'; }
+        };
+    }
+
     private function resolver(
-        SearchIndexableInterface&EntityInterface $entity,
+        EntityInterface $entity,
         AccountFieldReadScope $scope,
         bool $allowView,
         ?EntityRepositoryInterface $repository = null,
+        ?EntitySearchProjectionRegistry $registry = null,
+        ?LoggerInterface $logger = null,
     ): EntitySearchCandidateResolver {
         if ($repository === null) {
             $repository = $this->createStub(EntityRepositoryInterface::class);
@@ -172,7 +374,13 @@ final class EntitySearchCandidateResolverTest extends TestCase
             public function appliesTo(string $entityTypeId): bool { return $entityTypeId === 'node'; }
         };
 
-        return new EntitySearchCandidateResolver($manager, new EntityAccessHandler([$policy]), $scope);
+        return new EntitySearchCandidateResolver(
+            $manager,
+            new EntityAccessHandler([$policy]),
+            $scope,
+            $registry ?? new EntitySearchProjectionRegistry([]),
+            $logger,
+        );
     }
 
     private function entity(

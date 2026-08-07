@@ -83,6 +83,7 @@ final class ContentSearchControllerTest extends TestCase
         ], array_keys($payload['data'][0]['attributes']));
         self::assertSame('Community update', $payload['data'][0]['attributes']['title']);
         self::assertSame(1, $payload['meta']['totalHits']);
+        self::assertTrue($payload['meta']['isComplete']);
         self::assertSame('events', $payload['meta']['facets'][0]['buckets'][0]['key']);
         self::assertArrayNotHasKey('body', $payload['data'][0]['attributes']);
         self::assertArrayNotHasKey('tookMs', $payload['meta']);
@@ -107,7 +108,7 @@ final class ContentSearchControllerTest extends TestCase
         foreach ([[false], [true, false]] as $decisions) {
             $provider = $this->createMock(ContentSearchReadModelInterface::class);
             $provider->expects($this->never())->method('search');
-            $limiter = $this->createMock(ContentSearchRateLimiterInterface::class);
+            $limiter = $this->createStub(ContentSearchRateLimiterInterface::class);
             $limiter->method('consume')->willReturnOnConsecutiveCalls(...$decisions);
 
             $response = (new ContentSearchController($provider, $limiter))->search(

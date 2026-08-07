@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Search\Fts5\Fts5SearchIndexer;
 use Waaseyaa\Search\Fts5\Fts5SearchProvider;
 use Waaseyaa\Search\SearchCandidateProjection;
@@ -127,7 +128,7 @@ final class Fts5SearchProviderAccessFilteredCountTest extends TestCase
     }
 
     #[Test]
-    public function candidate_work_is_bounded_and_the_result_conservatively_describes_only_the_scanned_window(): void
+    public function candidate_rows_below_the_public_bound_are_complete(): void
     {
         for ($id = 3; $id <= 201; ++$id) {
             $this->indexItem('node:' . $id, ['title' => 'Tutorial ' . $id, 'body' => 'Searchable tutorial'], [
@@ -159,8 +160,74 @@ final class Fts5SearchProviderAccessFilteredCountTest extends TestCase
             \Waaseyaa\Search\Tests\Support\SearchTestPrincipal::create(),
         );
 
-        self::assertSame(200, $resolver->calls);
-        self::assertSame(200, $result->totalHits);
+        self::assertSame(201, $resolver->calls);
+        self::assertSame(201, $result->totalHits);
+        self::assertTrue($result->isComplete);
+    }
+
+    #[Test]
+    public function an_exhausted_candidate_window_is_bounded_and_explicitly_incomplete(): void
+    {
+        for ($id = 3; $id <= 1002; ++$id) {
+            $this->indexItem('node:' . $id, ['title' => 'Tutorial ' . $id, 'body' => 'Searchable tutorial'], [
+                'entity_type' => 'node',
+                'content_type' => 'article',
+                'created_at' => '2026-01-01T00:00:00Z',
+            ]);
+        }
+        $resolver = new class ($this->database) implements SearchCandidateResolverInterface {
+            public int $calls = 0;
+            private readonly \Waaseyaa\Search\Tests\Support\IndexedSearchCandidateResolver $inner;
+            public function __construct(DBALDatabase $database)
+            {
+                $this->inner = new \Waaseyaa\Search\Tests\Support\IndexedSearchCandidateResolver($database);
+            }
+            public function resolve(SearchCandidateReference $reference, AuthorizationPrincipalInterface $principal): ?SearchCandidateProjection
+            {
+                ++$this->calls;
+                return $this->inner->resolve($reference, $principal);
+            }
+        };
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())->method('warning')->with(
+            'Search candidate window exhausted; result totals and facets are lower bounds.',
+            ['candidate_limit' => 1000],
+        );
+        $provider = new Fts5SearchProvider($this->database, $this->indexer, $resolver, $logger);
+
+        $result = $provider->search(
+            new SearchRequest('tutorial'),
+            \Waaseyaa\Search\Tests\Support\SearchTestPrincipal::create(),
+        );
+
+        self::assertSame(1000, $resolver->calls, 'The sentinel row must never be projected.');
+        self::assertSame(1000, $result->totalHits);
+        self::assertFalse($result->isComplete);
+    }
+
+    #[Test]
+    public function an_accessible_match_after_two_hundred_denied_candidates_is_not_diluted_out(): void
+    {
+        for ($id = 3; $id <= 201; ++$id) {
+            $this->indexItem('node:' . $id, ['title' => 'Tutorial ' . $id, 'body' => 'Searchable tutorial'], [
+                'entity_type' => 'node',
+                'content_type' => 'article',
+                'created_at' => '2026-01-01T00:00:00Z',
+            ]);
+        }
+        $resolver = new \Waaseyaa\Search\Tests\Support\IndexedSearchCandidateResolver(
+            $this->database,
+            static fn(SearchCandidateReference $reference): bool => $reference->documentId === 'node:201',
+        );
+        $provider = new Fts5SearchProvider($this->database, $this->indexer, $resolver);
+
+        $result = $provider->search(
+            new SearchRequest('tutorial'),
+            \Waaseyaa\Search\Tests\Support\SearchTestPrincipal::create(),
+        );
+
+        self::assertSame(1, $result->totalHits);
+        self::assertSame('node:201', $result->hits[0]->id);
     }
 
     private function indexItem(string $id, array $document, array $metadata): void

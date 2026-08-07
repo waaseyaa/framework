@@ -390,6 +390,12 @@ Configuration Management v1 — active/sync store split, six `config:*` CLI comm
 | `ProvidesSearchSourceResolversInterface` | interface | Contributes exact-namespace resolvers for canonical non-entity search sources |
 | `SearchIndexerInterface` | interface | Adds, updates, and removes documents from the search index |
 | `SearchIndexableInterface` | interface | Marks an entity as searchable and provides its document ID and text fields |
+| `Projection\EntitySearchProjectorInterface` | interface | Projects a normal entity (Node) into an indexable search document without an upward search dependency |
+| `Projection\EntitySearchDocumentId` | class | Creates stable search document identifiers for projected entities |
+| `Projection\EntitySearchProjectionRegistry` | class | Selects the first application or framework projector that supports an entity |
+| `Projection\NodeSearchProjector` | class | Provides the framework default projection for public Node content |
+| `Projection\SearchTextNormalizer` | class | Converts CMS field values into inert plain searchable text |
+| `ProvidesEntitySearchProjectorsInterface` | interface | Contributes application entity search projectors ordered ahead of the built-in node default |
 
 ### notification
 

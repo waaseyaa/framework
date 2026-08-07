@@ -27,7 +27,8 @@ use Waaseyaa\Search\SearchResult;
  */
 final class Fts5SearchProvider implements SearchProviderInterface
 {
-    private const int MAX_CANDIDATE_SCAN = 200;
+    /** Public-query work bound, aligned with the agent surface result window. */
+    private const int MAX_CANDIDATE_SCAN = 1_000;
     private const int SNIPPET_LENGTH = 240;
 
     private readonly LoggerInterface $logger;
@@ -59,17 +60,30 @@ final class Fts5SearchProvider implements SearchProviderInterface
             $queryTokens,
         ));
         $rankExpression = $this->rankExpression();
-        $sql = "SELECT m.document_id, m.entity_type, m.schema_version FROM search_index si JOIN search_metadata m ON m.document_id = si.document_id WHERE search_index MATCH :query ORDER BY $rankExpression, m.document_id ASC LIMIT :scanCap";
+        // One bounded statement gives this request a stable pointer snapshot:
+        // no OFFSET race across concurrent lifecycle writes, no quadratic
+        // rescans, and no unbounded projection/access-check amplification.
+        // The extra row is a content-free truncation sentinel.
+        $sql = "SELECT m.document_id, m.entity_type, m.schema_version FROM search_index si JOIN search_metadata m ON m.document_id = si.document_id WHERE search_index MATCH :query ORDER BY $rankExpression, m.document_id ASC LIMIT :scanLimit";
 
         /** @var list<array{projection: SearchCandidateProjection, score: float}> $safeMatches */
         $safeMatches = [];
         $staleDetected = false;
         $schemaVersion = $this->indexer->getSchemaVersion();
 
-        foreach ($this->database->query($sql, [
+        $candidateRows = iterator_to_array($this->database->query($sql, [
             'query' => $ftsQuery,
-            'scanCap' => self::MAX_CANDIDATE_SCAN,
-        ]) as $row) {
+            'scanLimit' => self::MAX_CANDIDATE_SCAN + 1,
+        ]), false);
+        $isComplete = count($candidateRows) <= self::MAX_CANDIDATE_SCAN;
+        if (!$isComplete) {
+            array_pop($candidateRows);
+            $this->logger->warning('Search candidate window exhausted; result totals and facets are lower bounds.', [
+                'candidate_limit' => self::MAX_CANDIDATE_SCAN,
+            ]);
+        }
+
+        foreach ($candidateRows as $row) {
             try {
                 $reference = new SearchCandidateReference(
                     documentId: (string) ($row['document_id'] ?? ''),
@@ -100,7 +114,7 @@ final class Fts5SearchProvider implements SearchProviderInterface
         $this->sortSafeMatches($safeMatches, $request->filters);
         $totalHits = count($safeMatches);
         if ($totalHits === 0) {
-            return $this->emptyResult($request);
+            return $this->emptyResult($request, $isComplete);
         }
 
         $offset = ($request->page - 1) * $request->pageSize;
@@ -117,6 +131,7 @@ final class Fts5SearchProvider implements SearchProviderInterface
             pageSize: $request->pageSize,
             hits: $hits,
             facets: $request->includeFacets ? $this->facets($safeMatches) : [],
+            isComplete: $isComplete,
         );
     }
 
@@ -309,7 +324,7 @@ final class Fts5SearchProvider implements SearchProviderInterface
         );
     }
 
-    private function emptyResult(SearchRequest $request): SearchResult
+    private function emptyResult(SearchRequest $request, bool $isComplete = true): SearchResult
     {
         return new SearchResult(
             totalHits: 0,
@@ -317,6 +332,7 @@ final class Fts5SearchProvider implements SearchProviderInterface
             currentPage: $request->page,
             pageSize: $request->pageSize,
             hits: [],
+            isComplete: $isComplete,
         );
     }
 }

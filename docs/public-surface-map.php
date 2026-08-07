@@ -461,6 +461,14 @@ return [
     'Waaseyaa\Search\SearchIndexerInterface' => 'public',
     'Waaseyaa\Search\BatchSearchIndexerInterface' => 'public',
     'Waaseyaa\Search\SearchIndexableInterface' => 'public',
+    // Entity search projection contract (#2270): projector extension point +
+    // application contribution interface for site-specific searchable fields.
+    'Waaseyaa\Search\Projection\EntitySearchProjectorInterface' => 'public',
+    'Waaseyaa\Search\Projection\EntitySearchDocumentId' => 'public',
+    'Waaseyaa\Search\Projection\EntitySearchProjectionRegistry' => 'public',
+    'Waaseyaa\Search\Projection\NodeSearchProjector' => 'public',
+    'Waaseyaa\Search\Projection\SearchTextNormalizer' => 'public',
+    'Waaseyaa\Search\ProvidesEntitySearchProjectorsInterface' => 'public',
     'Waaseyaa\Notification\NotificationInterface' => 'public',
     'Waaseyaa\Notification\NotifiableInterface' => 'public',
     'Waaseyaa\Notification\NotifiableTrait' => 'public',

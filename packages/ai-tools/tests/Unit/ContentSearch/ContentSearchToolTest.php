@@ -43,7 +43,7 @@ final class ContentSearchToolTest extends TestCase
 
                 return new SearchResult(1, 1, 1, 20, [
                     new SearchHit('page:7', 'Water', '/water', 'site', '2026-08-04T00:00:00Z', 92, 'page', ['culture'], 4.25, '/water.jpg', 'Clean water'),
-                ], [new SearchFacet('topics', [new FacetBucket('culture', 1)])]);
+                ], [new SearchFacet('topics', [new FacetBucket('culture', 1)])], isComplete: false);
             }
         };
         $tool = new ContentSearchTool(static fn(): object => $provider);
@@ -53,6 +53,7 @@ final class ContentSearchToolTest extends TestCase
         self::assertFalse($result->isError, json_encode($result->content, JSON_THROW_ON_ERROR));
         self::assertSame($account, $seenPrincipal);
         self::assertSame(1, $result->structuredContent['total_hits']);
+        self::assertFalse($result->structuredContent['is_complete']);
         self::assertSame('/water', $result->structuredContent['hits'][0]['url']);
         self::assertSame('Clean water', $result->structuredContent['hits'][0]['highlight']);
         self::assertSame([['key' => 'culture', 'count' => 1]], $result->structuredContent['facets'][0]['buckets']);

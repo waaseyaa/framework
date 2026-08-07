@@ -90,6 +90,7 @@ final class SearchPackageContentSearchAdapter
             'total_pages' => self::nonNegativeInt($result, 'totalPages'),
             'current_page' => self::boundedInt($result, 'currentPage', 1, 200),
             'page_size' => self::boundedInt($result, 'pageSize', 1, 100),
+            'is_complete' => self::boolProperty($result, 'isComplete'),
             'hits' => self::hits($result),
             'facets' => self::facets($result),
         ];
@@ -193,6 +194,16 @@ final class SearchPackageContentSearchAdapter
         $value = self::property($object, $property);
         if (!is_int($value) || $value < 0) {
             throw new ContentSearchBoundaryException('The optional search result contains an invalid integer.');
+        }
+
+        return $value;
+    }
+
+    private static function boolProperty(object $object, string $property): bool
+    {
+        $value = self::property($object, $property);
+        if (!is_bool($value)) {
+            throw new ContentSearchBoundaryException('The optional search result contains an invalid boolean.');
         }
 
         return $value;

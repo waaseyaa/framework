@@ -12,6 +12,7 @@ use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\EntityStorage\Event\RevisionPointerMovedEvent;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Search\Projection\EntitySearchProjectionRegistry;
 use Waaseyaa\Search\SearchIndexableInterface;
 use Waaseyaa\Search\SearchIndexerInterface;
 
@@ -37,17 +38,32 @@ use Waaseyaa\Search\SearchIndexerInterface;
  * triggering event's own entity object (pre-option-1 behavior, unchanged);
  * `onRevisionPointerMoved()` (which carries no entity object at all) then
  * has nothing to re-source and no-ops.
+ *
+ * #2270: entities that do not implement {@see SearchIndexableInterface} are
+ * resolved through the shared {@see EntitySearchProjectionRegistry} — the
+ * same projection contract `search:reindex` and query-time candidate
+ * resolution use — so ordinary Node content is indexed on save, refreshed on
+ * pointer moves, and removed on delete. Deletion derives the document id from
+ * entity identity alone (no projection), so it succeeds even for content
+ * whose fields are no longer readable. The framework provider always wires
+ * the shared registry. The optional final constructor argument preserves
+ * source compatibility for standalone consumers, which receive an empty
+ * registry and retain self-indexable behavior until they opt into projectors.
  */
 final class SearchIndexSubscriber implements EventSubscriberInterface
 {
     private readonly LoggerInterface $logger;
 
+    private readonly EntitySearchProjectionRegistry $projectionRegistry;
+
     public function __construct(
         private readonly SearchIndexerInterface $indexer,
         ?LoggerInterface $logger = null,
         private readonly ?EntityTypeManagerInterface $entityTypeManager = null,
+        ?EntitySearchProjectionRegistry $projectionRegistry = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
+        $this->projectionRegistry = $projectionRegistry ?? new EntitySearchProjectionRegistry([]);
     }
 
     public static function getSubscribedEvents(): array
@@ -69,14 +85,19 @@ final class SearchIndexSubscriber implements EventSubscriberInterface
     {
         $entity = $event->entity;
 
-        if (!$entity instanceof SearchIndexableInterface) {
-            return;
-        }
-
         try {
-            $this->indexer->remove($entity->getSearchDocumentId());
+            $documentId = $this->projectionRegistry->documentIdFor($entity);
+            if ($documentId === null) {
+                return;
+            }
+
+            $this->indexer->remove($documentId);
         } catch (\Throwable $e) {
-            $this->logger->error(sprintf('Search index removal failed for %s: %s', $entity->getSearchDocumentId(), $e->getMessage()));
+            $this->logger->error(sprintf(
+                'Search index removal failed for a deleted %s entity: %s',
+                $entity->getEntityTypeId(),
+                $e->getMessage(),
+            ));
         }
     }
 
@@ -111,14 +132,28 @@ final class SearchIndexSubscriber implements EventSubscriberInterface
             $entity = $fallbackEntity;
         }
 
-        if (!$entity instanceof SearchIndexableInterface) {
+        if ($entity === null) {
             return;
         }
 
         try {
-            $this->indexer->index($entity);
+            $indexable = $this->projectionRegistry->resolveIndexable($entity);
+            if ($indexable === null) {
+                // A projector may deliberately stop projecting an entity (for
+                // example, when it becomes unpublished). Remove any document
+                // written by an earlier projection so lifecycle indexing does
+                // not leave stale or newly-ineligible content searchable.
+                $documentId = $this->projectionRegistry->documentIdFor($entity);
+                if ($documentId !== null) {
+                    $this->indexer->remove($documentId);
+                }
+
+                return;
+            }
+
+            $this->indexer->index($indexable);
         } catch (\Throwable $e) {
-            $this->logger->error(sprintf('Search indexing failed for %s: %s', $entity->getSearchDocumentId(), $e->getMessage()));
+            $this->logger->error(sprintf('Search indexing failed for a %s entity: %s', $entityType, $e->getMessage()));
         }
     }
 }

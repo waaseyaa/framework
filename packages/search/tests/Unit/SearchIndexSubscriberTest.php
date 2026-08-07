@@ -16,7 +16,10 @@ use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityStorageInterface;
 use Waaseyaa\EntityStorage\Event\RevisionPointerMovedEvent;
+use Waaseyaa\Search\Document\SearchDocument;
 use Waaseyaa\Search\EventSubscriber\SearchIndexSubscriber;
+use Waaseyaa\Search\Projection\EntitySearchProjectionRegistry;
+use Waaseyaa\Search\Projection\EntitySearchProjectorInterface;
 use Waaseyaa\Search\SearchIndexableInterface;
 use Waaseyaa\Search\SearchIndexerInterface;
 
@@ -42,7 +45,7 @@ final class SearchIndexSubscriberTest extends TestCase
         $indexer = $this->createMockIndexer();
         $indexer->expects($this->once())->method('index')->with($entity);
 
-        $subscriber = new SearchIndexSubscriber($indexer);
+        $subscriber = $this->subscriber($indexer);
         $event = new EntityEvent($entity);
         $subscriber->onPostSave($event);
     }
@@ -58,7 +61,7 @@ final class SearchIndexSubscriberTest extends TestCase
         $indexer = $this->createMockIndexer();
         $indexer->expects($this->never())->method('index');
 
-        $subscriber = new SearchIndexSubscriber($indexer);
+        $subscriber = $this->subscriber($indexer);
         $event = new EntityEvent($entity);
         $subscriber->onPostSave($event);
     }
@@ -70,7 +73,7 @@ final class SearchIndexSubscriberTest extends TestCase
         $indexer = $this->createMockIndexer();
         $indexer->expects($this->once())->method('remove')->with('node:1');
 
-        $subscriber = new SearchIndexSubscriber($indexer);
+        $subscriber = $this->subscriber($indexer);
         $event = new EntityEvent($entity);
         $subscriber->onPostDelete($event);
     }
@@ -80,9 +83,9 @@ final class SearchIndexSubscriberTest extends TestCase
     {
         $entity = $this->createIndexableEntity('node:1');
         $indexer = $this->createMockIndexer();
-        $indexer->method('index')->willThrowException(new \RuntimeException('DB error'));
+        $indexer->expects($this->once())->method('index')->willThrowException(new \RuntimeException('DB error'));
 
-        $subscriber = new SearchIndexSubscriber($indexer);
+        $subscriber = $this->subscriber($indexer);
         $event = new EntityEvent($entity);
 
         // Should not throw — best-effort side effect
@@ -116,7 +119,7 @@ final class SearchIndexSubscriberTest extends TestCase
         $indexer = $this->createMockIndexer();
         $indexer->expects($this->once())->method('index')->with($servedEntity);
 
-        $subscriber = new SearchIndexSubscriber($indexer, entityTypeManager: $this->entityTypeManager($servedEntity));
+        $subscriber = $this->subscriber($indexer, $this->entityTypeManager($servedEntity));
         $subscriber->onPostSave(new EntityEvent($tipEntity));
     }
 
@@ -127,7 +130,7 @@ final class SearchIndexSubscriberTest extends TestCase
         $indexer = $this->createMockIndexer();
         $indexer->expects($this->once())->method('index')->with($servedEntity);
 
-        $subscriber = new SearchIndexSubscriber($indexer, entityTypeManager: $this->entityTypeManager($servedEntity));
+        $subscriber = $this->subscriber($indexer, $this->entityTypeManager($servedEntity));
         $subscriber->onRevisionPointerMoved(new RevisionPointerMovedEvent(
             entityTypeId: 'node',
             entityId: '1',
@@ -147,7 +150,7 @@ final class SearchIndexSubscriberTest extends TestCase
         $indexer = $this->createMockIndexer();
         $indexer->expects($this->once())->method('index')->with($servedEntity);
 
-        $subscriber = new SearchIndexSubscriber($indexer, entityTypeManager: $this->entityTypeManager($servedEntity));
+        $subscriber = $this->subscriber($indexer, $this->entityTypeManager($servedEntity));
         $subscriber->onRevisionReverted(new EntityEvent($eventEntity));
     }
 
@@ -157,7 +160,7 @@ final class SearchIndexSubscriberTest extends TestCase
         $indexer = $this->createMockIndexer();
         $indexer->expects($this->never())->method('index');
 
-        $subscriber = new SearchIndexSubscriber($indexer);
+        $subscriber = $this->subscriber($indexer);
         $subscriber->onRevisionPointerMoved(new RevisionPointerMovedEvent(
             entityTypeId: 'node',
             entityId: '1',
@@ -166,6 +169,176 @@ final class SearchIndexSubscriberTest extends TestCase
             toRevisionId: 20,
             actorUid: 7,
         ));
+    }
+
+    // ------------------------------------------------------------------
+    // #2270: entities that do not implement SearchIndexableInterface are
+    // resolved through the shared EntitySearchProjectionRegistry so ordinary
+    // Node content participates in the save/delete/pointer-move lifecycle.
+    // ------------------------------------------------------------------
+
+    #[Test]
+    public function a_projector_backed_entity_is_indexed_on_save_through_the_registry(): void
+    {
+        $servedEntity = $this->plainEntity('node', 1);
+        $indexer = $this->createMockIndexer();
+        $indexer->expects($this->once())->method('index')->with(self::callback(
+            static fn(SearchIndexableInterface $document): bool => $document->getSearchDocumentId() === 'node:1'
+                && $document->toSearchDocument()['title'] === 'Projected served title',
+        ));
+
+        $subscriber = new SearchIndexSubscriber(
+            $indexer,
+            entityTypeManager: $this->entityTypeManager($servedEntity),
+            projectionRegistry: $this->nodeProjectionRegistry(),
+        );
+        $subscriber->onPostSave(new EntityEvent($this->plainEntity('node', 1)));
+    }
+
+    #[Test]
+    public function a_projector_backed_entity_is_removed_on_delete(): void
+    {
+        $indexer = $this->createMockIndexer();
+        $indexer->expects($this->once())->method('remove')->with('node:1');
+
+        $subscriber = new SearchIndexSubscriber(
+            $indexer,
+            projectionRegistry: $this->nodeProjectionRegistry(),
+        );
+        $subscriber->onPostDelete(new EntityEvent($this->plainEntity('node', 1)));
+    }
+
+    #[Test]
+    public function a_pointer_move_indexes_the_projected_served_entity(): void
+    {
+        $servedEntity = $this->plainEntity('node', 1);
+        $indexer = $this->createMockIndexer();
+        $indexer->expects($this->once())->method('index')->with(self::callback(
+            static fn(SearchIndexableInterface $document): bool => $document->getSearchDocumentId() === 'node:1',
+        ));
+
+        $subscriber = new SearchIndexSubscriber(
+            $indexer,
+            entityTypeManager: $this->entityTypeManager($servedEntity),
+            projectionRegistry: $this->nodeProjectionRegistry(),
+        );
+        $subscriber->onRevisionPointerMoved(new RevisionPointerMovedEvent(
+            entityTypeId: 'node',
+            entityId: '1',
+            operation: 'publish',
+            fromRevisionId: 10,
+            toRevisionId: 20,
+            actorUid: 7,
+        ));
+    }
+
+    #[Test]
+    public function an_unsupported_entity_type_is_still_skipped_with_a_registry_wired(): void
+    {
+        $indexer = $this->createMockIndexer();
+        $indexer->expects($this->never())->method('index');
+        $indexer->expects($this->never())->method('remove');
+
+        $subscriber = new SearchIndexSubscriber(
+            $indexer,
+            projectionRegistry: $this->nodeProjectionRegistry(),
+        );
+        $subscriber->onPostSave(new EntityEvent($this->plainEntity('taxonomy_term', 3)));
+        $subscriber->onPostDelete(new EntityEvent($this->plainEntity('taxonomy_term', 3)));
+    }
+
+    #[Test]
+    public function a_projection_failure_on_save_is_best_effort(): void
+    {
+        $indexer = $this->createMockIndexer();
+        $indexer->expects($this->never())->method('index');
+        $registry = new EntitySearchProjectionRegistry([
+            new class implements EntitySearchProjectorInterface {
+                public function supports(EntityInterface $entity): bool
+                {
+                    return true;
+                }
+
+                public function project(EntityInterface $entity): ?SearchIndexableInterface
+                {
+                    throw new \RuntimeException('projection blew up');
+                }
+            },
+        ]);
+
+        $subscriber = new SearchIndexSubscriber($indexer, projectionRegistry: $registry);
+
+        // Must not throw — indexing is a best-effort side effect.
+        $subscriber->onPostSave(new EntityEvent($this->plainEntity('node', 1)));
+        $this->assertTrue(true);
+    }
+
+    #[Test]
+    public function a_previously_indexed_entity_is_removed_when_its_projector_now_excludes_it(): void
+    {
+        $entity = $this->plainEntity('node', 1);
+        $indexer = $this->createMockIndexer();
+        $indexer->expects($this->never())->method('index');
+        $indexer->expects($this->once())->method('remove')->with('node:1');
+        $registry = new EntitySearchProjectionRegistry([
+            new class implements EntitySearchProjectorInterface {
+                public function supports(EntityInterface $entity): bool
+                {
+                    return $entity->getEntityTypeId() === 'node' && $entity->id() !== null;
+                }
+
+                public function project(EntityInterface $entity): ?SearchIndexableInterface
+                {
+                    return null;
+                }
+            },
+        ]);
+
+        $subscriber = new SearchIndexSubscriber($indexer, projectionRegistry: $registry);
+        $subscriber->onPostSave(new EntityEvent($entity));
+    }
+
+    private function nodeProjectionRegistry(): EntitySearchProjectionRegistry
+    {
+        return new EntitySearchProjectionRegistry([
+            new class implements EntitySearchProjectorInterface {
+                public function supports(EntityInterface $entity): bool
+                {
+                    return $entity->getEntityTypeId() === 'node' && $entity->id() !== null;
+                }
+
+                public function project(EntityInterface $entity): ?SearchIndexableInterface
+                {
+                    return new SearchDocument(
+                        'node:' . $entity->id(),
+                        'Projected served title',
+                        'Projected body',
+                        ['entity_type' => 'node'],
+                    );
+                }
+            },
+        ]);
+    }
+
+    private function subscriber(
+        SearchIndexerInterface $indexer,
+        ?EntityTypeManagerInterface $entityTypeManager = null,
+    ): SearchIndexSubscriber {
+        return new SearchIndexSubscriber(
+            $indexer,
+            entityTypeManager: $entityTypeManager,
+            projectionRegistry: new EntitySearchProjectionRegistry([]),
+        );
+    }
+
+    private function plainEntity(string $entityTypeId, int $id): EntityInterface
+    {
+        return new class ($entityTypeId, $id) extends \Waaseyaa\Entity\EntityBase {
+            public function __construct(string $entityTypeId, int $id)
+            {
+                parent::__construct(['id' => $id], $entityTypeId, ['id' => 'id']);
+            }
+        };
     }
 
     private function entityTypeManager(?EntityInterface $servedEntity): EntityTypeManagerInterface

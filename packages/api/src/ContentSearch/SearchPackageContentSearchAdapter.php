@@ -63,6 +63,7 @@ final class SearchPackageContentSearchAdapter implements ContentSearchReadModelI
             pageSize: self::intProperty($result, 'pageSize'),
             hits: self::hits($result),
             facets: self::facets($result),
+            isComplete: self::boolProperty($result, 'isComplete'),
         );
     }
 
@@ -122,6 +123,16 @@ final class SearchPackageContentSearchAdapter implements ContentSearchReadModelI
         $value = self::property($object, $property);
         if (!is_int($value)) {
             throw new ContentSearchBoundaryException('The optional search result contains an invalid integer.');
+        }
+
+        return $value;
+    }
+
+    private static function boolProperty(object $object, string $property): bool
+    {
+        $value = self::property($object, $property);
+        if (!is_bool($value)) {
+            throw new ContentSearchBoundaryException('The optional search result contains an invalid boolean.');
         }
 
         return $value;

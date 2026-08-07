@@ -245,6 +245,7 @@ final class FieldReadBoundaryArchitectureTest extends TestCase
         'packages/path/src/PathAlias.php' => 'Path entity domain helper is reviewed activation-compatible through its classified canonical accessor.',
         'packages/publishing/src/ContentMutationSnapshotReader.php' => 'Closed publisher mutation results project only the descriptor status, slug, and writable fields after publish-capability and entity-gate authorization; callers cannot select another field (#2141).',
         'packages/relationship/src/RelationshipAccessPolicy.php' => 'Relationship policy input is reviewed activation-compatible through the canonical guarded accessor.',
+        'packages/search/src/Projection/NodeSearchProjector.php' => 'Search-owned node projection reads only explicitly selected fields through the canonical guarded accessor: index-time reads without an account can expose Public fields only, each denied field is omitted, and query-time projection reruns inside the already entity-authorized principal scope (#2270).',
         'packages/seo/src/SchemaOrg/EntitySchemaOrgMapper.php' => 'SEO label projection is reviewed activation-compatible through the canonical guarded accessor.',
         'packages/taxonomy/src/Term.php' => 'Taxonomy entity domain helper is reviewed activation-compatible through its classified canonical accessor.',
         'packages/taxonomy/src/TermAccessPolicy.php' => 'Taxonomy policy input is reviewed activation-compatible through the canonical guarded accessor.',

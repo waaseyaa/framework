@@ -77,7 +77,9 @@ final class Fts5SearchProviderTwoPhaseFetchTest extends TestCase
         self::assertStringNotContainsString('si.title', $scan['sql']);
         self::assertStringNotContainsString('si.body', $scan['sql']);
         self::assertStringNotContainsString('m.*', $scan['sql']);
-        self::assertStringContainsString('LIMIT :scanCap', $scan['sql']);
+        self::assertStringContainsString('LIMIT :scanLimit', $scan['sql']);
+        self::assertStringNotContainsString('OFFSET', $scan['sql']);
+        self::assertSame(1001, $scan['args']['scanLimit']);
     }
 
     private function index(Fts5SearchIndexer $indexer, string $id, string $createdAt): void
