@@ -21,6 +21,7 @@ use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Mcp\Auth\BearerTokenAuth;
 use Waaseyaa\Mcp\Auth\DurableBearerTokenAuth;
+use Waaseyaa\Mcp\Auth\PublicAnonymousAuth;
 use Waaseyaa\Mcp\Auth\WriteTierAuthInterface;
 use Waaseyaa\Mcp\AuthenticatedMcpEndpoint;
 use Waaseyaa\Mcp\McpEndpoint;
@@ -79,14 +80,39 @@ final class McpServiceProviderDurableAuthTest extends TestCase
         self::assertSame($override, $auth);
     }
 
+    #[Test]
+    public function the_public_tier_composes_durable_auth_with_a_separate_public_audience(): void
+    {
+        $auth = $this->resolvePublicTierAuth(withStore: true, withUsers: true);
+
+        self::assertInstanceOf(PublicAnonymousAuth::class, $auth);
+        $delegate = new \ReflectionProperty(PublicAnonymousAuth::class, 'delegate')->getValue($auth);
+        self::assertInstanceOf(DurableBearerTokenAuth::class, $delegate);
+        self::assertSame(
+            DurableBearerTokenAuth::PUBLIC_AUDIENCE,
+            new \ReflectionProperty(DurableBearerTokenAuth::class, 'audience')->getValue($delegate),
+        );
+    }
+
+    #[Test]
+    public function the_public_tier_keeps_anonymous_auth_when_durable_services_are_absent(): void
+    {
+        $auth = $this->resolvePublicTierAuth(withStore: false, withUsers: true);
+
+        self::assertInstanceOf(PublicAnonymousAuth::class, $auth);
+        self::assertNull(new \ReflectionProperty(PublicAnonymousAuth::class, 'delegate')->getValue($auth));
+        self::assertFalse($auth->authenticate(null)->isAuthenticated());
+    }
+
     private function resolveWriteTierAuth(
         bool $withStore,
         bool $withUsers,
         ?WriteTierAuthInterface $override = null,
+        bool $public = false,
     ): object {
-        $userRepository = $this->createMock(EntityRepositoryInterface::class);
-        $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
-        $entityTypeManager->method('getRepository')->with('user')->willReturn($userRepository);
+        $userRepository = $this->createStub(EntityRepositoryInterface::class);
+        $entityTypeManager = $this->createStub(EntityTypeManagerInterface::class);
+        $entityTypeManager->method('getRepository')->willReturn($userRepository);
 
         $mcp = new McpServiceProvider();
         $app = new class($withStore, $withUsers ? $entityTypeManager : null, $override) extends ServiceProvider {
@@ -174,9 +200,20 @@ final class McpServiceProviderDurableAuthTest extends TestCase
             $provider->register();
         }
 
+        if ($public) {
+            $endpoint = $mcp->resolve(McpEndpoint::class);
+
+            return new \ReflectionProperty(McpEndpoint::class, 'auth')->getValue($endpoint);
+        }
+
         $endpoint = $mcp->resolve(AuthenticatedMcpEndpoint::class);
         $inner = new \ReflectionProperty(AuthenticatedMcpEndpoint::class, 'inner')->getValue($endpoint);
 
         return new \ReflectionProperty(McpEndpoint::class, 'auth')->getValue($inner);
+    }
+
+    private function resolvePublicTierAuth(bool $withStore, bool $withUsers): object
+    {
+        return $this->resolveWriteTierAuth($withStore, $withUsers, public: true);
     }
 }

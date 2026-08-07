@@ -200,7 +200,7 @@ final class ReadOnlyBoundaryTest extends TestCase
     #[Test]
     public function delegate_authenticated_account_takes_precedence(): void
     {
-        $delegateAccount = $this->createMock(\Waaseyaa\Access\AuthorizationPrincipalInterface::class);
+        $delegateAccount = $this->createStub(\Waaseyaa\Access\AuthorizationPrincipalInterface::class);
         $delegate = new class ($delegateAccount) implements \Waaseyaa\Mcp\Auth\McpAuthInterface {
             public function __construct(private readonly \Waaseyaa\Access\AuthorizationPrincipalInterface $account) {}
 
@@ -215,5 +215,60 @@ final class ReadOnlyBoundaryTest extends TestCase
         self::assertSame($delegateAccount, $auth->authenticate('Bearer good'));
         // Falls back to anonymous read when the delegate declines.
         self::assertFalse($auth->authenticate('Bearer bad')->isAuthenticated());
+    }
+
+    #[Test]
+    public function legacy_unscoped_delegate_is_constrained_to_public_read_scopes(): void
+    {
+        $delegateAccount = $this->createStub(\Waaseyaa\Access\AuthorizationPrincipalInterface::class);
+        $delegate = new class ($delegateAccount) implements \Waaseyaa\Mcp\Auth\McpAuthInterface {
+            public function __construct(private readonly \Waaseyaa\Access\AuthorizationPrincipalInterface $account) {}
+            public function authenticate(?string $authorizationHeader): ?\Waaseyaa\Access\AuthorizationPrincipalInterface
+            {
+                return $authorizationHeader === 'Bearer legacy' ? $this->account : null;
+            }
+        };
+        $capabilities = [...PublicAnonymousAuth::DEFAULT_READ_CAPABILITIES, 'tool.content.search'];
+        $auth = new PublicAnonymousAuth($capabilities, $delegate);
+
+        $authenticated = $auth->authenticateWithScopes('Bearer legacy');
+
+        self::assertSame($delegateAccount, $authenticated->account);
+        self::assertSame($capabilities, $authenticated->scopes);
+        self::assertNotEmpty($authenticated->scopes, 'Legacy auth must never become an unrestricted credential.');
+    }
+
+    #[Test]
+    public function scoped_delegate_credentials_keep_their_narrower_scopes(): void
+    {
+        $delegateAccount = $this->createStub(\Waaseyaa\Access\AuthorizationPrincipalInterface::class);
+        $delegate = new class ($delegateAccount) implements \Waaseyaa\Mcp\Auth\ScopedMcpAuthInterface {
+            public function __construct(private readonly \Waaseyaa\Access\AuthorizationPrincipalInterface $account) {}
+
+            public function authenticate(?string $authorizationHeader): ?\Waaseyaa\Access\AuthorizationPrincipalInterface
+            {
+                return $this->authenticateWithScopes($authorizationHeader)?->account;
+            }
+
+            public function authenticateWithScopes(?string $authorizationHeader): ?\Waaseyaa\Mcp\Auth\ScopedPrincipal
+            {
+                return $authorizationHeader === 'Bearer scoped'
+                    ? new \Waaseyaa\Mcp\Auth\ScopedPrincipal($this->account, ['tool.content.search'])
+                    : null;
+            }
+        };
+
+        $auth = new PublicAnonymousAuth(
+            [...PublicAnonymousAuth::DEFAULT_READ_CAPABILITIES, 'tool.content.search'],
+            $delegate,
+        );
+
+        $authenticated = $auth->authenticateWithScopes('Bearer scoped');
+        self::assertSame($delegateAccount, $authenticated->account);
+        self::assertSame(['tool.content.search'], $authenticated->scopes);
+
+        $anonymous = $auth->authenticateWithScopes('Bearer invalid');
+        self::assertFalse($anonymous->account->isAuthenticated());
+        self::assertContains('tool.content.search', $anonymous->scopes);
     }
 }

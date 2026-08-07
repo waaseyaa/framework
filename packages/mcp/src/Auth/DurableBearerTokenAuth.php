@@ -30,6 +30,7 @@ use Waaseyaa\Foundation\Log\LoggerInterface;
 final readonly class DurableBearerTokenAuth implements WriteTierAuthInterface, ScopedMcpAuthInterface
 {
     public const string DEFAULT_AUDIENCE = 'mcp:write';
+    public const string PUBLIC_AUDIENCE = 'mcp:public';
 
     /**
      * @param EntityRepositoryInterface $accounts The `user` entity repository
