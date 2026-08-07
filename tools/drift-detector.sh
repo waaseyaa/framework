@@ -135,6 +135,7 @@ declare -A PATTERN_TO_SPEC=(
   ["packages/mail/"]="docs/specs/infrastructure.md"
   ["packages/http-client/"]="docs/specs/infrastructure.md"
   ["packages/admin/"]="docs/specs/admin-spa.md"
+  ["packages/admin-surface/"]="docs/specs/admin-spa.md"
   ["packages/note/"]="docs/specs/ingestion-defaults.md"
   ["packages/node/"]="docs/specs/revision-system-unified.md"
   ["packages/relationship/"]="docs/specs/relationship-modeling.md"
@@ -171,12 +172,11 @@ record_spec() {
 warn_unmapped() {
   [ "${#UNMAPPED_PKGS[@]}" -eq 0 ] && return 0
   {
-    echo "WARNING: contract-bearing source changed in package(s) not mapped to any spec:"
+    echo "BLOCKED: contract-bearing source changed in package(s) not mapped to any spec:"
     for pkg in $(printf '%s\n' "${!UNMAPPED_PKGS[@]}" | sort); do
       echo "  - ${pkg} (no entry in PATTERN_TO_SPEC or the secondary case map)"
     done
-    echo "  These changes were NOT coupling-checked. If the package has a spec,"
-    echo "  add it to PATTERN_TO_SPEC in tools/drift-detector.sh so drift is caught."
+    echo "  These changes were NOT coupling-checked. Map every package before merging."
   } >&2
 }
 
@@ -214,7 +214,9 @@ done <<< "$SOURCE_FILES"
 if [ "${#AFFECTED_SPECS[@]}" -eq 0 ]; then
   echo "No specs mapped to the changed source."
   warn_unmapped
-  exit 0
+  [ "${#UNMAPPED_PKGS[@]}" -eq 0 ] && exit 0
+  echo "${#UNMAPPED_PKGS[@]} unmapped package(s) block specification-drift verification."
+  exit 1
 fi
 
 # --- collect spec-reviewed acknowledgements from commit messages in range ---
@@ -270,6 +272,7 @@ for spec in $(printf '%s\n' "${!AFFECTED_SPECS[@]}" | sort); do
 done
 
 warn_unmapped
+STALE_COUNT=$((STALE_COUNT + ${#UNMAPPED_PKGS[@]}))
 
 echo ""
 if [ $STALE_COUNT -gt 0 ]; then
