@@ -110,7 +110,7 @@ composer hooks:doctor
 # Run quick local checks
 composer validate
 composer phpstan
-./vendor/bin/phpunit --testsuite Unit
+./vendor/bin/phpunit --testsuite Unit --no-coverage
 ```
 
 Hook installation is explicit because linked worktrees share the repository's
