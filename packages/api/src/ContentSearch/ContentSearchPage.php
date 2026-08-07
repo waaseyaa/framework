@@ -17,6 +17,7 @@ final readonly class ContentSearchPage
         public int $pageSize,
         public array $hits,
         public array $facets,
+        public bool $isComplete = true,
     ) {
         if ($totalHits < 0 || $totalPages < 0 || $currentPage < 1 || $pageSize < 1 || $pageSize > 100) {
             throw new ContentSearchBoundaryException('Search page metadata violates the API contract.');

@@ -88,10 +88,11 @@ final class ContentSearchTool extends AbstractAgentTool
                 'total_pages' => ['type' => 'integer', 'minimum' => 0],
                 'current_page' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 200],
                 'page_size' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100],
+                'is_complete' => ['type' => 'boolean'],
                 'hits' => ['type' => 'array', 'maxItems' => 100, 'items' => $hit],
                 'facets' => ['type' => 'array', 'maxItems' => 20, 'items' => $facet],
             ],
-            'required' => ['total_hits', 'total_pages', 'current_page', 'page_size', 'hits', 'facets'],
+            'required' => ['total_hits', 'total_pages', 'current_page', 'page_size', 'is_complete', 'hits', 'facets'],
             'additionalProperties' => false,
         ];
     }

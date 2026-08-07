@@ -16,6 +16,8 @@ use Waaseyaa\Search\EventSubscriber\SearchIndexSubscriber;
 use Waaseyaa\Search\Fts5\Fts5SearchContentCatalogue;
 use Waaseyaa\Search\Fts5\Fts5SearchIndexer;
 use Waaseyaa\Search\Fts5\Fts5SearchProvider;
+use Waaseyaa\Search\Projection\EntitySearchProjectionRegistry;
+use Waaseyaa\Search\Projection\NodeSearchProjector;
 
 final class SearchServiceProvider extends ServiceProvider
 {
@@ -30,6 +32,23 @@ final class SearchServiceProvider extends ServiceProvider
             // wire the SearchIndexSubscriber) must not run DDL — the indexer
             // creates its schema lazily on first write instead. (D-35)
             return new Fts5SearchIndexer($database);
+        });
+
+        // #2270: one shared projection registry serves full reindex, the
+        // lifecycle subscriber, and query-time candidate resolution, so
+        // index-time and query-time semantics cannot drift. Application
+        // projectors (ProvidesEntitySearchProjectorsInterface) are consulted
+        // ahead of the built-in node default.
+        $this->singleton(EntitySearchProjectionRegistry::class, function (): EntitySearchProjectionRegistry {
+            $projectorProvider = $this->resolveOptional(ProvidesEntitySearchProjectorsInterface::class);
+            if ($projectorProvider !== null && !$projectorProvider instanceof ProvidesEntitySearchProjectorsInterface) {
+                throw new \LogicException('Search projector provider must implement ProvidesEntitySearchProjectorsInterface.');
+            }
+
+            return new EntitySearchProjectionRegistry([
+                ...($projectorProvider?->entitySearchProjectors() ?? []),
+                new NodeSearchProjector(),
+            ]);
         });
 
         $this->singleton(SearchCandidateResolverInterface::class, function (): SearchCandidateResolverInterface {
@@ -49,19 +68,29 @@ final class SearchServiceProvider extends ServiceProvider
             if ($sourceProvider !== null && !$sourceProvider instanceof ProvidesSearchSourceResolversInterface) {
                 throw new \LogicException('Search source resolver provider must implement ProvidesSearchSourceResolversInterface.');
             }
+            $logger = $this->resolveOptional(\Waaseyaa\Foundation\Log\LoggerInterface::class);
 
             return new SearchCandidateResolverRegistry(
                 $entityTypeManager,
-                new EntitySearchCandidateResolver($entityTypeManager, $accessHandler, $fieldReadScope),
+                new EntitySearchCandidateResolver(
+                    $entityTypeManager,
+                    $accessHandler,
+                    $fieldReadScope,
+                    $this->projectionRegistry(),
+                    $logger instanceof \Waaseyaa\Foundation\Log\LoggerInterface ? $logger : null,
+                ),
                 $sourceProvider?->searchSourceResolvers() ?? [],
             );
         });
 
         $this->singleton(SearchProviderInterface::class, function (): SearchProviderInterface {
+            $logger = $this->resolveOptional(\Waaseyaa\Foundation\Log\LoggerInterface::class);
+
             return new Fts5SearchProvider(
                 $this->getSearchDatabase(),
                 $this->resolve(SearchIndexerInterface::class),
                 candidateResolver: $this->resolve(SearchCandidateResolverInterface::class),
+                logger: $logger instanceof \Waaseyaa\Foundation\Log\LoggerInterface ? $logger : null,
             );
         });
 
@@ -85,12 +114,23 @@ final class SearchServiceProvider extends ServiceProvider
         $subscriber = new SearchIndexSubscriber(
             $indexer,
             entityTypeManager: $entityTypeManager instanceof EntityTypeManagerInterface ? $entityTypeManager : null,
+            projectionRegistry: $this->projectionRegistry(),
         );
 
         $dispatcher = $this->resolve(\Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class);
         if ($dispatcher instanceof EventDispatcherInterface) {
             $dispatcher->addSubscriber($subscriber);
         }
+    }
+
+    private function projectionRegistry(): EntitySearchProjectionRegistry
+    {
+        $registry = $this->resolve(EntitySearchProjectionRegistry::class);
+        if (!$registry instanceof EntitySearchProjectionRegistry) {
+            throw new \LogicException('Search requires its own EntitySearchProjectionRegistry binding.');
+        }
+
+        return $registry;
     }
 
     private function getSearchDatabase(): DatabaseInterface

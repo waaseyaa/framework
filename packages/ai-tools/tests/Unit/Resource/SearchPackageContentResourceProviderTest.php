@@ -86,7 +86,7 @@ final class SearchPackageContentResourceProviderTest extends TestCase
     #[Test]
     public function denied_and_unknown_catalogue_reads_both_return_null(): void
     {
-        $catalogue = $this->createMock(SearchContentCatalogueInterface::class);
+        $catalogue = $this->createStub(SearchContentCatalogueInterface::class);
         $catalogue->method('readByPublicPath')->willReturn(null);
         $provider = new SearchPackageContentResourceProvider(static fn(): object => $catalogue);
 

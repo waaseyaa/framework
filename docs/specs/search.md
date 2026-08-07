@@ -1,19 +1,45 @@
 # Search
 
+Canonical contract documentation lives in [`packages/search/README.md`](../../packages/search/README.md)
+(the orchestration table's spec target for `packages/search/*`). This file
+keeps only the cross-cutting invariants.
+
 ## Scope
 
 `waaseyaa/search` is a Layer 3 service package for full-text and structured
-entity search. The write-side indexer is active for existing consumers. The
-FTS5 read provider, request/result objects, access checker, and Twig helper are
-internal and have no first-party HTTP, CLI, SSR, or admin caller on main.
+entity search. The principal-safe read surface is consumed by the published
+`/api/content/search` endpoint and MCP `content.search` (#2268). The
+write-side indexer serves both self-indexable entities and — since #2270 —
+ordinary content entities through the search-owned entity projection
+contract (`Projection\EntitySearchProjectorInterface`, resolved through one
+shared `Projection\EntitySearchProjectionRegistry`).
 
-## Read-surface activation boundary
+## Entity projection invariant (#2270)
 
-Do not publish the parked read surface until a first-party endpoint supplies an
-acting-account access boundary and tests access-filtered pagination. Count,
-facets, page selection, and rank order must share one bounded ordered ID basis;
-titles and snippets are fetched only for the approved page IDs. Asynchronous
-indexing also requires a production queue consumer before a job is introduced.
+Full `search:reindex`, the save/delete/revision-pointer lifecycle, and
+query-time candidate resolution all resolve entities through the same
+projection registry — never through divergent per-surface logic. The
+built-in `NodeSearchProjector` keys off the `node` entity type id via the
+generic entity contract (no `Waaseyaa\Node` import; search must not gain a
+composer edge to `waaseyaa/node` — they sit in different metapackages).
+Projection reads only guarded field accessors, so index-time projection
+(unscoped) can only capture Public-classified fields, and query-time
+re-projection runs inside the acting principal's field-read scope after the
+entity `view` check. Applications contribute or override projectors by
+binding `ProvidesEntitySearchProjectorsInterface`; app projectors precede
+the built-in default and a supporting projector's null decline is final.
+
+## Read-surface access boundary
+
+Count, facets, page selection, and rank order must share one ordered pointer
+basis fetched by a single bounded statement. The provider projects at most
+1,000 candidates and uses one extra pointer as a truncation sentinel; when it
+is present, every public adapter must expose `isComplete: false` and treat the
+reported totals, pages, and facets as lower bounds. Titles and snippets derive
+only from principal-safe canonical projections (see the README's
+"Principal-safe read surface"). Asynchronous
+indexing still requires a production queue consumer before a job is
+introduced.
 
 ## Index contract
 

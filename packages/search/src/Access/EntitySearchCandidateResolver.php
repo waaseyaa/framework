@@ -8,8 +8,9 @@ use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
-use Waaseyaa\Entity\Exception\FieldReadDenied;
-use Waaseyaa\Entity\Exception\MissingFieldReadContext;
+use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Search\Projection\EntitySearchProjectionRegistry;
 use Waaseyaa\Search\SearchCandidateProjection;
 use Waaseyaa\Search\SearchCandidateReference;
 use Waaseyaa\Search\SearchCandidateResolverInterface;
@@ -18,11 +19,20 @@ use Waaseyaa\Search\SearchIndexableInterface;
 /** Canonical entity-backed candidate resolver. @api */
 final readonly class EntitySearchCandidateResolver implements SearchCandidateResolverInterface
 {
+    private EntitySearchProjectionRegistry $projectionRegistry;
+
+    private LoggerInterface $logger;
+
     public function __construct(
         private EntityTypeManagerInterface $entityTypeManager,
         private EntityAccessHandler $accessHandler,
         private AccountFieldReadScopeInterface $fieldReadScope,
-    ) {}
+        ?EntitySearchProjectionRegistry $projectionRegistry = null,
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->projectionRegistry = $projectionRegistry ?? new EntitySearchProjectionRegistry([]);
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public function resolve(
         SearchCandidateReference $reference,
@@ -44,20 +54,52 @@ final readonly class EntitySearchCandidateResolver implements SearchCandidateRes
         }
 
         $entity = $this->entityTypeManager->getRepository($reference->entityType)->find($entityId);
-        if (!$entity instanceof SearchIndexableInterface) {
+        if ($entity === null) {
+            return null;
+        }
+        // Entities that are not their own document view resolve through the
+        // shared projection registry — the same contract the reindex and
+        // lifecycle paths use — so query-time semantics cannot drift from
+        // index-time semantics. An unsupported entity fails closed.
+        if (!$entity instanceof SearchIndexableInterface
+            && !$this->projectionRegistry->supports($entity)
+        ) {
             return null;
         }
         if (!$this->accessHandler->check($entity, 'view', $principal)->isAllowed()) {
             return null;
         }
 
+        $registry = $this->projectionRegistry;
+
         try {
-            $resolved = $this->fieldReadScope->run($principal, static fn(): array => [
-                $entity->getSearchDocumentId(),
-                $entity->toSearchDocument(),
-                $entity->toSearchMetadata(),
+            $resolved = $this->fieldReadScope->run($principal, static function () use ($entity, $registry): ?array {
+                $indexable = $entity instanceof SearchIndexableInterface
+                    ? $entity
+                    : $registry->resolveIndexable($entity);
+                if ($indexable === null) {
+                    return null;
+                }
+
+                return [
+                    $indexable->getSearchDocumentId(),
+                    $indexable->toSearchDocument(),
+                    $indexable->toSearchMetadata(),
+                ];
+            });
+        } catch (\Throwable $exception) {
+            // A malformed or failing third-party projector must fail this
+            // candidate closed rather than abort the whole search request,
+            // but the outage must remain operationally visible without
+            // logging any entity or field values.
+            $this->logger->warning('Search candidate projection failed; candidate omitted.', [
+                'exception_class' => $exception::class,
+                'entity_type' => $reference->entityType,
             ]);
-        } catch (FieldReadDenied|MissingFieldReadContext) {
+            return null;
+        }
+
+        if ($resolved === null) {
             return null;
         }
 

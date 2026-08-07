@@ -5,22 +5,38 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Handler;
 
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
+use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Search\BatchSearchIndexerInterface;
+use Waaseyaa\Search\Projection\EntitySearchProjectionRegistry;
 use Waaseyaa\Search\SearchIndexableInterface;
 use Waaseyaa\Search\SearchIndexerInterface;
 
 /**
+ * Rebuilds the search index from every indexable document.
+ *
+ * #2270: entities are resolved through the shared
+ * {@see EntitySearchProjectionRegistry} — self-indexable entities pass
+ * through unchanged, ordinary content entities (Node) are projected by the
+ * registered projectors, and everything else is skipped. This is the same
+ * projection contract the lifecycle subscriber and query-time candidate
+ * resolution use, so a full reindex cannot drift from incremental indexing.
+ *
  * @api
  */
 final class SearchReindexHandler
 {
     private const BATCH_SIZE = 100;
 
+    private readonly EntitySearchProjectionRegistry $projectionRegistry;
+
     public function __construct(
         private readonly SearchIndexerInterface $indexer,
         private readonly EntityTypeManagerInterface $entityTypeManager,
-    ) {}
+        ?EntitySearchProjectionRegistry $projectionRegistry = null,
+    ) {
+        $this->projectionRegistry = $projectionRegistry ?? new EntitySearchProjectionRegistry([]);
+    }
 
     public function execute(SymfonyCommandIO $io): int
     {
@@ -40,6 +56,7 @@ final class SearchReindexHandler
         $batchIndexer = $this->indexer instanceof BatchSearchIndexerInterface ? $this->indexer : null;
 
         $totalIndexed = 0;
+        $totalProjectionFailures = 0;
 
         foreach ($this->entityTypeManager->getDefinitions() as $entityType) {
             // C-22 WP2/WP3: both the query surface and the read path now live on the repository.
@@ -67,10 +84,24 @@ final class SearchReindexHandler
                 $offset += count($ids);
 
                 $indexables = [];
+                $projectionFailures = 0;
                 foreach ($repository->findMany($ids) as $entity) {
-                    if ($entity instanceof SearchIndexableInterface) {
-                        $indexables[] = $entity;
+                    try {
+                        $indexable = $this->resolveIndexable($entity);
+                    } catch (\Throwable) {
+                        // Fail soft per entity, content-free: one unprojectable
+                        // entity must not abort the whole reindex or leak its
+                        // values into operator output.
+                        ++$projectionFailures;
+                        continue;
                     }
+                    if ($indexable !== null) {
+                        $indexables[] = $indexable;
+                    }
+                }
+                if ($projectionFailures > 0) {
+                    $totalProjectionFailures += $projectionFailures;
+                    $io->writeln("  [{$entityType->id()}] Skipped $projectionFailures entities whose search projection failed.");
                 }
 
                 if ($indexables !== []) {
@@ -103,6 +134,16 @@ final class SearchReindexHandler
         $io->writeln("Reindex complete. $totalIndexed documents indexed.");
         $io->writeln('Schema version: ' . $this->indexer->getSchemaVersion());
 
+        if ($totalProjectionFailures > 0) {
+            $io->writeln("Reindex failed: $totalProjectionFailures entities could not be projected.");
+            return 1;
+        }
+
         return 0;
+    }
+
+    private function resolveIndexable(EntityInterface $entity): ?SearchIndexableInterface
+    {
+        return $this->projectionRegistry->resolveIndexable($entity);
     }
 }
