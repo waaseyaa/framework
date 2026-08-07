@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **stacked pull request CI (#2286):** Run framework, Admin SPA, changelog-discipline, and public-surface validation for pull requests targeting any review branch so every dependency-ordered head receives exact GitHub evidence.
+
 ## [0.1.0-alpha.289] - 2026-08-06
 
 ### Changed

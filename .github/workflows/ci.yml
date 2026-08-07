@@ -3,8 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
+  pull_request: {}
   # Dispatched by release-cut.yml on its gate branch so the exact release
   # commit is CI-proven BEFORE the tag is created (red-at-tag fix, alpha.202
   # post-mortem). Manual dispatch on any ref is also fine. auto-merge.yml
