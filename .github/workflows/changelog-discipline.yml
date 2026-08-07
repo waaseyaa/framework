@@ -10,8 +10,7 @@ name: changelog-discipline
 # Governed by docs/specs/stability-charter.md §8.2 and §11 Q3.
 
 on:
-  pull_request:
-    branches: [main]
+  pull_request: {}
 
 jobs:
   changelog-discipline:

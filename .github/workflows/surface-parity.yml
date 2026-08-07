@@ -12,7 +12,6 @@ name: surface-parity
 
 on:
   pull_request:
-    branches: [main]
     paths:
       - 'packages/**/src/**'
       - 'packages/**/testing/**'

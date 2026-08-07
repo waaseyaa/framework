@@ -8,7 +8,6 @@ on:
       - 'packages/admin/**'
       - '.github/workflows/admin.yml'
   pull_request:
-    branches: [main, 'develop/*']
     paths:
       - 'packages/admin/**'
       - '.github/workflows/admin.yml'
