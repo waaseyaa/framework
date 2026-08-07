@@ -383,7 +383,7 @@ body {
 
 /* Inline anchors ignore logical minimum sizes. Promote authenticated-admin
    links to inline flex targets without forcing them to fill their container. */
-.admin-shell a[href]:not(.skip-link) {
+.admin-shell a[href]:not(.skip-link):not(.card) {
   display: inline-flex;
   align-items: center;
 }

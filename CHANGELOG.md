@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **admin dashboard (#2289):** Keep entity cards vertically stacked and full-width at
+  narrow viewports instead of inheriting the shell's inline-flex link layout,
+  which squeezed long labels beside their descriptions.
+
+- **admin testing (#2289):** Wait for the exact filtered Mercure request in the browser
+  test so the initial unfiltered dashboard request cannot overwrite its
+  assertion and pass only on retry.
+
 - **stacked pull request CI (#2286):** Run framework, Admin SPA, changelog-discipline, and public-surface validation for pull requests targeting any review branch so every dependency-ordered head receives exact GitHub evidence.
 
 - **media downloads (#2274):** Accept either a numeric storage ID or JSON:API UUID at `/media/{id}/download`, then retain the same fail-closed entity-view authorization and audited source lookup before returning bytes.

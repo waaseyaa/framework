@@ -98,10 +98,12 @@ onMounted(async () => {
 <style scoped>
 .card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
   gap: 16px;
 }
-.card {
+.card-grid .card {
+  display: block;
+  min-inline-size: 0;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 8px;
@@ -110,7 +112,7 @@ onMounted(async () => {
   color: var(--color-text);
   transition: border-color 0.15s;
 }
-.card:hover { border-color: var(--color-primary); }
+.card-grid .card:hover { border-color: var(--color-primary); }
 .card-title { font-size: 18px; margin-bottom: 4px; }
 .card-sub { font-size: 13px; color: var(--color-muted); }
 </style>

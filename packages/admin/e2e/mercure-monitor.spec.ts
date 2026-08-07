@@ -64,18 +64,17 @@ test.describe('Broadcast monitor dashboard', () => {
   })
 
   test('channel filter chip triggers filtered events fetch', async ({ page }) => {
-    let lastEventsUrl = ''
-    await page.route('**/api/mercure/events**', (route) => {
-      lastEventsUrl = route.request().url()
-      return route.fulfill({ json: { data: { rows: [sampleEvents[0]] } } })
+    await page.goto('/mercure/monitor')
+    const filteredRequest = page.waitForRequest((request) => {
+      const url = new URL(request.url())
+      return url.pathname === '/api/mercure/events'
+        && url.searchParams.get('channels') === 'admin'
     })
 
-    await page.goto('/mercure/monitor')
-    // Click the "admin" channel chip
     await page.getByTestId('mercure-channel-chip-admin').click()
+    const request = await filteredRequest
 
-    // The events endpoint should have been called with ?channels=admin
-    expect(lastEventsUrl).toContain('channels=admin')
+    expect(new URL(request.url()).searchParams.get('channels')).toBe('admin')
   })
 
   test('shows empty state for channels when API returns empty rows', async ({ page }) => {

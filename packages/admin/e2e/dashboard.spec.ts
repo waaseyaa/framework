@@ -16,6 +16,40 @@ test.describe('Dashboard', () => {
     await expect(page.getByRole('heading', { name: 'Content', exact: true })).toBeVisible()
   })
 
+  test('stacks dashboard card labels and descriptions at mobile width', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 800 })
+    await page.route('**/_surface/catalog', route => route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          entities: [{
+            id: 'classification_label',
+            label: 'Classification Label Definition',
+            description: 'Defines the vocabulary of classification labels available in the system.',
+            group: 'structure',
+            fields: [],
+            actions: [],
+            capabilities: { list: true, get: true, create: true, update: true, delete: true, schema: true },
+          }],
+        },
+      },
+    }))
+
+    await page.goto('./', { waitUntil: 'networkidle' })
+    const card = page.locator('main .card').first()
+    const title = card.locator('.card-title')
+    const description = card.locator('.card-sub')
+    const [cardBox, titleBox, descriptionBox] = await Promise.all([
+      card.boundingBox(),
+      title.boundingBox(),
+      description.boundingBox(),
+    ])
+
+    expect(cardBox?.width).toBeGreaterThan(280)
+    expect(titleBox?.width).toBeGreaterThan(250)
+    expect(descriptionBox?.y).toBeGreaterThanOrEqual((titleBox?.y ?? 0) + (titleBox?.height ?? 0))
+  })
+
   test('each card links to the entity type route', async ({ page }) => {
     await page.goto('./', { waitUntil: 'networkidle' })
     await expect(page.getByRole('heading', { name: 'User' })).toBeVisible()
