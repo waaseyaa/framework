@@ -449,13 +449,21 @@ final class McpServiceProvider extends ServiceProvider implements ProvidesApiCat
      * with no configured identity must be unusable. The public tier falls back
      * to {@see PublicAnonymousAuth} because anonymous read is its designed
      * behavior — an operator who wants it off sets `mcp.public.enabled` to
-     * false rather than relying on an auth strategy to suppress it.
+     * false rather than relying on an auth strategy to suppress it. When the
+     * durable token services are wireable, the fallback composes them under
+     * the separate `mcp:public` audience; anonymous access remains available,
+     * and a credential can only narrow the tier to its explicit scopes.
      */
     private function resolvePublicAuth(): McpAuthInterface
     {
         $auth = $this->resolveOptional(McpAuthInterface::class);
 
-        return $auth instanceof McpAuthInterface ? $auth : new PublicAnonymousAuth($this->publicReadCapabilities());
+        return $auth instanceof McpAuthInterface
+            ? $auth
+            : new PublicAnonymousAuth(
+                $this->publicReadCapabilities(),
+                $this->resolveDurableBearerAuth(Auth\DurableBearerTokenAuth::PUBLIC_AUDIENCE),
+            );
     }
 
     /**
@@ -662,6 +670,23 @@ final class McpServiceProvider extends ServiceProvider implements ProvidesApiCat
         // fresh deployment has no tokens, so the tier still fails closed with
         // 401 until an operator issues one — same observable posture as the
         // empty map, but production-usable without application auth code.
+        $durable = $this->resolveDurableBearerAuth(Auth\DurableBearerTokenAuth::DEFAULT_AUDIENCE);
+        if ($durable instanceof Auth\DurableBearerTokenAuth) {
+            return $durable;
+        }
+
+        // No durable store wireable: the framework ships no usable static
+        // credential — every `/mcp/write` request is HTTP 401.
+        return new BearerTokenAuth([]);
+    }
+
+    /**
+     * Build the framework's real-account durable bearer strategy for an MCP
+     * audience, or return null when a bare kernel cannot supply its required
+     * persistence and principal services.
+     */
+    private function resolveDurableBearerAuth(string $audience): ?Auth\DurableBearerTokenAuth
+    {
         $store = $this->resolveOptional(\Waaseyaa\Auth\Token\Bearer\BearerTokenStoreInterface::class);
         $entityTypeManager = $this->resolveOptional(EntityTypeManagerInterface::class);
         $principals = $this->resolveOptional(\Waaseyaa\Access\AccountPrincipalFactoryInterface::class);
@@ -674,7 +699,7 @@ final class McpServiceProvider extends ServiceProvider implements ProvidesApiCat
             } catch (\Throwable) {
                 // No user entity type (e.g. a bare kernel): the durable path
                 // cannot resolve owners, so the tier keeps the fail-closed map.
-                return new BearerTokenAuth([]);
+                return null;
             }
 
             $logger = $this->resolveOptional(LoggerInterface::class);
@@ -683,13 +708,12 @@ final class McpServiceProvider extends ServiceProvider implements ProvidesApiCat
                 store: $store,
                 accounts: $accounts,
                 principals: $principals,
+                audience: $audience,
                 logger: $logger instanceof LoggerInterface ? $logger : null,
             );
         }
 
-        // No durable store wireable: the framework ships no usable static
-        // credential — every `/mcp/write` request is HTTP 401.
-        return new BearerTokenAuth([]);
+        return null;
     }
 
     /**

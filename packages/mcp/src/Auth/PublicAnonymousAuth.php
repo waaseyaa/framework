@@ -18,15 +18,16 @@ use Waaseyaa\User\AnonymousUser;
  * `AbstractAgentTool::requireCapability()` check fails even if it were somehow
  * reached.
  *
- * `authenticate()` never returns `null` for the public surface: an absent or
+ * Both authentication methods always resolve a public principal: an absent or
  * unrecognised `Authorization` header still resolves to the anonymous read
  * account (no 401 for read). An optional {@see McpAuthInterface} delegate is
- * consulted first so a future authenticated surface can compose on top without
- * weakening the anonymous fallback.
+ * consulted first. Scoped delegates retain their exact credential scopes;
+ * legacy unscoped delegates are constrained to this tier's read capabilities.
+ * Scopes narrow the registry and never grant the account's tool permissions.
  *
  * @api
  */
-final readonly class PublicAnonymousAuth implements McpAuthInterface
+final readonly class PublicAnonymousAuth implements ScopedMcpAuthInterface
 {
     /** The capabilities granted to anonymous MCP callers. */
     public const array DEFAULT_READ_CAPABILITIES = [
@@ -54,13 +55,32 @@ final readonly class PublicAnonymousAuth implements McpAuthInterface
 
     public function authenticate(?string $authorizationHeader): AuthorizationPrincipalInterface
     {
+        return $this->authenticateWithScopes($authorizationHeader)->account;
+    }
+
+    public function authenticateWithScopes(?string $authorizationHeader): ScopedPrincipal
+    {
         if ($this->delegate !== null) {
-            $authenticated = $this->delegate->authenticate($authorizationHeader);
-            if ($authenticated !== null) {
-                return $authenticated;
+            if ($this->delegate instanceof ScopedMcpAuthInterface) {
+                $authenticated = $this->delegate->authenticateWithScopes($authorizationHeader);
+                if ($authenticated !== null) {
+                    return $authenticated;
+                }
+            } else {
+                $authenticated = $this->delegate->authenticate($authorizationHeader);
+                if ($authenticated !== null) {
+                    // A legacy unscoped delegate has no narrower credential
+                    // scopes to preserve. Constrain it to this public tier's
+                    // configured read capabilities instead of treating it as
+                    // an unrestricted token.
+                    return new ScopedPrincipal($authenticated, $this->readCapabilities);
+                }
             }
         }
 
-        return new AnonymousUser($this->readCapabilities);
+        return new ScopedPrincipal(
+            new AnonymousUser($this->readCapabilities),
+            $this->readCapabilities,
+        );
     }
 }

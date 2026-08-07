@@ -32,8 +32,10 @@ account's permissions.
   JSON decoding (`mcp.transport.max_request_bytes`, 10 MiB by default).
 - **Server card:** `GET /.well-known/mcp.json` (MCP discovery).
 - **Authentication:** the public read-only `/mcp` surface defaults to
-  `PublicAnonymousAuth`, overridable by binding `McpAuthInterface` and
-  disableable via `mcp.public.enabled` — see
+  `PublicAnonymousAuth`. When durable bearer services are available, it also
+  accepts audience-bound `mcp:public` tokens while retaining anonymous
+  fallback. Applications can override the strategy by binding
+  `McpAuthInterface`; the endpoint is disableable via `mcp.public.enabled` — see
   [Controlling the public endpoint](#controlling-the-public-endpoint). The
   `/mcp/write` surface validates `Authorization: Bearer <token>` through a
   fail-closed `BearerTokenAuth(tokens: [])` default that applications replace
@@ -164,8 +166,23 @@ known paths rather than treating omission as nonexistence.
 
 ### 2. Authenticated public tier
 
-Bind `McpAuthInterface` in your own service provider. The framework binds no
-default, so yours is what `/mcp` uses:
+The framework's durable token path needs no application auth binding. Issue a
+token for a real active account with the `mcp:public` audience and only the
+required public tool scopes:
+
+```console
+vendor/bin/waaseyaa bearer-token:issue 42 \
+  --audience=mcp:public --scope=tool.content.search --ttl=3600
+```
+
+Token scopes narrow the public registry; they never grant account permissions.
+The owner must also hold each called tool capability (for example,
+`tool.content.search`) through the application's declarative role model. A
+missing, invalid, expired, revoked, or wrong-audience credential remains an
+anonymous request and cannot elevate access.
+
+To replace that composed default entirely, bind `McpAuthInterface` in your own
+service provider:
 
 ```php
 final class AppMcpServiceProvider extends ServiceProvider
@@ -189,7 +206,8 @@ optional tenant/community claims while permission checks continue to delegate
 verbatim. `BearerTokenAuth` fails closed: an absent, unknown, or inactive-account token
 yields HTTP 401. To keep anonymous access *and* recognise tokens, wrap it —
 `new PublicAnonymousAuth(delegate: $bearerAuth)` tries the token first and
-falls back to anonymous.
+falls back to anonymous. Scoped delegates retain their exact narrower scopes;
+legacy unscoped delegates are constrained to the public tier capabilities.
 
 Provider ordering does not matter. The package deliberately does not bind
 `McpAuthInterface` locally, because `ServiceProvider::resolve()` consults a
@@ -489,7 +507,8 @@ single-use consumption; decision events are written to the audit trail.
   `McpServiceProvider`; the public pair is conditional on
   `mcp.public.enabled`.
 - `McpServiceProvider` — resolves public-tier auth (application
-  `McpAuthInterface` override, else `PublicAnonymousAuth`) and write-tier auth
+  `McpAuthInterface` override, else scope-aware `PublicAnonymousAuth` composed
+  with the durable `mcp:public` bearer path when wireable) and write-tier auth
   (application `WriteTierAuthInterface`, else a fail-closed empty opaque-bearer
   map). Binds neither locally, so neither can shadow an application.
 - `Bridge\AgentToolRegistryBridge` — adapts
