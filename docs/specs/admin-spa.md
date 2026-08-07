@@ -90,6 +90,12 @@
 <!-- Spec reviewed 2026-05-01 - Admin-surface catalog contract: AdminSurfaceCatalogEntry.description?: string is preserved in packages/admin-surface/contract/types.ts and locked in by CatalogBuilderTest regression assertions (description emitted when set, omitted when unset, matching the optional contract field) (mission #824 WP07 surface B, closes #840) -->
 <!-- Spec reviewed 2026-05-01 - Admin-surface authority: payload shape is defined exclusively in packages/admin-surface/contract/types.ts (see packages/admin-surface/contract/README.md). This spec describes SPA runtime behaviour and references contract type names but does not redefine them; cross-boundary tests at tests/Integration/AdminSurface/ enforce conformance (mission #824 WP07 surface E, closes #851) -->
 
+<!-- Spec reviewed 2026-08-07 - #2293: dashboard catalog cards are link-based
+touch targets and therefore inherit the shell's generic flex link treatment.
+The dashboard owns their component layout explicitly: column direction and
+stretched children at every viewport. Browser coverage pins the computed
+cascade and title/description geometry. No host-to-SPA contract changes. -->
+
 ## SPA bet (DIR-007)
 
 The framework's committed workspace UI surface is the standalone Nuxt 3 + Vue 3 + TypeScript SPA in `packages/admin/`. This is a constitutional commitment (charter directive **DIR-007**, ratified by mission `charter-amendment-anokii-track-01KSEFE0`), not a default-able preference. Distribution maintainers building on Waaseyaa SHOULD consume the framework's Nuxt SPA either as-is or by extending it via the documented composables + page slots.

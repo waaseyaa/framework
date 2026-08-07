@@ -16,6 +16,7 @@ export async function mockAdminBootstrapRoutes(page: Page, features: Record<stri
   const catalog = entityTypes.map((entry) => ({
     id: entry.id,
     label: entry.label,
+    description: `Manage ${entry.label.toLowerCase()} records.`,
     group: entry.group,
     fields: [],
     actions: [],

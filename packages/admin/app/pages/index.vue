@@ -101,7 +101,11 @@ onMounted(async () => {
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 16px;
 }
-.card {
+.card-grid > a.card[href] {
+  /* AdminShell promotes authenticated links to flex touch targets. Keep this
+     card's title/description axis intentionally vertical. */
+  flex-direction: column;
+  align-items: stretch;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 8px;
@@ -110,7 +114,7 @@ onMounted(async () => {
   color: var(--color-text);
   transition: border-color 0.15s;
 }
-.card:hover { border-color: var(--color-primary); }
+.card-grid > a.card[href]:hover { border-color: var(--color-primary); }
 .card-title { font-size: 18px; margin-bottom: 4px; }
 .card-sub { font-size: 13px; color: var(--color-muted); }
 </style>
