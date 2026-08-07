@@ -121,6 +121,9 @@ final class AppControllerMethodInvoker
         if ($ctx->gate !== null && is_a($ctx->gate, $serviceClass, true)) {
             return $ctx->gate;
         }
+        if ($ctx->redirector !== null && is_a($ctx->redirector, $serviceClass, true)) {
+            return $ctx->redirector;
+        }
         if ($ctx->serviceResolver !== null) {
             $resolved = $ctx->serviceResolver->resolve($serviceClass);
             if ($resolved !== null) {

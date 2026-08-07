@@ -17,6 +17,8 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Foundation\Http\HttpServiceResolverInterface;
 use Waaseyaa\Routing\RouteBuilder;
+use Waaseyaa\Routing\Redirector;
+use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\SSR\Http\AppController\AppControllerMethodInvoker;
 use Waaseyaa\SSR\Http\AppController\AppInvocationContext;
 use Waaseyaa\User\AnonymousUser;
@@ -47,6 +49,14 @@ final class CustomServiceController
     public function show(CustomMethodService $service): CustomMethodService
     {
         return $service;
+    }
+}
+
+final class RedirectMethodController
+{
+    public function store(Redirector $redirector): Redirector
+    {
+        return $redirector;
     }
 }
 
@@ -137,6 +147,28 @@ final class AppControllerMethodInvokerTest extends TestCase
         self::assertSame($service, $result);
     }
 
+    public function test_redirector_is_a_builtin_request_scoped_method_service(): void
+    {
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
+        $route = RouteBuilder::create('/fixture')->build();
+        $redirector = new Redirector(new WaaseyaaRouter());
+        $context = $this->context($route, $manager, null, [], redirector: $redirector);
+
+        $result = $this->invoker()->invoke(
+            new RedirectMethodController(),
+            'store',
+            $route,
+            'fixture.redirect',
+            $context,
+            strict: true,
+            gate: null,
+            serviceResolver: null,
+            customResolvers: [],
+        );
+
+        self::assertSame($redirector, $result);
+    }
+
     private function invoker(): AppControllerMethodInvoker
     {
         return new AppControllerMethodInvoker();
@@ -149,6 +181,7 @@ final class AppControllerMethodInvokerTest extends TestCase
         ?GateInterface $gate,
         array $routeParams,
         ?HttpServiceResolverInterface $resolver = null,
+        ?Redirector $redirector = null,
     ): AppInvocationContext {
         return new AppInvocationContext(
             request: Request::create('/fixture'),
@@ -161,6 +194,7 @@ final class AppControllerMethodInvokerTest extends TestCase
             query: [],
             gate: $gate,
             serviceResolver: $resolver,
+            redirector: $redirector,
         );
     }
 }

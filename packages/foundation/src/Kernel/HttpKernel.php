@@ -50,6 +50,7 @@ use Waaseyaa\Foundation\ServiceProvider\Capability\HasRenderCacheListenersInterf
 use Waaseyaa\Routing\Exception\RouteMethodNotAllowedException;
 use Waaseyaa\Routing\Exception\RouteNotFoundException;
 use Waaseyaa\Routing\ParamConverter\EntityParamConverter;
+use Waaseyaa\Routing\Redirector;
 use Waaseyaa\Routing\RouteBuilder;
 use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\User\DevAdminAccount;
@@ -548,6 +549,7 @@ final class HttpKernel extends AbstractKernel
         if ($matchedRoute !== null) {
             $httpRequest->attributes->set('_route_object', $matchedRoute);
         }
+        $httpRequest->attributes->set(Redirector::REQUEST_ATTRIBUTE, new Redirector($router));
 
         return $httpRequest;
     }

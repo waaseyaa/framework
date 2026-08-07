@@ -36,6 +36,7 @@ use Waaseyaa\User\DevAdminAccount;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Routing\RouteBuilder;
+use Waaseyaa\Routing\Redirector;
 use Waaseyaa\Routing\WaaseyaaRouter;
 
 #[CoversClass(HttpKernel::class)]
@@ -361,6 +362,42 @@ final class HttpKernelTest extends TestCase
 
         self::assertInstanceOf(Request::class, $request);
         self::assertSame($entity, $request->attributes->get('id'));
+    }
+
+    #[Test]
+    public function matched_request_carries_a_redirector_for_the_complete_route_table(): void
+    {
+        $provider = new class extends ServiceProvider {
+            public function register(): void {}
+
+            public function routes(WaaseyaaRouter $router, EntityTypeManager $entityTypeManager): void
+            {
+                $router->addRoute('test.source', RouteBuilder::create('/source')
+                    ->controller(static fn(): array => [])
+                    ->methods('GET')
+                    ->allowAll()
+                    ->build());
+                $router->addRoute('todo.show', RouteBuilder::create('/todos/{todo}')
+                    ->controller(static fn(): array => [])
+                    ->methods('GET')
+                    ->allowAll()
+                    ->build());
+            }
+        };
+
+        $kernel = new HttpKernel($this->projectRoot);
+        (new \ReflectionProperty(AbstractKernel::class, 'entityTypeManager'))->setValue(
+            $kernel,
+            new EntityTypeManager(new EventDispatcher()),
+        );
+        (new \ReflectionProperty(AbstractKernel::class, 'providers'))->setValue($kernel, [$provider]);
+
+        $request = (new \ReflectionMethod(HttpKernel::class, 'matchRoute'))->invoke($kernel, '/source', 'GET');
+
+        self::assertInstanceOf(Request::class, $request);
+        $redirector = $request->attributes->get(Redirector::REQUEST_ATTRIBUTE);
+        self::assertInstanceOf(Redirector::class, $redirector);
+        self::assertSame('/todos/9', $redirector->toRoute('todo.show', ['todo' => 9])->getTargetUrl());
     }
 
     #[Test]
