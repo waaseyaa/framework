@@ -48,8 +48,14 @@ if ($diffFile !== '') {
 $changedLines = [];
 $path = null;
 foreach (preg_split('/\R/', $diff) ?: [] as $line) {
-    if (preg_match('#^\+\+\+ b/(packages/[^/]+/src/.+\.php)$#', $line, $matches) === 1) {
-        $path = $matches[1];
+    if (str_starts_with($line, 'diff --git ')) {
+        $path = null;
+        continue;
+    }
+    if (str_starts_with($line, '+++ ')) {
+        $path = preg_match('#^\+\+\+ b/(packages/[^/]+/src/.+\.php)$#', $line, $matches) === 1
+            ? $matches[1]
+            : null;
         continue;
     }
     if ($path !== null && preg_match('/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/', $line, $matches) === 1) {

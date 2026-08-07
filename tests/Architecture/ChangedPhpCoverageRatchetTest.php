@@ -46,6 +46,63 @@ final class ChangedPhpCoverageRatchetTest extends TestCase
     }
 
     #[Test]
+    public function non_source_hunks_do_not_inherit_the_previous_source_path(): void
+    {
+        $diff = "diff --git a/packages/demo/src/Example.php b/packages/demo/src/Example.php\n"
+            . "+++ b/packages/demo/src/Example.php\n@@ -1 +1 @@\n"
+            . "diff --git a/packages/demo/tests/ExampleTest.php b/packages/demo/tests/ExampleTest.php\n"
+            . "+++ b/packages/demo/tests/ExampleTest.php\n@@ -5 +5 @@\n"
+            . "diff --git a/docs/example.md b/docs/example.md\n"
+            . "+++ b/docs/example.md\n@@ -9 +9 @@\n";
+
+        $result = $this->runRatchetFixture($diff, [
+            'packages/demo/src/Example.php' => [1 => 1, 5 => 0, 9 => 0],
+        ], 100);
+
+        self::assertSame(0, $result['exit_code'], $result['output']);
+        self::assertStringContainsString('1/1 executable changed lines covered (100.00%', $result['output']);
+    }
+
+    #[Test]
+    public function a_deleted_file_does_not_inherit_the_previous_source_path(): void
+    {
+        $diff = "diff --git a/packages/demo/src/Example.php b/packages/demo/src/Example.php\n"
+            . "+++ b/packages/demo/src/Example.php\n@@ -1 +1 @@\n"
+            . "diff --git a/packages/demo/tests/DeletedTest.php b/packages/demo/tests/DeletedTest.php\n"
+            . "+++ /dev/null\n@@ -5 +0,0 @@\n"
+            . "diff --git a/docs/after-deletion.md b/docs/after-deletion.md\n"
+            . "+++ b/docs/after-deletion.md\n@@ -5 +5 @@\n";
+
+        $result = $this->runRatchetFixture($diff, [
+            'packages/demo/src/Example.php' => [1 => 1, 5 => 0],
+        ], 100);
+
+        self::assertSame(0, $result['exit_code'], $result['output']);
+        self::assertStringContainsString('1/1 executable changed lines covered (100.00%', $result['output']);
+    }
+
+    #[Test]
+    public function multiple_source_files_are_counted_without_non_source_contamination(): void
+    {
+        $diff = "diff --git a/docs/preamble.md b/docs/preamble.md\n"
+            . "+++ b/docs/preamble.md\n@@ -7 +7 @@\n"
+            . "diff --git a/packages/demo/src/First.php b/packages/demo/src/First.php\n"
+            . "+++ b/packages/demo/src/First.php\n@@ -1 +1 @@\n"
+            . "diff --git a/packages/demo/tests/FirstTest.php b/packages/demo/tests/FirstTest.php\n"
+            . "+++ b/packages/demo/tests/FirstTest.php\n@@ -8 +8 @@\n"
+            . "diff --git a/packages/demo/src/Second.php b/packages/demo/src/Second.php\n"
+            . "+++ b/packages/demo/src/Second.php\n@@ -2 +2 @@\n";
+
+        $result = $this->runRatchetFixture($diff, [
+            'packages/demo/src/First.php' => [1 => 1, 8 => 0],
+            'packages/demo/src/Second.php' => [2 => 1],
+        ], 100);
+
+        self::assertSame(0, $result['exit_code'], $result['output']);
+        self::assertStringContainsString('2/2 executable changed lines covered (100.00%', $result['output']);
+    }
+
+    #[Test]
     public function it_reports_package_and_overall_line_baselines(): void
     {
         $clover = '<?xml version="1.0"?><coverage><project>'
@@ -121,16 +178,29 @@ final class ChangedPhpCoverageRatchetTest extends TestCase
     {
         $diff = "diff --git a/packages/demo/src/Example.php b/packages/demo/src/Example.php\n"
             . "+++ b/packages/demo/src/Example.php\n@@ -1,5 +1,5 @@\n";
+
+        return $this->runRatchetFixture($diff, ['packages/demo/src/Example.php' => $counts], $threshold);
+    }
+
+    /**
+     * @param array<string, array<int, int>> $files
+     * @return array{exit_code: int, output: string}
+     */
+    private function runRatchetFixture(string $diff, array $files, int $threshold): array
+    {
         file_put_contents($this->directory . '/change.diff', $diff);
 
-        $lines = '';
-        foreach ($counts as $number => $count) {
-            $lines .= sprintf('<line num="%d" type="stmt" count="%d"/>', $number, $count);
+        $cloverFiles = '';
+        foreach ($files as $path => $counts) {
+            $lines = '';
+            foreach ($counts as $number => $count) {
+                $lines .= sprintf('<line num="%d" type="stmt" count="%d"/>', $number, $count);
+            }
+            $cloverFiles .= sprintf('<file name="%s">%s</file>', $path, $lines);
         }
         file_put_contents(
             $this->directory . '/clover.xml',
-            '<?xml version="1.0"?><coverage><project><file name="packages/demo/src/Example.php">'
-            . $lines . '</file></project></coverage>',
+            '<?xml version="1.0"?><coverage><project>' . $cloverFiles . '</project></coverage>',
         );
 
         $command = [
