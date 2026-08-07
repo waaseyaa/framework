@@ -36,6 +36,7 @@ final class ProjectHooksTest extends TestCase
     public function project_hook_source_has_proportionate_and_explicit_gates(): void
     {
         $script = (string) file_get_contents($this->root . '/bin/project-hooks');
+        self::assertStringContainsString('check-portable-paths', $script);
         self::assertStringContainsString('check-composer-policy', $script);
         self::assertStringContainsString('check-symfony-imports', $script);
         self::assertStringContainsString('drift-detector.sh', $script);
@@ -52,13 +53,15 @@ final class ProjectHooksTest extends TestCase
         $linked = $fixture . '-linked';
         mkdir($fixture . '/bin', 0o777, true);
         copy($this->root . '/bin/project-hooks', $fixture . '/bin/project-hooks');
+        copy($this->root . '/bin/check-portable-paths', $fixture . '/bin/check-portable-paths');
         chmod($fixture . '/bin/project-hooks', 0o755);
+        chmod($fixture . '/bin/check-portable-paths', 0o755);
 
         try {
             $this->execute($fixture, 'git init --quiet');
             $this->execute($fixture, 'git config user.email test@example.com');
             $this->execute($fixture, 'git config user.name "Project Hooks Test"');
-            $this->execute($fixture, 'git add bin/project-hooks');
+            $this->execute($fixture, 'git add bin/project-hooks bin/check-portable-paths');
             $this->execute($fixture, 'git commit --no-verify --quiet -m baseline');
             file_put_contents($fixture . '/.git/hooks/prepare-commit-msg', "#!/bin/sh\ncall_lefthook run prepare-commit-msg\n");
             $this->execute($fixture, 'bash bin/project-hooks install');

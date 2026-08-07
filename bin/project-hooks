@@ -98,10 +98,11 @@ claude_session() {
 
 pre_commit() {
   require_command git
+  require_command php
+  php "$REPO_ROOT/bin/check-portable-paths"
   if ! git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMR | grep -qE '\.php$'; then
     exit 0
   fi
-  require_command php
   require_command composer
   cd "$REPO_ROOT"
   composer cs-check
@@ -110,6 +111,7 @@ pre_commit() {
 pre_push() {
   require_command php
   cd "$REPO_ROOT"
+  php bin/check-portable-paths
   php bin/check-composer-policy
   php bin/check-symfony-imports
   php bin/check-package-layers

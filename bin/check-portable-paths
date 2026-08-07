@@ -1,0 +1,92 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Reject Git-tracked paths that cannot be checked out portably on the
+ * repository's supported Linux, macOS, and Windows development hosts.
+ */
+
+$root = getenv('PORTABLE_PATH_ROOT');
+if ($root === false || $root === '') {
+    $root = dirname(__DIR__);
+}
+
+$process = proc_open(
+    ['git', '-C', $root, 'ls-files', '-z'],
+    [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+    $pipes,
+);
+if (!is_resource($process)) {
+    fwrite(STDERR, "Portable path gate: unable to start Git.\n");
+    exit(1);
+}
+
+$tracked = stream_get_contents($pipes[1]);
+$error = stream_get_contents($pipes[2]);
+fclose($pipes[1]);
+fclose($pipes[2]);
+$exitCode = proc_close($process);
+if ($exitCode !== 0) {
+    fwrite(STDERR, "Portable path gate: unable to enumerate tracked paths.\n{$error}");
+    exit(1);
+}
+
+$paths = array_values(array_filter(explode("\0", $tracked), static fn (string $path): bool => $path !== ''));
+$violations = [];
+$caseFolded = [];
+
+foreach ($paths as $path) {
+    $folded = function_exists('mb_strtolower') ? mb_strtolower($path, 'UTF-8') : strtolower($path);
+    if (isset($caseFolded[$folded]) && $caseFolded[$folded] !== $path) {
+        $violations[$path][] = sprintf('case-insensitive collision with %s', $caseFolded[$folded]);
+    } else {
+        $caseFolded[$folded] = $path;
+    }
+
+    foreach (explode('/', $path) as $component) {
+        if (strpbrk($component, '<>:"\\|?*') !== false || containsControlCharacter($component)) {
+            $violations[$path][] = sprintf('Windows-illegal character in path component %s', quote($component));
+        }
+
+        if (str_ends_with($component, '.') || str_ends_with($component, ' ')) {
+            $violations[$path][] = sprintf('trailing dot or space in path component %s', quote($component));
+        }
+
+        $deviceStem = strtoupper(explode('.', rtrim($component, '. '), 2)[0]);
+        if (preg_match('/^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/', $deviceStem) === 1) {
+            $violations[$path][] = sprintf('reserved Windows device name in path component %s', quote($component));
+        }
+    }
+}
+
+if ($violations !== []) {
+    ksort($violations, SORT_STRING);
+    fwrite(STDERR, "Non-portable Git-tracked paths detected:\n");
+    foreach ($violations as $path => $reasons) {
+        foreach (array_unique($reasons) as $reason) {
+            fwrite(STDERR, sprintf("  %s: %s\n", quote($path), $reason));
+        }
+    }
+    fwrite(STDERR, "Rename or remove these paths before committing.\n");
+    exit(1);
+}
+
+printf("OK — %d Git-tracked paths are portable repository paths.\n", count($paths));
+
+function containsControlCharacter(string $value): bool
+{
+    for ($index = 0, $length = strlen($value); $index < $length; ++$index) {
+        if (ord($value[$index]) < 32) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function quote(string $value): string
+{
+    return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+}

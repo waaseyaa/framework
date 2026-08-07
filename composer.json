@@ -498,6 +498,7 @@
             "PHP_CLI_SERVER_WORKERS=4 bin/waaseyaa serve"
         ],
         "phpstan": "phpstan analyse --memory-limit=512M",
+        "check-portable-paths": "php bin/check-portable-paths",
         "check-phpstan-paths": "bash bin/check-phpstan-paths",
         "check-phpunit-paths": "bash bin/check-phpunit-paths",
         "check-contract-suite-coverage": "bash bin/check-contract-suite-coverage",
@@ -515,6 +516,7 @@
             "@cs-check",
             "@phpstan",
             "@check-changelog-shape",
+            "@check-portable-paths",
             "@check-phpstan-paths",
             "@check-phpunit-paths",
             "@check-contract-suite-coverage",
@@ -549,6 +551,7 @@
         "check-field-guards": "Regression gate for R20 field lessons: admin-dist checkout must not persist its write token, and the repository bin/git entrypoint must reject every git stash form while delegating allowed commands unchanged.",
         "check-access-hardening": "R21 recurring prevention gate: agent-tool guards, public access-vs-status, filter/sort field access, explicit route posture, and reviewed worker-lifetime mutable statics. Includes unsafe-fixture self-tests.",
         "check-openapi": "Spectral-lint the hand-maintained agent-run sub-spec packages/api/openapi.yaml (3 SSE endpoints + pending_approval shape) for YAML/OpenAPI structural validity. Syntax/shape lint of that one file only — does NOT check route parity against live routes. Requires Node.js + npx; exits 0 with SKIP notice when npx is unavailable (CI-safe). Wired as a hard gate in verify per NFR-004 (WP02, mission agent-executor-v1-1-audit-followups-01KS3S5M).",
+        "check-portable-paths": "Reject Git-tracked paths that cannot be checked out consistently on Linux, macOS, and Windows, including illegal characters, reserved device names, trailing dots or spaces, and case-insensitive collisions.",
         "check-phpunit-paths": "Fail when a packages/*/tests/**/*Test.php file is outside every phpunit.xml.dist suite directory (or explicit file), or when a configured package test path is stale. Test-runner analogue of check-phpstan-paths.",
         "check-symfony-imports": "Enforce the Path R-narrow Symfony-import boundary (mission #1107 C-005 (b)). Fails when `use Symfony\\…` appears outside the framework allowlist. Allowlist lives in .symfony-import-allowlist.json — see docs/specs/api-layer.md §Symfony Import Boundary.",
         "dev": "Start the PHP dev server (delegates to dev:php). For the admin SPA, run `composer dev:admin` in a second terminal — see docs/specs/operations-playbooks.md.",
