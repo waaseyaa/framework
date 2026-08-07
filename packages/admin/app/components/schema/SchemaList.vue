@@ -11,7 +11,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useLanguage()
-const { hasCapability } = useAdmin()
+const { hasCapability, getEntity } = useAdmin()
 const canUpdate = hasCapability(props.entityType, 'update')
 const canDelete = hasCapability(props.entityType, 'delete')
 const { enableRealtime: realtimeEnabled } = useAdminConfig()
@@ -70,6 +70,7 @@ const hasDeclaredList = computed(() => Boolean(
   schema.value && Object.prototype.hasOwnProperty.call(schema.value, 'x-list'),
 ))
 const listMetadata = computed(() => normalizeListMetadata(schema.value?.['x-list']))
+const labelField = computed(() => getEntity?.(props.entityType)?.reference?.labelField ?? null)
 
 // List-view column policy (UX-1). Long-text / rich-text bodies must never be
 // dumped into a table cell (it blows out row height and makes the list
@@ -360,6 +361,15 @@ function formatCellValue(value: unknown, fieldSchema: Record<string, unknown>): 
   return truncateSnippet(String(value))
 }
 
+function formatListCell(entity: JsonApiResource, fieldName: string, fieldSchema: Record<string, unknown>): string {
+  const value = getCellValue(entity, fieldName, fieldSchema)
+  if (fieldName === labelField.value && (value === null || value === undefined || value === '')) {
+    return t('untitled')
+  }
+
+  return formatCellValue(value, fieldSchema)
+}
+
 // Collapse internal whitespace/newlines so a multi-line body renders as a single
 // line, then cap the length with an ellipsis. Bounds every text cell regardless
 // of the underlying field size — the table-column half of the UX-1 policy (the
@@ -456,7 +466,15 @@ function workflowStateClass(value: unknown): string {
 }
 
 function getEntityLabel(entity: JsonApiResource): string {
-  // Find the label field from columns (x-label: "Title" or the label key).
+  const declaredLabelField = labelField.value
+  if (declaredLabelField !== null) {
+    const declaredLabel = entity.attributes[declaredLabelField]
+    if (typeof declaredLabel === 'string' && declaredLabel !== '') return declaredLabel
+    return `${t('untitled')} (${entity.id})`
+  }
+
+  // Legacy catalogs without reference metadata fall back to the first
+  // non-empty visible field, then the stable entity id.
   for (const [fieldName] of columns.value) {
     const val = entity.attributes[fieldName]
     if (typeof val === 'string' && val !== '') return val
@@ -634,7 +652,7 @@ watch(messages, (msgs) => {
                 {{ getCellValue(entity, fieldName, fieldSchema as unknown as Record<string, unknown>) }}
               </span>
               <template v-else>
-                {{ formatCellValue(getCellValue(entity, fieldName, fieldSchema as unknown as Record<string, unknown>), fieldSchema as unknown as Record<string, unknown>) }}
+                {{ formatListCell(entity, fieldName, fieldSchema as unknown as Record<string, unknown>) }}
               </template>
               </td>
               <td v-if="showSyntheticWorkflowStateColumn" :data-label="t('workflow_state_column_label')">
