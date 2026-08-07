@@ -128,7 +128,7 @@ final class McpEndpointTokenScopeTest extends TestCase
     {
         $endpoint = $this->endpoint($this->plainAuth());
 
-        self::assertSame(['wayfinding.publish', 'entity.delete'], $this->listedTools($endpoint));
+        self::assertSame(['entity.delete', 'wayfinding.publish'], $this->listedTools($endpoint));
     }
 
     #[Test]
