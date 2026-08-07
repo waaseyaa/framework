@@ -12,7 +12,10 @@ const { listMock, schemaRef } = vi.hoisted(() => {
 })
 
 vi.mock('~/composables/useAdmin', () => ({
-  useAdmin: () => ({ hasCapability: () => true }),
+  useAdmin: () => ({
+    hasCapability: () => true,
+    getEntity: () => ({ reference: { labelField: 'title' } }),
+  }),
 }))
 vi.mock('~/composables/useAdminConfig', () => ({ useAdminConfig: () => ({ enableRealtime: false }) }))
 vi.mock('~/composables/useRealtime', () => ({
@@ -95,6 +98,24 @@ describe('SchemaList x-list', () => {
     expect(wrapper.find('[data-anchor="action:article:delete"]').exists()).toBe(true)
     expect(listMock).toHaveBeenCalledTimes(1)
     expect(listMock).toHaveBeenLastCalledWith('article', expect.objectContaining({ sort: '-changed' }))
+  })
+
+  it('gives an empty declared label a stable visual and accessible identity', async () => {
+    listMock.mockResolvedValueOnce({
+      data: [{
+        type: 'article',
+        id: 'draft-17',
+        attributes: { kind: 'news', title: '', changed: '2026-07-16T10:00:00Z' },
+        capabilities: { view: true, edit: true, delete: true },
+      }],
+      meta: { total: 1, offset: 0, limit: 25 },
+    })
+
+    const wrapper = await mountList()
+    const row = wrapper.get('tbody tr[data-row-id="draft-17"]')
+    expect(row.findAll('td[data-label]')[1]?.text()).toBe('untitled')
+    expect(row.attributes('aria-label')).toBe('untitled (draft-17)')
+    expect(row.get('[data-anchor="action:article:delete"]').attributes('aria-label')).toBe('delete: untitled (draft-17)')
   })
 
   it('submits one search request and resets pagination', async () => {
