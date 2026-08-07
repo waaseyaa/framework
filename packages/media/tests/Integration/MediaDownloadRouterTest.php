@@ -111,6 +111,18 @@ final class MediaDownloadRouterTest extends TestCase
     }
 
     #[Test]
+    public function uuid_resource_identifier_resolves_int_keyed_media_before_authorization(): void
+    {
+        $request = $this->request(accountId: 7);
+        $request->attributes->set('id', 'e14dcf5b-042c-4d88-9f34-aeace1764b66');
+
+        $response = $this->router('public://teaching.txt', allowedAccountId: 7)->handle($request);
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('AANIIN', $response->getContent());
+    }
+
+    #[Test]
     public function gated_document_uses_the_immutable_principal_for_member_and_administrator_access(): void
     {
         $router = $this->routerWithPolicy('public://teaching.txt', new MediaAccessPolicy());
@@ -193,6 +205,7 @@ final class MediaDownloadRouterTest extends TestCase
     {
         $media = new Media([
             'mid' => 10,
+            'uuid' => 'e14dcf5b-042c-4d88-9f34-aeace1764b66',
             'bundle' => 'document',
             'source_uri' => $sourceUri,
             'filename' => 'teaching.txt',
@@ -201,7 +214,15 @@ final class MediaDownloadRouterTest extends TestCase
             'uid' => 99,
         ]);
         $storage = $this->createStub(EntityStorageInterface::class);
-        $storage->method('load')->willReturn($media);
+        $storage->method('load')->willReturnCallback(
+            static fn(int|string $id): ?Media => (string) $id === '10' ? $media : null,
+        );
+        $query = $this->createStub(\Waaseyaa\Entity\Storage\EntityQueryInterface::class);
+        $query->method('accessCheck')->willReturnSelf();
+        $query->method('condition')->willReturnSelf();
+        $query->method('range')->willReturnSelf();
+        $query->method('execute')->willReturn([10]);
+        $storage->method('getQuery')->willReturn($query);
         $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getRepository')->willReturnMap([
             ['media', new StorageBackedStubRepository($storage)],
