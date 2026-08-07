@@ -8,6 +8,7 @@ use Waaseyaa\Access\Capability\CapabilityExecutionBoundary;
 use Waaseyaa\Access\Capability\CapabilityReason;
 use Waaseyaa\Access\Capability\CapabilityRegistryInterface;
 use Waaseyaa\Access\Capability\PrivilegedFieldReadCapability;
+use Waaseyaa\Audit\Contract\BatchStrictPrivilegedReadLedgerInterface;
 use Waaseyaa\Audit\Contract\PrivilegedReadDescriptor;
 use Waaseyaa\Audit\Contract\PrivilegedReadKind;
 use Waaseyaa\Audit\Contract\PrivilegedReadOutcome;
@@ -69,6 +70,103 @@ final readonly class AuditedFieldRead
         array $fields,
         ?CapabilityReason $requiredReason = null,
     ): array {
+        $receipt = $this->ledger->reserve($this->descriptorFor(
+            $capability,
+            $boundary,
+            $entity,
+            $fields,
+            $requiredReason,
+            'readMany',
+        ));
+
+        try {
+            $values = [];
+            foreach ($fields as $field) {
+                $values[$field] = $this->obtainReservedValue($entity, $field);
+            }
+        } catch (\Throwable $e) {
+            $this->ledger->finalize($receipt, PrivilegedReadOutcome::Failed);
+            throw $e;
+        }
+
+        $this->ledger->finalize($receipt, PrivilegedReadOutcome::Succeeded);
+
+        return $values;
+    }
+
+    /**
+     * Reserve entity-scoped evidence in one durable transaction, obtain every
+     * related field set, then finalize every receipt atomically. A ledger that
+     * does not implement the batch extension retains the strict per-entity path.
+     *
+     * @param list<EntityInterface> $entities Runtime validation narrows this to non-empty.
+     * @param list<string> $fields Runtime validation narrows this to non-empty.
+     * @return non-empty-list<array<string, mixed>>
+     */
+    public function readEntityMany(
+        PrivilegedFieldReadCapability $capability,
+        CapabilityExecutionBoundary $boundary,
+        array $entities,
+        array $fields,
+        ?CapabilityReason $requiredReason = null,
+    ): array {
+        if ($entities === []) {
+            throw new \InvalidArgumentException('Audited entity batches cannot be empty.');
+        }
+        if (!$this->ledger instanceof BatchStrictPrivilegedReadLedgerInterface) {
+            return array_map(
+                fn(EntityInterface $entity): array => $this->readMany(
+                    $capability,
+                    $boundary,
+                    $entity,
+                    $fields,
+                    $requiredReason,
+                ),
+                $entities,
+            );
+        }
+
+        $descriptors = array_map(
+            fn(EntityInterface $entity): PrivilegedReadDescriptor => $this->descriptorFor(
+                $capability,
+                $boundary,
+                $entity,
+                $fields,
+                $requiredReason,
+                'readEntityMany',
+            ),
+            $entities,
+        );
+        $receipts = $this->ledger->reserveMany($descriptors);
+
+        try {
+            $values = array_map(function (EntityInterface $entity) use ($fields): array {
+                $row = [];
+                foreach ($fields as $field) {
+                    $row[$field] = $this->obtainReservedValue($entity, $field);
+                }
+
+                return $row;
+            }, $entities);
+        } catch (\Throwable $e) {
+            $this->ledger->finalizeMany($receipts, PrivilegedReadOutcome::Failed);
+            throw $e;
+        }
+
+        $this->ledger->finalizeMany($receipts, PrivilegedReadOutcome::Succeeded);
+
+        return $values;
+    }
+
+    /** @param list<string> $fields */
+    private function descriptorFor(
+        PrivilegedFieldReadCapability $capability,
+        CapabilityExecutionBoundary $boundary,
+        EntityInterface $entity,
+        array $fields,
+        ?CapabilityReason $requiredReason,
+        string $method,
+    ): PrivilegedReadDescriptor {
         $authorization = $this->capabilities->authorizationFor($capability, $boundary);
         if ($authorization === null) {
             throw new FieldReadDenied('A live registered field-read capability is required.');
@@ -79,9 +177,6 @@ final readonly class AuditedFieldRead
             throw new FieldReadDenied(sprintf('This closed reader requires the %s capability reason.', $requiredReason->value));
         }
         $entityType = $entity->getEntityTypeId();
-        // V2 hydration attaches canonical structural selectors independently
-        // of content fields. A legacy `bundle` value may be absent/empty and
-        // must never weaken or spuriously reject audited authorization.
         $bundle = $entity instanceof EntityBase && $entity->_hasEntityStructure()
             ? $entity->entityStructure()->bundleId
             : $entity->bundle();
@@ -103,7 +198,8 @@ final readonly class AuditedFieldRead
         }
 
         $context = $authorization->context;
-        $receipt = $this->ledger->reserve(new PrivilegedReadDescriptor(
+
+        return new PrivilegedReadDescriptor(
             kind: PrivilegedReadKind::Value,
             reason: $declaration->reason,
             issuer: $declaration->issuer,
@@ -120,22 +216,8 @@ final readonly class AuditedFieldRead
             classificationGeneration: $context->classificationGeneration,
             policyGeneration: $context->policyGeneration,
             correlationId: $context->executionBoundary,
-            callSite: $this->callSite('readMany'),
-        ));
-
-        try {
-            $values = [];
-            foreach ($fields as $field) {
-                $values[$field] = $this->obtainReservedValue($entity, $field);
-            }
-        } catch (\Throwable $e) {
-            $this->ledger->finalize($receipt, PrivilegedReadOutcome::Failed);
-            throw $e;
-        }
-
-        $this->ledger->finalize($receipt, PrivilegedReadOutcome::Succeeded);
-
-        return $values;
+            callSite: $this->callSite($method),
+        );
     }
 
     /**

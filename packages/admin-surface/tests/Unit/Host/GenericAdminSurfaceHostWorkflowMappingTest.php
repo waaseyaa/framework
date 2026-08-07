@@ -63,18 +63,18 @@ final class GenericAdminSurfaceHostWorkflowMappingTest extends TestCase
 
     private function runActionWithDeniedSave(string $action, TransitionDeniedException $denial): \Waaseyaa\AdminSurface\Host\AdminSurfaceResultData
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('id')->willReturn(1);
         $entity->method('uuid')->willReturn('u-1');
         $entity->method('getEntityTypeId')->willReturn('article');
         $entity->method('bundle')->willReturn('article');
 
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
         $repository->method('find')->willReturn($entity);
         $repository->method('create')->willReturn($entity);
         $repository->method('save')->willThrowException($denial);
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         // 'title' must be a writable entity key (the `label` kind) so
         // CW-v1 option-1 PR-4's EntityWritePayloadGuard passes it through —
@@ -84,7 +84,7 @@ final class GenericAdminSurfaceHostWorkflowMappingTest extends TestCase
         $etm->method('getDefinition')->willReturn(new EntityType(id: 'article', label: 'Article', class: \stdClass::class, keys: ['id' => 'id', 'label' => 'title']));
         $etm->method('getRepository')->willReturn($repository);
 
-        $accessHandler = $this->createMock(EntityAccessHandler::class);
+        $accessHandler = $this->createStub(EntityAccessHandler::class);
         $accessHandler->method('check')->willReturn(AccessResult::allowed('ok'));
         $accessHandler->method('checkCreateAccess')->willReturn(AccessResult::allowed('ok'));
         $accessHandler->method('checkFieldAccess')->willReturn(AccessResult::neutral('ok'));

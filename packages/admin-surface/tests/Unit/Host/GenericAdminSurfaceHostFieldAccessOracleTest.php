@@ -76,12 +76,12 @@ final class GenericAdminSurfaceHostFieldAccessOracleTest extends TestCase
     {
         $userType = EntityType::fromClass(User::class);
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($userType);
         $etm->method('resolveFieldDefinitions')->willReturn($userType->getFieldDefinitions());
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('loadMultiple')->willReturn([$victim]);
         $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 
@@ -285,12 +285,12 @@ final class GenericAdminSurfaceHostFieldAccessOracleTest extends TestCase
         ]);
 
         $userType = EntityType::fromClass(User::class);
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($userType);
         $etm->method('resolveFieldDefinitions')->willReturn($userType->getFieldDefinitions());
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('loadMultiple')->willReturn([$victim, $other]);
         $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 
@@ -340,12 +340,12 @@ final class GenericAdminSurfaceHostFieldAccessOracleTest extends TestCase
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title'],
         );
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($docType);
         $etm->method('resolveFieldDefinitions')->willReturn($docType->getFieldDefinitions());
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 
         return [$etm, $storage];
@@ -353,7 +353,7 @@ final class GenericAdminSurfaceHostFieldAccessOracleTest extends TestCase
 
     private function docEntity(string $id, string $title, string $body, bool $classified): EntityInterface
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn('doc');
         $entity->method('id')->willReturn($id);
         $entity->method('uuid')->willReturn('uuid-' . $id);

@@ -115,8 +115,8 @@ final class AdminSurfaceServiceProviderTest extends TestCase
         ]);
 
         $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
-        $entityTypeManager->method('hasDefinition')->with('node')->willReturn(true);
-        $entityTypeManager->method('getDefinition')->with('node')->willReturn($definition);
+        $entityTypeManager->expects(self::exactly(2))->method('hasDefinition')->with('node')->willReturn(true);
+        $entityTypeManager->expects(self::once())->method('getDefinition')->with('node')->willReturn($definition);
         $entityTypeManager->method('resolveFieldDefinitions')->willReturnCallback(
             fn(string $type, ?string $bundle = null): array => $registry->coreFieldsFor($type)
                 + ($bundle === null ? [] : $registry->bundleFieldsFor($type, $bundle)),

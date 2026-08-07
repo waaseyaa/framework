@@ -613,6 +613,8 @@ return [
     'Waaseyaa\AdminSurface\Query\SurfaceFilterOperator' => 'public',
     'Waaseyaa\AdminSurface\List\ListFormatter' => 'public',
     'Waaseyaa\AdminSurface\Host\AbstractAdminSurfaceHost' => 'public',
+    'Waaseyaa\AdminSurface\Host\AdminPublicationFieldReaderInterface' => 'public',
+    'Waaseyaa\AdminSurface\Host\BatchAdminPublicationFieldReaderInterface' => 'public',
     // ('Waaseyaa\Bimaaji\Graph\GraphSectionProviderInterface' is listed once in the Layer-5 public block above.)
     'Waaseyaa\Mcp\Auth\McpAuthInterface' => 'public',
     // OAuth authorization-server adapter boundary. Applications implement this
@@ -643,6 +645,7 @@ return [
     'Waaseyaa\Audit\Contract\AuditQueryInterface' => 'public',
     'Waaseyaa\Audit\Contract\AuditWriterInterface' => 'public',
     'Waaseyaa\Audit\Contract\StrictPrivilegedReadLedgerInterface' => 'public',
+    'Waaseyaa\Audit\Contract\BatchStrictPrivilegedReadLedgerInterface' => 'public',
     'Waaseyaa\Audit\AuditedFieldRead' => 'public',
     'Waaseyaa\Audit\AuditedQueryFieldRead' => 'public',
     'Waaseyaa\Audit\AuditedQueryReservation' => 'public',

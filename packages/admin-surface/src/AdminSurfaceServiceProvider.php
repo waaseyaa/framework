@@ -5,11 +5,16 @@ declare(strict_types=1);
 namespace Waaseyaa\AdminSurface;
 
 use Symfony\Component\HttpFoundation\Response;
+use Waaseyaa\Access\Capability\CapabilityRegistryInterface;
 use Waaseyaa\Access\Capability\McpApprovalCapabilities;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AdminSurface\Host\AbstractAdminSurfaceHost;
+use Waaseyaa\AdminSurface\Host\AdminPublicationFieldReaderInterface;
+use Waaseyaa\AdminSurface\Host\AuditedAdminPublicationFieldReader;
 use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
 use Waaseyaa\Api\Schema\SchemaPresenter;
+use Waaseyaa\Audit\AuditedFieldRead;
+use Waaseyaa\Audit\Contract\StrictPrivilegedReadLedgerInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -32,8 +37,17 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        // No bindings needed — host is constructed in routes() where
-        // EntityTypeManagerInterface is available via injection.
+        $this->singleton(AdminPublicationFieldReaderInterface::class, function (): AdminPublicationFieldReaderInterface {
+            $capabilities = $this->resolve(CapabilityRegistryInterface::class);
+            $privilegedReadLedger = $this->resolve(StrictPrivilegedReadLedgerInterface::class);
+            assert($capabilities instanceof CapabilityRegistryInterface);
+            assert($privilegedReadLedger instanceof StrictPrivilegedReadLedgerInterface);
+
+            return new AuditedAdminPublicationFieldReader(
+                new AuditedFieldRead($capabilities, $privilegedReadLedger),
+                $capabilities,
+            );
+        });
     }
 
     /**
@@ -101,6 +115,7 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
     {
         $fieldDefinitionRegistry = $this->resolveOptional(FieldDefinitionRegistryInterface::class);
         $workflowBindingResolver = $this->resolveOptional(WorkflowBindingResolver::class);
+        $publicationFieldReader = $this->resolveOptional(AdminPublicationFieldReaderInterface::class);
         $host = new GenericAdminSurfaceHost(
             entityTypeManager: $entityTypeManager,
             accessHandler: $this->discoverAccessHandler(),
@@ -111,6 +126,9 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
             ),
             workflowBindingResolver: $workflowBindingResolver instanceof WorkflowBindingResolver
                 ? $workflowBindingResolver
+                : null,
+            publicationFieldReader: $publicationFieldReader instanceof AdminPublicationFieldReaderInterface
+                ? $publicationFieldReader
                 : null,
             features: self::defaultFeatures(
                 mcpInstalled: class_exists('Waaseyaa\\Mcp\\McpServiceProvider'),

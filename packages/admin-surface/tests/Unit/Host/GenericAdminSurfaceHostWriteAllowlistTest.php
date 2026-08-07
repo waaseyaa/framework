@@ -70,7 +70,7 @@ final class GenericAdminSurfaceHostWriteAllowlistTest extends TestCase
             ),
         ]);
 
-        $accessHandler = $this->createMock(EntityAccessHandler::class);
+        $accessHandler = $this->createStub(EntityAccessHandler::class);
         $accessHandler->method('checkCreateAccess')->willReturn($createAccess);
         $accessHandler->method('checkFieldAccess')->willReturn(AccessResult::neutral('ok'));
         $accessHandler->method('filterFields')->willReturnCallback(
@@ -109,7 +109,7 @@ final class GenericAdminSurfaceHostWriteAllowlistTest extends TestCase
             _fieldDefinitions: ['body' => new FieldDefinition(name: 'body', type: 'text')],
         ));
 
-        $accessHandler = $this->createMock(EntityAccessHandler::class);
+        $accessHandler = $this->createStub(EntityAccessHandler::class);
         $accessHandler->method('check')->willReturn(AccessResult::allowed('ok'));
         $accessHandler->method('checkCreateAccess')->willReturn(AccessResult::allowed('ok'));
         $accessHandler->method('checkFieldAccess')->willReturn(AccessResult::neutral('ok'));

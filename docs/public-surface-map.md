@@ -345,6 +345,7 @@ Configuration Management v1 — active/sync store split, six `config:*` CLI comm
 | `AuditReadModelDefinitionRegistry` | final class | Exact read classifications for every column of the deliberately unregistered flat audit tables |
 | `DatabaseStrictPrivilegedReadLedger` | final class | Durable immutable-event ledger with atomic single-finalization and caller-transaction composition |
 | `StrictPrivilegedReadLedgerInterface` | interface | Synchronously reserves non-value metadata before a privileged read and finalizes its outcome afterward |
+| `BatchStrictPrivilegedReadLedgerInterface` | interface | Transactional batch extension that keeps descriptors entity-scoped while making related reservations and outcomes all-or-nothing |
 | `PrivilegedReadOutcome` | enum | Strict-ledger final outcomes: succeeded or failed; interrupted reservations remain unfinished and visible |
 | `PrivilegedReadKind` | enum | Distinguishes explicit value-read reservations from query-field reservations |
 
@@ -530,6 +531,8 @@ Charter §5.6 — listing-pipeline-v1 (M-007). Namespace `Waaseyaa\Listing\`.
 |---------|------|---------|
 | `SurfaceActionHandlerInterface` | interface | Handles a custom admin surface action for a given entity type and payload |
 | `AbstractAdminSurfaceHost` | abstract class | Base class applications extend to integrate with the admin SPA (session, catalog, entity ops) |
+| `AdminPublicationFieldReaderInterface` | interface | Closed application-wiring boundary for authorized node publication metadata in admin lists |
+| `BatchAdminPublicationFieldReaderInterface` | interface | Cardinality-preserving batch extension that projects an authorized list scope transactionally |
 
 ### mcp
 

@@ -21,6 +21,7 @@ use Waaseyaa\Api\Schema\SchemaPresenter;
 use Waaseyaa\Entity\ConfigEntityBase;
 use Waaseyaa\Entity\DateTime\EntityClockInterface;
 use Waaseyaa\Entity\DateTime\UtcEntityClock;
+use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\SlugGenerator;
@@ -82,6 +83,9 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
     /** @var array<string, SurfaceActionHandlerInterface> */
     protected array $actions = [];
 
+    /** @var array<int, array{workflow_state?: mixed, status?: mixed}> */
+    private array $publicationProjectionCache = [];
+
     private readonly EntityClockInterface $clock;
 
     /** @var list<string> */
@@ -110,6 +114,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         private readonly array $internalFieldsByType = [],
         ?EntityClockInterface $clock = null,
         array $capabilityAllowlist = [],
+        private readonly ?AdminPublicationFieldReaderInterface $publicationFieldReader = null,
     ) {
         $this->clock = $clock ?? new UtcEntityClock();
         $this->capabilityAllowlist = self::normalizeCapabilityAllowlist($capabilityAllowlist);
@@ -295,6 +300,8 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
 
     public function list(string $type, SurfaceQuery|array $query = []): AdminSurfaceResultData
     {
+        $this->publicationProjectionCache = [];
+
         if (!$this->entityTypeManager->hasDefinition($type)) {
             return AdminSurfaceResultData::error(404, 'Unknown entity type', "Type '{$type}' is not registered.");
         }
@@ -355,7 +362,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
                         return AdminSurfaceResultData::error(400, 'Invalid sort field', "Cannot sort by field '{$query->sortField}'.");
                     }
                 }
-                self::sortEntities($entities, $query->sortField, $query->sortDirection === 'DESC');
+                $this->sortEntities($entities, $query->sortField, $query->sortDirection === 'DESC');
             }
             $total = count($entities);
             $entities = array_slice($entities, $query->offset, $query->limit);
@@ -364,6 +371,10 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             foreach ($entities as $entity) {
                 $row = $this->jsonApiResourceToSurfaceEntity(
                     $serializer->serialize($entity, $this->accessHandler, $this->currentAccount),
+                );
+                $row['attributes'] = array_replace(
+                    $row['attributes'],
+                    $this->publicationFields($entity),
                 );
                 $isMutableConfigRow = in_array($type, self::MUTABLE_CONFIG_ROW_TYPES, true)
                     && !in_array($type, $this->readOnlyTypes, true);
@@ -395,13 +406,15 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         // sort value-independently, matching the established surface contract.
         $queryScopeIds = null;
         $filterScopeEntities = [];
-        $useInMemoryBundleQuery = $this->queryUsesMultiBundleScopedField($type, $query);
+        $useInMemoryQuery = $this->queryUsesMultiBundleScopedField($type, $query);
         if ($query->filters !== [] || $query->sortField !== null) {
             $scopeIds = $repository->getQuery()->setAccount($this->currentAccount)->execute();
             $scopeEntities = array_values(array_filter(
                 $repository->findMany($scopeIds),
                 fn($entity): bool => $this->accessHandler->check($entity, 'view', $this->currentAccount)->isAllowed(),
             ));
+            $useInMemoryQuery = $useInMemoryQuery
+                || $this->queryUsesProjectedPublicationField($scopeEntities, $query);
 
             if ($query->sortField !== null) {
                 foreach ($scopeEntities as $entity) {
@@ -443,18 +456,24 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
                     $filterScopeEntities,
                 );
             }
+
+            if ($useInMemoryQuery) {
+                $this->primePublicationFields($filterScopeEntities);
+            }
         }
 
-        if ($useInMemoryBundleQuery) {
+        if ($useInMemoryQuery) {
             // SQL storage deliberately rejects ambiguous fields shared by
-            // several bundle subtables. Field-access preflight already loaded
-            // this bounded authoritative bundle scope, so finish the common
-            // field query in memory without duplicate loads or unsafe routing.
+            // several bundle subtables, while protected publication fields
+            // must use the audited value the list displays rather than an
+            // independently queried storage value. Field-access preflight
+            // already loaded the authoritative scope, so finish either query
+            // in memory without duplicate loads or unsafe routing.
             $pageEntities = array_values(array_filter(
                 $filterScopeEntities,
                 function ($entity) use ($query): bool {
                     foreach ($query->filters as $filter) {
-                        if (!$this->filterValueMatches($entity->get($filter['field']), $filter['operator'], $filter['value'])) {
+                        if (!$this->filterValueMatches($this->adminListFieldValue($entity, $filter['field']), $filter['operator'], $filter['value'])) {
                             return false;
                         }
                     }
@@ -463,7 +482,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
                 },
             ));
             if ($query->sortField !== null) {
-                self::sortEntities($pageEntities, $query->sortField, $query->sortDirection === 'DESC');
+                $this->sortEntities($pageEntities, $query->sortField, $query->sortDirection === 'DESC');
             }
             $total = count($pageEntities);
             $pageEntities = array_slice($pageEntities, $query->offset, $query->limit);
@@ -481,7 +500,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             $total = (int) ($totalResult[0] ?? 0);
             $pageEntities = $repository->findMany($pageIds);
         }
-        if (!$useInMemoryBundleQuery) {
+        if (!$useInMemoryQuery) {
             $pageEntities = array_values(array_filter(
                 $pageEntities,
                 fn($entity): bool => $this->accessHandler->check($entity, 'view', $this->currentAccount)->isAllowed(),
@@ -495,7 +514,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
 
             // Repository adapters need not preserve input-ID order.
             if ($query->sortField !== null) {
-                self::sortEntities($pageEntities, $query->sortField, $query->sortDirection === 'DESC');
+                $this->sortEntities($pageEntities, $query->sortField, $query->sortDirection === 'DESC');
             }
         }
 
@@ -505,12 +524,17 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             $total = count($pageEntities);
         }
 
+        $this->primePublicationFields($pageEntities);
         $serializer = $this->serializer();
 
         $surfaceEntities = [];
         foreach ($pageEntities as $entity) {
             $surfaceEntity = $this->jsonApiResourceToSurfaceEntity(
                 $serializer->serialize($entity, $this->accessHandler, $this->currentAccount),
+            );
+            $surfaceEntity['attributes'] = array_replace(
+                $surfaceEntity['attributes'],
+                $this->publicationFields($entity),
             );
             $surfaceEntity['capabilities'] = [
                 // Reuse the authoritative view decision that admitted this row;
@@ -582,14 +606,16 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             return false;
         }
 
-        return $this->filterValueMatches($entity->get($field), $operator, $value);
+        return $this->filterValueMatches($this->adminListFieldValue($entity, $field), $operator, $value);
     }
 
     private function filterValueMatches(mixed $fieldRaw, SurfaceFilterOperator $operator, mixed $value): bool
     {
-        $fieldValue = (string) $fieldRaw;
-        $filterValue = is_array($value) ? '' : (string) $value;
-        $inValues = is_array($value) ? array_map('strval', $value) : explode(',', $filterValue);
+        $fieldValue = self::normalizeFilterValue($fieldRaw);
+        $filterValue = is_array($value) ? '' : self::normalizeFilterValue($value);
+        $inValues = is_array($value)
+            ? array_map(self::normalizeFilterValue(...), $value)
+            : explode(',', $filterValue);
 
         return match ($operator) {
             SurfaceFilterOperator::EQUALS => $fieldValue === $filterValue,
@@ -601,6 +627,16 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             SurfaceFilterOperator::LT => $this->compareOrderedFilterValues($fieldValue, $filterValue) < 0,
             SurfaceFilterOperator::GTE => $this->compareOrderedFilterValues($fieldValue, $filterValue) >= 0,
             SurfaceFilterOperator::LTE => $this->compareOrderedFilterValues($fieldValue, $filterValue) <= 0,
+        };
+    }
+
+    private static function normalizeFilterValue(mixed $value): string
+    {
+        return match (true) {
+            $value === true => '1',
+            $value === false => '0',
+            $value === null => '',
+            default => (string) $value,
         };
     }
 
@@ -642,7 +678,68 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             return true;
         }
 
+        if ($entity instanceof EntityInterface
+            && $this->publicationFieldReader?->projects($entity, $field) === true) {
+            return false;
+        }
+
         return $this->accessHandler->checkFieldAccess($entity, $field, 'view', $this->currentAccount)->isForbidden();
+    }
+
+    /** @return array{workflow_state?: mixed, status?: mixed} */
+    private function publicationFields(mixed $entity): array
+    {
+        if (!$entity instanceof EntityInterface
+            || $this->currentAccount === null
+            || $this->publicationFieldReader === null) {
+            return [];
+        }
+
+        $cacheKey = spl_object_id($entity);
+        if (!array_key_exists($cacheKey, $this->publicationProjectionCache)) {
+            $this->publicationProjectionCache[$cacheKey] = $this->publicationFieldReader->read(
+                $entity,
+                $this->currentAccount,
+            );
+        }
+
+        return $this->publicationProjectionCache[$cacheKey];
+    }
+
+    /** @param list<mixed> $entities */
+    private function primePublicationFields(array $entities): void
+    {
+        if (!$this->publicationFieldReader instanceof BatchAdminPublicationFieldReaderInterface
+            || $this->currentAccount === null) {
+            return;
+        }
+
+        $uncached = array_values(array_filter(
+            $entities,
+            fn(mixed $entity): bool => $entity instanceof EntityInterface
+                && !array_key_exists(spl_object_id($entity), $this->publicationProjectionCache),
+        ));
+        if ($uncached === []) {
+            return;
+        }
+
+        $projections = $this->publicationFieldReader->readMany($uncached, $this->currentAccount);
+        if (count($projections) !== count($uncached)) {
+            throw new \LogicException('Batch publication projection must preserve entity cardinality.');
+        }
+        foreach ($uncached as $index => $entity) {
+            $this->publicationProjectionCache[spl_object_id($entity)] = $projections[$index];
+        }
+    }
+
+    private function adminListFieldValue(mixed $entity, string $field): mixed
+    {
+        if ($entity instanceof EntityInterface
+            && $this->publicationFieldReader?->projects($entity, $field) === true) {
+            return $this->publicationFields($entity)[$field] ?? null;
+        }
+
+        return $entity->get($field);
     }
 
     /**
@@ -1141,10 +1238,11 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
     }
 
     /** @param list<\Waaseyaa\Entity\EntityInterface> $entities */
-    private static function sortEntities(array &$entities, string $field, bool $descending): void
+    private function sortEntities(array &$entities, string $field, bool $descending): void
     {
-        usort($entities, static function ($a, $b) use ($field, $descending): int {
-            $comparison = self::comparableSortValue($a->get($field)) <=> self::comparableSortValue($b->get($field));
+        usort($entities, function ($a, $b) use ($field, $descending): int {
+            $comparison = self::comparableSortValue($this->adminListFieldValue($a, $field))
+                <=> self::comparableSortValue($this->adminListFieldValue($b, $field));
 
             return $descending ? -$comparison : $comparison;
         });
@@ -1173,6 +1271,32 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             }
 
             return true;
+        }
+
+        return false;
+    }
+
+    /** @param list<mixed> $entities */
+    private function queryUsesProjectedPublicationField(array $entities, SurfaceQuery $query): bool
+    {
+        if ($this->publicationFieldReader === null) {
+            return false;
+        }
+
+        $queriedFields = array_map(static fn(array $filter): string => $filter['field'], $query->filters);
+        if ($query->sortField !== null) {
+            $queriedFields[] = $query->sortField;
+        }
+
+        foreach ($entities as $entity) {
+            if (!$entity instanceof EntityInterface) {
+                continue;
+            }
+            foreach (array_unique($queriedFields) as $field) {
+                if ($this->publicationFieldReader->projects($entity, $field)) {
+                    return true;
+                }
+            }
         }
 
         return false;

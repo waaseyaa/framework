@@ -43,7 +43,7 @@ final class GenericAdminSurfaceHostCapabilitiesTest extends TestCase
     private function host(array $capabilityAllowlist): GenericAdminSurfaceHost
     {
         return new GenericAdminSurfaceHost(
-            $this->createMock(EntityTypeManagerInterface::class),
+            $this->createStub(EntityTypeManagerInterface::class),
             capabilityAllowlist: $capabilityAllowlist,
         );
     }

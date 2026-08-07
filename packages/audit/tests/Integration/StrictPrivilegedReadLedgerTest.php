@@ -55,6 +55,47 @@ final class StrictPrivilegedReadLedgerTest extends TestCase
     }
 
     #[Test]
+    public function batch_reservation_and_finalization_preserve_entity_scoped_evidence(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        (new AuditEventSchemaHandler($database))->ensureSchema();
+        $ledger = new DatabaseStrictPrivilegedReadLedger($database);
+        $first = $this->descriptor();
+        $second = new PrivilegedReadDescriptor(
+            kind: $first->kind,
+            reason: $first->reason,
+            issuer: $first->issuer,
+            actorSemantics: $first->actorSemantics,
+            actorId: $first->actorId,
+            entityTypeId: $first->entityTypeId,
+            entityId: 13,
+            fields: $first->fields,
+            bundles: $first->bundles,
+            tenantId: $first->tenantId,
+            communityId: $first->communityId,
+            queryFingerprint: null,
+            queryOperations: [],
+            classificationGeneration: $first->classificationGeneration,
+            policyGeneration: $first->policyGeneration,
+            correlationId: $first->correlationId,
+            callSite: $first->callSite,
+        );
+
+        $receipts = $ledger->reserveMany([$first, $second]);
+        $ledger->finalizeMany($receipts, PrivilegedReadOutcome::Succeeded);
+
+        $rows = iterator_to_array($database->query(
+            'SELECT receipt_id, event_type, outcome, descriptor FROM privileged_read_ledger ORDER BY id',
+        ));
+        self::assertCount(4, $rows);
+        self::assertSame(['reserved', 'reserved', 'finalized', 'finalized'], array_column($rows, 'event_type'));
+        self::assertSame([$receipts[0]->id, $receipts[1]->id, $receipts[0]->id, $receipts[1]->id], array_column($rows, 'receipt_id'));
+        self::assertStringContainsString('"entity_id":12', (string) $rows[0]['descriptor']);
+        self::assertStringContainsString('"entity_id":13', (string) $rows[1]['descriptor']);
+        self::assertSame(['succeeded', 'succeeded'], array_column(array_slice($rows, 2), 'outcome'));
+    }
+
+    #[Test]
     public function unknown_or_already_finalized_receipts_are_rejected(): void
     {
         $database = DBALDatabase::createSqlite();

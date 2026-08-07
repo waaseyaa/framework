@@ -50,7 +50,7 @@ final class AuditedFieldReadTest extends TestCase
             'user',
             ['id' => 'id', 'bundle' => 'bundle'],
         ) extends EntityBase {};
-        $ledger = $this->createMock(StrictPrivilegedReadLedgerInterface::class);
+        $ledger = $this->createStub(StrictPrivilegedReadLedgerInterface::class);
         $ledger->method('reserve')->willReturn(new PrivilegedReadReceipt('structure-bundle'));
 
         self::assertSame('hash', (new AuditedFieldRead($registry, $ledger))->read($capability, $boundary, $entity, 'pass'));
