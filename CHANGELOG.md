@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **changed-line coverage (#2297):** Reset the active source path at every Git diff file transition so test, documentation, deletion, and other non-source hunks cannot be misattributed to the preceding package source file.
 
+- **MCP tool discovery (#2295):** Return `tools/list` catalogues in stable tool-name order regardless of Composer manifest, classmap, or provider discovery order, while leaving the framework's internal registry order unchanged.
+
 - **stacked pull request CI (#2286):** Run framework, Admin SPA, changelog-discipline, and public-surface validation for pull requests targeting any review branch so every dependency-ordered head receives exact GitHub evidence.
 
 - **media downloads (#2274):** Accept either a numeric storage ID or JSON:API UUID at `/media/{id}/download`, then retain the same fail-closed entity-view authorization and audited source lookup before returning bytes.

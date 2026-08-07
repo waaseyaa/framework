@@ -60,6 +60,10 @@ final class AgentToolRegistryBridge
         foreach ($this->registry->all() as $tool) {
             $out[] = $tool;
         }
+        usort(
+            $out,
+            static fn(AgentTool $left, AgentTool $right): int => strcmp($left->name, $right->name),
+        );
 
         return $out;
     }
