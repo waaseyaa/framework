@@ -15,6 +15,7 @@ use Waaseyaa\Audit\Contract\BatchStrictPrivilegedReadLedgerInterface;
 use Waaseyaa\Audit\Contract\PrivilegedReadDescriptor;
 use Waaseyaa\Audit\Contract\PrivilegedReadOutcome;
 use Waaseyaa\Audit\Contract\PrivilegedReadReceipt;
+use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Node\Node;
 
 final class AuditedAdminPublicationFieldReaderTest extends TestCase
@@ -87,6 +88,22 @@ final class AuditedAdminPublicationFieldReaderTest extends TestCase
         self::assertSame([2], $ledger->reservationBatchSizes);
         self::assertSame([2], $ledger->finalizationBatchSizes);
         self::assertSame([17, 18], array_map(static fn(PrivilegedReadDescriptor $descriptor) => $descriptor->entityId, $ledger->descriptors));
+    }
+
+    #[Test]
+    public function empty_and_unsupported_batches_require_no_capability_or_ledger_work(): void
+    {
+        $registry = new InMemoryCapabilityRegistry();
+        $ledger = new AdminPublicationRecordingLedger();
+        $reader = new AuditedAdminPublicationFieldReader(new AuditedFieldRead($registry, $ledger), $registry);
+        $unsupported = $this->createStub(EntityInterface::class);
+        $unsupported->method('getEntityTypeId')->willReturn('user');
+        $principal = new AuthorizationPrincipal(9, true, ['editor'], [], 'claims-v1');
+
+        self::assertSame([], $reader->readMany([], $principal));
+        self::assertSame([[]], $reader->readMany([$unsupported], $principal));
+        self::assertSame([], $ledger->reservationBatchSizes);
+        self::assertSame([], $ledger->finalizationBatchSizes);
     }
 }
 

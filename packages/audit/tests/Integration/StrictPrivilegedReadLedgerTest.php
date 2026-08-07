@@ -96,6 +96,52 @@ final class StrictPrivilegedReadLedgerTest extends TestCase
     }
 
     #[Test]
+    public function empty_reservation_batches_are_rejected_before_opening_a_transaction(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        (new AuditEventSchemaHandler($database))->ensureSchema();
+        $ledger = new DatabaseStrictPrivilegedReadLedger($database);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $ledger->reserveMany([]);
+    }
+
+    #[Test]
+    public function empty_finalization_batches_are_rejected_before_opening_a_transaction(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        (new AuditEventSchemaHandler($database))->ensureSchema();
+        $ledger = new DatabaseStrictPrivilegedReadLedger($database);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $ledger->finalizeMany([], PrivilegedReadOutcome::Succeeded);
+    }
+
+    #[Test]
+    public function duplicate_receipts_roll_back_the_whole_finalization_batch(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        (new AuditEventSchemaHandler($database))->ensureSchema();
+        $ledger = new DatabaseStrictPrivilegedReadLedger($database);
+        $receipt = $ledger->reserve($this->descriptor());
+
+        try {
+            $ledger->finalizeMany([$receipt, $receipt], PrivilegedReadOutcome::Succeeded);
+            self::fail('Duplicate receipts must fail the finalization batch.');
+        } catch (\InvalidArgumentException $exception) {
+            self::assertSame('Finalization batches require unique privileged-read receipts.', $exception->getMessage());
+        }
+
+        self::assertSame(
+            [['event_type' => 'reserved']],
+            iterator_to_array($database->query(
+                'SELECT event_type FROM privileged_read_ledger WHERE receipt_id = :receipt ORDER BY id',
+                ['receipt' => $receipt->id],
+            )),
+        );
+    }
+
+    #[Test]
     public function unknown_or_already_finalized_receipts_are_rejected(): void
     {
         $database = DBALDatabase::createSqlite();
