@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **stacked pull request CI (#2286):** Run framework, Admin SPA, changelog-discipline, and public-surface validation for pull requests targeting any review branch so every dependency-ordered head receives exact GitHub evidence.
 
+- **search (#2270):** Index ordinary Node content through one search-owned projection registry shared by reindexing, lifecycle updates, and query-time access checks. Application projectors can override canonical URLs and searchable fields without weakening entity- or field-level authorization.
+
+- **search (#2270):** Bound public search to one 1,001-pointer FTS statement and expose truncated totals as incomplete instead of presenting lower bounds as exhaustive results. Reindexing now exits non-zero on projection failure.
+
 - **tooling (#2278):** Fail specification-drift verification closed when changed production package source has no spec mapping, and cover the admin-surface host contract through the admin SPA specification instead of leaving it as an advisory blind spot.
 
 ## [0.1.0-alpha.289] - 2026-08-06
