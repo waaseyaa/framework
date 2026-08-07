@@ -227,7 +227,7 @@ final class DBALSchemaTest extends TestCase
         $schema = new Schema();
         $schema->createTable('test')->addColumn('id', 'integer');
 
-        $manager = $this->createMock(AbstractSchemaManager::class);
+        $manager = $this->createStub(AbstractSchemaManager::class);
         $manager->method('introspectSchema')->willReturn($schema);
         $manager->method('createComparator')->willReturn(new Comparator($platform));
 

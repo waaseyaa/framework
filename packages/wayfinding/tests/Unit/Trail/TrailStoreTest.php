@@ -52,7 +52,7 @@ final class TrailStoreTest extends TestCase
         $handler->ensureTranslationRevisionTable();
 
         $resolver = new SingleConnectionResolver($db);
-        $dispatcher = $this->createMock(EventDispatcherInterface::class);
+        $dispatcher = $this->createStub(EventDispatcherInterface::class);
         $dispatcher->method('dispatch')->willReturnArgument(0);
 
         // Mirror the kernel: the SQL driver needs the entity's id key ('tid'),

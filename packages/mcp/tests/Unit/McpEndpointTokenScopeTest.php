@@ -36,7 +36,7 @@ final class McpEndpointTokenScopeTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->account = $this->createMock(AuthorizationPrincipalInterface::class);
+        $this->account = $this->createStub(AuthorizationPrincipalInterface::class);
         $this->account->method('id')->willReturn(7);
     }
 

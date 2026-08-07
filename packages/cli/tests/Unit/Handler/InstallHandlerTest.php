@@ -61,10 +61,10 @@ final class InstallHandlerTest extends TestCase
                 return $data['name'] === 'Waaseyaa' && $data['mail'] === 'admin@example.com';
             }));
 
-        $mockConfigManager = $this->createMock(ConfigManagerInterface::class);
+        $mockConfigManager = $this->createStub(ConfigManagerInterface::class);
         $mockConfigManager->method('getActiveStorage')->willReturn($mockStorage);
 
-        $mockEntity = $this->createMock(EntityInterface::class);
+        $mockEntity = $this->createStub(EntityInterface::class);
 
         $mockEntityRepository = $this->createMock(EntityRepositoryInterface::class);
         $mockEntityRepository->expects($this->once())
@@ -76,7 +76,7 @@ final class InstallHandlerTest extends TestCase
         $mockEntityRepository->expects($this->once())->method('save');
 
         $mockEntityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
-        $mockEntityTypeManager->method('getRepository')->with('user')->willReturn($mockEntityRepository);
+        $mockEntityTypeManager->expects(self::once())->method('getRepository')->with('user')->willReturn($mockEntityRepository);
 
         $handler = new InstallHandler(
             entityTypeManager: $mockEntityTypeManager,
@@ -101,16 +101,16 @@ final class InstallHandlerTest extends TestCase
                 return $data['name'] === 'My Site';
             }));
 
-        $mockConfigManager = $this->createMock(ConfigManagerInterface::class);
+        $mockConfigManager = $this->createStub(ConfigManagerInterface::class);
         $mockConfigManager->method('getActiveStorage')->willReturn($mockStorage);
 
-        $mockEntity = $this->createMock(EntityInterface::class);
+        $mockEntity = $this->createStub(EntityInterface::class);
 
-        $mockEntityRepository = $this->createMock(EntityRepositoryInterface::class);
+        $mockEntityRepository = $this->createStub(EntityRepositoryInterface::class);
         $mockEntityRepository->method('create')->willReturn($mockEntity);
         $mockEntityRepository->method('save');
 
-        $mockEntityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
+        $mockEntityTypeManager = $this->createStub(EntityTypeManagerInterface::class);
         $mockEntityTypeManager->method('getRepository')->willReturn($mockEntityRepository);
 
         $handler = new InstallHandler(

@@ -15,18 +15,32 @@ use Waaseyaa\OAuthProvider\UnsupportedOperationException;
 
 final class GitHubOAuthProviderTest extends TestCase
 {
-    private HttpClientInterface&MockObject $httpClient;
+    private HttpClientInterface $httpClient;
     private GitHubOAuthProvider $provider;
 
     protected function setUp(): void
     {
-        $this->httpClient = $this->createMock(HttpClientInterface::class);
+        $this->useHttpClient($this->createStub(HttpClientInterface::class));
+    }
+
+    private function useHttpClient(HttpClientInterface $httpClient): void
+    {
+        $this->httpClient = $httpClient;
         $this->provider = new GitHubOAuthProvider(
             clientId: 'gh-client-id',
             clientSecret: 'gh-client-secret',
             redirectUri: 'https://example.com/callback',
             httpClient: $this->httpClient,
         );
+    }
+
+    /** @return HttpClientInterface&MockObject */
+    private function mockHttpClient(): HttpClientInterface
+    {
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $this->useHttpClient($httpClient);
+
+        return $httpClient;
     }
 
     public function testGetName(): void
@@ -53,7 +67,7 @@ final class GitHubOAuthProviderTest extends TestCase
             'token_type'   => 'bearer',
         ]);
 
-        $this->httpClient
+        $this->mockHttpClient()
             ->expects(self::once())
             ->method('post')
             ->with('https://github.com/login/oauth/access_token')
@@ -90,7 +104,7 @@ final class GitHubOAuthProviderTest extends TestCase
             ['email' => 'jonesrussell42@gmail.com', 'primary' => true, 'verified' => true],
         ]);
 
-        $this->httpClient
+        $this->mockHttpClient()
             ->expects(self::exactly(2))
             ->method('get')
             ->willReturnOnConsecutiveCalls(
@@ -133,7 +147,7 @@ final class GitHubOAuthProviderTest extends TestCase
         $userBody = json_encode(['id' => 7, 'login' => 'noemail', 'name' => 'No Email']);
         $emailsErrorBody = json_encode(['message' => 'Requires user:email scope']);
 
-        $this->httpClient
+        $this->mockHttpClient()
             ->expects(self::exactly(2))
             ->method('get')
             ->willReturnOnConsecutiveCalls(
@@ -161,7 +175,7 @@ final class GitHubOAuthProviderTest extends TestCase
             ['email' => 'ghost@example.com', 'primary' => true, 'verified' => true],
         ]);
 
-        $this->httpClient
+        $this->mockHttpClient()
             ->expects(self::exactly(2))
             ->method('get')
             ->willReturnOnConsecutiveCalls(

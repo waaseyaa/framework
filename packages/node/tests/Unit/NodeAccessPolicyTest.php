@@ -319,7 +319,7 @@ final class NodeAccessPolicyTest extends TestCase
      */
     private function createAccount(int $id, array $permissions): AccountInterface
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('id')->willReturn($id);
         // Account id 0 is the anonymous account (not authenticated).
         $account->method('isAuthenticated')->willReturn($id !== 0);

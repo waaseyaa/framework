@@ -130,7 +130,7 @@ final class HealthCheckerBundleSubtableDriftTest extends TestCase
         );
         // Materialize the real expected schema instead of hand-rolling columns.
         (new SqlSchemaHandler($type, $this->database))->ensureTable();
-        $registry = $this->createMock(FieldDefinitionRegistryInterface::class);
+        $registry = $this->createStub(FieldDefinitionRegistryInterface::class);
         $registry->method('bundleNamesFor')->willReturn([]);
 
         $results = $this->checker($type, $registry)->checkSchemaDrift();
@@ -223,7 +223,7 @@ final class HealthCheckerBundleSubtableDriftTest extends TestCase
      */
     private function registry(array $bundleToFieldNames): FieldDefinitionRegistryInterface
     {
-        $registry = $this->createMock(FieldDefinitionRegistryInterface::class);
+        $registry = $this->createStub(FieldDefinitionRegistryInterface::class);
 
         $nonEmpty = [];
         $fieldsMap = [];
@@ -249,7 +249,7 @@ final class HealthCheckerBundleSubtableDriftTest extends TestCase
 
     private function checker(EntityTypeInterface $type, FieldDefinitionRegistryInterface $registry): HealthChecker
     {
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn([$type->id() => $type]);
 
         $bootReport = new BootDiagnosticReport(

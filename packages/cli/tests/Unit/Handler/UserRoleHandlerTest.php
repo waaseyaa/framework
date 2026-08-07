@@ -66,7 +66,7 @@ final class UserRoleHandlerTest extends TestCase
 
     private function makeStorage(?EntityInterface $user): EntityStorageInterface
     {
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('load')->willReturn($user);
         if ($user !== null) {
             $storage->method('save');
@@ -78,7 +78,7 @@ final class UserRoleHandlerTest extends TestCase
     // C-22 WP3: read/write path now goes through the canonical repository.
     private function makeRepository(?EntityInterface $user): EntityRepositoryInterface
     {
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
         $repository->method('find')->willReturn($user);
         if ($user !== null) {
             $repository->method('save');
@@ -92,7 +92,7 @@ final class UserRoleHandlerTest extends TestCase
     {
         $user = $this->makeMockUser('1', []);
 
-        $mockManager = $this->createMock(EntityTypeManagerInterface::class);
+        $mockManager = $this->createStub(EntityTypeManagerInterface::class);
         $mockManager->method('getStorage')->willReturn($this->makeStorage($user));
         $mockManager->method('getRepository')->willReturn($this->makeRepository($user));
 
@@ -109,7 +109,7 @@ final class UserRoleHandlerTest extends TestCase
     {
         $user = $this->makeMockUser('1', ['editor']);
 
-        $mockManager = $this->createMock(EntityTypeManagerInterface::class);
+        $mockManager = $this->createStub(EntityTypeManagerInterface::class);
         $mockManager->method('getStorage')->willReturn($this->makeStorage($user));
         $mockManager->method('getRepository')->willReturn($this->makeRepository($user));
 
@@ -126,7 +126,7 @@ final class UserRoleHandlerTest extends TestCase
     {
         $user = $this->makeMockUser('1', ['editor']);
 
-        $mockManager = $this->createMock(EntityTypeManagerInterface::class);
+        $mockManager = $this->createStub(EntityTypeManagerInterface::class);
         $mockManager->method('getStorage')->willReturn($this->makeStorage($user));
         $mockManager->method('getRepository')->willReturn($this->makeRepository($user));
 
@@ -141,7 +141,7 @@ final class UserRoleHandlerTest extends TestCase
     #[Test]
     public function returnsFailureWhenUserNotFound(): void
     {
-        $mockManager = $this->createMock(EntityTypeManagerInterface::class);
+        $mockManager = $this->createStub(EntityTypeManagerInterface::class);
         $mockManager->method('getStorage')->willReturn($this->makeStorage(null));
         $mockManager->method('getRepository')->willReturn($this->makeRepository(null));
 

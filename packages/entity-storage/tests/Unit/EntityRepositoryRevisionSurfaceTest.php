@@ -60,7 +60,7 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
             $storageBoundary->driverSnapshotReader(),
         );
 
-        $dispatcher = $this->createMock(EventDispatcherInterface::class);
+        $dispatcher = $this->createStub(EventDispatcherInterface::class);
         $dispatcher->method('dispatch')->willReturnArgument(0);
 
         $this->repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
@@ -282,7 +282,7 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
         $resolver = new SingleConnectionResolver($this->db);
         $driver = new SqlStorageDriver($resolver);
         $revisionDriver = new RevisionableStorageDriver($resolver, $legacyType);
-        $dispatcher = $this->createMock(EventDispatcherInterface::class);
+        $dispatcher = $this->createStub(EventDispatcherInterface::class);
         $dispatcher->method('dispatch')->willReturnArgument(0);
         $legacyRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver($legacyType, $driver, $dispatcher, $revisionDriver, $this->db);
 
@@ -405,7 +405,7 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
         $resolver = new SingleConnectionResolver($this->db);
         $driver = new SqlStorageDriver($resolver);
         $revisionDriver = new RevisionableStorageDriver($resolver, $legacyType);
-        $dispatcher = $this->createMock(EventDispatcherInterface::class);
+        $dispatcher = $this->createStub(EventDispatcherInterface::class);
         $dispatcher->method('dispatch')->willReturnArgument(0);
         $legacyRepo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver($legacyType, $driver, $dispatcher, $revisionDriver, $this->db);
 

@@ -79,7 +79,7 @@ final class EntityMarkdownPresenterTest extends TestCase
 
     private function anyAccount(): AccountInterface
     {
-        return $this->createMock(AccountInterface::class);
+        return $this->createStub(AccountInterface::class);
     }
 
     private function sampleEntity(array $overrides = []): TestEntity
@@ -212,7 +212,7 @@ final class EntityMarkdownPresenterTest extends TestCase
     public function access_filtering_omits_forbidden_fields_identically_to_serializer(): void
     {
         $entity = $this->sampleEntity(['secret_note' => 'classified']);
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $handler = new EntityAccessHandler([$this->forbidField('article', 'secret_note')]);
 
         $withAccess = $this->presenter($this->emptyDisplay())->present($entity, 'full', $handler, $account);
@@ -303,7 +303,7 @@ final class EntityMarkdownPresenterTest extends TestCase
     public function label_is_replaced_with_a_placeholder_when_the_label_field_is_forbidden(): void
     {
         $entity = $this->sampleEntity();
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $handler = new EntityAccessHandler([$this->forbidField('article', 'title')]);
 
         $md = $this->presenter($this->emptyDisplay())->present($entity, 'full', $handler, $account);

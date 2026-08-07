@@ -118,7 +118,7 @@ final class DefaultPluginManagerTest extends TestCase
     public function testCachingWorks(): void
     {
         $callCount = 0;
-        $discovery = $this->createMock(PluginDiscoveryInterface::class);
+        $discovery = $this->createStub(PluginDiscoveryInterface::class);
         $discovery->method('getDefinitions')
             ->willReturnCallback(function () use (&$callCount) {
                 $callCount++;
@@ -150,7 +150,7 @@ final class DefaultPluginManagerTest extends TestCase
     public function testClearCachedDefinitions(): void
     {
         $callCount = 0;
-        $discovery = $this->createMock(PluginDiscoveryInterface::class);
+        $discovery = $this->createStub(PluginDiscoveryInterface::class);
         $discovery->method('getDefinitions')
             ->willReturnCallback(function () use (&$callCount) {
                 $callCount++;
@@ -179,7 +179,7 @@ final class DefaultPluginManagerTest extends TestCase
     public function testDefinitionsAreMemoized(): void
     {
         $callCount = 0;
-        $discovery = $this->createMock(PluginDiscoveryInterface::class);
+        $discovery = $this->createStub(PluginDiscoveryInterface::class);
         $discovery->method('getDefinitions')
             ->willReturnCallback(function () use (&$callCount) {
                 $callCount++;

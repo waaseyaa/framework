@@ -23,7 +23,7 @@ final class VerifyEmailControllerTest extends TestCase
 
     private function makeTokenRepo(?array $tokenData = null): AuthTokenRepositoryInterface
     {
-        $repo = $this->createMock(AuthTokenRepositoryInterface::class);
+        $repo = $this->createStub(AuthTokenRepositoryInterface::class);
         $repo->method('validateToken')->willReturn($tokenData);
 
         return $repo;
@@ -31,7 +31,7 @@ final class VerifyEmailControllerTest extends TestCase
 
     private function makeEntityTypeManager(?EntityStorageInterface $storage = null): EntityTypeManager
     {
-        $manager = $this->createMock(EntityTypeManager::class);
+        $manager = $this->createStub(EntityTypeManager::class);
         if ($storage !== null) {
             $manager->method('getStorage')->willReturn($storage);
             // C-22 WP3: read/write path now goes through the canonical repository.
@@ -87,7 +87,7 @@ final class VerifyEmailControllerTest extends TestCase
         $tokenData = ['id' => 1, 'user_id' => 99, 'meta' => null];
         $tokenRepo = $this->makeTokenRepo($tokenData);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('load')->willReturn(null);
 
         $controller = new VerifyEmailController(

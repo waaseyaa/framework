@@ -95,7 +95,7 @@ final class EntityTypeValidationConstraintsTest extends TestCase
      */
     private function stubEntity(array $values): FieldableEntityDouble
     {
-        $entity = $this->createMock(FieldableEntityDouble::class);
+        $entity = $this->createStub(FieldableEntityDouble::class);
         $entity->method('get')->willReturnCallback(
             static fn (string $name): mixed => $values[$name] ?? null,
         );

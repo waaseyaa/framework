@@ -105,7 +105,7 @@ final class StandaloneConsumptionTest extends TestCase
         $registry = new FieldDefinitionRegistry();
         (new SqlSchemaHandler($type, $this->database, $registry))->ensureTable();
 
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn([$type->id() => $type]);
 
         $report = new BootDiagnosticReport(

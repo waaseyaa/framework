@@ -20,7 +20,7 @@ final class EntityParamConverterTest extends TestCase
     #[Test]
     public function convertLoadsEntityAndReplacesParameter(): void
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
 
         $repository = $this->createMock(EntityRepositoryInterface::class);
         $repository->expects($this->once())
@@ -154,8 +154,8 @@ final class EntityParamConverterTest extends TestCase
     #[Test]
     public function convertHandlesMultipleEntityParameters(): void
     {
-        $nodeEntity = $this->createMock(EntityInterface::class);
-        $userEntity = $this->createMock(EntityInterface::class);
+        $nodeEntity = $this->createStub(EntityInterface::class);
+        $userEntity = $this->createStub(EntityInterface::class);
 
         $nodeRepository = $this->createMock(EntityRepositoryInterface::class);
         $nodeRepository->expects($this->once())
@@ -197,7 +197,7 @@ final class EntityParamConverterTest extends TestCase
     #[Test]
     public function convertHandlesMixedEntityAndNonEntityParameters(): void
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
 
         $repository = $this->createMock(EntityRepositoryInterface::class);
         $repository->expects($this->once())

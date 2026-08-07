@@ -187,7 +187,7 @@ final class UserAssignRoleHandlerTest extends TestCase
 
     private function makeManager(EntityStorageInterface $storage): EntityTypeManagerInterface
     {
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getStorage')->willReturn($storage);
         // C-22 WP3: read/write path now goes through the canonical repository —
         // delegate find()/save() to the same storage double the test already configured.

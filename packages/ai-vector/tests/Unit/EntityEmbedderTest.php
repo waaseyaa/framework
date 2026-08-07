@@ -158,7 +158,7 @@ final class EntityEmbedderTest extends TestCase
         string $label,
         string $bundle = 'article',
     ): EntityInterface {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn($entityTypeId);
         $entity->method('id')->willReturn($id);
         $entity->method('label')->willReturn($label);

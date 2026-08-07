@@ -14,18 +14,32 @@ use Waaseyaa\OAuthProvider\Provider\GoogleOAuthProvider;
 
 final class GoogleOAuthProviderTest extends TestCase
 {
-    private HttpClientInterface&MockObject $httpClient;
+    private HttpClientInterface $httpClient;
     private GoogleOAuthProvider $provider;
 
     protected function setUp(): void
     {
-        $this->httpClient = $this->createMock(HttpClientInterface::class);
+        $this->useHttpClient($this->createStub(HttpClientInterface::class));
+    }
+
+    private function useHttpClient(HttpClientInterface $httpClient): void
+    {
+        $this->httpClient = $httpClient;
         $this->provider = new GoogleOAuthProvider(
             clientId: 'test-client-id',
             clientSecret: 'test-client-secret',
             redirectUri: 'https://example.com/callback',
             httpClient: $this->httpClient,
         );
+    }
+
+    /** @return HttpClientInterface&MockObject */
+    private function mockHttpClient(): HttpClientInterface
+    {
+        $httpClient = $this->createMock(HttpClientInterface::class);
+        $this->useHttpClient($httpClient);
+
+        return $httpClient;
     }
 
     public function testGetName(): void
@@ -57,7 +71,7 @@ final class GoogleOAuthProviderTest extends TestCase
             'token_type'    => 'Bearer',
         ]);
 
-        $this->httpClient
+        $this->mockHttpClient()
             ->expects(self::once())
             ->method('post')
             ->with('https://oauth2.googleapis.com/token')
@@ -79,7 +93,7 @@ final class GoogleOAuthProviderTest extends TestCase
             'error_description' => 'Code was already redeemed.',
         ]);
 
-        $this->httpClient
+        $this->mockHttpClient()
             ->expects(self::once())
             ->method('post')
             ->willReturn(new HttpResponse(401, (string) $responseBody));
@@ -99,7 +113,7 @@ final class GoogleOAuthProviderTest extends TestCase
             'token_type'   => 'Bearer',
         ]);
 
-        $this->httpClient
+        $this->mockHttpClient()
             ->expects(self::once())
             ->method('post')
             ->with('https://oauth2.googleapis.com/token')
@@ -122,7 +136,7 @@ final class GoogleOAuthProviderTest extends TestCase
             'picture'        => 'https://lh3.googleusercontent.com/photo.jpg',
         ]);
 
-        $this->httpClient
+        $this->mockHttpClient()
             ->expects(self::once())
             ->method('get')
             ->with('https://www.googleapis.com/oauth2/v2/userinfo')

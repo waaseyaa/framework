@@ -115,7 +115,7 @@ final class AgentToolRegistryBridgeValidationTest extends TestCase
             }
         };
 
-        $account = $this->createMock(AuthorizationPrincipalInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn(1);
 
         return new AgentToolRegistryBridge($registry, $account);

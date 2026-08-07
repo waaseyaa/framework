@@ -25,7 +25,7 @@ final class VocabularyAccessPolicyTest extends TestCase
             ->with(['vid' => 'topics'], null, 1)
             ->willReturn([$this->createStub(\Waaseyaa\Entity\EntityInterface::class)]);
         $manager = $this->createMock(EntityTypeManagerInterface::class);
-        $manager->method('getRepository')->with('taxonomy_term')->willReturn($repository);
+        $manager->expects(self::once())->method('getRepository')->with('taxonomy_term')->willReturn($repository);
 
         $result = (new VocabularyAccessPolicy($manager))->access(
             new Vocabulary(['vid' => 'topics', 'name' => 'Topics']),
@@ -40,9 +40,9 @@ final class VocabularyAccessPolicyTest extends TestCase
     #[Test]
     public function emptyVocabularyLeavesTheAdministratorGrantUnchanged(): void
     {
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
         $repository->method('findBy')->willReturn([]);
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getRepository')->willReturn($repository);
 
         $result = (new VocabularyAccessPolicy($manager))->access(

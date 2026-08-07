@@ -67,7 +67,7 @@ final class ConfigEntityAccessPolicyTest extends TestCase
 
     public function testAccessAllowedForAdministrator(): void
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $account = $this->createAccount(['administrator']);
 
         $result = $this->policy->access($entity, 'view', $account);
@@ -76,7 +76,7 @@ final class ConfigEntityAccessPolicyTest extends TestCase
 
     public function testAccessAllowedForAdministratorOnUpdate(): void
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $account = $this->createAccount(['administrator']);
 
         $result = $this->policy->access($entity, 'update', $account);
@@ -85,7 +85,7 @@ final class ConfigEntityAccessPolicyTest extends TestCase
 
     public function testAccessAllowedForAdministratorOnDelete(): void
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $account = $this->createAccount(['administrator']);
 
         $result = $this->policy->access($entity, 'delete', $account);
@@ -98,7 +98,7 @@ final class ConfigEntityAccessPolicyTest extends TestCase
 
     public function testAccessNeutralForNonAdministrator(): void
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $account = $this->createAccount(['authenticated']);
 
         $result = $this->policy->access($entity, 'view', $account);
@@ -107,7 +107,7 @@ final class ConfigEntityAccessPolicyTest extends TestCase
 
     public function testAccessNeutralForAnonymous(): void
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $account = $this->createAccount([]);
 
         $result = $this->policy->access($entity, 'update', $account);
@@ -160,7 +160,7 @@ final class ConfigEntityAccessPolicyTest extends TestCase
 
     public function testAccessAllowedWhenAdministratorIsOneOfMultipleRoles(): void
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $account = $this->createAccount(['authenticated', 'editor', 'administrator']);
 
         $result = $this->policy->access($entity, 'update', $account);
@@ -249,7 +249,7 @@ final class ConfigEntityAccessPolicyTest extends TestCase
      */
     private function createAccount(array $roles): AccountInterface
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('getRoles')->willReturn($roles);
 
         return $account;

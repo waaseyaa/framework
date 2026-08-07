@@ -25,7 +25,7 @@ final class EntityTypeManagerBundleFieldsTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->dispatcher = $this->createMock(EventDispatcherInterface::class);
+        $this->dispatcher = $this->createStub(EventDispatcherInterface::class);
     }
 
     #[Test]

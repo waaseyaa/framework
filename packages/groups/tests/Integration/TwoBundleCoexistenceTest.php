@@ -203,7 +203,7 @@ final class TwoBundleCoexistenceTest extends TestCase
         $this->registerBetaFields();
         $this->ensureSchema(['alpha', 'beta']);
 
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn([$this->groupType->id() => $this->groupType]);
 
         $report = new BootDiagnosticReport(

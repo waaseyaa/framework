@@ -73,7 +73,7 @@ final class SemanticRefreshCommandTest extends TestCase
     #[Test]
     public function untilCompleteConsumesAllBatches(): void
     {
-        $warmer = $this->buildWarmerWithThreeNodes();
+        $warmer = $this->buildWarmerWithThreeNodes(batchCount: 2);
 
         $tester = $this->makeTester($warmer);
         $tester->executeMap(['--batch-size' => '2', '--until-complete' => true, '--json' => true]);
@@ -85,7 +85,7 @@ final class SemanticRefreshCommandTest extends TestCase
         $this->assertNull($decoded['final']['next_cursor']);
     }
 
-    private function buildWarmerWithThreeNodes(): SemanticIndexWarmer
+    private function buildWarmerWithThreeNodes(int $batchCount = 1): SemanticIndexWarmer
     {
         $query = new class implements EntityQueryInterface {
             public function condition(string $field, mixed $value, string $operator = '='): static { return $this; }
@@ -103,11 +103,11 @@ final class SemanticRefreshCommandTest extends TestCase
         $entity2 = new SemanticRefreshEntity(2, 'node', ['title' => 'Two', 'status' => 0, 'workflow_state' => 'draft']);
         $entity3 = new SemanticRefreshEntity(3, 'node', ['title' => 'Three', 'status' => 1, 'workflow_state' => 'published']);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('getQuery')->willReturn($query);
 
         // C-22 WP3: read path now goes through the canonical repository.
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
         $repository->method('getQuery')->willReturn($query);
         $repository->method('findMany')->willReturnCallback(
             static fn(array $ids): array => array_values(array_filter([
@@ -118,14 +118,14 @@ final class SemanticRefreshCommandTest extends TestCase
         );
 
         $manager = $this->createMock(EntityTypeManagerInterface::class);
-        $manager->method('hasDefinition')->with('node')->willReturn(true);
-        $manager->method('getStorage')->with('node')->willReturn($storage);
-        $manager->method('getRepository')->with('node')->willReturn($repository);
+        $manager->expects(self::exactly($batchCount))->method('hasDefinition')->with('node')->willReturn(true);
+        $manager->expects(self::never())->method('getStorage');
+        $manager->expects(self::exactly($batchCount * 2))->method('getRepository')->with('node')->willReturn($repository);
 
-        $provider = $this->createMock(EmbeddingProviderInterface::class);
+        $provider = $this->createStub(EmbeddingProviderInterface::class);
         $provider->method('embed')->willReturn([0.1, 0.2]);
 
-        $embeddingStorage = $this->createMock(EmbeddingStorageInterface::class);
+        $embeddingStorage = $this->createStub(EmbeddingStorageInterface::class);
 
         return new SemanticIndexWarmer(
             entityTypeManager: $manager,

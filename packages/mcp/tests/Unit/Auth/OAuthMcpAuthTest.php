@@ -19,7 +19,7 @@ final class OAuthMcpAuthTest extends TestCase
     #[Test]
     public function it_delegates_a_bearer_token_with_the_exact_resource_audience(): void
     {
-        $account = $this->createMock(AuthorizationPrincipalInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn(42);
         $validator = new class ($account) implements OAuthAccessTokenValidatorInterface {
             public string $token = '';
@@ -48,7 +48,7 @@ final class OAuthMcpAuthTest extends TestCase
     #[Test]
     public function malformed_empty_and_scopeless_tokens_fail_closed(): void
     {
-        $account = $this->createMock(AuthorizationPrincipalInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $validator = new class ($account) implements OAuthAccessTokenValidatorInterface {
             public function __construct(private AuthorizationPrincipalInterface $account) {}
 

@@ -39,19 +39,19 @@ final class SemanticIndexWarmerTest extends TestCase
         $nodeB = new SemanticWarmerEntity(2, 'node', ['title' => 'Draft', 'status' => 0, 'workflow_state' => 'draft']);
         $nodeC = new SemanticWarmerEntity(3, 'node', ['title' => 'Public', 'status' => 1, 'workflow_state' => 'published']);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
 
         // C-22 WP3: read path now goes through the canonical repository.
         $repository = $this->createMock(EntityRepositoryInterface::class);
         $repository->method('getQuery')->willReturn($query);
-        $repository->method('findMany')
+        $repository->expects(self::once())->method('findMany')
             ->with([1, 2, 3])
             ->willReturn([$nodeA, $nodeB, $nodeC]);
 
         $manager = $this->createMock(EntityTypeManagerInterface::class);
-        $manager->method('hasDefinition')->with('node')->willReturn(true);
-        $manager->method('getStorage')->with('node')->willReturn($storage);
-        $manager->method('getRepository')->with('node')->willReturn($repository);
+        $manager->expects(self::once())->method('hasDefinition')->with('node')->willReturn(true);
+        $manager->expects(self::never())->method('getStorage');
+        $manager->expects(self::exactly(2))->method('getRepository')->with('node')->willReturn($repository);
 
         $provider = $this->createMock(EmbeddingProviderInterface::class);
         $provider->expects($this->exactly(2))
@@ -129,11 +129,11 @@ final class SemanticIndexWarmerTest extends TestCase
         $node2 = new SemanticWarmerEntity(2, 'node', ['title' => 'Two', 'status' => 0, 'workflow_state' => 'draft']);
         $node3 = new SemanticWarmerEntity(3, 'node', ['title' => 'Three', 'status' => 1, 'workflow_state' => 'published']);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('getQuery')->willReturn($query);
 
         // C-22 WP3: read path now goes through the canonical repository.
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
         $repository->method('getQuery')->willReturn($query);
         $repository->method('findMany')->willReturnCallback(
             static fn(array $ids): array => array_values(array_filter([
@@ -144,11 +144,11 @@ final class SemanticIndexWarmerTest extends TestCase
         );
 
         $manager = $this->createMock(EntityTypeManagerInterface::class);
-        $manager->method('hasDefinition')->with('node')->willReturn(true);
-        $manager->method('getStorage')->with('node')->willReturn($storage);
-        $manager->method('getRepository')->with('node')->willReturn($repository);
+        $manager->expects(self::exactly(2))->method('hasDefinition')->with('node')->willReturn(true);
+        $manager->expects(self::never())->method('getStorage');
+        $manager->expects(self::exactly(4))->method('getRepository')->with('node')->willReturn($repository);
 
-        $provider = $this->createMock(EmbeddingProviderInterface::class);
+        $provider = $this->createStub(EmbeddingProviderInterface::class);
         $provider->method('embed')->willReturn([0.1, 0.2]);
 
         $embeddingStorage = $this->createMock(EmbeddingStorageInterface::class);

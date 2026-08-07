@@ -42,7 +42,7 @@ final class RegisterControllerTest extends TestCase
 
     private function makeEntityTypeManager(?EntityStorageInterface $storage = null, mixed $existing = null): EntityTypeManager
     {
-        $manager = $this->createMock(EntityTypeManager::class);
+        $manager = $this->createStub(EntityTypeManager::class);
 
         if ($storage !== null) {
             $manager->method('getStorage')->willReturn($storage);
@@ -67,7 +67,7 @@ final class RegisterControllerTest extends TestCase
 
     private function makeStorage(mixed $existing = null): EntityStorageInterface
     {
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('loadByKey')->willReturn($existing);
         $storage->method('save')->willReturn(1); // SAVED_NEW
 
@@ -76,7 +76,7 @@ final class RegisterControllerTest extends TestCase
 
     private function makeTokenRepo(): AuthTokenRepositoryInterface
     {
-        $repo = $this->createMock(AuthTokenRepositoryInterface::class);
+        $repo = $this->createStub(AuthTokenRepositoryInterface::class);
         $repo->method('createToken')->willReturn('tok_' . bin2hex(random_bytes(8)));
         $repo->method('validateToken')->willReturn(['id' => 1, 'user_id' => null, 'meta' => null]);
 
@@ -85,7 +85,7 @@ final class RegisterControllerTest extends TestCase
 
     private function makeAuthMailer(bool $configured = false): AuthMailer
     {
-        $mailer = $this->createMock(AuthMailer::class);
+        $mailer = $this->createStub(AuthMailer::class);
         $mailer->method('isConfigured')->willReturn($configured);
 
         return $mailer;
@@ -226,7 +226,7 @@ final class RegisterControllerTest extends TestCase
     #[Test]
     public function returns_422_for_invalid_invite_token(): void
     {
-        $tokenRepo = $this->createMock(AuthTokenRepositoryInterface::class);
+        $tokenRepo = $this->createStub(AuthTokenRepositoryInterface::class);
         $tokenRepo->method('validateToken')->willReturn(null);
 
         $controller = $this->makeController(
@@ -334,7 +334,7 @@ final class RegisterControllerTest extends TestCase
         $storage = $this->makeStorage(null);
         $existing = null;
 
-        $tokenRepo = $this->createMock(AuthTokenRepositoryInterface::class);
+        $tokenRepo = $this->createStub(AuthTokenRepositoryInterface::class);
         $tokenRepo->method('createToken')->willReturn('verify-token-abc');
 
         $mailer = $this->createMock(AuthMailer::class);

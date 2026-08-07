@@ -29,7 +29,7 @@ final class EntityTypeManagerTenancyDeprecationTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->eventDispatcher = $this->createMock(EventDispatcherInterface::class);
+        $this->eventDispatcher = $this->createStub(EventDispatcherInterface::class);
     }
 
     public function testWarnsOnceWhenMarkerPresentAndTenancySlotNull(): void

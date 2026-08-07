@@ -20,7 +20,7 @@ final class EntityAccessHandlerBundleFilterTest extends TestCase
 {
     private function entity(string $typeId, string $bundle): EntityInterface
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn($typeId);
         $entity->method('bundle')->willReturn($bundle);
 
@@ -29,7 +29,7 @@ final class EntityAccessHandlerBundleFilterTest extends TestCase
 
     private function account(): AccountInterface
     {
-        return $this->createMock(AccountInterface::class);
+        return $this->createStub(AccountInterface::class);
     }
 
     #[Test]

@@ -39,7 +39,7 @@ final class ResourceSerializerFieldAccessTest extends TestCase
 
     private function createAccount(): AccountInterface
     {
-        return $this->createMock(AccountInterface::class);
+        return $this->createStub(AccountInterface::class);
     }
 
     /**
@@ -117,8 +117,8 @@ final class ResourceSerializerFieldAccessTest extends TestCase
         $accessHandler = new EntityAccessHandler([
             $this->createViewDenyPolicy('article', []),
         ]);
-        $account = $this->createAccount();
-        $account->method('hasPermission')->with('administer users')->willReturn(true);
+        $account = $this->createMock(AccountInterface::class);
+        $account->expects(self::never())->method('hasPermission');
         $entity = new TestEntity([
             'id' => 1,
             'uuid' => 'uuid-1',

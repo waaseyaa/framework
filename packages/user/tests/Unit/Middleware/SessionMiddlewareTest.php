@@ -273,7 +273,7 @@ final class SessionMiddlewareTest extends TestCase
     #[Test]
     public function passes_response_from_next_handler(): void
     {
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
         $middleware = new SessionMiddleware($repository);
         $request = Request::create('/test');
 
@@ -320,7 +320,7 @@ final class SessionMiddlewareTest extends TestCase
     #[Test]
     public function attaches_native_session_to_request(): void
     {
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
         $middleware = new SessionMiddleware($repository);
         $request = Request::create('/test');
 
@@ -343,7 +343,7 @@ final class SessionMiddlewareTest extends TestCase
     #[Test]
     public function does_not_replace_existing_session(): void
     {
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
         $middleware = new SessionMiddleware($repository);
         $request = Request::create('/test');
 
@@ -483,7 +483,7 @@ final class SessionMiddlewareTest extends TestCase
     #[RunInSeparateProcess]
     public function applies_session_cookie_ini_when_configured(): void
     {
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
         $keys = [
             'session.cookie_httponly',
             'session.cookie_secure',
@@ -526,7 +526,7 @@ final class SessionMiddlewareTest extends TestCase
     #[RunInSeparateProcess]
     public function secure_auto_rejects_forwarded_proto_from_untrusted_ip(): void
     {
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
         $savedSecure = ini_get('session.cookie_secure');
         try {
             unset($_SERVER['HTTPS']);
@@ -553,7 +553,7 @@ final class SessionMiddlewareTest extends TestCase
     #[RunInSeparateProcess]
     public function secure_auto_respects_x_forwarded_proto(): void
     {
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
         $savedSecure = ini_get('session.cookie_secure');
         try {
             unset($_SERVER['HTTPS']);
@@ -580,7 +580,7 @@ final class SessionMiddlewareTest extends TestCase
     #[RunInSeparateProcess]
     public function applies_secure_session_cookie_defaults_when_unconfigured(): void
     {
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
         $keys = [
             'session.cookie_httponly',
             'session.cookie_samesite',
@@ -624,7 +624,7 @@ final class SessionMiddlewareTest extends TestCase
     #[RunInSeparateProcess]
     public function explicit_session_cookie_options_override_secure_defaults(): void
     {
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
         $keys = [
             'session.cookie_httponly',
             'session.cookie_samesite',

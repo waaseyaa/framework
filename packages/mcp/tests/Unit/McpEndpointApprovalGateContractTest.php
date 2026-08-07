@@ -38,7 +38,7 @@ final class McpEndpointApprovalGateContractTest extends TestCase
         $this->expectExceptionMessageMatches('/approval/i');
 
         new McpEndpoint(
-            auth: $this->createMock(McpAuthInterface::class),
+            auth: $this->createStub(McpAuthInterface::class),
             agentRegistry: $this->emptyRegistry(),
             auditLedger: $this->workingLedger(),
             durableAudit: true,
@@ -58,7 +58,7 @@ final class McpEndpointApprovalGateContractTest extends TestCase
         $this->expectExceptionMessageMatches('/approval/i');
 
         new McpEndpoint(
-            auth: $this->createMock(McpAuthInterface::class),
+            auth: $this->createStub(McpAuthInterface::class),
             agentRegistry: $this->emptyRegistry(),
             durableAudit: false,
             approvalStore: $this->emptyStore(),
@@ -70,7 +70,7 @@ final class McpEndpointApprovalGateContractTest extends TestCase
     public function a_fully_wired_approval_gate_constructs(): void
     {
         $endpoint = new McpEndpoint(
-            auth: $this->createMock(McpAuthInterface::class),
+            auth: $this->createStub(McpAuthInterface::class),
             agentRegistry: $this->emptyRegistry(),
             auditLedger: $this->workingLedger(),
             durableAudit: true,
@@ -85,7 +85,7 @@ final class McpEndpointApprovalGateContractTest extends TestCase
     public function an_ungated_endpoint_still_constructs_without_a_store(): void
     {
         $endpoint = new McpEndpoint(
-            auth: $this->createMock(McpAuthInterface::class),
+            auth: $this->createStub(McpAuthInterface::class),
             agentRegistry: $this->emptyRegistry(),
         );
 

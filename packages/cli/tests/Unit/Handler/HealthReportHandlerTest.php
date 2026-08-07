@@ -34,7 +34,7 @@ final class HealthReportHandlerTest extends TestCase
     #[Test]
     public function plainOutputContainsSystemInfo(): void
     {
-        $checker = $this->createMock(HealthCheckerInterface::class);
+        $checker = $this->createStub(HealthCheckerInterface::class);
         $checker->method('runAll')->willReturn([
             HealthCheckResult::pass('Database', 'OK'),
         ]);
@@ -50,7 +50,7 @@ final class HealthReportHandlerTest extends TestCase
     #[Test]
     public function jsonOptionOutputsJson(): void
     {
-        $checker = $this->createMock(HealthCheckerInterface::class);
+        $checker = $this->createStub(HealthCheckerInterface::class);
         $checker->method('runAll')->willReturn([
             HealthCheckResult::pass('Database', 'OK'),
         ]);
@@ -68,7 +68,7 @@ final class HealthReportHandlerTest extends TestCase
     #[Test]
     public function outputOptionWithoutJsonReturnsFailure(): void
     {
-        $checker = $this->createMock(HealthCheckerInterface::class);
+        $checker = $this->createStub(HealthCheckerInterface::class);
         $checker->method('runAll')->willReturn([]);
 
         $outputFile = $this->projectRoot . '/report.json';
@@ -87,7 +87,7 @@ final class HealthReportHandlerTest extends TestCase
         // Mission request-surface-hardening (#1650) WP02, contract §15: the
         // display surface shows what the kernel actually opens — a relative
         // WAASEYAA_DB resolves against the project root.
-        $checker = $this->createMock(HealthCheckerInterface::class);
+        $checker = $this->createStub(HealthCheckerInterface::class);
         $checker->method('runAll')->willReturn([]);
 
         putenv('WAASEYAA_DB=./storage/health.sqlite');

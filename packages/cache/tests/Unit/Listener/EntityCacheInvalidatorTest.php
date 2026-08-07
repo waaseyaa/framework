@@ -19,7 +19,7 @@ final class EntityCacheInvalidatorTest extends TestCase
     #[Test]
     public function on_post_save_invalidates_entity_tags(): void
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn('node');
         $entity->method('id')->willReturn(42);
 
@@ -35,7 +35,7 @@ final class EntityCacheInvalidatorTest extends TestCase
     #[Test]
     public function on_post_delete_invalidates_entity_tags(): void
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn('user');
         $entity->method('id')->willReturn(7);
 
@@ -51,7 +51,7 @@ final class EntityCacheInvalidatorTest extends TestCase
     #[Test]
     public function new_entity_without_id_invalidates_type_tag_only(): void
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn('node');
         $entity->method('id')->willReturn(null);
 
@@ -67,7 +67,7 @@ final class EntityCacheInvalidatorTest extends TestCase
     #[Test]
     public function string_entity_id_is_supported(): void
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn('taxonomy_term');
         $entity->method('id')->willReturn('abc-123');
 
@@ -120,7 +120,7 @@ final class EntityCacheInvalidatorTest extends TestCase
     #[Test]
     public function on_revision_reverted_invalidates_entity_tags(): void
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn('node');
         $entity->method('id')->willReturn(12);
 

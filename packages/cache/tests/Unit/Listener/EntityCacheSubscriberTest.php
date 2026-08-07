@@ -50,7 +50,7 @@ final class EntityCacheSubscriberTest extends TestCase
     public function revision_reverted_event_invalidates_the_right_tags(): void
     {
         $dispatcher = new EventDispatcher();
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn('node');
         $entity->method('id')->willReturn(3);
 

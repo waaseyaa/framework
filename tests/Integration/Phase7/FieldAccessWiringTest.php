@@ -63,7 +63,7 @@ final class FieldAccessWiringTest extends TestCase
         );
         $this->entityTypeManager->registerEntityType($this->entityType);
 
-        $this->account = $this->createMock(AccountInterface::class);
+        $this->account = $this->createStub(AccountInterface::class);
 
         // Policy: forbid viewing 'secret', forbid editing 'status'.
         $policy = new class implements AccessPolicyInterface, FieldAccessPolicyInterface {

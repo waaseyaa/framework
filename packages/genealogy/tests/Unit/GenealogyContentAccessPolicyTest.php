@@ -27,18 +27,18 @@ final class GenealogyContentAccessPolicyTest extends TestCase
      * Resolves tree_id to a published tree so {@see GenealogyContentAccessPolicy}
      * exercises anonymous published rules, not "tree could not be resolved".
      */
-    private function bindPublishedTreeStorage(int $treeId, GenealogyTree $tree): void
+    private function bindPublishedTreeStorage(int $treeId, GenealogyTree $tree, bool $expectLookup = true): void
     {
         $treeStorage = $this->createMock(EntityStorageInterface::class);
-        $treeStorage->method('load')->with((string) $treeId)->willReturn($tree);
+        $treeStorage->expects(self::never())->method('load');
 
         // C-22 WP3: read path now goes through the canonical repository.
         $treeRepository = $this->createMock(EntityRepositoryInterface::class);
-        $treeRepository->method('find')->with((string) $treeId)->willReturn($tree);
+        $treeRepository->expects($expectLookup ? self::once() : self::never())->method('find')->with((string) $treeId)->willReturn($tree);
 
         $etm = $this->createMock(EntityTypeManagerInterface::class);
-        $etm->method('getStorage')->with('genealogy_tree')->willReturn($treeStorage);
-        $etm->method('getRepository')->with('genealogy_tree')->willReturn($treeRepository);
+        $etm->expects(self::never())->method('getStorage');
+        $etm->expects($expectLookup ? self::once() : self::never())->method('getRepository')->with('genealogy_tree')->willReturn($treeRepository);
 
         GenealogyBootstrap::bind($etm, null);
     }
@@ -101,7 +101,7 @@ final class GenealogyContentAccessPolicyTest extends TestCase
             'display_name' => 'Fixture tree',
             'status' => 1,
             'owner_uid' => 99,
-        ]));
+        ]), expectLookup: false);
 
         $policy = new GenealogyContentAccessPolicy();
         $account = new DevAdminAccount();

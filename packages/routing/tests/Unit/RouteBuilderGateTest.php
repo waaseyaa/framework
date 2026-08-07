@@ -68,10 +68,10 @@ final class RouteBuilderGateTest extends TestCase
     public function routeBuilderGateEnforcedByAccessCheckerDeniesWithoutAbility(): void
     {
         // Account that does NOT have the gate ability.
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
 
         $gate = $this->createMock(GateInterface::class);
-        $gate->method('allows')
+        $gate->expects(self::once())->method('allows')
             ->with('config.export', null, $account)
             ->willReturn(false);
 
@@ -93,10 +93,10 @@ final class RouteBuilderGateTest extends TestCase
     public function routeBuilderGateEnforcedByAccessCheckerAllowsWithAbility(): void
     {
         // Account that DOES have the gate ability.
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
 
         $gate = $this->createMock(GateInterface::class);
-        $gate->method('allows')
+        $gate->expects(self::once())->method('allows')
             ->with('config.export', null, $account)
             ->willReturn(true);
 

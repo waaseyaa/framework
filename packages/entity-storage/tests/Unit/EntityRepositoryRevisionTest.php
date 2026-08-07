@@ -48,7 +48,7 @@ final class EntityRepositoryRevisionTest extends TestCase
         $revisionDriver = new RevisionableStorageDriver($resolver, $entityType);
 
         $this->dispatchedEvents = [];
-        $dispatcher = $this->createMock(EventDispatcherInterface::class);
+        $dispatcher = $this->createStub(EventDispatcherInterface::class);
         $dispatcher->method('dispatch')->willReturnCallback(function ($event, $eventName) {
             $this->dispatchedEvents[] = $eventName;
             return $event;

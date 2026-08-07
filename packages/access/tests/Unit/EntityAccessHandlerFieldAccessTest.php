@@ -23,14 +23,14 @@ final class EntityAccessHandlerFieldAccessTest extends TestCase
 
     private function createEntity(string $typeId = 'node'): EntityInterface
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn($typeId);
         return $entity;
     }
 
     private function createAccount(): AccountInterface
     {
-        return $this->createMock(AccountInterface::class);
+        return $this->createStub(AccountInterface::class);
     }
 
     /**
@@ -132,7 +132,7 @@ final class EntityAccessHandlerFieldAccessTest extends TestCase
     public function checkFieldAccessSkipsPoliciesWithoutFieldInterface(): void
     {
         // A policy that only implements AccessPolicyInterface (no field access).
-        $entityOnlyPolicy = $this->createMock(AccessPolicyInterface::class);
+        $entityOnlyPolicy = $this->createStub(AccessPolicyInterface::class);
         $entityOnlyPolicy->method('appliesTo')->willReturn(true);
 
         $handler = new EntityAccessHandler([$entityOnlyPolicy]);

@@ -35,7 +35,7 @@ final class McpEndpointErrorSanitizationTest extends TestCase
 
     private function principal(): AccountInterface
     {
-        $account = $this->createMock(AuthorizationPrincipalInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn(3);
         $account->method('hasPermission')->willReturn(true);
 
@@ -44,7 +44,7 @@ final class McpEndpointErrorSanitizationTest extends TestCase
 
     private function endpoint(?RecordingLogger $logger): McpEndpoint
     {
-        $auth = $this->createMock(McpAuthInterface::class);
+        $auth = $this->createStub(McpAuthInterface::class);
         $auth->method('authenticate')->willReturn($this->principal());
 
         return new McpEndpoint(

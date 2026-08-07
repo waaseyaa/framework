@@ -113,7 +113,7 @@ final class McpEndpointSchemaOrderingTest extends TestCase
 
     private function account(): AccountInterface
     {
-        $account = $this->createMock(AuthorizationPrincipalInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn(1);
 
         return $account;
@@ -121,7 +121,7 @@ final class McpEndpointSchemaOrderingTest extends TestCase
 
     private function endpoint(bool $authenticates, ?AtomicRateLimiterInterface $limiter = null): McpEndpoint
     {
-        $auth = $this->createMock(McpAuthInterface::class);
+        $auth = $this->createStub(McpAuthInterface::class);
         $auth->method('authenticate')->willReturn($authenticates ? $this->account() : null);
 
         return new McpEndpoint(

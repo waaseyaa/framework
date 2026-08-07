@@ -39,7 +39,7 @@ final class McpEndpointDurableAuditContractTest extends TestCase
         $this->expectExceptionMessageMatches('/durable/i');
 
         new McpEndpoint(
-            auth: $this->createMock(McpAuthInterface::class),
+            auth: $this->createStub(McpAuthInterface::class),
             agentRegistry: $this->emptyRegistry(),
             durableAudit: true,
         );
@@ -54,7 +54,7 @@ final class McpEndpointDurableAuditContractTest extends TestCase
         $this->expectExceptionMessageMatches('/durable/i');
 
         new McpEndpoint(
-            auth: $this->createMock(McpAuthInterface::class),
+            auth: $this->createStub(McpAuthInterface::class),
             agentRegistry: $this->emptyRegistry(),
             auditLedger: new NullStrictAuditLedger(),
             durableAudit: true,
@@ -66,7 +66,7 @@ final class McpEndpointDurableAuditContractTest extends TestCase
     {
         // The public read-only tier's documented shape: no ledger, no durability.
         $endpoint = new McpEndpoint(
-            auth: $this->createMock(McpAuthInterface::class),
+            auth: $this->createStub(McpAuthInterface::class),
             agentRegistry: $this->emptyRegistry(),
         );
 
@@ -88,7 +88,7 @@ final class McpEndpointDurableAuditContractTest extends TestCase
         };
 
         $endpoint = new McpEndpoint(
-            auth: $this->createMock(McpAuthInterface::class),
+            auth: $this->createStub(McpAuthInterface::class),
             agentRegistry: $this->emptyRegistry(),
             auditLedger: $ledger,
             durableAudit: true,
@@ -109,7 +109,7 @@ final class McpEndpointDurableAuditContractTest extends TestCase
     #[Test]
     public function a_refusal_survives_a_ledger_that_breaks_its_exception_contract(): void
     {
-        $auth = $this->createMock(McpAuthInterface::class);
+        $auth = $this->createStub(McpAuthInterface::class);
         $auth->method('authenticate')->willReturn(null);
 
         $contractBreakingLedger = new class implements StrictAuditLedgerInterface {
@@ -145,7 +145,7 @@ final class McpEndpointDurableAuditContractTest extends TestCase
             ['HTTP_AUTHORIZATION' => 'Bearer bad'],
             '{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
         );
-        $response = $endpoint->handle($this->createMock(\Waaseyaa\Access\AccountInterface::class), $request);
+        $response = $endpoint->handle($this->createStub(\Waaseyaa\Access\AccountInterface::class), $request);
 
         self::assertSame(401, $response->statusCode, 'The refusal must survive the failed terminal record.');
         self::assertSame(-32001, \json_decode($response->body, true)['error']['code']);

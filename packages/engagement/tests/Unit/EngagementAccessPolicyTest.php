@@ -48,8 +48,8 @@ final class EngagementAccessPolicyTest extends TestCase
     public function admin_is_always_allowed(): void
     {
         $account = $this->createMock(AccountInterface::class);
-        $account->method('hasPermission')->with('administer content')->willReturn(true);
-        $entity = $this->createMock(EntityInterface::class);
+        $account->expects(self::once())->method('hasPermission')->with('administer content')->willReturn(true);
+        $entity = $this->createStub(EntityInterface::class);
 
         $result = $this->policy->access($entity, 'view', $account);
         $this->assertTrue($result->isAllowed());
@@ -58,7 +58,7 @@ final class EngagementAccessPolicyTest extends TestCase
     #[Test]
     public function view_cascades_allowed_when_parent_is_viewable(): void
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('hasPermission')->willReturn(false);
 
         $policy = $this->policyWithParent('post', 7, parentViewable: true);
@@ -72,7 +72,7 @@ final class EngagementAccessPolicyTest extends TestCase
     public function view_is_denied_when_parent_is_not_viewable(): void
     {
         // A published comment on a draft post must not be visible (parent-cascade).
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('hasPermission')->willReturn(false);
 
         $policy = $this->policyWithParent('post', 7, parentViewable: false);
@@ -85,7 +85,7 @@ final class EngagementAccessPolicyTest extends TestCase
     #[Test]
     public function view_of_unpublished_comment_is_denied_to_non_owner(): void
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('hasPermission')->willReturn(false);
         $account->method('id')->willReturn(99);
 
@@ -100,7 +100,7 @@ final class EngagementAccessPolicyTest extends TestCase
     #[Test]
     public function view_of_unpublished_comment_is_allowed_to_owner(): void
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('hasPermission')->willReturn(false);
         $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(42);
@@ -143,7 +143,7 @@ final class EngagementAccessPolicyTest extends TestCase
         // The exact exploit: a comment with user_id === 0 (mintable pre-fix via
         // the client-writable user_id field hole) must not be "owned" by the
         // anonymous account just because AnonymousUser::id() also returns 0.
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('hasPermission')->willReturn(false);
         $account->method('isAuthenticated')->willReturn(false);
         $account->method('id')->willReturn(0);
@@ -161,7 +161,7 @@ final class EngagementAccessPolicyTest extends TestCase
     {
         // The bare policy (no entity-type-manager / access-handler) cannot prove
         // parent visibility, so view is denied rather than leaked.
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('hasPermission')->willReturn(false);
         $entity = $this->engagement('comment', targetType: 'post', targetId: 7, status: true);
 
@@ -172,13 +172,13 @@ final class EngagementAccessPolicyTest extends TestCase
     #[Test]
     public function owner_can_delete(): void
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('hasPermission')->willReturn(false);
         $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(42);
 
         $entity = $this->createMock(EntityInterface::class);
-        $entity->method('get')->with('user_id')->willReturn(42);
+        $entity->expects(self::once())->method('get')->with('user_id')->willReturn(42);
 
         $result = $this->policy->access($entity, 'delete', $account);
         $this->assertTrue($result->isAllowed());
@@ -187,13 +187,13 @@ final class EngagementAccessPolicyTest extends TestCase
     #[Test]
     public function non_owner_cannot_delete(): void
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('hasPermission')->willReturn(false);
         $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(99);
 
         $entity = $this->createMock(EntityInterface::class);
-        $entity->method('get')->with('user_id')->willReturn(42);
+        $entity->expects(self::once())->method('get')->with('user_id')->willReturn(42);
 
         $result = $this->policy->access($entity, 'delete', $account);
         $this->assertTrue($result->isNeutral());
@@ -206,13 +206,13 @@ final class EngagementAccessPolicyTest extends TestCase
         // user_id === 0 (mintable pre-fix via the client-writable user_id
         // field hole) must not grant anonymous DELETE just because the ids
         // collide.
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('hasPermission')->willReturn(false);
         $account->method('isAuthenticated')->willReturn(false);
         $account->method('id')->willReturn(0);
 
         $entity = $this->createMock(EntityInterface::class);
-        $entity->method('get')->with('user_id')->willReturn(0);
+        $entity->expects(self::once())->method('get')->with('user_id')->willReturn(0);
 
         $result = $this->policy->access($entity, 'delete', $account);
         $this->assertTrue($result->isNeutral(), 'Anonymous must not be granted delete on a user_id=0 row.');
@@ -224,20 +224,20 @@ final class EngagementAccessPolicyTest extends TestCase
      */
     private function policyWithParent(string $type, int $id, bool $parentViewable): EngagementAccessPolicy
     {
-        $parent = $this->createMock(EntityInterface::class);
+        $parent = $this->createStub(EntityInterface::class);
         $parent->method('getEntityTypeId')->willReturn($type);
         $parent->method('bundle')->willReturn('');
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('load')->willReturn($parent);
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturnCallback(static fn(string $t): bool => $t === $type);
         $etm->method('getStorage')->willReturn($storage);
         // C-22 WP3: read path now goes through the canonical repository.
         $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 
-        $policy = $this->createMock(AccessPolicyInterface::class);
+        $policy = $this->createStub(AccessPolicyInterface::class);
         $policy->method('appliesTo')->willReturnCallback(static fn(string $t): bool => $t === $type);
         $policy->method('access')->willReturn(
             $parentViewable ? AccessResult::allowed('viewable') : AccessResult::neutral('hidden'),
@@ -253,7 +253,7 @@ final class EngagementAccessPolicyTest extends TestCase
         bool $status = true,
         int $ownerId = 1,
     ): EntityInterface {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn($type);
         $entity->method('get')->willReturnCallback(
             static fn(string $field): mixed => match ($field) {
@@ -271,7 +271,7 @@ final class EngagementAccessPolicyTest extends TestCase
     #[Test]
     public function authenticated_can_create(): void
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('hasPermission')->willReturn(false);
         $account->method('isAuthenticated')->willReturn(true);
 
@@ -282,7 +282,7 @@ final class EngagementAccessPolicyTest extends TestCase
     #[Test]
     public function anonymous_cannot_create(): void
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('hasPermission')->willReturn(false);
         $account->method('isAuthenticated')->willReturn(false);
 

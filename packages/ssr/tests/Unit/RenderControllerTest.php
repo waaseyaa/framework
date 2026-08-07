@@ -223,7 +223,7 @@ final class RenderControllerTest extends TestCase
             label: 'Node',
             fieldDefinitions: ['title' => ['type' => 'string']],
         );
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinition')->willReturn($definition);
 
         $renderer = new EntityRenderer($manager, new FieldFormatterRegistry(), new ArrayViewModeConfig([
@@ -258,7 +258,7 @@ final class RenderControllerTest extends TestCase
             label: 'Node',
             fieldDefinitions: ['title' => ['type' => 'string']],
         );
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinition')->willReturn($definition);
 
         $renderer = new EntityRenderer($manager, new FieldFormatterRegistry(), new ArrayViewModeConfig([
@@ -297,7 +297,7 @@ final class RenderControllerTest extends TestCase
             label: 'Node',
             fieldDefinitions: ['title' => ['type' => 'string']],
         );
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinition')->willReturn($definition);
 
         $renderer = new EntityRenderer($manager, new FieldFormatterRegistry(), new ArrayViewModeConfig([

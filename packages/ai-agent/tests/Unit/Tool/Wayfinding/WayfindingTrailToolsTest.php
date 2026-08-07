@@ -225,7 +225,7 @@ final class WayfindingTrailToolsTest extends TestCase
         $handler->ensureTranslationRevisionTable();
 
         $resolver = new SingleConnectionResolver($db);
-        $dispatcher = $this->createMock(EventDispatcherInterface::class);
+        $dispatcher = $this->createStub(EventDispatcherInterface::class);
         $dispatcher->method('dispatch')->willReturnArgument(0);
 
         return \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
@@ -239,7 +239,7 @@ final class WayfindingTrailToolsTest extends TestCase
 
     private function account(bool $hasCapability, int $id = 42): AccountInterface
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('id')->willReturn($id);
         $account->method('hasPermission')->willReturnCallback(
             static fn(string $permission): bool => $hasCapability && $permission === EmitBeaconController::CAPABILITY,

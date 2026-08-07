@@ -38,14 +38,14 @@ final class SchemaPresenterFieldAccessTest extends TestCase
 
     private function createEntity(): EntityInterface
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn('article');
         return $entity;
     }
 
     private function createAccount(): AccountInterface
     {
-        return $this->createMock(AccountInterface::class);
+        return $this->createStub(AccountInterface::class);
     }
 
     private function createFieldDefs(): array

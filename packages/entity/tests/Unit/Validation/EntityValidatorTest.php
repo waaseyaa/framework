@@ -27,7 +27,7 @@ final class EntityValidatorTest extends TestCase
             'status' => 'published',
         ]);
 
-        $symfonyValidator = $this->createMock(ValidatorInterface::class);
+        $symfonyValidator = $this->createStub(ValidatorInterface::class);
         $symfonyValidator->method('validate')
             ->willReturn(new ConstraintViolationList());
 
@@ -65,7 +65,7 @@ final class EntityValidatorTest extends TestCase
             'invalid',
         );
 
-        $symfonyValidator = $this->createMock(ValidatorInterface::class);
+        $symfonyValidator = $this->createStub(ValidatorInterface::class);
         $symfonyValidator->method('validate')
             ->willReturnOnConsecutiveCalls(
                 new ConstraintViolationList([$titleViolation]),
@@ -114,7 +114,7 @@ final class EntityValidatorTest extends TestCase
 
     public function testValidateUsesEntityGetForFieldValues(): void
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('get')
             ->willReturnMap([
                 ['title', 'Hello'],
@@ -136,7 +136,7 @@ final class EntityValidatorTest extends TestCase
 
     public function testValidateWithEmptyConstraintsReturnsNoViolations(): void
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('toArray')->willReturn(['title' => '']);
 
         $symfonyValidator = $this->createMock(ValidatorInterface::class);
@@ -163,7 +163,7 @@ final class EntityValidatorTest extends TestCase
             '',
         );
 
-        $symfonyValidator = $this->createMock(ValidatorInterface::class);
+        $symfonyValidator = $this->createStub(ValidatorInterface::class);
         $symfonyValidator->method('validate')
             ->willReturn(new ConstraintViolationList([$violation]));
 
@@ -224,7 +224,7 @@ final class EntityValidatorTest extends TestCase
      */
     private function createFieldableEntity(array $values): EntityInterface&FieldableInterface
     {
-        $entity = $this->createMock(FieldableEntityStub::class);
+        $entity = $this->createStub(FieldableEntityStub::class);
         $entity->method('toArray')->willReturn($values);
         $entity->method('get')->willReturnCallback(
             fn (string $name): mixed => $values[$name] ?? null,

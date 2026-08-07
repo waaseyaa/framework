@@ -24,7 +24,7 @@ final class ResetPasswordControllerTest extends TestCase
 
     private function makeStorage(mixed $user = null): EntityStorageInterface
     {
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('load')->willReturn($user);
         $storage->method('save')->willReturn(1);
 
@@ -34,7 +34,7 @@ final class ResetPasswordControllerTest extends TestCase
     private function makeEntityTypeManager(?EntityStorageInterface $storage = null): EntityTypeManager
     {
         $storage ??= $this->makeStorage();
-        $manager = $this->createMock(EntityTypeManager::class);
+        $manager = $this->createStub(EntityTypeManager::class);
         $manager->method('getStorage')->willReturn($storage);
         // C-22 WP3: read/write path now goes through the canonical repository.
         $manager->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
@@ -44,7 +44,7 @@ final class ResetPasswordControllerTest extends TestCase
 
     private function makeTokenRepo(?array $tokenData = ['id' => 1, 'user_id' => 42, 'meta' => null]): AuthTokenRepositoryInterface
     {
-        $repo = $this->createMock(AuthTokenRepositoryInterface::class);
+        $repo = $this->createStub(AuthTokenRepositoryInterface::class);
         $repo->method('validateToken')->willReturn($tokenData);
 
         return $repo;

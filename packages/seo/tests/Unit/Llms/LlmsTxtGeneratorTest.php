@@ -257,13 +257,13 @@ final class LlmsTxtGeneratorTest extends TestCase
         $query->method('execute')->willReturn([1]);
         $query->expects(self::once())->method('condition')->with('status', 1)->willReturnSelf();
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('getQuery')->willReturn($query);
 
         $def = $this->createStub(\Waaseyaa\Entity\EntityTypeInterface::class);
         $def->method('getFieldDefinitions')->willReturn(['status' => true, 'title' => true]);
 
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn(['node' => $def]);
         $manager->method('getStorage')->willReturn($storage);
         // C-22: the query builder now lives on the repository.
@@ -281,7 +281,7 @@ final class LlmsTxtGeneratorTest extends TestCase
      */
     private function managerWith(array $typeIds): EntityTypeManagerInterface
     {
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
 
         $definitions = [];
         foreach (array_keys($typeIds) as $type) {
@@ -290,19 +290,19 @@ final class LlmsTxtGeneratorTest extends TestCase
         $manager->method('getDefinitions')->willReturn($definitions);
 
         $manager->method('getStorage')->willReturnCallback(function (string $type) use ($typeIds): EntityStorageInterface {
-            $query = $this->createMock(EntityQueryInterface::class);
+            $query = $this->createStub(EntityQueryInterface::class);
             $query->method('accessCheck')->willReturnSelf();
             $query->method('range')->willReturnSelf();
             $query->method('execute')->willReturn($typeIds[$type] ?? []);
 
-            $storage = $this->createMock(EntityStorageInterface::class);
+            $storage = $this->createStub(EntityStorageInterface::class);
             $storage->method('getQuery')->willReturn($query);
 
             return $storage;
         });
         // C-22: the query builder now lives on the repository.
         $manager->method('getRepository')->willReturnCallback(function (string $type) use ($typeIds): EntityRepositoryInterface {
-            $query = $this->createMock(EntityQueryInterface::class);
+            $query = $this->createStub(EntityQueryInterface::class);
             $query->method('accessCheck')->willReturnSelf();
             $query->method('range')->willReturnSelf();
             $query->method('execute')->willReturn($typeIds[$type] ?? []);

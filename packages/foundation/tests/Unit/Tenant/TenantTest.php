@@ -46,7 +46,7 @@ final class TenantTest extends TestCase
     #[Test]
     public function tenant_middleware_sets_context_from_resolver(): void
     {
-        $resolver = $this->createMock(TenantResolverInterface::class);
+        $resolver = $this->createStub(TenantResolverInterface::class);
         $resolver->method('resolve')->willReturn('acme');
 
         $context = new TenantContext();
@@ -66,7 +66,7 @@ final class TenantTest extends TestCase
     #[Test]
     public function tenant_middleware_clears_context_on_exception(): void
     {
-        $resolver = $this->createMock(TenantResolverInterface::class);
+        $resolver = $this->createStub(TenantResolverInterface::class);
         $resolver->method('resolve')->willReturn('acme');
 
         $context = new TenantContext();

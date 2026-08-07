@@ -28,7 +28,7 @@ final class AccessCheckerTest extends TestCase
     public function noRequirementsReturnsNeutral(): void
     {
         $route = new Route('/test');
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
 
         $result = $this->checker->check($route, $account);
 
@@ -42,7 +42,7 @@ final class AccessCheckerTest extends TestCase
     {
         $route = new Route('/test');
         $route->setOption('_public', true);
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
 
         $result = $this->checker->check($route, $account);
 
@@ -58,7 +58,7 @@ final class AccessCheckerTest extends TestCase
         $route->setOption('_permission', 'administer site');
 
         $account = $this->createMock(AccountInterface::class);
-        $account->method('hasPermission')
+        $account->expects(self::once())->method('hasPermission')
             ->with('administer site')
             ->willReturn(true);
 
@@ -74,7 +74,7 @@ final class AccessCheckerTest extends TestCase
         $route->setOption('_permission', 'administer site');
 
         $account = $this->createMock(AccountInterface::class);
-        $account->method('hasPermission')
+        $account->expects(self::once())->method('hasPermission')
             ->with('administer site')
             ->willReturn(false);
 
@@ -91,7 +91,7 @@ final class AccessCheckerTest extends TestCase
         $route = new Route('/admin');
         $route->setOption('_role', 'administrator');
 
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('getRoles')
             ->willReturn(['authenticated', 'administrator']);
 
@@ -106,7 +106,7 @@ final class AccessCheckerTest extends TestCase
         $route = new Route('/admin/operations');
         $route->setOption('_role', 'admin');
 
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('getRoles')->willReturn(['administrator']);
 
         $this->assertTrue($this->checker->check($route, $account)->isAllowed());
@@ -118,7 +118,7 @@ final class AccessCheckerTest extends TestCase
         $route = new Route('/admin/superuser');
         $route->setOption('_role', 'administrator');
 
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('getRoles')->willReturn(['admin']);
 
         $this->assertTrue($this->checker->check($route, $account)->isForbidden());
@@ -130,7 +130,7 @@ final class AccessCheckerTest extends TestCase
         $route = new Route('/admin');
         $route->setOption('_role', 'administrator');
 
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('getRoles')
             ->willReturn(['authenticated']);
 
@@ -145,7 +145,7 @@ final class AccessCheckerTest extends TestCase
         $route = new Route('/admin');
         $route->setOption('_role', 'administrator, editor');
 
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('getRoles')
             ->willReturn(['authenticated', 'editor']);
 
@@ -160,7 +160,7 @@ final class AccessCheckerTest extends TestCase
         $route = new Route('/admin');
         $route->setOption('_role', 'administrator, editor');
 
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('getRoles')
             ->willReturn(['authenticated']);
 
@@ -177,7 +177,7 @@ final class AccessCheckerTest extends TestCase
         $route = new Route('/api/node');
         $route->setOption('_authenticated', true);
 
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('isAuthenticated')->willReturn(true);
 
         $result = $this->checker->check($route, $account);
@@ -191,7 +191,7 @@ final class AccessCheckerTest extends TestCase
         $route = new Route('/api/node');
         $route->setOption('_authenticated', true);
 
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('isAuthenticated')->willReturn(false);
 
         $result = $this->checker->check($route, $account);
@@ -226,7 +226,7 @@ final class AccessCheckerTest extends TestCase
 
         $account = $this->createMock(AccountInterface::class);
         $account->method('isAuthenticated')->willReturn(true);
-        $account->method('hasPermission')->with('access content')->willReturn(true);
+        $account->expects(self::once())->method('hasPermission')->with('access content')->willReturn(true);
 
         $result = $this->checker->check($route, $account);
 
@@ -243,7 +243,7 @@ final class AccessCheckerTest extends TestCase
         $route->setOption('_role', 'administrator');
 
         $account = $this->createMock(AccountInterface::class);
-        $account->method('hasPermission')
+        $account->expects(self::once())->method('hasPermission')
             ->with('administer site')
             ->willReturn(true);
         $account->method('getRoles')
@@ -262,7 +262,7 @@ final class AccessCheckerTest extends TestCase
         $route->setOption('_role', 'administrator');
 
         $account = $this->createMock(AccountInterface::class);
-        $account->method('hasPermission')
+        $account->expects(self::once())->method('hasPermission')
             ->with('administer site')
             ->willReturn(true);
         $account->method('getRoles')
@@ -281,7 +281,7 @@ final class AccessCheckerTest extends TestCase
         $route->setOption('_role', 'administrator');
 
         $account = $this->createMock(AccountInterface::class);
-        $account->method('hasPermission')
+        $account->expects(self::once())->method('hasPermission')
             ->with('administer site')
             ->willReturn(false);
         $account->method('getRoles')
@@ -302,7 +302,7 @@ final class AccessCheckerTest extends TestCase
         $route->setOption('_public', true);
         $route->setOption('_authenticated', true);
 
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('isAuthenticated')->willReturn(false);
 
         $result = $this->checker->check($route, $account);
@@ -317,7 +317,7 @@ final class AccessCheckerTest extends TestCase
         $route->setOption('_public', true);
         $route->setOption('_authenticated', true);
 
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('isAuthenticated')->willReturn(true);
 
         $result = $this->checker->check($route, $account);
@@ -333,7 +333,7 @@ final class AccessCheckerTest extends TestCase
         $route->setOption('_permission', 'administer site');
 
         $account = $this->createMock(AccountInterface::class);
-        $account->method('hasPermission')
+        $account->expects(self::once())->method('hasPermission')
             ->with('administer site')
             ->willReturn(true);
 
@@ -350,7 +350,7 @@ final class AccessCheckerTest extends TestCase
         $route->setOption('_permission', 'administer site');
 
         $account = $this->createMock(AccountInterface::class);
-        $account->method('hasPermission')
+        $account->expects(self::once())->method('hasPermission')
             ->with('administer site')
             ->willReturn(false);
 
@@ -371,7 +371,7 @@ final class AccessCheckerTest extends TestCase
         $route = new Route('/chat');
         $route->setOption('_session', true);
 
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $result = $this->checker->check($route, $account);
 
         $this->assertTrue($result->isAllowed());
@@ -388,7 +388,7 @@ final class AccessCheckerTest extends TestCase
         $route = new Route('/chat');
         $route->setOption('_session', ['nickname']);
 
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $result = $this->checker->check($route, $account);
 
         $this->assertTrue($result->isAllowed());
@@ -407,7 +407,7 @@ final class AccessCheckerTest extends TestCase
         $route = new Route('/chat');
         $route->setOption('_session', ['nickname']);
 
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $result = $this->checker->check($route, $account);
 
         $this->assertTrue($result->isForbidden());

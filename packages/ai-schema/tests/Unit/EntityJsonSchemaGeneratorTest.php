@@ -9,6 +9,7 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 #[CoversClass(EntityJsonSchemaGenerator::class)]
@@ -18,7 +19,16 @@ final class EntityJsonSchemaGeneratorTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
+        $this->entityTypeManager = $this->createStub(EntityTypeManagerInterface::class);
+    }
+
+    /** @return EntityTypeManagerInterface&MockObject */
+    private function expectEntityTypeManager(): EntityTypeManagerInterface
+    {
+        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $this->entityTypeManager = $manager;
+
+        return $manager;
     }
 
     #[Test]
@@ -37,7 +47,7 @@ final class EntityJsonSchemaGeneratorTest extends TestCase
             ],
         );
 
-        $this->entityTypeManager
+        $this->expectEntityTypeManager()->expects(self::once())
             ->method('getDefinition')
             ->with('node')
             ->willReturn($entityType);
@@ -68,7 +78,7 @@ final class EntityJsonSchemaGeneratorTest extends TestCase
             ],
         );
 
-        $this->entityTypeManager
+        $this->expectEntityTypeManager()->expects(self::once())
             ->method('getDefinition')
             ->with('node')
             ->willReturn($entityType);
@@ -115,7 +125,7 @@ final class EntityJsonSchemaGeneratorTest extends TestCase
             ],
         );
 
-        $this->entityTypeManager
+        $this->expectEntityTypeManager()->expects(self::once())
             ->method('getDefinition')
             ->with('node')
             ->willReturn($entityType);
@@ -147,7 +157,7 @@ final class EntityJsonSchemaGeneratorTest extends TestCase
             ],
         );
 
-        $this->entityTypeManager
+        $this->expectEntityTypeManager()->expects(self::once())
             ->method('getDefinition')
             ->with('user')
             ->willReturn($entityType);
@@ -175,7 +185,7 @@ final class EntityJsonSchemaGeneratorTest extends TestCase
             revisionable: true,
         );
 
-        $this->entityTypeManager
+        $this->expectEntityTypeManager()->expects(self::once())
             ->method('getDefinition')
             ->with('node')
             ->willReturn($entityType);
@@ -203,7 +213,7 @@ final class EntityJsonSchemaGeneratorTest extends TestCase
             revisionable: false,
         );
 
-        $this->entityTypeManager
+        $this->expectEntityTypeManager()->expects(self::once())
             ->method('getDefinition')
             ->with('user')
             ->willReturn($entityType);
@@ -263,7 +273,7 @@ final class EntityJsonSchemaGeneratorTest extends TestCase
             keys: ['id' => 'id'],
         );
 
-        $this->entityTypeManager
+        $this->expectEntityTypeManager()->expects(self::once())
             ->method('getDefinition')
             ->with('simple')
             ->willReturn($entityType);

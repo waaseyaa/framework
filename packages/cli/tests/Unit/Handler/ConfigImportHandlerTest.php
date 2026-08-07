@@ -57,7 +57,7 @@ final class ConfigImportHandlerTest extends TestCase
             errors: ['Failed to import system.site'],
         );
 
-        $mockManager = $this->createMock(ConfigManagerInterface::class);
+        $mockManager = $this->createStub(ConfigManagerInterface::class);
         $mockManager->method('import')->willReturn($result);
 
         $tester = $this->createTester($mockManager);
@@ -95,11 +95,11 @@ final class ConfigImportHandlerTest extends TestCase
         $manager->method('getSyncStorage')->willReturn($sync);
         $manager->expects($this->never())->method('import');
 
-        $definition = $this->createMock(EntityTypeInterface::class);
+        $definition = $this->createStub(EntityTypeInterface::class);
         $definition->method('isRevisionable')->willReturn(false);
         $entityTypes = $this->createMock(EntityTypeManagerInterface::class);
-        $entityTypes->method('hasDefinition')->with('node')->willReturn(true);
-        $entityTypes->method('getDefinition')->with('node')->willReturn($definition);
+        $entityTypes->expects(self::once())->method('hasDefinition')->with('node')->willReturn(true);
+        $entityTypes->expects(self::once())->method('getDefinition')->with('node')->willReturn($definition);
 
         $provider = new class($manager, $entityTypes) extends ServiceProvider {
             public function __construct(

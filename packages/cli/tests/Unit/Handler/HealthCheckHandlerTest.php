@@ -22,7 +22,7 @@ final class HealthCheckHandlerTest extends TestCase
     #[Test]
     public function allPassingReturnsSuccessAndOutput(): void
     {
-        $checker = $this->createMock(HealthCheckerInterface::class);
+        $checker = $this->createStub(HealthCheckerInterface::class);
         $checker->method('runAll')->willReturn([
             HealthCheckResult::pass('Database', 'DB is accessible.'),
             HealthCheckResult::pass('Entity types', '3 types registered.'),
@@ -39,7 +39,7 @@ final class HealthCheckHandlerTest extends TestCase
     #[Test]
     public function warningsReturnExitCode1(): void
     {
-        $checker = $this->createMock(HealthCheckerInterface::class);
+        $checker = $this->createStub(HealthCheckerInterface::class);
         $checker->method('runAll')->willReturn([
             HealthCheckResult::pass('Database', 'OK'),
             HealthCheckResult::warn('Cache', DiagnosticCode::CACHE_DIRECTORY_UNWRITABLE, 'Not writable.'),
@@ -56,7 +56,7 @@ final class HealthCheckHandlerTest extends TestCase
     #[Test]
     public function failuresReturnExitCode2(): void
     {
-        $checker = $this->createMock(HealthCheckerInterface::class);
+        $checker = $this->createStub(HealthCheckerInterface::class);
         $checker->method('runAll')->willReturn([
             HealthCheckResult::fail('Database', DiagnosticCode::DATABASE_UNREACHABLE, 'Cannot connect.'),
         ]);
@@ -72,7 +72,7 @@ final class HealthCheckHandlerTest extends TestCase
     #[Test]
     public function jsonOptionOutputsJson(): void
     {
-        $checker = $this->createMock(HealthCheckerInterface::class);
+        $checker = $this->createStub(HealthCheckerInterface::class);
         $checker->method('runAll')->willReturn([
             HealthCheckResult::pass('Database', 'OK'),
         ]);

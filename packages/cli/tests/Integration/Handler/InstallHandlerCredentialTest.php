@@ -133,7 +133,7 @@ final class InstallHandlerCredentialTest extends TestCase
         [$repository, $userDb, $userEntityType] = $this->makeRealUserRepository();
         $entityTypeManager = $this->makeEntityTypeManager($repository, $userEntityType);
 
-        $mockConfigManager = $this->createMock(ConfigManagerInterface::class);
+        $mockConfigManager = $this->createStub(ConfigManagerInterface::class);
         $mockConfigManager->method('getActiveStorage')->willReturn(new MemoryStorage());
 
         $handler = new InstallHandler(

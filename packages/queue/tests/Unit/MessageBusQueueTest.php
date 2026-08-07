@@ -16,7 +16,7 @@ final class MessageBusQueueTest extends TestCase
 {
     public function testImplementsQueueInterface(): void
     {
-        $bus = $this->createMock(MessageBusInterface::class);
+        $bus = $this->createStub(MessageBusInterface::class);
         $bus->method('dispatch')->willReturn(new Envelope(new \stdClass()));
         $queue = new MessageBusQueue($bus);
 

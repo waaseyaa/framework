@@ -88,7 +88,7 @@ final class McpAuditStagesTest extends TestCase
 
     private function account(int $id, bool $hasCapability = true): AccountInterface
     {
-        $account = $this->createMock(AuthorizationPrincipalInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn($id);
         $account->method('isAuthenticated')->willReturn($id > 0);
         $account->method('hasPermission')->willReturnCallback(

@@ -75,7 +75,7 @@ final class NoExpectationInvarianceTest extends TestCase
 
         $this->counting = $this->countingDatabase($this->inner);
 
-        $dispatcher = $this->createMock(EventDispatcherInterface::class);
+        $dispatcher = $this->createStub(EventDispatcherInterface::class);
         $dispatcher->method('dispatch')->willReturnArgument(0);
 
         $resolver = new SingleConnectionResolver($this->counting);

@@ -14,7 +14,7 @@ final class AgentContextTest extends TestCase
 {
     public function testConstruction(): void
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('id')->willReturn(42);
 
         $context = new AgentContext(
@@ -30,7 +30,7 @@ final class AgentContextTest extends TestCase
 
     public function testDefaultValues(): void
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
 
         $context = new AgentContext(account: $account);
 
@@ -40,7 +40,7 @@ final class AgentContextTest extends TestCase
 
     public function testDryRunFlag(): void
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
 
         $context = new AgentContext(
             account: $account,

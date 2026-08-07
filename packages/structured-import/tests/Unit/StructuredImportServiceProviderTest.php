@@ -26,7 +26,7 @@ final class StructuredImportServiceProviderTest extends TestCase
         $provider->setKernelContext('', [], []);
         $provider->setKernelServices($this->kernelServicesProviding(
             FieldDefinitionRegistryInterface::class,
-            $this->createMock(FieldDefinitionRegistryInterface::class),
+            $this->createStub(FieldDefinitionRegistryInterface::class),
         ));
         $provider->register();
 

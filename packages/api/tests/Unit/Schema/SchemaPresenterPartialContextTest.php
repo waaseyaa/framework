@@ -56,7 +56,7 @@ final class SchemaPresenterPartialContextTest extends TestCase
             [],
             null,
             new EntityAccessHandler([]),
-            $this->createMock(AccountInterface::class),
+            $this->createStub(AccountInterface::class),
         );
 
         self::assertSame('article', $schema['x-entity-type']);
@@ -88,7 +88,7 @@ final class SchemaPresenterPartialContextTest extends TestCase
             [],
             null,
             null,
-            $this->createMock(AccountInterface::class),
+            $this->createStub(AccountInterface::class),
         );
     }
 
@@ -97,7 +97,7 @@ final class SchemaPresenterPartialContextTest extends TestCase
     {
         // Sanity: even an interface mock with no expectations passes the guard
         // because the precondition check runs first.
-        $entityType = $this->createMock(EntityTypeInterface::class);
+        $entityType = $this->createStub(EntityTypeInterface::class);
 
         $this->expectException(PartialAccessContextException::class);
 

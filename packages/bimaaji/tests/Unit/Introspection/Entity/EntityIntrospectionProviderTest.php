@@ -19,7 +19,7 @@ final class EntityIntrospectionProviderTest extends TestCase
     #[Test]
     public function it_implements_graph_section_provider_interface(): void
     {
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn([]);
 
         $provider = new EntityIntrospectionProvider($manager);
@@ -30,7 +30,7 @@ final class EntityIntrospectionProviderTest extends TestCase
     #[Test]
     public function get_key_returns_entities(): void
     {
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn([]);
 
         $provider = new EntityIntrospectionProvider($manager);
@@ -41,7 +41,7 @@ final class EntityIntrospectionProviderTest extends TestCase
     #[Test]
     public function provide_returns_empty_section_when_no_entity_types(): void
     {
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn([]);
 
         $provider = new EntityIntrospectionProvider($manager);
@@ -56,7 +56,7 @@ final class EntityIntrospectionProviderTest extends TestCase
     #[Test]
     public function provide_builds_section_from_entity_type_definitions(): void
     {
-        $nodeType = $this->createMock(EntityTypeInterface::class);
+        $nodeType = $this->createStub(EntityTypeInterface::class);
         $nodeType->method('id')->willReturn('node');
         $nodeType->method('getLabel')->willReturn('Content');
         $nodeType->method('getClass')->willReturn('Waaseyaa\\Node\\Entity\\Node');
@@ -70,7 +70,7 @@ final class EntityIntrospectionProviderTest extends TestCase
         $nodeType->method('isRevisionable')->willReturn(true);
         $nodeType->method('isTranslatable')->willReturn(false);
 
-        $userType = $this->createMock(EntityTypeInterface::class);
+        $userType = $this->createStub(EntityTypeInterface::class);
         $userType->method('id')->willReturn('user');
         $userType->method('getLabel')->willReturn('User');
         $userType->method('getClass')->willReturn('Waaseyaa\\User\\Entity\\User');
@@ -81,7 +81,7 @@ final class EntityIntrospectionProviderTest extends TestCase
         $userType->method('isRevisionable')->willReturn(false);
         $userType->method('isTranslatable')->willReturn(false);
 
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn([
             'node' => $nodeType,
             'user' => $userType,

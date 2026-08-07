@@ -37,7 +37,7 @@ final class ResendVerificationControllerTest extends TestCase
 
     private function makeTokenRepo(): AuthTokenRepositoryInterface
     {
-        $repo = $this->createMock(AuthTokenRepositoryInterface::class);
+        $repo = $this->createStub(AuthTokenRepositoryInterface::class);
         $repo->method('createToken')->willReturn('verify-token-abc');
 
         return $repo;
@@ -45,7 +45,7 @@ final class ResendVerificationControllerTest extends TestCase
 
     private function makeEntityTypeManager(?EntityStorageInterface $storage = null): EntityTypeManager
     {
-        $manager = $this->createMock(EntityTypeManager::class);
+        $manager = $this->createStub(EntityTypeManager::class);
         if ($storage !== null) {
             $manager->method('getStorage')->willReturn($storage);
         }
@@ -136,7 +136,7 @@ final class ResendVerificationControllerTest extends TestCase
         $account = $this->makeAccount(10);
         $user = new \Waaseyaa\User\User(['uid' => 10, 'name' => 'Alice', 'mail' => 'alice@example.com']);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('load')->willReturn($user);
 
         $tokenRepo = $this->createMock(AuthTokenRepositoryInterface::class);
@@ -168,7 +168,7 @@ final class ResendVerificationControllerTest extends TestCase
         $account = $this->makeAccount(11);
         $user = new \Waaseyaa\User\User(['uid' => 11, 'name' => 'Bob', 'mail' => 'bob@example.com']);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('load')->willReturn($user);
 
         $mailer = $this->createStub(AuthMailer::class);

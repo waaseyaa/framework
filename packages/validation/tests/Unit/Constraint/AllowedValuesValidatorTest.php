@@ -20,7 +20,7 @@ final class AllowedValuesValidatorTest extends TestCase
     {
         $this->validator = new AllowedValuesValidator();
 
-        $this->violationBuilder = $this->createMock(ConstraintViolationBuilderInterface::class);
+        $this->violationBuilder = $this->createStub(ConstraintViolationBuilderInterface::class);
         $this->violationBuilder->method('setParameter')->willReturnSelf();
         $this->violationBuilder->method('setCode')->willReturnSelf();
         // addViolation() returns void; no willReturn needed.

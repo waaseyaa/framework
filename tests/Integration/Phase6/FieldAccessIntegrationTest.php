@@ -67,7 +67,7 @@ final class FieldAccessIntegrationTest extends TestCase
         );
         $this->entityTypeManager->registerEntityType($this->entityType);
 
-        $this->account = $this->createMock(AccountInterface::class);
+        $this->account = $this->createStub(AccountInterface::class);
 
         // Policy: forbid viewing 'internal_notes', forbid editing 'status'.
         $policy = new class implements AccessPolicyInterface, FieldAccessPolicyInterface {
@@ -148,7 +148,7 @@ final class FieldAccessIntegrationTest extends TestCase
     #[Test]
     public function schemaMarksEditDeniedAsRestricted(): void
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn('article');
 
         $fieldDefs = [

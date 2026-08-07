@@ -108,7 +108,7 @@ final class McpApprovalGateLifecycleTest extends TestCase
 
     private function account(int $id): AccountInterface
     {
-        $account = $this->createMock(AuthorizationPrincipalInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn($id);
         $account->method('isAuthenticated')->willReturn(true);
         $account->method('hasPermission')->willReturnCallback(

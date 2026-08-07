@@ -49,7 +49,7 @@ final class NodeFieldAccessPolicyTest extends TestCase
     /** @param list<string> $permissions */
     private function createAccount(int $id, array $permissions): AccountInterface
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('id')->willReturn($id);
         $account->method('isAuthenticated')->willReturn($id !== 0);
         $account->method('hasPermission')->willReturnCallback(

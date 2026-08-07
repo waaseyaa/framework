@@ -54,7 +54,7 @@ final class EntityAccessHandlerLabelAccessTest extends TestCase
 
     private function account(): AccountInterface
     {
-        return $this->createMock(AccountInterface::class);
+        return $this->createStub(AccountInterface::class);
     }
 
     private function forbidLabelFieldHandler(): EntityAccessHandler

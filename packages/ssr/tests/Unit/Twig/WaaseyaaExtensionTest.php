@@ -148,7 +148,7 @@ final class WaaseyaaExtensionTest extends TestCase
     #[Test]
     public function extension_registers_config_function_when_factory_is_provided(): void
     {
-        $factory = $this->createMock(ConfigFactoryInterface::class);
+        $factory = $this->createStub(ConfigFactoryInterface::class);
         $extension = new WaaseyaaExtension(configFactory: $factory);
         $names = array_map(fn($f) => $f->getName(), $extension->getFunctions());
 
@@ -184,10 +184,10 @@ final class WaaseyaaExtensionTest extends TestCase
     private function createMockConfigFactory(string $configName, string $key, mixed $value): ConfigFactoryInterface
     {
         $config = $this->createMock(ConfigInterface::class);
-        $config->method('get')->with($key)->willReturn($value);
+        $config->expects(self::once())->method('get')->with($key)->willReturn($value);
 
         $factory = $this->createMock(ConfigFactoryInterface::class);
-        $factory->method('get')->with($configName)->willReturn($config);
+        $factory->expects(self::once())->method('get')->with($configName)->willReturn($config);
 
         return $factory;
     }

@@ -27,7 +27,7 @@ final class EntityTemplateHeadTest extends TestCase
 
     private function entity(): EntityInterface
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('label')->willReturn('Hello World');
 
         return $entity;

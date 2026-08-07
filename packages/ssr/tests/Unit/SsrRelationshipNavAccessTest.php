@@ -163,7 +163,7 @@ final class SsrRelationshipNavAccessTest extends TestCase
 
     private function anon(): AccountInterface
     {
-        $account = $this->createMock(AuthorizationPrincipalInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('isAuthenticated')->willReturn(false);
         $account->method('hasPermission')->willReturn(false);
 

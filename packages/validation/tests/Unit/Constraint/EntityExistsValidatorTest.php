@@ -20,7 +20,7 @@ final class EntityExistsValidatorTest extends TestCase
     {
         $this->validator = new EntityExistsValidator();
 
-        $this->violationBuilder = $this->createMock(ConstraintViolationBuilderInterface::class);
+        $this->violationBuilder = $this->createStub(ConstraintViolationBuilderInterface::class);
         $this->violationBuilder->method('setParameter')->willReturnSelf();
         $this->violationBuilder->method('setCode')->willReturnSelf();
         // addViolation() returns void; no willReturn needed.
@@ -84,6 +84,8 @@ final class EntityExistsValidatorTest extends TestCase
 
     public function testNullCheckerThrows(): void
     {
+        $this->context->expects(self::never())->method('buildViolation');
+
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('The existsChecker option must be a callable; null given.');
 
@@ -96,6 +98,8 @@ final class EntityExistsValidatorTest extends TestCase
 
     public function testStringEntityIdWorks(): void
     {
+        $this->context->expects(self::never())->method('buildViolation');
+
         $receivedId = null;
 
         $constraint = new EntityExists(

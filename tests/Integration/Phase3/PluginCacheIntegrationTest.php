@@ -40,7 +40,7 @@ final class PluginCacheIntegrationTest extends TestCase
     public function testPluginManagerCachesDefinitionsInMemoryBackend(): void
     {
         $discoveryCallCount = 0;
-        $discovery = $this->createMock(PluginDiscoveryInterface::class);
+        $discovery = $this->createStub(PluginDiscoveryInterface::class);
         $discovery->method('getDefinitions')
             ->willReturnCallback(function () use (&$discoveryCallCount) {
                 $discoveryCallCount++;
@@ -85,7 +85,7 @@ final class PluginCacheIntegrationTest extends TestCase
     public function testClearCachedDefinitionsRemovesCacheEntry(): void
     {
         $discoveryCallCount = 0;
-        $discovery = $this->createMock(PluginDiscoveryInterface::class);
+        $discovery = $this->createStub(PluginDiscoveryInterface::class);
         $discovery->method('getDefinitions')
             ->willReturnCallback(function () use (&$discoveryCallCount) {
                 $discoveryCallCount++;
@@ -173,7 +173,7 @@ final class PluginCacheIntegrationTest extends TestCase
     public function testNullBackendMeansNoCache(): void
     {
         $discoveryCallCount = 0;
-        $discovery = $this->createMock(PluginDiscoveryInterface::class);
+        $discovery = $this->createStub(PluginDiscoveryInterface::class);
         $discovery->method('getDefinitions')
             ->willReturnCallback(function () use (&$discoveryCallCount) {
                 $discoveryCallCount++;

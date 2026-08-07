@@ -23,7 +23,7 @@ class EntityAccessHandlerTest extends TestCase
 
     private function createEntity(string $typeId = 'node', string $bundle = 'article'): EntityInterface
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn($typeId);
         $entity->method('bundle')->willReturn($bundle);
 
@@ -32,7 +32,7 @@ class EntityAccessHandlerTest extends TestCase
 
     private function createAccount(): AccountInterface
     {
-        return $this->createMock(AccountInterface::class);
+        return $this->createStub(AccountInterface::class);
     }
 
     private function createPolicy(
@@ -40,7 +40,7 @@ class EntityAccessHandlerTest extends TestCase
         AccessResult $accessResult,
         ?AccessResult $createResult = null,
     ): AccessPolicyInterface {
-        $policy = $this->createMock(AccessPolicyInterface::class);
+        $policy = $this->createStub(AccessPolicyInterface::class);
         $policy->method('appliesTo')
             ->willReturnCallback(fn(string $type) => $type === $entityTypeId);
         $policy->method('access')
