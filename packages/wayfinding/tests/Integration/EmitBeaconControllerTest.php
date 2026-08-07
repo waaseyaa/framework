@@ -161,7 +161,7 @@ final class EmitBeaconControllerTest extends TestCase
 
     private function account(bool $hasCapability): AccountInterface
     {
-        $account = $this->createMock(AuthorizationPrincipalInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn(42);
         $account->method('hasPermission')->willReturnCallback(
             static fn(string $permission): bool => $hasCapability && $permission === EmitBeaconController::CAPABILITY,

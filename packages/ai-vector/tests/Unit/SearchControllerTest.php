@@ -28,7 +28,7 @@ final class SearchControllerTest extends TestCase
         $entityA = new SearchEntity(1, 'node', ['title' => 'A']);
         $entityB = new SearchEntity(2, 'node', ['title' => 'B']);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
 
         // C-22 WP3: read path now goes through the canonical repository.
         $repository = $this->createMock(EntityRepositoryInterface::class);
@@ -45,7 +45,7 @@ final class SearchControllerTest extends TestCase
             fieldDefinitions: ['title' => ['type' => 'string']],
         );
 
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('hasDefinition')->willReturnCallback(static fn(string $id): bool => $id === 'node');
         $manager->method('getStorage')->willReturn($storage);
         $manager->method('getRepository')->willReturn($repository);
@@ -113,7 +113,7 @@ final class SearchControllerTest extends TestCase
         $entityA = new SearchEntity(5, 'node', ['title' => 'Five']);
         $entityB = new SearchEntity(6, 'node', ['title' => 'Six']);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('getQuery')->willReturn($query);
 
         $definition = TestEntityType::stub(
@@ -132,7 +132,7 @@ final class SearchControllerTest extends TestCase
             ->with([5, 6])
             ->willReturn([$entityA, $entityB]);
 
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('hasDefinition')->willReturnCallback(static fn(string $id): bool => $id === 'node');
         $manager->method('getStorage')->willReturn($storage);
         $manager->method('getDefinition')->willReturn($definition);
@@ -180,7 +180,7 @@ final class SearchControllerTest extends TestCase
 
         $entity = new SearchEntity(42, 'node', ['title' => 'Fallback Result']);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('getQuery')->willReturn($query);
 
         $definition = TestEntityType::stub(
@@ -199,7 +199,7 @@ final class SearchControllerTest extends TestCase
             ->with([42])
             ->willReturn([$entity]);
 
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('hasDefinition')->willReturnCallback(static fn(string $id): bool => $id === 'node');
         $manager->method('getStorage')->willReturn($storage);
         $manager->method('getDefinition')->willReturn($definition);
@@ -236,7 +236,7 @@ final class SearchControllerTest extends TestCase
         $entityA = new SearchEntity(1, 'node', ['title' => 'A']);
         $entityB = new SearchEntity(2, 'node', ['title' => 'B']);
 
-        $nodeStorage = $this->createMock(EntityStorageInterface::class);
+        $nodeStorage = $this->createStub(EntityStorageInterface::class);
 
         // C-22 WP3: read path now goes through the canonical repository.
         $nodeRepository = $this->createMock(EntityRepositoryInterface::class);
@@ -257,7 +257,7 @@ final class SearchControllerTest extends TestCase
             public function execute(): array { return [99]; }
         };
 
-        $relationshipStorage = $this->createMock(EntityStorageInterface::class);
+        $relationshipStorage = $this->createStub(EntityStorageInterface::class);
 
         // C-22 WP3: read path now goes through the canonical repository.
         $relationshipRepository = $this->createMock(EntityRepositoryInterface::class);
@@ -283,7 +283,7 @@ final class SearchControllerTest extends TestCase
             fieldDefinitions: ['title' => ['type' => 'string']],
         );
 
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('hasDefinition')->willReturnCallback(static fn(string $id): bool => in_array($id, ['node', 'relationship'], true));
         $manager->method('getStorage')->willReturnCallback(
             static fn(string $id): EntityStorageInterface => $id === 'relationship' ? $relationshipStorage : $nodeStorage,

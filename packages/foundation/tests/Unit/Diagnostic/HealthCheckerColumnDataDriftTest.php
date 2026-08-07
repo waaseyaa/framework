@@ -119,7 +119,7 @@ final class HealthCheckerColumnDataDriftTest extends TestCase
         $this->createBaseTable('thing', extraColumns: ['status']);
 
         // No registry — checker constructed with $fieldRegistry === null.
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn([$type->id() => $type]);
         $checker = new HealthChecker(
             bootReport: new BootDiagnosticReport(
@@ -220,7 +220,7 @@ final class HealthCheckerColumnDataDriftTest extends TestCase
      */
     private function registry(array $coreFields = [], array $bundleFields = []): FieldDefinitionRegistryInterface
     {
-        $registry = $this->createMock(FieldDefinitionRegistryInterface::class);
+        $registry = $this->createStub(FieldDefinitionRegistryInterface::class);
 
         $coreFieldObjects = [];
         foreach ($coreFields as $name => $stored) {
@@ -265,7 +265,7 @@ final class HealthCheckerColumnDataDriftTest extends TestCase
 
     private function checker(EntityTypeInterface $type, FieldDefinitionRegistryInterface $registry): HealthChecker
     {
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn([$type->id() => $type]);
 
         $bootReport = new BootDiagnosticReport(

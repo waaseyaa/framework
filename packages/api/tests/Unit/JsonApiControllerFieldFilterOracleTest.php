@@ -103,7 +103,7 @@ final class JsonApiControllerFieldFilterOracleTest extends TestCase
             $this->entityTypeManager,
             new ResourceSerializer($this->entityTypeManager),
             new EntityAccessHandler([$policy]),
-            $this->createMock(AccountInterface::class),
+            $this->createStub(AccountInterface::class),
         );
     }
 
@@ -226,7 +226,7 @@ final class JsonApiControllerFieldFilterOracleTest extends TestCase
             $this->entityTypeManager,
             new ResourceSerializer($this->entityTypeManager),
             new EntityAccessHandler([$policy]),
-            $this->createMock(AccountInterface::class),
+            $this->createStub(AccountInterface::class),
         );
     }
 

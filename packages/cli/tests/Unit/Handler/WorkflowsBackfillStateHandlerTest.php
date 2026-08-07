@@ -582,7 +582,7 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
         $workflow = new Workflow(DefaultWorkflows::EDITORIAL);
 
         $workflowRepository = $this->createMock(EntityRepositoryInterface::class);
-        $workflowRepository->method('find')->with('editorial')->willReturn($workflow);
+        $workflowRepository->expects(self::once())->method('find')->with('editorial')->willReturn($workflow);
 
         $rows = [
             '1' => new PartialFailureStubEntity('1', 'article', 1, null),
@@ -590,11 +590,11 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
             '3' => new PartialFailureStubEntity('3', 'article', 0, null),
         ];
 
-        $query = $this->createMock(EntityQueryInterface::class);
+        $query = $this->createStub(EntityQueryInterface::class);
         $query->method('accessCheck')->willReturnSelf();
         $query->method('execute')->willReturn(array_keys($rows));
 
-        $subjectRepository = $this->createMock(EntityRepositoryInterface::class);
+        $subjectRepository = $this->createStub(EntityRepositoryInterface::class);
         $subjectRepository->method('getQuery')->willReturn($query);
         $subjectRepository->method('find')->willReturnCallback(
             static fn(string $id): ?EntityInterface => $rows[$id] ?? null,
@@ -610,10 +610,10 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
             },
         );
 
-        $definition = $this->createMock(EntityTypeInterface::class);
+        $definition = $this->createStub(EntityTypeInterface::class);
         $definition->method('getKeys')->willReturn(['bundle' => 'kind']);
 
-        $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
+        $entityTypeManager = $this->createStub(EntityTypeManagerInterface::class);
         $entityTypeManager->method('hasDefinition')->willReturnCallback(
             static fn(string $id): bool => in_array($id, [self::ENTITY_TYPE_ID, 'workflow'], true),
         );
@@ -646,18 +646,18 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
         $workflow = new Workflow(DefaultWorkflows::EDITORIAL);
 
         $workflowRepository = $this->createMock(EntityRepositoryInterface::class);
-        $workflowRepository->method('find')->with('editorial')->willReturn($workflow);
+        $workflowRepository->expects(self::once())->method('find')->with('editorial')->willReturn($workflow);
 
         $rows = [
             '1' => new PointerFailureStubEntity('1', 'article', 1, 'published', 10),
             '2' => new PointerFailureStubEntity('2', 'article', 1, 'published', 20),
         ];
 
-        $query = $this->createMock(EntityQueryInterface::class);
+        $query = $this->createStub(EntityQueryInterface::class);
         $query->method('accessCheck')->willReturnSelf();
         $query->method('execute')->willReturn(array_keys($rows));
 
-        $subjectRepository = $this->createMock(EntityRepositoryInterface::class);
+        $subjectRepository = $this->createStub(EntityRepositoryInterface::class);
         $subjectRepository->method('getQuery')->willReturn($query);
         $subjectRepository->method('find')->willReturnCallback(
             static fn(string $id): ?EntityInterface => $rows[$id] ?? null,
@@ -673,11 +673,11 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
             },
         );
 
-        $definition = $this->createMock(EntityTypeInterface::class);
+        $definition = $this->createStub(EntityTypeInterface::class);
         $definition->method('getKeys')->willReturn(['bundle' => 'kind']);
         $definition->method('isRevisionable')->willReturn(true);
 
-        $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
+        $entityTypeManager = $this->createStub(EntityTypeManagerInterface::class);
         $entityTypeManager->method('hasDefinition')->willReturnCallback(
             static fn(string $id): bool => in_array($id, [self::ENTITY_TYPE_ID, 'workflow'], true),
         );
@@ -707,13 +707,13 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
         $workflow = new Workflow(DefaultWorkflows::EDITORIAL);
 
         $workflowRepository = $this->createMock(EntityRepositoryInterface::class);
-        $workflowRepository->method('find')->with('editorial')->willReturn($workflow);
+        $workflowRepository->expects(self::once())->method('find')->with('editorial')->willReturn($workflow);
 
         $rows = [
             '1' => new PartialFailureStubEntity('1', 'article', 1, 'published'),
         ];
 
-        $query = $this->createMock(EntityQueryInterface::class);
+        $query = $this->createStub(EntityQueryInterface::class);
         $query->method('accessCheck')->willReturnSelf();
         $query->method('execute')->willReturn(array_keys($rows));
 
@@ -725,11 +725,11 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
         $subjectRepository->method('loadPublishedRevision')->willReturn(null);
         $subjectRepository->expects(self::never())->method('setPublishedRevision');
 
-        $definition = $this->createMock(EntityTypeInterface::class);
+        $definition = $this->createStub(EntityTypeInterface::class);
         $definition->method('getKeys')->willReturn(['bundle' => 'kind']);
         $definition->method('isRevisionable')->willReturn(true);
 
-        $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
+        $entityTypeManager = $this->createStub(EntityTypeManagerInterface::class);
         $entityTypeManager->method('hasDefinition')->willReturnCallback(
             static fn(string $id): bool => in_array($id, [self::ENTITY_TYPE_ID, 'workflow'], true),
         );

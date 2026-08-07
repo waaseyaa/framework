@@ -34,7 +34,7 @@ final class UserBlockServiceBindingTest extends TestCase
         $repository->method('getQuery')->willReturn($query);
 
         $etm = $this->createMock(EntityTypeManager::class);
-        $etm->method('getRepository')->with('user_block')->willReturn($repository);
+        $etm->expects(self::once())->method('getRepository')->with('user_block')->willReturn($repository);
 
         $service = new UserBlockService($etm);
         $service->isBlocked(1, 2);

@@ -38,9 +38,9 @@ final class ApiServiceProviderMcpRouterWiringTest extends TestCase
             new DiscoveryApiHandler($manager, $database),
         );
 
-        $toolImpl = $this->createMock(AgentToolInterface::class);
+        $toolImpl = $this->createStub(AgentToolInterface::class);
         $toolImpl->method('description')->willReturn('Reads a content item.');
-        $toolRegistry = $this->createMock(ToolRegistryInterface::class);
+        $toolRegistry = $this->createStub(ToolRegistryInterface::class);
         $toolRegistry->method('all')->willReturn([
             new AgentTool(
                 name: 'content.read',

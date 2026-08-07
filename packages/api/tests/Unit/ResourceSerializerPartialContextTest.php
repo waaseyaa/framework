@@ -64,7 +64,7 @@ final class ResourceSerializerPartialContextTest extends TestCase
         $resource = $this->serializer->serialize(
             $this->entity,
             new EntityAccessHandler([]),
-            $this->createMock(AccountInterface::class),
+            $this->createStub(AccountInterface::class),
         );
 
         self::assertInstanceOf(JsonApiResource::class, $resource);
@@ -85,7 +85,7 @@ final class ResourceSerializerPartialContextTest extends TestCase
         $this->expectException(PartialAccessContextException::class);
         $this->expectExceptionMessageMatches('/^\[PARTIAL_ACCESS_CONTEXT\]/');
 
-        $this->serializer->serialize($this->entity, null, $this->createMock(AccountInterface::class));
+        $this->serializer->serialize($this->entity, null, $this->createStub(AccountInterface::class));
     }
 
     #[Test]
@@ -101,6 +101,6 @@ final class ResourceSerializerPartialContextTest extends TestCase
     {
         $this->expectException(PartialAccessContextException::class);
 
-        $this->serializer->serializeCollection([$this->entity], null, $this->createMock(AccountInterface::class));
+        $this->serializer->serializeCollection([$this->entity], null, $this->createStub(AccountInterface::class));
     }
 }

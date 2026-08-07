@@ -337,7 +337,7 @@ final class HttpKernelTest extends TestCase
         $repository = $this->createMock(EntityRepositoryInterface::class);
         $repository->expects(self::once())->method('find')->with('42')->willReturn($entity);
         $entityTypeManager = $this->createMock(EntityTypeManager::class);
-        $entityTypeManager->method('getRepository')->with('test')->willReturn($repository);
+        $entityTypeManager->expects(self::once())->method('getRepository')->with('test')->willReturn($repository);
 
         $provider = new class extends ServiceProvider {
             public function register(): void {}

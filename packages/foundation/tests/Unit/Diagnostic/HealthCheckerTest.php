@@ -99,7 +99,7 @@ final class HealthCheckerTest extends TestCase
     #[Test]
     public function runtimeChecksIncludeTheConfiguredCleanUrlProbe(): void
     {
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn([]);
         $probe = new CleanUrlProbe(
             'https://example.test',
@@ -126,7 +126,7 @@ final class HealthCheckerTest extends TestCase
     public function schemaDriftPassesWithCorrectSchema(): void
     {
         $nodeType = $this->makeContentEntityType('node');
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn(['node' => $nodeType]);
 
         // Create table with correct schema.
@@ -144,7 +144,7 @@ final class HealthCheckerTest extends TestCase
     public function schemaDriftTreatsParameterizedVarcharAsSqliteTextAffinity(): void
     {
         $type = $this->makeContentEntityType('article');
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn(['article' => $type]);
         $this->database->query(<<<'SQL'
             CREATE TABLE article (
@@ -168,7 +168,7 @@ final class HealthCheckerTest extends TestCase
     {
         // Create a config entity type (expects TEXT PK).
         $configType = $this->makeConfigEntityType('node_type');
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn(['node_type' => $configType]);
 
         // Create table with WRONG schema (INTEGER instead of TEXT for ID).
@@ -196,7 +196,7 @@ final class HealthCheckerTest extends TestCase
     public function schemaDriftReportsSkippedStateHonestlyWhenEveryTableIsLazy(): void
     {
         $nodeType = $this->makeContentEntityType('node');
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn(['node' => $nodeType]);
 
         // Don't create the table — simulate lazy initialization. A blanket
@@ -221,7 +221,7 @@ final class HealthCheckerTest extends TestCase
     {
         $nodeType = $this->makeContentEntityType('node');
         $userType = $this->makeContentEntityType('user_profile');
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn([
             'node' => $nodeType,
             'user_profile' => $userType,
@@ -319,7 +319,7 @@ final class HealthCheckerTest extends TestCase
             json_encode(['status' => 'accepted', 'logged_at' => '2026-03-08T12:00:00+00:00']) . "\n",
         );
 
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn([]);
         $bootReport = new BootDiagnosticReport(registeredTypes: [], disabledTypeIds: [], schemaCompatibility: []);
 
@@ -352,7 +352,7 @@ final class HealthCheckerTest extends TestCase
         // which doubles embedded quotes, the same hardening pattern as #1816.
         $weirdId = 'weird"type';
         $weirdType = $this->makeConfigEntityType($weirdId);
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn([$weirdId => $weirdType]);
 
         // Build the table with raw SQL, quoting identifiers ourselves — the
@@ -400,7 +400,7 @@ final class HealthCheckerTest extends TestCase
             $types['node'] = $this->makeContentEntityType('node');
         }
 
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn($types);
 
         return $this->createCheckerWith($manager);

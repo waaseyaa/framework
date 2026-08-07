@@ -266,7 +266,7 @@ class FormDescriptorBuilderTest extends TestCase
 
         $account = $this->createStub(AccountInterface::class);
 
-        $accessHandler = $this->createMock(EntityAccessHandler::class);
+        $accessHandler = $this->createStub(EntityAccessHandler::class);
         $accessHandler
             ->method('checkFieldAccess')
             ->willReturn(AccessResult::forbidden('Not allowed.'));
@@ -289,7 +289,7 @@ class FormDescriptorBuilderTest extends TestCase
 
         $account = $this->createStub(AccountInterface::class);
 
-        $accessHandler = $this->createMock(EntityAccessHandler::class);
+        $accessHandler = $this->createStub(EntityAccessHandler::class);
         $accessHandler
             ->method('checkFieldAccess')
             ->willReturn(AccessResult::allowed());
@@ -313,7 +313,7 @@ class FormDescriptorBuilderTest extends TestCase
 
         $account = $this->createStub(AccountInterface::class);
 
-        $accessHandler = $this->createMock(EntityAccessHandler::class);
+        $accessHandler = $this->createStub(EntityAccessHandler::class);
         $accessHandler
             ->method('checkFieldAccess')
             ->willReturn(AccessResult::neutral());

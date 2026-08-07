@@ -45,7 +45,7 @@ final class EngagementFieldAccessPolicyTest extends TestCase
     /** @param list<string> $permissions */
     private function createAccount(int $id, array $permissions): AccountInterface
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('id')->willReturn($id);
         $account->method('isAuthenticated')->willReturn($id !== 0);
         $account->method('hasPermission')->willReturnCallback(
@@ -57,9 +57,9 @@ final class EngagementFieldAccessPolicyTest extends TestCase
 
     private function existingEntity(int $ownerId): EntityInterface
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('isNew')->willReturn(false);
-        $entity->method('get')->with('user_id')->willReturn($ownerId);
+        $entity->method('get')->willReturn($ownerId);
 
         return $entity;
     }
@@ -68,7 +68,7 @@ final class EngagementFieldAccessPolicyTest extends TestCase
     {
         $entity = $this->createMock(EntityInterface::class);
         $entity->method('isNew')->willReturn(true);
-        $entity->method('get')->with('user_id')->willReturn($submittedUserId);
+        $entity->expects(self::once())->method('get')->with('user_id')->willReturn($submittedUserId);
 
         return $entity;
     }

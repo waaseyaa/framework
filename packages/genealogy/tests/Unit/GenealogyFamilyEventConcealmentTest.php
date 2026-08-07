@@ -42,7 +42,7 @@ final class GenealogyFamilyEventConcealmentTest extends TestCase
         GenealogyBootstrap::reset();
     }
 
-    private function bindPublishedTree(int $treeId, int $ownerUid = 99): void
+    private function bindPublishedTree(int $treeId, int $ownerUid = 99, bool $expectLookup = true): void
     {
         $tree = new GenealogyTree([
             'id' => $treeId,
@@ -52,10 +52,10 @@ final class GenealogyFamilyEventConcealmentTest extends TestCase
         ]);
 
         $treeRepository = $this->createMock(EntityRepositoryInterface::class);
-        $treeRepository->method('find')->with((string) $treeId)->willReturn($tree);
+        $treeRepository->expects($expectLookup ? self::once() : self::never())->method('find')->with((string) $treeId)->willReturn($tree);
 
         $etm = $this->createMock(EntityTypeManagerInterface::class);
-        $etm->method('getRepository')->with('genealogy_tree')->willReturn($treeRepository);
+        $etm->expects($expectLookup ? self::once() : self::never())->method('getRepository')->with('genealogy_tree')->willReturn($treeRepository);
 
         GenealogyBootstrap::bind($etm, null);
     }
@@ -136,7 +136,7 @@ final class GenealogyFamilyEventConcealmentTest extends TestCase
     #[Test]
     public function dev_admin_may_still_view_family(): void
     {
-        $this->bindPublishedTree(1);
+        $this->bindPublishedTree(1, expectLookup: false);
         $policy = new GenealogyContentAccessPolicy();
 
         $family = new GenealogyFamily([

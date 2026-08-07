@@ -38,16 +38,16 @@ final class EntityReadToolFieldFilterTest extends TestCase
      */
     private function tool(array $stored, array $internalFields = []): EntityReadTool
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn('story');
         $entity->method('bundle')->willReturn('story');
         $entity->method('id')->willReturn(1);
         $entity->method('toArray')->willReturn($stored);
 
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
         $repository->method('find')->willReturn($entity);
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getRepository')->willReturn($repository);
         $etm->method('resolveFieldDefinitions')->willReturn(
@@ -66,7 +66,7 @@ final class EntityReadToolFieldFilterTest extends TestCase
     {
         $defs = [];
         foreach ($names as $name) {
-            $def = $this->createMock(FieldDefinitionInterface::class);
+            $def = $this->createStub(FieldDefinitionInterface::class);
             $def->method('getSetting')->willReturnCallback(
                 static fn(string $key): mixed => $key === 'internal' ? \in_array($name, $internal, true) : null,
             );
@@ -78,7 +78,7 @@ final class EntityReadToolFieldFilterTest extends TestCase
 
     private function account(): AccountInterface
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('hasPermission')->willReturn(true);
         $account->method('id')->willReturn(0);
 
@@ -195,9 +195,9 @@ final class EntityReadToolFieldFilterTest extends TestCase
             entityKeys: ['id' => 'id', 'label' => 'title'],
         );
         $entity = $boundary->installer()->instantiate(SealedStoryEntity::class, $payload);
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
         $repository->method('find')->willReturn($entity);
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getRepository')->willReturn($repository);
         $etm->method('resolveFieldDefinitions')->willReturn($this->fieldDefinitions(['id', 'title', 'mail'], []));

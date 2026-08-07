@@ -27,7 +27,7 @@ final class PathAliasResolverTest extends TestCase
             'status' => true,
         ]);
 
-        $query = $this->createMock(EntityQueryInterface::class);
+        $query = $this->createStub(EntityQueryInterface::class);
         $query->method('accessCheck')->willReturnSelf();
         $query->method('condition')->willReturnSelf();
         $query->method('range')->willReturnSelf();
@@ -35,7 +35,7 @@ final class PathAliasResolverTest extends TestCase
 
         $repository = $this->createMock(EntityRepositoryInterface::class);
         $repository->method('getQuery')->willReturn($query);
-        $repository->method('find')->with('10')->willReturn($alias);
+        $repository->expects(self::once())->method('find')->with('10')->willReturn($alias);
 
         $resolver = new PathAliasResolver($repository);
         $resolved = $resolver->resolve('/teaching/water-is-life');
@@ -48,13 +48,13 @@ final class PathAliasResolverTest extends TestCase
     #[Test]
     public function returns_null_when_alias_not_found(): void
     {
-        $query = $this->createMock(EntityQueryInterface::class);
+        $query = $this->createStub(EntityQueryInterface::class);
         $query->method('accessCheck')->willReturnSelf();
         $query->method('condition')->willReturnSelf();
         $query->method('range')->willReturnSelf();
         $query->method('execute')->willReturn([]);
 
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
         $repository->method('getQuery')->willReturn($query);
 
         $resolver = new PathAliasResolver($repository);
@@ -65,7 +65,7 @@ final class PathAliasResolverTest extends TestCase
     public function normalizesTrailingSlashWhilePreservingLanguageScope(): void
     {
         $conditions = [];
-        $query = $this->createMock(EntityQueryInterface::class);
+        $query = $this->createStub(EntityQueryInterface::class);
         $query->method('accessCheck')->willReturnSelf();
         $query->method('condition')->willReturnCallback(
             function (string $field, mixed $value) use (&$conditions, $query): EntityQueryInterface {
@@ -76,7 +76,7 @@ final class PathAliasResolverTest extends TestCase
         $query->method('range')->willReturnSelf();
         $query->method('execute')->willReturn([]);
 
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
         $repository->method('getQuery')->willReturn($query);
 
         new PathAliasResolver($repository)->resolve('/about/', 'oj');

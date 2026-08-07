@@ -21,10 +21,10 @@ final class PublishedContentAccessPolicyTest extends TestCase
      */
     private function policy(array $groups): PublishedContentAccessPolicy
     {
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturnCallback(static fn(string $id): bool => isset($groups[$id]));
         $etm->method('getDefinition')->willReturnCallback(function (string $id) use ($groups): EntityTypeInterface {
-            $type = $this->createMock(EntityTypeInterface::class);
+            $type = $this->createStub(EntityTypeInterface::class);
             $type->method('getGroup')->willReturn($groups[$id] ?? null);
 
             return $type;
@@ -35,7 +35,7 @@ final class PublishedContentAccessPolicyTest extends TestCase
 
     private function entity(mixed $status): EntityInterface
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('get')->willReturnCallback(static fn(string $name): mixed => $name === 'status' ? $status : null);
 
         return $entity;
@@ -43,7 +43,7 @@ final class PublishedContentAccessPolicyTest extends TestCase
 
     private function anon(): AccountInterface
     {
-        return $this->createMock(AccountInterface::class);
+        return $this->createStub(AccountInterface::class);
     }
 
     #[Test]

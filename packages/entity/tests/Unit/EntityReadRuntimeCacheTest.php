@@ -282,7 +282,7 @@ final class EntityReadRuntimeCacheTest extends TestCase
     public function in_place_classification_tightening_advances_the_registry_generation_before_a_stale_read(): void
     {
         $level = FieldReadLevel::Public;
-        $definition = $this->createMockForIntersectionOfInterfaces([
+        $definition = $this->createStubForIntersectionOfInterfaces([
             FieldDefinitionInterface::class,
             FieldReadDefinitionInterface::class,
         ]);

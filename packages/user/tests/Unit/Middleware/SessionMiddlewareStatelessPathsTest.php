@@ -29,7 +29,7 @@ final class SessionMiddlewareStatelessPathsTest extends TestCase
 {
     private function middleware(array $statelessPaths): SessionMiddleware
     {
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
 
         return new SessionMiddleware(
             $repository,

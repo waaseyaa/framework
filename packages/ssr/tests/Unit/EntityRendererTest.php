@@ -39,7 +39,7 @@ final class EntityRendererTest extends TestCase
         );
 
         $manager = $this->createMock(EntityTypeManagerInterface::class);
-        $manager->method('getDefinition')->with('node')->willReturn($definition);
+        $manager->expects(self::once())->method('getDefinition')->with('node')->willReturn($definition);
 
         $config = new ArrayViewModeConfig([
             'node' => [
@@ -90,7 +90,7 @@ final class EntityRendererTest extends TestCase
         );
 
         $manager = $this->createMock(EntityTypeManagerInterface::class);
-        $manager->method('getDefinition')->with('node')->willReturn($definition);
+        $manager->expects(self::once())->method('getDefinition')->with('node')->willReturn($definition);
 
         $renderer = new EntityRenderer($manager, new FieldFormatterRegistry(), new ArrayViewModeConfig());
         $entity = new RendererTestEntity('node', [
@@ -125,7 +125,7 @@ final class EntityRendererTest extends TestCase
         );
 
         $manager = $this->createMock(EntityTypeManagerInterface::class);
-        $manager->method('getDefinition')->with('node')->willReturn($definition);
+        $manager->expects(self::once())->method('getDefinition')->with('node')->willReturn($definition);
 
         // Use empty view-mode config so the renderer falls through to buildDefaultDisplay(),
         // which includes every scalar value not in entityKeys. All three candidate fields
@@ -179,7 +179,7 @@ final class EntityRendererTest extends TestCase
         );
 
         $manager = $this->createMock(EntityTypeManagerInterface::class);
-        $manager->method('getDefinition')->with('node')->willReturn($definition);
+        $manager->expects(self::once())->method('getDefinition')->with('node')->willReturn($definition);
 
         $config = new ArrayViewModeConfig([
             'node' => [
@@ -220,7 +220,7 @@ final class EntityRendererTest extends TestCase
             'title' => 'Public headline',
             'secret' => 'classified payload',
         ]);
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
 
         $bag = $renderer->render($entity, ViewMode::full(), $account);
 
@@ -249,7 +249,7 @@ final class EntityRendererTest extends TestCase
         );
 
         $manager = $this->createMock(EntityTypeManagerInterface::class);
-        $manager->method('getDefinition')->with('node')->willReturn($definition);
+        $manager->expects(self::once())->method('getDefinition')->with('node')->willReturn($definition);
 
         $config = new ArrayViewModeConfig([
             'node' => [
@@ -271,7 +271,7 @@ final class EntityRendererTest extends TestCase
             'title' => 'Hello',
             'body' => 'World',
         ]);
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
 
         $bag = $renderer->render($entity, ViewMode::full(), $account);
 
@@ -301,7 +301,7 @@ final class EntityRendererTest extends TestCase
         );
 
         $manager = $this->createMock(EntityTypeManagerInterface::class);
-        $manager->method('getDefinition')->with('node')->willReturn($definition);
+        $manager->expects(self::once())->method('getDefinition')->with('node')->willReturn($definition);
 
         $config = new ArrayViewModeConfig([
             'node' => [
@@ -313,7 +313,7 @@ final class EntityRendererTest extends TestCase
 
         $renderer = new EntityRenderer($manager, new FieldFormatterRegistry(), $config);
         $entity = new RendererTestEntity('node', ['id' => 1, 'title' => 'Hello']);
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
 
         $bag = $renderer->render($entity, ViewMode::full(), $account);
 

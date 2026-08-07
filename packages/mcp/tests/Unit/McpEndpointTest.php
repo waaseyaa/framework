@@ -42,8 +42,8 @@ final class McpEndpointTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->auth = $this->createMock(McpAuthInterface::class);
-        $this->account = $this->createMock(AuthorizationPrincipalInterface::class);
+        $this->auth = $this->createStub(McpAuthInterface::class);
+        $this->account = $this->createStub(AuthorizationPrincipalInterface::class);
         $this->account->method('id')->willReturn(1);
         $this->account->method('hasPermission')->willReturn(true);
         $this->tools = [];
@@ -945,7 +945,7 @@ final class McpEndpointTest extends TestCase
     #[Test]
     public function unauthorized_modern_resource_read_refuses_before_provider_uri_parsing(): void
     {
-        $principal = $this->createMock(AuthorizationPrincipalInterface::class);
+        $principal = $this->createStub(AuthorizationPrincipalInterface::class);
         $principal->method('id')->willReturn(9);
         $principal->method('hasPermission')->willReturn(false);
         $this->auth->method('authenticate')->willReturn($principal);
@@ -1103,7 +1103,7 @@ final class McpEndpointTest extends TestCase
     #[Test]
     public function a_principal_without_the_resource_capability_sees_no_listing_or_read_oracle(): void
     {
-        $principal = $this->createMock(AuthorizationPrincipalInterface::class);
+        $principal = $this->createStub(AuthorizationPrincipalInterface::class);
         $principal->method('id')->willReturn(9);
         $principal->method('hasPermission')->willReturn(false);
         $this->auth->method('authenticate')->willReturn($principal);

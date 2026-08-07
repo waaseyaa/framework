@@ -112,7 +112,7 @@ final class ContentToolSetTest extends TestCase
         );
         $this->mediaRepository = $mediaRepo;
         $this->uploadsDir = sys_get_temp_dir() . '/waaseyaa_assets_' . uniqid();
-        $access = $this->createMock(EntityAccessHandler::class);
+        $access = $this->createStub(EntityAccessHandler::class);
         $access->method('checkCreateAccess')->willReturn(AccessResult::allowed());
         $assets = new MediaAssetStore($mediaRepo, $this->uploadsDir, '/media/uploads', $access, bundle: 'test_media');
 
@@ -157,7 +157,7 @@ final class ContentToolSetTest extends TestCase
     #[Test]
     public function asset_upload_fails_before_writing_when_media_create_access_is_denied(): void
     {
-        $access = $this->createMock(EntityAccessHandler::class);
+        $access = $this->createStub(EntityAccessHandler::class);
         $access->method('checkCreateAccess')->willReturn(AccessResult::forbidden('denied'));
         $directory = $this->uploadsDir . '/denied';
         $store = new MediaAssetStore($this->mediaRepository, $directory, '/media/uploads', $access);
@@ -175,7 +175,7 @@ final class ContentToolSetTest extends TestCase
     #[Test]
     public function asset_upload_attributes_the_catalog_save_to_the_authenticated_actor(): void
     {
-        $access = $this->createMock(EntityAccessHandler::class);
+        $access = $this->createStub(EntityAccessHandler::class);
         $access->method('checkCreateAccess')->willReturn(AccessResult::allowed());
         $directory = $this->uploadsDir . '/attributed';
         $store = new MediaAssetStore($this->mediaRepository, $directory, '/media/uploads', $access);

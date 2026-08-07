@@ -123,7 +123,7 @@ final class SsrContentPublishedGateTest extends TestCase
      */
     private function entity(string $entityTypeId, mixed $status): EntityInterface
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn($entityTypeId);
         $entity->method('bundle')->willReturn('');
         $entity->method('get')->willReturnCallback(
@@ -135,7 +135,7 @@ final class SsrContentPublishedGateTest extends TestCase
 
     private function anon(): AccountInterface
     {
-        $account = $this->createMock(AuthorizationPrincipalInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('isAuthenticated')->willReturn(false);
         $account->method('hasPermission')->willReturn(false);
 

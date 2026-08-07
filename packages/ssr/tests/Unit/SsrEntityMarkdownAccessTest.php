@@ -136,7 +136,7 @@ final class SsrEntityMarkdownAccessTest extends TestCase
     #[Test]
     public function markdown_omits_a_field_restricted_for_the_viewing_account(): void
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $handler = $this->handler($this->forbidSecretNoteHandler(), $this->entityTypeManager());
 
         $response = $this->renderMarkdown($handler, $this->sampleEntity(), $account);
@@ -156,7 +156,7 @@ final class SsrEntityMarkdownAccessTest extends TestCase
         // getAccessHandler(), so this branch is not reachable in production.
         // A direct/test construction of SsrPageHandler without one must
         // refuse to render rather than call the presenter with a bypass.
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $handler = $this->handler(null, $this->entityTypeManager());
 
         $response = $this->renderMarkdown($handler, $this->sampleEntity(), $account);

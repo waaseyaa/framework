@@ -107,7 +107,7 @@ final class SsrEntityLabelAccessTest extends TestCase
 
     private function anonWithAccessContent(): AccountInterface
     {
-        $account = $this->createMock(AuthorizationPrincipalInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('isAuthenticated')->willReturn(false);
         $account->method('hasPermission')->willReturnCallback(
             static fn(string $permission): bool => $permission === 'access content',

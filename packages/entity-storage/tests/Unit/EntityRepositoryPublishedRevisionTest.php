@@ -48,7 +48,7 @@ final class EntityRepositoryPublishedRevisionTest extends TestCase
         $driver = new SqlStorageDriver($resolver);
         $revisionDriver = new RevisionableStorageDriver($resolver, $entityType);
 
-        $dispatcher = $this->createMock(EventDispatcherInterface::class);
+        $dispatcher = $this->createStub(EventDispatcherInterface::class);
         $dispatcher->method('dispatch')->willReturnArgument(0);
 
         $this->repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(

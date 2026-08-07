@@ -36,7 +36,7 @@ final class AgentToolRegistryBridgeSanitizationTest extends TestCase
 
     private function principal(): AccountInterface
     {
-        $account = $this->createMock(AuthorizationPrincipalInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn(7);
         $account->method('hasPermission')->willReturn(true);
 

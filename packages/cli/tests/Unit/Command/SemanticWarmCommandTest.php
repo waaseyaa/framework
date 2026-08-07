@@ -58,8 +58,8 @@ final class SemanticWarmCommandTest extends TestCase
     public function itFailsWhenNoEmbeddingProviderIsConfigured(): void
     {
         $warmer = new SemanticIndexWarmer(
-            entityTypeManager: $this->createMock(EntityTypeManagerInterface::class),
-            embeddingStorage: $this->createMock(EmbeddingStorageInterface::class),
+            entityTypeManager: $this->createStub(EntityTypeManagerInterface::class),
+            embeddingStorage: $this->createStub(EmbeddingStorageInterface::class),
             embeddingProvider: null,
         );
 
@@ -87,20 +87,20 @@ final class SemanticWarmCommandTest extends TestCase
 
         $entity = new SemanticWarmCommandEntity(1, 'node', ['title' => 'Public', 'status' => 1, 'workflow_state' => 'published']);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('getQuery')->willReturn($query);
 
         // C-22 WP3: read path now goes through the canonical repository.
         $repository = $this->createMock(EntityRepositoryInterface::class);
         $repository->method('getQuery')->willReturn($query);
-        $repository->method('findMany')->with([1])->willReturn([$entity]);
+        $repository->expects(self::once())->method('findMany')->with([1])->willReturn([$entity]);
 
         $manager = $this->createMock(EntityTypeManagerInterface::class);
-        $manager->method('hasDefinition')->with('node')->willReturn(true);
-        $manager->method('getStorage')->with('node')->willReturn($storage);
-        $manager->method('getRepository')->with('node')->willReturn($repository);
+        $manager->expects(self::once())->method('hasDefinition')->with('node')->willReturn(true);
+        $manager->expects(self::never())->method('getStorage');
+        $manager->expects(self::exactly(2))->method('getRepository')->with('node')->willReturn($repository);
 
-        $embeddingProvider = $this->createMock(EmbeddingProviderInterface::class);
+        $embeddingProvider = $this->createStub(EmbeddingProviderInterface::class);
         $embeddingProvider->method('embed')->willReturn([0.2, 0.4]);
 
         $embeddingStorage = $this->createMock(EmbeddingStorageInterface::class);

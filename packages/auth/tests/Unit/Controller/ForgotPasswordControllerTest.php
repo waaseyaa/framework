@@ -39,7 +39,7 @@ final class ForgotPasswordControllerTest extends TestCase
 
     private function makeStorage(mixed $user = null): EntityStorageInterface
     {
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('loadByKey')->willReturn($user);
 
         return $storage;
@@ -47,7 +47,7 @@ final class ForgotPasswordControllerTest extends TestCase
 
     private function makeEntityTypeManager(?EntityStorageInterface $storage = null): EntityTypeManager
     {
-        $manager = $this->createMock(EntityTypeManager::class);
+        $manager = $this->createStub(EntityTypeManager::class);
         $manager->method('getStorage')->willReturn($storage ?? $this->makeStorage());
 
         return $manager;
@@ -55,7 +55,7 @@ final class ForgotPasswordControllerTest extends TestCase
 
     private function makeTokenRepo(): AuthTokenRepositoryInterface
     {
-        $repo = $this->createMock(AuthTokenRepositoryInterface::class);
+        $repo = $this->createStub(AuthTokenRepositoryInterface::class);
         $repo->method('createToken')->willReturn('reset-token-abc');
 
         return $repo;

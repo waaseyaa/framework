@@ -632,7 +632,7 @@ final class SsrEntityPageCompositionTest extends TestCase
 
     private function anonymous(): AccountInterface
     {
-        $account = $this->createMock(AuthorizationPrincipalInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('isAuthenticated')->willReturn(false);
         $account->method('hasPermission')->willReturn(false);
 

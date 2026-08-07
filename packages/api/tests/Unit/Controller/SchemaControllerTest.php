@@ -259,7 +259,7 @@ final class SchemaControllerTest extends TestCase
         ]);
 
         $account = $this->createStub(AccountInterface::class);
-        $handler = $this->createMock(EntityAccessHandler::class);
+        $handler = $this->createStub(EntityAccessHandler::class);
         $handler->method('checkFieldAccess')->willReturn(AccessResult::neutral());
         $handler->method('checkCreateAccess')->willReturn(AccessResult::forbidden('no bundle create access'));
         $controller = new SchemaController($manager, new SchemaPresenter($registry), $handler, $account);
@@ -317,7 +317,7 @@ final class SchemaControllerTest extends TestCase
     #[Test]
     public function showAcceptsFieldAccessContext(): void
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $handler = new EntityAccessHandler([]);
 
         $controller = new SchemaController(
@@ -367,7 +367,7 @@ final class SchemaControllerTest extends TestCase
             label: 'Sensitive',
         ));
 
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $policy = new class implements AccessPolicyInterface, FieldAccessPolicyInterface {
             public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
             {
@@ -452,7 +452,7 @@ final class SchemaControllerTest extends TestCase
             label: 'Required Field',
         ));
 
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $policy = new class implements AccessPolicyInterface, FieldAccessPolicyInterface {
             public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
             {
@@ -509,7 +509,7 @@ final class SchemaControllerTest extends TestCase
     #[Test]
     public function showStillReturnsFilteredSchemaWhenPrototypeConstructionSucceeds(): void
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $handler = new EntityAccessHandler([]);
 
         $controller = new SchemaController(

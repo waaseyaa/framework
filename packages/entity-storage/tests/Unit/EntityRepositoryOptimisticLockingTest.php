@@ -81,7 +81,7 @@ final class EntityRepositoryOptimisticLockingTest extends TestCase
     private function spyDispatcher(): EventDispatcherInterface
     {
         $this->dispatchedEvents = [];
-        $dispatcher = $this->createMock(EventDispatcherInterface::class);
+        $dispatcher = $this->createStub(EventDispatcherInterface::class);
         $dispatcher->method('dispatch')->willReturnCallback(function (object $event, ?string $eventName = null) {
             $this->dispatchedEvents[] = $eventName ?? $event::class;
 

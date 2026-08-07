@@ -92,10 +92,10 @@ final class GateAccessTest extends TestCase
     #[Test]
     public function gateAllowsReturnsAllowed(): void
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
 
         $gate = $this->createMock(GateInterface::class);
-        $gate->method('allows')
+        $gate->expects(self::once())->method('allows')
             ->with('config.export', null, $account)
             ->willReturn(true);
 
@@ -112,10 +112,10 @@ final class GateAccessTest extends TestCase
     #[Test]
     public function gateDeniesReturnsForbidden(): void
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
 
         $gate = $this->createMock(GateInterface::class);
-        $gate->method('allows')
+        $gate->expects(self::once())->method('allows')
             ->with('config.export', null, $account)
             ->willReturn(false);
 
@@ -138,7 +138,7 @@ final class GateAccessTest extends TestCase
         $route = new Route('/api/config/export');
         AccessChecker::applyGateToRoute($route, 'config.export');
 
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $result = $checker->check($route, $account);
 
         $this->assertTrue($result->isForbidden());
@@ -148,12 +148,12 @@ final class GateAccessTest extends TestCase
     public function gateCombinedWithPermissionBothPassReturnsAllowed(): void
     {
         $account = $this->createMock(AccountInterface::class);
-        $account->method('hasPermission')
+        $account->expects(self::once())->method('hasPermission')
             ->with('access config')
             ->willReturn(true);
 
         $gate = $this->createMock(GateInterface::class);
-        $gate->method('allows')
+        $gate->expects(self::once())->method('allows')
             ->with('config.export', null, $account)
             ->willReturn(true);
 
@@ -172,12 +172,12 @@ final class GateAccessTest extends TestCase
     public function gateCombinedWithPermissionGateFailsReturnsForbidden(): void
     {
         $account = $this->createMock(AccountInterface::class);
-        $account->method('hasPermission')
+        $account->expects(self::once())->method('hasPermission')
             ->with('access config')
             ->willReturn(true);
 
         $gate = $this->createMock(GateInterface::class);
-        $gate->method('allows')
+        $gate->expects(self::once())->method('allows')
             ->with('config.export', null, $account)
             ->willReturn(false);
 
@@ -197,12 +197,12 @@ final class GateAccessTest extends TestCase
     public function gateCombinedWithPermissionPermissionFailsReturnsForbidden(): void
     {
         $account = $this->createMock(AccountInterface::class);
-        $account->method('hasPermission')
+        $account->expects(self::once())->method('hasPermission')
             ->with('access config')
             ->willReturn(false);
 
         $gate = $this->createMock(GateInterface::class);
-        $gate->method('allows')
+        $gate->expects(self::once())->method('allows')
             ->with('config.export', null, $account)
             ->willReturn(true);
 
@@ -229,7 +229,7 @@ final class GateAccessTest extends TestCase
         $route = new Route('/test');
         $route->setOption('_public', true);
 
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $result = $checker->check($route, $account);
 
         $this->assertTrue($result->isAllowed());
@@ -246,7 +246,7 @@ final class GateAccessTest extends TestCase
         $route = new Route('/api/config/export');
         $route->setOption('_gate', ['ability' => '', 'subject' => null]);
 
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $result = $checker->check($route, $account);
 
         $this->assertTrue($result->isForbidden());
@@ -255,7 +255,7 @@ final class GateAccessTest extends TestCase
     #[Test]
     public function gatePassesSubjectToGateCheck(): void
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
 
         $gate = $this->createMock(GateInterface::class);
         $gate->expects($this->once())

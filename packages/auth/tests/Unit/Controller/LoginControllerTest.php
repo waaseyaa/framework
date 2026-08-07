@@ -26,7 +26,7 @@ final class LoginControllerTest extends TestCase
 
     private function makeEntityTypeManager(?EntityStorageInterface $storage = null): EntityTypeManager
     {
-        $manager = $this->createMock(EntityTypeManager::class);
+        $manager = $this->createStub(EntityTypeManager::class);
 
         if ($storage !== null) {
             $manager->method('getStorage')->willReturn($storage);

@@ -58,7 +58,7 @@ final class JsonApiControllerFieldAccessTest extends TestCase
             ],
         ));
 
-        $this->account = $this->createMock(AccountInterface::class);
+        $this->account = $this->createStub(AccountInterface::class);
 
         // Policy: forbid viewing 'secret', forbid editing 'status'.
         $policy = new class () implements AccessPolicyInterface, FieldAccessPolicyInterface {

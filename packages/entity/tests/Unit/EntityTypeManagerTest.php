@@ -24,7 +24,7 @@ class EntityTypeManagerTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->eventDispatcher = $this->createMock(EventDispatcherInterface::class);
+        $this->eventDispatcher = $this->createStub(EventDispatcherInterface::class);
         $this->manager = new EntityTypeManager($this->eventDispatcher);
     }
 
@@ -127,7 +127,7 @@ class EntityTypeManagerTest extends TestCase
 
     public function testGetStorageWithFactory(): void
     {
-        $mockStorage = $this->createMock(EntityStorageInterface::class);
+        $mockStorage = $this->createStub(EntityStorageInterface::class);
 
         $manager = new EntityTypeManager(
             $this->eventDispatcher,
@@ -147,7 +147,7 @@ class EntityTypeManagerTest extends TestCase
     public function testGetStorageCachesInstances(): void
     {
         $callCount = 0;
-        $mockStorage = $this->createMock(EntityStorageInterface::class);
+        $mockStorage = $this->createStub(EntityStorageInterface::class);
 
         $manager = new EntityTypeManager(
             $this->eventDispatcher,
@@ -222,7 +222,7 @@ class EntityTypeManagerTest extends TestCase
 
     public function testGetRepositoryUsesFactoryAndCaches(): void
     {
-        $mockRepo = $this->createMock(EntityRepositoryInterface::class);
+        $mockRepo = $this->createStub(EntityRepositoryInterface::class);
         $callCount = 0;
 
         $manager = new EntityTypeManager(

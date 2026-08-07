@@ -25,14 +25,14 @@ final class GenealogyRelationshipAccessPolicyTest extends TestCase
         $p1 = new GenealogyPerson(['id' => 2, 'display_name' => 'A', 'tree_id' => 1]);
         $p2 = new GenealogyPerson(['id' => 1, 'display_name' => 'B', 'tree_id' => 1]);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('load')->willReturnMap([
             ['2', $p1],
             ['1', $p2],
         ]);
 
         // C-22 WP3: read path now goes through the canonical repository.
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
         $repository->method('find')->willReturnCallback(
             static fn(string $id): ?GenealogyPerson => match ($id) {
                 '2' => $p1,
@@ -41,12 +41,12 @@ final class GenealogyRelationshipAccessPolicyTest extends TestCase
             },
         );
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getStorage')->willReturn($storage);
         $etm->method('getRepository')->willReturn($repository);
 
-        $handler = $this->createMock(EntityAccessHandler::class);
+        $handler = $this->createStub(EntityAccessHandler::class);
         $handler->method('check')->willReturn(AccessResult::allowed());
 
         $policy = new GenealogyRelationshipAccessPolicy($etm, $handler);
@@ -71,14 +71,14 @@ final class GenealogyRelationshipAccessPolicyTest extends TestCase
         $p1 = new GenealogyPerson(['id' => 2, 'display_name' => 'A', 'tree_id' => 1]);
         $p2 = new GenealogyPerson(['id' => 1, 'display_name' => 'B', 'tree_id' => 1]);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('load')->willReturnMap([
             ['2', $p1],
             ['1', $p2],
         ]);
 
         // C-22 WP3: read path now goes through the canonical repository.
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
         $repository->method('find')->willReturnCallback(
             static fn(string $id): ?GenealogyPerson => match ($id) {
                 '2' => $p1,
@@ -87,12 +87,12 @@ final class GenealogyRelationshipAccessPolicyTest extends TestCase
             },
         );
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getStorage')->willReturn($storage);
         $etm->method('getRepository')->willReturn($repository);
 
-        $handler = $this->createMock(EntityAccessHandler::class);
+        $handler = $this->createStub(EntityAccessHandler::class);
         $handler->method('check')->willReturn(AccessResult::forbidden('hidden'));
 
         $policy = new GenealogyRelationshipAccessPolicy($etm, $handler);
@@ -114,8 +114,8 @@ final class GenealogyRelationshipAccessPolicyTest extends TestCase
     #[Test]
     public function non_genealogy_edge_has_no_opinion(): void
     {
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
-        $handler = $this->createMock(EntityAccessHandler::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
+        $handler = $this->createStub(EntityAccessHandler::class);
         $policy = new GenealogyRelationshipAccessPolicy($etm, $handler);
         $account = new AnonymousUser();
         $edge = new Relationship([

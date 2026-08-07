@@ -168,7 +168,7 @@ final class OidcClientAccessPolicyTest extends TestCase
 
     private function admin(): AccountInterface
     {
-        $mock = $this->createMock(AccountInterface::class);
+        $mock = $this->createStub(AccountInterface::class);
         $mock->method('hasPermission')
             ->willReturnCallback(fn(string $p): bool => $p === 'administer oidc clients');
         $mock->method('id')->willReturn(1);
@@ -177,7 +177,7 @@ final class OidcClientAccessPolicyTest extends TestCase
 
     private function nonAdmin(): AccountInterface
     {
-        $mock = $this->createMock(AccountInterface::class);
+        $mock = $this->createStub(AccountInterface::class);
         $mock->method('hasPermission')->willReturn(false);
         $mock->method('id')->willReturn(2);
         return $mock;
@@ -185,7 +185,7 @@ final class OidcClientAccessPolicyTest extends TestCase
 
     private function anonymous(): AccountInterface
     {
-        $mock = $this->createMock(AccountInterface::class);
+        $mock = $this->createStub(AccountInterface::class);
         $mock->method('hasPermission')->willReturn(false);
         $mock->method('id')->willReturn(0);
         $mock->method('isAuthenticated')->willReturn(false);

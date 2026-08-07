@@ -62,7 +62,7 @@ final class UserSessionTest extends TestCase
 
     public function testAcceptsAnyAccountInterface(): void
     {
-        $mock = $this->createMock(AccountInterface::class);
+        $mock = $this->createStub(AccountInterface::class);
         $mock->method('isAuthenticated')->willReturn(true);
         $mock->method('id')->willReturn(99);
 

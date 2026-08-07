@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **MCP public authentication (#2276):** Let the public read-only MCP tier recognize durable, expiring, revocable `mcp:public` bearer credentials while preserving anonymous discovery, exact token scopes, real-account capability checks, and write-audience isolation.
 
+### Changed
+
+- **PHPUnit strictness (#2277):** Fail the canonical suite on PHP and PHPUnit notices or deprecations, retain mocks only for interaction contracts, and use stubs for passive collaborators. Active split-suite instructions now disable the configured coverage report explicitly so a missing coverage driver cannot stop discovery with zero tests executed.
+
 ### Fixed
 
 - **stacked pull request CI (#2286):** Run framework, Admin SPA, changelog-discipline, and public-surface validation for pull requests targeting any review branch so every dependency-ordered head receives exact GitHub evidence.

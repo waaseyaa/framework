@@ -213,13 +213,13 @@ Design docs in `docs/history/plans/` are session artifacts (implementation histo
 
 **Testing** (do NOT use `-v` flag, PHPUnit 10.5 rejects it):
 - `./vendor/bin/phpunit` — run all tests
-- `./vendor/bin/phpunit --testsuite Unit` — unit tests only
-- `./vendor/bin/phpunit --testsuite Integration` — integration tests only
+- `./vendor/bin/phpunit --testsuite Unit --no-coverage` — unit tests only
+- `./vendor/bin/phpunit --testsuite Integration --no-coverage` — integration tests only
 - `./vendor/bin/phpunit --filter Phase10` — run tests matching a pattern
 - `./vendor/bin/phpunit packages/mail/tests/` — run a single package's tests
 
 **Platform — the suite is Linux-first; run it split, not as one process:**
-- Run the **split suites** (`--testsuite Unit`, then `--testsuite Integration`), not a bare `./vendor/bin/phpunit`: the whole suite as a single process OOMs at PHP's default 128 MB `memory_limit`. Raise `memory_limit` or run the two suites separately (CI runs them as separate jobs on Linux).
+- Run the **split suites** (`--testsuite Unit --no-coverage`, then `--testsuite Integration --no-coverage`), not a bare `./vendor/bin/phpunit`: the whole suite as a single process OOMs at PHP's default 128 MB `memory_limit`. Raise `memory_limit` or run the two suites separately (CI runs them as separate jobs on Linux). The explicit `--no-coverage` is required when no coverage driver is installed; otherwise the configured coverage report emits a runner warning before discovery and zero tests execute.
 - **Windows contributors:** the CLI snapshot tests pass on Windows because their fixtures (`*.stdout` / `*.stderr` / `*.exit`) are pinned to `eol=lf` in `.gitattributes` — with `core.autocrlf=true` they were otherwise checked out CRLF and ~72 `CliTester` snapshot assertions failed on the line endings alone. The *remaining* Windows failures are **POSIX-only by design** and are expected to fail off Linux: the release-tooling tests assume `bash`, `proc_open`, POSIX advisory file locks, and symlinks; the bin-script and OIDC-RSA tests assume a POSIX toolchain. `composer test` / `composer verify` are green on Linux and in CI. Treat a Windows-only failure in those areas as environmental — confirm it against a clean Linux run (or `git stash` + clean main) before assuming you introduced it.
 
 **Code quality:**

@@ -163,7 +163,7 @@ final class SsrEntityHtmlAccessTest extends TestCase
     #[Test]
     public function html_omits_a_field_restricted_for_the_viewing_account(): void
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $accessHandler = $this->forbidSecretNoteHandler();
         $handler = $this->handler($accessHandler, $this->entityTypeManager());
 
@@ -181,7 +181,7 @@ final class SsrEntityHtmlAccessTest extends TestCase
     {
         // Positive regression: enforcing field access must not over-filter a
         // viewable entity with no restricted fields.
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $accessHandler = new EntityAccessHandler([]);
         $handler = $this->handler($accessHandler, $this->entityTypeManager());
 
@@ -201,7 +201,7 @@ final class SsrEntityHtmlAccessTest extends TestCase
         // getAccessHandler(), so this branch is not reachable in production.
         // A direct/test construction of SsrPageHandler without one must
         // refuse to render rather than serve unfiltered content.
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $handler = $this->handler(null, $this->entityTypeManager());
 
         $response = $this->renderHtml($handler, $this->sampleEntity(), $account, null, $this->entityTypeManager());

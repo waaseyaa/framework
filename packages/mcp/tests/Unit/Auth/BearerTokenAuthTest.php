@@ -18,7 +18,7 @@ final class BearerTokenAuthTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->account = $this->createMock(AuthorizationPrincipalInterface::class);
+        $this->account = $this->createStub(AuthorizationPrincipalInterface::class);
         $this->account->method('id')->willReturn(1);
 
         $this->auth = new BearerTokenAuth([

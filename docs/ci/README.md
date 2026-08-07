@@ -61,8 +61,8 @@ composer cs-check
 composer phpstan
 
 # Unit + integration tests (matches ci/unit-tests)
-./vendor/bin/phpunit --testsuite Unit
-./vendor/bin/phpunit --testsuite Integration
+./vendor/bin/phpunit --testsuite Unit --no-coverage
+./vendor/bin/phpunit --testsuite Integration --no-coverage
 
 # Frontend build + tests
 cd packages/admin && npm ci && npm run build && npm test

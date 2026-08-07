@@ -109,7 +109,7 @@ final class MessagingAccessPolicyTest extends TestCase
     {
         $captured = ['thread_id' => null, 'user_id' => null];
 
-        $query = $this->createMock(EntityQueryInterface::class);
+        $query = $this->createStub(EntityQueryInterface::class);
         $query->method('accessCheck')->willReturnSelf();
         $query->method('range')->willReturnSelf();
         $query->method('condition')->willReturnCallback(
@@ -126,10 +126,10 @@ final class MessagingAccessPolicyTest extends TestCase
             },
         );
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('getQuery')->willReturn($query);
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('getStorage')->willReturn($storage);
         // C-22: the query builder now lives on the repository.
         $etm->method('getRepository')->willReturn(new QueryOnlyStubRepository($query));
@@ -139,7 +139,7 @@ final class MessagingAccessPolicyTest extends TestCase
 
     private function threadMessage(int $threadId): EntityInterface
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn('thread_message');
         $entity->method('bundle')->willReturn('');
         $entity->method('get')->willReturnCallback(
@@ -151,7 +151,7 @@ final class MessagingAccessPolicyTest extends TestCase
 
     private function account(int $uid, bool $authenticated = true): AccountInterface
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('id')->willReturn($uid);
         $account->method('hasPermission')->willReturn(false);
         $account->method('isAuthenticated')->willReturn($authenticated);

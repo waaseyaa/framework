@@ -58,7 +58,7 @@ final class DurableBearerTokenLifecycleTest extends TestCase
 
         $owner = new User(['uid' => 42]);
         $owner->enforceIsNew();
-        $accounts = $this->createMock(EntityRepositoryInterface::class);
+        $accounts = $this->createStub(EntityRepositoryInterface::class);
         $accounts->method('findBy')
             ->willReturnCallback(static fn(array $criteria): array => $criteria === ['uid' => 42, 'status' => 1] ? [$owner] : []);
 

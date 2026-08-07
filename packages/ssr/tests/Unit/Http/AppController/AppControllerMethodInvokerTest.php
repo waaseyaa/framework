@@ -57,9 +57,9 @@ final class AppControllerMethodInvokerTest extends TestCase
     {
         $entity = new BoundFixtureEntity();
         $repository = $this->createMock(EntityRepositoryInterface::class);
-        $repository->method('find')->with('7')->willReturn($entity);
+        $repository->expects(self::once())->method('find')->with('7')->willReturn($entity);
         $manager = $this->createMock(EntityTypeManagerInterface::class);
-        $manager->method('getRepository')->with('bound_fixture')->willReturn($repository);
+        $manager->expects(self::once())->method('getRepository')->with('bound_fixture')->willReturn($repository);
         $gate = $this->createMock(GateInterface::class);
         $gate->expects(self::once())->method('allows')->with(GateInterface::VIEW, $entity, self::isInstanceOf(AnonymousUser::class))->willReturn(false);
 
@@ -118,7 +118,7 @@ final class AppControllerMethodInvokerTest extends TestCase
                 return $className === CustomMethodService::class ? $this->service : null;
             }
         };
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $route = RouteBuilder::create('/fixture')->build();
         $context = $this->context($route, $manager, null, [], $resolver);
 

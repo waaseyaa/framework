@@ -59,7 +59,7 @@ final class EntityRepositoryTranslationAxisTest extends TestCase
         $handler->ensureTranslationRevisionTable();
 
         $resolver = new SingleConnectionResolver($this->db);
-        $dispatcher = $this->createMock(EventDispatcherInterface::class);
+        $dispatcher = $this->createStub(EventDispatcherInterface::class);
         $dispatcher->method('dispatch')->willReturnArgument(0);
 
         $this->repo = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(

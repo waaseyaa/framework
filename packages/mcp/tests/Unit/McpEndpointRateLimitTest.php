@@ -27,7 +27,7 @@ final class McpEndpointRateLimitTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->auth = $this->createMock(McpAuthInterface::class);
+        $this->auth = $this->createStub(McpAuthInterface::class);
         $this->auth->method('authenticate')->willReturnCallback(
             fn(?string $header): ?AuthorizationPrincipalInterface => $this->principal(
                 (int) str_replace('Bearer uid-', '', (string) $header),
@@ -37,7 +37,7 @@ final class McpEndpointRateLimitTest extends TestCase
 
     private function principal(int $uid): AuthorizationPrincipalInterface
     {
-        $account = $this->createMock(AuthorizationPrincipalInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn($uid);
         $account->method('isAuthenticated')->willReturn(true);
 
@@ -46,7 +46,7 @@ final class McpEndpointRateLimitTest extends TestCase
 
     private function endpoint(?AtomicRateLimiterInterface $limiter, int $max = 2, string $tier = 'write'): McpEndpoint
     {
-        $registry = $this->createMock(ToolRegistryInterface::class);
+        $registry = $this->createStub(ToolRegistryInterface::class);
         $registry->method('all')->willReturn([]);
 
         return new McpEndpoint(
@@ -120,7 +120,7 @@ final class McpEndpointRateLimitTest extends TestCase
     {
         $endpoint = new McpEndpoint(
             auth: $this->auth,
-            agentRegistry: $this->createMock(ToolRegistryInterface::class),
+            agentRegistry: $this->createStub(ToolRegistryInterface::class),
         );
         for ($i = 0; $i < 25; $i++) {
             self::assertSame(200, $this->ping($endpoint, 1)->statusCode);
@@ -165,11 +165,11 @@ final class McpEndpointRateLimitTest extends TestCase
         $endpoint = $this->endpoint($limiter, max: 2);
 
         $request = HttpRequest::create('/mcp', 'POST', [], [], [], [], '{}');
-        $auth = $this->createMock(McpAuthInterface::class);
+        $auth = $this->createStub(McpAuthInterface::class);
         $auth->method('authenticate')->willReturn(null);
         $anonEndpoint = new McpEndpoint(
             auth: $auth,
-            agentRegistry: $this->createMock(ToolRegistryInterface::class),
+            agentRegistry: $this->createStub(ToolRegistryInterface::class),
             rateLimiter: $limiter,
             rateLimitMaxRequests: 2,
         );

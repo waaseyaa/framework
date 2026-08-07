@@ -52,7 +52,7 @@ final class PermissionListHandlerTest extends TestCase
     #[Test]
     public function listsPermissions(): void
     {
-        $handler = $this->createMock(PermissionHandlerInterface::class);
+        $handler = $this->createStub(PermissionHandlerInterface::class);
         $handler->method('getPermissions')->willReturn([
             'access content' => [
                 'title' => 'Access content',
@@ -77,7 +77,7 @@ final class PermissionListHandlerTest extends TestCase
     #[Test]
     public function showsMessageWhenNoPermissions(): void
     {
-        $handler = $this->createMock(PermissionHandlerInterface::class);
+        $handler = $this->createStub(PermissionHandlerInterface::class);
         $handler->method('getPermissions')->willReturn([]);
 
         $tester = CliTester::for($this->makeDefinition(), $this->makeContainer($handler));

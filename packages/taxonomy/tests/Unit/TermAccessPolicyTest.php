@@ -29,7 +29,7 @@ class TermAccessPolicyTest extends TestCase
 
     private function createAccount(array $permissions = []): AccountInterface
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('hasPermission')
             ->willReturnCallback(fn(string $permission) => \in_array($permission, $permissions, true));
 
@@ -38,7 +38,7 @@ class TermAccessPolicyTest extends TestCase
 
     private function createTermEntity(string $vocabularyId = 'tags', ?bool $published = null): EntityInterface
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn('taxonomy_term');
         $entity->method('bundle')->willReturn($vocabularyId);
         // NOTE: $published defaults to null (absent/undetermined status), NOT

@@ -30,7 +30,7 @@ final class FieldServiceProviderClearanceConfigTest extends TestCase
         $checker = $provider->resolve(ClassificationClearanceCheckerInterface::class);
         self::assertInstanceOf(ClassificationClearanceCheckerInterface::class, $checker);
 
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('getRoles')->willReturn(['special-role']);
 
         self::assertSame(7, $checker->clearanceLevelFor($account));

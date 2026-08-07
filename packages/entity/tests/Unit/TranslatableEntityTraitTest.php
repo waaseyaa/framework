@@ -22,7 +22,7 @@ final class TranslatableEntityTraitTest extends TestCase
 
     protected function setUp(): void
     {
-        $dispatcher = $this->createMock(EventDispatcherInterface::class);
+        $dispatcher = $this->createStub(EventDispatcherInterface::class);
         $this->manager = new EntityTypeManager($dispatcher);
 
         // Register a translatable entity type.

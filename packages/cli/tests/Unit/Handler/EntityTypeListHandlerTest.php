@@ -70,7 +70,7 @@ final class EntityTypeListHandlerTest extends TestCase
             translatable: false,
         );
 
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn([
             'node' => $nodeType,
             'user' => $userType,
@@ -93,7 +93,7 @@ final class EntityTypeListHandlerTest extends TestCase
     #[Test]
     public function showsMessageWhenNoEntityTypes(): void
     {
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn([]);
 
         $definition = $this->makeDefinition();

@@ -32,10 +32,10 @@ final class DomainValidationListenerTest extends TestCase
         ]);
 
         $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->method('load')->with(1)->willReturn($existing);
+        $storage->expects(self::never())->method('load');
 
         $repository = $this->createMock(EntityRepositoryInterface::class);
-        $repository->method('find')->with('1')->willReturn($existing);
+        $repository->expects(self::once())->method('find')->with('1')->willReturn($existing);
 
         $manager = $this->createEntityTypeManager($storage, $repository);
         $listener = new DomainValidationListener(
@@ -70,10 +70,10 @@ final class DomainValidationListenerTest extends TestCase
         ]);
 
         $storage = $this->createMock(EntityStorageInterface::class);
-        $storage->method('load')->with(1)->willReturn($existing);
+        $storage->expects(self::never())->method('load');
 
         $repository = $this->createMock(EntityRepositoryInterface::class);
-        $repository->method('find')->with('1')->willReturn($existing);
+        $repository->expects(self::once())->method('find')->with('1')->willReturn($existing);
 
         $manager = $this->createEntityTypeManager($storage, $repository);
         $listener = new DomainValidationListener(
@@ -97,9 +97,9 @@ final class DomainValidationListenerTest extends TestCase
 
     public function testRejectsUnknownWorkflowState(): void
     {
-        $storage = $this->createMock(EntityStorageInterface::class);
-        $repository = $this->createMock(EntityRepositoryInterface::class);
-        $manager = $this->createEntityTypeManager($storage, $repository);
+        $storage = $this->createStub(EntityStorageInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
+        $manager = $this->createEntityTypeManager($storage, $repository, expectLookup: false);
         $listener = new DomainValidationListener(
             entityTypeManager: $manager,
             workflowBundles: ['article'],
@@ -119,12 +119,12 @@ final class DomainValidationListenerTest extends TestCase
         $listener(new EntityEvent($entity));
     }
 
-    private function createEntityTypeManager(EntityStorageInterface $storage, EntityRepositoryInterface $repository): EntityTypeManagerInterface
+    private function createEntityTypeManager(EntityStorageInterface $storage, EntityRepositoryInterface $repository, bool $expectLookup = true): EntityTypeManagerInterface
     {
         $manager = $this->createMock(EntityTypeManagerInterface::class);
-        $manager->method('getStorage')->with('node')->willReturn($storage);
+        $manager->expects(self::never())->method('getStorage');
         // C-22 WP3: read/write path now goes through the canonical repository.
-        $manager->method('getRepository')->with('node')->willReturn($repository);
+        $manager->expects($expectLookup ? self::once() : self::never())->method('getRepository')->with('node')->willReturn($repository);
         $manager->method('hasDefinition')->willReturn(false);
         $manager->method('getDefinitions')->willReturn([]);
         $manager->method('getDefinition')->willThrowException(new \RuntimeException('Not needed in test'));

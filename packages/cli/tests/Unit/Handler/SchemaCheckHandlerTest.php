@@ -22,7 +22,7 @@ final class SchemaCheckHandlerTest extends TestCase
     #[Test]
     public function noDriftReturnsSuccess(): void
     {
-        $checker = $this->createMock(HealthCheckerInterface::class);
+        $checker = $this->createStub(HealthCheckerInterface::class);
         $checker->method('checkSchemaDrift')->willReturn([
             HealthCheckResult::pass('Schema drift', 'All schemas match.'),
         ]);
@@ -37,7 +37,7 @@ final class SchemaCheckHandlerTest extends TestCase
     #[Test]
     public function driftDetectedReturnsExitCode1(): void
     {
-        $checker = $this->createMock(HealthCheckerInterface::class);
+        $checker = $this->createStub(HealthCheckerInterface::class);
         $checker->method('checkSchemaDrift')->willReturn([
             HealthCheckResult::fail(
                 'Schema: node_type',
@@ -58,7 +58,7 @@ final class SchemaCheckHandlerTest extends TestCase
     #[Test]
     public function jsonOptionOutputsJson(): void
     {
-        $checker = $this->createMock(HealthCheckerInterface::class);
+        $checker = $this->createStub(HealthCheckerInterface::class);
         $checker->method('checkSchemaDrift')->willReturn([
             HealthCheckResult::pass('Schema drift', 'OK'),
         ]);

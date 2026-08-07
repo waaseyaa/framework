@@ -19,7 +19,7 @@ final class AdminIntrospectionProviderTest extends TestCase
     #[Test]
     public function it_implements_graph_section_provider_interface(): void
     {
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn([]);
 
         $provider = new AdminIntrospectionProvider($manager);
@@ -30,7 +30,7 @@ final class AdminIntrospectionProviderTest extends TestCase
     #[Test]
     public function get_key_returns_admin(): void
     {
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn([]);
 
         $provider = new AdminIntrospectionProvider($manager);
@@ -41,7 +41,7 @@ final class AdminIntrospectionProviderTest extends TestCase
     #[Test]
     public function provide_returns_empty_section_when_no_entity_types(): void
     {
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn([]);
 
         $provider = new AdminIntrospectionProvider($manager);
@@ -56,11 +56,11 @@ final class AdminIntrospectionProviderTest extends TestCase
     #[Test]
     public function provide_excludes_entity_types_without_group(): void
     {
-        $ungrouped = $this->createMock(EntityTypeInterface::class);
+        $ungrouped = $this->createStub(EntityTypeInterface::class);
         $ungrouped->method('id')->willReturn('config_entity');
         $ungrouped->method('getGroup')->willReturn(null);
 
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn([
             'config_entity' => $ungrouped,
         ]);
@@ -74,7 +74,7 @@ final class AdminIntrospectionProviderTest extends TestCase
     #[Test]
     public function provide_includes_entity_types_with_group(): void
     {
-        $nodeType = $this->createMock(EntityTypeInterface::class);
+        $nodeType = $this->createStub(EntityTypeInterface::class);
         $nodeType->method('id')->willReturn('node');
         $nodeType->method('getLabel')->willReturn('Content');
         $nodeType->method('getGroup')->willReturn('content');
@@ -89,11 +89,11 @@ final class AdminIntrospectionProviderTest extends TestCase
             'label' => 'title',
         ]);
 
-        $ungrouped = $this->createMock(EntityTypeInterface::class);
+        $ungrouped = $this->createStub(EntityTypeInterface::class);
         $ungrouped->method('id')->willReturn('user');
         $ungrouped->method('getGroup')->willReturn(null);
 
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn([
             'node' => $nodeType,
             'user' => $ungrouped,
@@ -127,7 +127,7 @@ final class AdminIntrospectionProviderTest extends TestCase
     #[Test]
     public function provide_sets_limited_capabilities_for_config_entities(): void
     {
-        $configType = $this->createMock(EntityTypeInterface::class);
+        $configType = $this->createStub(EntityTypeInterface::class);
         $configType->method('id')->willReturn('menu');
         $configType->method('getLabel')->willReturn('Menu');
         $configType->method('getGroup')->willReturn('structure');
@@ -139,7 +139,7 @@ final class AdminIntrospectionProviderTest extends TestCase
             'id' => 'id',
         ]);
 
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getDefinitions')->willReturn([
             'menu' => $configType,
         ]);

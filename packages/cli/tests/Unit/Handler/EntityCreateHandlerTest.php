@@ -59,14 +59,14 @@ final class EntityCreateHandlerTest extends TestCase
      */
     private function managerExpecting(array $expectedValues, int $id = 7): EntityTypeManagerInterface
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('id')->willReturn($id);
 
         $repository = $this->createMock(EntityRepositoryInterface::class);
         $repository->expects($this->once())->method('create')->with($expectedValues)->willReturn($entity);
         $repository->expects($this->once())->method('save')->with($entity);
 
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $manager->method('getRepository')->willReturn($repository);
 
         return $manager;
@@ -94,7 +94,7 @@ final class EntityCreateHandlerTest extends TestCase
     #[Test]
     public function createsEntityWithGivenValues(): void
     {
-        $mockEntity = $this->createMock(EntityInterface::class);
+        $mockEntity = $this->createStub(EntityInterface::class);
         $mockEntity->method('id')->willReturn(42);
 
         $mockRepository = $this->createMock(EntityRepositoryInterface::class);
@@ -107,7 +107,7 @@ final class EntityCreateHandlerTest extends TestCase
             ->with($mockEntity);
 
         $mockManager = $this->createMock(EntityTypeManagerInterface::class);
-        $mockManager->method('getRepository')
+        $mockManager->expects(self::once())->method('getRepository')
             ->with('node')
             ->willReturn($mockRepository);
 
@@ -122,7 +122,7 @@ final class EntityCreateHandlerTest extends TestCase
     #[Test]
     public function createsEntityWithDefaultEmptyValues(): void
     {
-        $mockEntity = $this->createMock(EntityInterface::class);
+        $mockEntity = $this->createStub(EntityInterface::class);
         $mockEntity->method('id')->willReturn(1);
 
         $mockRepository = $this->createMock(EntityRepositoryInterface::class);
@@ -132,7 +132,7 @@ final class EntityCreateHandlerTest extends TestCase
             ->willReturn($mockEntity);
         $mockRepository->expects($this->once())->method('save');
 
-        $mockManager = $this->createMock(EntityTypeManagerInterface::class);
+        $mockManager = $this->createStub(EntityTypeManagerInterface::class);
         $mockManager->method('getRepository')->willReturn($mockRepository);
 
         $definition = $this->makeDefinition();
@@ -146,7 +146,7 @@ final class EntityCreateHandlerTest extends TestCase
     #[Test]
     public function failsOnInvalidJson(): void
     {
-        $mockManager = $this->createMock(EntityTypeManagerInterface::class);
+        $mockManager = $this->createStub(EntityTypeManagerInterface::class);
 
         $definition = $this->makeDefinition();
         $tester = CliTester::for($definition, $this->makeContainer($mockManager));
@@ -234,7 +234,7 @@ final class EntityCreateHandlerTest extends TestCase
     #[Test]
     public function failsOnMalformedFieldFlag(): void
     {
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $tester = CliTester::for($this->makeDefinition(), $this->makeContainer($manager));
         $tester->executeMap(['entity_type' => 'story', '--field' => ['no-equals-sign']]);
 
@@ -245,7 +245,7 @@ final class EntityCreateHandlerTest extends TestCase
     #[Test]
     public function failsOnMissingValuesFile(): void
     {
-        $manager = $this->createMock(EntityTypeManagerInterface::class);
+        $manager = $this->createStub(EntityTypeManagerInterface::class);
         $tester = CliTester::for($this->makeDefinition(), $this->makeContainer($manager));
         $tester->executeMap(['entity_type' => 'story', '--values-file' => '/no/such/file.json']);
 

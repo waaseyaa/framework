@@ -211,7 +211,7 @@ final class ThreadParticipantBootstrapSubscriberTest extends TestCase
 
         $account = $this->account($actingAccountId);
 
-        $context = $this->createMock(AccountContextInterface::class);
+        $context = $this->createStub(AccountContextInterface::class);
         $context->method('current')->willReturn($account);
 
         return $context;
@@ -219,7 +219,7 @@ final class ThreadParticipantBootstrapSubscriberTest extends TestCase
 
     private function account(int $uid): AccountInterface
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('id')->willReturn($uid);
         $account->method('hasPermission')->willReturn(false);
         $account->method('isAuthenticated')->willReturn(true);

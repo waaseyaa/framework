@@ -45,8 +45,8 @@ final class McpEndpointDispatchEventTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->auth = $this->createMock(McpAuthInterface::class);
-        $this->account = $this->createMock(AuthorizationPrincipalInterface::class);
+        $this->auth = $this->createStub(McpAuthInterface::class);
+        $this->account = $this->createStub(AuthorizationPrincipalInterface::class);
         $this->account->method('id')->willReturn(7);
         $this->account->method('hasPermission')->willReturn(true);
     }
@@ -238,7 +238,7 @@ final class McpEndpointDispatchEventTest extends TestCase
     #[Test]
     public function dispatchEventPreservesOpaqueStringAccountId(): void
     {
-        $account = $this->createMock(AuthorizationPrincipalInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('id')->willReturn('acct-anishinaabe-7');
         $account->method('hasPermission')->willReturn(true);
         $this->auth->method('authenticate')->willReturn($account);
@@ -706,7 +706,7 @@ final class McpEndpointDispatchEventTest extends TestCase
     {
         $this->auth->method('authenticate')->willReturn($this->account);
 
-        $previousActor = $this->createMock(AccountInterface::class);
+        $previousActor = $this->createStub(AccountInterface::class);
         $context = new RecordingMcpAccountContext($previousActor);
 
         $endpoint = $this->makeEndpoint(accountContext: $context);
@@ -723,7 +723,7 @@ final class McpEndpointDispatchEventTest extends TestCase
     {
         $this->auth->method('authenticate')->willReturn($this->account);
 
-        $previousActor = $this->createMock(AccountInterface::class);
+        $previousActor = $this->createStub(AccountInterface::class);
         $context = new RecordingMcpAccountContext($previousActor);
 
         // Registry whose enumeration throws. Since the F4 closure fix the

@@ -181,7 +181,7 @@ final class QueryApplierTest extends TestCase
     {
         $query = new ParsedQuery();
 
-        $entityQuery = $this->createMock(EntityQueryInterface::class);
+        $entityQuery = $this->createStub(EntityQueryInterface::class);
         $entityQuery->method('condition')->willReturnSelf();
         $entityQuery->method('sort')->willReturnSelf();
         $entityQuery->method('range')->willReturnSelf();

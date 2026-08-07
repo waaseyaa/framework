@@ -123,7 +123,7 @@ final class SyncQueueTest extends TestCase
     {
         $handledCount = 0;
 
-        $handler = $this->createMock(HandlerInterface::class);
+        $handler = $this->createStub(HandlerInterface::class);
         $handler->method('supports')->willReturn(true);
         $handler->method('handle')->willReturnCallback(
             function () use (&$handledCount): void {
@@ -154,7 +154,7 @@ final class SyncQueueTest extends TestCase
     {
         $handledCount = 0;
 
-        $handler = $this->createMock(HandlerInterface::class);
+        $handler = $this->createStub(HandlerInterface::class);
         $handler->method('supports')->willReturn(true);
         $handler->method('handle')->willReturnCallback(
             function () use (&$handledCount): void {
@@ -182,7 +182,7 @@ final class SyncQueueTest extends TestCase
     {
         $handledCount = 0;
 
-        $handler = $this->createMock(HandlerInterface::class);
+        $handler = $this->createStub(HandlerInterface::class);
         $handler->method('supports')->willReturn(true);
         $handler->method('handle')->willReturnCallback(
             function () use (&$handledCount): void {

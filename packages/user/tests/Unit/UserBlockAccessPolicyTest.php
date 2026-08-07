@@ -32,9 +32,9 @@ final class UserBlockAccessPolicyTest extends TestCase
     public function admin_is_always_allowed(): void
     {
         $account = $this->createMock(AccountInterface::class);
-        $account->method('hasPermission')->with('administer content')->willReturn(true);
+        $account->expects(self::once())->method('hasPermission')->with('administer content')->willReturn(true);
 
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
 
         $result = $this->policy->access($entity, 'view', $account);
         $this->assertTrue($result->isAllowed());
@@ -43,12 +43,12 @@ final class UserBlockAccessPolicyTest extends TestCase
     #[Test]
     public function blocker_can_manage_own_blocks(): void
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('hasPermission')->willReturn(false);
         $account->method('id')->willReturn(42);
 
         $entity = $this->createMock(EntityInterface::class);
-        $entity->method('get')->with('blocker_id')->willReturn(42);
+        $entity->expects(self::once())->method('get')->with('blocker_id')->willReturn(42);
 
         $result = $this->policy->access($entity, 'delete', $account);
         $this->assertTrue($result->isAllowed());
@@ -57,12 +57,12 @@ final class UserBlockAccessPolicyTest extends TestCase
     #[Test]
     public function non_owner_is_neutral(): void
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('hasPermission')->willReturn(false);
         $account->method('id')->willReturn(99);
 
         $entity = $this->createMock(EntityInterface::class);
-        $entity->method('get')->with('blocker_id')->willReturn(42);
+        $entity->expects(self::once())->method('get')->with('blocker_id')->willReturn(42);
 
         $result = $this->policy->access($entity, 'view', $account);
         $this->assertTrue($result->isNeutral());
@@ -71,7 +71,7 @@ final class UserBlockAccessPolicyTest extends TestCase
     #[Test]
     public function authenticated_can_create(): void
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('hasPermission')->willReturn(false);
         $account->method('isAuthenticated')->willReturn(true);
 
@@ -82,7 +82,7 @@ final class UserBlockAccessPolicyTest extends TestCase
     #[Test]
     public function anonymous_cannot_create(): void
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('hasPermission')->willReturn(false);
         $account->method('isAuthenticated')->willReturn(false);
 

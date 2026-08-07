@@ -106,7 +106,7 @@ final class UserSensitiveFieldCompletenessTest extends TestCase
      */
     private function createAccount(int $id, array $permissions): AccountInterface
     {
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('id')->willReturn($id);
         $account->method('hasPermission')->willReturnCallback(
             fn(string $permission): bool => \in_array($permission, $permissions, true),

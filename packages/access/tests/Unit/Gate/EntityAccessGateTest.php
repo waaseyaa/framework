@@ -294,7 +294,7 @@ final class EntityAccessGateTest extends TestCase
         $entity = $this->createEntity('node');
         $account = $this->createAccount(['administrator']);
 
-        $policy = $this->createMock(AccessPolicyInterface::class);
+        $policy = $this->createStub(AccessPolicyInterface::class);
         $policy->method('appliesTo')->willReturn(true);
         $policy->method('access')->willThrowException(new \RuntimeException('Database unavailable'));
 
@@ -320,7 +320,7 @@ final class EntityAccessGateTest extends TestCase
 
     private function createEntity(string $typeId): EntityInterface
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn($typeId);
         $entity->method('bundle')->willReturn($typeId);
         return $entity;
@@ -328,14 +328,14 @@ final class EntityAccessGateTest extends TestCase
 
     private function createAccount(array $roles): AuthorizationPrincipalInterface
     {
-        $account = $this->createMock(AuthorizationPrincipalInterface::class);
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
         $account->method('getRoles')->willReturn($roles);
         return $account;
     }
 
     private function createPolicy(string $entityTypeId, AccessResult $result): AccessPolicyInterface
     {
-        $policy = $this->createMock(AccessPolicyInterface::class);
+        $policy = $this->createStub(AccessPolicyInterface::class);
         $policy->method('appliesTo')
             ->willReturnCallback(fn(string $type) => $type === $entityTypeId);
         $policy->method('access')->willReturn($result);
@@ -348,7 +348,7 @@ final class EntityAccessGateTest extends TestCase
      */
     private function createCapturingPolicy(string $entityTypeId, ?AccountInterface &$seen): AccessPolicyInterface
     {
-        $policy = $this->createMock(AccessPolicyInterface::class);
+        $policy = $this->createStub(AccessPolicyInterface::class);
         $policy->method('appliesTo')
             ->willReturnCallback(fn(string $type) => $type === $entityTypeId);
         $policy->method('access')->willReturnCallback(

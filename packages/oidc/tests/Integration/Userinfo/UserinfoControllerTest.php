@@ -168,7 +168,7 @@ final class UserinfoControllerTest extends TestCase
         $pair = $this->issueToken();
         $this->accessTokenIssuer->revoke($pair->jti, new DateTimeImmutable('@2000000100'));
 
-        $response = ($this->controller())($this->bearerRequest($pair->token));
+        $response = ($this->controller(expectRepositoryLookup: false))($this->bearerRequest($pair->token));
 
         self::assertSame(401, $response->getStatusCode());
         self::assertSame('invalid_token', $this->jsonError($response));
@@ -186,7 +186,7 @@ final class UserinfoControllerTest extends TestCase
             $past,
         );
 
-        $response = ($this->controller())($this->bearerRequest($pair->token));
+        $response = ($this->controller(expectRepositoryLookup: false))($this->bearerRequest($pair->token));
 
         self::assertSame(401, $response->getStatusCode());
         self::assertSame('invalid_token', $this->jsonError($response));
@@ -195,7 +195,7 @@ final class UserinfoControllerTest extends TestCase
     #[Test]
     public function garbageBearerReturns401(): void
     {
-        $response = ($this->controller())($this->bearerRequest('not-a-real-token-value'));
+        $response = ($this->controller(expectRepositoryLookup: false))($this->bearerRequest('not-a-real-token-value'));
 
         self::assertSame(401, $response->getStatusCode());
         self::assertSame('invalid_token', $this->jsonError($response));
@@ -204,7 +204,7 @@ final class UserinfoControllerTest extends TestCase
     #[Test]
     public function missingAuthorizationHeaderReturns401(): void
     {
-        $response = ($this->controller())(Request::create('/oidc/userinfo', 'GET'));
+        $response = ($this->controller(expectRepositoryLookup: false))(Request::create('/oidc/userinfo', 'GET'));
 
         self::assertSame(401, $response->getStatusCode());
         self::assertSame('invalid_token', $this->jsonError($response));
@@ -220,11 +220,11 @@ final class UserinfoControllerTest extends TestCase
         );
     }
 
-    private function controller(bool $admin = false, bool $profileAccess = true): UserinfoController
+    private function controller(bool $admin = false, bool $profileAccess = true, bool $expectRepositoryLookup = true): UserinfoController
     {
         $entityTypeManager = $this->createMock(EntityTypeManager::class);
-        $entityTypeManager->method('getRepository')->with('user')->willReturn($this->userRepository);
-        $principalFactory = $this->createMock(AccountPrincipalFactoryInterface::class);
+        $entityTypeManager->expects($expectRepositoryLookup ? self::once() : self::never())->method('getRepository')->with('user')->willReturn($this->userRepository);
+        $principalFactory = $this->createStub(AccountPrincipalFactoryInterface::class);
         $principalFactory->method('fromAccount')->willReturn(new AuthorizationPrincipal(
             accountId: self::ACCOUNT_ID,
             authenticated: true,

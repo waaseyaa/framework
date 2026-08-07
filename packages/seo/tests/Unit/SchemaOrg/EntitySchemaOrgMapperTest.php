@@ -18,7 +18,7 @@ final class EntitySchemaOrgMapperTest extends TestCase
 {
     private function entity(string $type, string $bundle, string $label): EntityInterface
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn($type);
         $entity->method('bundle')->willReturn($bundle);
         $entity->method('label')->willReturn($label);

@@ -54,7 +54,7 @@ final class UserCreateHandlerTest extends TestCase
     #[Test]
     public function createsUserWithUsername(): void
     {
-        $mockEntity = $this->createMock(EntityInterface::class);
+        $mockEntity = $this->createStub(EntityInterface::class);
         $mockEntity->method('id')->willReturn(1);
 
         $mockRepository = $this->createMock(EntityRepositoryInterface::class);
@@ -67,7 +67,7 @@ final class UserCreateHandlerTest extends TestCase
             ->with($mockEntity);
 
         $mockManager = $this->createMock(EntityTypeManagerInterface::class);
-        $mockManager->method('getRepository')
+        $mockManager->expects(self::once())->method('getRepository')
             ->with('user')
             ->willReturn($mockRepository);
 
@@ -82,14 +82,14 @@ final class UserCreateHandlerTest extends TestCase
     #[Test]
     public function createsUserWithEmailPasswordAndRole(): void
     {
-        $mockEntity = $this->createMock(EntityInterface::class);
+        $mockEntity = $this->createStub(EntityInterface::class);
         $mockEntity->method('id')->willReturn(42);
 
-        $mockRepository = $this->createMock(EntityRepositoryInterface::class);
+        $mockRepository = $this->createStub(EntityRepositoryInterface::class);
         $mockRepository->method('create')->willReturn($mockEntity);
         $mockRepository->method('save');
 
-        $mockManager = $this->createMock(EntityTypeManagerInterface::class);
+        $mockManager = $this->createStub(EntityTypeManagerInterface::class);
         $mockManager->method('getRepository')->willReturn($mockRepository);
 
         $definition = $this->makeDefinition();
@@ -108,10 +108,10 @@ final class UserCreateHandlerTest extends TestCase
     #[Test]
     public function returnsFailureOnStorageException(): void
     {
-        $mockRepository = $this->createMock(EntityRepositoryInterface::class);
+        $mockRepository = $this->createStub(EntityRepositoryInterface::class);
         $mockRepository->method('create')->willThrowException(new \RuntimeException('DB error'));
 
-        $mockManager = $this->createMock(EntityTypeManagerInterface::class);
+        $mockManager = $this->createStub(EntityTypeManagerInterface::class);
         $mockManager->method('getRepository')->willReturn($mockRepository);
 
         $definition = $this->makeDefinition();

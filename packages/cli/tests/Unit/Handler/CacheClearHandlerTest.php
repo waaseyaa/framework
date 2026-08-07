@@ -25,7 +25,7 @@ final class CacheClearHandlerTest extends TestCase
         $mockBackend = $this->createMock(CacheBackendInterface::class);
         $mockBackend->expects($this->exactly(4))->method('deleteAll');
 
-        $mockFactory = $this->createMock(CacheFactoryInterface::class);
+        $mockFactory = $this->createStub(CacheFactoryInterface::class);
         $mockFactory->method('get')->willReturn($mockBackend);
 
         $tester = $this->createTester($mockFactory);
@@ -62,7 +62,7 @@ final class CacheClearHandlerTest extends TestCase
             ->method('invalidateByTags')
             ->with(['render']);
 
-        $mockFactory = $this->createMock(CacheFactoryInterface::class);
+        $mockFactory = $this->createStub(CacheFactoryInterface::class);
         $mockFactory->method('get')->willReturn($mockBackend);
 
         $tester = $this->createTester($mockFactory);

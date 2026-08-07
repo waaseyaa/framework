@@ -135,7 +135,7 @@ final class ConsentScreenControllerTest extends TestCase
         $session->set(AuthorizeController::SESSION_KEY, self::PENDING);
         $request->setSession($session);
 
-        $account = $this->createMock(AccountInterface::class);
+        $account = $this->createStub(AccountInterface::class);
         $account->method('isAuthenticated')->willReturn(true);
         $account->method('id')->willReturn(5);
         $request->attributes->set('_account', $account);

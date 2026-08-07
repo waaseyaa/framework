@@ -183,7 +183,7 @@ final class EntityEmbeddingListenerTest extends TestCase
             'title' => 'Draft title (must not be embedded)',
         ]);
 
-        $storage = $this->createMock(EmbeddingStorageInterface::class);
+        $storage = $this->createStub(EmbeddingStorageInterface::class);
         $provider = $this->createMock(EmbeddingProviderInterface::class);
         $provider->expects($this->once())->method('embed')->with($this->logicalAnd(
             $this->stringContains('Published title'),
@@ -288,7 +288,7 @@ final class EntityEmbeddingListenerTest extends TestCase
         $storage->expects($this->never())->method('store');
         $storage->expects($this->never())->method('delete');
 
-        $listener = new EntityEmbeddingListener(queue: null, storage: $storage, embeddingProvider: $this->createMock(EmbeddingProviderInterface::class));
+        $listener = new EntityEmbeddingListener(queue: null, storage: $storage, embeddingProvider: $this->createStub(EmbeddingProviderInterface::class));
         $listener->onRevisionPointerMoved(new RevisionPointerMovedEvent(
             entityTypeId: 'node',
             entityId: '42',

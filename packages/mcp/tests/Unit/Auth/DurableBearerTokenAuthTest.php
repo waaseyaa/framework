@@ -138,7 +138,7 @@ final class DurableBearerTokenAuthTest extends TestCase
      */
     private function accountsWith(?User $user): EntityRepositoryInterface
     {
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
         $repository->method('findBy')->willReturn($user !== null ? [$user] : []);
 
         return $repository;
@@ -298,7 +298,7 @@ final class DurableBearerTokenAuthTest extends TestCase
     #[Test]
     public function an_account_lookup_failure_fails_closed(): void
     {
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
         $repository->method('findBy')->willThrowException(new \RuntimeException('user table missing'));
         $auth = $this->auth($this->storeAnswering($this->record(42)), $repository);
 

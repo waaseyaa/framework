@@ -50,16 +50,16 @@ final class RelationshipEndpointVisibilityPolicyTest extends TestCase
      */
     private function policy(bool $knownType = true, ?\Closure $endpointLoader = null): array
     {
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
         if ($endpointLoader !== null) {
             $repository->method('find')->willReturnCallback($endpointLoader);
         }
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn($knownType);
         $etm->method('getRepository')->willReturn($repository);
 
-        $handler = $this->createMock(EntityAccessHandler::class);
+        $handler = $this->createStub(EntityAccessHandler::class);
 
         return [new RelationshipEndpointVisibilityPolicy($etm, $handler), $handler];
     }
@@ -85,7 +85,7 @@ final class RelationshipEndpointVisibilityPolicyTest extends TestCase
     #[Test]
     public function entity_view_is_forbidden_when_both_endpoints_are_hidden(): void
     {
-        [$policy, $handler] = $this->policy(endpointLoader: fn(string $id) => $this->createMock(\Waaseyaa\Entity\EntityInterface::class));
+        [$policy, $handler] = $this->policy(endpointLoader: fn(string $id) => $this->createStub(\Waaseyaa\Entity\EntityInterface::class));
         $handler->method('check')->willReturn(AccessResult::forbidden('hidden'));
         $account = new ArrayAccount(0, ['access content']);
         $edge = $this->edge();
@@ -99,7 +99,7 @@ final class RelationshipEndpointVisibilityPolicyTest extends TestCase
     #[Test]
     public function entity_view_stays_neutral_when_an_endpoint_is_viewable(): void
     {
-        [$policy, $handler] = $this->policy(endpointLoader: fn(string $id) => $this->createMock(\Waaseyaa\Entity\EntityInterface::class));
+        [$policy, $handler] = $this->policy(endpointLoader: fn(string $id) => $this->createStub(\Waaseyaa\Entity\EntityInterface::class));
         $handler->method('check')->willReturnOnConsecutiveCalls(
             AccessResult::allowed('visible'),
             AccessResult::forbidden('hidden'),
@@ -111,7 +111,7 @@ final class RelationshipEndpointVisibilityPolicyTest extends TestCase
     #[Test]
     public function to_endpoint_fields_are_forbidden_when_endpoint_is_not_viewable(): void
     {
-        [$policy, $handler] = $this->policy(endpointLoader: fn(string $id) => $this->createMock(\Waaseyaa\Entity\EntityInterface::class));
+        [$policy, $handler] = $this->policy(endpointLoader: fn(string $id) => $this->createStub(\Waaseyaa\Entity\EntityInterface::class));
         $handler->method('check')->willReturn(AccessResult::forbidden('hidden'));
 
         $account = new ArrayAccount(0, ['access content']);
@@ -124,7 +124,7 @@ final class RelationshipEndpointVisibilityPolicyTest extends TestCase
     #[Test]
     public function to_endpoint_fields_are_neutral_when_endpoint_is_viewable(): void
     {
-        [$policy, $handler] = $this->policy(endpointLoader: fn(string $id) => $this->createMock(\Waaseyaa\Entity\EntityInterface::class));
+        [$policy, $handler] = $this->policy(endpointLoader: fn(string $id) => $this->createStub(\Waaseyaa\Entity\EntityInterface::class));
         $handler->method('check')->willReturn(AccessResult::allowed('visible'));
 
         $account = new ArrayAccount(0, ['access content']);
@@ -138,7 +138,7 @@ final class RelationshipEndpointVisibilityPolicyTest extends TestCase
     public function from_endpoint_fields_are_independently_gated(): void
     {
         [$policy, $handler] = $this->policy(
-            endpointLoader: fn(string $id) => $this->createMock(\Waaseyaa\Entity\EntityInterface::class),
+            endpointLoader: fn(string $id) => $this->createStub(\Waaseyaa\Entity\EntityInterface::class),
         );
         // 'from' endpoint forbidden, but the check is invoked per-field — this
         // handler always returns forbidden, so both directions independently
@@ -181,7 +181,7 @@ final class RelationshipEndpointVisibilityPolicyTest extends TestCase
         [$policy] = $this->policy();
         $account = new ArrayAccount(0, ['access content']);
 
-        $notARelationship = $this->createMock(\Waaseyaa\Entity\EntityInterface::class);
+        $notARelationship = $this->createStub(\Waaseyaa\Entity\EntityInterface::class);
 
         self::assertTrue($policy->fieldAccess($notARelationship, 'to_entity_type', 'view', $account)->isNeutral());
     }

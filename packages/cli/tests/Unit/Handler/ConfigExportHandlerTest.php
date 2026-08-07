@@ -19,7 +19,7 @@ final class ConfigExportHandlerTest extends TestCase
     #[Test]
     public function exportsConfigurationAndShowsCount(): void
     {
-        $mockStorage = $this->createMock(StorageInterface::class);
+        $mockStorage = $this->createStub(StorageInterface::class);
         $mockStorage->method('listAll')->willReturn(['system.site', 'system.performance', 'user.settings']);
 
         $mockManager = $this->createMock(ConfigManagerInterface::class);

@@ -31,7 +31,7 @@ final class TranslateOperationTest extends TestCase
 {
     private function createEntity(string $typeId = 'node', string $bundle = 'article'): EntityInterface
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn($typeId);
         $entity->method('bundle')->willReturn($bundle);
 
@@ -40,7 +40,7 @@ final class TranslateOperationTest extends TestCase
 
     private function createAccount(): AccountInterface
     {
-        return $this->createMock(AccountInterface::class);
+        return $this->createStub(AccountInterface::class);
     }
 
     #[Test]
@@ -56,7 +56,7 @@ final class TranslateOperationTest extends TestCase
     public function translateFallsThroughToUpdateWhenNeutral(): void
     {
         // Policy: Allowed for 'update', Neutral for everything else.
-        $policy = $this->createMock(AccessPolicyInterface::class);
+        $policy = $this->createStub(AccessPolicyInterface::class);
         $policy->method('appliesTo')->willReturn(true);
         $policy->method('access')->willReturnCallback(
             fn(EntityInterface $e, string $op, AccountInterface $a): AccessResult =>
@@ -80,7 +80,7 @@ final class TranslateOperationTest extends TestCase
     {
         // Policy: Allowed for update, Forbidden for translate. Forbidden on
         // translate must NOT be overridden by the update fallback.
-        $policy = $this->createMock(AccessPolicyInterface::class);
+        $policy = $this->createStub(AccessPolicyInterface::class);
         $policy->method('appliesTo')->willReturn(true);
         $policy->method('access')->willReturnCallback(
             fn(EntityInterface $e, string $op, AccountInterface $a): AccessResult =>
@@ -103,7 +103,7 @@ final class TranslateOperationTest extends TestCase
     public function translateNeutralWithUpdateForbiddenStaysForbidden(): void
     {
         // Translate is Neutral so it falls through to update; update is Forbidden.
-        $policy = $this->createMock(AccessPolicyInterface::class);
+        $policy = $this->createStub(AccessPolicyInterface::class);
         $policy->method('appliesTo')->willReturn(true);
         $policy->method('access')->willReturnCallback(
             fn(EntityInterface $e, string $op, AccountInterface $a): AccessResult =>
@@ -261,7 +261,7 @@ final class TranslateOperationTest extends TestCase
     {
         // Update returns Neutral too — ensures we don't infinite-loop; result is
         // Neutral and the handler returns cleanly.
-        $policy = $this->createMock(AccessPolicyInterface::class);
+        $policy = $this->createStub(AccessPolicyInterface::class);
         $policy->method('appliesTo')->willReturn(true);
         $policy->method('access')->willReturn(AccessResult::neutral());
 
