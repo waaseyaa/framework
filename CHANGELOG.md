@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **stacked pull request CI (#2286):** Run framework, Admin SPA, changelog-discipline, and public-surface validation for pull requests targeting any review branch so every dependency-ordered head receives exact GitHub evidence.
 
+- **tooling (#2278):** Fail specification-drift verification closed when changed production package source has no spec mapping, and cover the admin-surface host contract through the admin SPA specification instead of leaving it as an advisory blind spot.
+
 ## [0.1.0-alpha.289] - 2026-08-06
 
 ### Changed

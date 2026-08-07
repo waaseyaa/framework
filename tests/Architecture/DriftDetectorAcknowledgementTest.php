@@ -89,6 +89,52 @@ final class DriftDetectorAcknowledgementTest extends TestCase
         self::assertStringContainsString('STALE: docs/specs/search.md', $output);
     }
 
+    #[Test]
+    public function admin_surface_source_is_coupled_to_the_admin_spa_spec(): void
+    {
+        mkdir($this->fixtureRoot . '/packages/admin-surface/src', 0o777, true);
+        file_put_contents($this->fixtureRoot . '/packages/admin-surface/src/Host.php', "<?php\nfinal class Host {}\n");
+        file_put_contents($this->fixtureRoot . '/docs/specs/admin-spa.md', "# Admin SPA\n");
+        $this->executeCommand('git add .');
+        $this->executeCommand("git commit --quiet -m 'test: add admin surface baseline'");
+        file_put_contents(
+            $this->fixtureRoot . '/packages/admin-surface/src/Host.php',
+            "<?php\nfinal class Host { public const CHANGED = true; }\n",
+        );
+        $this->executeCommand('git add packages/admin-surface/src/Host.php');
+        $this->executeCommand("git commit --quiet -m 'feat: change admin surface contract'");
+
+        [$exitCode, $output] = $this->executeCommand('bash tools/drift-detector.sh HEAD~1', allowFailure: true);
+
+        self::assertSame(1, $exitCode, $output);
+        self::assertStringContainsString('STALE: docs/specs/admin-spa.md', $output);
+        self::assertStringNotContainsString('not mapped to any spec', $output);
+    }
+
+    #[Test]
+    public function unmapped_production_package_source_fails_closed(): void
+    {
+        mkdir($this->fixtureRoot . '/packages/unmapped-contract/src', 0o777, true);
+        file_put_contents(
+            $this->fixtureRoot . '/packages/unmapped-contract/src/Contract.php',
+            "<?php\nfinal class Contract {}\n",
+        );
+        $this->executeCommand('git add .');
+        $this->executeCommand("git commit --quiet -m 'test: add unmapped package baseline'");
+        file_put_contents(
+            $this->fixtureRoot . '/packages/unmapped-contract/src/Contract.php',
+            "<?php\nfinal class Contract { public const CHANGED = true; }\n",
+        );
+        $this->executeCommand('git add packages/unmapped-contract/src/Contract.php');
+        $this->executeCommand("git commit --quiet -m 'feat: change unmapped package contract'");
+
+        [$exitCode, $output] = $this->executeCommand('bash tools/drift-detector.sh HEAD~1', allowFailure: true);
+
+        self::assertSame(1, $exitCode, $output);
+        self::assertStringContainsString('BLOCKED: contract-bearing source changed in package(s) not mapped to any spec:', $output);
+        self::assertStringContainsString('1 unmapped package(s) block specification-drift verification.', $output);
+    }
+
     /** @return array{int, string} */
     private function executeCommand(string $command, bool $allowFailure = false): array
     {
