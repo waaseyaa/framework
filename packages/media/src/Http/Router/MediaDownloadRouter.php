@@ -57,7 +57,7 @@ final class MediaDownloadRouter implements DomainRouterInterface
         // This is especially important for browser download navigations.
         // (The request object is local to this authorized delivery path.)
         $request->headers->remove('Range');
-        $media = $id !== '' ? $this->entityTypeManager->getRepository('media')->find($id) : null;
+        $media = $this->findByIdOrUuid($id);
 
         if (
             !$media instanceof Media
@@ -110,6 +110,36 @@ final class MediaDownloadRouter implements DomainRouterInterface
         // authorized and path-confined, so buffering this protected document
         // gives every browser request the same complete 200 representation.
         return new Response($bytes, 200, $headers);
+    }
+
+    private function findByIdOrUuid(string $id): ?Media
+    {
+        if ($id === '') {
+            return null;
+        }
+
+        $repository = $this->entityTypeManager->getRepository('media');
+        $media = $repository->find($id);
+        if ($media instanceof Media || is_numeric($id)) {
+            return $media instanceof Media ? $media : null;
+        }
+
+        // JSON:API and the admin SPA identify int-keyed content entities by
+        // UUID. Resolve that bounded identifier without query access shaping,
+        // then apply the complete entity-view policy immediately above before
+        // any protected source URI or bytes are read.
+        $ids = $repository->getQuery()
+            ->accessCheck(false)
+            ->condition('uuid', $id)
+            ->range(0, 1)
+            ->execute();
+        if ($ids === []) {
+            return null;
+        }
+
+        $media = $repository->find((string) $ids[0]);
+
+        return $media instanceof Media ? $media : null;
     }
 
     private function resolvePublicPath(string $uri): ?string
