@@ -56,7 +56,7 @@ final class EntityLifecycleAuditListenerTest extends TestCase
             }
         };
 
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('isNew')->willReturn(true);
         $entity->method('getEntityTypeId')->willReturn('note');
         $entity->method('id')->willReturn('1');
@@ -86,7 +86,7 @@ final class EntityLifecycleAuditListenerTest extends TestCase
             }
         };
 
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn('note');
         $entity->method('id')->willReturn('1');
         $entity->method('uuid')->willReturn('00000000-0000-0000-0000-000000000002');
@@ -108,7 +108,7 @@ final class EntityLifecycleAuditListenerTest extends TestCase
             }
         };
 
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('isNew')->willReturn(false);
         $entity->method('getEntityTypeId')->willReturn('note');
         $entity->method('id')->willReturn('1');
@@ -190,7 +190,7 @@ final class EntityLifecycleAuditListenerTest extends TestCase
             accountContext: $this->contextHolding(42),
         );
 
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('isNew')->willReturn(true);
         $entity->method('getEntityTypeId')->willReturn('note');
         $entity->method('id')->willReturn('1');
@@ -212,7 +212,7 @@ final class EntityLifecycleAuditListenerTest extends TestCase
             accountContext: $this->contextHolding(0),
         );
 
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('isNew')->willReturn(true);
         $entity->method('getEntityTypeId')->willReturn('note');
         $entity->method('id')->willReturn('1');
@@ -232,7 +232,7 @@ final class EntityLifecycleAuditListenerTest extends TestCase
         $recorded = [];
         $listener = new EntityLifecycleAuditListener($this->spyWriter($recorded));
 
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('isNew')->willReturn(true);
         $entity->method('getEntityTypeId')->willReturn('note');
         $entity->method('id')->willReturn('1');

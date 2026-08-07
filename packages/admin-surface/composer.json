@@ -14,6 +14,10 @@
         },
         {
             "type": "path",
+            "url": "../audit"
+        },
+        {
+            "type": "path",
             "url": "../routing"
         },
         {
@@ -53,6 +57,7 @@
         "waaseyaa/routing": "^0.1.0-alpha.289",
         "waaseyaa/foundation": "^0.1.0-alpha.289",
         "waaseyaa/api": "^0.1.0-alpha.289",
+        "waaseyaa/audit": "^0.1.0-alpha.289",
         "waaseyaa/workflows": "^0.1.0-alpha.289"
     },
     "require-dev": {

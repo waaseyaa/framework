@@ -35,7 +35,7 @@ final class AuditChaosTest extends TestCase
         // not exist and the writer's INSERT throws at execute() — simulated chaos.
         $writer = new AuditEventWriter(new AppendOnlyAuditDatabase(DBALDatabase::createSqlite()));
 
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('isNew')->willReturn(true);
         $entity->method('getEntityTypeId')->willReturn('note');
         $entity->method('id')->willReturn('1');

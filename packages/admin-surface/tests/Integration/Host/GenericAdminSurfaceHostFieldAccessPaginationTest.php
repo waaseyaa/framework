@@ -95,7 +95,7 @@ final class GenericAdminSurfaceHostFieldAccessPaginationTest extends TestCase
             'classified' => false,
         ]), validate: false);
 
-        $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
+        $entityTypeManager = $this->createStub(EntityTypeManagerInterface::class);
         $entityTypeManager->method('hasDefinition')->willReturn(true);
         $entityTypeManager->method('getDefinition')->willReturn($entityType);
         $entityTypeManager->method('resolveFieldDefinitions')->willReturn($entityType->getFieldDefinitions());

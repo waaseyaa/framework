@@ -301,7 +301,7 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
             ),
         ]);
 
-        $accessHandler = $this->createMock(EntityAccessHandler::class);
+        $accessHandler = $this->createStub(EntityAccessHandler::class);
         $accessHandler->method('checkCreateAccess')->willReturn(AccessResult::allowed('integration fixture allows create'));
         $accessHandler->method('checkFieldAccess')->willReturn(AccessResult::neutral());
         $config = $this->createStub(ConfigInterface::class);
@@ -418,7 +418,7 @@ final class AdminSurfaceRouteWiringIntegrationTest extends TestCase
             ]);
         }
 
-        $accessHandler = $this->createMock(EntityAccessHandler::class);
+        $accessHandler = $this->createStub(EntityAccessHandler::class);
         $accessHandler->method('checkCreateAccess')->willReturn(AccessResult::allowed('integration fixture allows create'));
         $accessHandler->method('checkFieldAccess')->willReturn(AccessResult::neutral());
 

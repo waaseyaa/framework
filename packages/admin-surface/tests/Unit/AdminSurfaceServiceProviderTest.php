@@ -10,12 +10,15 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\RequestContext;
 use Waaseyaa\Access\AuthorizationPrincipal;
+use Waaseyaa\Access\Capability\CapabilityRegistryInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AdminSurface\AdminSpaFallback;
 use Waaseyaa\AdminSurface\AdminSurfaceRoutePaths;
 use Waaseyaa\AdminSurface\AdminSurfaceServiceProvider;
 use Waaseyaa\AdminSurface\Catalog\CatalogBuilder;
 use Waaseyaa\AdminSurface\Host\AbstractAdminSurfaceHost;
+use Waaseyaa\AdminSurface\Host\AdminPublicationFieldReaderInterface;
+use Waaseyaa\AdminSurface\Host\AuditedAdminPublicationFieldReader;
 use Waaseyaa\AdminSurface\Host\AdminSurfaceResultData;
 use Waaseyaa\AdminSurface\Host\AdminSurfaceSessionData;
 use Waaseyaa\Entity\EntityType;
@@ -23,6 +26,7 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Entity\FieldReadLevel;
+use Waaseyaa\Audit\Contract\StrictPrivilegedReadLedgerInterface;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
@@ -51,6 +55,35 @@ final class AdminSurfaceServiceProviderTest extends TestCase
         );
 
         $this->host = $this->createTestHost($this->session);
+    }
+
+    #[Test]
+    public function registerWiresOneSharedAuditedPublicationFieldReader(): void
+    {
+        $capabilities = $this->createStub(CapabilityRegistryInterface::class);
+        $ledger = $this->createStub(StrictPrivilegedReadLedgerInterface::class);
+        $provider = new AdminSurfaceServiceProvider();
+        $provider->setKernelServices(new class ($capabilities, $ledger) implements KernelServicesInterface {
+            public function __construct(
+                private readonly CapabilityRegistryInterface $capabilities,
+                private readonly StrictPrivilegedReadLedgerInterface $ledger,
+            ) {}
+
+            public function get(string $abstract): ?object
+            {
+                return match ($abstract) {
+                    CapabilityRegistryInterface::class => $this->capabilities,
+                    StrictPrivilegedReadLedgerInterface::class => $this->ledger,
+                    default => null,
+                };
+            }
+        });
+        $provider->register();
+
+        $reader = $provider->resolve(AdminPublicationFieldReaderInterface::class);
+
+        self::assertInstanceOf(AuditedAdminPublicationFieldReader::class, $reader);
+        self::assertSame($reader, $provider->resolve(AdminPublicationFieldReaderInterface::class));
     }
 
     #[Test]
@@ -115,8 +148,8 @@ final class AdminSurfaceServiceProviderTest extends TestCase
         ]);
 
         $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
-        $entityTypeManager->method('hasDefinition')->with('node')->willReturn(true);
-        $entityTypeManager->method('getDefinition')->with('node')->willReturn($definition);
+        $entityTypeManager->expects(self::exactly(2))->method('hasDefinition')->with('node')->willReturn(true);
+        $entityTypeManager->expects(self::once())->method('getDefinition')->with('node')->willReturn($definition);
         $entityTypeManager->method('resolveFieldDefinitions')->willReturnCallback(
             fn(string $type, ?string $bundle = null): array => $registry->coreFieldsFor($type)
                 + ($bundle === null ? [] : $registry->bundleFieldsFor($type, $bundle)),

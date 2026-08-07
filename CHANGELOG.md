@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **stacked pull request CI (#2286):** Run framework, Admin SPA, changelog-discipline, and public-surface validation for pull requests targeting any review branch so every dependency-ordered head receives exact GitHub evidence.
 
+- **admin surface (#2271):** Project workflow state and publication status into authenticated admin lists through one closed, capability-audited reader used consistently for display, filtering, and sorting without exposing protected fields through ordinary JSON:API serialization.
+
+- **strict audit concurrency (#2275):** Batch related admin publication projections into transactional strict-ledger reservations and outcomes. Evidence remains entity-scoped and fail-closed without creating one competing SQLite writer transaction per row.
+
 - **search (#2270):** Index ordinary Node content through one search-owned projection registry shared by reindexing, lifecycle updates, and query-time access checks. Application projectors can override canonical URLs and searchable fields without weakening entity- or field-level authorization.
 
 - **search (#2270):** Bound public search to one 1,001-pointer FTS statement and expose truncated totals as incomplete instead of presenting lower bounds as exhaustive results. Reindexing now exits non-zero on projection failure.

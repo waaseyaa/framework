@@ -66,7 +66,7 @@ final class GenericAdminSurfaceHostWorkingCopyTest extends TestCase
         $repository->method('loadWorkingCopy')->willReturn($workingCopy);
         $repository->expects($this->once())->method('save')->with($workingCopy);
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn(new EntityType(id: 'article', label: 'Article', class: \stdClass::class, keys: ['id' => 'id', 'label' => 'title']));
         $etm->method('getRepository')->willReturn($repository);
@@ -86,11 +86,11 @@ final class GenericAdminSurfaceHostWorkingCopyTest extends TestCase
         $gateEntity = $this->entity(1, $gateTitle);
         $workingCopy = $this->entity(1, $workingCopyTitle);
 
-        $repository = $this->createMock(EntityRepositoryInterface::class);
+        $repository = $this->createStub(EntityRepositoryInterface::class);
         $repository->method('find')->willReturn($gateEntity);
         $repository->method('loadWorkingCopy')->willReturn($workingCopy);
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getRepository')->willReturn($repository);
 

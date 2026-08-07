@@ -17,6 +17,7 @@ use Waaseyaa\AdminSurface\Catalog\CatalogBuilder;
 use Waaseyaa\AdminSurface\Host\AdminSurfaceResultData;
 use Waaseyaa\AdminSurface\Host\AdminSurfaceSessionData;
 use Waaseyaa\AdminSurface\Host\AdminSurfaceUiPayload;
+use Waaseyaa\AdminSurface\Host\AdminPublicationFieldReaderInterface;
 use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
 use Waaseyaa\Entity\ConfigEntityBase;
 use Waaseyaa\Entity\ContentEntityBase;
@@ -46,7 +47,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
                 parent::__construct($values, 'test_config', ['id' => 'type', 'label' => 'name']);
             }
         });
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn('test_config');
         $entity->method('id')->willReturn('page');
         $entity->method('uuid')->willReturn('');
@@ -63,7 +64,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             keys: ['id' => 'type', 'label' => 'name'],
             _fieldDefinitions: ['name' => ['type' => 'string']],
         );
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($definition);
         $etm->method('resolveFieldDefinitions')->willReturn([
@@ -97,7 +98,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     #[Test]
     public function list_pushes_filters_sort_and_pagination_into_the_entity_query(): void
     {
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn('article');
         $entity->method('id')->willReturn(9);
         $entity->method('uuid')->willReturn('');
@@ -148,8 +149,8 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $repository->expects(self::never())->method('findBy');
 
         $definition = new EntityType(
-            id: 'article',
-            label: 'Article',
+            id: 'node',
+            label: 'Content',
             class: \stdClass::class,
             keys: ['id' => 'id'],
             _fieldDefinitions: [
@@ -157,7 +158,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
                 'title' => ['type' => 'string'],
             ],
         );
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($definition);
         $etm->method('resolveFieldDefinitions')->willReturn([
@@ -199,7 +200,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     /** @param list<string> $deniedOperations */
     private function permissiveHost(EntityTypeManagerInterface $etm, array $deniedOperations = []): GenericAdminSurfaceHost
     {
-        $accessHandler = $this->createMock(EntityAccessHandler::class);
+        $accessHandler = $this->createStub(EntityAccessHandler::class);
         $accessHandler->method('check')->willReturnCallback(
             static fn(EntityInterface $entity, string $operation): AccessResult => in_array($operation, $deniedOperations, true)
                 ? AccessResult::forbidden('private policy reason that must not be serialized')
@@ -229,9 +230,9 @@ final class GenericAdminSurfaceHostTest extends TestCase
     #[Test]
     public function list_fails_closed_without_access_handler(): void
     {
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getStorage')->willReturn($storage);
         $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
@@ -250,10 +251,10 @@ final class GenericAdminSurfaceHostTest extends TestCase
     {
         $entity = $this->createStub(EntityInterface::class);
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('load')->willReturn($entity);
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getStorage')->willReturn($storage);
         $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
@@ -269,7 +270,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     #[Test]
     public function resolve_session_returns_null_for_unauthenticated_request(): void
     {
-        $host = new GenericAdminSurfaceHost($this->createMock(EntityTypeManagerInterface::class));
+        $host = new GenericAdminSurfaceHost($this->createStub(EntityTypeManagerInterface::class));
         $request = Request::create('/admin/surface/session');
 
         $this->assertNull($host->resolveSession($request));
@@ -283,7 +284,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $account->method('hasPermission')->willReturn(false);
         $account->method('getRoles')->willReturn(['authenticated']);
 
-        $host = new GenericAdminSurfaceHost($this->createMock(EntityTypeManagerInterface::class));
+        $host = new GenericAdminSurfaceHost($this->createStub(EntityTypeManagerInterface::class));
         $request = Request::create('/admin/surface/session');
         $request->attributes->set('_account', $account);
 
@@ -299,7 +300,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $account->method('getRoles')->willReturn(['administrator']);
 
         $host = new GenericAdminSurfaceHost(
-            $this->createMock(EntityTypeManagerInterface::class),
+            $this->createStub(EntityTypeManagerInterface::class),
             tenantId: 'myapp',
             tenantName: 'My App',
             features: ['mcp' => true],
@@ -326,7 +327,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $account->method('hasPermission')->willReturn(true);
         $account->method('getRoles')->willReturn(['administrator']);
 
-        $host = new class($this->createMock(EntityTypeManagerInterface::class)) extends GenericAdminSurfaceHost {
+        $host = new class($this->createStub(EntityTypeManagerInterface::class)) extends GenericAdminSurfaceHost {
             protected function buildAdminUi(AccountInterface $account): ?AdminSurfaceUiPayload
             {
                 return AdminSurfaceUiPayload::fromArrays(
@@ -359,7 +360,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $account->method('getRoles')->willReturn(['editor']);
 
         $host = new GenericAdminSurfaceHost(
-            $this->createMock(EntityTypeManagerInterface::class),
+            $this->createStub(EntityTypeManagerInterface::class),
             adminPermission: 'manage site',
         );
         $request = Request::create('/admin/surface/session');
@@ -371,7 +372,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     #[Test]
     public function build_catalog_returns_entity_definitions(): void
     {
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('getDefinitions')->willReturn([
             new EntityType(
                 id: 'event',
@@ -403,7 +404,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     #[Test]
     public function build_catalog_exposes_authoritative_reference_fields_and_fails_closed_for_unsafe_labels(): void
     {
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('getDefinitions')->willReturn([
             new EntityType(
                 id: 'node',
@@ -479,7 +480,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             }
         });
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('getDefinitions')->willReturn([
             new EntityType(
                 id: 'test_config',
@@ -531,9 +532,9 @@ final class GenericAdminSurfaceHostTest extends TestCase
             'type' => 'restricted',
         ]);
         $repository = $this->createMock(EntityRepositoryInterface::class);
-        $repository->method('find')->with('1')->willReturn($existing);
+        $repository->expects(self::once())->method('find')->with('1')->willReturn($existing);
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($definition);
         $etm->method('getRepository')->willReturn($repository);
@@ -579,7 +580,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     #[Test]
     public function build_catalog_marks_custom_read_only_types(): void
     {
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('getDefinitions')->willReturn([
             new EntityType(
                 id: 'audit_log',
@@ -612,7 +613,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             class: BundleSchemaTestEntity::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type'],
         );
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($definition);
         $etm->method('resolveFieldDefinitions')->willReturn([
@@ -640,7 +641,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             class: BundleSchemaTestEntity::class,
             keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type'],
         );
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($definition);
         $etm->method('resolveFieldDefinitions')->willReturn([
@@ -668,7 +669,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     public function generateSlugActionUsesUnicodePreservingFrameworkGenerator(): void
     {
         $etm = $this->createMock(EntityTypeManagerInterface::class);
-        $etm->method('hasDefinition')->with('node')->willReturn(true);
+        $etm->expects(self::once())->method('hasDefinition')->with('node')->willReturn(true);
 
         $result = (new GenericAdminSurfaceHost($etm))->action('node', 'generate-slug', [
             'value' => 'Anishinaabemowin Ākí ᐊᓂᔑᓈᐯᒧᐎᓐ',
@@ -681,7 +682,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     #[Test]
     public function build_catalog_adds_delete_action_for_content_entities(): void
     {
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('getDefinitions')->willReturn([
             new EntityType(
                 id: 'event',
@@ -710,7 +711,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     #[Test]
     public function list_returns_error_for_unknown_type(): void
     {
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(false);
 
         $host = new GenericAdminSurfaceHost($etm);
@@ -722,7 +723,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     #[Test]
     public function get_returns_error_for_unknown_type(): void
     {
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(false);
 
         $host = new GenericAdminSurfaceHost($etm);
@@ -734,9 +735,9 @@ final class GenericAdminSurfaceHostTest extends TestCase
     #[Test]
     public function action_returns_error_for_unknown_action(): void
     {
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getStorage')->willReturn($storage);
         $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
@@ -756,16 +757,16 @@ final class GenericAdminSurfaceHostTest extends TestCase
             fn(string $field) => match ($field) { 'id' => '1', default => null },
         );
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('load')->willReturn($entity);
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getStorage')->willReturn($storage);
         $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 
         $accessResult = AccessResult::neutral('Denied.');
-        $accessHandler = $this->createMock(EntityAccessHandler::class);
+        $accessHandler = $this->createStub(EntityAccessHandler::class);
         $accessHandler->method('check')->willReturn($accessResult);
 
         $host = new GenericAdminSurfaceHost($etm, $accessHandler);
@@ -794,7 +795,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
         // misleading 404 and leaving the row in storage (D7 regression guard).
         $uuid = '807e4373-0f98-44fe-9fb5-111d5bd3a5ef';
 
-        $entity = $this->createMock(EntityInterface::class);
+        $entity = $this->createStub(EntityInterface::class);
         $entity->method('getEntityTypeId')->willReturn('story');
         $entity->method('id')->willReturn(1);
         $entity->method('uuid')->willReturn($uuid);
@@ -804,20 +805,20 @@ final class GenericAdminSurfaceHostTest extends TestCase
         // equivalent).
         $query = $this->createMock(\Waaseyaa\Entity\Storage\EntityQueryInterface::class);
         $query->method('accessCheck')->willReturnSelf();
-        $query->method('condition')->with('uuid', $uuid)->willReturnSelf();
+        $query->expects(self::once())->method('condition')->with('uuid', $uuid)->willReturnSelf();
         $query->method('range')->willReturnSelf();
         $query->method('execute')->willReturn(['1']);
 
         $repository = $this->createMock(\Waaseyaa\Entity\Repository\EntityRepositoryInterface::class);
         $repository->method('getQuery')->willReturn($query);
-        $repository->method('find')->with('1')->willReturn($entity);
+        $repository->expects(self::once())->method('find')->with('1')->willReturn($entity);
         $repository->expects($this->once())->method('delete')->with($entity);
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getRepository')->willReturn($repository);
 
-        $accessHandler = $this->createMock(EntityAccessHandler::class);
+        $accessHandler = $this->createStub(EntityAccessHandler::class);
         $accessHandler->method('check')->willReturn(AccessResult::allowed('ok'));
 
         $host = new GenericAdminSurfaceHost($etm, $accessHandler);
@@ -847,7 +848,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             group: 'events',
         );
 
-        $allowed = $this->createMock(EntityInterface::class);
+        $allowed = $this->createStub(EntityInterface::class);
         $allowed->method('getEntityTypeId')->willReturn('event');
         $allowed->method('uuid')->willReturn('');
         $allowed->method('id')->willReturn(1);
@@ -860,7 +861,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             },
         );
 
-        $denied = $this->createMock(EntityInterface::class);
+        $denied = $this->createStub(EntityInterface::class);
         $denied->method('getEntityTypeId')->willReturn('event');
         $denied->method('toArray')->willReturn(['eid' => 2, 'title' => 'Hidden']);
         $denied->method('get')->willReturnCallback(
@@ -871,16 +872,16 @@ final class GenericAdminSurfaceHostTest extends TestCase
             },
         );
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('loadMultiple')->willReturn([$allowed, $denied]);
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($eventType);
         $etm->method('getStorage')->willReturn($storage);
         $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
 
-        $accessHandler = $this->createMock(EntityAccessHandler::class);
+        $accessHandler = $this->createStub(EntityAccessHandler::class);
         $accessHandler->method('check')->willReturnCallback(
             fn($entity) => $entity === $allowed
                 ? AccessResult::allowed('OK')
@@ -914,9 +915,124 @@ final class GenericAdminSurfaceHostTest extends TestCase
     }
 
     #[Test]
+    public function authenticated_admin_list_projects_publication_fields_without_weakening_ordinary_field_serialization(): void
+    {
+        $type = new EntityType(
+            id: 'article',
+            label: 'Article',
+            class: \stdClass::class,
+            keys: ['id' => 'id'],
+        );
+        $entity = $this->createStub(EntityInterface::class);
+        $entity->method('getEntityTypeId')->willReturn('node');
+        $entity->method('bundle')->willReturn('article');
+        $entity->method('uuid')->willReturn('article-1');
+        $entity->method('id')->willReturn(1);
+        $entity->method('toArray')->willReturn([
+            'id' => 1,
+            'title' => 'Visible article',
+            'workflow_state' => 'review',
+            'status' => false,
+        ]);
+        $entity->method('get')->willReturnCallback(
+            fn(string $field) => match ($field) {
+                'id' => 1,
+                'title' => 'Visible article',
+                'workflow_state' => 'review',
+                // Deliberately differs from the audited projection below.
+                // Admin filtering must use the same projected value it displays.
+                'status' => true,
+                default => null,
+            },
+        );
+
+        $storage = $this->createStub(EntityStorageInterface::class);
+        $storage->method('loadMultiple')->willReturn([$entity]);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
+        $etm->method('hasDefinition')->willReturn(true);
+        $etm->method('getDefinition')->willReturn($type);
+        $etm->method('getStorage')->willReturn($storage);
+        $etm->method('getRepository')->willReturn(new StorageBackedStubRepository($storage));
+        $etm->method('resolveFieldDefinitions')->willReturn([
+            'workflow_state' => new FieldDefinition(name: 'workflow_state', type: 'string'),
+            'status' => new FieldDefinition(name: 'status', type: 'boolean'),
+        ]);
+
+        $accessHandler = $this->createStub(EntityAccessHandler::class);
+        $accessHandler->method('check')->willReturn(AccessResult::allowed('Entity is visible in the admin surface.'));
+        $accessHandler->method('checkFieldAccess')->willReturn(AccessResult::forbidden('Ordinary protected-field projection remains closed.'));
+        $accessHandler->method('filterFields')->willReturnCallback(
+            static fn(EntityInterface $entity, array $fields): array => array_values(array_diff(
+                $fields,
+                ['workflow_state', 'status'],
+            )),
+        );
+
+        $publicationFieldReader = $this->createStub(AdminPublicationFieldReaderInterface::class);
+        $publicationFieldReader->method('projects')->willReturnCallback(
+            static fn(EntityInterface $entity, string $field): bool => in_array($field, ['workflow_state', 'status'], true),
+        );
+        $publicationFieldReader->method('read')->willReturn([
+            'workflow_state' => 'review',
+            'status' => false,
+        ]);
+
+        $host = new GenericAdminSurfaceHost(
+            $etm,
+            $accessHandler,
+            publicationFieldReader: $publicationFieldReader,
+        );
+        $account = $this->createStub(AuthorizationPrincipalInterface::class);
+        $account->method('id')->willReturn(1);
+        $account->method('hasPermission')->willReturn(true);
+        $account->method('getRoles')->willReturn(['editor']);
+        $request = Request::create('/admin/_surface/session');
+        $request->attributes->set('_account', $account);
+        $host->resolveSession($request);
+
+        $result = $host->list('node');
+
+        $this->assertTrue($result->ok);
+        $this->assertSame('review', $result->data['entities'][0]['attributes']['workflow_state'] ?? null);
+        $this->assertFalse($result->data['entities'][0]['attributes']['status'] ?? true);
+
+        $matching = $host->list('node', new SurfaceQuery(filters: [[
+            'field' => 'workflow_state',
+            'operator' => SurfaceFilterOperator::EQUALS,
+            'value' => 'review',
+        ]]));
+        $notMatching = $host->list('node', new SurfaceQuery(filters: [[
+            'field' => 'workflow_state',
+            'operator' => SurfaceFilterOperator::EQUALS,
+            'value' => 'draft',
+        ]]));
+
+        $this->assertTrue($matching->ok);
+        $this->assertSame(1, $matching->data['total']);
+        $this->assertTrue($notMatching->ok);
+        $this->assertSame(0, $notMatching->data['total']);
+
+        $matchingPublicationStatus = $host->list('node', new SurfaceQuery(filters: [[
+            'field' => 'status',
+            'operator' => SurfaceFilterOperator::EQUALS,
+            'value' => '0',
+        ]]));
+        $notMatchingPublicationStatus = $host->list('node', new SurfaceQuery(filters: [[
+            'field' => 'status',
+            'operator' => SurfaceFilterOperator::EQUALS,
+            'value' => '1',
+        ]]));
+
+        $this->assertTrue($matchingPublicationStatus->ok);
+        $this->assertSame(1, $matchingPublicationStatus->data['total']);
+        $this->assertTrue($notMatchingPublicationStatus->ok);
+        $this->assertSame(0, $notMatchingPublicationStatus->data['total']);
+    }
+
+    #[Test]
     public function list_applies_equals_filter(): void
     {
-        $published = $this->createMock(EntityInterface::class);
+        $published = $this->createStub(EntityInterface::class);
         $published->method('getEntityTypeId')->willReturn('article');
         $published->method('uuid')->willReturn('');
         $published->method('id')->willReturn(1);
@@ -929,7 +1045,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             },
         );
 
-        $draft = $this->createMock(EntityInterface::class);
+        $draft = $this->createStub(EntityInterface::class);
         $draft->method('getEntityTypeId')->willReturn('article');
         $draft->method('uuid')->willReturn('');
         $draft->method('id')->willReturn(2);
@@ -942,7 +1058,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             },
         );
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('loadMultiple')->willReturn([$published, $draft]);
 
         $articleType = new EntityType(
@@ -952,7 +1068,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             keys: ['id' => 'id'],
         );
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($articleType);
         // R13 WP1: list() now validates filter/sort fields against
@@ -978,7 +1094,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     #[Test]
     public function list_gt_filter_compares_non_numeric_strings_lexicographically_not_as_zero(): void
     {
-        $high = $this->createMock(EntityInterface::class);
+        $high = $this->createStub(EntityInterface::class);
         $high->method('getEntityTypeId')->willReturn('row');
         $high->method('uuid')->willReturn('');
         $high->method('id')->willReturn(1);
@@ -987,7 +1103,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             fn(string $field) => match ($field) { 'code' => 'zzz', default => null },
         );
 
-        $low = $this->createMock(EntityInterface::class);
+        $low = $this->createStub(EntityInterface::class);
         $low->method('getEntityTypeId')->willReturn('row');
         $low->method('uuid')->willReturn('');
         $low->method('id')->willReturn(2);
@@ -996,7 +1112,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             fn(string $field) => match ($field) { 'code' => 'aaa', default => null },
         );
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('loadMultiple')->willReturn([$high, $low]);
 
         $type = new EntityType(
@@ -1006,7 +1122,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             keys: ['id' => 'id'],
         );
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($type);
         // R13 WP1: list() now validates filter/sort fields against
@@ -1033,7 +1149,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     #[Test]
     public function list_gt_filter_compares_numeric_strings_as_numbers(): void
     {
-        $ten = $this->createMock(EntityInterface::class);
+        $ten = $this->createStub(EntityInterface::class);
         $ten->method('getEntityTypeId')->willReturn('row');
         $ten->method('uuid')->willReturn('');
         $ten->method('id')->willReturn(1);
@@ -1042,7 +1158,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             fn(string $field) => match ($field) { 'n' => '10', default => null },
         );
 
-        $two = $this->createMock(EntityInterface::class);
+        $two = $this->createStub(EntityInterface::class);
         $two->method('getEntityTypeId')->willReturn('row');
         $two->method('uuid')->willReturn('');
         $two->method('id')->willReturn(2);
@@ -1051,7 +1167,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             fn(string $field) => match ($field) { 'n' => '2', default => null },
         );
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('loadMultiple')->willReturn([$ten, $two]);
 
         $type = new EntityType(
@@ -1061,7 +1177,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             keys: ['id' => 'id'],
         );
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($type);
         // R13 WP1: list() now validates filter/sort fields against
@@ -1087,7 +1203,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     #[Test]
     public function list_applies_in_filter(): void
     {
-        $lead = $this->createMock(EntityInterface::class);
+        $lead = $this->createStub(EntityInterface::class);
         $lead->method('getEntityTypeId')->willReturn('contact');
         $lead->method('uuid')->willReturn('');
         $lead->method('id')->willReturn(1);
@@ -1096,7 +1212,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             fn(string $field) => match ($field) { 'stage' => 'lead', 'name' => 'Alice', default => null },
         );
 
-        $qualified = $this->createMock(EntityInterface::class);
+        $qualified = $this->createStub(EntityInterface::class);
         $qualified->method('getEntityTypeId')->willReturn('contact');
         $qualified->method('uuid')->willReturn('');
         $qualified->method('id')->willReturn(2);
@@ -1105,7 +1221,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             fn(string $field) => match ($field) { 'stage' => 'qualified', 'name' => 'Bob', default => null },
         );
 
-        $closed = $this->createMock(EntityInterface::class);
+        $closed = $this->createStub(EntityInterface::class);
         $closed->method('getEntityTypeId')->willReturn('contact');
         $closed->method('uuid')->willReturn('');
         $closed->method('id')->willReturn(3);
@@ -1114,7 +1230,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             fn(string $field) => match ($field) { 'stage' => 'closed', 'name' => 'Carol', default => null },
         );
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('loadMultiple')->willReturn([$lead, $qualified, $closed]);
 
         $contactType = new EntityType(
@@ -1124,7 +1240,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             keys: ['id' => 'id'],
         );
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($contactType);
         // R13 WP1: list() now validates filter/sort fields against
@@ -1150,7 +1266,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     #[Test]
     public function list_applies_sort_descending(): void
     {
-        $older = $this->createMock(EntityInterface::class);
+        $older = $this->createStub(EntityInterface::class);
         $older->method('getEntityTypeId')->willReturn('article');
         $older->method('uuid')->willReturn('');
         $older->method('id')->willReturn(1);
@@ -1164,7 +1280,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             },
         );
 
-        $newer = $this->createMock(EntityInterface::class);
+        $newer = $this->createStub(EntityInterface::class);
         $newer->method('getEntityTypeId')->willReturn('article');
         $newer->method('uuid')->willReturn('');
         $newer->method('id')->willReturn(2);
@@ -1193,7 +1309,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             keys: ['id' => 'id', 'bundle' => 'type'],
         );
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($articleType);
         // R13 WP1: list() now validates filter/sort fields against
@@ -1293,7 +1409,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     #[Test]
     public function list_without_filters_returns_all(): void
     {
-        $entity1 = $this->createMock(EntityInterface::class);
+        $entity1 = $this->createStub(EntityInterface::class);
         $entity1->method('getEntityTypeId')->willReturn('event');
         $entity1->method('uuid')->willReturn('');
         $entity1->method('id')->willReturn(1);
@@ -1306,7 +1422,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             },
         );
 
-        $entity2 = $this->createMock(EntityInterface::class);
+        $entity2 = $this->createStub(EntityInterface::class);
         $entity2->method('getEntityTypeId')->willReturn('event');
         $entity2->method('uuid')->willReturn('');
         $entity2->method('id')->willReturn(2);
@@ -1319,7 +1435,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             },
         );
 
-        $storage = $this->createMock(EntityStorageInterface::class);
+        $storage = $this->createStub(EntityStorageInterface::class);
         $storage->method('loadMultiple')->willReturn([$entity1, $entity2]);
 
         $eventType = new EntityType(
@@ -1329,7 +1445,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             keys: ['id' => 'eid'],
         );
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinition')->willReturn($eventType);
         $etm->method('getStorage')->willReturn($storage);
@@ -1359,7 +1475,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
             }
         };
 
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
 
         // Use a test subclass to set the protected $actions property
@@ -1380,7 +1496,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     #[Test]
     public function action_returns_400_for_unknown_custom_action(): void
     {
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
 
         $host = new GenericAdminSurfaceHost($etm);
@@ -1394,7 +1510,7 @@ final class GenericAdminSurfaceHostTest extends TestCase
     #[Test]
     public function builtin_actions_still_work(): void
     {
-        $etm = $this->createMock(EntityTypeManagerInterface::class);
+        $etm = $this->createStub(EntityTypeManagerInterface::class);
         $etm->method('hasDefinition')->willReturn(true);
         $etm->method('getDefinitions')->willReturn([
             EntityTypeFactory::create(
