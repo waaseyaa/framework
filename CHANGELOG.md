@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **repository portability (#2299):** Remove the accidental empty `get|-` root path that prevented native Windows checkouts, and reject non-portable tracked names in project hooks, canonical verification, and blocking CI.
+
 - **stacked pull request CI (#2286):** Run framework, Admin SPA, changelog-discipline, and public-surface validation for pull requests targeting any review branch so every dependency-ordered head receives exact GitHub evidence.
 
 - **media downloads (#2274):** Accept either a numeric storage ID or JSON:API UUID at `/media/{id}/download`, then retain the same fail-closed entity-view authorization and audited source lookup before returning bytes.

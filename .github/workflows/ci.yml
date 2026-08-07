@@ -42,6 +42,9 @@ jobs:
       - name: Enforce composer policy
         run: php bin/check-composer-policy
 
+      - name: Enforce portable repository paths
+        run: php bin/check-portable-paths
+
       - name: Enforce package layer graph
         run: php bin/check-package-layers
 
@@ -592,6 +595,7 @@ jobs:
             echo "::endgroup::"
           }
           run_gate check-phpstan-paths
+          run_gate check-portable-paths
           run_gate check-phpunit-paths
           run_gate check-package-layers-pl008-self-test
           run_gate check-distribution-extensions
