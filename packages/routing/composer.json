@@ -32,13 +32,13 @@
     "require": {
         "php": ">=8.5",
         "symfony/http-foundation": "^7.0",
-        "waaseyaa/entity": "^0.1.0-alpha.291",
-        "waaseyaa/access": "^0.1.0-alpha.291",
-        "waaseyaa/i18n": "^0.1.0-alpha.291",
-        "waaseyaa/auth": "^0.1.0-alpha.291",
+        "waaseyaa/entity": "^0.1.0-alpha.292",
+        "waaseyaa/access": "^0.1.0-alpha.292",
+        "waaseyaa/i18n": "^0.1.0-alpha.292",
+        "waaseyaa/auth": "^0.1.0-alpha.292",
         "symfony/routing": "^7.0",
-        "waaseyaa/foundation": "^0.1.0-alpha.291",
-        "waaseyaa/user": "^0.1.0-alpha.291"
+        "waaseyaa/foundation": "^0.1.0-alpha.292",
+        "waaseyaa/user": "^0.1.0-alpha.292"
     },
     "suggest": {
         "waaseyaa/oidc": "Provides optional OpenID Connect issuer routes"
