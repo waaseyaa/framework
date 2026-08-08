@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **artifact table retirement:** Let deployments explicitly retire an
+  application-owned SQLite table only when it is absent from the new artifact
+  and empty in the serving database. Populated, framework-owned, active, or
+  contradictory retirements continue to fail before candidate creation.
+
 ## [0.1.0-alpha.291] - 2026-08-08
 
 ### Added

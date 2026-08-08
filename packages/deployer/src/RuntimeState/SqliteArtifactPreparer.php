@@ -17,12 +17,16 @@ final readonly class SqliteArtifactPreparer
 
     /**
      * @param list<string> $applicationArtifactTables
+     * @param list<string> $retiredApplicationTables Application-owned tables
+     *        intentionally removed from the artifact. A serving copy is
+     *        accepted only when it is empty.
      */
     public function prepare(
         string $currentDatabase,
         string $artifactDatabase,
         string $candidateDatabase,
         array $applicationArtifactTables,
+        array $retiredApplicationTables = [],
     ): SqliteArtifactReport {
         $this->assertInput($currentDatabase, 'Serving database');
         $this->assertInput($artifactDatabase, 'Artifact database');
@@ -39,7 +43,8 @@ final readonly class SqliteArtifactPreparer
         $this->assertIntegrity($artifact, 'Artifact database');
 
         $definitions = $this->catalogue->definitions();
-        $allowed = array_fill_keys([...$applicationArtifactTables, ...array_keys($definitions), 'sqlite_sequence'], true);
+        $this->assertRetirements($current, $artifact, $definitions, $applicationArtifactTables, $retiredApplicationTables);
+        $allowed = array_fill_keys([...$applicationArtifactTables, ...$retiredApplicationTables, ...array_keys($definitions), 'sqlite_sequence'], true);
         $this->assertKnownTables($artifact, $allowed, 'artifact');
         $this->assertKnownTables($current, $allowed, 'serving database');
         foreach ($applicationArtifactTables as $table) {
@@ -132,6 +137,32 @@ final readonly class SqliteArtifactPreparer
         ksort($evidence, SORT_STRING);
 
         return new SqliteArtifactReport(FrameworkRuntimeTableCatalogue::VERSION, $evidence);
+    }
+
+    /**
+     * @param array<string, RuntimeTableDefinition> $definitions
+     * @param list<string> $applicationArtifactTables
+     * @param list<string> $retiredApplicationTables
+     */
+    private function assertRetirements(
+        \PDO $current,
+        \PDO $artifact,
+        array $definitions,
+        array $applicationArtifactTables,
+        array $retiredApplicationTables,
+    ): void {
+        $active = array_fill_keys($applicationArtifactTables, true);
+        foreach ($retiredApplicationTables as $table) {
+            if ($table === 'sqlite_sequence' || isset($active[$table]) || isset($definitions[$table])) {
+                throw new \RuntimeException('Retired application table conflicts with active ownership: ' . $table);
+            }
+            if ($this->tableExists($artifact, $table)) {
+                throw new \RuntimeException('Retired application table is still present in the artifact: ' . $table);
+            }
+            if ($this->tableExists($current, $table) && $this->profile($current, $table)['rows'] !== 0) {
+                throw new \RuntimeException('Retired application table is not empty: ' . $table);
+            }
+        }
     }
 
     private function assertInput(string $path, string $label): void
