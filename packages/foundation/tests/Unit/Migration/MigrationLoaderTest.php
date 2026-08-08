@@ -75,6 +75,49 @@ final class MigrationLoaderTest extends TestCase
     }
 
     #[Test]
+    public function relativePackagePathNeverResolvesToTheApplicationsWorkingDirectory(): void
+    {
+        $appDir = $this->tempDir . '/migrations';
+        $packageDir = $this->tempDir . '/vendor/example/package/migrations';
+        mkdir($appDir);
+        mkdir($packageDir, 0777, true);
+        file_put_contents($appDir . '/20260317_app.php', <<<'PHP'
+        <?php
+        use Waaseyaa\Foundation\Migration\Migration;
+        use Waaseyaa\Foundation\Migration\SchemaBuilder;
+        return new class extends Migration {
+            public function up(SchemaBuilder $schema): void {}
+        };
+        PHP);
+        file_put_contents($packageDir . '/20260317_package.php', <<<'PHP'
+        <?php
+        use Waaseyaa\Foundation\Migration\Migration;
+        use Waaseyaa\Foundation\Migration\SchemaBuilder;
+        return new class extends Migration {
+            public function up(SchemaBuilder $schema): void {}
+        };
+        PHP);
+
+        $previousDirectory = getcwd();
+        chdir($this->tempDir);
+
+        try {
+            $manifest = new PackageManifest(migrations: ['example/package' => 'migrations']);
+            $all = (new MigrationLoader($this->tempDir, $manifest))->loadAll();
+        } finally {
+            if (is_string($previousDirectory)) {
+                chdir($previousDirectory);
+            }
+        }
+
+        self::assertSame(
+            ['example/package:20260317_package'],
+            array_keys($all['example/package']),
+        );
+        self::assertSame(['app:20260317_app'], array_keys($all['app']));
+    }
+
+    #[Test]
     public function appMigrationsRunAfterPackageMigrations(): void
     {
         $pkgDir = $this->tempDir . '/vendor/waaseyaa/node/migrations';

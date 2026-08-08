@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Field\Entity;
 
+use Waaseyaa\Entity\Attribute\ContentEntityKeys;
 use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
@@ -44,6 +45,7 @@ use Waaseyaa\Entity\ContentEntityBase;
     description: 'Classification-driven retention rule (purge, redact, or hold-flag) keyed by label set.',
     api: true,
 )]
+#[ContentEntityKeys(id: 'id', uuid: 'uuid', label: 'name')]
 final class RetentionPolicy extends ContentEntityBase
 {
     public const string ACTION_PURGE = 'purge';

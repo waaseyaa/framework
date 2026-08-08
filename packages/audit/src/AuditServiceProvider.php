@@ -18,8 +18,10 @@ use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\Middleware\FieldReadContextMiddleware;
 use Waaseyaa\Access\User\UserIdentityLookupInterface;
 use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
+use Waaseyaa\Access\User\UserSelfProfileReaderInterface;
 use Waaseyaa\Audit\Bootstrap\AuditedUserIdentityLookup;
 use Waaseyaa\Audit\Bootstrap\AuditedUserInternalFieldReader;
+use Waaseyaa\Audit\Bootstrap\AuditedUserSelfProfileReader;
 use Waaseyaa\Audit\Bootstrap\IdentityBootstrapReader;
 use Waaseyaa\Audit\Bootstrap\SessionBootstrapReader;
 use Waaseyaa\Audit\Contract\AuditQueryInterface;
@@ -181,6 +183,15 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
             assert($ledger instanceof StrictPrivilegedReadLedgerInterface);
 
             return new AuditedUserInternalFieldReader(new AuditedFieldRead($capabilities, $ledger), $capabilities);
+        });
+
+        $this->singleton(UserSelfProfileReaderInterface::class, function (): UserSelfProfileReaderInterface {
+            $capabilities = $this->resolve(CapabilityRegistryInterface::class);
+            $ledger = $this->resolve(StrictPrivilegedReadLedgerInterface::class);
+            assert($capabilities instanceof CapabilityRegistryInterface);
+            assert($ledger instanceof StrictPrivilegedReadLedgerInterface);
+
+            return new AuditedUserSelfProfileReader(new AuditedFieldRead($capabilities, $ledger), $capabilities);
         });
 
         $this->singleton(UserIdentityLookupInterface::class, function (): UserIdentityLookupInterface {

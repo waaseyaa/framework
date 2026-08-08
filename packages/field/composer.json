@@ -69,6 +69,7 @@
             "dev-develop/v1.1": "0.1.x-dev"
         },
         "waaseyaa": {
+            "migrations": "migrations",
             "policies": [
                 "Waaseyaa\\Field\\Classification\\Policy\\ClassificationFieldAccessPolicy",
                 "Waaseyaa\\Field\\Classification\\Policy\\RetentionPolicyAccessPolicy"

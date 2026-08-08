@@ -1,5 +1,7 @@
 # Package Discovery
 
+<!-- Spec reviewed 2026-08-08 - Anokii boundary remediation: the provider registry carries the kernel's canonical community context to composed providers, while the field package declares and activates its own migration inventory. Composer installation remains the activation boundary; no cross-layer provider ownership is introduced. -->
+
 <!-- Spec reviewed 2026-08-05 - #2196 AI-catalog composition: installed providers may separately contribute bounded public AI artifacts through ProvidesAiCatalogEntriesInterface; the kernel sorts and injects them into AcceptsAiCatalogEntryProvidersInterface receivers before boot. The separate contract prevents experimental ARD/AI Catalog fields from contaminating RFC 9727 endpoint semantics. -->
 
 <!-- Spec reviewed 2026-08-04 - #2195 API-catalog composition: installed providers may contribute bounded public API-catalog entries through ProvidesApiCatalogEntriesInterface; the kernel sorts contributors and injects them into AcceptsApiCatalogEntryProvidersInterface receivers before boot, preserving Layer-0 ownership and Composer installation as the activation boundary. -->

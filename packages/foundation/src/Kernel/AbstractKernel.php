@@ -29,6 +29,7 @@ use Waaseyaa\EntityStorage\Backend\StrictFieldStorageGatewayAuditInterface;
 use Waaseyaa\EntityStorage\BackendResolver;
 use Waaseyaa\EntityStorage\Query\DefinitionValidator;
 use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
+use Waaseyaa\Foundation\Community\CommunityContextBootstrapper;
 use Waaseyaa\Foundation\Community\CommunityContextInterface;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
@@ -151,6 +152,7 @@ abstract class AbstractKernel
         EnvLoader::load($this->projectRoot . '/.env');
 
         $this->config = ConfigLoader::load($this->projectRoot . '/config/waaseyaa.php', $this->logger);
+        $this->communityContext ??= new CommunityContextBootstrapper()->boot($this->config);
 
         // Upgrade logger from config.
         if ($this->logger instanceof LogManager) {
@@ -413,6 +415,7 @@ abstract class AbstractKernel
             $this->applicationSecret(),
             $this->fieldReadScope(),
             requestContext: $this->requestContextForProviders(),
+            communityContext: $this->communityContext,
         );
     }
 
@@ -659,6 +662,7 @@ abstract class AbstractKernel
             manifest: $this->manifest,
             fieldReadScope: $this->fieldReadScope(),
             requestContext: $this->requestContextForProviders(),
+            communityContext: $this->communityContext,
         );
         $resolver = new KernelPolicyDependencyResolver($kernelServices);
         $this->accessHandler = new AccessPolicyRegistry($this->logger, $resolver)->discover($this->manifest);
@@ -693,6 +697,7 @@ abstract class AbstractKernel
             $this->applicationSecret,
             $this->fieldReadScope(),
             requestContext: $this->requestContextForProviders(),
+            communityContext: $this->communityContext,
         );
         $scope = $kernelServices->get(AccountFieldReadScopeInterface::class);
         if (!$scope instanceof AccountFieldReadScopeInterface) {
@@ -746,6 +751,7 @@ abstract class AbstractKernel
             manifest: $this->manifest,
             fieldReadScope: $this->fieldReadScope(),
             requestContext: $this->requestContextForProviders(),
+            communityContext: $this->communityContext,
         );
         $resolver = new KernelPolicyDependencyResolver($kernelServices);
         new ScheduleEntryRegistry($this->logger, $resolver)
@@ -775,6 +781,7 @@ abstract class AbstractKernel
             applicationSecret: $this->applicationSecret,
             fieldReadScope: $this->fieldReadScope(),
             requestContext: $this->requestContextForProviders(),
+            communityContext: $this->communityContext,
         );
         $gatewayAudit = $kernelServices->get(StrictFieldStorageGatewayAuditInterface::class);
         $gatewayAudit = $gatewayAudit instanceof StrictFieldStorageGatewayAuditInterface

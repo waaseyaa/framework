@@ -588,6 +588,20 @@ final class SqlSchemaHandler
             ];
         }
 
+        // Tenant scoping is a storage boundary, not an application-field
+        // convention. Keep the discriminator as an indexed physical column on
+        // both sql-blob and sql-column backends so scoped reads and writes can
+        // never depend on JSON extraction or undeclared dynamic data.
+        $tenancy = $this->entityType->getTenancy();
+        if ($tenancy !== null && $tenancy['scope'] === 'community') {
+            $fields['community_id'] = [
+                'type' => 'varchar',
+                'length' => 128,
+                'not null' => true,
+                'default' => '',
+            ];
+        }
+
         // Data blob for extra/dynamic fields (JSON-encoded).
         // sql-column backend (WP05) manages its own columns and does not use _data.
         if ($this->primaryBackendId !== ReservedBackendIds::SQL_COLUMN) {
@@ -615,6 +629,9 @@ final class SqlSchemaHandler
                 $this->tableName . '_bundle' => [$bundleKey],
             ],
         ];
+        if (isset($fields['community_id'])) {
+            $spec['indexes'][$this->tableName . '_community'] = ['community_id'];
+        }
 
         // UUID uniqueness rules:
         //   - Non-translatable content entities: a plain UNIQUE KEY on (uuid).

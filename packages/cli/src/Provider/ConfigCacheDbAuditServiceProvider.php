@@ -53,30 +53,7 @@ final class ConfigCacheDbAuditServiceProvider extends ServiceProvider implements
         );
 
         $projectRoot = $this->projectRoot !== '' ? $this->projectRoot : (string) getcwd();
-        $dbInitHandler = new DbInitHandler(projectRoot: $projectRoot);
-
-        yield new HandlerCommand(
-            name: 'db:init',
-            description: 'Initialize the database on first deploy: apply pending migrations and materialize every registered entity type\'s schema.',
-            options: [
-                new HandlerOption(
-                    name: 'dry-run',
-                    mode: HandlerOptionMode::None,
-                    description: 'Show what would happen without creating files or running migrations.',
-                ),
-                new HandlerOption(
-                    name: 'sync-schema',
-                    mode: HandlerOptionMode::None,
-                    description: 'Deprecated/redundant: schema sync now runs by default. Accepted for back-compat with existing invocations.',
-                ),
-                new HandlerOption(
-                    name: 'no-sync-schema',
-                    mode: HandlerOptionMode::None,
-                    description: 'Skip entity-schema materialization and run migrations only. Use when you want a migrations-only db:init.',
-                ),
-            ],
-            handler: \Closure::fromCallable([$dbInitHandler, 'execute']),
-        );
+        yield self::dbInitCommand($projectRoot);
 
         yield new HandlerCommand(
             name: 'audit:log',
@@ -101,6 +78,34 @@ final class ConfigCacheDbAuditServiceProvider extends ServiceProvider implements
                 ),
             ],
             handler: [AuditLogHandler::class, 'execute'],
+        );
+    }
+
+    public static function dbInitCommand(string $projectRoot): HandlerCommand
+    {
+        $dbInitHandler = new DbInitHandler(projectRoot: $projectRoot);
+
+        return new HandlerCommand(
+            name: 'db:init',
+            description: 'Initialize the database on first deploy: apply pending migrations and materialize every registered entity type\'s schema.',
+            options: [
+                new HandlerOption(
+                    name: 'dry-run',
+                    mode: HandlerOptionMode::None,
+                    description: 'Show what would happen without creating files or running migrations.',
+                ),
+                new HandlerOption(
+                    name: 'sync-schema',
+                    mode: HandlerOptionMode::None,
+                    description: 'Deprecated/redundant: schema sync now runs by default. Accepted for back-compat with existing invocations.',
+                ),
+                new HandlerOption(
+                    name: 'no-sync-schema',
+                    mode: HandlerOptionMode::None,
+                    description: 'Skip entity-schema materialization and run migrations only. Use when you want a migrations-only db:init.',
+                ),
+            ],
+            handler: \Closure::fromCallable([$dbInitHandler, 'execute']),
         );
     }
 }

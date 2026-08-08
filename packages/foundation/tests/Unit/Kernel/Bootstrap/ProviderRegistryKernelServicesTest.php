@@ -21,6 +21,8 @@ use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface as FoundationEventDispatcherInterface;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
+use Waaseyaa\Foundation\Community\CommunityContext;
+use Waaseyaa\Foundation\Community\CommunityContextInterface;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistryKernelServices;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
@@ -37,6 +39,7 @@ final class ProviderRegistryKernelServicesTest extends TestCase
         ?EntityTypeManager $entityTypeManager = null,
         array $providers = [],
         ?AccountFieldReadScopeInterface $fieldReadScope = null,
+        ?CommunityContextInterface $communityContext = null,
     ): ProviderRegistryKernelServices {
         $dispatcher = new SymfonyEventDispatcherAdapter();
 
@@ -49,7 +52,18 @@ final class ProviderRegistryKernelServicesTest extends TestCase
             accessHandlerAccessor: $accessHandlerAccessor,
             applicationSecret: $applicationSecret,
             fieldReadScope: $fieldReadScope,
+            communityContext: $communityContext,
         );
+    }
+
+    #[Test]
+    public function kernel_owned_community_context_shadows_provider_defaults(): void
+    {
+        $context = new CommunityContext();
+        $context->set('anishinaabe-community');
+        $services = $this->services(DBALDatabase::createSqlite(), communityContext: $context);
+
+        self::assertSame($context, $services->get(CommunityContextInterface::class));
     }
 
     #[Test]

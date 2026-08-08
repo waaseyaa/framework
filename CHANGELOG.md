@@ -9,15 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **self-profile identity (#2304):** Add an authenticated-self-only, account-bound audited reader for the current user's exact `name` and `mail` profile identity, without widening generic Internal field access or reusing a mismatched mail, session, or maintenance capability reason.
+
 - **controller ergonomics (#2291):** Add an injectable, request-scoped `Redirector` for fail-closed local and named-route redirects, a Waaseyaa-owned redirect response type, and an optional thin `Waaseyaa\Routing\Controller` base, while keeping plain final controllers and explicit dependencies first-class.
 
 - **MCP public authentication (#2276):** Let the public read-only MCP tier recognize durable, expiring, revocable `mcp:public` bearer credentials while preserving anonymous discovery, exact token scopes, real-account capability checks, and write-audience isolation.
 
 ### Changed
 
+- **entity metadata activation:** Register framework-owned field and agent entities from their class attributes so declared field-read levels survive provider bootstrap. Activate the field package's migration inventory and align its SQL-blob tables with the entity schema contract.
+
+- **community tenancy:** Make the kernel-owned community context canonical across providers, policies, storage, and HTTP routing. Community-scoped SQL writes now stamp the active tenant, reject conflicting values, and keep an indexed physical discriminator on both storage backends.
+
 - **PHPUnit strictness (#2277):** Fail the canonical suite on PHP and PHPUnit notices or deprecations, retain mocks only for interaction contracts, and use stubs for passive collaborators. Active split-suite instructions now disable the configured coverage report explicitly so a missing coverage driver cannot stop discovery with zero tests executed.
 
 ### Fixed
+
+- **application bootstrap:** Allow applications to activate a configured community without custom kernel wiring, keep `db:init` on its restricted safe bootstrap path, and resolve package migration paths consistently for root and installed packages.
 
 - **test isolation (#2301):** Make the CLI integration fixture establish and restore its process-wide field-read runtime boundary so randomized test order cannot inherit a conflicting registry from an earlier integration test.
 

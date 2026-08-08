@@ -23,14 +23,22 @@ final class ConsoleKernelTest extends TestCase
     /** @var list<string> */
     private array $originalArgv;
 
+    private string|false $originalAppEnv;
+
+    private string|false $originalDatabase;
+
     protected function setUp(): void
     {
         $this->originalArgv = $_SERVER['argv'] ?? [];
+        $this->originalAppEnv = getenv('APP_ENV');
+        $this->originalDatabase = getenv('WAASEYAA_DB');
     }
 
     protected function tearDown(): void
     {
         $_SERVER['argv'] = $this->originalArgv;
+        $this->restoreEnvironment('APP_ENV', $this->originalAppEnv);
+        $this->restoreEnvironment('WAASEYAA_DB', $this->originalDatabase);
     }
 
     #[Test]
@@ -62,5 +70,27 @@ final class ConsoleKernelTest extends TestCase
         ob_get_clean();
 
         $this->assertSame(0, $exitCode);
+    }
+
+    #[Test]
+    public function dbInitDryRunCanInspectAMissingProductionDatabaseWithoutBootingIt(): void
+    {
+        $projectRoot = dirname(__DIR__, 6);
+        $database = sys_get_temp_dir() . '/waaseyaa-db-init-' . bin2hex(random_bytes(8)) . '.sqlite';
+        $_SERVER['argv'] = ['waaseyaa', 'db:init', '--dry-run'];
+        putenv('APP_ENV=production');
+        putenv('WAASEYAA_DB=' . $database);
+
+        ob_start();
+        $exitCode = (new ConsoleKernel($projectRoot))->handle();
+        $output = (string) ob_get_clean();
+
+        self::assertSame(0, $exitCode, $output);
+        self::assertFileDoesNotExist($database);
+    }
+
+    private function restoreEnvironment(string $name, string|false $value): void
+    {
+        putenv($value === false ? $name : $name . '=' . $value);
     }
 }

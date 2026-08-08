@@ -1,5 +1,7 @@
 # Infrastructure
 
+<!-- Spec reviewed 2026-08-08 - Anokii boundary remediation: application configuration may establish the kernel's canonical community context before providers register. The same context is exposed through kernel services and consumed by policies, storage, and HTTP handling; restricted `db:init` remains isolated from application boot. Package migration paths resolve consistently from source and installed layouts. -->
+
 <!-- Spec reviewed 2026-08-05 - #2196: Foundation adds a second layer-safe discovery seam for AI artifacts: immutable AiCatalogEntry values plus ProvidesAiCatalogEntriesInterface and AcceptsAiCatalogEntryProvidersInterface. AbstractKernel deterministically injects installed contributors before boot. This is deliberately separate from RFC 9727 because AI Catalog artifact identity/type/query semantics are not API Linkset semantics. Foundation imports no API or MCP class. HttpKernel treats /.well-known/ai-catalog.json as anonymous-stateless even while its owning feature remains default-off. -->
 
 <!-- Spec reviewed 2026-08-04 - #2195: Foundation adds the layer-safe RFC 9727 contribution seam: immutable same-origin ApiCatalogEntry/ApiCatalogTarget values, ProvidesApiCatalogEntriesInterface contributors, and AcceptsApiCatalogEntryProvidersInterface receiver. AbstractKernel collects contributors, sorts them by provider class, and injects them before provider boot. Foundation imports no API, MCP, Wayfinding, or new Symfony type for this seam. HttpKernel treats /.well-known/api-catalog as anonymous-stateless by default. -->

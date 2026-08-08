@@ -10,6 +10,7 @@ enum CapabilityReason: string
     case PersistenceSnapshot = 'persistence_snapshot';
     case CredentialVerification = 'credential_verification';
     case SessionBootstrap = 'session_bootstrap';
+    case SelfProfile = 'self_profile';
     case MailDelivery = 'mail_delivery';
     case MigrationImport = 'migration_import';
     case MaintenanceCli = 'maintenance_cli';

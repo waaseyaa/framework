@@ -13,7 +13,10 @@ use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
+use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
+use Waaseyaa\EntityStorage\Tenancy\TenancyViolationException;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestStorageEntity;
+use Waaseyaa\Foundation\Community\CommunityContext;
 
 #[CoversClass(SqlStorageDriver::class)]
 final class SqlStorageDriverTest extends TestCase
@@ -75,6 +78,56 @@ final class SqlStorageDriverTest extends TestCase
         $this->assertNotNull($row);
         $this->assertSame('Hello World', $row['label']);
         $this->assertSame('article', $row['bundle']);
+    }
+
+    #[Test]
+    public function scopedWriteStampsTheActiveCommunity(): void
+    {
+        $context = new CommunityContext();
+        $context->set('community-a');
+        $driver = $this->scopedDriver($context);
+
+        $driver->write('scoped_entity', '1', ['id' => 1, 'uuid' => 'scoped-1']);
+
+        self::assertSame('community-a', $driver->read('scoped_entity', '1')['community_id'] ?? null);
+    }
+
+    #[Test]
+    public function scopedWriteRefusesAConflictingCommunity(): void
+    {
+        $context = new CommunityContext();
+        $context->set('community-a');
+        $driver = $this->scopedDriver($context);
+        $this->expectException(TenancyViolationException::class);
+
+        $driver->write('scoped_entity', '1', ['id' => 1, 'community_id' => 'community-b']);
+    }
+
+    #[Test]
+    public function communityTenancyMaterializesAnIndexedPhysicalDiscriminator(): void
+    {
+        $this->scopedDriver(new CommunityContext());
+        $schema = $this->database->getConnection()->createSchemaManager();
+
+        self::assertArrayHasKey('community_id', $schema->listTableColumns('scoped_entity'));
+        self::assertArrayHasKey('scoped_entity_community', $schema->listTableIndexes('scoped_entity'));
+    }
+
+    private function scopedDriver(CommunityContext $context): SqlStorageDriver
+    {
+        $type = new EntityType(
+            id: 'scoped_entity',
+            label: 'Scoped Entity',
+            class: TestStorageEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'bundle' => 'bundle', 'label' => 'label'],
+            tenancy: ['scope' => EntityType::TENANCY_SCOPE_COMMUNITY],
+        );
+        new SqlSchemaHandler($type, $this->database)->ensureTable();
+
+        return new SqlStorageDriver(
+            new SingleConnectionResolver($this->database),
+            communityScope: new CommunityScope($context),
+        );
     }
 
     #[Test]

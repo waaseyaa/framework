@@ -1,5 +1,7 @@
 # Entity System
 
+<!-- Spec reviewed 2026-08-08 - Anokii boundary remediation: community-scoped writes stamp the active community and refuse conflicting values in both storage drivers; SQL_BLOB types retain an indexed physical community discriminator. Framework field and agent providers now construct entity types from class attributes, and classification entities/migrations align bundle, language, and blob columns with the canonical schema contract. -->
+
 <!-- Spec reviewed 2026-07-19 - Sheguiandah gap batch: EntityValueContainer gains internal rawProjection(list<string>) for closed, fixed-shape authorities. It releases only the named values through the existing RestrictedEntityValue view binding, never exports the whole value bag, and is consumed through hard-coded EntityBase-bound projectors by the relationship directory; ordinary get()/toArray()/serialization and missing-context behavior are unchanged. Canonical authorization contract: entity-field-read-boundary.md. -->
 
 <!-- Spec reviewed 2026-07-17 - #2064 WP1 adds dormant FieldReadLevel metadata, immutable EntityStructure, preflight data/result skeletons, and the future EntitySerializationForbidden type. No EntityBase accessor, toArray(), serialization, hydration, query, or boot path is wired or changed. Canonical contract: entity-field-read-boundary.md. -->

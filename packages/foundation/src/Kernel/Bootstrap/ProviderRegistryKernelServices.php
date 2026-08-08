@@ -16,6 +16,7 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
+use Waaseyaa\Foundation\Community\CommunityContextInterface;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface as FoundationEventDispatcherInterface;
 use Waaseyaa\Foundation\Http\RequestContext;
@@ -87,6 +88,7 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
          * their own provider binds.
          */
         private readonly ?RequestContext $requestContext = null,
+        private readonly ?CommunityContextInterface $communityContext = null,
     ) {
         $this->providersAccessor = $providersAccessor;
         $this->accessHandlerAccessor = $accessHandlerAccessor;
@@ -102,6 +104,9 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
             // ListingResolver. Null here means "no request", not "no value" —
             // the provider's default stands.
             return $this->requestContext;
+        }
+        if ($abstract === CommunityContextInterface::class) {
+            return $this->communityContext;
         }
         if ($abstract === EntityTypeManager::class || $abstract === EntityTypeManagerInterface::class) {
             return $this->entityTypeManager;

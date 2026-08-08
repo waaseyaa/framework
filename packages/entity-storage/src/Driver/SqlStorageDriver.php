@@ -12,6 +12,7 @@ use Waaseyaa\EntityStorage\Exception\UnstorableFieldException;
 use Waaseyaa\EntityStorage\Query\JsonFieldName;
 use Waaseyaa\EntityStorage\ResolvedField;
 use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
+use Waaseyaa\EntityStorage\Tenancy\TenancyViolationException;
 use Waaseyaa\Field\FieldStorage;
 
 /**
@@ -47,7 +48,7 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
             ->condition($this->idKey, $id);
 
         if ($this->communityScope?->isActive()) {
-            $query->condition('community_id', $this->communityScope->getCommunityId());
+            $query = $query->condition('community_id', $this->communityScope->getCommunityId());
         }
 
         if ($langcode !== null) {
@@ -66,7 +67,7 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
                     ->condition('langcode', $langcode);
 
                 if ($this->communityScope?->isActive()) {
-                    $peerQuery->condition('community_id', $this->communityScope->getCommunityId());
+                    $peerQuery = $peerQuery->condition('community_id', $this->communityScope->getCommunityId());
                 }
 
                 foreach ($peerQuery->execute() as $row) {
@@ -139,7 +140,7 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
                     ->condition('langcode', $langcode);
 
                 if ($this->communityScope?->isActive()) {
-                    $peerQuery->condition('community_id', $this->communityScope->getCommunityId());
+                    $peerQuery = $peerQuery->condition('community_id', $this->communityScope->getCommunityId());
                 }
 
                 foreach ($peerQuery->execute() as $row) {
@@ -190,6 +191,15 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
     public function write(string $entityType, string $id, array $values): string
     {
         $db = $this->getDatabase();
+
+        if ($this->communityScope?->isActive()) {
+            $active = $this->communityScope->getCommunityId();
+            $provided = $values['community_id'] ?? null;
+            if (is_string($provided) && $provided !== '' && $provided !== $active) {
+                throw TenancyViolationException::conflictingWrite($active, $provided);
+            }
+            $values['community_id'] = $active;
+        }
 
         // Route values whose column does not exist into the `_data` JSON blob
         // (per SqlSchemaHandler::buildTableSpec the base table only materialises

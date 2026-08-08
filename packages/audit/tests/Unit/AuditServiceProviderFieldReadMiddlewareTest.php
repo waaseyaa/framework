@@ -16,6 +16,7 @@ use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\Middleware\FieldReadContextMiddleware;
 use Waaseyaa\Access\User\UserIdentityLookupInterface;
 use Waaseyaa\Access\User\UserInternalFieldReaderInterface;
+use Waaseyaa\Access\User\UserSelfProfileReaderInterface;
 use Waaseyaa\Audit\AuditServiceProvider;
 use Waaseyaa\Audit\Contract\StrictPrivilegedReadLedgerInterface;
 use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
@@ -75,6 +76,7 @@ final class AuditServiceProviderFieldReadMiddlewareTest extends TestCase
         self::assertInstanceOf(FieldReadContextMiddleware::class, $middleware[0]);
         self::assertInstanceOf(StrictPrivilegedReadLedgerInterface::class, $provider->resolve(StrictPrivilegedReadLedgerInterface::class));
         self::assertInstanceOf(UserInternalFieldReaderInterface::class, $provider->resolve(UserInternalFieldReaderInterface::class));
+        self::assertInstanceOf(UserSelfProfileReaderInterface::class, $provider->resolve(UserSelfProfileReaderInterface::class));
         self::assertInstanceOf(UserIdentityLookupInterface::class, $provider->resolve(UserIdentityLookupInterface::class));
         self::assertInstanceOf(AccountPrincipalFactoryInterface::class, $provider->resolve(AccountPrincipalFactoryInterface::class));
     }
