@@ -4,8 +4,14 @@
     "type": "library",
     "license": "GPL-2.0-or-later",
     "require": {
+        "ext-pdo": "*",
         "php": ">=8.5",
         "deployer/deployer": "^7.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Waaseyaa\\Deployer\\": "src/"
+        }
     },
     "extra": {
         "branch-alias": {

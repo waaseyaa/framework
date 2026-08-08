@@ -4133,16 +4133,22 @@
             "dist": {
                 "type": "path",
                 "url": "packages/deployer",
-                "reference": "2733962b47f320a9e0fac369b780a2eb7d4a2edb"
+                "reference": "ce47dd42ccb6f8cd736d4b771bf25971c300a21f"
             },
             "require": {
                 "deployer/deployer": "^7.0",
+                "ext-pdo": "*",
                 "php": ">=8.5"
             },
             "type": "library",
             "extra": {
                 "branch-alias": {
                     "dev-main": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Deployer\\": "src/"
                 }
             },
             "license": [
