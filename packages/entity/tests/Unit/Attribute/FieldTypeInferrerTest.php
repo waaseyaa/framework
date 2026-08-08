@@ -97,6 +97,10 @@ final class FieldTypeInferrerTest extends TestCase
                 'aStringForOverride', 'text',
                 ['type' => 'text', 'required' => true, 'settings' => []],
             ],
+            'string property with explicit classification label override' => [
+                'aStringForOverride', 'classification_label',
+                ['type' => 'classification_label', 'required' => true, 'settings' => []],
+            ],
             'user class with explicit entity_reference override' => [
                 'aUserClassForOverride', 'entity_reference',
                 ['type' => 'entity_reference', 'required' => true, 'settings' => []],
@@ -372,7 +376,7 @@ final class FieldTypeInferrerTest extends TestCase
     public function compatibilityGroupsExposesPrivateConstantVerbatim(): void
     {
         $expected = [
-            ['string', 'text', 'email', 'link'],
+            ['string', 'text', 'email', 'link', 'classification_label'],
             ['integer', 'list'],
             ['float', 'decimal'],
             ['datetime', 'date'],

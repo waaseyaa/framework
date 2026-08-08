@@ -11,6 +11,7 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Exception\EntityTypeRegistrationCollisionException;
+use Waaseyaa\Foundation\Community\CommunityContextInterface;
 use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Http\RequestContext;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -56,6 +57,7 @@ final class ProviderRegistry
          * anonymous default.
          */
         ?RequestContext $requestContext = null,
+        ?CommunityContextInterface $communityContext = null,
     ): array {
         $this->providers = [];
 
@@ -71,6 +73,7 @@ final class ProviderRegistry
             applicationSecret: $applicationSecret,
             fieldReadScope: $fieldReadScope,
             requestContext: $requestContext,
+            communityContext: $communityContext,
         );
 
         foreach ($manifest->providers as $providerClass) {

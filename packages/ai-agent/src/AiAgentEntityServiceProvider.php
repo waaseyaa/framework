@@ -35,25 +35,8 @@ final class AiAgentEntityServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->entityType(new EntityType(
-            id: 'agent_run',
-            label: 'Agent run',
-            class: AgentRun::class,
-            keys: ['id' => 'id', 'uuid' => 'id', 'label' => 'id'],
-            description: 'One executor invocation. Aggregate root for agent_audit_log.',
-            group: 'ai',
-            api: true,
-        ));
-
-        $this->entityType(new EntityType(
-            id: 'agent_audit_log',
-            label: 'Agent audit log entry',
-            class: AgentAuditLog::class,
-            keys: ['id' => 'id', 'uuid' => 'id', 'label' => 'event_type'],
-            description: 'One audit-log row per executor event. Append-only.',
-            group: 'ai',
-            api: true,
-        ));
+        $this->entityType(EntityType::fromClass(AgentRun::class, group: 'ai'));
+        $this->entityType(EntityType::fromClass(AgentAuditLog::class, group: 'ai'));
 
         $this->singleton(AgentRunRepository::class, fn(): AgentRunRepository => new AgentRunRepository(
             $this->resolve(EntityTypeManager::class)->getRepository('agent_run'),

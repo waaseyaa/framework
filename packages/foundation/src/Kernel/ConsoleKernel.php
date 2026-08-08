@@ -7,6 +7,7 @@ namespace Waaseyaa\Foundation\Kernel;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Waaseyaa\CLI\ConsoleApplicationFactory;
+use Waaseyaa\CLI\Provider\ConfigCacheDbAuditServiceProvider;
 use Waaseyaa\CLI\VersionResolver;
 use Waaseyaa\CLI\WaaseyaaConsoleApplication;
 
@@ -25,6 +26,16 @@ final class ConsoleKernel extends AbstractKernel
                 version: new VersionResolver($this->projectRoot)->resolve(),
                 logger: $this->logger,
             );
+
+            return $application->run($input, $output);
+        }
+
+        if ($input->getFirstArgument() === 'db:init') {
+            $application = new WaaseyaaConsoleApplication(
+                version: new VersionResolver($this->projectRoot)->resolve(),
+                logger: $this->logger,
+            );
+            $application->addCommand(ConfigCacheDbAuditServiceProvider::dbInitCommand($this->projectRoot));
 
             return $application->run($input, $output);
         }

@@ -32,7 +32,10 @@ return new class extends Migration {
                     trigger_kind VARCHAR(32) NOT NULL DEFAULT \'\',
                     trigger_value VARCHAR(255) NOT NULL DEFAULT \'\',
                     exemptions TEXT NOT NULL DEFAULT \'[]\',
-                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    bundle VARCHAR(128) NOT NULL DEFAULT \'\',
+                    langcode VARCHAR(12) NOT NULL DEFAULT \'en\',
+                    _data TEXT NOT NULL DEFAULT \'{}\'
                 )',
             );
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Field\Entity;
 
+use Waaseyaa\Entity\Attribute\ContentEntityKeys;
 use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\Attribute\Field;
 use Waaseyaa\Entity\ContentEntityBase;
@@ -31,6 +32,7 @@ use Waaseyaa\Entity\ContentEntityBase;
     description: 'Defines the vocabulary of classification labels available in the system',
     api: true,
 )]
+#[ContentEntityKeys(id: 'id', uuid: 'uuid', label: 'display_name')]
 final class ClassificationLabelDefinition extends ContentEntityBase
 {
     #[Field(required: false, label: 'Label ID', read: \Waaseyaa\Entity\FieldReadLevel::Public)]

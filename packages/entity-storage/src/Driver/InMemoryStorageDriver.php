@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\EntityStorage\Driver;
 
 use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
+use Waaseyaa\EntityStorage\Tenancy\TenancyViolationException;
 
 /**
  * In-memory storage driver for testing.
@@ -89,6 +90,15 @@ final class InMemoryStorageDriver implements EntityStorageDriverInterface
 
     public function write(string $entityType, string $id, array $values): string
     {
+        if ($this->communityScope?->isActive()) {
+            $active = $this->communityScope->getCommunityId();
+            $provided = $values['community_id'] ?? null;
+            if (is_string($provided) && $provided !== '' && $provided !== $active) {
+                throw TenancyViolationException::conflictingWrite($active, $provided);
+            }
+            $values['community_id'] = $active;
+        }
+
         if ($id === '') {
             $this->autoIncrement[$entityType] = ($this->autoIncrement[$entityType] ?? 0) + 1;
             $id = (string) $this->autoIncrement[$entityType];

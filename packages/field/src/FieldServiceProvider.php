@@ -75,15 +75,7 @@ final class FieldServiceProvider extends ServiceProvider
         // --- Classification substrate (WP01) ---
 
         // Register the classification_label_definition entity type.
-        $this->entityType(new EntityType(
-            id: 'classification_label_definition',
-            label: 'Classification Label Definition',
-            class: ClassificationLabelDefinition::class,
-            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'display_name'],
-            description: 'Defines the vocabulary of classification labels available in the system',
-            group: 'classification',
-            api: true,
-        ));
+        $this->entityType(EntityType::fromClass(ClassificationLabelDefinition::class, group: 'classification'));
 
         // Wire the inheritance resolver as a singleton so host applications
         // can resolve it and register additional parent resolvers.
@@ -103,15 +95,7 @@ final class FieldServiceProvider extends ServiceProvider
 
         // Register the retention_policy entity type. Schema lives in
         // packages/field/migrations/2026_05_25_000004_create_retention_policy_table.php.
-        $this->entityType(new EntityType(
-            id: 'retention_policy',
-            label: 'Retention Policy',
-            class: RetentionPolicy::class,
-            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'name'],
-            description: 'Classification-driven retention rule (purge, redact, or hold-flag) keyed by label set.',
-            group: 'classification',
-            api: true,
-        ));
+        $this->entityType(EntityType::fromClass(RetentionPolicy::class, group: 'classification'));
 
         // Bind the classification label registry (consumed by
         // ClassificationFieldAccessPolicy via the policy dependency resolver).

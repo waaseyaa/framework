@@ -29,7 +29,9 @@ return new class extends Migration {
                     label_id VARCHAR(64) NOT NULL DEFAULT \'\',
                     display_name VARCHAR(255) NOT NULL DEFAULT \'\',
                     confidentiality_level INTEGER NOT NULL DEFAULT 0,
-                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    bundle VARCHAR(128) NOT NULL DEFAULT \'\',
+                    langcode VARCHAR(12) NOT NULL DEFAULT \'en\',
+                    _data TEXT NOT NULL DEFAULT \'{}\'
                 )',
             );
 

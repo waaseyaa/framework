@@ -218,9 +218,6 @@ final class MigrationLoader
         if (self::isAbsolutePath($path)) {
             return $path;
         }
-        if (is_dir($path)) {
-            return $path;
-        }
         if (class_exists(InstalledVersions::class) && InstalledVersions::isInstalled($packageName)) {
             $install = InstalledVersions::getInstallPath($packageName);
             if (is_string($install) && $install !== '') {

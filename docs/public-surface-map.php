@@ -349,6 +349,7 @@ return [
     'Waaseyaa\Groups\StaffDirectory\StaffDirectoryReaderInterface' => 'public',
     'Waaseyaa\Access\User\UserInternalFieldReaderInterface' => 'public',
     'Waaseyaa\Access\User\UserIdentityLookupInterface' => 'public',
+    'Waaseyaa\Access\User\UserSelfProfileReaderInterface' => 'public',
     'Waaseyaa\Access\User\UserCredentialSnapshot' => 'public',
     'Waaseyaa\Access\User\UserTwoFactorSnapshot' => 'public',
     'Waaseyaa\Access\User\UserMailSnapshot' => 'public',

@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriver;
 use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
+use Waaseyaa\EntityStorage\Tenancy\TenancyViolationException;
 use Waaseyaa\Foundation\Community\CommunityContext;
 
 #[CoversClass(CommunityScope::class)]
@@ -38,6 +39,25 @@ final class CommunityScopeTest extends TestCase
 
         $this->assertCount(1, $results);
         $this->assertSame('community-a', $results[0]['community_id']);
+    }
+
+    #[Test]
+    public function activeScopeStampsAnOmittedCommunityOnWrite(): void
+    {
+        $this->context->set('community-a');
+
+        $this->driver->write('post', '1', ['id' => '1', 'title' => 'Scoped']);
+
+        self::assertSame('community-a', $this->driver->read('post', '1')['community_id'] ?? null);
+    }
+
+    #[Test]
+    public function activeScopeRefusesAConflictingCommunityOnWrite(): void
+    {
+        $this->context->set('community-a');
+        $this->expectException(TenancyViolationException::class);
+
+        $this->driver->write('post', '1', ['id' => '1', 'community_id' => 'community-b']);
     }
 
     #[Test]
