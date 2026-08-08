@@ -28,6 +28,7 @@ use Waaseyaa\CLI\Provider\UserPermissionServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Config\ConfigManager;
 use Waaseyaa\Config\Storage\MemoryStorage;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
@@ -52,6 +53,9 @@ final class CliCommandIntegrationTest extends TestCase
 
     protected function setUp(): void
     {
+        EntityReadRuntime::installGuard(null);
+        EntityReadRuntime::installFieldRegistry(null);
+
         // Cache factory with default MemoryBackend.
         $this->cacheFactory = new CacheFactory();
 
@@ -112,6 +116,12 @@ final class CliCommandIntegrationTest extends TestCase
                 'label' => 'name',
             ],
         ));
+    }
+
+    protected function tearDown(): void
+    {
+        EntityReadRuntime::installGuard(null);
+        EntityReadRuntime::installFieldRegistry(null);
     }
 
     #[Test]
