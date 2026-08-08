@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.290] - 2026-08-08
+
 ### Added
 
 - **self-profile identity (#2304):** Add an authenticated-self-only, account-bound audited reader for the current user's exact `name` and `mail` profile identity, without widening generic Internal field access or reusing a mismatched mail, session, or maintenance capability reason.

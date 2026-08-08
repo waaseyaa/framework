@@ -35,17 +35,17 @@
     ],
     "require": {
         "php": ">=8.5",
-        "waaseyaa/access": "^0.1.0-alpha.289",
-        "waaseyaa/database-legacy": "^0.1.0-alpha.289",
-        "waaseyaa/entity": "^0.1.0-alpha.289",
-        "waaseyaa/entity-storage": "^0.1.0-alpha.289",
-        "waaseyaa/foundation": "^0.1.0-alpha.289",
-        "waaseyaa/scheduler": "^0.1.0-alpha.289"
+        "waaseyaa/access": "^0.1.0-alpha.290",
+        "waaseyaa/database-legacy": "^0.1.0-alpha.290",
+        "waaseyaa/entity": "^0.1.0-alpha.290",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.290",
+        "waaseyaa/foundation": "^0.1.0-alpha.290",
+        "waaseyaa/scheduler": "^0.1.0-alpha.290"
     },
     "require-dev": {
         "phpunit/phpunit": "^13.0",
-        "waaseyaa/entity-storage": "^0.1.0-alpha.289",
-        "waaseyaa/testing": "^0.1.0-alpha.289"
+        "waaseyaa/entity-storage": "^0.1.0-alpha.290",
+        "waaseyaa/testing": "^0.1.0-alpha.290"
     },
     "autoload": {
         "psr-4": {
