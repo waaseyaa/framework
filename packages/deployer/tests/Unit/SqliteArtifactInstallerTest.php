@@ -128,6 +128,56 @@ final class SqliteArtifactInstallerTest extends TestCase
         )->restore($current, $current);
     }
 
+    #[Test]
+    public function install_refuses_to_overwrite_an_existing_backup(): void
+    {
+        $current = $this->database('current.sqlite', 'old');
+        $artifact = $this->database('artifact.sqlite', 'new');
+        $backup = $this->database('backup.sqlite', 'preserve');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Backup database already exists.');
+
+        new SqliteArtifactInstaller(
+            new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue()),
+        )->install($current, $artifact, $backup, ['content']);
+    }
+
+    #[Test]
+    public function install_refuses_a_missing_serving_database(): void
+    {
+        $artifact = $this->database('artifact.sqlite', 'new');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Serving database must be a regular non-symlink file.');
+
+        new SqliteArtifactInstaller(
+            new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue()),
+        )->install(
+            $this->directory . '/missing.sqlite',
+            $artifact,
+            $this->directory . '/backup.sqlite',
+            ['content'],
+        );
+    }
+
+    #[Test]
+    public function install_completes_and_preserves_runtime_state(): void
+    {
+        $current = $this->database('current.sqlite', 'old');
+        $artifact = $this->database('artifact.sqlite', 'new');
+        $backup = $this->directory . '/backup.sqlite';
+
+        $report = new SqliteArtifactInstaller(
+            new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue()),
+        )->install($current, $artifact, $backup, ['content']);
+
+        self::assertSame('new', $this->open($current)->query('SELECT value FROM content')->fetchColumn());
+        self::assertSame('old', $this->open($backup)->query('SELECT value FROM content')->fetchColumn());
+        self::assertSame(FrameworkRuntimeTableCatalogue::VERSION, $report->catalogueVersion);
+        self::assertSame([], $report->tables);
+    }
+
     private function database(string $name, string $value): string
     {
         $path = $this->directory . '/' . $name;
