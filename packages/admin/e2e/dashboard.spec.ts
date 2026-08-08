@@ -16,6 +16,25 @@ test.describe('Dashboard', () => {
     await expect(page.getByRole('heading', { name: 'Content', exact: true })).toBeVisible()
   })
 
+  test('stacks card titles above descriptions on a mobile viewport', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 800 })
+    await page.goto('./', { waitUntil: 'networkidle' })
+
+    const card = page.locator('main .card').filter({ hasText: 'Content' }).first()
+    const title = card.locator('.card-title')
+    const description = card.locator('.card-sub')
+
+    await expect(card).toHaveCSS('display', 'flex')
+    await expect(card).toHaveCSS('flex-direction', 'column')
+    await expect(card).toHaveCSS('align-items', 'stretch')
+    const titleBox = await title.boundingBox()
+    const descriptionBox = await description.boundingBox()
+    expect(titleBox).not.toBeNull()
+    expect(descriptionBox).not.toBeNull()
+    expect(titleBox!.width).toBeGreaterThan(200)
+    expect(descriptionBox!.y).toBeGreaterThanOrEqual(titleBox!.y + titleBox!.height)
+  })
+
   test('each card links to the entity type route', async ({ page }) => {
     await page.goto('./', { waitUntil: 'networkidle' })
     await expect(page.getByRole('heading', { name: 'User' })).toBeVisible()
