@@ -51,6 +51,10 @@ final readonly class SqliteArtifactPreparer
         if (!copy($artifactDatabase, $candidateDatabase)) {
             throw new \RuntimeException('Could not copy the artifact into a candidate database.');
         }
+        if (!hash_equals($this->hash($artifactDatabase), $this->hash($candidateDatabase))) {
+            @unlink($candidateDatabase);
+            throw new \RuntimeException('Artifact changed while the candidate database was being copied.');
+        }
         chmod($candidateDatabase, 0o600);
         $candidate = $this->open($candidateDatabase);
         $candidate->exec('PRAGMA foreign_keys = OFF');
@@ -135,6 +139,26 @@ final readonly class SqliteArtifactPreparer
         if (!is_file($path) || is_link($path)) {
             throw new \RuntimeException($label . ' must be a regular non-symlink file.');
         }
+        foreach (['-wal', '-shm'] as $suffix) {
+            $sidecar = $path . $suffix;
+            if (is_link($sidecar) || (file_exists($sidecar) && !is_file($sidecar))) {
+                throw new \RuntimeException($label . ' has an unsafe SQLite sidecar.');
+            }
+        }
+        $wal = $path . '-wal';
+        if (is_file($wal) && filesize($wal) !== 0) {
+            throw new \RuntimeException($label . ' has committed frames in WAL; checkpoint and quiesce it before preparation.');
+        }
+    }
+
+    private function hash(string $path): string
+    {
+        $hash = hash_file('sha256', $path);
+        if (!is_string($hash)) {
+            throw new \RuntimeException('Could not hash a SQLite input.');
+        }
+
+        return $hash;
     }
 
     private function open(string $path, bool $readOnly = false): \PDO
@@ -214,12 +238,16 @@ final readonly class SqliteArtifactPreparer
             'indexes' => [],
             'triggers' => [],
         ];
-        foreach ($pdo->query("PRAGMA index_list($quoted)")->fetchAll() as $index) {
+        $indexes = $pdo->query("PRAGMA index_list($quoted)")->fetchAll();
+        usort($indexes, static fn(array $left, array $right): int => strcmp((string) $left['name'], (string) $right['name']));
+        foreach ($indexes as $index) {
             $name = (string) $index['name'];
             $parts['indexes'][] = [
+                'name' => $name,
                 'unique' => (int) $index['unique'],
                 'origin' => (string) $index['origin'],
                 'partial' => (int) $index['partial'],
+                'sql' => $this->optionalSchemaSql($pdo, 'index', $name),
                 'columns' => $pdo->query('PRAGMA index_xinfo(' . $this->quoteIdentifier($name) . ')')->fetchAll(),
             ];
         }
@@ -237,6 +265,18 @@ final readonly class SqliteArtifactPreparer
         $sql = $statement->fetchColumn();
         if (!is_string($sql) || trim($sql) === '') {
             throw new \RuntimeException(sprintf('Missing %s schema SQL for %s', $type, $name));
+        }
+
+        return preg_replace('/\s+/', ' ', trim($sql)) ?? trim($sql);
+    }
+
+    private function optionalSchemaSql(\PDO $pdo, string $type, string $name): ?string
+    {
+        $statement = $this->prepareStatement($pdo, 'SELECT sql FROM sqlite_master WHERE type = ? AND name = ?');
+        $statement->execute([$type, $name]);
+        $sql = $statement->fetchColumn();
+        if (!is_string($sql) || trim($sql) === '') {
+            return null;
         }
 
         return preg_replace('/\s+/', ' ', trim($sql)) ?? trim($sql);

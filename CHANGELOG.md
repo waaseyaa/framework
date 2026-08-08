@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **artifact installation (#2288):** Add a versioned framework runtime-table ownership catalogue plus a fail-closed SQLite artifact preparer, atomic installer, sanitized preservation evidence, and verified restore path so consumer deployments retain credentials, queues, identities, approvals, and append-only audit state without copying framework table lists.
+- **artifact installation (#2288):** Add a versioned framework runtime-table ownership catalogue plus a fail-closed SQLite artifact preparer, atomic installer, sanitized preservation evidence, and verified restore path so consumer deployments retain credentials, queues, identities, approvals, retention rules, and append-only audit state without copying framework table lists. Installation checkpoints and quiesces WAL state, detects concurrent serving-database changes, and compares complete index SQL including partial predicates before activation.
 
 ## [0.1.0-alpha.290] - 2026-08-08
 

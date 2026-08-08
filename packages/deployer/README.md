@@ -10,7 +10,9 @@ Ships canonical `deploy.php` recipes that consumer apps `require` to get standar
 for framework-created SQLite tables. `SqliteArtifactPreparer` installs reviewed
 content into a candidate while preserving serving-host runtime state and
 append-only evidence; `SqliteArtifactInstaller` provides verified atomic
-activation and restore. Applications declare only their own artifact tables.
+activation and restore, including WAL checkpoint/quiescence and concurrent
+change detection before activation. Applications declare only their own
+artifact tables.
 See `docs/specs/sqlite-artifact-installation.md` in the framework repository.
 
 Key files: `recipe/`, `deploy.php`.

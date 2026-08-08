@@ -37,6 +37,9 @@ final class SqliteArtifactInstallerTest extends TestCase
         $artifact = $this->database('artifact.sqlite', 'new');
         $backup = $this->directory . '/backup.sqlite';
         $before = hash_file('sha256', $current);
+        $beforeOwner = fileowner($current);
+        chmod($current, 0o640);
+        $beforeMode = fileperms($current) & 0o777;
         $installer = new SqliteArtifactInstaller(
             new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue()),
             afterActivation: static function (): never {
@@ -53,6 +56,8 @@ final class SqliteArtifactInstallerTest extends TestCase
 
         self::assertSame($before, hash_file('sha256', $current));
         self::assertSame($before, hash_file('sha256', $backup));
+        self::assertSame($beforeOwner, fileowner($current));
+        self::assertSame($beforeMode, fileperms($current) & 0o777);
         self::assertSame('old', $this->open($current)->query('SELECT value FROM content')->fetchColumn());
         self::assertSame([], glob($this->directory . '/.current.sqlite.*') ?: []);
     }
@@ -63,6 +68,8 @@ final class SqliteArtifactInstallerTest extends TestCase
         $current = $this->database('current.sqlite', 'changed');
         $backup = $this->database('backup.sqlite', 'original');
         $backupHash = hash_file('sha256', $backup);
+        $beforeOwner = fileowner($current);
+        chmod($current, 0o640);
         $installer = new SqliteArtifactInstaller(
             new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue()),
         );
@@ -71,8 +78,47 @@ final class SqliteArtifactInstallerTest extends TestCase
 
         self::assertSame($backupHash, hash_file('sha256', $current));
         self::assertSame($backupHash, hash_file('sha256', $backup));
+        self::assertSame($beforeOwner, fileowner($current));
+        self::assertSame(0o640, fileperms($current) & 0o777);
         self::assertSame('original', $this->open($current)->query('SELECT value FROM content')->fetchColumn());
         self::assertSame([], glob($this->directory . '/.current.sqlite.*') ?: []);
+    }
+
+    #[Test]
+    public function install_refuses_a_serving_database_that_is_not_quiescent(): void
+    {
+        $current = $this->database('current.sqlite', 'old');
+        $artifact = $this->database('artifact.sqlite', 'new');
+        $writer = $this->open($current);
+        self::assertSame('wal', $writer->query('PRAGMA journal_mode = WAL')->fetchColumn());
+        $writer->exec('PRAGMA wal_autocheckpoint = 0');
+        $writer->exec("UPDATE content SET value = 'committed-in-wal'");
+
+        try {
+            new SqliteArtifactInstaller(
+                new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue()),
+            )->install($current, $artifact, $this->directory . '/backup.sqlite', ['content']);
+            self::fail('Installation accepted a serving database with a live WAL owner.');
+        } catch (\RuntimeException $error) {
+            self::assertStringContainsString('not quiescent', $error->getMessage());
+            self::assertSame('committed-in-wal', $writer->query('SELECT value FROM content')->fetchColumn());
+            self::assertFileDoesNotExist($this->directory . '/backup.sqlite');
+        } finally {
+            $writer = null;
+        }
+    }
+
+    #[Test]
+    public function restore_refuses_to_alias_the_serving_database_as_its_backup(): void
+    {
+        $current = $this->database('current.sqlite', 'old');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Backup and serving databases must be different files.');
+
+        new SqliteArtifactInstaller(
+            new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue()),
+        )->restore($current, $current);
     }
 
     private function database(string $name, string $value): string

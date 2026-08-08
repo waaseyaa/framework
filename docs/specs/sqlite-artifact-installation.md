@@ -32,6 +32,8 @@ these policies:
 Tables not claimed by the framework catalogue are application-owned and must be
 declared by the application. Cache and other safely disposable framework tables
 are explicitly catalogued as `artifact`, never inferred from a name prefix.
+Operational audit-retention rules are serving-owned `preserve` state; a content
+artifact cannot silently replace the host's authorization to prune evidence.
 
 ## Discovery
 
@@ -48,14 +50,16 @@ can tie preservation evidence to the exact contract used.
 Preparation receives a checkpointed serving database and a reviewed artifact.
 It writes a new candidate; it never mutates either input.
 
-1. Both inputs must be regular, non-symlink SQLite files with
-   `PRAGMA integrity_check = ok`.
+1. Both inputs must be regular, non-symlink SQLite files with no committed WAL
+   frames and with `PRAGMA integrity_check = ok`. A zero-byte WAL and its SHM
+   metadata are harmless build residue; a non-empty WAL is refused rather than
+   reading a main file while committed state may still live outside it.
 2. The artifact table set must equal the application allowlist plus framework
    runtime tables present in either input, plus SQLite's internal tables.
    Unknown tables fail closed.
 3. When a runtime table exists in both inputs, its complete table definition,
-   columns, primary key, checks, foreign keys, indexes, and triggers must be
-   compatible before rows move.
+   columns, primary key, checks, foreign keys, complete index SQL (including
+   partial-index predicates), and triggers must be compatible before rows move.
 4. A serving-only runtime table is copied with its schema, indexes, and
    triggers. This supports lazily provisioned runtime stores without asking a
    content build to boot them. An artifact-only runtime table must be empty.
@@ -73,7 +77,10 @@ It never contains row values, secrets, bearer tokens, or raw MCP arguments.
 ## Installation and restore
 
 The privileged serving process creates a durable byte-for-byte backup before
-activation. It fsyncs the candidate, renames the serving database aside, and
+activation. The generic installer first checkpoints the serving database and
+requires all sidecars to disappear, then records its hash and refuses activation
+if the database changes while the candidate is prepared. It fsyncs the
+candidate, renames the serving database aside, and
 atomically renames the candidate into place. Verification failure restores the
 previous database before returning an error. A forced failure hook exists only
 as an injected test seam and cannot be selected through a public request.

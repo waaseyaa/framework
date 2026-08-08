@@ -30,12 +30,15 @@ final readonly class SqliteArtifactInstaller
     ): SqliteArtifactReport {
         $this->assertRegular($currentDatabase, 'Serving database');
         $this->assertRegular($artifactDatabase, 'Artifact database');
+        $this->assertDifferent($currentDatabase, $artifactDatabase, 'Serving and artifact databases');
         if (file_exists($backupDatabase) || is_link($backupDatabase)) {
             throw new \RuntimeException('Backup database already exists.');
         }
 
+        $this->checkpoint($currentDatabase);
+        $baselineHash = $this->hash($currentDatabase);
         $this->copyExclusive($currentDatabase, $backupDatabase, $this->mode($currentDatabase));
-        if (!hash_equals($this->hash($currentDatabase), $this->hash($backupDatabase))) {
+        if (!hash_equals($baselineHash, $this->hash($backupDatabase))) {
             @unlink($backupDatabase);
             throw new \RuntimeException('The durable database backup differs from the serving database.');
         }
@@ -50,6 +53,7 @@ final readonly class SqliteArtifactInstaller
             );
             chmod($candidate, $this->mode($currentDatabase));
             $this->fsync($candidate);
+            $this->assertUnchangedAndQuiescent($currentDatabase, $baselineHash);
             $this->activate($candidate, $currentDatabase, expectedHash: null);
 
             return $report;
@@ -65,10 +69,15 @@ final readonly class SqliteArtifactInstaller
     {
         $this->assertRegular($backupDatabase, 'Backup database');
         $this->assertRegular($currentDatabase, 'Serving database');
+        $this->assertDifferent($backupDatabase, $currentDatabase, 'Backup and serving databases');
+        $this->assertNoSidecars($backupDatabase, 'Backup database');
+        $this->checkpoint($currentDatabase);
+        $baselineHash = $this->hash($currentDatabase);
         $candidate = $this->scratchPath($currentDatabase, 'restore');
         try {
             $this->copyExclusive($backupDatabase, $candidate, $this->mode($currentDatabase));
             $this->assertIntegrity($candidate);
+            $this->assertUnchangedAndQuiescent($currentDatabase, $baselineHash);
             $this->activate($candidate, $currentDatabase, $this->hash($backupDatabase));
         } catch (\Throwable $error) {
             if (file_exists($candidate)) {
@@ -144,6 +153,46 @@ final readonly class SqliteArtifactInstaller
     {
         if (!is_file($path) || is_link($path)) {
             throw new \RuntimeException($label . ' must be a regular non-symlink file.');
+        }
+    }
+
+    private function assertDifferent(string $left, string $right, string $label): void
+    {
+        if (realpath($left) === realpath($right)) {
+            throw new \RuntimeException($label . ' must be different files.');
+        }
+    }
+
+    private function checkpoint(string $path): void
+    {
+        $pdo = new \PDO('sqlite:' . $path, null, null, [
+            \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
+            \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_NUM,
+        ]);
+        $pdo->exec('PRAGMA busy_timeout = 15000');
+        $checkpoint = $pdo->query('PRAGMA wal_checkpoint(TRUNCATE)')->fetch();
+        $integrity = (string) $pdo->query('PRAGMA integrity_check')->fetchColumn();
+        $pdo = null;
+        if (!is_array($checkpoint) || count($checkpoint) < 3 || (int) $checkpoint[0] !== 0 || $integrity !== 'ok') {
+            throw new \RuntimeException('Serving database could not be checkpointed cleanly before installation.');
+        }
+        $this->assertNoSidecars($path, 'Serving database');
+    }
+
+    private function assertNoSidecars(string $path, string $label): void
+    {
+        foreach (['-wal', '-shm'] as $suffix) {
+            if (file_exists($path . $suffix) || is_link($path . $suffix)) {
+                throw new \RuntimeException($label . ' still has a SQLite sidecar after checkpoint; the database is not quiescent.');
+            }
+        }
+    }
+
+    private function assertUnchangedAndQuiescent(string $path, string $expectedHash): void
+    {
+        $this->assertNoSidecars($path, 'Serving database');
+        if (!hash_equals($expectedHash, $this->hash($path))) {
+            throw new \RuntimeException('Serving database changed while the installation candidate was prepared.');
         }
     }
 
