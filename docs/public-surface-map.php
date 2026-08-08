@@ -683,6 +683,7 @@ return [
     'Waaseyaa\CLI\Command\HandlerOptionMode' => 'public',
     'Waaseyaa\CLI\Security\CliFieldReadCapabilityDeclaration' => 'public',
     'Waaseyaa\CLI\Security\CliFieldReadCapabilityIssuer' => 'public',
+    'Waaseyaa\Deployer\RuntimeState\RuntimeTablePolicy' => 'public',
     'Waaseyaa\Cache\ProtectedCacheDimensions' => 'public',
     'Waaseyaa\Cache\ProjectionDeprecationDiagnostic' => 'public',
     'Waaseyaa\Cache\EntityPayloadBoundaryConfig' => 'public',

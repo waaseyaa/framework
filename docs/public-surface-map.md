@@ -534,6 +534,12 @@ Charter §5.6 — listing-pipeline-v1 (M-007). Namespace `Waaseyaa\Listing\`.
 | `AdminPublicationFieldReaderInterface` | interface | Closed application-wiring boundary for authorized node publication metadata in admin lists |
 | `BatchAdminPublicationFieldReaderInterface` | interface | Cardinality-preserving batch extension that projects an authorized list scope transactionally |
 
+### deployer
+
+| Element | Type | Purpose |
+|---------|------|---------|
+| `RuntimeState\RuntimeTablePolicy` | enum | Versioned ownership policy for framework SQLite artifact and serving-host runtime tables |
+
 ### mcp
 
 | Element | Type | Purpose |
