@@ -23,6 +23,50 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
  */
 final class MaintenanceServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface
 {
+    public static function standaloneCommand(string $name, string $projectRoot): HandlerCommand
+    {
+        $settings = MaintenanceSettings::fromEnvironment($projectRoot);
+        $state = new MaintenanceState($settings->flagPath);
+
+        return match ($name) {
+            'maintenance:on' => new HandlerCommand(
+                name: 'maintenance:on',
+                description: 'Enable maintenance mode: serve a branded 503 + Retry-After to non-exempt traffic. Idempotent.',
+                options: [
+                    new HandlerOption(
+                        name: 'retry-after',
+                        mode: HandlerOptionMode::Required,
+                        description: 'Retry-After header value in seconds (default 120).',
+                    ),
+                    new HandlerOption(
+                        name: 'message',
+                        mode: HandlerOptionMode::Required,
+                        description: 'Optional message shown on the maintenance page.',
+                    ),
+                ],
+                handler: static fn(\Waaseyaa\CLI\Command\SymfonyCommandIO $io): int => new MaintenanceOnHandler($state, $settings->defaultRetryAfter)->execute($io),
+            ),
+            'maintenance:off' => new HandlerCommand(
+                name: 'maintenance:off',
+                description: 'Disable maintenance mode: clear the flag and restore normal service. Idempotent.',
+                handler: static fn(\Waaseyaa\CLI\Command\SymfonyCommandIO $io): int => new MaintenanceOffHandler($state)->execute($io),
+            ),
+            'maintenance:status' => new HandlerCommand(
+                name: 'maintenance:status',
+                description: 'Report maintenance state. Exit 0 = serving, 1 = in maintenance (incl. fail-closed).',
+                options: [
+                    new HandlerOption(
+                        name: 'json',
+                        mode: HandlerOptionMode::None,
+                        description: 'Output status as JSON.',
+                    ),
+                ],
+                handler: static fn(\Waaseyaa\CLI\Command\SymfonyCommandIO $io): int => new MaintenanceStatusHandler($state)->execute($io),
+            ),
+            default => throw new \InvalidArgumentException(sprintf('Unsupported standalone maintenance command "%s".', $name)),
+        };
+    }
+
     public function register(): void
     {
         $this->singleton(MaintenanceState::class, function (): MaintenanceState {
