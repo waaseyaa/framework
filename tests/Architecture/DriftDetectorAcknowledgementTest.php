@@ -25,6 +25,7 @@ final class DriftDetectorAcknowledgementTest extends TestCase
         file_put_contents($this->fixtureRoot . '/docs/specs/entity-system.md', "# Entity system\n");
 
         $this->executeCommand('git init --quiet');
+        $this->executeCommand('git config gc.auto 0');
         $this->executeCommand('git config user.email test@example.com');
         $this->executeCommand('git config user.name "Drift Detector Test"');
         $this->executeCommand('git add .');
