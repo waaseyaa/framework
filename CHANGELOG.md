@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **test isolation (#2301):** Make the CLI integration fixture establish and restore its process-wide field-read runtime boundary so randomized test order cannot inherit a conflicting registry from an earlier integration test.
+
 - **repository portability (#2299):** Remove the accidental empty `get|-` root path that prevented native Windows checkouts, and reject non-portable tracked names in project hooks, canonical verification, and blocking CI.
 
 - **changed-line coverage (#2297):** Reset the active source path at every Git diff file transition so test, documentation, deletion, and other non-source hunks cannot be misattributed to the preceding package source file.
