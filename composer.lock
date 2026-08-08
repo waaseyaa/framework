@@ -3186,7 +3186,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/access",
-                "reference": "2465fd76897e328df17aeb2e4af4358e5805598f"
+                "reference": "623543542da4a1cb75034cf1d8708f1303a0bd40"
             },
             "require": {
                 "php": ">=8.5",
@@ -3198,8 +3198,8 @@
             },
             "require-dev": {
                 "phpunit/phpunit": "^13.0",
-                "waaseyaa/testing": "^0.1.0-alpha.287",
-                "waaseyaa/user": "^0.1.0-alpha.287"
+                "waaseyaa/testing": "^0.1.0-alpha.289",
+                "waaseyaa/user": "^0.1.0-alpha.289"
             },
             "type": "library",
             "extra": {
@@ -3237,13 +3237,14 @@
             "dist": {
                 "type": "path",
                 "url": "packages/admin-surface",
-                "reference": "6b8b25f303aa17524a6d545d6b7fe3ffded63274"
+                "reference": "6e15784d5bc5399a74bc772a530b5302732ec686"
             },
             "require": {
                 "php": ">=8.5",
                 "symfony/http-foundation": "^7.0",
                 "waaseyaa/access": "^0.1.0-alpha.289",
                 "waaseyaa/api": "^0.1.0-alpha.289",
+                "waaseyaa/audit": "^0.1.0-alpha.289",
                 "waaseyaa/entity": "^0.1.0-alpha.289",
                 "waaseyaa/foundation": "^0.1.0-alpha.289",
                 "waaseyaa/routing": "^0.1.0-alpha.289",
@@ -3251,10 +3252,10 @@
             },
             "require-dev": {
                 "phpunit/phpunit": "^13.0",
-                "waaseyaa/config": "^0.1.0-alpha.287",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.287",
-                "waaseyaa/node": "^0.1.0-alpha.287",
-                "waaseyaa/testing": "^0.1.0-alpha.287"
+                "waaseyaa/config": "^0.1.0-alpha.289",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.289",
+                "waaseyaa/node": "^0.1.0-alpha.289",
+                "waaseyaa/testing": "^0.1.0-alpha.289"
             },
             "type": "library",
             "extra": {
@@ -3292,7 +3293,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ai-pipeline",
-                "reference": "2203065fb81723160ef93cb491360268f7a5f709"
+                "reference": "d8f5fad7931f513197e9558b65018646a2ee8f19"
             },
             "require": {
                 "php": ">=8.5",
@@ -3338,7 +3339,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ai-schema",
-                "reference": "ddbd8bf2961e9b8099926c0c21bde5b840ada209"
+                "reference": "24c18ace527fcffe74cad6ce4116d5a005a5699d"
             },
             "require": {
                 "php": ">=8.5",
@@ -3378,7 +3379,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ai-tools",
-                "reference": "b7079b398649b828e1d68274ba845882834b108d"
+                "reference": "2bbc276cb23d5244f2b77551acd29ff9ab63718d"
             },
             "require": {
                 "php": ">=8.5",
@@ -3394,8 +3395,8 @@
             },
             "require-dev": {
                 "phpunit/phpunit": "^13.0",
-                "waaseyaa/search": "^0.1.0-alpha.287",
-                "waaseyaa/testing": "^0.1.0-alpha.287"
+                "waaseyaa/search": "^0.1.0-alpha.289",
+                "waaseyaa/testing": "^0.1.0-alpha.289"
             },
             "suggest": {
                 "waaseyaa/search": "Provides principal-safe ranked CMS search tools and content resources"
@@ -3436,7 +3437,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ai-vector",
-                "reference": "9e804158b6cb018654c37c6184a0b439226e78b4"
+                "reference": "da23518369cb239e2420ac6c8f6cb75d3271c5c0"
             },
             "require": {
                 "php": ">=8.5",
@@ -3522,7 +3523,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/api",
-                "reference": "2f579eab2558dbb047b5f5a0ea583f114f0481e6"
+                "reference": "6d27fc24943a88ec1ba881901be980004464084d"
             },
             "require": {
                 "php": ">=8.5",
@@ -3551,13 +3552,13 @@
             "require-dev": {
                 "opis/json-schema": "^2.6",
                 "phpunit/phpunit": "^13.0",
-                "waaseyaa/audit": "^0.1.0-alpha.287",
-                "waaseyaa/auth": "^0.1.0-alpha.287",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.287",
-                "waaseyaa/media": "^0.1.0-alpha.287",
-                "waaseyaa/search": "^0.1.0-alpha.287",
-                "waaseyaa/telescope": "^0.1.0-alpha.287",
-                "waaseyaa/testing": "^0.1.0-alpha.287"
+                "waaseyaa/audit": "^0.1.0-alpha.289",
+                "waaseyaa/auth": "^0.1.0-alpha.289",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.289",
+                "waaseyaa/media": "^0.1.0-alpha.289",
+                "waaseyaa/search": "^0.1.0-alpha.289",
+                "waaseyaa/telescope": "^0.1.0-alpha.289",
+                "waaseyaa/testing": "^0.1.0-alpha.289"
             },
             "suggest": {
                 "waaseyaa/auth": "Provides atomic rate limiting for the optional public content search endpoint",
@@ -3600,7 +3601,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/attachment",
-                "reference": "5e1bf48fdb9842aea2733f6586868e587aa94571"
+                "reference": "c3bbb3accbe7004379c2661f3675a2bfa4f6a1dc"
             },
             "require": {
                 "php": "^8.5",
@@ -3614,7 +3615,7 @@
             "require-dev": {
                 "phpunit/phpunit": "^13.0",
                 "symfony/event-dispatcher": "^7.0",
-                "waaseyaa/entity-storage": "^0.1.0-alpha.287"
+                "waaseyaa/entity-storage": "^0.1.0-alpha.289"
             },
             "type": "library",
             "extra": {
@@ -3651,7 +3652,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/audit",
-                "reference": "b30e36e304c2559cd0dd3d38a160c308437aadbd"
+                "reference": "1abf47f8f36c1f369e097eeb309d6e2a38c7bdfd"
             },
             "require": {
                 "php": ">=8.5",
@@ -3664,8 +3665,8 @@
             },
             "require-dev": {
                 "phpunit/phpunit": "^13.0",
-                "waaseyaa/entity-storage": "^0.1.0-alpha.287",
-                "waaseyaa/testing": "^0.1.0-alpha.287"
+                "waaseyaa/entity-storage": "^0.1.0-alpha.289",
+                "waaseyaa/testing": "^0.1.0-alpha.289"
             },
             "type": "library",
             "extra": {
@@ -3703,7 +3704,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/auth",
-                "reference": "b26d65039c526d9d780d546b269ebe511e63ec0d"
+                "reference": "56f65a1d8902e9a3529877e1361f3cf8ea16e6a7"
             },
             "require": {
                 "php": ">=8.5",
@@ -3716,7 +3717,7 @@
             },
             "require-dev": {
                 "phpunit/phpunit": "^13.0",
-                "waaseyaa/testing": "^0.1.0-alpha.287"
+                "waaseyaa/testing": "^0.1.0-alpha.289"
             },
             "type": "library",
             "extra": {
@@ -3753,7 +3754,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/billing",
-                "reference": "801c828bd8b6244783b2405eca13783d9d77a068"
+                "reference": "47d8b1089b8a46bb4a063ca4c6c28289a5fbafdf"
             },
             "require": {
                 "php": ">=8.5",
@@ -3798,7 +3799,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/bimaaji",
-                "reference": "56b9d4c7d71fafbb286f4e51f475b91401817c9c"
+                "reference": "23fe6eb3b919a9ed388968d75b630424d15dacbc"
             },
             "require": {
                 "nikic/php-parser": "^5.0",
@@ -3850,7 +3851,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/cache",
-                "reference": "cf7a6a481696bc2b9c1e6387272a905fd0dd4e32"
+                "reference": "8c92ba8ccc081a78bd9000cf4fa6f2166633c981"
             },
             "require": {
                 "php": ">=8.5",
@@ -3895,7 +3896,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/cli",
-                "reference": "eb6e83305371b809c00d6263e30d3d66e13cb13f"
+                "reference": "72e4ca115d8c564793c414734e70cd3da2d61c20"
             },
             "require": {
                 "php": ">=8.5",
@@ -3994,7 +3995,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/config",
-                "reference": "50e430357826178d0e600e045afca0acfaba203c"
+                "reference": "86081e56f77d5e12ce8b95111fde5161f369bc4d"
             },
             "require": {
                 "php": ">=8.5",
@@ -4081,7 +4082,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/debug",
-                "reference": "b1b9c8515cd9bd0c825abcc8df09a5825fc19586"
+                "reference": "6709ef4f7291974143f7c8f296e1b3e5c3b41d49"
             },
             "require": {
                 "php": ">=8.5",
@@ -4158,7 +4159,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/entity",
-                "reference": "95d42f213358034a113bc5dfe6aca5bca2125b44"
+                "reference": "f0ce1a624be8d7ff5482ba18276876a84745cdf0"
             },
             "require": {
                 "php": ">=8.5",
@@ -4215,7 +4216,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/entity-storage",
-                "reference": "e314b0e1cc73531265c88f76b4bf42aabf47f7bb"
+                "reference": "f0a285f6e99e88ccc193fb84c65aed5cec11ad86"
             },
             "require": {
                 "php": ">=8.5",
@@ -4269,7 +4270,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/error-handler",
-                "reference": "5b6f5b4465ea6c6e987e5ea70da59f586f8fc6a6"
+                "reference": "8fa88614792d54f54dee82e1f1c8841f75cd7fe6"
             },
             "require": {
                 "php": ">=8.5",
@@ -4309,7 +4310,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/field",
-                "reference": "1f337cc74c0d973f4199c281464d7c71b18e468b"
+                "reference": "982a4834119804d272b4be83344b6ac412f987de"
             },
             "require": {
                 "php": ">=8.5",
@@ -4332,6 +4333,7 @@
                     "dev-develop/v1.1": "0.1.x-dev"
                 },
                 "waaseyaa": {
+                    "migrations": "migrations",
                     "policies": [
                         "Waaseyaa\\Field\\Classification\\Policy\\ClassificationFieldAccessPolicy",
                         "Waaseyaa\\Field\\Classification\\Policy\\RetentionPolicyAccessPolicy"
@@ -4365,7 +4367,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/foundation",
-                "reference": "271982acdcfd12e319dcad5ccfc6b5f6df643254"
+                "reference": "e96cab66c1a9f526c63df0cec58a7d1f080cc58b"
             },
             "require": {
                 "doctrine/dbal": "^4.0",
@@ -4384,9 +4386,9 @@
             },
             "require-dev": {
                 "phpunit/phpunit": "^13.0",
-                "waaseyaa/entity": "^0.1.0-alpha.287",
-                "waaseyaa/error-handler": "^0.1.0-alpha.287",
-                "waaseyaa/routing": "^0.1.0-alpha.287"
+                "waaseyaa/entity": "^0.1.0-alpha.289",
+                "waaseyaa/error-handler": "^0.1.0-alpha.289",
+                "waaseyaa/routing": "^0.1.0-alpha.289"
             },
             "type": "library",
             "extra": {
@@ -4428,7 +4430,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/frankenphp",
-                "reference": "0589fb3fe08d4feb5defc773ab50ebddbb66ac57"
+                "reference": "928caa07995ddac316a5f5d16c0042622deac968"
             },
             "require": {
                 "ext-json": "*",
@@ -4475,7 +4477,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/geo",
-                "reference": "c70b8b9426ed1ad710a92a4173672b219ed0bd28"
+                "reference": "dec4259ccacb218d5ceeb86382177d7a2a6b943a"
             },
             "require": {
                 "php": ">=8.5",
@@ -4550,7 +4552,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/graphql",
-                "reference": "672e25bff7b0b1c7e37a4b2d8509d517145cfd4c"
+                "reference": "2ba3628ac77388bc5703104546b206f6b02124ee"
             },
             "require": {
                 "php": ">=8.5",
@@ -4603,7 +4605,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/groups",
-                "reference": "fec742a9db3cf2eec53f5ff014a3e60716092bfc"
+                "reference": "4bfec667d17078a966161024a80e837569f4adb0"
             },
             "require": {
                 "php": ">=8.5",
@@ -4617,7 +4619,7 @@
             },
             "require-dev": {
                 "phpunit/phpunit": "^13.0",
-                "waaseyaa/user": "^0.1.0-alpha.287"
+                "waaseyaa/user": "^0.1.0-alpha.289"
             },
             "type": "library",
             "extra": {
@@ -4744,7 +4746,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/inertia",
-                "reference": "6e6102cdf14756344eb4e3f4fd07d6ea38c0591d"
+                "reference": "299697902b27d3cd785245dda1cea1cee8df6242"
             },
             "require": {
                 "php": ">=8.5",
@@ -4827,7 +4829,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/listing",
-                "reference": "c3fa6fa1ae2f6736f109537e01ed7e6d52b654ff"
+                "reference": "6543332b6a5e5fc2f0a031d4713260ea20ef5f11"
             },
             "require": {
                 "php": ">=8.5",
@@ -4878,7 +4880,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/mail",
-                "reference": "605d5e9cf269df19f44c74e8ad79e3955e8e4f15"
+                "reference": "136df815dc031b8c8735aea65318b95bbbb7dde9"
             },
             "require": {
                 "php": ">=8.5",
@@ -4928,7 +4930,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/media",
-                "reference": "e48f3b9810f4a75331752ce9f8c27ec3e3812a22"
+                "reference": "f515e2b8359a86dccdc5126d73df2f37321c99a1"
             },
             "require": {
                 "php": ">=8.5",
@@ -4941,9 +4943,9 @@
             },
             "require-dev": {
                 "phpunit/phpunit": "^13.0",
-                "waaseyaa/access": "^0.1.0-alpha.287",
-                "waaseyaa/api": "^0.1.0-alpha.287",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.287"
+                "waaseyaa/access": "^0.1.0-alpha.289",
+                "waaseyaa/api": "^0.1.0-alpha.289",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.289"
             },
             "type": "library",
             "extra": {
@@ -4985,7 +4987,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/menu",
-                "reference": "ae3b6c38eea8cd50bb275fdd606c9d71ebcacb19"
+                "reference": "b1534a21487267d4bab737cdd878eeac9ca1c517"
             },
             "require": {
                 "php": ">=8.5",
@@ -5035,7 +5037,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/mercure",
-                "reference": "d8ce68f54915929c9ea9ddb78060477c5091d8cc"
+                "reference": "7c09117d0b4232e1a979fab6395e239aee310bfc"
             },
             "require": {
                 "php": ">=8.5",
@@ -5079,7 +5081,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/migration",
-                "reference": "dbcf79ca53b5b2d15899cf29e6b197a1ba8a776f"
+                "reference": "73691a4cc3a9b80b0101f92851fcedcec8deeee2"
             },
             "require": {
                 "php": ">=8.5",
@@ -5136,7 +5138,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/node",
-                "reference": "08a66d3041c2b6f009aba8e787a09238aecab314"
+                "reference": "25f6358a02d694bd6bebb4abe2ae6027e3c458f2"
             },
             "require": {
                 "php": ">=8.5",
@@ -5190,7 +5192,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/note",
-                "reference": "5dfbe370ed5031b7c0c167ca59c0c06dfcba749a"
+                "reference": "d605a98dec310e63a79e06dcadcf15721f7c2c1b"
             },
             "require": {
                 "php": ">=8.5",
@@ -5240,7 +5242,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/notification",
-                "reference": "2b66d26df91ef2dbfb3a7dc9c10af39087a9c7c0"
+                "reference": "f992cec22368e392babaf7e1f55d922a7ccc5caa"
             },
             "require": {
                 "php": ">=8.5",
@@ -5288,7 +5290,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/oauth-provider",
-                "reference": "c97b154dfd0ebe3ec462d86eda56c939258b2be0"
+                "reference": "171686496cf29fa3fefdfb5df405608f1667adc8"
             },
             "require": {
                 "php": ">=8.5",
@@ -5327,7 +5329,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/path",
-                "reference": "b5435be00bb6f722991ac3e6729223a96e17cebf"
+                "reference": "6b70f2320cf05ee68e767d0968cd7814e8cfaba5"
             },
             "require": {
                 "php": ">=8.5",
@@ -5378,7 +5380,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/plugin",
-                "reference": "0efdb62781b63e35b96e17a4ce82fc1b4f2a01c5"
+                "reference": "e136feeacddd85ae75c2fc13073f372b241436e9"
             },
             "require": {
                 "php": ">=8.5",
@@ -5418,7 +5420,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/publishing",
-                "reference": "45a3faad144690b36fd377a408f8c621d783141b"
+                "reference": "12a5d1d75e0450f53476fc2e4304816789cbd20f"
             },
             "require": {
                 "php": ">=8.5",
@@ -5464,7 +5466,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/queue",
-                "reference": "cae8b0392d1f9998d240232fa1357e0f94c7af9d"
+                "reference": "52b20f22fcb94e055082de2546e7f9053d19c3b2"
             },
             "require": {
                 "php": ">=8.5",
@@ -5474,7 +5476,7 @@
             },
             "require-dev": {
                 "phpunit/phpunit": "^13.0",
-                "waaseyaa/entity": "^0.1.0-alpha.287"
+                "waaseyaa/entity": "^0.1.0-alpha.289"
             },
             "type": "library",
             "extra": {
@@ -5513,7 +5515,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/relationship",
-                "reference": "2bf4ac553d3400052cda75b0e4ef8e3dca0687fb"
+                "reference": "e6ff083aa02d701a7c4b7e1c295514e02bded4f2"
             },
             "require": {
                 "php": ">=8.5",
@@ -5562,10 +5564,11 @@
             "dist": {
                 "type": "path",
                 "url": "packages/routing",
-                "reference": "348f4cd72ab3ae1f6018ccf64ae3b3b15c5f077b"
+                "reference": "4fc2b8c91ab9ff80bf442609d3c44914fe4bd9e5"
             },
             "require": {
                 "php": ">=8.5",
+                "symfony/http-foundation": "^7.0",
                 "symfony/routing": "^7.0",
                 "waaseyaa/access": "^0.1.0-alpha.289",
                 "waaseyaa/auth": "^0.1.0-alpha.289",
@@ -5616,7 +5619,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/scheduler",
-                "reference": "5e4089df112f58a3a9b00029e96eb10553b65e51"
+                "reference": "6f324d13dafa5f4066897da0ead56a6196ac503a"
             },
             "require": {
                 "dragonmantank/cron-expression": "^3.0",
@@ -5664,7 +5667,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/search",
-                "reference": "f83835078c602918c1b4aff95841b62610d065b8"
+                "reference": "6da412adefb6950f423dab079eb1f2586e836451"
             },
             "require": {
                 "php": ">=8.5",
@@ -5715,7 +5718,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/seo",
-                "reference": "d7baa42d265b6c2785cb1c2ca7b356e3fa6120b7"
+                "reference": "37e3b0ec1928b19921e8296c18a2665a317fa95a"
             },
             "require": {
                 "php": ">=8.5",
@@ -5763,7 +5766,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ssr",
-                "reference": "5803fe8b7f57d86b393ff53277058c207aaf169b"
+                "reference": "1527dca0ddee96a8ebd1cefaf81ed5939505fd47"
             },
             "require": {
                 "php": ">=8.5",
@@ -5825,7 +5828,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/state",
-                "reference": "c14c1d9605d9eccec842079ebb4b8db6b8ece51d"
+                "reference": "03b734745d3e0e4a216994779a8d0b15214f6420"
             },
             "require": {
                 "php": ">=8.5",
@@ -5865,7 +5868,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/structured-import",
-                "reference": "4d7f276334214eb921d425bb58d255fad2264dd1"
+                "reference": "7e779277686a444a83fd7cd4c8a468bff07c7c61"
             },
             "require": {
                 "php": "^8.5",
@@ -5908,7 +5911,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/taxonomy",
-                "reference": "7d481b3dac7be9f981787e45bd48860039fd3472"
+                "reference": "50d887aba411d8da17aebb71b9c0ce9a96945c91"
             },
             "require": {
                 "php": ">=8.5",
@@ -6028,7 +6031,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/user",
-                "reference": "667d91b58b03a0ef6f2fc03b2692a93d84386731"
+                "reference": "c06860e4cf688766cd3857b38f9316e6fd0d83f8"
             },
             "require": {
                 "php": ">=8.5",
@@ -6082,7 +6085,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/validation",
-                "reference": "8c8188db0dc9f2a3e3d760ca9e9dd234e37d2010"
+                "reference": "4224c937a95f470cff4554185393d8917107eccb"
             },
             "require": {
                 "php": ">=8.5",
@@ -6123,7 +6126,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/workflows",
-                "reference": "6ed943a87039be71486505baa6b994f5126097bc"
+                "reference": "14bbd29344e6f9116fb8c2d18a58f2b56b56736d"
             },
             "require": {
                 "php": ">=8.5",
@@ -6140,8 +6143,8 @@
             },
             "require-dev": {
                 "phpunit/phpunit": "^13.0",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.287",
-                "waaseyaa/node": "^0.1.0-alpha.287"
+                "waaseyaa/database-legacy": "^0.1.0-alpha.289",
+                "waaseyaa/node": "^0.1.0-alpha.289"
             },
             "type": "library",
             "extra": {
@@ -12323,7 +12326,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ai-agent",
-                "reference": "f00eb21425bee09be19556229c75ebb58b92fc39"
+                "reference": "3ee5690ea154846fcccde58b0dc7f4950150a4ec"
             },
             "require": {
                 "php": ">=8.5",
@@ -12393,7 +12396,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/ai-observability",
-                "reference": "b31460c0abe24dfafbaf33558fd4b197754cc601"
+                "reference": "0a71353685d9c009c88e1175ab134562f86cb583"
             },
             "require": {
                 "php": ">=8.5",
@@ -12405,7 +12408,7 @@
             },
             "require-dev": {
                 "phpunit/phpunit": "^13.0",
-                "waaseyaa/access": "^0.1.0-alpha.287"
+                "waaseyaa/access": "^0.1.0-alpha.289"
             },
             "type": "library",
             "extra": {
@@ -12444,7 +12447,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/engagement",
-                "reference": "5cd672564848391318900c93089540c2374b3ad4"
+                "reference": "8c8038fa9a89c34b179353d01666dd96563232b7"
             },
             "require": {
                 "php": ">=8.5",
@@ -12493,7 +12496,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/genealogy",
-                "reference": "5de72e90343d040a2b777c1325d56b9efd5e6c9f"
+                "reference": "de82353226bc666d318f95d4118aeac58513bb35"
             },
             "require": {
                 "php": ">=8.5",
@@ -12510,9 +12513,9 @@
             },
             "require-dev": {
                 "phpunit/phpunit": "^13.0",
-                "waaseyaa/api": "^0.1.0-alpha.287",
-                "waaseyaa/database-legacy": "^0.1.0-alpha.287",
-                "waaseyaa/entity-storage": "^0.1.0-alpha.287"
+                "waaseyaa/api": "^0.1.0-alpha.289",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.289",
+                "waaseyaa/entity-storage": "^0.1.0-alpha.289"
             },
             "type": "library",
             "extra": {
@@ -12559,7 +12562,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/mcp",
-                "reference": "87226752a80f01952238c98105e16a9b28d26408"
+                "reference": "f4fde06046a3cd37c45977f3d37906fc07659ad2"
             },
             "require": {
                 "composer-runtime-api": "^2.2",
@@ -12576,8 +12579,8 @@
             },
             "require-dev": {
                 "phpunit/phpunit": "^13.0",
-                "waaseyaa/audit": "^0.1.0-alpha.287",
-                "waaseyaa/testing": "^0.1.0-alpha.287"
+                "waaseyaa/audit": "^0.1.0-alpha.289",
+                "waaseyaa/testing": "^0.1.0-alpha.289"
             },
             "type": "library",
             "extra": {
@@ -12615,7 +12618,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/messaging",
-                "reference": "e4787b529655844844465374e85f9c13de7e020e"
+                "reference": "fba9c64236d003859e7d3e9983928ddbaa8c85e8"
             },
             "require": {
                 "php": ">=8.5",
@@ -12665,7 +12668,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/oidc",
-                "reference": "111960c99bf4f1e62314cf26b04faacfd2a0e68d"
+                "reference": "97956499547e6839419bfcb20375d1d01d70bd46"
             },
             "require": {
                 "ext-sodium": "*",
@@ -12721,7 +12724,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/testing",
-                "reference": "8834b183363c5099dcfafe3ff11a4992e8e23dd8"
+                "reference": "a6164f4000394ea82abebaa6479f393d789dc2e2"
             },
             "require": {
                 "php": ">=8.5",
@@ -12768,7 +12771,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/wayfinding",
-                "reference": "cd19c2d4199de851cab0846c4bd68379bee405d8"
+                "reference": "e47aba961e2d28932b343f6f9359ad6f73841a03"
             },
             "require": {
                 "php": ">=8.5",
@@ -12964,5 +12967,5 @@
         "ext-sqlite3": "*"
     },
     "platform-dev": {},
-    "plugin-api-version": "2.9.0"
+    "plugin-api-version": "2.6.0"
 }
