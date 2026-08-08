@@ -571,6 +571,9 @@ return [
     'Waaseyaa\Api\MercureMonitor\ChannelInspectorInterface' => 'public',
     'Waaseyaa\Api\MercureMonitor\EventStreamReadModelInterface' => 'public',
     'Waaseyaa\Api\MercureMonitor\SubscriberObserverInterface' => 'public',
+    // #2291 optional thin app-controller base; composition remains available
+    // through the final Redirector service and is intentionally not mapped.
+    'Waaseyaa\Routing\Controller' => 'public',
     'Waaseyaa\Routing\Language\LanguageNegotiatorInterface' => 'public',
     // Generic SSR app-shell composition extension point (#2117).
     'Waaseyaa\SSR\PageComposition\EntityPageComposerInterface' => 'public',

@@ -33,6 +33,7 @@ use Waaseyaa\Path\PathAliasResolver;
 use Waaseyaa\Relationship\RelationshipDiscoveryService;
 use Waaseyaa\Relationship\RelationshipTraversalService;
 use Waaseyaa\Routing\CacheConfigResolver;
+use Waaseyaa\Routing\Redirector;
 use Waaseyaa\Seo\SchemaOrg\EntitySchemaOrgMapper;
 use Waaseyaa\SSR\Http\AppController\AppControllerArgumentResolver;
 use Waaseyaa\SSR\Http\AppController\AppControllerMethodInvoker;
@@ -512,6 +513,7 @@ final class SsrPageHandler
             query: $httpRequest->query->all(),
             gate: $this->gate,
             serviceResolver: $this->serviceResolver,
+            redirector: $this->redirectorFromRequest($httpRequest),
         );
 
         $response = $this->appControllerMethodInvoker->invoke(
@@ -648,6 +650,11 @@ final class SsrPageHandler
             AccountInterface::class => $account,
         ];
 
+        $redirector = $this->redirectorFromRequest($httpRequest);
+        if ($redirector !== null) {
+            $serviceMap[Redirector::class] = $redirector;
+        }
+
         if ($this->gate !== null) {
             $serviceMap[\Waaseyaa\Access\Gate\GateInterface::class] = $this->gate;
         }
@@ -694,6 +701,13 @@ final class SsrPageHandler
         }
 
         return $ref->newInstanceArgs($args);
+    }
+
+    private function redirectorFromRequest(HttpRequest $request): ?Redirector
+    {
+        $redirector = $request->attributes->get(Redirector::REQUEST_ATTRIBUTE);
+
+        return $redirector instanceof Redirector ? $redirector : null;
     }
 
     public function isPreviewRequested(HttpRequest $request): bool

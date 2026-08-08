@@ -249,6 +249,9 @@ Both controller deps are nullable (`?ToolRegistryReadModelInterface = null`, `?S
 | File | Namespace | Purpose |
 |------|-----------|---------|
 | `src/WaaseyaaRouter.php` | `Waaseyaa\Routing` | Wraps Symfony UrlMatcher + UrlGenerator; `match()` rethrows matcher failures as Waaseyaa routing exceptions (below) |
+| `src/RedirectResponse.php` | `Waaseyaa\Routing` | Waaseyaa-owned redirect response type for application signatures; remains compatible with the kernel's Symfony transport boundary |
+| `src/Redirector.php` | `Waaseyaa\Routing` | Request-scoped composition API for fail-closed local redirects and redirects generated from the complete named route table |
+| `src/Controller.php` | `Waaseyaa\Routing` | Optional thin app-controller base exposing only protected `redirect()` and `redirectToRoute()` helpers; plain controllers inject `Redirector` directly |
 | `src/Exception/RouteNotFoundException.php` | `Waaseyaa\Routing\Exception` | Thrown from `WaaseyaaRouter::match()` when no route matches the path (wraps Symfony `ResourceNotFoundException`) |
 | `src/Exception/RouteMethodNotAllowedException.php` | `Waaseyaa\Routing\Exception` | Thrown from `WaaseyaaRouter::match()` when the path matches but the HTTP method is not allowed (wraps Symfony `MethodNotAllowedException`) |
 | `src/RouteBuilder.php` | `Waaseyaa\Routing` | Fluent API for building Symfony Route objects; `entityParameter()` sets `options.parameters.*.type = entity:{id}`; `bind()` sets `options._waaseyaa_app_bindings` for SSR post-load class checks; `controller()` accepts `string`, `callable`, or `[FQCN, method]` and stores normalized `_controller` via `normalizeControllerDefault()` |

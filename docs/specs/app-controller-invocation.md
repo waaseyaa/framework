@@ -1,5 +1,12 @@
 # App controller invocation (SSR `Class::method`)
 
+<!-- Spec reviewed 2026-08-07 - #2291: app controllers gain an opt-in,
+request-scoped redirect surface. Plain controllers may inject
+Waaseyaa\Routing\Redirector; controllers that prefer Drupal-style ergonomics
+may extend the thin Waaseyaa\Routing\Controller base. Named redirects use the
+same WaaseyaaRouter instance that matched the request. Direct targets are
+local absolute paths validated by Waaseyaa\Access\RedirectValidator. -->
+
 ## Scope
 
 SSR app controllers are invoked through `Waaseyaa\SSR\SsrPageHandler::dispatchAppController` after a Symfony `Route` match. This spec defines **typed method arguments** only: the legacy four-argument `($params, $query, $account, $httpRequest)` contract is removed.
@@ -23,6 +30,40 @@ Method parameters resolved as services **only** for these types (or subtypes whe
 - `Waaseyaa\Access\Gate\GateInterface` when the kernel supplies a gate
 
 Additionally, the existing HTTP **service resolver** closure may satisfy a parameter by **exact interface/class name** (same rules as controller constructor resolution). Duplicate identical service types in one method signature are invalid in strict mode.
+
+`Waaseyaa\Routing\Redirector` is also a built-in request service. The HTTP
+kernel constructs it from the fully registered `WaaseyaaRouter` that matched
+the request, then app-controller constructor and method-argument resolution
+both expose that same instance. It is never resolved while providers register
+routes and is never retained across requests.
+
+## Redirect responses
+
+`Waaseyaa\Routing\Redirector` is the composition-first API:
+
+- `to(string $path, int $status = 302, array $headers = [])` returns a
+  `Waaseyaa\Routing\RedirectResponse` only for a safe local absolute path.
+  The response is transport-compatible with Symfony while keeping app
+  signatures on Waaseyaa's public surface. Empty, scheme-bearing,
+  protocol-relative, backslash-containing, and ASCII-control-containing
+  targets throw `InvalidArgumentException`; they are never silently replaced
+  by a fallback.
+- `toRoute(string $name, array $parameters = [], int $status = 302,
+  array $headers = [])` generates the target through the request's registered
+  `WaaseyaaRouter`, preserving its missing-route, missing-parameter, and
+  parameter-validation exceptions, then applies the same local-target check.
+
+Applications that prefer a Drupal-style controller surface may extend the
+optional `Waaseyaa\Routing\Controller`, whose protected `redirect()` and
+`redirectToRoute()` methods delegate to its injected `Redirector`. The base
+owns no container and exposes no entity-manager, account, configuration,
+translation, rendering, or service-locator shortcuts. Plain and `final`
+controllers remain first-class and inject `Redirector` directly, including as
+an action parameter.
+
+There is deliberately no global helper, trait with hidden mutable state, or
+external-URL redirect convenience. External destinations require a separate
+explicit trust/allowlist contract.
 
 ## Route-derived values
 

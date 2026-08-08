@@ -38,6 +38,10 @@ final class RedirectValidatorTest extends TestCase
             'javascript scheme' => ['javascript:alert(1)', false],
             'backslash trick' => ['/\\evil.com', false],
             'backslash mid-path' => ['/foo\\bar', false],
+            'carriage return header injection' => ["/safe\rLocation: https://evil.example", false],
+            'line feed header injection' => ["/safe\nLocation: https://evil.example", false],
+            'null byte' => ["/safe\0suffix", false],
+            'delete control character' => ["/safe\x7Fsuffix", false],
             'bare domain' => ['evil.com', false],
             'data scheme' => ['data:text/html,<script>alert(1)</script>', false],
         ];

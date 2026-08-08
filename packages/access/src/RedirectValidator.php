@@ -30,6 +30,12 @@ final class RedirectValidator
             return false;
         }
 
+        // Reject header-injection and non-printing delimiter bytes before a
+        // transport implementation gets a chance to interpret the target.
+        if (preg_match('/[\x00-\x1F\x7F]/', $target) === 1) {
+            return false;
+        }
+
         return true;
     }
 

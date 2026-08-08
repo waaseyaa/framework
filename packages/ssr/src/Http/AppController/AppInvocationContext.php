@@ -10,6 +10,7 @@ use Twig\Environment;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Http\HttpServiceResolverInterface;
+use Waaseyaa\Routing\Redirector;
 
 /**
  * @api
@@ -31,5 +32,6 @@ final readonly class AppInvocationContext
         public ?\Waaseyaa\Access\Gate\GateInterface $gate,
         public ?HttpServiceResolverInterface $serviceResolver,
         public ?AccountInterface $decisionAccount = null,
+        public ?Redirector $redirector = null,
     ) {}
 }

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **controller ergonomics (#2291):** Add an injectable, request-scoped `Redirector` for fail-closed local and named-route redirects, a Waaseyaa-owned redirect response type, and an optional thin `Waaseyaa\Routing\Controller` base, while keeping plain final controllers and explicit dependencies first-class.
+
 - **MCP public authentication (#2276):** Let the public read-only MCP tier recognize durable, expiring, revocable `mcp:public` bearer credentials while preserving anonymous discovery, exact token scopes, real-account capability checks, and write-audience isolation.
 
 ### Changed

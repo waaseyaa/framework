@@ -13,6 +13,8 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\Gate\GateInterface;
 use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\Routing\CacheConfigResolver;
+use Waaseyaa\Routing\Redirector;
+use Waaseyaa\Routing\WaaseyaaRouter;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Http\HttpServiceResolverInterface;
@@ -51,6 +53,13 @@ class StubControllerWithGate
     public function __construct(
         public readonly EntityTypeManager $etm,
         public readonly GateInterface $gate,
+    ) {}
+}
+
+class StubControllerWithRedirector
+{
+    public function __construct(
+        public readonly Redirector $redirector,
     ) {}
 }
 
@@ -214,5 +223,24 @@ final class SsrPageHandlerResolverTest extends TestCase
 
         $this->assertInstanceOf(StubControllerWithGate::class, $controller);
         $this->assertSame($gate, $controller->gate);
+    }
+
+    #[Test]
+    public function resolves_the_request_scoped_redirector_for_controller_construction(): void
+    {
+        $redirector = new Redirector(new WaaseyaaRouter());
+        $handler = $this->createHandler();
+        $request = HttpRequest::create('/test');
+        $request->attributes->set(Redirector::REQUEST_ATTRIBUTE, $redirector);
+
+        $controller = $handler->resolveControllerInstance(
+            StubControllerWithRedirector::class,
+            $this->createStub(\Twig\Environment::class),
+            $this->createStub(AccountInterface::class),
+            $request,
+        );
+
+        self::assertInstanceOf(StubControllerWithRedirector::class, $controller);
+        self::assertSame($redirector, $controller->redirector);
     }
 }

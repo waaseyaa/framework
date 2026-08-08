@@ -15,6 +15,7 @@ use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Http\HttpServiceResolverInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Routing\Redirector;
 use Waaseyaa\Routing\RouteFingerprint;
 use Waaseyaa\SSR\Attribute\FromRoute;
 use Waaseyaa\SSR\Attribute\MapQuery;
@@ -35,6 +36,7 @@ final class AppParameterBindingBuilder
         EntityTypeManager::class,
         Environment::class,
         \Waaseyaa\Access\Gate\GateInterface::class,
+        Redirector::class,
     ];
 
     private readonly LoggerInterface $logger;
