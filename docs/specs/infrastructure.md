@@ -2263,6 +2263,22 @@ The canonical JSON:API response trait is `Waaseyaa\Foundation\Http\JsonApiRespon
 - **Bimaaji decoupling.** Independent surface; out of scope for this mission.
 - **Symfony-import boundary linter.** Per ratified C-005 (b), the `bin/check-symfony-imports` script is deferred to a follow-up issue — the soft-rot tradeoff is documented there. Until that linter ships, the mission's executable contract is `packages/api/tests/Contract/SymfonyImportBoundaryTest`, which asserts a sample app-controller fixture produces a JSON:API response without `use Symfony\` imports.
 
+## SQLite artifact installation ownership
+
+`FrameworkRuntimeTableCatalogue` is the versioned framework authority for
+host-authored SQLite state. `SqliteArtifactPreparer` builds a candidate from an
+application artifact while preserving or merging the serving runtime tables
+according to that catalogue. Applications declare only their artifact-owned
+tables; unknown tables in either input fail closed.
+
+When an application uninstalls an optional domain, it may pass that domain's
+former tables through `retiredApplicationTables`. Retirement is intentionally
+strict: each table must be absent from the new artifact, must not conflict with
+an active application or framework-owned table, and may exist in the serving
+database only when it is empty. A populated retired table fails before the
+candidate is created. This provides an explicit removal path without turning
+unknown-table rejection into implicit data deletion.
+
 ## Implementation gotchas
 
 - **Backward-compatible cache evolution**: When adding new properties to cached manifests/configs, make them optional in deserialization (use `$data['key'] ?? []`) to avoid breaking old cached files.

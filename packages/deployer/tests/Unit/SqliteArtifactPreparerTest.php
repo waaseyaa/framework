@@ -435,6 +435,54 @@ final class SqliteArtifactPreparerTest extends TestCase
         );
     }
 
+    #[Test]
+    public function explicitly_retired_empty_application_table_is_omitted_from_the_candidate(): void
+    {
+        $current = $this->database('current.sqlite', [
+            'CREATE TABLE content (id INTEGER PRIMARY KEY)',
+            'CREATE TABLE retired_pipeline (id TEXT PRIMARY KEY)',
+        ]);
+        $artifact = $this->database('artifact.sqlite', [
+            'CREATE TABLE content (id INTEGER PRIMARY KEY)',
+        ]);
+        $candidate = $this->directory . '/candidate.sqlite';
+
+        new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue())->prepare(
+            $current,
+            $artifact,
+            $candidate,
+            ['content'],
+            ['retired_pipeline'],
+        );
+
+        self::assertFalse($this->open($candidate)->query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'retired_pipeline'")->fetchColumn());
+    }
+
+    #[Test]
+    public function populated_retired_application_table_fails_closed(): void
+    {
+        $current = $this->database('current.sqlite', [
+            'CREATE TABLE content (id INTEGER PRIMARY KEY)',
+            'CREATE TABLE retired_pipeline (id TEXT PRIMARY KEY)',
+        ], [
+            "INSERT INTO retired_pipeline VALUES ('must-survive')",
+        ]);
+        $artifact = $this->database('artifact.sqlite', [
+            'CREATE TABLE content (id INTEGER PRIMARY KEY)',
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Retired application table is not empty: retired_pipeline');
+
+        new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue())->prepare(
+            $current,
+            $artifact,
+            $this->directory . '/candidate.sqlite',
+            ['content'],
+            ['retired_pipeline'],
+        );
+    }
+
     /** @param list<string> $schema @param list<string> $rows */
     private function database(string $name, array $schema, array $rows = []): string
     {
