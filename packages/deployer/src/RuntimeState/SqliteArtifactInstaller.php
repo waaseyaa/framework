@@ -37,7 +37,7 @@ final readonly class SqliteArtifactInstaller
 
         $this->checkpoint($currentDatabase);
         $baselineHash = $this->hash($currentDatabase);
-        $this->copyExclusive($currentDatabase, $backupDatabase, $this->mode($currentDatabase));
+        $this->copyExclusive($currentDatabase, $backupDatabase, $currentDatabase);
         if (!hash_equals($baselineHash, $this->hash($backupDatabase))) {
             @unlink($backupDatabase);
             throw new \RuntimeException('The durable database backup differs from the serving database.');
@@ -51,7 +51,7 @@ final readonly class SqliteArtifactInstaller
                 $candidate,
                 $applicationArtifactTables,
             );
-            chmod($candidate, $this->mode($currentDatabase));
+            $this->applyMetadata($candidate, $currentDatabase);
             $this->fsync($candidate);
             $this->assertUnchangedAndQuiescent($currentDatabase, $baselineHash);
             $this->activate($candidate, $currentDatabase, expectedHash: null);
@@ -75,7 +75,7 @@ final readonly class SqliteArtifactInstaller
         $baselineHash = $this->hash($currentDatabase);
         $candidate = $this->scratchPath($currentDatabase, 'restore');
         try {
-            $this->copyExclusive($backupDatabase, $candidate, $this->mode($currentDatabase));
+            $this->copyExclusive($backupDatabase, $candidate, $currentDatabase);
             $this->assertIntegrity($candidate);
             $this->assertUnchangedAndQuiescent($currentDatabase, $baselineHash);
             $this->activate($candidate, $currentDatabase, $this->hash($backupDatabase));
@@ -122,7 +122,7 @@ final readonly class SqliteArtifactInstaller
         }
     }
 
-    private function copyExclusive(string $source, string $target, int $mode): void
+    private function copyExclusive(string $source, string $target, string $metadataSource): void
     {
         $input = fopen($source, 'rb');
         $output = fopen($target, 'xb');
@@ -133,8 +133,12 @@ final readonly class SqliteArtifactInstaller
             if (is_resource($output)) {
                 fclose($output);
             }
+            if (is_file($target)) {
+                @unlink($target);
+            }
             throw new \RuntimeException('Could not create an exclusive database copy.');
         }
+        $copied = false;
         try {
             if (stream_copy_to_stream($input, $output) === false || !fflush($output)) {
                 throw new \RuntimeException('Could not flush the database copy.');
@@ -142,11 +146,20 @@ final readonly class SqliteArtifactInstaller
             if (function_exists('fsync') && !fsync($output)) {
                 throw new \RuntimeException('Could not fsync the database copy.');
             }
+            $copied = true;
         } finally {
             fclose($input);
             fclose($output);
+            if (!$copied && is_file($target)) {
+                @unlink($target);
+            }
         }
-        chmod($target, $mode);
+        try {
+            $this->applyMetadata($target, $metadataSource);
+        } catch (\Throwable $error) {
+            @unlink($target);
+            throw $error;
+        }
     }
 
     private function assertRegular(string $path, string $label): void
@@ -232,15 +245,30 @@ final readonly class SqliteArtifactInstaller
         }
     }
 
-    private function mode(string $path): int
+    private function applyMetadata(string $target, string $source): void
     {
-        clearstatcache(true, $path);
-        $permissions = fileperms($path);
-        if (!is_int($permissions)) {
-            throw new \RuntimeException('Could not read database file permissions.');
+        clearstatcache(true, $source);
+        clearstatcache(true, $target);
+        $owner = fileowner($source);
+        $group = filegroup($source);
+        $permissions = fileperms($source);
+        if (!is_int($owner) || !is_int($group) || !is_int($permissions)) {
+            throw new \RuntimeException('Could not read serving database ownership and permissions.');
         }
-
-        return $permissions & 0o777;
+        if (fileowner($target) !== $owner && !chown($target, $owner)) {
+            throw new \RuntimeException('Could not preserve serving database owner.');
+        }
+        if (filegroup($target) !== $group && !chgrp($target, $group)) {
+            throw new \RuntimeException('Could not preserve serving database group.');
+        }
+        $mode = $permissions & 0o777;
+        if (!chmod($target, $mode)) {
+            throw new \RuntimeException('Could not preserve serving database permissions.');
+        }
+        clearstatcache(true, $target);
+        if (fileowner($target) !== $owner || filegroup($target) !== $group || (fileperms($target) & 0o777) !== $mode) {
+            throw new \RuntimeException('Serving database ownership or permissions changed during copy.');
+        }
     }
 
     private function scratchPath(string $current, string $purpose): string

@@ -38,6 +38,7 @@ final class SqliteArtifactInstallerTest extends TestCase
         $backup = $this->directory . '/backup.sqlite';
         $before = hash_file('sha256', $current);
         $beforeOwner = fileowner($current);
+        $beforeGroup = filegroup($current);
         chmod($current, 0o640);
         $beforeMode = fileperms($current) & 0o777;
         $installer = new SqliteArtifactInstaller(
@@ -57,7 +58,11 @@ final class SqliteArtifactInstallerTest extends TestCase
         self::assertSame($before, hash_file('sha256', $current));
         self::assertSame($before, hash_file('sha256', $backup));
         self::assertSame($beforeOwner, fileowner($current));
+        self::assertSame($beforeGroup, filegroup($current));
         self::assertSame($beforeMode, fileperms($current) & 0o777);
+        self::assertSame($beforeOwner, fileowner($backup));
+        self::assertSame($beforeGroup, filegroup($backup));
+        self::assertSame($beforeMode, fileperms($backup) & 0o777);
         self::assertSame('old', $this->open($current)->query('SELECT value FROM content')->fetchColumn());
         self::assertSame([], glob($this->directory . '/.current.sqlite.*') ?: []);
     }
@@ -69,6 +74,7 @@ final class SqliteArtifactInstallerTest extends TestCase
         $backup = $this->database('backup.sqlite', 'original');
         $backupHash = hash_file('sha256', $backup);
         $beforeOwner = fileowner($current);
+        $beforeGroup = filegroup($current);
         chmod($current, 0o640);
         $installer = new SqliteArtifactInstaller(
             new SqliteArtifactPreparer(new FrameworkRuntimeTableCatalogue()),
@@ -79,6 +85,7 @@ final class SqliteArtifactInstallerTest extends TestCase
         self::assertSame($backupHash, hash_file('sha256', $current));
         self::assertSame($backupHash, hash_file('sha256', $backup));
         self::assertSame($beforeOwner, fileowner($current));
+        self::assertSame($beforeGroup, filegroup($current));
         self::assertSame(0o640, fileperms($current) & 0o777);
         self::assertSame('original', $this->open($current)->query('SELECT value FROM content')->fetchColumn());
         self::assertSame([], glob($this->directory . '/.current.sqlite.*') ?: []);
