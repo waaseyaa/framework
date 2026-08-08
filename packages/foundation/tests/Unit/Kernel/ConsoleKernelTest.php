@@ -7,6 +7,7 @@ namespace Waaseyaa\Foundation\Tests\Unit\Kernel;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\CLI\Provider\MaintenanceServiceProvider;
 use Waaseyaa\Foundation\Kernel\ConsoleKernel;
 
 /**
@@ -18,6 +19,7 @@ use Waaseyaa\Foundation\Kernel\ConsoleKernel;
  * semantics hold end-to-end against the real project.
  */
 #[CoversClass(ConsoleKernel::class)]
+#[CoversClass(MaintenanceServiceProvider::class)]
 final class ConsoleKernelTest extends TestCase
 {
     /** @var list<string> */
@@ -27,11 +29,14 @@ final class ConsoleKernelTest extends TestCase
 
     private string|false $originalDatabase;
 
+    private string|false $originalMaintenanceFlag;
+
     protected function setUp(): void
     {
         $this->originalArgv = $_SERVER['argv'] ?? [];
         $this->originalAppEnv = getenv('APP_ENV');
         $this->originalDatabase = getenv('WAASEYAA_DB');
+        $this->originalMaintenanceFlag = getenv('WAASEYAA_MAINTENANCE_FLAG');
     }
 
     protected function tearDown(): void
@@ -39,6 +44,7 @@ final class ConsoleKernelTest extends TestCase
         $_SERVER['argv'] = $this->originalArgv;
         $this->restoreEnvironment('APP_ENV', $this->originalAppEnv);
         $this->restoreEnvironment('WAASEYAA_DB', $this->originalDatabase);
+        $this->restoreEnvironment('WAASEYAA_MAINTENANCE_FLAG', $this->originalMaintenanceFlag);
     }
 
     #[Test]
@@ -87,6 +93,45 @@ final class ConsoleKernelTest extends TestCase
 
         self::assertSame(0, $exitCode, $output);
         self::assertFileDoesNotExist($database);
+    }
+
+    #[Test]
+    public function maintenanceCommandsRemainAvailableWhenProductionBootIsBlocked(): void
+    {
+        $projectRoot = dirname(__DIR__, 6);
+        $database = sys_get_temp_dir() . '/waaseyaa-maintenance-missing-' . bin2hex(random_bytes(8)) . '.sqlite';
+        $flag = sys_get_temp_dir() . '/waaseyaa-maintenance-' . bin2hex(random_bytes(8)) . '.json';
+        putenv('APP_ENV=production');
+        putenv('WAASEYAA_DB=' . $database);
+        putenv('WAASEYAA_MAINTENANCE_FLAG=' . $flag);
+
+        try {
+            $_SERVER['argv'] = ['waaseyaa', 'maintenance:on', '--retry-after=75', '--message=database transition'];
+            $onExit = (new ConsoleKernel($projectRoot))->handle();
+
+            self::assertSame(0, $onExit);
+            self::assertFileDoesNotExist($database);
+            $state = json_decode((string) file_get_contents($flag), true, flags: JSON_THROW_ON_ERROR);
+            self::assertSame(true, $state['active'] ?? null);
+            self::assertSame(75, $state['retry_after'] ?? null);
+
+            $_SERVER['argv'] = ['waaseyaa', 'maintenance:status', '--json'];
+            $statusExit = (new ConsoleKernel($projectRoot))->handle();
+
+            self::assertSame(1, $statusExit);
+            self::assertFileDoesNotExist($database);
+
+            $_SERVER['argv'] = ['waaseyaa', 'maintenance:off'];
+            $offExit = (new ConsoleKernel($projectRoot))->handle();
+
+            self::assertSame(0, $offExit);
+            self::assertFileDoesNotExist($flag);
+            self::assertFileDoesNotExist($database);
+        } finally {
+            if (is_file($flag)) {
+                unlink($flag);
+            }
+        }
     }
 
     private function restoreEnvironment(string $name, string|false $value): void
