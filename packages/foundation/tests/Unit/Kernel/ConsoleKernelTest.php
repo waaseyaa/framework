@@ -7,6 +7,7 @@ namespace Waaseyaa\Foundation\Tests\Unit\Kernel;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\CLI\Provider\MaintenanceServiceProvider;
 use Waaseyaa\Foundation\Kernel\ConsoleKernel;
 
 /**
@@ -18,6 +19,7 @@ use Waaseyaa\Foundation\Kernel\ConsoleKernel;
  * semantics hold end-to-end against the real project.
  */
 #[CoversClass(ConsoleKernel::class)]
+#[CoversClass(MaintenanceServiceProvider::class)]
 final class ConsoleKernelTest extends TestCase
 {
     /** @var list<string> */
@@ -112,6 +114,12 @@ final class ConsoleKernelTest extends TestCase
             $state = json_decode((string) file_get_contents($flag), true, flags: JSON_THROW_ON_ERROR);
             self::assertSame(true, $state['active'] ?? null);
             self::assertSame(75, $state['retry_after'] ?? null);
+
+            $_SERVER['argv'] = ['waaseyaa', 'maintenance:status', '--json'];
+            $statusExit = (new ConsoleKernel($projectRoot))->handle();
+
+            self::assertSame(1, $statusExit);
+            self::assertFileDoesNotExist($database);
 
             $_SERVER['argv'] = ['waaseyaa', 'maintenance:off'];
             $offExit = (new ConsoleKernel($projectRoot))->handle();
