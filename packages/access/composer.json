@@ -27,16 +27,16 @@
     ],
     "require": {
         "php": ">=8.5",
-        "waaseyaa/entity": "^0.1.0-alpha.290",
-        "waaseyaa/plugin": "^0.1.0-alpha.290",
-        "waaseyaa/foundation": "^0.1.0-alpha.290",
+        "waaseyaa/entity": "^0.1.0-alpha.291",
+        "waaseyaa/plugin": "^0.1.0-alpha.291",
+        "waaseyaa/foundation": "^0.1.0-alpha.291",
         "symfony/http-foundation": "^7.0",
         "symfony/routing": "^7.0"
     },
     "require-dev": {
         "phpunit/phpunit": "^13.0",
-        "waaseyaa/testing": "^0.1.0-alpha.290",
-        "waaseyaa/user": "^0.1.0-alpha.290"
+        "waaseyaa/testing": "^0.1.0-alpha.291",
+        "waaseyaa/user": "^0.1.0-alpha.291"
     },
     "autoload": {
         "psr-4": {
