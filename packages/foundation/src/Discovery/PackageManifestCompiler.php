@@ -228,6 +228,20 @@ final class PackageManifestCompiler
             }
         }
 
+        // Installed extensions explicitly opt into Waaseyaa through their
+        // extra.waaseyaa manifest, but may use a vendor namespace outside both
+        // Waaseyaa\\ and the root application's autoload prefixes. Scan those
+        // namespaces for policies only: feeding them through scanClasses()
+        // would silently widen every attribute-discovery contract (entity
+        // types, middleware, formatters, agent tools, and schedules).
+        foreach ($this->scanExternalExtensionPolicyClasses($packages) as $class) {
+            $ref = new \ReflectionClass($class);
+            foreach ($ref->getAttributes(self::POLICY_ATTRIBUTE) as $attr) {
+                $instance = $attr->newInstance();
+                $policies[$class] = $instance->entityTypes;
+            }
+        }
+
         // Discover ScheduleEntriesInterface implementors (interface scan, not attribute scan)
         foreach ($this->scanScheduleEntryClasses() as $class) {
             $scheduleEntries[] = $class;
@@ -656,7 +670,10 @@ final class PackageManifestCompiler
             if ($composerPath === null) {
                 continue;
             }
-            $packageRoot = dirname($composerPath);
+            $packageRoot = realpath(dirname($composerPath));
+            if ($packageRoot === false) {
+                continue;
+            }
             $psr4 = $package['autoload']['psr-4'] ?? [];
             if (!is_array($psr4)) {
                 continue;
@@ -933,6 +950,176 @@ final class PackageManifestCompiler
         }
 
         return $prefixes;
+    }
+
+    /**
+     * Discover access policies owned by installed extensions whose production
+     * namespace is outside the framework/root application scan boundary.
+     *
+     * Presence of an array-shaped extra.waaseyaa block is the explicit trust
+     * signal. Only PolicyAttribute is admitted from these namespaces so this
+     * path cannot activate unrelated discovery surfaces as a side effect.
+     *
+     * @param array<int, array<string, mixed>> $packages
+     * @return list<class-string>
+     */
+    private function scanExternalExtensionPolicyClasses(array $packages): array
+    {
+        $sources = $this->externalExtensionPolicySources($packages);
+        if ($sources === []) {
+            return [];
+        }
+
+        $candidates = [];
+        $classmapPath = $this->basePath . '/vendor/composer/autoload_classmap.php';
+        if (is_file($classmapPath)) {
+            try {
+                $classMap = require $classmapPath;
+                if (is_array($classMap)) {
+                    foreach ($classMap as $class => $file) {
+                        if (!is_string($class) || !is_string($file)) {
+                            continue;
+                        }
+                        $realFile = realpath($file);
+                        if ($realFile === false) {
+                            continue;
+                        }
+                        foreach ($sources as $namespace => $directories) {
+                            if (!str_starts_with($class, $namespace)) {
+                                continue;
+                            }
+                            foreach ($directories as $directory) {
+                                if (str_starts_with($realFile, $directory . DIRECTORY_SEPARATOR)) {
+                                    $candidates[] = $class;
+                                    break 2;
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                $this->logger->error(
+                    'PackageManifestCompiler: failed to load classmap for external policy discovery: ' . $e->getMessage(),
+                );
+            }
+        }
+
+        foreach ($sources as $namespace => $directories) {
+            foreach ($directories as $directory) {
+                $iterator = new \RecursiveIteratorIterator(
+                    new \RecursiveDirectoryIterator($directory, \RecursiveDirectoryIterator::SKIP_DOTS),
+                );
+                foreach ($iterator as $file) {
+                    if ($file->getExtension() !== 'php') {
+                        continue;
+                    }
+                    $relativePath = substr($file->getPathname(), strlen($directory) + 1);
+                    $candidates[] = $namespace . str_replace(['/', '.php'], ['\\', ''], $relativePath);
+                }
+            }
+        }
+
+        return $this->filterPolicyClasses(array_values(array_unique($candidates)));
+    }
+
+    /**
+     * Resolve only the production source directories owned by explicitly
+     * participating installed packages. This keeps the trust boundary at the
+     * package, not merely at a namespace prefix another package could share.
+     *
+     * @param array<int, array<string, mixed>> $packages
+     * @return array<string, list<string>> Namespace prefix => source directories
+     */
+    private function externalExtensionPolicySources(array $packages): array
+    {
+        $ordinaryPrefixes = $this->discoveryScanPrefixes();
+        $installedMetadataDir = $this->basePath . '/vendor/composer';
+        $sources = [];
+
+        foreach ($packages as $package) {
+            $extra = $package['extra']['waaseyaa'] ?? null;
+            if (!is_array($extra)) {
+                continue;
+            }
+            $installPath = $package['install-path'] ?? null;
+            if (!is_string($installPath) || $installPath === '') {
+                continue;
+            }
+            $composerPath = $this->resolveInstalledPackageComposerPath($installPath, $installedMetadataDir);
+            if ($composerPath === null) {
+                continue;
+            }
+            $packageRoot = dirname($composerPath);
+            $psr4 = $package['autoload']['psr-4'] ?? null;
+            if (!is_array($psr4)) {
+                continue;
+            }
+            foreach ($psr4 as $namespace => $relativeDirectories) {
+                if (!is_string($namespace) || $namespace === '' || str_contains($namespace, 'Tests\\')) {
+                    continue;
+                }
+                $alreadyScanned = false;
+                foreach ($ordinaryPrefixes as $ordinaryPrefix) {
+                    if (str_starts_with($namespace, $ordinaryPrefix)) {
+                        $alreadyScanned = true;
+                        break;
+                    }
+                }
+                if ($alreadyScanned) {
+                    continue;
+                }
+                foreach (is_array($relativeDirectories) ? $relativeDirectories : [$relativeDirectories] as $relativeDirectory) {
+                    if (!is_string($relativeDirectory)) {
+                        continue;
+                    }
+                    $directory = realpath($packageRoot . '/' . $relativeDirectory);
+                    if ($directory === false
+                        || ($directory !== $packageRoot
+                            && !str_starts_with($directory, $packageRoot . DIRECTORY_SEPARATOR))
+                        || str_contains($directory, '/testing/')
+                        || str_ends_with($directory, '/testing')
+                    ) {
+                        continue;
+                    }
+                    $sources[$namespace][] = rtrim($directory, DIRECTORY_SEPARATOR);
+                }
+            }
+        }
+
+        foreach ($sources as &$directories) {
+            $directories = array_values(array_unique($directories));
+        }
+        unset($directories);
+
+        return $sources;
+    }
+
+    /**
+     * @param list<string> $candidates
+     * @return list<class-string>
+     */
+    private function filterPolicyClasses(array $candidates): array
+    {
+        $classes = [];
+        foreach ($candidates as $class) {
+            try {
+                $ref = new \ReflectionClass($class);
+                if ($ref->isAbstract() || $ref->isInterface() || $ref->isTrait()) {
+                    continue;
+                }
+                if ($ref->getAttributes(self::POLICY_ATTRIBUTE) !== []) {
+                    $classes[] = $class;
+                }
+            } catch (\Throwable) {
+                // Match the ordinary discovery scanner: an unloadable class
+                // cannot provide a usable policy and is ignored here. Any
+                // declared policy still fails the independent manifest parity
+                // check with an actionable missing-class diagnostic.
+                continue;
+            }
+        }
+
+        return $classes;
     }
 
     /**

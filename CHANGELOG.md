@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **external extension policy discovery (#2314):** Discover access policies from explicitly participating installed packages even when their production namespace is outside `Waaseyaa\\` and the root application. Preserve exact fail-closed policy inventory checks without activating unrelated external entity, middleware, formatter, agent-tool, or schedule attributes.
+
 ## [0.1.0-alpha.293] - 2026-08-08
 
 - **Maintenance commands now remain available while normal production boot is blocked.** `maintenance:on`, `maintenance:off`, and `maintenance:status` resolve their environment-only flag state before database, migration, schema, or field-access activation boot. A deployment can therefore quiesce and recover a database transition without the command that raises or clears the gate materializing schema or being rejected by the very stale preflight the transition is intended to replace.

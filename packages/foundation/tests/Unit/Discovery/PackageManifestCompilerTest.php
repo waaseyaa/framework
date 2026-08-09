@@ -973,6 +973,170 @@ final class PackageManifestCompilerTest extends TestCase
     }
 
     #[Test]
+    public function compile_discovers_a_declared_policy_from_an_external_extension_namespace(): void
+    {
+        $packageRoot = $this->tempDir . '/vendor/acme/security-fixture';
+        $sourceDir = $packageRoot . '/src';
+        mkdir($sourceDir, 0o755, true);
+        $policyClass = 'Acme\\SecurityFixture\\ExternalPolicy';
+        $policyPath = $sourceDir . '/ExternalPolicy.php';
+        file_put_contents($policyPath, <<<'PHP'
+            <?php
+            declare(strict_types=1);
+            namespace Acme\SecurityFixture;
+            use Waaseyaa\Access\Gate\PolicyAttribute;
+            #[PolicyAttribute(entityType: 'external_fixture')]
+            final class ExternalPolicy {}
+            PHP);
+        require_once $policyPath;
+
+        $middlewareClass = 'Acme\\SecurityFixture\\ExternalMiddleware';
+        $middlewarePath = $sourceDir . '/ExternalMiddleware.php';
+        file_put_contents($middlewarePath, <<<'PHP'
+            <?php
+            declare(strict_types=1);
+            namespace Acme\SecurityFixture;
+            use Waaseyaa\Foundation\Attribute\AsMiddleware;
+            #[AsMiddleware(pipeline: 'http')]
+            final class ExternalMiddleware {}
+            PHP);
+        require_once $middlewarePath;
+
+        $packageComposer = [
+            'name' => 'acme/security-fixture',
+            'autoload' => ['psr-4' => ['Acme\\SecurityFixture\\' => 'src/']],
+            'extra' => ['waaseyaa' => ['policies' => [$policyClass]]],
+        ];
+        file_put_contents(
+            $packageRoot . '/composer.json',
+            json_encode($packageComposer, JSON_THROW_ON_ERROR),
+        );
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode(['packages' => [[
+                ...$packageComposer,
+                'install-path' => '../acme/security-fixture',
+            ]]], JSON_THROW_ON_ERROR),
+        );
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/autoload_classmap.php',
+            '<?php return [];',
+        );
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/autoload_psr4.php',
+            '<?php return ["Acme\\\\SecurityFixture\\\\" => [' . var_export($sourceDir, true) . ']];',
+        );
+
+        $manifest = (new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage'))->compile();
+
+        $this->assertSame(['external_fixture'], $manifest->policies[$policyClass] ?? null);
+        $this->assertNotContains(
+            $middlewareClass,
+            array_column($manifest->middleware['http'] ?? [], 'class'),
+            'Policy participation must not widen unrelated external attribute discovery.',
+        );
+    }
+
+    #[Test]
+    public function compile_discovers_an_external_extension_policy_from_an_optimized_classmap(): void
+    {
+        $packageRoot = $this->tempDir . '/vendor/acme/classmap-fixture';
+        $sourceDir = $packageRoot . '/src';
+        mkdir($sourceDir, 0o755, true);
+        $policyClass = 'Acme\\ClassmapFixture\\ExternalPolicy';
+        $policyPath = $sourceDir . '/ExternalPolicy.php';
+        file_put_contents($policyPath, <<<'PHP'
+            <?php
+            declare(strict_types=1);
+            namespace Acme\ClassmapFixture;
+            use Waaseyaa\Access\Gate\PolicyAttribute;
+            #[PolicyAttribute(entityType: 'external_classmap_fixture')]
+            final class ExternalPolicy {}
+            PHP);
+        require_once $policyPath;
+
+        $packageComposer = [
+            'name' => 'acme/classmap-fixture',
+            'autoload' => ['psr-4' => ['Acme\\ClassmapFixture\\' => 'src/']],
+            'extra' => ['waaseyaa' => ['policies' => [$policyClass]]],
+        ];
+        file_put_contents(
+            $packageRoot . '/composer.json',
+            json_encode($packageComposer, JSON_THROW_ON_ERROR),
+        );
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode(['packages' => [[
+                ...$packageComposer,
+                'install-path' => '../acme/classmap-fixture',
+            ]]], JSON_THROW_ON_ERROR),
+        );
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/autoload_classmap.php',
+            '<?php return [' . var_export($policyClass, true) . ' => ' . var_export($policyPath, true) . '];',
+        );
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/autoload_psr4.php',
+            '<?php return [];',
+        );
+
+        $manifest = (new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage'))->compile();
+
+        $this->assertSame(['external_classmap_fixture'], $manifest->policies[$policyClass] ?? null);
+    }
+
+    #[Test]
+    public function compile_rejects_an_undeclared_policy_from_a_participating_external_extension(): void
+    {
+        $packageRoot = $this->tempDir . '/vendor/acme/undeclared-fixture';
+        $sourceDir = $packageRoot . '/src';
+        mkdir($sourceDir, 0o755, true);
+        $policyClass = 'Acme\\UndeclaredFixture\\ExternalPolicy';
+        $policyPath = $sourceDir . '/ExternalPolicy.php';
+        file_put_contents($policyPath, <<<'PHP'
+            <?php
+            declare(strict_types=1);
+            namespace Acme\UndeclaredFixture;
+            use Waaseyaa\Access\Gate\PolicyAttribute;
+            #[PolicyAttribute(entityType: 'external_undeclared_fixture')]
+            final class ExternalPolicy {}
+            PHP);
+        require_once $policyPath;
+
+        $packageComposer = [
+            'name' => 'acme/undeclared-fixture',
+            'autoload' => ['psr-4' => ['Acme\\UndeclaredFixture\\' => 'src/']],
+            'extra' => ['waaseyaa' => ['providers' => []]],
+        ];
+        file_put_contents(
+            $packageRoot . '/composer.json',
+            json_encode($packageComposer, JSON_THROW_ON_ERROR),
+        );
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/installed.json',
+            json_encode(['packages' => [[
+                ...$packageComposer,
+                'install-path' => '../acme/undeclared-fixture',
+            ]]], JSON_THROW_ON_ERROR),
+        );
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/autoload_classmap.php',
+            '<?php return [];',
+        );
+        file_put_contents(
+            $this->tempDir . '/vendor/composer/autoload_psr4.php',
+            '<?php return ["Acme\\\\UndeclaredFixture\\\\" => [' . var_export($sourceDir, true) . ']];',
+        );
+
+        $this->expectException(PolicyManifestMismatchException::class);
+        $this->expectExceptionMessage(
+            'Missing: (none); unexpected: Acme\\UndeclaredFixture\\ExternalPolicy',
+        );
+
+        (new PackageManifestCompiler($this->tempDir, $this->tempDir . '/storage'))->compile();
+    }
+
+    #[Test]
     public function load_rejects_a_cached_manifest_missing_a_declared_policy(): void
     {
         file_put_contents(
