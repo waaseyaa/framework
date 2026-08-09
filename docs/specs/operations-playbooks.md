@@ -1,5 +1,7 @@
 # Operations Playbooks
 
+<!-- Spec reviewed 2026-08-09 - #2316 Composer policy release determinism: CP-NEW reads the checked-out tracked VERSION as its constraint authority, falling back to the latest reachable release tag only for repositories without VERSION. Malformed tracked VERSION fails once rather than skipping or emitting per-manifest false violations. -->
+
 <!-- Spec reviewed 2026-08-04 - #2191: MCP operations now use the shipped tools/list method and protected admin read models; removed legacy aliases, read-cache metadata, and tools/introspect are documented as absent. -->
 
 <!-- Spec reviewed 2026-06-21 - issue #1707 `waaseyaa dev` port preflight (packages/frankenphp): before printing "Serving …" and exec'ing FrankenPHP, the `dev` command now connect-probes the resolved listen address (DevCommand.php). A connect probe — Windows SO_REUSEADDR-safe, unlike a test bind — detects an already-bound address (e.g. an orphaned prior dev server) and the command fails fast with one actionable line plus a port-release hint, instead of printing "Serving" then exiting silently and leaving the browser at ERR_CONNECTION_REFUSED. The probe is injectable; covered by DevCommandPortPreflightTest. No other dev/install behavior changed. -->
@@ -103,7 +105,7 @@ Both **merge** the skeleton `config/frankenphp/php.ini` (SSE / error settings) o
 |------|---------|
 | `composer cs-check` | PHP-CS-Fixer dry-run — reports style violations |
 | `composer phpstan` | PHPStan max-level static analysis (1053 files, zero baseline tolerance) |
-| `composer check-composer-policy` | Composer manifest invariants — sort-packages, `@dev` forbidden in published manifests, `self.version` scoped to root metapackage, no wildcard internal versions, tight pre-release floor in non-root manifests |
+| `composer check-composer-policy` | Composer manifest invariants — sort-packages, `@dev` forbidden in published manifests, `self.version` scoped to root metapackage, no wildcard internal versions, tight pre-release floor in non-root manifests, and internal constraints aligned to tracked `VERSION` (legacy tag fallback only when that file is absent) |
 | `composer check-package-layers` | Seven-layer architecture enforcement at composer.json edges and PHP file imports; kernel-adjacent exemptions are in `KERNEL_EXEMPT_FILES` in the script itself |
 | `composer check-contract-suite-coverage` | Asserts `phpunit.xml.dist`'s `Unit` testsuite globs `packages/*/tests/Contract` (not a hand-enumerated subset) and that no abstract contract base class under those directories is named with the `*Test` suffix — see "Contract-suite coverage" below |
 | `composer check-no-secrets` | Repo-wide secret scan for committed credentials |

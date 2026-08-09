@@ -65,16 +65,24 @@ $failCpNew = static function (
 
 $expectedVersion = null;
 $cpNewWarning = null;
+$trackedVersionPath = $rootDir . '/VERSION';
 $versionLib = __DIR__ . '/lib/internal-version-sync.php';
 if (is_file($versionLib)) {
     require_once $versionLib;
     try {
-        $expectedVersion = resolveCurrentVersion($rootDir);
+        $expectedVersion = resolveRepositoryVersion($rootDir);
     } catch (RuntimeException $e) {
-        $cpNewWarning = sprintf(
-            'CP-NEW skipped: git tag resolution failed (%s). Run in a repo with at least one vX.Y.Z tag to enable this check.',
-            $e->getMessage(),
-        );
+        if (is_file($trackedVersionPath)) {
+            $errors++;
+            $emit('FAIL [CP-NEW] VERSION');
+            $emit(sprintf('  current: %s', $e->getMessage()));
+            $emit('  expected: a valid tracked semantic version (for example 0.1.0-alpha.293)');
+        } else {
+            $cpNewWarning = sprintf(
+                'CP-NEW skipped: repository version resolution failed (%s). Add a valid VERSION file or run in a repo with at least one vX.Y.Z tag.',
+                $e->getMessage(),
+            );
+        }
     }
 } else {
     $cpNewWarning = 'CP-NEW skipped: bin/lib/internal-version-sync.php is missing.';

@@ -12,7 +12,8 @@ use PHPUnit\Framework\TestCase;
  * Integration tests for the CP-NEW gate in bin/check-composer-policy.
  *
  * CP-NEW verifies that every waaseyaa/* constraint in packages/<name>/composer.json
- * matches ^<current-git-tag>. These tests run the script in controlled temp
+ * matches ^<checked-out VERSION>, with a git-tag fallback for repositories
+ * without that tracked file. These tests run the script in controlled temp
  * directories so they are hermetic and do not depend on real package manifests.
  *
  * Strategy: each test sets up a minimal fake repo root with a packages/foo/
@@ -169,7 +170,11 @@ final class CpNewCheckTest extends TestCase
 
     private function rmdirRecursive(string $dir): void
     {
-        foreach (scandir($dir) as $entry) {
+        $entries = scandir($dir);
+        if ($entries === false) {
+            return;
+        }
+        foreach ($entries as $entry) {
             if ($entry === '.' || $entry === '..') {
                 continue;
             }
@@ -255,6 +260,46 @@ final class CpNewCheckTest extends TestCase
             $result['stdout'],
             'No CP-NEW violations should be reported when constraints match.',
         );
+    }
+
+    #[Test]
+    public function tracked_version_is_authoritative_when_local_tags_are_stale(): void
+    {
+        $this->scaffoldRepo(
+            packageName: 'release-current',
+            packageRequire: ['waaseyaa/dependency' => '^0.1.0-alpha.177'],
+            gitTag: 'v0.1.0-alpha.176',
+        );
+        file_put_contents($this->tempDir . '/VERSION', "0.1.0-alpha.177\n");
+
+        $result = $this->runGate();
+
+        self::assertSame(
+            0,
+            $result['exit_code'],
+            'The checked-out VERSION file must keep the gate deterministic when local tag refs are stale. '
+            . 'stdout: ' . $result['stdout'] . ' stderr: ' . $result['stderr'],
+        );
+        self::assertStringNotContainsString('FAIL [CP-NEW]', $result['stdout'] . $result['stderr']);
+    }
+
+    #[Test]
+    public function malformed_tracked_version_fails_once_with_an_actionable_diagnostic(): void
+    {
+        $this->scaffoldRepo(
+            packageName: 'invalid-release',
+            packageRequire: ['waaseyaa/dependency' => '^0.1.0-alpha.176'],
+            gitTag: 'v0.1.0-alpha.176',
+        );
+        file_put_contents($this->tempDir . '/VERSION', "not a version\n");
+
+        $result = $this->runGate();
+        $combined = $result['stdout'] . $result['stderr'];
+
+        self::assertNotSame(0, $result['exit_code']);
+        self::assertSame(1, substr_count($combined, 'FAIL [CP-NEW]'));
+        self::assertStringContainsString('VERSION', $combined);
+        self::assertStringContainsString('valid tracked semantic version', $combined);
     }
 
     #[Test]

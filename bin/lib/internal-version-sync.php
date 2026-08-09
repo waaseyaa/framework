@@ -13,6 +13,40 @@ declare(strict_types=1);
  */
 
 /**
+ * Resolve the version represented by the checked-out repository tree.
+ *
+ * VERSION is tracked and advances in the same release commit as package
+ * constraints, so it remains deterministic when a client has fetched main but
+ * not the corresponding tag ref. Repositories without VERSION retain the
+ * historical tag-based behaviour used by older consumers and test fixtures.
+ *
+ * @throws \RuntimeException When VERSION is unreadable/invalid and when the
+ *                           tag fallback cannot resolve a release.
+ */
+function resolveRepositoryVersion(?string $repoRoot = null): string
+{
+    if ($repoRoot === null) {
+        $repoRoot = dirname(__DIR__, 2);
+    }
+
+    $versionPath = rtrim($repoRoot, '/') . '/VERSION';
+    if (!is_file($versionPath)) {
+        return resolveCurrentVersion($repoRoot);
+    }
+
+    $contents = file_get_contents($versionPath);
+    if ($contents === false) {
+        throw new \RuntimeException(sprintf('Could not read tracked version from %s.', $versionPath));
+    }
+
+    try {
+        return validateVersionInput(trim($contents));
+    } catch (\InvalidArgumentException $e) {
+        throw new \RuntimeException(sprintf('Invalid tracked VERSION file %s: %s', $versionPath, $e->getMessage()), 0, $e);
+    }
+}
+
+/**
  * Resolve the most recent semver git tag and return it without the leading 'v'.
  *
  * @param string|null $repoRoot Absolute path to the repository root.
