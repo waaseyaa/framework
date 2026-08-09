@@ -2,6 +2,8 @@
 
 <!-- Spec reviewed 2026-08-09 - #2316 Composer policy release determinism: CP-NEW reads the checked-out tracked VERSION as its constraint authority, falling back to the latest reachable release tag only for repositories without VERSION. Malformed tracked VERSION fails once rather than skipping or emitting per-manifest false violations. -->
 
+<!-- Spec reviewed 2026-08-09 - #2315 development-only selected package splits: an authorized manual workflow may update allowlisted split repository main branches from the exact current green framework main SHA with force-with-lease and provenance. It has no tag, version, release, or Packagist authority; docs/VERSIONING.md remains canonical. -->
+
 <!-- Spec reviewed 2026-08-04 - #2191: MCP operations now use the shipped tools/list method and protected admin read models; removed legacy aliases, read-cache metadata, and tools/introspect are documented as absent. -->
 
 <!-- Spec reviewed 2026-06-21 - issue #1707 `waaseyaa dev` port preflight (packages/frankenphp): before printing "Serving …" and exec'ing FrankenPHP, the `dev` command now connect-probes the resolved listen address (DevCommand.php). A connect probe — Windows SO_REUSEADDR-safe, unlike a test bind — detects an already-bound address (e.g. an orphaned prior dev server) and the command fails fast with one actionable line plus a port-release hint, instead of printing "Serving" then exiting silently and leaving the browser at ERR_CONNECTION_REFUSED. The probe is injectable; covered by DevCommandPortPreflightTest. No other dev/install behavior changed. -->

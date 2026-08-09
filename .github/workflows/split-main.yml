@@ -1,0 +1,202 @@
+name: Split selected package main branches
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Exact current framework main SHA to split
+        required: true
+        type: string
+      packages:
+        description: Comma-separated reviewed package names
+        required: true
+        default: foundation
+        type: string
+      reason:
+        description: Downstream verification reason or issue URL
+        required: true
+        type: string
+
+concurrency:
+  group: waaseyaa-split-main
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.targets.outputs.matrix }}
+      source_sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require an authorized dispatcher
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          permission="$(gh api "repos/${REPOSITORY}/collaborators/${ACTOR}/permission" --jq '.permission')"
+          case "${permission}" in
+            admin|maintain|write) ;;
+            *)
+              echo "::error::${ACTOR} has '${permission}' permission and cannot dispatch split-main."
+              exit 1
+              ;;
+          esac
+
+      - name: Require the exact current merged main SHA
+        id: source
+        env:
+          REQUESTED_SHA: ${{ inputs.sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${REQUESTED_SHA}" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "::error::sha must be a full 40-character commit id."
+            exit 1
+          fi
+          git fetch origin main --no-tags
+          current_main="$(git rev-parse origin/main)"
+          requested="$(printf '%s' "${REQUESTED_SHA}" | tr '[:upper:]' '[:lower:]')"
+          if [ "${requested}" != "${current_main}" ]; then
+            echo "::error::Stale or unmerged SHA refused: requested ${requested}; current main is ${current_main}."
+            exit 1
+          fi
+          git merge-base --is-ancestor "${requested}" origin/main
+          echo "sha=${requested}" >> "${GITHUB_OUTPUT}"
+
+      - name: Refuse overlap with tagged release fan-out
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          active="$({
+            gh api "repos/${REPOSITORY}/actions/workflows/split.yml/runs?status=queued" --jq '.total_count'
+            gh api "repos/${REPOSITORY}/actions/workflows/split.yml/runs?status=in_progress" --jq '.total_count'
+          } | awk '{total += $1} END {print total + 0}')"
+          if [ "${active}" -ne 0 ]; then
+            echo "::error::A tagged release split/fan-out is active; split-main is refused."
+            exit 1
+          fi
+
+      - name: Resolve reviewed package targets
+        id: targets
+        env:
+          PACKAGE_SELECTION: ${{ inputs.packages }}
+          GH_TOKEN: ${{ secrets.SPLIT_GITHUB_TOKEN }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "::error::SPLIT_GITHUB_TOKEN is empty or unavailable."
+            exit 1
+          fi
+          matrix="$(php bin/resolve-split-main-targets "${PACKAGE_SELECTION}")"
+          while IFS= read -r remote; do
+            gh api "repos/${REPO_OWNER}/${remote}" --silent
+          done < <(printf '%s' "${matrix}" | jq -r '.include[].remote')
+          echo "matrix=${matrix}" >> "${GITHUB_OUTPUT}"
+
+      - name: Require authoritative green CI for the source SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          SHA: ${{ steps.source.outputs.sha }}
+        run: bash bin/wait-for-green-ci "${SHA}" 2700
+
+      - name: Record dispatch intent
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          PACKAGE_SELECTION: ${{ inputs.packages }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          {
+            echo "## Selected package main split"
+            echo "- Source: \`${SOURCE_SHA}\`"
+            echo "- Packages: \`${PACKAGE_SELECTION}\`"
+            echo "- Reason: ${REASON}"
+            echo "- This workflow creates no tags, releases, version changes, or Packagist updates."
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  split:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install splitsh-lite
+        run: |
+          set -euo pipefail
+          archive="$(mktemp)"
+          trap 'rm -f "${archive}"' EXIT
+          curl --fail --location --silent --show-error \
+            --output "${archive}" \
+            https://github.com/splitsh/lite/releases/download/v1.0.1/lite_linux_amd64.tar.gz
+          printf '%s  %s\n' \
+            '2539301ce5e21d0ca44b689d0dd2c1b20d9f9e996c1fe6c462afb8af4e7141cc' \
+            "${archive}" | sha256sum --check
+          tar -xzf "${archive}"
+          sudo mv splitsh-lite /usr/local/bin/splitsh-lite
+
+      - name: Split and update development main only
+        env:
+          SPLIT_GH_TOKEN: ${{ secrets.SPLIT_GITHUB_TOKEN }}
+          LOCAL_PREFIX: ${{ matrix.local }}
+          REMOTE_REPO: ${{ matrix.remote }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SPLIT_GH_TOKEN}" ]; then
+            echo "::error::SPLIT_GITHUB_TOKEN is empty or unavailable."
+            exit 1
+          fi
+          git config --local --unset-all "http.https://github.com/.extraheader" 2>/dev/null || true
+          remote_url="https://x-access-token:${SPLIT_GH_TOKEN}@github.com/${REPO_OWNER}/${REMOTE_REPO}.git"
+          split_sha="$(splitsh-lite --prefix="${LOCAL_PREFIX}")"
+          existing="$(git ls-remote "${remote_url}" refs/heads/main | awk '{print $1}')"
+          git remote add split "${remote_url}"
+          git push split \
+            --force-with-lease="refs/heads/main:${existing}" \
+            "${split_sha}:refs/heads/main"
+          actual="$(git ls-remote "${remote_url}" refs/heads/main | awk '{print $1}')"
+          if [ "${actual}" != "${split_sha}" ]; then
+            echo "::error::Split verification failed for ${REMOTE_REPO}: expected ${split_sha}, got ${actual}."
+            exit 1
+          fi
+          jq -n \
+            --arg source_repository "${GITHUB_REPOSITORY}" \
+            --arg source_sha "${SOURCE_SHA}" \
+            --arg package "${REMOTE_REPO}" \
+            --arg prefix "${LOCAL_PREFIX}" \
+            --arg split_sha "${split_sha}" \
+            --arg actor "${GITHUB_ACTOR}" \
+            --arg reason "${REASON}" \
+            --arg run_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            '{source_repository:$source_repository,source_sha:$source_sha,package:$package,prefix:$prefix,split_sha:$split_sha,ref:"refs/heads/main",actor:$actor,reason:$reason,run_url:$run_url,release:false}' \
+            > "split-main-provenance-${REMOTE_REPO}.json"
+          cat "split-main-provenance-${REMOTE_REPO}.json" >> "${GITHUB_STEP_SUMMARY}"
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: split-main-provenance-${{ matrix.remote }}
+          path: split-main-provenance-${{ matrix.remote }}.json
+          if-no-files-found: error

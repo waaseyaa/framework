@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **guarded selected-package main split (#2315):** Add a manual, allowlisted workflow that projects selected packages from the exact current green framework `main` SHA to split repository `main` branches with force-with-lease and provenance artifacts. It creates no tags, versions, releases, or Packagist updates.
+
 ### Fixed
 
 - **external extension policy discovery (#2314):** Discover access policies from explicitly participating installed packages even when their production namespace is outside `Waaseyaa\\` and the root application. Preserve exact fail-closed policy inventory checks without activating unrelated external entity, middleware, formatter, agent-tool, or schedule attributes.
