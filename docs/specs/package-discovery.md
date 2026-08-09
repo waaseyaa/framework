@@ -1,5 +1,7 @@
 # Package Discovery
 
+<!-- Spec reviewed 2026-08-09 - #2314 external extension policies: an installed package explicitly participating through extra.waaseyaa receives policy-only discovery for its production namespaces, preserving exact fail-closed inventory parity without activating unrelated external attribute surfaces. -->
+
 <!-- Spec reviewed 2026-08-08 - Anokii boundary remediation: the provider registry carries the kernel's canonical community context to composed providers, while the field package declares and activates its own migration inventory. Composer installation remains the activation boundary; no cross-layer provider ownership is introduced. -->
 
 <!-- Spec reviewed 2026-08-05 - #2196 AI-catalog composition: installed providers may separately contribute bounded public AI artifacts through ProvidesAiCatalogEntriesInterface; the kernel sorts and injects them into AcceptsAiCatalogEntryProvidersInterface receivers before boot. The separate contract prevents experimental ARD/AI Catalog fields from contaminating RFC 9727 endpoint semantics. -->
@@ -300,10 +302,12 @@ final class PackageManifestCompiler
 
 The compiler uses a classmap-first approach with PSR-4 fallback:
 
-1. **Classmap (preferred):** Read `vendor/composer/autoload_classmap.php` and filter to `Waaseyaa\` entries. This is populated by `composer dump-autoload --optimize` and is the fastest, most reliable path.
-2. **PSR-4 fallback:** If the classmap has no `Waaseyaa\` entries (default `composer install` only includes Composer internals and polyfill stubs), fall back to reading `vendor/composer/autoload_psr4.php`. For each `Waaseyaa\` namespace (excluding `Tests\` namespaces), recursively scan directories for `.php` files and derive class names from namespace prefix + relative path.
+1. **Classmap:** Read `vendor/composer/autoload_classmap.php` and filter to eligible entries. An optimized Composer install makes this the fastest path.
+2. **PSR-4 union:** Always read `vendor/composer/autoload_psr4.php` and union eligible production namespaces with the classmap candidates. A routine non-optimized classmap is partial and must not suppress source discovery.
 
-The fallback logs a warning via the injected `LoggerInterface` (not `error_log()`) recommending `composer dump-autoload --optimize`. The PSR-4 path is protected by try-catch for corrupt map files.
+The PSR-4 path is protected by try-catch for corrupt map files.
+
+**External extension policies (#2314):** An installed package explicitly participates by carrying an array-shaped `extra.waaseyaa` block. Its production PSR-4 namespaces may live outside both `Waaseyaa\` and the root application's namespaces. The compiler scans those extension namespaces through the classmap and PSR-4 union for `PolicyAttribute` only, then applies the same complete declared-policy parity check used for framework packages. This policy-specific path does not activate the extension's entity types, middleware, formatters, agent tools, agent definitions, or schedule entries; each of those surfaces requires its own documented extension contract.
 
 **Single-scan memoization (WP7 audit remediation):** `scanClasses()` is memoized per `PackageManifestCompiler` instance (`private ?array $scannedClasses`). Without memoization, `compile()` ran the full classmap/PSR-4 scan and per-class `ReflectionClass` construction TWICE — once directly for the attribute-scan loop, once indirectly via `scanScheduleEntryClasses()` for the schedule-entries pass, since `filterDiscoveryClasses()` already admits `ScheduleEntriesInterface` implementors into the same discovery-class set the attribute loop iterates. `scanScheduleEntryClasses()` remains a separate logical pass over that shared set (a deliberate decision, not an oversight) — with `scanClasses()` memoized, it is a cheap in-memory `foreach`/`class_implements()` filter, not a second reflective scan. Compiler instances are created fresh per boot (one instance per request/CLI invocation), so the memo has no cross-request staleness window: it lives exactly as long as the one compile it serves.
 
@@ -311,7 +315,7 @@ The fallback logs a warning via the injected `LoggerInterface` (not `error_log()
 
 **Attribute scanning details:**
 
-The compiler scans `Waaseyaa\` classes (from either classmap or PSR-4 fallback). For each concrete (non-abstract, non-interface, non-trait) class:
+The compiler scans `Waaseyaa\` and root-application classes from the classmap/PSR-4 union. For each concrete (non-abstract, non-interface, non-trait) class:
 
 | Attribute | What it discovers | How |
 |-----------|------------------|-----|
