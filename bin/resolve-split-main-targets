@@ -1,0 +1,46 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Resolve a reviewed comma-separated package selection into a GitHub matrix.
+ *
+ * This deliberately carries a narrow allowlist. Expanding pre-release fan-out
+ * authority requires a reviewed source change; workflow input can never become
+ * a repository name, path, or URL by interpolation alone.
+ */
+
+$allowlist = [
+    'foundation' => ['local' => 'packages/foundation', 'remote' => 'foundation'],
+    'access' => ['local' => 'packages/access', 'remote' => 'access'],
+    'entity' => ['local' => 'packages/entity', 'remote' => 'entity'],
+    'entity-storage' => ['local' => 'packages/entity-storage', 'remote' => 'entity-storage'],
+    'routing' => ['local' => 'packages/routing', 'remote' => 'routing'],
+];
+
+$selection = $argv[1] ?? '';
+$names = [];
+foreach (explode(',', $selection) as $candidate) {
+    $name = trim($candidate);
+    if ($name === '') {
+        continue;
+    }
+    if (!isset($allowlist[$name])) {
+        fwrite(STDERR, sprintf("Split-main target '%s' is not allowlisted.\n", $name));
+        exit(2);
+    }
+    $names[$name] = true;
+}
+
+if ($names === []) {
+    fwrite(STDERR, "Select at least one allowlisted split-main package.\n");
+    exit(2);
+}
+
+$include = [];
+foreach (array_keys($names) as $name) {
+    $include[] = $allowlist[$name];
+}
+
+echo json_encode(['include' => $include], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . PHP_EOL;

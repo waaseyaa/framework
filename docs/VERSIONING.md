@@ -136,6 +136,29 @@ publish at all.
 
 ---
 
+## 9. Development-only split main branches
+
+Split repository `main` branches may be updated between releases solely for
+audited downstream integration verification. This is not a release action and
+does not authorize production promotion.
+
+`.github/workflows/split-main.yml` is the only supported pre-release path. It:
+
+- runs only through `workflow_dispatch` by a collaborator with write-or-higher permission;
+- accepts only package names compiled into `bin/resolve-split-main-targets`' reviewed allowlist;
+- accepts only the full SHA currently at framework `main` (older, unmerged, abbreviated, or otherwise stale SHAs fail);
+- requires the authoritative CI workflow to be green for that exact SHA;
+- refuses to overlap a queued or running tagged split/fan-out;
+- pushes only the selected package's `refs/heads/main`, guarded by `--force-with-lease`;
+- verifies the remote result and uploads monorepo-SHA to split-SHA provenance;
+- never creates or moves tags, mutates `VERSION`/changelog content, calls Packagist, or publishes a GitHub Release.
+
+Re-running the same source SHA is idempotent. A lease failure means another
+split or release changed the remote and must be investigated; do not bypass it.
+Tagged `split.yml` remains the sole release and package-publication authority.
+
+---
+
 ## Audit Log
 
 _No entries yet. Records of tag deletions and v1.0 authorizations will appear here._
