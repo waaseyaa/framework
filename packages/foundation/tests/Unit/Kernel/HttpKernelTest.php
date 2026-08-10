@@ -9,35 +9,38 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\Request;
+use Waaseyaa\Access\Middleware\FieldReadContextMiddleware;
+use Waaseyaa\Api\Http\DiscoveryApiHandler;
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Cache\CacheItem;
 use Waaseyaa\Cache\TagAwareCacheInterface;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Event\EntityEvent;
 use Waaseyaa\Entity\Event\EntityEvents;
-use Waaseyaa\Routing\CacheConfigResolver;
-use Waaseyaa\Database\DBALDatabase;
-use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
+use Waaseyaa\Foundation\Community\CommunityMiddleware;
+use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\Http\CorsHandler;
-use Waaseyaa\Api\Http\DiscoveryApiHandler;
-use Waaseyaa\SSR\LanguageResolver;
-use Waaseyaa\SSR\SsrPageHandler;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
 use Waaseyaa\Foundation\Kernel\BuiltinRouteRegistrar;
-use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\Kernel\EventListenerRegistrar;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\I18n\Language;
 use Waaseyaa\I18n\LanguageManager;
 use Waaseyaa\I18n\LanguageManagerInterface;
+use Waaseyaa\Routing\CacheConfigResolver;
+use Waaseyaa\Routing\Redirector;
+use Waaseyaa\Routing\RouteBuilder;
+use Waaseyaa\Routing\WaaseyaaRouter;
+use Waaseyaa\SSR\LanguageResolver;
+use Waaseyaa\SSR\SsrPageHandler;
 use Waaseyaa\User\AnonymousUser;
 use Waaseyaa\User\DevAdminAccount;
-use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
-use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
-use Waaseyaa\Routing\RouteBuilder;
-use Waaseyaa\Routing\Redirector;
-use Waaseyaa\Routing\WaaseyaaRouter;
+use Waaseyaa\User\Middleware\SessionMiddleware;
 
 #[CoversClass(HttpKernel::class)]
 final class HttpKernelTest extends TestCase
@@ -48,9 +51,9 @@ final class HttpKernelTest extends TestCase
     {
         putenv('WAASEYAA_APP_SECRET');
         $this->projectRoot = sys_get_temp_dir() . '/waaseyaa_http_test_' . uniqid();
-        mkdir($this->projectRoot . '/config', 0755, true);
-        mkdir($this->projectRoot . '/storage', 0755, true);
-        mkdir($this->projectRoot . '/vendor/composer', 0755, true);
+        mkdir($this->projectRoot . '/config', 0o755, true);
+        mkdir($this->projectRoot . '/storage', 0o755, true);
+        mkdir($this->projectRoot . '/vendor/composer', 0o755, true);
         file_put_contents($this->projectRoot . '/config/waaseyaa.php', "<?php return ['database' => ':memory:', 'environment' => 'testing', 'app' => ['url' => 'http://localhost', 'name' => 'Waaseyaa Test']];");
         file_put_contents(
             $this->projectRoot . '/config/entity-types.php',
@@ -299,7 +302,7 @@ final class HttpKernelTest extends TestCase
             "<?php return ['database' => ':memory:', 'environment' => 'testing', 'cache' => ['hmac_key' => 'legacy-key-must-be-ignored']];",
         );
         $kernel = new HttpKernel($this->projectRoot);
-        (new \ReflectionMethod(AbstractKernel::class, 'boot'))->invoke($kernel);
+        new \ReflectionMethod(AbstractKernel::class, 'boot')->invoke($kernel);
 
         $cacheProperty = new \ReflectionProperty(HttpKernel::class, 'discoveryCache');
         $cache = $cacheProperty->getValue($kernel);
@@ -355,10 +358,10 @@ final class HttpKernelTest extends TestCase
         };
 
         $kernel = new HttpKernel($this->projectRoot);
-        (new \ReflectionProperty(AbstractKernel::class, 'entityTypeManager'))->setValue($kernel, $entityTypeManager);
-        (new \ReflectionProperty(AbstractKernel::class, 'providers'))->setValue($kernel, [$provider]);
+        new \ReflectionProperty(AbstractKernel::class, 'entityTypeManager')->setValue($kernel, $entityTypeManager);
+        new \ReflectionProperty(AbstractKernel::class, 'providers')->setValue($kernel, [$provider]);
 
-        $request = (new \ReflectionMethod(HttpKernel::class, 'matchRoute'))->invoke($kernel, '/test/42', 'GET');
+        $request = new \ReflectionMethod(HttpKernel::class, 'matchRoute')->invoke($kernel, '/test/42', 'GET');
 
         self::assertInstanceOf(Request::class, $request);
         self::assertSame($entity, $request->attributes->get('id'));
@@ -386,13 +389,13 @@ final class HttpKernelTest extends TestCase
         };
 
         $kernel = new HttpKernel($this->projectRoot);
-        (new \ReflectionProperty(AbstractKernel::class, 'entityTypeManager'))->setValue(
+        new \ReflectionProperty(AbstractKernel::class, 'entityTypeManager')->setValue(
             $kernel,
             new EntityTypeManager(new EventDispatcher()),
         );
-        (new \ReflectionProperty(AbstractKernel::class, 'providers'))->setValue($kernel, [$provider]);
+        new \ReflectionProperty(AbstractKernel::class, 'providers')->setValue($kernel, [$provider]);
 
-        $request = (new \ReflectionMethod(HttpKernel::class, 'matchRoute'))->invoke($kernel, '/source', 'GET');
+        $request = new \ReflectionMethod(HttpKernel::class, 'matchRoute')->invoke($kernel, '/source', 'GET');
 
         self::assertInstanceOf(Request::class, $request);
         $redirector = $request->attributes->get(Redirector::REQUEST_ATTRIBUTE);
@@ -421,7 +424,7 @@ final class HttpKernelTest extends TestCase
         $providers = $providersProperty->getValue($kernel);
 
         $router = new \Waaseyaa\Routing\WaaseyaaRouter(new \Symfony\Component\Routing\RequestContext('', 'GET'));
-        (new BuiltinRouteRegistrar($entityTypeManager, $providers))->register($router);
+        new BuiltinRouteRegistrar($entityTypeManager, $providers)->register($router);
 
         $routes = $router->getRouteCollection();
         $this->assertNotNull($routes->get('api.discovery'));
@@ -429,6 +432,36 @@ final class HttpKernelTest extends TestCase
         // api.user.me, api.auth.login, api.auth.logout moved to AuthServiceProvider
         // (requires Twig/AuthMailer infrastructure not available in this minimal test).
         // Those routes are covered by AuthServiceProvider's own tests and SsrHttpKernelIntegrationTest.
+    }
+
+    #[Test]
+    public function real_kernel_stack_installs_community_resolution_before_principal_construction(): void
+    {
+        file_put_contents(
+            $this->projectRoot . '/config/waaseyaa.php',
+            "<?php return ['database' => ':memory:', 'environment' => 'testing', 'community_id' => 'configured-community'];",
+        );
+        $this->writeInstalledPackageProviders([
+            'waaseyaa/foundation' => ['Waaseyaa\\Foundation\\FoundationServiceProvider'],
+            'waaseyaa/user' => ['Waaseyaa\\User\\UserServiceProvider'],
+            'waaseyaa/audit' => ['Waaseyaa\\Audit\\AuditServiceProvider'],
+        ]);
+
+        $kernel = new HttpKernel($this->projectRoot);
+        new \ReflectionMethod(AbstractKernel::class, 'boot')->invoke($kernel);
+        $pipeline = new \ReflectionMethod(HttpKernel::class, 'buildMiddlewareStack')->invoke($kernel);
+        $middleware = new \ReflectionProperty($pipeline, 'middleware')->getValue($pipeline);
+        $classes = array_map(static fn(object $item): string => $item::class, $middleware);
+
+        self::assertContains(CommunityMiddleware::class, $classes);
+        self::assertLessThan(
+            array_search(CommunityMiddleware::class, $classes, true),
+            array_search(SessionMiddleware::class, $classes, true),
+        );
+        self::assertLessThan(
+            array_search(FieldReadContextMiddleware::class, $classes, true),
+            array_search(CommunityMiddleware::class, $classes, true),
+        );
     }
 
     /**
@@ -961,16 +994,46 @@ final class TestKernelEntity implements EntityInterface
         private readonly string $entityTypeId,
     ) {}
 
-    public function id(): int|string|null { return $this->entityId; }
-    public function uuid(): string { return ''; }
-    public function label(): string { return 'test'; }
-    public function getEntityTypeId(): string { return $this->entityTypeId; }
-    public function bundle(): string { return 'default'; }
-    public function isNew(): bool { return false; }
-    public function get(string $name): mixed { return null; }
-    public function set(string $name, mixed $value): static { return $this; }
-    public function toArray(): array { return ['id' => $this->entityId]; }
-    public function language(): string { return 'en'; }
+    public function id(): int|string|null
+    {
+        return $this->entityId;
+    }
+    public function uuid(): string
+    {
+        return '';
+    }
+    public function label(): string
+    {
+        return 'test';
+    }
+    public function getEntityTypeId(): string
+    {
+        return $this->entityTypeId;
+    }
+    public function bundle(): string
+    {
+        return 'default';
+    }
+    public function isNew(): bool
+    {
+        return false;
+    }
+    public function get(string $name): mixed
+    {
+        return null;
+    }
+    public function set(string $name, mixed $value): static
+    {
+        return $this;
+    }
+    public function toArray(): array
+    {
+        return ['id' => $this->entityId];
+    }
+    public function language(): string
+    {
+        return 'en';
+    }
 }
 
 final class TestTagAwareCacheBackend implements TagAwareCacheInterface
@@ -979,12 +1042,21 @@ final class TestTagAwareCacheBackend implements TagAwareCacheInterface
     public array $invalidatedTags = [];
     public int $deleteAllCalls = 0;
 
-    public function get(string $cid): CacheItem|false { return false; }
-    public function getMultiple(array &$cids): array { return []; }
+    public function get(string $cid): CacheItem|false
+    {
+        return false;
+    }
+    public function getMultiple(array &$cids): array
+    {
+        return [];
+    }
     public function set(string $cid, mixed $data, int $expire = self::PERMANENT, array $tags = []): void {}
     public function delete(string $cid): void {}
     public function deleteMultiple(array $cids): void {}
-    public function deleteAll(): void { $this->deleteAllCalls++; }
+    public function deleteAll(): void
+    {
+        $this->deleteAllCalls++;
+    }
     public function invalidate(string $cid): void {}
     public function invalidateMultiple(array $cids): void {}
     public function invalidateAll(): void {}
@@ -1000,12 +1072,21 @@ final class TestNonTagCacheBackend implements CacheBackendInterface
 {
     public int $deleteAllCalls = 0;
 
-    public function get(string $cid): CacheItem|false { return false; }
-    public function getMultiple(array &$cids): array { return []; }
+    public function get(string $cid): CacheItem|false
+    {
+        return false;
+    }
+    public function getMultiple(array &$cids): array
+    {
+        return [];
+    }
     public function set(string $cid, mixed $data, int $expire = self::PERMANENT, array $tags = []): void {}
     public function delete(string $cid): void {}
     public function deleteMultiple(array $cids): void {}
-    public function deleteAll(): void { $this->deleteAllCalls++; }
+    public function deleteAll(): void
+    {
+        $this->deleteAllCalls++;
+    }
     public function invalidate(string $cid): void {}
     public function invalidateMultiple(array $cids): void {}
     public function invalidateAll(): void {}

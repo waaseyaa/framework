@@ -1,5 +1,5 @@
 # Middleware Pipeline
-<!-- Spec reviewed 2026-08-10 - #2327: CommunityMiddleware preserves route/session precedence, falls back to the authoritative active configured context, and writes the normalized `_community_id` request attribute before FieldReadContextMiddleware runs. Fixed-community immutable principals therefore align with storage/controllers; inactive contexts remain unscoped. -->
+<!-- Spec reviewed 2026-08-10 - #2327 corrected runtime wiring: HttpKernel explicitly installs CommunityMiddleware at priority 20 because compiled AsMiddleware metadata is not itself an executable registration path (#2330 tracks that broader discovery/runtime mismatch). CommunityMiddleware preserves route/session precedence, falls back to the authoritative active configured context, writes `_community_id` before FieldReadContextMiddleware, and restores the prior configured context after dispatch for long-lived workers. Fixed-community immutable principals therefore align with storage/controllers; inactive contexts remain unscoped. -->
 <!-- Spec reviewed 2026-07-30 - #2154 (follow-up to #2146): a session.stateless_paths entry of exactly "/" now means the ROOT PATH only, not a prefix of every path. Prefix-matching it made every anonymous GET stateless including /admin/login (a GET that must mint a CSRF token, withheld when no session exists), so an app could not express a cookie-free homepage without silently breaking its own authentication. Named prefixes are unchanged. See middleware-pipeline.md "Stateless path gate". -->
 
 <!-- Spec reviewed 2026-07-30 - #2146 stateless session paths: SessionMiddleware gains an opt-in session.stateless_paths gate (anonymous GET/HEAD on configured prefixes skip session_start; session-cookie-carrying requests resume; other methods unchanged; default [] is exact behavior parity). Access-control semantics unchanged: skipped sessions resolve to AnonymousUser under deny-unless-granted. Full contract in middleware-pipeline.md "SessionMiddleware". -->
@@ -152,7 +152,7 @@ A middleware can short-circuit by returning a response without calling `$next->h
 The production HTTP pipeline in `HttpKernel::serveHttpRequest()` wires middleware in priority order around the real dispatch handler:
 
 ```
-SecurityHeadersMiddleware -> SessionMiddleware -> CsrfMiddleware -> AuthorizationMiddleware -> provider middleware -> controller/domain-router dispatch
+SecurityHeadersMiddleware -> SessionMiddleware -> CommunityMiddleware -> CsrfMiddleware -> FieldReadContextMiddleware -> AuthorizationMiddleware -> controller/domain-router dispatch
 ```
 
 ### Pre-boot maintenance gate (outside this pipeline)
@@ -181,6 +181,14 @@ work: middleware enters before dispatch, may short-circuit by returning its own
 response, and otherwise unwinds over the final response. Provider middleware
 contributed through `HasMiddlewareInterface::middleware()` has this same
 contract; no separate app response hook is required.
+
+`CommunityMiddleware` is an explicit kernel built-in. Its `#[AsMiddleware]`
+attribute supplies priority metadata, but compiled manifest metadata is not an
+executable registration path in the current kernel. Issue #2330 tracks that
+broader discovery/runtime contract without implicitly activating or
+double-registering other attribute-only middleware.
+Like the field-read principal middleware, it rebinds its request community
+around deferred streamed-response callbacks before restoring worker state.
 
 `public/index.php` is a thin entry point that boots the kernel and sends the returned response. Production apps typically load `.env` **before** constructing `HttpKernel` via Symfony `Dotenv::loadEnv($projectRoot . '/.env', 'APP_ENV', 'production')` when the file exists — the third argument defaults missing `APP_ENV` to **`production`**, not Symfony's implicit **`dev`**. The monorepo entry wraps malformed `.env` in try/catch; skeleton / `make:public` stub match Minoo's optional-load + outer `Throwable` catch returning JSON:API 500. The file also contains a `cli-server` guard (see [cli-server static file guard](#cli-server-static-file-guard)) so static assets are served directly by the built-in server without passing through `HttpKernel`:
 

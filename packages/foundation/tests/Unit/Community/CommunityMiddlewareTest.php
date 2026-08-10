@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Waaseyaa\Foundation\Community\CommunityContext;
 use Waaseyaa\Foundation\Community\CommunityMiddleware;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
@@ -20,7 +21,7 @@ final class CommunityMiddlewareTest extends TestCase
         $context = new CommunityContext();
         $context->set('configured-community');
         $request = Request::create('/admin/anokii/identity');
-        $handler = new class($context) implements HttpHandlerInterface {
+        $handler = new class ($context) implements HttpHandlerInterface {
             public function __construct(private readonly CommunityContext $context) {}
 
             public function handle(Request $request): Response
@@ -32,8 +33,9 @@ final class CommunityMiddlewareTest extends TestCase
             }
         };
 
-        self::assertSame('ok', (new CommunityMiddleware($context))->process($request, $handler)->getContent());
-        self::assertFalse($context->isActive());
+        self::assertSame('ok', new CommunityMiddleware($context)->process($request, $handler)->getContent());
+        self::assertTrue($context->isActive());
+        self::assertSame('configured-community', $context->get());
     }
 
     #[Test]
@@ -43,7 +45,7 @@ final class CommunityMiddlewareTest extends TestCase
         $context->set('configured-community');
         $request = Request::create('/community/route-community/admin');
         $request->attributes->set('community_id', 'route-community');
-        $handler = new class($context) implements HttpHandlerInterface {
+        $handler = new class ($context) implements HttpHandlerInterface {
             public function __construct(private readonly CommunityContext $context) {}
 
             public function handle(Request $request): Response
@@ -55,7 +57,33 @@ final class CommunityMiddlewareTest extends TestCase
             }
         };
 
-        self::assertSame('ok', (new CommunityMiddleware($context))->process($request, $handler)->getContent());
+        self::assertSame('ok', new CommunityMiddleware($context)->process($request, $handler)->getContent());
+        self::assertTrue($context->isActive());
+        self::assertSame('configured-community', $context->get());
+    }
+
+    #[Test]
+    public function session_community_overrides_configured_context_and_is_restored_after_dispatch(): void
+    {
+        $context = new CommunityContext();
+        $context->set('configured-community');
+        $request = Request::create('/admin');
+        $request->attributes->set('_session', ['waaseyaa_community_id' => 'session-community']);
+        $handler = new class ($context) implements HttpHandlerInterface {
+            public function __construct(private readonly CommunityContext $context) {}
+
+            public function handle(Request $request): Response
+            {
+                TestCase::assertSame('session-community', $request->attributes->get('_community_id'));
+                TestCase::assertSame('session-community', $this->context->get());
+
+                return new Response('ok');
+            }
+        };
+
+        self::assertSame('ok', new CommunityMiddleware($context)->process($request, $handler)->getContent());
+        self::assertTrue($context->isActive());
+        self::assertSame('configured-community', $context->get());
     }
 
     #[Test]
@@ -72,7 +100,37 @@ final class CommunityMiddlewareTest extends TestCase
             }
         };
 
-        self::assertSame('ok', (new CommunityMiddleware($context))->process($request, $handler)->getContent());
+        self::assertSame('ok', new CommunityMiddleware($context)->process($request, $handler)->getContent());
+        self::assertFalse($context->isActive());
+    }
+
+    #[Test]
+    public function streamed_callback_rebinds_route_community_and_restores_inactive_context(): void
+    {
+        $context = new CommunityContext();
+        $request = Request::create('/community/route-community/export');
+        $request->attributes->set('community_id', 'route-community');
+        $seen = null;
+        $handler = new class ($context, $seen) implements HttpHandlerInterface {
+            public function __construct(
+                private readonly CommunityContext $context,
+                private mixed &$seen,
+            ) {}
+
+            public function handle(Request $request): Response
+            {
+                return new StreamedResponse(function (): void {
+                    $this->seen = $this->context->get();
+                });
+            }
+        };
+
+        $response = new CommunityMiddleware($context)->process($request, $handler);
+        self::assertFalse($context->isActive());
+        ob_start();
+        $response->sendContent();
+        ob_end_clean();
+        self::assertSame('route-community', $seen);
         self::assertFalse($context->isActive());
     }
 }

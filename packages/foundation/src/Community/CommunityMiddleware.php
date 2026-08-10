@@ -6,6 +6,7 @@ namespace Waaseyaa\Foundation\Community;
 
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
@@ -17,6 +18,7 @@ use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
  * Resolution order (first match wins):
  *   1. Route parameter  — e.g. /community/{community_id}/...
  *   2. Session key      — 'waaseyaa_community_id'
+ *   3. Existing context — configured fixed-community applications
  *
  * When no community is resolved (CLI, admin, unauthenticated), the
  * context remains inactive and queries are unscoped.
@@ -33,6 +35,7 @@ final class CommunityMiddleware implements HttpMiddlewareInterface
 
     public function process(Request $request, HttpHandlerInterface $next): Response
     {
+        $previousCommunityId = $this->context->isActive() ? $this->context->get() : null;
         $communityId = $this->resolve($request);
         if ($communityId === null && $this->context->isActive()) {
             $configured = $this->context->get();
@@ -45,9 +48,37 @@ final class CommunityMiddleware implements HttpMiddlewareInterface
         }
 
         try {
-            return $next->handle($request);
+            $response = $next->handle($request);
+            if ($response instanceof StreamedResponse
+                && $communityId !== null
+                && ($callback = $response->getCallback()) !== null
+            ) {
+                $response->setCallback(fn(): mixed => $this->runWithCommunity($communityId, $callback));
+            }
+
+            return $response;
         } finally {
-            $this->context->clear();
+            if (is_string($previousCommunityId) && $previousCommunityId !== '') {
+                $this->context->set($previousCommunityId);
+            } else {
+                $this->context->clear();
+            }
+        }
+    }
+
+    private function runWithCommunity(string $communityId, callable $callback): mixed
+    {
+        $previousCommunityId = $this->context->isActive() ? $this->context->get() : null;
+        $this->context->set($communityId);
+
+        try {
+            return $callback();
+        } finally {
+            if (is_string($previousCommunityId) && $previousCommunityId !== '') {
+                $this->context->set($previousCommunityId);
+            } else {
+                $this->context->clear();
+            }
         }
     }
 

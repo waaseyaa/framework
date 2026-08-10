@@ -23,6 +23,8 @@ use Waaseyaa\Cache\CacheFactory;
 use Waaseyaa\Cache\EntityPayloadBoundaryConfig;
 use Waaseyaa\Cache\ProjectionDeprecationDiagnostic;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
+use Waaseyaa\Foundation\Community\CommunityContextInterface;
+use Waaseyaa\Foundation\Community\CommunityMiddleware;
 use Waaseyaa\Foundation\Http\ControllerDispatcher;
 use Waaseyaa\Foundation\Http\CorsHandler;
 use Waaseyaa\Foundation\Http\HttpServiceResolverInterface;
@@ -570,6 +572,10 @@ final class HttpKernel extends AbstractKernel
         $gate = new EntityAccessGate($this->accessHandler, null, $this->fieldReadScope(), $this->accountContext());
         $accessChecker = new AccessChecker(gate: $gate);
         $errorPageRenderer = $this->resolveErrorPageRenderer();
+        $communityContext = $this->getHttpServiceResolver()->resolve(CommunityContextInterface::class);
+        if (!$communityContext instanceof CommunityContextInterface) {
+            throw new \LogicException('The HTTP pipeline requires the Foundation community context binding.');
+        }
 
         $middlewares = [
             new SecurityHeadersMiddleware(
@@ -596,6 +602,10 @@ final class HttpKernel extends AbstractKernel
                 accountContext: $this->accountContext(),
                 statelessPathPrefixes: $this->sessionStatelessPaths(),
             ),
+            // Explicit built-in until the declarative middleware/runtime contract
+            // is resolved in #2330. Provider discovery alone does not instantiate
+            // #[AsMiddleware] classes in the HTTP pipeline.
+            new CommunityMiddleware($communityContext),
             new CsrfMiddleware(),
             new AuthorizationMiddleware($accessChecker, $errorPageRenderer),
         ];
