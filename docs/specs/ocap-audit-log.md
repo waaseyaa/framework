@@ -1,5 +1,6 @@
 # OCAP Audit Log Substrate
 
+<!-- Spec reviewed 2026-08-10 - #2327: AuditServiceProvider passes the authoritative active CommunityContextInterface into FieldReadContextMiddleware so strict bootstrap receipts and immutable principals share configured community scope. Ledger storage, reservation, and finalization semantics are unchanged. -->
 <!-- Spec reviewed 2026-08-08 - #2304: AuditServiceProvider binds an authenticated-self-only profile reader that issues exact `name` and `mail` authority, binds actor plus tenant/community claims, records the privileged read, and revokes the execution boundary afterward. Anonymous or mismatched actors fail before authority reservation. -->
 
 <!-- Spec reviewed 2026-07-17 - #2064 WP1 adds the StrictPrivilegedReadLedgerInterface reservation/finalization contract and metadata-only descriptor/receipt/outcome values. It is separate from and does not alter the existing best-effort AuditWriterInterface; no implementation is wired in WP1. Canonical contract: entity-field-read-boundary.md. -->

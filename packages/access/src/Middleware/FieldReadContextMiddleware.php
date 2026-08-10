@@ -15,6 +15,7 @@ use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\ContextualAccountPrincipalFactoryInterface;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
+use Waaseyaa\Foundation\Community\CommunityContextInterface;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
 
@@ -31,6 +32,7 @@ final readonly class FieldReadContextMiddleware implements HttpMiddlewareInterfa
         private AccountPrincipalFactoryInterface $principalFactory,
         private AccountFieldReadScopeInterface $scope,
         private ?AccountContextInterface $accountContext = null,
+        private ?CommunityContextInterface $communityContext = null,
     ) {}
 
     public function process(Request $request, HttpHandlerInterface $next): Response
@@ -41,6 +43,9 @@ final readonly class FieldReadContextMiddleware implements HttpMiddlewareInterfa
         if ($communityId === null) {
             $session = $request->attributes->get('_session');
             $communityId = is_array($session) ? $this->scopeId($session['waaseyaa_community_id'] ?? null) : null;
+        }
+        if ($communityId === null && $this->communityContext?->isActive()) {
+            $communityId = $this->scopeId($this->communityContext->get());
         }
         $principal = $account instanceof AccountInterface
             ? ($this->principalFactory instanceof ContextualAccountPrincipalFactoryInterface
