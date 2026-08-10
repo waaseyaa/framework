@@ -10,6 +10,19 @@ SHA=$(git rev-parse HEAD)
 TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 TAG=$(git describe --tags --exact-match 2>/dev/null || echo "untagged")
 
+if [ "$ENV" = "production" ] && [ "$TAG" = "untagged" ]; then
+    if [ "${ALLOW_UNTAGGED_PRODUCTION:-0}" != "1" ]; then
+        echo "ERROR: production deployment requires an exact release tag" >&2
+        exit 1
+    fi
+    JUSTIFICATION="${DEPLOY_EMERGENCY_JUSTIFICATION:-}"
+    if [ ${#JUSTIFICATION} -lt 20 ]; then
+        echo "ERROR: emergency untagged production deployment requires a 20+ character justification" >&2
+        exit 1
+    fi
+    echo "WARNING: emergency untagged production override: $JUSTIFICATION" >&2
+fi
+
 echo "=== Deploy to $ENV ==="
 echo "  SHA: $SHA"
 echo "  Tag: $TAG"

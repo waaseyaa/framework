@@ -114,6 +114,29 @@ final class CiReleaseWorkflowParityTest extends TestCase
     }
 
     #[Test]
+    public function deployment_requires_explicit_exact_sha_dispatch_and_protected_production_intent(): void
+    {
+        $workflow = $this->read('.github/workflows/release.yml');
+        $deployScript = $this->read('scripts/deploy.sh');
+
+        self::assertStringNotContainsString('  push:', $workflow);
+        self::assertStringContainsString('  workflow_dispatch:', $workflow);
+        self::assertStringContainsString('sha:', $workflow);
+        self::assertStringContainsString('target:', $workflow);
+        self::assertStringContainsString('allow_untagged_production:', $workflow);
+        self::assertStringContainsString('Validate explicit deployment request', $workflow);
+        self::assertStringContainsString('^[0-9a-f]{40}$', $workflow);
+        self::assertStringContainsString('git merge-base --is-ancestor "$DEPLOY_SHA" origin/main', $workflow);
+        self::assertStringContainsString("if: inputs.target == 'production'", $workflow);
+        self::assertStringContainsString('environment: production', $workflow);
+        self::assertStringContainsString('ref: ${{ inputs.sha }}', $workflow);
+
+        self::assertStringContainsString('[ "$ENV" = "production" ] && [ "$TAG" = "untagged" ]', $deployScript);
+        self::assertStringContainsString('ALLOW_UNTAGGED_PRODUCTION', $deployScript);
+        self::assertStringContainsString('DEPLOY_EMERGENCY_JUSTIFICATION', $deployScript);
+    }
+
+    #[Test]
     public function exact_release_gate_installs_the_advanced_skeleton_from_the_checked_out_source(): void
     {
         $ci = $this->read('.github/workflows/ci.yml');
