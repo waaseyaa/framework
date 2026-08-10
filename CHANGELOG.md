@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **revision community isolation (#2320):** Anchor default and per-language revision history to the community-scoped base row. Foreign revision reads now return missing results, while saves, deletes, rollbacks, pointer changes, pruning, and translation revision mutations fail before lifecycle events or storage changes. Custom `RevisionableStorageDriverV2Interface` implementations must adopt the two additive tenancy-boundary methods documented in `docs/upgrade-notes/revision-community-scope.md`.
+
 - **external extension policy discovery (#2314):** Discover access policies from explicitly participating installed packages even when their production namespace is outside `Waaseyaa\\` and the root application. Preserve exact fail-closed policy inventory checks without activating unrelated external entity, middleware, formatter, agent-tool, or schedule attributes.
 
 - **deterministic Composer policy version (#2316):** Resolve CP-NEW's expected internal constraint from the tracked `VERSION` file, with the historical git-tag lookup retained only for repositories that do not carry `VERSION`. A release commit now passes the policy gate even when the client has not fetched its corresponding tag ref.

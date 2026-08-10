@@ -9,12 +9,16 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
+use Waaseyaa\EntityStorage\Tests\Fixtures\TestRevisionableEntity;
 use Waaseyaa\Field\FieldDefinitionRegistry;
+use Waaseyaa\Foundation\Community\CommunityContext;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\Kernel\EntityTypeManagerFactory;
-use Waaseyaa\Foundation\Log\LogManager;
 use Waaseyaa\Foundation\Log\Handler\ErrorLogHandler;
+use Waaseyaa\Foundation\Log\LogManager;
 
 #[CoversClass(EntityTypeManagerFactory::class)]
 final class EntityTypeManagerFactoryTest extends TestCase
@@ -134,5 +138,47 @@ final class EntityTypeManagerFactoryTest extends TestCase
         $manager->getRepository('scope_test');
 
         $this->assertContains('scope_test', $resolvedTypes, 'communityScoreResolver must be called with the entity type definition');
+    }
+
+    #[Test]
+    public function build_wires_the_same_community_scope_into_revision_storage(): void
+    {
+        $context = new CommunityContext();
+        $context->set('community-a');
+        $scope = new CommunityScope($context);
+        $manager = new EntityTypeManagerFactory()->build(
+            database: $this->database,
+            dispatcher: $this->dispatcher,
+            fieldRegistry: $this->fieldRegistry,
+            logger: $this->logger,
+            accessHandlerResolver: static fn() => null,
+            communityScoreResolver: static fn() => $scope,
+            accountContextAttacher: static function (object $repo): void {},
+            fieldReadScope: $this->fieldReadScope,
+        );
+        $manager->registerEntityType(new EntityType(
+            id: 'kernel_scoped_revisionable',
+            label: 'Kernel scoped revisionable',
+            class: TestRevisionableEntity::class,
+            keys: ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'revision' => 'revision_id'],
+            revisionable: true,
+            revisionDefault: true,
+            tenancy: ['scope' => EntityType::TENANCY_SCOPE_COMMUNITY],
+        ));
+        $repository = $manager->getRepository('kernel_scoped_revisionable');
+        $entity = new TestRevisionableEntity(values: [
+            'id' => '1',
+            'uuid' => 'kernel-scoped-a',
+            'title' => 'Community A',
+            'community_id' => 'community-a',
+        ]);
+        $entity->enforceIsNew();
+        $repository->save($entity, validate: false);
+
+        $context->set('community-b');
+
+        self::assertNull($repository->find('1'));
+        self::assertNull($repository->loadRevision('1', 1));
+        self::assertSame([], $repository->listRevisions('1'));
     }
 }

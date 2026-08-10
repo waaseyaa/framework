@@ -7,6 +7,10 @@ namespace Waaseyaa\EntityStorage\Driver;
 /** Additive opaque revision-driver SPI matching the current revision surface. @api */
 interface RevisionableStorageDriverV2Interface
 {
+    public function assertEntityMutationAllowed(string $entityId): void;
+
+    public function requiresBaseAnchor(): bool;
+
     public function writeRevision(
         string $entityId,
         StorageSnapshot $snapshot,

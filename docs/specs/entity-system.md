@@ -1,5 +1,6 @@
 # Entity System
 
+<!-- Spec reviewed 2026-08-09 - issue #2320: the kernel passes one per-type CommunityScope to both base and revision drivers. Revision visibility and mutation authorization are anchored to the indexed base-table community_id; foreign revision payloads, histories, working copies, translation histories, and in-process pointers remain invisible, and foreign mutations fail before events or writes. Revision tables intentionally do not duplicate community_id. -->
 <!-- Spec reviewed 2026-08-08 - Anokii boundary remediation: community-scoped writes stamp the active community and refuse conflicting values in both storage drivers; SQL_BLOB types retain an indexed physical community discriminator. Framework field and agent providers now construct entity types from class attributes, and classification entities/migrations align bundle, language, and blob columns with the canonical schema contract. -->
 
 <!-- Spec reviewed 2026-07-19 - Sheguiandah gap batch: EntityValueContainer gains internal rawProjection(list<string>) for closed, fixed-shape authorities. It releases only the named values through the existing RestrictedEntityValue view binding, never exports the whole value bag, and is consumed through hard-coded EntityBase-bound projectors by the relationship directory; ordinary get()/toArray()/serialization and missing-context behavior are unchanged. Canonical authorization contract: entity-field-read-boundary.md. -->
@@ -1043,9 +1044,19 @@ Additional methods beyond the interface:
 - `getAvailableLanguages(string $entityType, string $id): string[]`
 - `clear(): void`
 
+#### RevisionableStorageDriver
+
+File: `packages/entity-storage/src/Driver/RevisionableStorageDriver.php`
+
+Constructor: `(ConnectionResolverInterface $connectionResolver, EntityTypeInterface $entityType, ?EntityClockInterface $clock = null, ?CommunityScope $communityScope = null)`
+
+When a community scope is active, every default-language and per-language revision read first resolves the entity's indexed base-table row. A row is visible only when its physical `community_id` matches the active community. Foreign `loadRevision`, history, working-copy, tip, language-history, and in-process pointer reads return the same null, empty, or false result as missing data. Revision mutations require the same visible base row and throw `TenancyViolationException` before revision payloads, lifecycle events, or writes can cross the boundary. For a new scoped entity, the repository writes the stamped base row before creating revision 1 in the same transaction, including when the caller supplied an explicit entity ID. Direct scoped revision writes cannot create orphan history without a base owner.
+
+Revision tables deliberately do not duplicate `community_id`. Their tenant ownership is anchored to the canonical base row, which avoids denormalized discriminator drift and protects existing revision tables without a schema migration. With no active scope, behavior is unchanged.
+
 ### Community Scoping (Multi-tenancy)
 
-Waaseyaa supports row-level multi-tenancy via community-scoped query isolation. All entity queries are automatically restricted to the active community when a `CommunityContext` is set.
+Waaseyaa supports row-level multi-tenancy via community-scoped query isolation. All entity queries, revision histories, and revision mutations are automatically restricted to the active community when a `CommunityContext` is set.
 
 #### HasCommunityInterface / HasCommunityTrait
 

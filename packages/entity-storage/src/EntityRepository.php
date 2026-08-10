@@ -792,6 +792,9 @@ final class EntityRepository implements EntityRepositoryInterface
     ): int {
         $isNew = $entity->isNew();
         $entityTypeId = $this->entityType->id();
+        if (!$isNew && $this->revisionDriver !== null) {
+            $this->revisionDriver->assertEntityMutationAllowed((string) $entity->id());
+        }
         $resolvedContext = $saveContext ?? SaveContext::default();
         // Optimistic-locking expectation (mission optimistic-locking-01KTXCHY).
         // Null = no expectation: every conflict-detection branch below is
@@ -1040,10 +1043,12 @@ final class EntityRepository implements EntityRepositoryInterface
         // Skip if already inside a UnitOfWork transaction.
         $transaction = ($unitOfWork === null) ? $this->database?->transaction() : null;
         // A new entity with an auto-assigned id does not know its id until the
-        // base row is inserted below. Writing the revision now would key it
-        // under entity_id '' (an orphan listRevisions never sees), so defer the
-        // revision write until after the base insert.
-        $deferRevision = $createRevision && $this->revisionDriver !== null && $id === '';
+        // base row is inserted below. A community-scoped revision also requires
+        // that stamped base row as its ownership anchor, even for an explicit
+        // id. Defer either case until after the base insert in this transaction.
+        $deferRevision = $createRevision
+            && $this->revisionDriver !== null
+            && ($id === '' || ($isNew && $this->revisionDriver->requiresBaseAnchor()));
 
         // Default-revision discipline (continued): whether this save's
         // base-row write happens at all. Undisciplined saves always write
@@ -1287,6 +1292,10 @@ final class EntityRepository implements EntityRepositoryInterface
 
     private function doDelete(EntityInterface $entity, ?UnitOfWork $unitOfWork = null): void
     {
+        if ($this->revisionDriver !== null) {
+            $this->revisionDriver->assertEntityMutationAllowed((string) $entity->id());
+        }
+
         $entityTypeId = $this->entityType->id();
         $id = (string) $entity->id();
 
@@ -1429,6 +1438,7 @@ final class EntityRepository implements EntityRepositoryInterface
         if ($this->revisionDriver === null) {
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
         }
+        $this->revisionDriver->assertEntityMutationAllowed($entityId);
 
         // Revert authorship (clause 4): the NEW revision is authored by whoever
         // performs the revert — resolved once, from the ambient context (no
@@ -1567,6 +1577,7 @@ final class EntityRepository implements EntityRepositoryInterface
         if ($this->revisionDriver === null) {
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
         }
+        $this->revisionDriver->assertEntityMutationAllowed($entityId);
 
         $row = $this->readRevisionRow($entityId, $revisionId);
         if ($row === null) {
@@ -1699,6 +1710,7 @@ final class EntityRepository implements EntityRepositoryInterface
         if ($this->revisionDriver === null) {
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
         }
+        $this->revisionDriver->assertEntityMutationAllowed($entityId);
 
         // Validate the target revision exists for this entity.
         $targetRow = $this->readRevisionRow($entityId, $revisionId);
@@ -1864,6 +1876,7 @@ final class EntityRepository implements EntityRepositoryInterface
     public function saveTranslationRevision(string $entityId, string $langcode, array $values, ?string $log = null): int
     {
         $driver = $this->assertTwoAxis(__FUNCTION__);
+        $driver->assertEntityMutationAllowed($entityId);
 
         // Author resolved once per operation (FR-001; ambient context — this
         // path carries no SaveContext).
@@ -1906,6 +1919,7 @@ final class EntityRepository implements EntityRepositoryInterface
     public function saveTranslationRevisions(string $entityId, array $byLangcode, ?string $log = null): array
     {
         $driver = $this->assertTwoAxis(__FUNCTION__);
+        $driver->assertEntityMutationAllowed($entityId);
         if ($byLangcode === []) {
             throw new \InvalidArgumentException('saveTranslationRevisions requires at least one langcode.');
         }
@@ -2040,6 +2054,7 @@ final class EntityRepository implements EntityRepositoryInterface
     public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int
     {
         $driver = $this->assertTwoAxis(__FUNCTION__);
+        $driver->assertEntityMutationAllowed($entityId);
         if ($this->database === null) {
             throw new \LogicException(
                 'saveTranslation requires a database connection for entity type ' . $this->entityType->id(),
@@ -2326,6 +2341,7 @@ final class EntityRepository implements EntityRepositoryInterface
         if ($this->revisionDriver === null) {
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
         }
+        $this->revisionDriver->assertEntityMutationAllowed($entityId);
 
         if ($policy->isNoOp()) {
             return RevisionPruningReport::disabled();
