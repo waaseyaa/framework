@@ -1381,11 +1381,25 @@ interface CommunityContextInterface
 }
 ```
 
-`CommunityContext` is a mutable singleton registered in `FoundationServiceProvider`:
+`CommunityContext` is a mutable singleton registered in `FoundationServiceProvider`.
+The binding prefers the authoritative context from the kernel-services bus and
+creates a default only when the provider is used standalone:
 
 ```php
-$this->singleton(CommunityContextInterface::class, CommunityContext::class);
+$this->singleton(CommunityContextInterface::class, function (): CommunityContextInterface {
+    $kernelContext = $this->kernelServices?->get(CommunityContextInterface::class);
+
+    return $kernelContext instanceof CommunityContextInterface
+        ? $kernelContext
+        : new CommunityContext();
+});
 ```
+
+When the provider runs inside a kernel, this binding reuses the exact
+kernel-owned context supplied through `KernelServicesInterface`. The fallback
+constructor is only for a standalone provider without kernel services. Storage
+scopes, request middleware, and autowired extension controllers must therefore
+observe the same object and active community.
 
 ### CommunityMiddleware
 

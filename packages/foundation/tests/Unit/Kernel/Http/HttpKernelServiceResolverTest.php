@@ -9,6 +9,9 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Foundation\Community\CommunityContext;
+use Waaseyaa\Foundation\Community\CommunityContextInterface;
+use Waaseyaa\Foundation\FoundationServiceProvider;
 use Waaseyaa\Foundation\Http\BindingAwareHttpServiceResolverInterface;
 use Waaseyaa\Foundation\Http\HttpServiceResolverInterface;
 use Waaseyaa\Foundation\Kernel\Http\HttpKernelServiceResolver;
@@ -59,6 +62,26 @@ final class HttpKernelServiceResolverTest extends TestCase
         );
 
         self::assertSame($database, $resolver->resolve(DatabaseInterface::class));
+    }
+
+    #[Test]
+    public function extension_controller_resolution_reuses_the_kernel_community_context(): void
+    {
+        $database = $this->makeDatabaseStub();
+        $context = new CommunityContext();
+        $context->set('community-a');
+        $services = $this->makeKernelServices($database, $context);
+        $provider = new FoundationServiceProvider();
+        $provider->setKernelServices($services);
+        $provider->register();
+        $resolver = new HttpKernelServiceResolver(
+            providersAccessor: static fn(): array => [$provider],
+            kernelServices: $services,
+            logger: new NullLogger(),
+        );
+
+        self::assertSame($context, $resolver->resolve(CommunityContextInterface::class));
+        self::assertSame('community-a', $resolver->resolve(CommunityContextInterface::class)?->get());
     }
 
     #[Test]
@@ -147,14 +170,24 @@ final class HttpKernelServiceResolverTest extends TestCase
         self::assertInstanceOf(BindingAwareHttpServiceResolverInterface::class, $resolver);
     }
 
-    private function makeKernelServices(DatabaseInterface $database): KernelServicesInterface
+    private function makeKernelServices(
+        DatabaseInterface $database,
+        ?CommunityContextInterface $communityContext = null,
+    ): KernelServicesInterface
     {
-        return new class ($database) implements KernelServicesInterface {
-            public function __construct(private readonly DatabaseInterface $database) {}
+        return new class ($database, $communityContext) implements KernelServicesInterface {
+            public function __construct(
+                private readonly DatabaseInterface $database,
+                private readonly ?CommunityContextInterface $communityContext,
+            ) {}
 
             public function get(string $abstract): ?object
             {
-                return $abstract === DatabaseInterface::class ? $this->database : null;
+                return match ($abstract) {
+                    DatabaseInterface::class => $this->database,
+                    CommunityContextInterface::class => $this->communityContext,
+                    default => null,
+                };
             }
         };
     }

@@ -15,6 +15,12 @@ final class FoundationServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->singleton(SovereigntyConfigInterface::class, fn() => SovereigntyConfig::fromArray($this->config));
-        $this->singleton(CommunityContextInterface::class, CommunityContext::class);
+        $this->singleton(CommunityContextInterface::class, function (): CommunityContextInterface {
+            $kernelContext = $this->kernelServices?->get(CommunityContextInterface::class);
+
+            return $kernelContext instanceof CommunityContextInterface
+                ? $kernelContext
+                : new CommunityContext();
+        });
     }
 }
