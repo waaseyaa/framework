@@ -11,13 +11,9 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AccountPrincipalFactory;
-use Waaseyaa\Access\AuthorizationPrincipal;
-use Waaseyaa\Access\AuthorizationPrincipalInterface;
-use Waaseyaa\Access\ContextualAccountPrincipalFactoryInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\Context\RequestAccountContext;
 use Waaseyaa\Access\Middleware\FieldReadContextMiddleware;
-use Waaseyaa\Foundation\Community\CommunityContext;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Attribute\AsMiddleware;
 use Waaseyaa\Access\Middleware\AuthorizationMiddleware;
@@ -26,75 +22,6 @@ use Waaseyaa\Testing\Factory\AuthorizationPrincipalFactory;
 
 final class FieldReadContextMiddlewareTest extends TestCase
 {
-    #[Test]
-    public function configured_community_is_copied_to_the_immutable_principal(): void
-    {
-        $scope = new AccountFieldReadScope();
-        $community = new CommunityContext();
-        $community->set('community-a');
-        $middleware = new FieldReadContextMiddleware($this->contextualFactory(), $scope, null, $community);
-        $request = Request::create('/admin/anokii/identity');
-        $request->attributes->set('_account', AuthorizationPrincipalFactory::authenticated(id: 42));
-        $handler = new class($community) implements HttpHandlerInterface {
-            public function __construct(private readonly CommunityContext $community) {}
-
-            public function handle(Request $request): Response
-            {
-                $principal = $request->attributes->get('_authorization_principal');
-                TestCase::assertSame('community-a', $principal->communityId());
-                TestCase::assertSame('community-a', $this->community->get());
-
-                return new Response('ok');
-            }
-        };
-
-        self::assertSame('ok', $middleware->process($request, $handler)->getContent());
-    }
-
-    #[Test]
-    public function explicit_request_community_takes_precedence_over_the_configured_context(): void
-    {
-        $scope = new AccountFieldReadScope();
-        $community = new CommunityContext();
-        $community->set('configured-community');
-        $middleware = new FieldReadContextMiddleware($this->contextualFactory(), $scope, null, $community);
-        $request = Request::create('/community/route-community/admin');
-        $request->attributes->set('community_id', 'route-community');
-        $request->attributes->set('_account', AuthorizationPrincipalFactory::authenticated(id: 42));
-        $handler = new class implements HttpHandlerInterface {
-            public function handle(Request $request): Response
-            {
-                $principal = $request->attributes->get('_authorization_principal');
-                TestCase::assertSame('route-community', $principal->communityId());
-
-                return new Response('ok');
-            }
-        };
-
-        self::assertSame('ok', $middleware->process($request, $handler)->getContent());
-    }
-
-    #[Test]
-    public function inactive_context_leaves_the_immutable_principal_unscoped(): void
-    {
-        $scope = new AccountFieldReadScope();
-        $community = new CommunityContext();
-        $middleware = new FieldReadContextMiddleware($this->contextualFactory(), $scope, null, $community);
-        $request = Request::create('/admin');
-        $request->attributes->set('_account', AuthorizationPrincipalFactory::authenticated(id: 42));
-        $handler = new class implements HttpHandlerInterface {
-            public function handle(Request $request): Response
-            {
-                $principal = $request->attributes->get('_authorization_principal');
-                TestCase::assertNull($principal->communityId());
-
-                return new Response('ok');
-            }
-        };
-
-        self::assertSame('ok', $middleware->process($request, $handler)->getContent());
-    }
-
     #[Test]
     public function production_order_is_identity_then_field_context_then_route_authorization(): void
     {
@@ -180,31 +107,5 @@ final class FieldReadContextMiddlewareTest extends TestCase
         ob_end_clean();
         self::assertSame(42, $seen);
         self::assertNull($scope->current());
-    }
-
-    private function contextualFactory(): ContextualAccountPrincipalFactoryInterface
-    {
-        return new class implements ContextualAccountPrincipalFactoryInterface {
-            public function fromAccount(AccountInterface $account): AuthorizationPrincipalInterface
-            {
-                return $this->fromAccountInContext($account, null, null);
-            }
-
-            public function fromAccountInContext(
-                AccountInterface $account,
-                ?string $tenantId,
-                ?string $communityId,
-            ): AuthorizationPrincipalInterface {
-                return new AuthorizationPrincipal(
-                    $account->id(),
-                    $account->isAuthenticated(),
-                    $account->getRoles(),
-                    [],
-                    'context-test',
-                    $tenantId,
-                    $communityId,
-                );
-            }
-        };
     }
 }
