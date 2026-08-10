@@ -1,5 +1,6 @@
 # Revision system (unified, with an optional translation axis)
 
+<!-- Spec reviewed 2026-08-09 - issue #2320: community-scoped revision visibility is anchored to the indexed base row. Default and translation revision reads fail as missing across communities; mutation entry points refuse before events and writes. Existing unscoped behavior and revision-table schemas remain unchanged. -->
 <!-- Spec reviewed 2026-07-14 - R21 #2010 / #1968: under default-revision discipline, setPublishedRevision() now partitions the target revision snapshot through BundleSubtableGateway and upserts column-stored bundle values in the same transaction as the base-row/pointer promotion. Draft saves remain revision-only and do not leak into the served subtable. -->
 
 **Status:** Design (2026-06-09). Supersedes the parallel two-axis storage stack
@@ -61,6 +62,12 @@ single-axis path is untouched. `<entity>__translation__revision` columns:
 entities, the framework default). A composite `UNIQUE (entity_id, langcode, revision_id)`
 plus an index `(entity_id, langcode, revision_id DESC)` expresses the logical
 key and serves the per-language tip/list hot paths.
+
+### 2b. Community scope anchor
+
+Revision tables do not carry a second `community_id` discriminator. For an entity type declared with `tenancy: ['scope' => 'community']`, the kernel injects the same `CommunityScope` into `SqlStorageDriver` and `RevisionableStorageDriver`. The revision driver authorizes an entity ID against the indexed physical `community_id` on its canonical base row before touching either live revision table.
+
+With an active scope, foreign default and translation revision reads return the same null, empty, or false result as absent data. This includes individual revisions, revision ID lists, latest tips, language lists, working-copy resolution, and in-process per-language pointers. Mutating operations require a visible base row and fail before reading a foreign revision payload, dispatching a lifecycle event, or changing revision, pointer, translation-peer, or base storage. For a new scoped entity, the repository writes the stamped base row before revision 1 in the same transaction, including explicitly keyed entities; direct scoped revision writes cannot create orphan history without a base owner. With an inactive or uninjected scope, the pre-#2320 behavior is preserved.
 
 ### 2a. Revision metadata columns (both live tables)
 

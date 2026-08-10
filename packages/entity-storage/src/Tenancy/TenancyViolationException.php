@@ -14,4 +14,14 @@ final class TenancyViolationException extends \RuntimeException
             $provided,
         ));
     }
+
+    public static function invisibleEntity(string $active, string $entityType, string $entityId): self
+    {
+        return new self(sprintf(
+            'Scoped revision mutation refused: entity "%s:%s" is not visible in active community "%s".',
+            $entityType,
+            $entityId,
+            $active,
+        ));
+    }
 }

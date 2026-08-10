@@ -10,6 +10,8 @@ use Waaseyaa\Entity\DateTime\EntityClockInterface;
 use Waaseyaa\Entity\DateTime\UtcEntityClock;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\EntityStorage\Connection\ConnectionResolverInterface;
+use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
+use Waaseyaa\EntityStorage\Tenancy\TenancyViolationException;
 
 /**
  * SQL driver for revision table I/O.
@@ -71,6 +73,7 @@ final class RevisionableStorageDriver
         private readonly ConnectionResolverInterface $connectionResolver,
         private readonly EntityTypeInterface $entityType,
         ?EntityClockInterface $clock = null,
+        private readonly ?CommunityScope $communityScope = null,
     ) {
         $this->revisionTable = $this->entityType->id() . '_revision';
         $this->translationRevisionTable = $this->entityType->id() . '__translation__revision';
@@ -100,6 +103,8 @@ final class RevisionableStorageDriver
      */
     public function writeRevision(string $entityId, array $values, ?string $log, ?string $langcode = null, ?int $author = null): int
     {
+        $this->assertScopedMutationAllowed($entityId);
+
         if ($langcode !== null && $this->isTwoAxis()) {
             return $this->writePerLangcodeRevision($entityId, $values, $log, $langcode, $author);
         }
@@ -117,6 +122,7 @@ final class RevisionableStorageDriver
      */
     public function updateRevision(string $entityId, int $revisionId, array $values): void
     {
+        $this->assertScopedMutationAllowed($entityId);
         $db = $this->getDatabase();
 
         $keys = $this->entityType->getKeys();
@@ -182,6 +188,10 @@ final class RevisionableStorageDriver
      */
     public function readRevision(string $entityId, int $revisionId): ?array
     {
+        if (!$this->isVisible($entityId)) {
+            return null;
+        }
+
         $db = $this->getDatabase();
 
         $result = $db->select($this->revisionTable)
@@ -218,6 +228,10 @@ final class RevisionableStorageDriver
 
     public function getLatestRevisionId(string $entityId): ?int
     {
+        if (!$this->isVisible($entityId)) {
+            return null;
+        }
+
         $db = $this->getDatabase();
 
         $result = $db->query(
@@ -238,6 +252,10 @@ final class RevisionableStorageDriver
      */
     public function getRevisionIds(string $entityId): array
     {
+        if (!$this->isVisible($entityId)) {
+            return [];
+        }
+
         $db = $this->getDatabase();
 
         $result = $db->query(
@@ -255,6 +273,7 @@ final class RevisionableStorageDriver
 
     public function deleteRevision(string $entityId, int $revisionId): void
     {
+        $this->assertScopedMutationAllowed($entityId);
         $db = $this->getDatabase();
 
         // Guard: cannot delete the default revision (invariant #8) or the
@@ -309,6 +328,7 @@ final class RevisionableStorageDriver
      */
     public function deleteAllRevisions(string $entityId): void
     {
+        $this->assertScopedMutationAllowed($entityId);
         $db = $this->getDatabase();
 
         $db->delete($this->revisionTable)
@@ -518,6 +538,10 @@ final class RevisionableStorageDriver
      */
     public function readLangcodeRevision(string $entityId, string $langcode, int $revisionId): ?array
     {
+        if (!$this->isVisible($entityId)) {
+            return null;
+        }
+
         $db = $this->getDatabase();
 
         $result = $db->select($this->translationRevisionTable)
@@ -542,6 +566,10 @@ final class RevisionableStorageDriver
      */
     public function getLatestLangcodeRevisionId(string $entityId, string $langcode): ?int
     {
+        if (!$this->isVisible($entityId)) {
+            return null;
+        }
+
         $db = $this->getDatabase();
 
         $result = $db->query(
@@ -567,6 +595,10 @@ final class RevisionableStorageDriver
      */
     public function getLangcodeRevisionIds(string $entityId, string $langcode): array
     {
+        if (!$this->isVisible($entityId)) {
+            return [];
+        }
+
         $db = $this->getDatabase();
 
         $result = $db->query(
@@ -593,6 +625,10 @@ final class RevisionableStorageDriver
      */
     public function getLangcodesWithRevisions(string $entityId): array
     {
+        if (!$this->isVisible($entityId)) {
+            return [];
+        }
+
         $db = $this->getDatabase();
 
         $result = $db->query(
@@ -620,6 +656,10 @@ final class RevisionableStorageDriver
      */
     public function currentLangcodeRevision(string $entityId, string $langcode): ?int
     {
+        if (!$this->isVisible($entityId)) {
+            return null;
+        }
+
         return $this->currentLangcodePointers[$entityId][$langcode] ?? null;
     }
 
@@ -634,6 +674,7 @@ final class RevisionableStorageDriver
      */
     public function setCurrentLangcodeRevision(string $entityId, string $langcode, int $revisionId): void
     {
+        $this->assertScopedMutationAllowed($entityId);
         $this->currentLangcodePointers[$entityId][$langcode] = $revisionId;
     }
 
@@ -645,7 +686,74 @@ final class RevisionableStorageDriver
      */
     public function hasCurrentLangcodeRevision(string $entityId, string $langcode): bool
     {
+        if (!$this->isVisible($entityId)) {
+            return false;
+        }
+
         return isset($this->currentLangcodePointers[$entityId][$langcode]);
+    }
+
+    /**
+     * Revision tables intentionally do not duplicate the tenancy discriminator.
+     * Their visibility is anchored to the entity's indexed base-table row.
+     */
+    private function isVisible(string $entityId): bool
+    {
+        if (!$this->communityScope?->isActive()) {
+            return true;
+        }
+
+        return $this->baseScopeState($entityId) === 1;
+    }
+
+    public function assertEntityMutationAllowed(string $entityId): void
+    {
+        $this->assertScopedMutationAllowed($entityId);
+    }
+
+    public function requiresBaseAnchor(): bool
+    {
+        return $this->communityScope?->isActive() ?? false;
+    }
+
+    private function assertScopedMutationAllowed(string $entityId): void
+    {
+        if (!$this->communityScope?->isActive()) {
+            return;
+        }
+
+        $active = $this->communityScope->getCommunityId();
+        $state = $this->baseScopeState($entityId);
+        if ($state === 1) {
+            return;
+        }
+
+        throw TenancyViolationException::invisibleEntity($active, $this->entityType->id(), $entityId);
+    }
+
+    /**
+     * @return int 0 when absent, 1 when visible, 2 when only foreign rows exist.
+     */
+    private function baseScopeState(string $entityId): int
+    {
+        $db = $this->getDatabase();
+        $baseTable = $this->entityType->id();
+        $idKey = $this->entityType->getKeys()['id'] ?? 'id';
+        $active = $this->communityScope?->getCommunityId();
+        $found = false;
+
+        $result = $db->query(
+            'SELECT community_id FROM ' . $baseTable . ' WHERE ' . $idKey . ' = ?',
+            [$entityId],
+        );
+        foreach ($result as $row) {
+            $found = true;
+            if ((string) ((array) $row)['community_id'] === $active) {
+                return 1;
+            }
+        }
+
+        return $found ? 2 : 0;
     }
 
     private function getDatabase(): DatabaseInterface

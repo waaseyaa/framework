@@ -121,10 +121,11 @@ final class EntityTypeManagerFactory
 
                 $resolver = new SingleConnectionResolver($database);
                 $storageBoundary = new StorageBoundary();
+                $communityScope = $communityScoreResolver($definition);
                 $rawDriver = new SqlStorageDriver(
                     $resolver,
                     $idKey,
-                    $communityScoreResolver($definition),
+                    $communityScope,
                     $fieldRegistry,
                 );
                 $driver = new SqlStorageDriverV2(
@@ -134,7 +135,7 @@ final class EntityTypeManagerFactory
                 );
                 $revisionDriver = $definition->isRevisionable()
                     ? new RevisionableStorageDriverV2(
-                        new RevisionableStorageDriver($resolver, $definition),
+                        new RevisionableStorageDriver($resolver, $definition, communityScope: $communityScope),
                         $storageBoundary->driverRowFactory(),
                         $storageBoundary->driverSnapshotReader(),
                     )

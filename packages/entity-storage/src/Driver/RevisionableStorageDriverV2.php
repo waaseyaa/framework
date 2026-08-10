@@ -17,6 +17,16 @@ final readonly class RevisionableStorageDriverV2 implements RevisionableStorageD
         private StorageSnapshotReader $snapshotReader,
     ) {}
 
+    public function assertEntityMutationAllowed(string $entityId): void
+    {
+        $this->backend->assertEntityMutationAllowed($entityId);
+    }
+
+    public function requiresBaseAnchor(): bool
+    {
+        return $this->backend->requiresBaseAnchor();
+    }
+
     public function writeRevision(
         string $entityId,
         StorageSnapshot $snapshot,
