@@ -142,6 +142,23 @@ The workflow:
 
 Failure recovery is clean by construction: if either gate fails, main is untouched and no tag exists. Fix main (normal commits, normal CI), then re-run the cut with the same version. If the final atomic push is rejected because main advanced during the gate, nothing was tagged — re-run the cut.
 
+## Deployment promotion and freezes
+
+Merging to `main` proves deployability through CI; it is not a deployment.
+`.github/workflows/release.yml` is manual-dispatch only and requires the exact
+40-character SHA of a commit reachable from `origin/main`. A `staging` target
+stops after the staging build and full browser sweep. A `production` target
+must pass the same staging proof and then enter the separately protected GitHub
+production environment before promotion.
+
+Production normally requires the checked-out commit to carry an exact release
+tag. An emergency untagged promotion is fail-closed unless the operator selects
+the explicit override and supplies an audit justification of at least 20
+characters. The deployment script enforces the same rule independently of the
+workflow. A deployment freeze is therefore verified by the absence of manual
+`Release Pipeline` dispatches; ordinary CI, PR merges, and non-release package
+splits create no staging or production environment record.
+
 The push must use the `SPLIT_GITHUB_TOKEN` PAT, not the default `GITHUB_TOKEN`, because tag pushes by `GITHUB_TOKEN` do **not** trigger downstream workflows — and `split.yml` + `packagist-update.yml` are exactly what we need to fire.
 
 **Local gate runs are advisory only.** Pre-cut checks that matter run Linux-side in CI; a green local run (especially on Windows) proves nothing about the release — Windows masked both the `packages/`-scoped grep miss and platform-conditional test failures during the alpha.200–202 cuts, and local git hooks may not even be installed (`core.hooksPath` is unset on fresh clones). Never treat a local `composer verify`/phpunit pass as authorization to cut; the Actions API is the authority, and `bin/wait-for-green-ci` is how every release path consults it.

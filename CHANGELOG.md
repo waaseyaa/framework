@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **explicit deployment promotion (#2332):** Stop treating every main-branch merge as a staging and production deployment. Environment promotion now requires a manual exact-main-SHA request, production intent is explicit and protected separately, and untagged production is refused unless an audited emergency override is supplied.
+
 - **configured-community HTTP principals (#2327):** Install community resolution in the real HTTP kernel before immutable principal construction, normalize the authoritative configured community when routes have no explicit selector, and restore that configured context after every request so long-lived workers remain scoped. Explicit route/session precedence and null scope for inactive contexts are preserved.
 
 - **HTTP community context identity (#2325):** Reuse the kernel-owned community context from the foundation provider so community-scoped storage, middleware, and autowired extension controllers observe the same configured tenant instead of a separate inactive singleton.

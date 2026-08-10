@@ -1,25 +1,83 @@
 name: Release Pipeline
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      sha:
+        description: Exact 40-character commit SHA from main to deploy
+        required: true
+        type: string
+      target:
+        description: Stop after staging or request protected production promotion
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+      allow_untagged_production:
+        description: Emergency-only production override for an untagged SHA
+        required: false
+        default: false
+        type: boolean
+      emergency_justification:
+        description: Required audit justification when using the emergency override
+        required: false
+        type: string
 
 concurrency:
   group: release-pipeline
   cancel-in-progress: false
 
 jobs:
-  deploy-staging:
-    name: Deploy to staging
+  validate-deploy-request:
+    name: Validate explicit deployment request
     runs-on: ubuntu-latest
-    environment: staging
     outputs:
-      deploy_sha: ${{ github.sha }}
+      deploy_sha: ${{ steps.validate.outputs.deploy_sha }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+
+      - name: Validate exact main SHA and emergency intent
+        id: validate
+        env:
+          DEPLOY_SHA: ${{ inputs.sha }}
+          DEPLOY_TARGET: ${{ inputs.target }}
+          ALLOW_UNTAGGED: ${{ inputs.allow_untagged_production }}
+          EMERGENCY_JUSTIFICATION: ${{ inputs.emergency_justification }}
+        run: |
+          if [[ ! "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::sha must be an exact lowercase 40-character commit SHA"
+            exit 1
+          fi
+          git fetch --no-tags origin main
+          git cat-file -e "$DEPLOY_SHA^{commit}"
+          git merge-base --is-ancestor "$DEPLOY_SHA" origin/main || {
+            echo "::error::deployment SHA must be reachable from origin/main"
+            exit 1
+          }
+          if [[ "$ALLOW_UNTAGGED" == "true" ]]; then
+            if [[ "$DEPLOY_TARGET" != "production" || ${#EMERGENCY_JUSTIFICATION} -lt 20 ]]; then
+              echo "::error::untagged override requires production target and a 20+ character justification"
+              exit 1
+            fi
+          fi
+          echo "deploy_sha=$DEPLOY_SHA" >> "$GITHUB_OUTPUT"
+
+  deploy-staging:
+    name: Deploy to staging
+    runs-on: ubuntu-latest
+    needs: [validate-deploy-request]
+    environment: staging
+    outputs:
+      deploy_sha: ${{ needs.validate-deploy-request.outputs.deploy_sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.validate-deploy-request.outputs.deploy_sha }}
 
       - name: Set up PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
@@ -44,8 +102,8 @@ jobs:
           mkdir -p build/deploy
           jq -n \
             --arg env "staging" \
-            --arg sha "${{ github.sha }}" \
-            --arg ref "${{ github.ref }}" \
+            --arg sha "${{ needs.validate-deploy-request.outputs.deploy_sha }}" \
+            --arg ref "refs/heads/main" \
             --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --arg actor "${{ github.actor }}" \
             --arg run_id "${{ github.run_id }}" \
@@ -65,6 +123,8 @@ jobs:
     needs: [deploy-staging]
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.deploy-staging.outputs.deploy_sha }}
 
       - name: Set up PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
@@ -125,11 +185,13 @@ jobs:
     name: Promote to production
     runs-on: ubuntu-latest
     needs: [playwright-full-sweep]
+    if: inputs.target == 'production'
     environment: production
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          ref: ${{ inputs.sha }}
 
       - name: Set up PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
@@ -142,6 +204,9 @@ jobs:
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
 
       - name: Deploy to production
+        env:
+          ALLOW_UNTAGGED_PRODUCTION: ${{ inputs.allow_untagged_production && '1' || '0' }}
+          DEPLOY_EMERGENCY_JUSTIFICATION: ${{ inputs.emergency_justification }}
         run: |
           if [ -f scripts/deploy.sh ]; then
             bash scripts/deploy.sh production
@@ -154,8 +219,8 @@ jobs:
           mkdir -p build/deploy
           jq -n \
             --arg env "production" \
-            --arg sha "${{ github.sha }}" \
-            --arg ref "${{ github.ref }}" \
+            --arg sha "${{ inputs.sha }}" \
+            --arg ref "refs/heads/main" \
             --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --arg actor "${{ github.actor }}" \
             --arg run_id "${{ github.run_id }}" \
@@ -173,8 +238,11 @@ jobs:
     name: Post-deploy smoke tests
     runs-on: ubuntu-latest
     needs: [promote-production]
+    if: inputs.target == 'production'
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
 
       - name: Set up PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
