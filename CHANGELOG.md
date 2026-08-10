@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **configured-community HTTP principals (#2327):** Scope audited immutable HTTP principals to the authoritative active community when fixed-community routes have no route or session selector, while preserving explicit request/session precedence and null scope for inactive contexts.
+
 - **HTTP community context identity (#2325):** Reuse the kernel-owned community context from the foundation provider so community-scoped storage, middleware, and autowired extension controllers observe the same configured tenant instead of a separate inactive singleton.
 
 - **translation-peer community isolation (#2322):** Route two-axis translation peer writes through a tenant-aware storage capability so peer rows inherit the canonical base-row owner, foreign writes fail before events or storage changes, and existing empty-owner peers can be repaired explicitly with `tenancy:repair-translation-peers` after a dry run.

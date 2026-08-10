@@ -55,6 +55,7 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\Backend\StrictFieldStorageGatewayAuditInterface;
 use Waaseyaa\Foundation\Audit\Approval\OperationApprovalStoreInterface;
 use Waaseyaa\Foundation\Audit\StrictAuditLedgerInterface;
+use Waaseyaa\Foundation\Community\CommunityContextInterface;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Exception\ConfigException;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -388,12 +389,14 @@ final class AuditServiceProvider extends ServiceProvider implements HasMiddlewar
         $principalFactory = $this->resolve(AccountPrincipalFactoryInterface::class);
         assert($principalFactory instanceof AccountPrincipalFactoryInterface);
         $accountContext = $this->resolveOptional(AccountContextInterface::class);
+        $communityContext = $this->resolveOptional(CommunityContextInterface::class);
 
         return [
             new FieldReadContextMiddleware(
                 $principalFactory,
                 $scope,
                 $accountContext instanceof AccountContextInterface ? $accountContext : null,
+                $communityContext instanceof CommunityContextInterface ? $communityContext : null,
             ),
             new ApiRequestAuditListener($writer, $resolvedLogger),
         ];
