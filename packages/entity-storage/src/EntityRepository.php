@@ -30,11 +30,13 @@ use Waaseyaa\Entity\Validation\EntityValidationException;
 use Waaseyaa\Entity\Validation\EntityValidator;
 use Waaseyaa\EntityStorage\Bundle\BundleSubtableGateway;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverV2Interface;
+use Waaseyaa\EntityStorage\Driver\LangcodePeerStorageDriverV2Interface;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriverV2;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriverV2Interface;
 use Waaseyaa\EntityStorage\Driver\StorageBoundary;
 use Waaseyaa\EntityStorage\Driver\StorageRowReader;
+use Waaseyaa\EntityStorage\Driver\StorageSnapshot;
 use Waaseyaa\EntityStorage\Driver\StorageSnapshotFactory;
 use Waaseyaa\EntityStorage\Event\AbortOperationException;
 use Waaseyaa\EntityStorage\Event\AfterSaveEvent;
@@ -2061,11 +2063,30 @@ final class EntityRepository implements EntityRepositoryInterface
             );
         }
 
+        $values = $this->canonicalizeBooleanFieldValues($values, entityId: $entityId);
+        [$peerDriver, $defaultLangcode, $peerSnapshot] = $this->prepareLangcodePeerWrite(
+            $entityId,
+            $langcode,
+            $values,
+        );
+
         // Author resolved once per operation (FR-001).
         $actor = $this->resolveActor(null);
 
         $transaction = $this->database->transaction();
         try {
+            // Refuse foreign, ownerless, and conflicting exact peers before an
+            // event subscriber can observe the attempted pointer move. The
+            // write repeats this check inside the same transaction as defense
+            // in depth against direct capability callers.
+            $peerDriver->assertLangcodePeerMutationAllowed(
+                $this->entityType->id(),
+                $entityId,
+                $langcode,
+                $defaultLangcode,
+                $peerSnapshot,
+            );
+
             // Bypass-choke-point pre-event (CW-v1 WP-2 task 2.4, #1920):
             // dispatched BEFORE the peer-row upsert or the revision write. A
             // throwing subscriber propagates out of this try block, rolling
@@ -2083,8 +2104,13 @@ final class EntityRepository implements EntityRepositoryInterface
                 BeforeRevisionPointerMoveEvent::class,
             );
 
-            $values = $this->canonicalizeBooleanFieldValues($values, entityId: $entityId);
-            $this->upsertLangcodePeerRow($entityId, $langcode, $values);
+            $peerDriver->writeLangcodePeer(
+                $this->entityType->id(),
+                $entityId,
+                $langcode,
+                $defaultLangcode,
+                $peerSnapshot,
+            );
             $revisionId = $this->writeRevisionRow($entityId, $values, $log, $langcode, $actor);
             $transaction->commit();
         } catch (\Throwable $e) {
@@ -2154,72 +2180,48 @@ final class EntityRepository implements EntityRepositoryInterface
      * UUID index (which only constrains default-langcode rows) is satisfied.
      *
      * @param array<string, mixed> $values
+     * @return array{LangcodePeerStorageDriverV2Interface, string, StorageSnapshot}
      */
-    private function upsertLangcodePeerRow(string $entityId, string $langcode, array $values): void
+    private function prepareLangcodePeerWrite(string $entityId, string $langcode, array $values): array
     {
-        \assert($this->database !== null);
-
         $table = $this->entityType->id();
         $keys = $this->entityType->getKeys();
         $idKey = $keys['id'] ?? 'id';
         $langKey = $keys['langcode'] ?? 'langcode';
         $labelKey = $keys['label'] ?? 'label';
-        $schema = $this->database->schema();
-
-        // Split the values into real columns vs the `_data` blob.
-        $columns = [];
-        $data = [];
-        foreach ($values as $key => $value) {
-            if ($key === $idKey || $key === $langKey || $key === '_data') {
-                continue;
-            }
-            if ($schema->fieldExists($table, $key)) {
-                $columns[$key] = $value;
-            } else {
-                $data[$key] = $value;
-            }
+        $values[$idKey] = $entityId;
+        $values[$langKey] = $langcode;
+        if ($labelKey !== '' && isset($values[$labelKey])) {
+            $values[$labelKey] = (string) $values[$labelKey];
         }
-        if ($labelKey !== '' && isset($values[$labelKey]) && $schema->fieldExists($table, $labelKey)) {
-            $columns[$labelKey] = (string) $values[$labelKey];
-        }
-
-        $row = $columns;
-        if ($schema->fieldExists($table, '_data')) {
-            $row['_data'] = json_encode($data, \JSON_THROW_ON_ERROR);
-        }
-
-        $exists = false;
-        foreach ($this->database->query(
-            'SELECT 1 FROM ' . $table . ' WHERE ' . $idKey . ' = ? AND ' . $langKey . ' = ?',
-            [$entityId, $langcode],
-        ) as $_) {
-            $exists = true;
-            break;
-        }
-
-        if ($exists) {
-            $this->database->update($table)
-                ->fields($row)
-                ->condition($idKey, $entityId)
-                ->condition($langKey, $langcode)
-                ->execute();
-
-            return;
-        }
-
-        $row[$idKey] = $entityId;
-        $row[$langKey] = $langcode;
+        $defaultRow = $this->readDriverRow($table, $entityId);
         if (isset($keys['uuid'])) {
-            $defaultRow = $this->readDriverRow($table, $entityId);
             if ($defaultRow !== null && isset($defaultRow[$keys['uuid']])) {
-                $row[$keys['uuid']] = $defaultRow[$keys['uuid']];
+                $values[$keys['uuid']] = $defaultRow[$keys['uuid']];
             }
         }
+        $defaultLangKey = $keys['default_langcode'] ?? 'default_langcode';
+        $defaultLangcode = $defaultRow[$defaultLangKey] ?? $defaultRow[$langKey] ?? null;
+        if (!is_string($defaultLangcode) || $defaultLangcode === '') {
+            throw new \LogicException(sprintf(
+                'Langcode peer writes require a canonical default-language row for entity type "%s" and id "%s".',
+                $table,
+                $entityId,
+            ));
+        }
+        $values[$defaultLangKey] = $defaultLangcode;
 
-        $this->database->insert($table)
-            ->fields(array_keys($row))
-            ->values($row)
-            ->execute();
+        if (!$this->driver instanceof LangcodePeerStorageDriverV2Interface) {
+            throw new \LogicException(sprintf(
+                'Storage driver for entity type "%s" does not support langcode peer writes.',
+                $table,
+            ));
+        }
+        return [
+            $this->driver,
+            $defaultLangcode,
+            $this->storageSnapshotFactory->create($values),
+        ];
     }
 
     /**

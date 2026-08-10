@@ -1,5 +1,6 @@
 # Entity System
 
+<!-- Spec reviewed 2026-08-09 - issue #2322: two-axis translation peer writes use the optional LangcodePeerStorageDriverV2Interface rather than repository-owned raw SQL. Scoped drivers require a visible canonical base owner, stamp that community_id onto new peers, and refuse foreign or legacy-empty exact peers before events or writes. CommunityTranslationPeerRepairer and tenancy:repair-translation-peers provide an explicit, UUID-guarded repair for existing empty-owner peers. -->
 <!-- Spec reviewed 2026-08-09 - issue #2320: the kernel passes one per-type CommunityScope to both base and revision drivers. Revision visibility and mutation authorization are anchored to the indexed base-table community_id; foreign revision payloads, histories, working copies, translation histories, and in-process pointers remain invisible, and foreign mutations fail before events or writes. Revision tables intentionally do not duplicate community_id. -->
 <!-- Spec reviewed 2026-08-08 - Anokii boundary remediation: community-scoped writes stamp the active community and refuse conflicting values in both storage drivers; SQL_BLOB types retain an indexed physical community discriminator. Framework field and agent providers now construct entity types from class attributes, and classification entities/migrations align bundle, language, and blob columns with the canonical schema contract. -->
 
@@ -1031,12 +1032,14 @@ Handles raw SQL I/O. Supports translation tables: if `{entityType}_translations`
 
 When `$communityScope` is injected and active, all read/findBy/count/exists/remove operations add `WHERE community_id = ?` automatically. The `write()` method uses a scope-unaware existence check (raw ID lookup) to avoid duplicate INSERTs when the active community differs from the stored row's community, but scopes the UPDATE path to prevent cross-community overwrites. See **Community Scoping** section below.
 
+`SqlStorageDriverV2` implements the optional `LangcodePeerStorageDriverV2Interface`. Its preflight assertion accepts the canonical default langcode and an opaque `StorageSnapshot`, refusing unauthorized writes before lifecycle events; `writeLangcodePeer()` repeats authorization and owns the exact `(id, langcode)` upsert. With an active community scope, the canonical default-language base row must be visible, a new peer is stamped with that owner's `community_id`, and an existing foreign or empty-owner peer is refused. `EntityRepository::saveTranslation()` delegates to this capability so the peer and its revision share one authorization boundary and transaction. Custom V2 adapters that support two-axis translation writes must implement both capability methods; see `docs/upgrade-notes/community-translation-peer-tenancy.md`.
+
 #### InMemoryStorageDriver
 
 File: `packages/entity-storage/src/Driver/InMemoryStorageDriver.php`
 Constructor: `(?CommunityScope $communityScope = null)`
 
-In-memory storage for testing. Accepts an optional `CommunityScope` and applies the same community isolation logic as `SqlStorageDriver` — all read/findBy/count/exists/remove operations are scoped when the context is active.
+In-memory storage for testing. Accepts an optional `CommunityScope` and applies the same community isolation logic as `SqlStorageDriver` — all read/findBy/count/exists/remove operations are scoped when the context is active. Scoped translation writes also require a visible base owner, stamp the active community, and refuse foreign ownership before mutation.
 
 Additional methods beyond the interface:
 - `writeTranslation(string $entityType, string $id, string $langcode, array $values): void`
@@ -1053,6 +1056,12 @@ Constructor: `(ConnectionResolverInterface $connectionResolver, EntityTypeInterf
 When a community scope is active, every default-language and per-language revision read first resolves the entity's indexed base-table row. A row is visible only when its physical `community_id` matches the active community. Foreign `loadRevision`, history, working-copy, tip, language-history, and in-process pointer reads return the same null, empty, or false result as missing data. Revision mutations require the same visible base row and throw `TenancyViolationException` before revision payloads, lifecycle events, or writes can cross the boundary. For a new scoped entity, the repository writes the stamped base row before creating revision 1 in the same transaction, including when the caller supplied an explicit entity ID. Direct scoped revision writes cannot create orphan history without a base owner.
 
 Revision tables deliberately do not duplicate `community_id`. Their tenant ownership is anchored to the canonical base row, which avoids denormalized discriminator drift and protects existing revision tables without a schema migration. With no active scope, behavior is unchanged.
+
+#### Translation peer repair
+
+`CommunityTranslationPeerRepairer` is the explicit data-repair surface for historical two-axis peer rows whose physical `community_id` is empty. It only considers community-scoped, translatable entity types. A candidate is eligible when a non-empty canonical default-language sibling exists for the same entity ID and, when UUID is keyed, the peer UUID exactly matches that canonical row. Ownerless, ambiguous, default-language, UUID-mismatched, or already-owned rows are skipped. Repairs are transactional and never run during boot.
+
+The CLI command `tenancy:repair-translation-peers <entity_type> [--dry-run] [--json]` exposes the repairer. Operators must dry-run first and quiesce serving writes before applying it; see `docs/specs/operations-playbooks.md`.
 
 ### Community Scoping (Multi-tenancy)
 

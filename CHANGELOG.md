@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **translation-peer community isolation (#2322):** Route two-axis translation peer writes through a tenant-aware storage capability so peer rows inherit the canonical base-row owner, foreign writes fail before events or storage changes, and existing empty-owner peers can be repaired explicitly with `tenancy:repair-translation-peers` after a dry run.
+
 - **revision community isolation (#2320):** Anchor default and per-language revision history to the community-scoped base row. Foreign revision reads now return missing results, while saves, deletes, rollbacks, pointer changes, pruning, and translation revision mutations fail before lifecycle events or storage changes. Custom `RevisionableStorageDriverV2Interface` implementations must adopt the two additive tenancy-boundary methods documented in `docs/upgrade-notes/revision-community-scope.md`.
 
 - **external extension policy discovery (#2314):** Discover access policies from explicitly participating installed packages even when their production namespace is outside `Waaseyaa\\` and the root application. Preserve exact fail-closed policy inventory checks without activating unrelated external entity, middleware, formatter, agent-tool, or schedule attributes.

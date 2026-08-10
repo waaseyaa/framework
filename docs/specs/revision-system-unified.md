@@ -1,5 +1,6 @@
 # Revision system (unified, with an optional translation axis)
 
+<!-- Spec reviewed 2026-08-09 - issue #2322: saveTranslation delegates peer-row persistence to the optional tenant-aware LangcodePeerStorageDriverV2Interface. The peer owner is derived from the visible canonical base row, foreign and empty-owner peer mutations refuse before events or writes, and historical empty-owner peers require the explicit repair command. -->
 <!-- Spec reviewed 2026-08-09 - issue #2320: community-scoped revision visibility is anchored to the indexed base row. Default and translation revision reads fail as missing across communities; mutation entry points refuse before events and writes. Existing unscoped behavior and revision-table schemas remain unchanged. -->
 <!-- Spec reviewed 2026-07-14 - R21 #2010 / #1968: under default-revision discipline, setPublishedRevision() now partitions the target revision snapshot through BundleSubtableGateway and upserts column-stored bundle values in the same transaction as the base-row/pointer promotion. Draft saves remain revision-only and do not leak into the served subtable. -->
 
@@ -67,7 +68,7 @@ key and serves the per-language tip/list hot paths.
 
 Revision tables do not carry a second `community_id` discriminator. For an entity type declared with `tenancy: ['scope' => 'community']`, the kernel injects the same `CommunityScope` into `SqlStorageDriver` and `RevisionableStorageDriver`. The revision driver authorizes an entity ID against the indexed physical `community_id` on its canonical base row before touching either live revision table.
 
-With an active scope, foreign default and translation revision reads return the same null, empty, or false result as absent data. This includes individual revisions, revision ID lists, latest tips, language lists, working-copy resolution, and in-process per-language pointers. Mutating operations require a visible base row and fail before reading a foreign revision payload, dispatching a lifecycle event, or changing revision, pointer, translation-peer, or base storage. For a new scoped entity, the repository writes the stamped base row before revision 1 in the same transaction, including explicitly keyed entities; direct scoped revision writes cannot create orphan history without a base owner. With an inactive or uninjected scope, the pre-#2320 behavior is preserved.
+With an active scope, foreign default and translation revision reads return the same null, empty, or false result as absent data. This includes individual revisions, revision ID lists, latest tips, language lists, working-copy resolution, and in-process per-language pointers. Mutating operations require a visible base row and fail before reading a foreign revision payload, dispatching a lifecycle event, or changing revision, pointer, translation-peer, or base storage. For a new scoped entity, the repository writes the stamped base row before revision 1 in the same transaction, including explicitly keyed entities; direct scoped revision writes cannot create orphan history without a base owner. `saveTranslation()` routes its peer upsert through the tenant-aware `LangcodePeerStorageDriverV2Interface`, which copies ownership from the visible canonical row and refuses foreign or historical empty-owner exact peers. Existing empty-owner peers are not mutated automatically; operators use `tenancy:repair-translation-peers` after a dry run. With an inactive or uninjected scope, the pre-#2320 behavior is preserved.
 
 ### 2a. Revision metadata columns (both live tables)
 
@@ -228,18 +229,19 @@ Phase 1 records per-language *revisions*; it does not by itself move the peer
 *base row* that holds a language's current value. `EntityRepository::saveTranslation($entityId, $langcode, array $values, ?string $log)`
 closes that gap: in **one transaction** it both
 
-1. upserts the peer `(id, langcode)` base row (the language's current value —
+1. asks `LangcodePeerStorageDriverV2Interface` to authorize before events and then upsert the peer `(id, langcode)` base row (the language's current value —
    blob entities ride `_data`; the label column mirrors the label field; a new
    peer row copies the shared `uuid` from the default row so the partial-unique
-   UUID index, which only constrains default-langcode rows, is satisfied), and
+   UUID index, which only constrains default-langcode rows, is satisfied; scoped
+   adapters derive `community_id` from the visible canonical base row), and
 2. writes the per-language revision (`writeRevision(..., $langcode)`).
 
 The base row and its history therefore move together: a language is a true peer
 with its own base row and its own independent `revision_id` sequence, not an
 overlay on another language's row. The default-language row and any
 non-translatable fields are untouched. This is the single repository entry point
-for editing a translation; storage logic stays in one place (the repository),
-not orchestrated across two storage APIs by the application. `loadTranslation($id, $langcode)`
+for editing a translation; orchestration stays in the repository while physical peer
+storage and tenant enforcement stay in the driver. `loadTranslation($id, $langcode)`
 reads a language's current value back from its peer base row (the driver's
 `read(..., $langcode)` selects the peer row directly on a widened-PK base table).
 

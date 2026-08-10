@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\EntityStorage\Tests\Unit\Driver;
 
 use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
@@ -12,6 +13,7 @@ use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverV2Interface;
 use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriver;
 use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriverV2;
+use Waaseyaa\EntityStorage\Driver\LangcodePeerStorageDriverV2Interface;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriverV2Interface;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriverV2;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriverV2;
@@ -22,7 +24,11 @@ use Waaseyaa\EntityStorage\Driver\StorageSnapshot;
 use Waaseyaa\EntityStorage\Driver\StorageBoundary;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
+use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
+use Waaseyaa\Foundation\Community\CommunityContext;
 
+#[CoversClass(SqlStorageDriverV2::class)]
+#[CoversClass(InMemoryStorageDriverV2::class)]
 final class EntityStorageDriverV2ContractTest extends TestCase
 {
     #[Test]
@@ -75,6 +81,23 @@ final class EntityStorageDriverV2ContractTest extends TestCase
     }
 
     #[Test]
+    public function langcode_peer_capability_accepts_only_an_opaque_snapshot(): void
+    {
+        $interface = new \ReflectionClass(LangcodePeerStorageDriverV2Interface::class);
+
+        self::assertSame(
+            StorageSnapshot::class,
+            (string) $interface->getMethod('writeLangcodePeer')->getParameters()[4]->getType(),
+        );
+        self::assertSame(
+            StorageSnapshot::class,
+            (string) $interface->getMethod('assertLangcodePeerMutationAllowed')->getParameters()[4]->getType(),
+        );
+        self::assertTrue(is_subclass_of(SqlStorageDriverV2::class, LangcodePeerStorageDriverV2Interface::class));
+        self::assertTrue(is_subclass_of(InMemoryStorageDriverV2::class, LangcodePeerStorageDriverV2Interface::class));
+    }
+
+    #[Test]
     public function first_party_in_memory_driver_crosses_the_repository_boundary_only_as_opaque_objects(): void
     {
         $boundary = new StorageBoundary();
@@ -95,6 +118,36 @@ final class EntityStorageDriverV2ContractTest extends TestCase
             ['id' => '7', 'title' => 'Tansi'],
             $boundary->repositoryRowReader()->read($row),
         );
+    }
+
+    #[Test]
+    public function in_memory_v2_langcode_peer_capability_delegates_opaque_preflight_and_write(): void
+    {
+        $context = new CommunityContext();
+        $context->set('community-a');
+        $boundary = new StorageBoundary();
+        $driver = new InMemoryStorageDriverV2(
+            new InMemoryStorageDriver(new CommunityScope($context)),
+            $boundary->driverRowFactory(),
+            $boundary->driverSnapshotReader(),
+        );
+        $driver->write('node', '7', $boundary->repositorySnapshotFactory()->create([
+            'id' => '7',
+            'community_id' => 'community-a',
+        ]));
+        $peer = $boundary->repositorySnapshotFactory()->create([
+            'id' => '7',
+            'langcode' => 'oj',
+            'default_langcode' => 'en',
+            'title' => 'Anishinaabemowin',
+        ]);
+
+        $driver->assertLangcodePeerMutationAllowed('node', '7', 'oj', 'en', $peer);
+        $driver->writeLangcodePeer('node', '7', 'oj', 'en', $peer);
+
+        $row = $driver->read('node', '7', 'oj');
+        self::assertInstanceOf(StorageRow::class, $row);
+        self::assertSame('Anishinaabemowin', $boundary->repositoryRowReader()->read($row)['title'] ?? null);
     }
 
     #[Test]

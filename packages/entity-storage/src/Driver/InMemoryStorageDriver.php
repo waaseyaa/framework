@@ -119,7 +119,35 @@ final class InMemoryStorageDriver implements EntityStorageDriverInterface
      */
     public function writeTranslation(string $entityType, string $id, string $langcode, array $values): void
     {
+        $this->assertTranslationMutationAllowed($entityType, $id, $langcode, $values);
+        if ($this->communityScope?->isActive()) {
+            $active = $this->communityScope->getCommunityId();
+            $values['community_id'] = $active;
+        }
+
         $this->translations[$entityType][$id][$langcode] = $values;
+    }
+
+    /** @param array<string, mixed> $values */
+    public function assertTranslationMutationAllowed(string $entityType, string $id, string $langcode, array $values): void
+    {
+        if (!$this->communityScope?->isActive()) {
+            return;
+        }
+
+        $active = $this->communityScope->getCommunityId();
+        $base = $this->store[$entityType][$id] ?? null;
+        if ($base === null || ($base['community_id'] ?? null) !== $active) {
+            throw TenancyViolationException::invisibleEntity($active, $entityType, $id);
+        }
+        $provided = $values['community_id'] ?? null;
+        if (is_string($provided) && $provided !== '' && $provided !== $active) {
+            throw TenancyViolationException::conflictingWrite($active, $provided);
+        }
+        $exact = $this->translations[$entityType][$id][$langcode] ?? null;
+        if ($exact !== null && ($exact['community_id'] ?? null) !== $active) {
+            throw TenancyViolationException::invisibleEntity($active, $entityType, $id);
+        }
     }
 
     /**

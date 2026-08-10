@@ -1,5 +1,6 @@
 # Infrastructure
 
+<!-- Spec reviewed 2026-08-09 - issue #2322: HealthSchemaServiceProvider registers tenancy:repair-translation-peers as an explicit, dry-run-capable repair surface. It uses the live entity type metadata and database connection but never runs during boot; operators must quiesce writes before applying repairs. -->
 <!-- Spec reviewed 2026-08-09 - issue #2320: EntityTypeManagerFactory resolves CommunityScope once per entity type and injects that same instance into both SqlStorageDriver and RevisionableStorageDriver. Community-scoped base rows are therefore the kernel-owned visibility and mutation anchor for default and translation revision history, without duplicating community_id into revision tables. -->
 
 <!-- Spec reviewed 2026-08-08 - Anokii boundary remediation: application configuration may establish the kernel's canonical community context before providers register. The same context is exposed through kernel services and consumed by policies, storage, and HTTP handling; restricted `db:init` remains isolated from application boot. Package migration paths resolve consistently from source and installed layouts. -->
@@ -1362,6 +1363,8 @@ $this->singleton(SovereigntyConfigInterface::class, fn() => SovereigntyConfig::f
 ## Community Context
 
 Request-scoped community isolation for multi-tenant sovereign apps. When a `CommunityContext` is active, entity storage drivers that are wired with `CommunityScope` automatically restrict all base and revision queries and mutations to the active community. `EntityTypeManagerFactory` passes the same per-type scope to `SqlStorageDriver` and `RevisionableStorageDriver`; revision ownership is anchored to the canonical indexed base row.
+
+`HealthSchemaServiceProvider` also registers `tenancy:repair-translation-peers <entity_type> [--dry-run] [--json]`. The handler constructs `CommunityTranslationPeerRepairer` from the active database connection and entity type manager. This is an operator-invoked repair only: provider registration does not scan or mutate data during application boot.
 
 ### CommunityContextInterface / CommunityContext
 
