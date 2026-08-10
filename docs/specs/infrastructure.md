@@ -1401,8 +1401,11 @@ constructor is only for a standalone provider without kernel services. Storage
 scopes, request middleware, and autowired extension controllers must therefore
 observe the same object and active community.
 
-`CommunityMiddleware` preserves explicit route and session precedence, then
-falls back to this authoritative active object for fixed-community routes. It
+`HttpKernel` explicitly installs `CommunityMiddleware` in its supported
+built-in stack before access middleware; compiled `AsMiddleware` metadata does
+not instantiate runtime middleware (#2330 tracks that broader contract). The
+middleware preserves explicit route and session precedence, then falls back to
+this authoritative active object for fixed-community routes. It
 writes the resolved value to the normalized `_community_id` request attribute
 before access middleware runs. Immutable principals, community-scoped storage,
 and controllers therefore observe the same community ID. An inactive context
@@ -1413,11 +1416,12 @@ does not add the normalized attribute and leaves principal scope null.
 File: `packages/foundation/src/Community/CommunityMiddleware.php`
 Attribute: `#[AsMiddleware(pipeline: 'http', priority: 20)]`
 
-Resolves the active community from the incoming request and sets it on `CommunityContextInterface` for the duration of the request. Clears the context in a `finally` block after the response.
+Resolves the active community from the incoming request and sets it on `CommunityContextInterface` for the duration of the request. A `finally` block restores the exact pre-request state: configured fixed-community contexts remain active across long-lived worker requests, while dynamically selected contexts return to inactive. Deferred streamed-response callbacks temporarily rebind the same resolved community and restore the then-current state when the stream ends.
 
 **Resolution order (first match wins):**
 1. Route parameter `community_id` (e.g. `/community/{community_id}/...`)
 2. Session key `waaseyaa_community_id` (requires `SessionMiddleware` priority 30 to have run first)
+3. Existing active context (the fixed application `community_id`)
 
 When no community is resolved (CLI, admin superuser, unauthenticated), the context remains inactive and queries are unscoped.
 
