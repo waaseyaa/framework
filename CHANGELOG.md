@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **random-order fixture cleanup (#2334):** Make disposable drift-detector Git fixture cleanup idempotent when Git object paths disappear during teardown, preventing harmless filesystem races from failing the architecture random-order gate.
+
 - **explicit deployment promotion (#2332):** Stop treating every main-branch merge as a staging and production deployment. Environment promotion now requires a manual exact-main-SHA request, production intent is explicit and protected separately, and untagged production is refused unless an audited emergency override is supplied.
 
 - **configured-community HTTP principals (#2327):** Install community resolution in the real HTTP kernel before immutable principal construction, normalize the authoritative configured community when routes have no explicit selector, and restore that configured context after every request so long-lived workers remain scoped. Explicit route/session precedence and null scope for inactive contexts are preserved.

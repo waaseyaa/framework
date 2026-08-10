@@ -151,30 +151,41 @@ final class DriftDetectorAcknowledgementTest extends TestCase
         return [$exitCode, $joined];
     }
 
-    private function removeTree(string $path): void
+    private function removeTree(string $path, int $attempts = 3): void
     {
-        if (!is_dir($path)) {
-            return;
-        }
+        for ($attempt = 0; $attempt < $attempts; ++$attempt) {
+            clearstatcache(true, $path);
+            if (!is_dir($path)) {
+                return;
+            }
 
-        $items = scandir($path);
-        if ($items === false) {
-            return;
-        }
-
-        foreach ($items as $item) {
-            if ($item === '.' || $item === '..') {
+            $items = @scandir($path);
+            if ($items === false) {
                 continue;
             }
 
-            $child = $path . '/' . $item;
-            if (is_dir($child) && !is_link($child)) {
-                $this->removeTree($child);
-            } else {
-                unlink($child);
+            foreach ($items as $item) {
+                if ($item === '.' || $item === '..') {
+                    continue;
+                }
+
+                $child = $path . '/' . $item;
+                clearstatcache(true, $child);
+                if (!file_exists($child) && !is_link($child)) {
+                    continue;
+                }
+                if (is_dir($child) && !is_link($child)) {
+                    $this->removeTree($child, $attempts);
+                } else {
+                    @unlink($child);
+                }
+            }
+
+            if (@rmdir($path) || !is_dir($path)) {
+                return;
             }
         }
 
-        rmdir($path);
+        self::assertDirectoryDoesNotExist($path, 'Disposable drift-detector fixture could not be removed safely.');
     }
 }
