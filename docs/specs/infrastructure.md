@@ -1,5 +1,7 @@
 # Infrastructure
 
+<!-- Spec reviewed 2026-08-09 - issue #2320: EntityTypeManagerFactory resolves CommunityScope once per entity type and injects that same instance into both SqlStorageDriver and RevisionableStorageDriver. Community-scoped base rows are therefore the kernel-owned visibility and mutation anchor for default and translation revision history, without duplicating community_id into revision tables. -->
+
 <!-- Spec reviewed 2026-08-08 - Anokii boundary remediation: application configuration may establish the kernel's canonical community context before providers register. The same context is exposed through kernel services and consumed by policies, storage, and HTTP handling; restricted `db:init` remains isolated from application boot. Package migration paths resolve consistently from source and installed layouts. -->
 
 <!-- Spec reviewed 2026-08-05 - #2196: Foundation adds a second layer-safe discovery seam for AI artifacts: immutable AiCatalogEntry values plus ProvidesAiCatalogEntriesInterface and AcceptsAiCatalogEntryProvidersInterface. AbstractKernel deterministically injects installed contributors before boot. This is deliberately separate from RFC 9727 because AI Catalog artifact identity/type/query semantics are not API Linkset semantics. Foundation imports no API or MCP class. HttpKernel treats /.well-known/ai-catalog.json as anonymous-stateless even while its owning feature remains default-off. -->
@@ -1359,7 +1361,7 @@ $this->singleton(SovereigntyConfigInterface::class, fn() => SovereigntyConfig::f
 
 ## Community Context
 
-Request-scoped community isolation for multi-tenant sovereign apps. When a `CommunityContext` is active, entity storage drivers that are wired with `CommunityScope` automatically restrict all queries to the active community.
+Request-scoped community isolation for multi-tenant sovereign apps. When a `CommunityContext` is active, entity storage drivers that are wired with `CommunityScope` automatically restrict all base and revision queries and mutations to the active community. `EntityTypeManagerFactory` passes the same per-type scope to `SqlStorageDriver` and `RevisionableStorageDriver`; revision ownership is anchored to the canonical indexed base row.
 
 ### CommunityContextInterface / CommunityContext
 
@@ -1893,7 +1895,7 @@ EnvLoader::load(.env)
 
 Early boot initializes the entity lifecycle manager (for disabling entity types at runtime) and the entity audit logger (for write audit trails). The `EntityWriteAuditListener` is registered on the event dispatcher before any entity storage is created, ensuring all entity writes are audited from boot onward.
 
-`bootEntityTypeManager()` wires storage for each registered entity type. The construction logic is delegated to `EntityTypeManagerFactory` (`packages/foundation/src/Kernel/EntityTypeManagerFactory.php`); the kernel threads in callables for the lazy access-handler resolver, the community-scope resolver, and the account-context attacher — keeping the factory dependency-free while preserving the lazy resolution semantics. Every `SqlSchemaHandler` instantiated in that path receives the kernel's `LoggerInterface` as its fifth constructor argument (after entity type, database, shared `FieldDefinitionRegistry`, and optional `null` bundle enumerator) so schema derivation can log unknown field types without failing boot. Column mapping contract: [`field/column-derivation.md`](./field/column-derivation.md).
+`bootEntityTypeManager()` wires storage for each registered entity type. The construction logic is delegated to `EntityTypeManagerFactory` (`packages/foundation/src/Kernel/EntityTypeManagerFactory.php`); the kernel threads in callables for the lazy access-handler resolver, the community-scope resolver, and the account-context attacher — keeping the factory dependency-free while preserving the lazy resolution semantics. The community resolver runs once per repository construction and its result is shared by the base and revision drivers, so tenant visibility cannot diverge between current rows and revision history. Every `SqlSchemaHandler` instantiated in that path receives the kernel's `LoggerInterface` as its fifth constructor argument (after entity type, database, shared `FieldDefinitionRegistry`, and optional `null` bundle enumerator) so schema derivation can log unknown field types without failing boot. Column mapping contract: [`field/column-derivation.md`](./field/column-derivation.md).
 
 `loadAppEntityTypes()` reads `config/entity-types.php` and registers any `EntityTypeInterface` instances found there. Non-conforming entries are logged as warnings. Registration failures (duplicate IDs, invalid definitions) are logged as errors but do not halt boot.
 
