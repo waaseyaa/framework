@@ -25,8 +25,6 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
-use Waaseyaa\Foundation\Community\CommunityContext;
-use Waaseyaa\Foundation\Community\CommunityContextInterface;
 use Waaseyaa\User\User;
 
 final class AuditServiceProviderFieldReadMiddlewareTest extends TestCase
@@ -136,55 +134,6 @@ final class AuditServiceProviderFieldReadMiddlewareTest extends TestCase
         self::assertStringContainsString('"fields":["roles","permissions","status"]', (string) $rows[0]['descriptor']);
         self::assertStringContainsString('"community_id":"community-a"', (string) $rows[0]['descriptor']);
         self::assertStringNotContainsString('view members', (string) $rows[0]['descriptor']);
-    }
-
-    #[Test]
-    public function provider_scopes_entity_principal_to_the_kernel_owned_configured_community(): void
-    {
-        $database = DBALDatabase::createSqlite();
-        (new AuditEventSchemaHandler($database))->ensureSchema();
-        $community = new CommunityContext();
-        $community->set('configured-community');
-        $provider = new AuditServiceProvider();
-        $provider->setKernelServices(new class($database, $community) implements KernelServicesInterface {
-            public function __construct(
-                private readonly DatabaseInterface $database,
-                private readonly CommunityContextInterface $community,
-            ) {}
-
-            public function get(string $abstract): ?object
-            {
-                return match ($abstract) {
-                    DatabaseInterface::class => $this->database,
-                    CommunityContextInterface::class => $this->community,
-                    default => null,
-                };
-            }
-        });
-        $provider->register();
-        $middleware = $provider->middleware(new EntityTypeManager(new EventDispatcher()))[0];
-        $request = Request::create('/admin/anokii/identity');
-        $request->attributes->set('_account', new User([
-            'uid' => 42,
-            'name' => 'Administrator',
-            'roles' => ['administrator'],
-            'permissions' => [],
-            'status' => 1,
-        ]));
-        $handler = new class($community) implements HttpHandlerInterface {
-            public function __construct(private readonly CommunityContextInterface $community) {}
-
-            public function handle(Request $request): Response
-            {
-                $principal = $request->attributes->get('_authorization_principal');
-                TestCase::assertInstanceOf(AuthorizationPrincipalInterface::class, $principal);
-                TestCase::assertSame($this->community->get(), $principal->communityId());
-
-                return new Response('ok');
-            }
-        };
-
-        self::assertSame('ok', $middleware->process($request, $handler)->getContent());
     }
 
     #[Test]

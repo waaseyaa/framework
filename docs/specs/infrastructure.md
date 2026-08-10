@@ -1401,12 +1401,12 @@ constructor is only for a standalone provider without kernel services. Storage
 scopes, request middleware, and autowired extension controllers must therefore
 observe the same object and active community.
 
-`FieldReadContextMiddleware` also receives this authoritative object through
-the audit provider. After explicit route and session selectors are considered,
-an active configured community is copied into the immutable authorization
-principal. A principal used for protected decisions must therefore carry the
-same community ID observed by community-scoped storage and controllers. An
-inactive context leaves the principal community null.
+`CommunityMiddleware` preserves explicit route and session precedence, then
+falls back to this authoritative active object for fixed-community routes. It
+writes the resolved value to the normalized `_community_id` request attribute
+before access middleware runs. Immutable principals, community-scoped storage,
+and controllers therefore observe the same community ID. An inactive context
+does not add the normalized attribute and leaves principal scope null.
 
 ### CommunityMiddleware
 

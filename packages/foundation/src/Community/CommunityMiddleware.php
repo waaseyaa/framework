@@ -34,9 +34,14 @@ final class CommunityMiddleware implements HttpMiddlewareInterface
     public function process(Request $request, HttpHandlerInterface $next): Response
     {
         $communityId = $this->resolve($request);
+        if ($communityId === null && $this->context->isActive()) {
+            $configured = $this->context->get();
+            $communityId = is_string($configured) && $configured !== '' ? $configured : null;
+        }
 
         if ($communityId !== null) {
             $this->context->set($communityId);
+            $request->attributes->set('_community_id', $communityId);
         }
 
         try {
