@@ -6,6 +6,9 @@ namespace Waaseyaa\EntityStorage\Tests\Unit\Driver;
 
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverInterface;
 use Waaseyaa\EntityStorage\Driver\InMemoryStorageDriver;
+use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
+use Waaseyaa\EntityStorage\Tenancy\TenancyViolationException;
+use Waaseyaa\Foundation\Community\CommunityContext;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -171,6 +174,46 @@ final class InMemoryStorageDriverTest extends TestCase
         $fr = $this->driver->read('node', '1', 'fr');
         $this->assertSame('Bonjour', $fr['label']);
         $this->assertSame('fr', $fr['langcode']);
+    }
+
+    #[Test]
+    public function scopedTranslationWritesRequireAndPreserveTheBaseOwner(): void
+    {
+        $context = new CommunityContext();
+        $context->set('community-a');
+        $driver = new InMemoryStorageDriver(new CommunityScope($context));
+        $driver->write('node', '1', ['id' => '1', 'label' => 'Hello']);
+        $driver->writeTranslation('node', '1', 'fr', ['label' => 'Bonjour']);
+        self::assertSame('community-a', $driver->read('node', '1', 'fr')['community_id'] ?? null);
+
+        $context->set('community-b');
+        try {
+            $driver->writeTranslation('node', '1', 'fr', ['label' => 'Forged']);
+            self::fail('A foreign translation write must be refused.');
+        } catch (TenancyViolationException) {
+        }
+
+        $context->set('community-a');
+        self::assertSame('Bonjour', $driver->read('node', '1', 'fr')['label'] ?? null);
+    }
+
+    #[Test]
+    public function scopedTranslationWriteRefusesAnExistingOwnerlessPeer(): void
+    {
+        $context = new CommunityContext();
+        $driver = new InMemoryStorageDriver(new CommunityScope($context));
+        $driver->write('node', '1', ['id' => '1', 'community_id' => 'community-a']);
+        $driver->writeTranslation('node', '1', 'fr', ['label' => 'Legacy ownerless']);
+        $context->set('community-a');
+
+        try {
+            $driver->writeTranslation('node', '1', 'fr', ['label' => 'Must refuse']);
+            self::fail('An existing ownerless translation peer must be refused.');
+        } catch (TenancyViolationException) {
+        }
+
+        $context->clear();
+        self::assertSame('Legacy ownerless', $driver->read('node', '1', 'fr')['label'] ?? null);
     }
 
     #[Test]

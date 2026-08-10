@@ -176,11 +176,14 @@ Machine-readable source: `docs/public-surface-map.php`.
 |---------|------|---------|
 | `EntityStorageDriverInterface` | interface | Low-level persistence SPI: raw row I/O without hydration or event dispatch. Adds `findTranslations(EntityInterface): array<string, EntityInterface>` (M-006, WP10) |
 | `EntityStorageDriverV2Interface` | interface | Additive boundary-bound opaque-row storage SPI: reads return `StorageRow`/`StorageRowSet` and writes accept `StorageSnapshot`; unrelated boundary tokens cannot unwrap them, and V1 remains behavior-compatible during dormant stages |
+| `LangcodePeerStorageDriverV2Interface` | interface | Optional opaque-snapshot capability for tenancy-safe `(entity id, langcode)` peer writes without collapsing sibling languages |
 | `RevisionableStorageDriverV2Interface` | interface | Additive opaque revision SPI mirroring current revision and langcode operations while replacing raw read/write arrays with boundary-bound rows and snapshots |
 | `InMemoryStorageDriverV2` | final class | Opaque V2 adapter over the first-party in-memory ordinary storage backend |
 | `SqlStorageDriverV2` | final class | Opaque V2 adapter over the first-party SQL ordinary storage backend |
 | `RevisionableStorageDriverV2` | final class | Opaque V2 adapter used by the repository for the first-party revision/langcode storage backend |
 | `ConnectionResolverInterface` | interface | Resolves named database connections; multi-tenancy seam for entity storage |
+| `CommunityTranslationPeerRepairer` | final class | Explicit fail-closed repair for legacy translation peers with empty community discriminators |
+| `CommunityTranslationPeerRepairReport` | final class | Machine-readable examined, eligible, repaired, skipped, and dry-run counts from translation-peer repair |
 | `ReservedBackendIds` | final class | String constants for built-in backend ids: `SQL_BLOB`, `SQL_COLUMN`, `VECTOR` (M-001, WP01) |
 | `BackendRegistrar` | final class | Registers field storage backends by id for an entity type (M-001, WP01) |
 | `BackendRegistrarFactory` | final class | Creates a `BackendRegistrar` bound to a specific entity type (M-001, WP01) |

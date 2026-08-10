@@ -10,9 +10,11 @@ use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
+use Waaseyaa\Entity\Event\EntityEvents;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriverV2;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\Revision\RevisionPruningPolicy;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
@@ -23,6 +25,9 @@ use Waaseyaa\EntityStorage\Tests\Fixtures\TestRevisionableEntity;
 use Waaseyaa\Foundation\Community\CommunityContext;
 
 #[CoversClass(RevisionableStorageDriver::class)]
+#[CoversClass(SqlStorageDriver::class)]
+#[CoversClass(SqlStorageDriverV2::class)]
+#[CoversClass(EntityRepository::class)]
 final class RevisionCommunityScopeTest extends TestCase
 {
     private DBALDatabase $database;
@@ -214,8 +219,14 @@ final class RevisionCommunityScopeTest extends TestCase
         ]);
         self::assertSame(1, $driver->writeRevision('7', ['title' => 'English'], null, 'en'));
         $driver->setCurrentLangcodeRevision('7', 'en', 1);
+        self::assertSame(1, $repository->saveTranslation('7', 'oj', ['title' => 'Anishinaabemowin']));
+        self::assertSame(2, $repository->saveTranslation('7', 'oj', ['title' => 'Anishinaabemowin']));
+        self::assertSame('community-a', $this->peerCommunity('oj'));
+        self::assertNotNull($repository->loadTranslation('7', 'oj'));
+        self::assertContains(EntityEvents::REVISION_CREATED->value, $this->events);
         $this->events = [];
         $before = $this->translationRevisionRows();
+        $beforePeer = $this->peerRow('oj');
 
         $this->context->set('community-b');
 
@@ -226,12 +237,20 @@ final class RevisionCommunityScopeTest extends TestCase
         self::assertNull($driver->currentLangcodeRevision('7', 'en'));
         self::assertFalse($driver->hasCurrentLangcodeRevision('7', 'en'));
         self::assertNull($repository->loadTranslationRevision('7', 'en', 1));
+        self::assertNull($repository->loadTranslation('7', 'oj'));
         self::assertSame([], $repository->translationLangcodes('7'));
 
         foreach ([
-            fn() => $repository->saveTranslation('7', 'en', ['title' => 'Forged']),
+            fn() => $repository->saveTranslation('7', 'oj', ['title' => 'Forged']),
             fn() => $repository->saveTranslationRevision('7', 'en', ['title' => 'Forged']),
             fn() => $repository->saveTranslationRevisions('7', ['en' => ['title' => 'Forged']]),
+            fn() => $base->writeLangcodePeer(
+                'scoped_two_axis',
+                '7',
+                'oj',
+                'en',
+                ['title' => 'Forged', 'default_langcode' => 'en'],
+            ),
             fn() => $driver->writeRevision('7', ['title' => 'Forged'], null, 'en'),
         ] as $mutation) {
             try {
@@ -243,6 +262,161 @@ final class RevisionCommunityScopeTest extends TestCase
 
         self::assertSame([], $this->events);
         self::assertSame($before, $this->translationRevisionRows());
+        self::assertSame($beforePeer, $this->peerRow('oj'));
+    }
+
+    #[Test]
+    public function ownerlessExactPeerRefusesBeforeEventsOrWrites(): void
+    {
+        [$repository, $base] = $this->scopedTwoAxisRepository();
+        $this->database->insert('scoped_two_axis')
+            ->fields(['id', 'uuid', 'title', 'langcode', 'default_langcode', 'community_id'])
+            ->values(['7', 'two-axis-a', 'Legacy empty peer', 'oj', 'en', ''])
+            ->execute();
+        $beforePeer = $this->peerRow('oj');
+        $beforeRevisions = $this->translationRevisionRows();
+        $this->events = [];
+
+        foreach ([
+            fn() => $repository->saveTranslation('7', 'oj', ['title' => 'Must refuse']),
+            fn() => $base->writeLangcodePeer(
+                'scoped_two_axis',
+                '7',
+                'oj',
+                'en',
+                ['title' => 'Must refuse', 'default_langcode' => 'en'],
+            ),
+        ] as $mutation) {
+            try {
+                $mutation();
+                self::fail('An ownerless exact peer mutation must be refused.');
+            } catch (TenancyViolationException) {
+            }
+        }
+
+        self::assertSame([], $this->events);
+        self::assertSame($beforePeer, $this->peerRow('oj'));
+        self::assertSame($beforeRevisions, $this->translationRevisionRows());
+    }
+
+    #[Test]
+    public function ownedSiblingCannotSubstituteForCanonicalBaseOwnership(): void
+    {
+        [, $base] = $this->scopedTwoAxisRepository();
+        $this->database->update('scoped_two_axis')
+            ->fields(['community_id' => ''])
+            ->condition('id', '7')
+            ->condition('langcode', 'en')
+            ->execute();
+        $this->database->insert('scoped_two_axis')
+            ->fields(['id', 'uuid', 'title', 'langcode', 'default_langcode', 'community_id'])
+            ->values(['7', 'two-axis-a', 'Owned sibling', 'fr', 'en', 'community-a'])
+            ->execute();
+
+        foreach (['fr', 'oj'] as $langcode) {
+            try {
+                $base->writeLangcodePeer(
+                    'scoped_two_axis',
+                    '7',
+                    $langcode,
+                    'en',
+                    ['title' => 'Must refuse', 'default_langcode' => 'en'],
+                );
+                self::fail('A sibling peer cannot substitute for canonical base ownership.');
+            } catch (TenancyViolationException) {
+            }
+        }
+
+        self::assertNull($this->peerRow('oj'));
+        self::assertSame('Owned sibling', $this->peerRow('fr')['title'] ?? null);
+    }
+
+    /** @return array{EntityRepository, SqlStorageDriver} */
+    private function scopedTwoAxisRepository(): array
+    {
+        $type = new EntityType(
+            id: 'scoped_two_axis',
+            label: 'Scoped two axis',
+            class: TestRevisionableEntity::class,
+            keys: [
+                'id' => 'id',
+                'uuid' => 'uuid',
+                'label' => 'title',
+                'revision' => 'revision_id',
+                'langcode' => 'langcode',
+                'default_langcode' => 'default_langcode',
+            ],
+            revisionable: true,
+            revisionDefault: true,
+            translatable: true,
+            tenancy: ['scope' => EntityType::TENANCY_SCOPE_COMMUNITY],
+        );
+        $schema = new SqlSchemaHandler($type, $this->database);
+        $schema->ensureTable();
+        $schema->ensureRevisionTable();
+        $this->database->query(<<<'SQL'
+            CREATE TABLE scoped_two_axis__translation__revision (
+                entity_id TEXT NOT NULL,
+                langcode TEXT NOT NULL,
+                revision_id INTEGER NOT NULL,
+                revision_created TEXT,
+                revision_log TEXT,
+                revision_author INTEGER,
+                _data TEXT,
+                PRIMARY KEY (entity_id, langcode, revision_id)
+            )
+            SQL);
+        $scope = new CommunityScope($this->context);
+        $resolver = new SingleConnectionResolver($this->database);
+        $base = new SqlStorageDriver($resolver, communityScope: $scope);
+        $driver = new RevisionableStorageDriver($resolver, $type, communityScope: $scope);
+        $dispatcher = $this->createStub(EventDispatcherInterface::class);
+        $dispatcher->method('dispatch')->willReturnCallback(function (object $event, ?string $eventName = null): object {
+            $this->events[] = $eventName ?? $event::class;
+
+            return $event;
+        });
+        $repository = V2EntityRepositoryFactory::createFromSqlStorageDriver(
+            $type,
+            $base,
+            $dispatcher,
+            $driver,
+            $this->database,
+        );
+        $base->write('scoped_two_axis', '7', [
+            'id' => 7,
+            'uuid' => 'two-axis-a',
+            'title' => 'Community A',
+            'langcode' => 'en',
+            'default_langcode' => 'en',
+        ]);
+
+        return [$repository, $base];
+    }
+
+    private function peerCommunity(string $langcode): ?string
+    {
+        foreach ($this->database->query(
+            'SELECT community_id FROM scoped_two_axis WHERE id = ? AND langcode = ?',
+            ['7', $langcode],
+        ) as $row) {
+            return (string) ((array) $row)['community_id'];
+        }
+
+        return null;
+    }
+
+    /** @return array<string, mixed>|null */
+    private function peerRow(string $langcode): ?array
+    {
+        foreach ($this->database->query(
+            'SELECT * FROM scoped_two_axis WHERE id = ? AND langcode = ?',
+            ['7', $langcode],
+        ) as $row) {
+            return (array) $row;
+        }
+
+        return null;
     }
 
     /** @return list<array<string, mixed>> */

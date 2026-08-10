@@ -9,6 +9,7 @@ use Waaseyaa\CLI\Command\HandlerArgumentMode;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
+use Waaseyaa\CLI\Handler\CommunityTranslationPeerRepairHandler;
 use Waaseyaa\CLI\Handler\FieldAccessPreflightHandler;
 use Waaseyaa\CLI\Handler\HealthCheckHandler;
 use Waaseyaa\CLI\Handler\HealthReportHandler;
@@ -21,6 +22,7 @@ use Waaseyaa\CLI\Security\DatabaseFieldAccessInventoryScanner;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\Migration\LegacyEntityDataPayloadUpgrader;
+use Waaseyaa\EntityStorage\Tenancy\CommunityTranslationPeerRepairer;
 use Waaseyaa\Field\Preflight\FieldAccessPreflightScanner;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -56,6 +58,17 @@ final class HealthSchemaServiceProvider extends ServiceProvider implements Provi
 
             return new LegacyEntityDataPayloadUpgradeHandler(
                 new LegacyEntityDataPayloadUpgrader($database, $manager),
+            );
+        });
+        $this->singleton(CommunityTranslationPeerRepairHandler::class, function (): CommunityTranslationPeerRepairHandler {
+            $database = $this->resolve(DatabaseInterface::class);
+            $manager = $this->resolve(EntityTypeManager::class);
+            assert($database instanceof DatabaseInterface);
+            assert($manager instanceof EntityTypeManager);
+
+            return new CommunityTranslationPeerRepairHandler(
+                $manager,
+                new CommunityTranslationPeerRepairer($database),
             );
         });
     }
@@ -147,6 +160,31 @@ final class HealthSchemaServiceProvider extends ServiceProvider implements Provi
                 ),
             ],
             handler: [RevisionsEnableHandler::class, 'execute'],
+        );
+
+        yield new HandlerCommand(
+            name: 'tenancy:repair-translation-peers',
+            description: 'Repair empty community discriminators on translation peer rows from their canonical default row.',
+            arguments: [
+                new HandlerArgument(
+                    name: 'entity_type',
+                    mode: HandlerArgumentMode::Required,
+                    description: 'A registered community-scoped translatable entity type.',
+                ),
+            ],
+            options: [
+                new HandlerOption(
+                    name: 'dry-run',
+                    mode: HandlerOptionMode::None,
+                    description: 'Report eligible rows without changing storage.',
+                ),
+                new HandlerOption(
+                    name: 'json',
+                    mode: HandlerOptionMode::None,
+                    description: 'Emit the repair report as JSON.',
+                ),
+            ],
+            handler: [CommunityTranslationPeerRepairHandler::class, 'execute'],
         );
     }
 

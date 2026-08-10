@@ -1,5 +1,6 @@
 # Operations Playbooks
 
+<!-- Spec reviewed 2026-08-09 - issue #2322 translation-peer tenancy repair: tenancy:repair-translation-peers provides a dry-run-first, JSON-reportable, explicit repair for historical empty community_id translation peers. Applying repairs requires a backup and quiesced serving writes; no boot or release path performs this mutation automatically. -->
 <!-- Spec reviewed 2026-08-09 - #2316 Composer policy release determinism: CP-NEW reads the checked-out tracked VERSION as its constraint authority, falling back to the latest reachable release tag only for repositories without VERSION. Malformed tracked VERSION fails once rather than skipping or emitting per-manifest false violations. -->
 
 <!-- Spec reviewed 2026-08-09 - #2315 development-only selected package splits: an authorized manual workflow may update allowlisted split repository main branches from the exact current green framework main SHA with force-with-lease and provenance. It has no tag, version, release, or Packagist authority; docs/VERSIONING.md remains canonical. -->
@@ -867,6 +868,21 @@ asserted via exit code, portable across every supported runtime.
 | `maintenance:off` | Clear the flag and restore service. Idempotent. | — |
 | `maintenance:status` | Report state. Exit 0 = serving, 1 = in maintenance (incl. fail-closed). | `--json` |
 | `sync-rules` | Sync framework rules from Waaseyaa to app | `--force` / `-f`, `--dry-run` |
+| `tenancy:repair-translation-peers` | Audit or repair historical empty-owner two-axis translation peers for one entity type | `entity_type`; `--dry-run`; `--json` |
+
+## Translation Peer Tenancy Repair
+
+Use this playbook only for a community-scoped, translatable entity type after upgrading the framework. The command adopts an empty-owner peer only when the same entity ID has one non-empty canonical default-language owner and, when UUID is keyed, both rows have the same UUID.
+
+1. Back up the application database using the platform's normal verified procedure.
+2. Audit without mutation: `php bin/waaseyaa tenancy:repair-translation-peers <entity_type> --dry-run --json`.
+3. Review `eligible`, `skipped`, and `dry_run`; investigate skipped rows instead of assigning ownership by guesswork.
+4. Enter maintenance mode and stop or drain workers and other writers.
+5. Apply: `php bin/waaseyaa tenancy:repair-translation-peers <entity_type> --json`.
+6. Repeat the dry run. A completed repair has `eligible: 0` for the deterministic candidates addressed by the command.
+7. Run schema verification, field-access activation preflight, and the application's local test suite before restoring service.
+
+The command never runs on boot and does not rewrite non-empty ownership. Keep service quiesced for the applying run so candidate validation and ownership updates observe a stable database.
 
 ## Queue Operations Playbook
 

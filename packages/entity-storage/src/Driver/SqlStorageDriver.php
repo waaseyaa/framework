@@ -257,6 +257,122 @@ final class SqlStorageDriver implements EntityStorageDriverInterface
         return $id;
     }
 
+    /**
+     * Write one `(id, langcode)` base-table peer without collapsing sibling languages.
+     *
+     * @param array<string, mixed> $values
+     */
+    public function writeLangcodePeer(
+        string $entityType,
+        string $id,
+        string $langcode,
+        string $defaultLangcode,
+        array $values,
+    ): void {
+        $db = $this->getDatabase();
+        $this->assertLangcodePeerMutationAllowed($entityType, $id, $langcode, $defaultLangcode, $values);
+        $exactRow = $this->langcodePeerRow($db, $entityType, $id, $langcode);
+
+        if ($this->communityScope?->isActive()) {
+            $values['community_id'] = $this->communityScope->getCommunityId();
+        }
+
+        $values[$this->idKey] = $id;
+        $values['langcode'] = $langcode;
+        $values = $this->splitForWrite($db, $entityType, $values);
+
+        if ($exactRow === null) {
+            $db->insert($entityType)
+                ->fields(array_keys($values))
+                ->values($values)
+                ->execute();
+
+            return;
+        }
+
+        $updateFields = $values;
+        unset($updateFields[$this->idKey], $updateFields['langcode']);
+        $update = $db->update($entityType)
+            ->fields($updateFields)
+            ->condition($this->idKey, $id)
+            ->condition('langcode', $langcode);
+        if ($this->communityScope?->isActive()) {
+            $update->condition('community_id', $this->communityScope->getCommunityId());
+        }
+        $update->execute();
+    }
+
+    /** @param array<string, mixed> $values */
+    public function assertLangcodePeerMutationAllowed(
+        string $entityType,
+        string $id,
+        string $langcode,
+        string $defaultLangcode,
+        array $values,
+    ): void {
+        $db = $this->getDatabase();
+        if (!$db->schema()->fieldExists($entityType, 'langcode')) {
+            throw new \LogicException(sprintf(
+                'Langcode peer writes require a physical langcode column on entity type "%s".',
+                $entityType,
+            ));
+        }
+
+        if (!$this->communityScope?->isActive()) {
+            return;
+        }
+
+        $active = $this->communityScope->getCommunityId();
+        $provided = $values['community_id'] ?? null;
+        if (is_string($provided) && $provided !== '' && $provided !== $active) {
+            throw TenancyViolationException::conflictingWrite($active, $provided);
+        }
+        if ($defaultLangcode === '' || !$this->ownedBaseRowExists($db, $entityType, $id, $defaultLangcode, $active)) {
+            throw TenancyViolationException::invisibleEntity($active, $entityType, $id);
+        }
+        $exactRow = $this->langcodePeerRow($db, $entityType, $id, $langcode);
+        if ($exactRow !== null) {
+            if (($exactRow['community_id'] ?? null) !== $active) {
+                throw TenancyViolationException::invisibleEntity($active, $entityType, $id);
+            }
+
+            return;
+        }
+    }
+
+    /** @return array<string, mixed>|null */
+    private function langcodePeerRow(DatabaseInterface $db, string $entityType, string $id, string $langcode): ?array
+    {
+        $query = $db->select($entityType)
+            ->fields($entityType, $this->communityScope?->isActive() ? ['community_id'] : [$this->idKey])
+            ->condition($this->idKey, $id)
+            ->condition('langcode', $langcode);
+        foreach ($query->execute() as $row) {
+            return (array) $row;
+        }
+
+        return null;
+    }
+
+    private function ownedBaseRowExists(
+        DatabaseInterface $db,
+        string $entityType,
+        string $id,
+        string $defaultLangcode,
+        string $communityId,
+    ): bool {
+        foreach ($db->select($entityType)
+            ->fields($entityType, [$this->idKey])
+            ->condition($this->idKey, $id)
+            ->condition('langcode', $defaultLangcode)
+            ->condition('community_id', $communityId)
+            ->execute() as $_row) {
+            return true;
+        }
+
+        return false;
+    }
+
     public function remove(string $entityType, string $id): void
     {
         $db = $this->getDatabase();

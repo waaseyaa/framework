@@ -9,7 +9,7 @@ namespace Waaseyaa\EntityStorage\Driver;
  *
  * @api
  */
-final readonly class InMemoryStorageDriverV2 implements EntityStorageDriverV2Interface
+final readonly class InMemoryStorageDriverV2 implements EntityStorageDriverV2Interface, LangcodePeerStorageDriverV2Interface
 {
     public function __construct(
         private InMemoryStorageDriver $backend,
@@ -32,6 +32,36 @@ final readonly class InMemoryStorageDriverV2 implements EntityStorageDriverV2Int
     public function write(string $entityType, string $id, StorageSnapshot $snapshot): string
     {
         return $this->backend->write($entityType, $id, $this->snapshotReader->read($snapshot));
+    }
+
+    public function writeLangcodePeer(
+        string $entityType,
+        string $id,
+        string $langcode,
+        string $defaultLangcode,
+        StorageSnapshot $snapshot,
+    ): void {
+        $this->backend->writeTranslation(
+            $entityType,
+            $id,
+            $langcode,
+            $this->snapshotReader->read($snapshot),
+        );
+    }
+
+    public function assertLangcodePeerMutationAllowed(
+        string $entityType,
+        string $id,
+        string $langcode,
+        string $defaultLangcode,
+        StorageSnapshot $snapshot,
+    ): void {
+        $this->backend->assertTranslationMutationAllowed(
+            $entityType,
+            $id,
+            $langcode,
+            $this->snapshotReader->read($snapshot),
+        );
     }
 
     public function remove(string $entityType, string $id): void
