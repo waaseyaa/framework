@@ -98,8 +98,12 @@ final class ReleaseEvidenceTest extends TestCase
     #[Test]
     public function every_external_workflow_action_is_immutably_selected(): void
     {
-        $workflows = glob($this->repoRoot . '/.github/workflows/*.yml');
-        self::assertNotFalse($workflows);
+        $ymlWorkflows = glob($this->repoRoot . '/.github/workflows/*.yml');
+        $yamlWorkflows = glob($this->repoRoot . '/.github/workflows/*.yaml');
+        $workflows = array_merge(
+            $ymlWorkflows === false ? [] : $ymlWorkflows,
+            $yamlWorkflows === false ? [] : $yamlWorkflows,
+        );
 
         $externalUses = 0;
         foreach ($workflows as $workflow) {
@@ -130,6 +134,20 @@ final class ReleaseEvidenceTest extends TestCase
         self::assertStringContainsString('waaseyaa-framework-provenance.json', $workflow);
         self::assertStringContainsString('SHA256SUMS', $workflow);
         self::assertStringContainsString('files: release-evidence/*', $workflow);
+        self::assertSame(2, substr_count($workflow, 'overwrite: true'));
+
+        $manualWorkflow = (string) file_get_contents($this->repoRoot . '/.github/workflows/github-release.yml');
+        self::assertStringContainsString('evidence_run_id:', $manualWorkflow);
+        self::assertStringContainsString('actions/download-artifact@', $manualWorkflow);
+        self::assertStringContainsString('name: waaseyaa-release-evidence', $manualWorkflow);
+        self::assertStringContainsString('run-id: ${{ inputs.evidence_run_id }}', $manualWorkflow);
+        self::assertStringContainsString('github-token: ${{ github.token }}', $manualWorkflow);
+        self::assertStringContainsString('Verify retained release evidence', $manualWorkflow);
+        self::assertStringContainsString('files: release-evidence/*', $manualWorkflow);
+        self::assertStringContainsString('fail_on_unmatched_files: true', $manualWorkflow);
+
+        $ciWorkflow = (string) file_get_contents($this->repoRoot . '/.github/workflows/ci.yml');
+        self::assertMatchesRegularExpression('/release-evidence-dry-run-.*?overwrite:\s*true/s', $ciWorkflow);
     }
 
     private function writeCompleteSplitRecords(string $directory, string $sourceSha): void

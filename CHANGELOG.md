@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **deterministic release evidence (#2336):** Generate byte-stable CycloneDX SBOM, release provenance, and checksums from exact lockfiles and every split-package SHA; retain a pull-request dry run, attach the complete evidence set before publishing a release, and pin all external workflow actions to immutable commits.
+- **deterministic release evidence (#2336):** Generate byte-stable CycloneDX SBOM, release provenance, and checksums from exact lockfiles and every split-package SHA; retain a pull-request dry run, require both automatic and manual release paths to attach a checksum- and identity-verified evidence set, and pin all external workflow actions to immutable commits.
 
 - **guarded selected-package main split (#2315):** Add a manual, allowlisted workflow that projects selected packages from the exact current green framework `main` SHA to split repository `main` branches with force-with-lease and provenance artifacts. It creates no tags, versions, releases, or Packagist updates.
 

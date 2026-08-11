@@ -230,6 +230,7 @@ jobs:
           path: release-split-provenance/${{ matrix.package.remote }}.json
           if-no-files-found: error
           retention-days: 30
+          overwrite: true
 
   verify-monorepo-main-intact:
     name: Verify the tagged commit is still reachable from monorepo main
@@ -388,6 +389,8 @@ jobs:
     name: Assemble deterministic release evidence
     needs: [split, verify-monorepo-main-intact, verify-tag-parity, verify-require-parity, verify-packagist]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -437,6 +440,7 @@ jobs:
             release-evidence/SHA256SUMS
           if-no-files-found: error
           retention-days: 90
+          overwrite: true
 
   # Publish only after split matrix + monorepo integrity + parity + PACKAGIST
   # VERIFICATION — avoids racing github-release.yml on tag push, blocks releases

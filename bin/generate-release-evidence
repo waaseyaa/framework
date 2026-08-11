@@ -188,7 +188,7 @@ function loadPackages(repositoryRoot, splitDirectory, options) {
 
 function loadWorkflowInputs(workflowDirectory) {
   const inputs = new Map()
-  for (const filename of readdirSync(workflowDirectory).filter((file) => file.endsWith('.yml')).sort()) {
+  for (const filename of readdirSync(workflowDirectory).filter((file) => /\.ya?ml$/.test(file)).sort()) {
     const contents = readFileSync(join(workflowDirectory, filename), 'utf8')
     for (const match of contents.matchAll(/^\s*-?\s*uses:\s*([^\s#]+)(?:\s+#\s*(.+))?$/gm)) {
       if (match[1].startsWith('./')) continue
@@ -234,6 +234,8 @@ function buildSbom(composerLock, npmLock, options) {
     const purlName = encodeURIComponent(name).replaceAll('%2F', '/')
     const purl = `pkg:npm/${purlName}@${encodeURIComponent(dependency.version)}`
     const integrityHash = parseIntegrity(dependency.integrity)
+    const priorScope = components.get(purl)?.properties?.find((property) => property.name === 'waaseyaa:lock:scope')?.value
+    const scope = dependency.dev === true && priorScope !== 'production' ? 'development' : 'production'
     components.set(purl, compact({
       type: 'library',
       'bom-ref': purl,
@@ -242,7 +244,7 @@ function buildSbom(composerLock, npmLock, options) {
       purl,
       hashes: integrityHash ? [integrityHash] : [],
       properties: [
-        { name: 'waaseyaa:lock:scope', value: dependency.dev ? 'development' : 'production' },
+        { name: 'waaseyaa:lock:scope', value: scope },
         { name: 'waaseyaa:npm:resolved', value: dependency.resolved ?? null },
         { name: 'waaseyaa:npm:integrity', value: dependency.integrity ?? null },
       ],

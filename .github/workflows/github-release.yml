@@ -12,8 +12,13 @@ on:
         description: 'Existing tag (e.g. v0.1.0-alpha.115)'
         required: true
         type: string
+      evidence_run_id:
+        description: 'Successful split workflow run containing waaseyaa-release-evidence'
+        required: true
+        type: string
 
 permissions:
+  actions: read
   contents: write
 
 jobs:
@@ -25,6 +30,7 @@ jobs:
         with:
           ref: ${{ inputs.tag }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Verify split tag parity before release
         env:
@@ -34,6 +40,37 @@ jobs:
         run: |
           bash bin/check-release-tag-parity "${TAG_NAME}"
 
+      - name: Download retained release evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: waaseyaa-release-evidence
+          path: release-evidence
+          run-id: ${{ inputs.evidence_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Verify retained release evidence
+        env:
+          EVIDENCE_RUN_ID: ${{ inputs.evidence_run_id }}
+          TAG_NAME: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          (
+            cd release-evidence
+            sha256sum --check SHA256SUMS
+          )
+          source_sha="$(git rev-parse "${TAG_NAME}^{commit}")"
+          jq -e \
+            --arg repository "${GITHUB_REPOSITORY}" \
+            --arg source_sha "${source_sha}" \
+            --arg tag "${TAG_NAME}" \
+            --arg run_id "${EVIDENCE_RUN_ID}" \
+            '.source.repository == $repository
+              and .source.sha == $source_sha
+              and .release.tag == $tag
+              and .builder.workflow_run_id == $run_id
+              and .evidence.sbom.path == "waaseyaa-framework.cdx.json"' \
+            release-evidence/waaseyaa-framework-provenance.json
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
@@ -41,3 +78,5 @@ jobs:
           name: ${{ inputs.tag }}
           generate_release_notes: true
           prerelease: ${{ contains(inputs.tag, 'alpha') || contains(inputs.tag, 'beta') || contains(inputs.tag, 'rc') }}
+          files: release-evidence/*
+          fail_on_unmatched_files: true

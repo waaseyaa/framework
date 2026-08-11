@@ -61,6 +61,13 @@ Release job downloads the completed evidence artifact and attaches all three
 files. A missing evidence artifact or file fails closed before release
 publication.
 
+The manual GitHub Release recovery workflow is subject to the same gate. An
+operator must supply the successful split workflow run ID that retained the
+evidence. The recovery job downloads that exact run's artifact, verifies its
+checksums, and confirms that repository, source SHA, tag, and workflow run ID
+match the requested release before attaching the complete set. It must never
+regenerate or publish around missing retained evidence.
+
 Pull-request CI exercises the generator with complete deterministic fixtures
 and uploads the dry-run evidence. This proves format and retention wiring; it
 does not claim that a release or package split occurred.

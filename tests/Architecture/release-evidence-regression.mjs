@@ -13,7 +13,7 @@ const temporaryRoot = mkdtempSync(join(tmpdir(), 'waaseyaa_release_evidence_'))
 try {
   const workflowDirectory = join(repoRoot, '.github/workflows')
   let externalUses = 0
-  for (const file of readdirSync(workflowDirectory).filter((name) => name.endsWith('.yml'))) {
+  for (const file of readdirSync(workflowDirectory).filter((name) => /\.ya?ml$/.test(name))) {
     const workflow = readFileSync(join(workflowDirectory, file), 'utf8')
     for (const match of workflow.matchAll(/^\s*-?\s*uses:\s*([^\s#]+)(?:\s+#\s*(.+))?$/gm)) {
       if (match[1].startsWith('./')) continue
@@ -94,10 +94,19 @@ try {
     assert.ok(purls.has(`pkg:composer/${dependency.name}@${encodeURIComponent(dependency.version)}`), `missing ${dependency.name}`)
   }
   const npm = JSON.parse(readFileSync(join(repoRoot, 'packages/admin/package-lock.json'), 'utf8'))
+  const npmScopes = new Map()
   for (const [path, dependency] of Object.entries(npm.packages)) {
     if (path === '' || !dependency.version) continue
     const name = dependency.name ?? path.replace(/^.*node_modules\//, '')
-    assert.ok(purls.has(`pkg:npm/${encodeURIComponent(name).replaceAll('%2F', '/')}@${encodeURIComponent(dependency.version)}`), `missing ${name}`)
+    const purl = `pkg:npm/${encodeURIComponent(name).replaceAll('%2F', '/')}@${encodeURIComponent(dependency.version)}`
+    assert.ok(purls.has(purl), `missing ${name}`)
+    const scope = dependency.dev === true ? 'development' : 'production'
+    npmScopes.set(purl, npmScopes.get(purl) === 'production' ? 'production' : scope)
+  }
+  for (const [purl, expectedScope] of npmScopes) {
+    const component = sbom.components.find((candidate) => candidate.purl === purl)
+    const actualScope = component.properties.find((property) => property.name === 'waaseyaa:lock:scope')?.value
+    assert.equal(actualScope, expectedScope, `${purl}: production reachability must win across duplicate lock entries`)
   }
 
   const provenance = JSON.parse(readFileSync(join(first, 'waaseyaa-framework-provenance.json'), 'utf8'))
