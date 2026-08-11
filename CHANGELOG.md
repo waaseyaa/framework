@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **fail-closed S1 upgrade compatibility (#2336):** Define the named alpha.293-to-S1 transition, ordered read-only preflight decisions, mixed/unknown-state refusal, and forward-only failure containment without claiming consumer recovery.
+
 - **guarded selected-package main split (#2315):** Add a manual, allowlisted workflow that projects selected packages from the exact current green framework `main` SHA to split repository `main` branches with force-with-lease and provenance artifacts. It creates no tags, versions, releases, or Packagist updates.
 
 ### Fixed
