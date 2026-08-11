@@ -2,7 +2,9 @@
 
 **Status:** Candidate contract for Stage 0 enterprise remediation.
 **Anchor:** [#2336](https://github.com/waaseyaa/framework/issues/2336).
-**Machine contract:** `support/upgrade/s1-v1.json`.
+**Machine contract:** `packages/foundation/resources/upgrade/s1-v1.json`, loaded
+through `UpgradePreflightContract` so the resource survives the Foundation
+subtree split and consumers do not depend on a monorepo-root path.
 
 ## Purpose
 
@@ -56,8 +58,10 @@ package.
 
 ## Boundary and non-goals
 
-The preflight is pure and read-only. It accepts decoded contract and
-observation data and returns a deterministic result. It does not:
+The preflight is pure and read-only. The consumer entry point loads the
+Foundation-bundled contract, accepts observation data, and returns a
+deterministic result. The lower-level evaluator accepts decoded contract data
+for contract/fixture verification. It does not:
 
 - read production files, Composer state, configuration, or a database;
 - enter maintenance mode;

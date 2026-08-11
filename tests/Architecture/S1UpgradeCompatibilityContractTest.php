@@ -19,8 +19,13 @@ final class S1UpgradeCompatibilityContractTest extends TestCase
         self::assertFileExists($checker);
         self::assertTrue(is_executable($checker), 'Upgrade contract checker must retain mode 100755.');
 
-        $contractPath = $root . '/support/upgrade/s1-v1.json';
+        $contractPath = $root . '/packages/foundation/resources/upgrade/s1-v1.json';
         self::assertFileExists($contractPath);
+        self::assertStringContainsString(
+            "local: 'packages/foundation', remote: 'foundation'",
+            (string) file_get_contents($root . '/.github/workflows/split.yml'),
+            'The contract must remain under the subtree exported to waaseyaa/foundation.',
+        );
         $contract = json_decode((string) file_get_contents($contractPath), true, flags: JSON_THROW_ON_ERROR);
         self::assertIsArray($contract);
         self::assertSame('s1-upgrade-v1', $contract['contract_id'] ?? null);

@@ -7,8 +7,10 @@ namespace Waaseyaa\Foundation\Tests\Unit\Upgrade;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Foundation\Upgrade\UpgradePreflightContract;
 use Waaseyaa\Foundation\Upgrade\UpgradePreflightEvaluator;
 
+#[CoversClass(UpgradePreflightContract::class)]
 #[CoversClass(UpgradePreflightEvaluator::class)]
 final class UpgradePreflightEvaluatorTest extends TestCase
 {
@@ -21,7 +23,7 @@ final class UpgradePreflightEvaluatorTest extends TestCase
         );
 
         $root = dirname(__DIR__, 5);
-        $contract = $this->decode($root . '/support/upgrade/s1-v1.json');
+        $contract = UpgradePreflightContract::load();
         $expected = [
             'ready.json' => ['ready', []],
             'mixed-source.json' => ['unsupported', ['SOURCE_PACKAGE_SET_MIXED', 'SOURCE_PACKAGE_DIGEST_UNSUPPORTED']],
@@ -45,6 +47,11 @@ final class UpgradePreflightEvaluatorTest extends TestCase
             self::assertSame($contractBefore, $contract, $fixture . ' mutated the contract');
             self::assertSame($observationBefore, $observation, $fixture . ' mutated the observation');
         }
+
+        $bundled = $evaluator->evaluateBundled(
+            $this->decode($root . '/tests/Fixtures/UpgradePreflight/ready.json'),
+        );
+        self::assertSame('ready', $bundled->decision->value);
     }
 
     /** @return array<string, mixed> */

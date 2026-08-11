@@ -19,6 +19,12 @@ final class UpgradePreflightEvaluator
         'invalid' => 3,
     ];
 
+    /** @param array<string, mixed> $observation */
+    public function evaluateBundled(array $observation): UpgradePreflightResult
+    {
+        return $this->evaluate(UpgradePreflightContract::load(), $observation);
+    }
+
     /**
      * @param array<string, mixed> $contract
      * @param array<string, mixed> $observation

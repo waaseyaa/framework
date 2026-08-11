@@ -3,6 +3,7 @@
 
 declare(strict_types=1);
 
+use Waaseyaa\Foundation\Upgrade\UpgradePreflightContract;
 use Waaseyaa\Foundation\Upgrade\UpgradePreflightEvaluator;
 
 $root = dirname(__DIR__);
@@ -23,7 +24,15 @@ function decodeJson(string $path): array
 }
 
 try {
-    $contract = decodeJson($root . '/support/upgrade/s1-v1.json');
+    $contract = decodeJson($root . '/packages/foundation/resources/upgrade/s1-v1.json');
+    if (UpgradePreflightContract::load() !== $contract) {
+        throw new RuntimeException('Foundation bundled-contract loader does not return the retained contract.');
+    }
+
+    $splitWorkflow = (string) file_get_contents($root . '/.github/workflows/split.yml');
+    if (!str_contains($splitWorkflow, "local: 'packages/foundation', remote: 'foundation'")) {
+        throw new RuntimeException('Foundation subtree-split ownership is absent or changed.');
+    }
     if (($contract['contract_id'] ?? null) !== 's1-upgrade-v1'
         || ($contract['transition_id'] ?? null) !== 'alpha293-to-s1-v1'
         || ($contract['evaluation_order'] ?? null) !== [
