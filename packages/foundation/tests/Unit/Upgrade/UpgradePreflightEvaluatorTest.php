@@ -24,7 +24,7 @@ final class UpgradePreflightEvaluatorTest extends TestCase
         $contract = $this->decode($root . '/support/upgrade/s1-v1.json');
         $expected = [
             'ready.json' => ['ready', []],
-            'mixed-source.json' => ['unsupported', ['SOURCE_PACKAGE_SET_MIXED']],
+            'mixed-source.json' => ['unsupported', ['SOURCE_PACKAGE_SET_MIXED', 'SOURCE_PACKAGE_DIGEST_UNSUPPORTED']],
             'unknown-source.json' => ['unsupported', ['SOURCE_TAG_UNSUPPORTED', 'SOURCE_COMMIT_UNSUPPORTED']],
             'config-drift.json' => ['blocked', ['CONFIG_DRIFT_PRESENT']],
             'schema-unknown.json' => ['blocked', ['SCHEMA_LEDGER_UNKNOWN', 'LIVE_SCHEMA_UNVERIFIED']],

@@ -24,19 +24,35 @@ The first transition is `alpha293-to-s1-v1`.
 - The target compatibility baseline is framework commit
   `85b5e1b5b80f9f8dc347c1e3286cd42d989bf47f`, identified independently of
   the still-alpha `VERSION` text.
-- Every source `waaseyaa/*` package must belong to the single alpha.293
-  release cohort. A `dev-main` package, an unrecognized split commit, a
-  different tag, or an incomplete package inventory is not silently inferred
-  compatible.
+- The 59 installed framework-owned packages must belong to the single
+  alpha.293 release cohort and match its canonical package-set digest. A
+  `dev-main` framework package, an unrecognized split commit, a different
+  tag, or an incomplete package inventory is not silently inferred compatible.
+  The supported framework digest is
+  `sha256:d44b9145d62b05cf447432585e019e01570895bd44884644e98794a45f14bb37`.
+- The two Anokii extension packages are bound separately to the immutable
+  predecessor digest
+  `sha256:1c1eb5734843ac9423de87e8b5280fb17106cdce5196a555d95aa1ede850e916`
+  and require explicit compatibility evidence. Their exact development commits
+  are not mistaken for framework release-cohort membership.
 - Target packages must be bound to the target framework commit by separately
   verifiable provenance. The evaluator does not manufacture provenance.
 - Runtime support is named as `s1-v1`; consumer certification remains a
   separate evidence input.
 
-The exact mixed Sheg baseline (57 alpha.293 packages and four immutable
-`dev-main` exceptions) is therefore not blessed as a supported predecessor.
-Its source evidence must first become a coherent supported cohort or it is
-refused with `SOURCE_PACKAGE_SET_MIXED`.
+The exact mixed Sheg baseline has 57 framework packages at alpha.293, two
+framework `dev-main` exceptions, and two exact Anokii extension commits. It is
+therefore not blessed as a supported predecessor. Its framework source evidence
+must first become the coherent 59-package alpha.293 cohort or it is refused
+with `SOURCE_PACKAGE_SET_MIXED` and
+`SOURCE_PACKAGE_DIGEST_UNSUPPORTED`.
+
+Package-set digests use UTF-8, LF-terminated rows sorted by package name. Each
+row is tab-separated `name`, normalized Composer `version`, source
+`reference`, and dist `reference`. The `sha256:` value hashes the complete
+byte sequence including the final LF. Framework-owned and extension packages
+are hashed separately so an extension cannot masquerade as a split framework
+package.
 
 ## Boundary and non-goals
 
@@ -164,4 +180,3 @@ The framework package requires:
   changelog;
 - ordinary Unit, Architecture, Composer, style, static-analysis, and exact-head
   CI gates.
-
