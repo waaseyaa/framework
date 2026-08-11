@@ -1,5 +1,7 @@
 # Infrastructure
 
+<!-- Spec reviewed 2026-08-11 - #2336 S1 upgrade compatibility: Foundation exposes a pure, read-only preflight decision surface. It does not boot the kernel, read configuration or schema state, run migrations, enter maintenance, or perform rollback/restore. Callers must supply the exact versioned observation described by docs/specs/s1-upgrade-compatibility.md; unknown or mixed state is refused, and a ready result authorizes only a separately governed apply phase. Existing configuration and migration mechanisms remain uncertified evidence sources until their independent findings close. -->
+
 <!-- Spec reviewed 2026-08-09 - issue #2322: HealthSchemaServiceProvider registers tenancy:repair-translation-peers as an explicit, dry-run-capable repair surface. It uses the live entity type metadata and database connection but never runs during boot; operators must quiesce writes before applying repairs. -->
 <!-- Spec reviewed 2026-08-09 - issue #2320: EntityTypeManagerFactory resolves CommunityScope once per entity type and injects that same instance into both SqlStorageDriver and RevisionableStorageDriver. Community-scoped base rows are therefore the kernel-owned visibility and mutation anchor for default and translation revision history, without duplicating community_id into revision tables. -->
 
