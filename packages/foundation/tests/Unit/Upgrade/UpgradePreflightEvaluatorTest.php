@@ -54,6 +54,50 @@ final class UpgradePreflightEvaluatorTest extends TestCase
         self::assertSame('ready', $bundled->decision->value);
     }
 
+    #[Test]
+    public function it_rejects_malformed_contract_and_observation_envelopes(): void
+    {
+        $root = dirname(__DIR__, 5);
+        $contract = UpgradePreflightContract::load();
+        $observation = $this->decode($root . '/tests/Fixtures/UpgradePreflight/ready.json');
+        $evaluator = new UpgradePreflightEvaluator();
+
+        $malformedContract = $contract;
+        $malformedContract['unknown'] = true;
+        self::assertSame(
+            ['CONTRACT_INVALID'],
+            $evaluator->evaluate($malformedContract, $observation)->reasonCodes,
+        );
+
+        $unsupportedSchema = $observation;
+        $unsupportedSchema['schema_version'] = 2;
+        self::assertSame(
+            ['OBSERVATION_SCHEMA_UNSUPPORTED'],
+            $evaluator->evaluate($contract, $unsupportedSchema)->reasonCodes,
+        );
+
+        $wrongTransition = $observation;
+        $wrongTransition['transition_id'] = 'different-transition';
+        self::assertSame(
+            ['OBSERVATION_TRANSITION_MISMATCH'],
+            $evaluator->evaluate($contract, $wrongTransition)->reasonCodes,
+        );
+
+        $missingKey = $observation;
+        unset($missingKey['operations']);
+        self::assertSame(
+            ['OBSERVATION_MISSING_KEY'],
+            $evaluator->evaluate($contract, $missingKey)->reasonCodes,
+        );
+
+        $invalidType = $observation;
+        $invalidType['schema'] = [];
+        self::assertSame(
+            ['OBSERVATION_TYPE_INVALID'],
+            $evaluator->evaluate($contract, $invalidType)->reasonCodes,
+        );
+    }
+
     /** @return array<string, mixed> */
     private function decode(string $path): array
     {
