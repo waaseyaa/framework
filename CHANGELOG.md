@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **bounded S1 support contract (#2336):** Define the versioned S1 platform and alpha lifecycle boundaries, distinguish framework conformance from pending consumer certification, and reserve unsupported H1 and untested runtime combinations from implied support.
+
 - **guarded selected-package main split (#2315):** Add a manual, allowlisted workflow that projects selected packages from the exact current green framework `main` SHA to split repository `main` branches with force-with-lease and provenance artifacts. It creates no tags, versions, releases, or Packagist updates.
 
 ### Fixed
