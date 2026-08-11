@@ -32,7 +32,7 @@ operation.
 | Axis | S1 boundary | Role | Evidence |
 |---|---|---|---|
 | PHP | `>=8.5.0 <8.6.0`, latest available 8.5 patch | serving and CLI runtime | Composer platform constraint plus an explicit PHP 8.5 conformance job |
-| Composer | latest stable `2.x` feature line used by CI; exact version recorded | dependency resolution/build tool, not serving runtime | contract checker and CI version output |
+| Composer | exact stable `2.x` feature line recorded in the contract (currently 2.10); exact patch recorded by CI | dependency resolution/build tool, not serving runtime | contract checker and CI version output |
 | Node.js | `>=24.0.0 <25.0.0`, Node 24 LTS | Admin SPA build/test tool, not serving runtime | `.nvmrc`, package engine, explicit conformance job |
 | SQLite | `>=3.40.0 <4.0.0` | S1 database runtime | real runtime assertion plus compiler-boundary fixtures at documented SQLite capability checkpoints |
 | Framework CI OS | Ubuntu 24.04, x86-64 | authoritative framework test point | explicit `ubuntu-24.04` runner and environment evidence |
@@ -72,8 +72,10 @@ The current upstream planning horizons recorded in `support/s1-v1.json` are:
   source; upstream SQLite does not publish an equivalent fixed LTS window.
 
 These dates are planning inputs, not evidence that an arbitrary patch is safe.
-They must be reviewed at least quarterly, at every tagged release, and 90 days
-before the earliest recorded lifecycle transition.
+They must be reviewed at least quarterly, at every tagged release, and no later
+than 90 days before the earliest recorded support-reducing or end-of-life
+transition. A move from active to maintenance support that does not reduce the
+declared S1 point is still recorded, but is not itself the notice deadline.
 
 ## Machine-readable authority and fail-closed parity
 
@@ -84,7 +86,7 @@ explain it but may not widen it. `bin/check-support-contract` must fail when:
   than S1 as supported;
 - PHP, Node, SQLite, OS, or browser declarations drift from executable
   constraints and CI test points;
-- the CI support job uses a floating OS label or omits version evidence;
+- any authoritative CI job uses a floating OS label or omits version evidence;
 - the consumer certification point is presented as complete before its evidence
   reference is populated; or
 - documentation claims H1, WebKit/Safari, remote filesystems, MySQL, or
@@ -99,4 +101,3 @@ Any boundary expansion or lifecycle change requires an anchor issue, an updated
 contract version or revision, a red conformance test, matching executable
 evidence, changelog and upgrade-impact review, and normal pull-request approval.
 Removing a supported point is a breaking change under the pre-1.0 policy.
-

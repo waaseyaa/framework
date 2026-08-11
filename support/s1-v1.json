@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "contract_version": "s1-v1",
+  "last_reviewed": "2026-08-10",
+  "review_by": "2026-10-01",
+  "profile": {
+    "name": "S1",
+    "status": "candidate",
+    "scope": "single-node SQLite"
+  },
+  "platform": {
+    "php": {
+      "constraint": ">=8.5.0 <8.6.0",
+      "role": "serving-and-cli-runtime",
+      "active_support_end": "2027-12-31",
+      "security_support_end": "2029-12-31",
+      "source": "https://www.php.net/supported-versions.php"
+    },
+    "composer": {
+      "constraint": ">=2.10.0 <3.0.0",
+      "feature_line": "2.10",
+      "role": "dependency-resolution-and-build-tool",
+      "source": "https://getcomposer.org/download/"
+    },
+    "node": {
+      "constraint": ">=24.0.0 <25.0.0",
+      "role": "admin-build-and-test-tool",
+      "maintenance_start": "2026-10-20",
+      "eol": "2028-04-30",
+      "source": "https://github.com/nodejs/Release#release-schedule"
+    },
+    "sqlite": {
+      "constraint": ">=3.40.0 <4.0.0",
+      "role": "s1-database-runtime",
+      "security_source": "ubuntu-24.04-package-source",
+      "source": "https://packages.ubuntu.com/noble/sqlite3"
+    },
+    "framework_os": {
+      "runner": "ubuntu-24.04",
+      "version": "24.04",
+      "architecture": "x86_64",
+      "standard_security_maintenance_end": "2029-05",
+      "source": "https://ubuntu.com/about/release-cycle"
+    },
+    "browsers": {
+      "playwright_version": "1.60.0",
+      "projects": [
+        "chromium",
+        "firefox"
+      ],
+      "revision_authority": "packages/admin/package-lock.json",
+      "source": "https://playwright.dev/docs/browsers"
+    }
+  },
+  "lifecycle": {
+    "release_model": "forward-only-immutable-alpha-tags",
+    "fixed_train": "latest-tagged-alpha",
+    "upgrade_treatment_trains": 3,
+    "backports": false,
+    "security_fix_delivery": "newest-tagged-alpha",
+    "response_time_sla": false,
+    "review_frequency": "quarterly-and-every-tagged-release",
+    "next_transition_notice_days": 90
+  },
+  "evidence": {
+    "framework": {
+      "status": "verified",
+      "owner": "waaseyaa/framework",
+      "test_point": "ubuntu-24.04-x86_64",
+      "command": "php bin/check-support-contract --ci"
+    },
+    "consumer": {
+      "status": "pending",
+      "owner": "jonesrussell/sheguiandah-waaseyaa",
+      "work_package": "S0-SHEG-02",
+      "test_point": "ubuntu-24.04-x86_64-ext4-apache-2.4-php-fpm-8.5",
+      "proof": null
+    }
+  },
+  "unsupported": {
+    "profiles": [
+      "H1"
+    ],
+    "databases": [
+      "mysql",
+      "postgresql"
+    ],
+    "filesystems": [
+      "nfs",
+      "smb",
+      "object-mounted",
+      "clustered"
+    ],
+    "web_runtimes": [
+      "non-apache-2.4",
+      "non-php-fpm-8.5"
+    ],
+    "browsers": [
+      "webkit",
+      "safari",
+      "branded-browser-specific-behavior"
+    ]
+  }
+}
