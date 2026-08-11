@@ -21,7 +21,7 @@ jobs:
     name: Release pipeline fixtures
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha || github.sha }}
       # Guards the decision logic that was wrong at alpha.285: an accepted POST
@@ -30,11 +30,38 @@ jobs:
       - name: Packagist verification fixtures
         run: bash tests/release/packagist-verification.bats.sh
 
+  release-evidence:
+    name: Deterministic release evidence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Generate and replay release evidence from synthetic split inputs
+        env:
+          RELEASE_EVIDENCE_DRY_RUN_OUTPUT: build/release-evidence
+        run: node tests/Architecture/release-evidence-regression.mjs
+
+      - name: Retain pull-request dry-run evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-evidence-dry-run-${{ github.sha }}
+          path: build/release-evidence
+          if-no-files-found: error
+          retention-days: 14
+
   composer-policy:
     name: composer-policy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
           fetch-tags: true  # fetch-tags: required for CP-NEW (composer-internal-version-sweep WP03)
@@ -55,7 +82,7 @@ jobs:
     name: composer-deps-audit (warn-only)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
 
@@ -66,7 +93,7 @@ jobs:
           coverage: none
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor
           key: composer-v2-${{ hashFiles('composer.lock') }}
@@ -86,7 +113,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
           fetch-depth: 0
@@ -98,7 +125,7 @@ jobs:
     name: ci/lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
 
@@ -109,7 +136,7 @@ jobs:
           coverage: none
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor
           key: composer-v2-${{ hashFiles('composer.lock') }}
@@ -133,7 +160,7 @@ jobs:
         run: composer cs-check
 
       - name: Restore PHPStan result cache
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: tmp/phpstan
           key: phpstan-result-cache-${{ github.run_id }}
@@ -144,7 +171,7 @@ jobs:
         run: composer phpstan
 
       - name: Save PHPStan result cache
-        uses: actions/cache/save@v6
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: ${{ !cancelled() }}
         with:
           path: tmp/phpstan
@@ -154,7 +181,7 @@ jobs:
     name: check-dead-code
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
 
@@ -165,7 +192,7 @@ jobs:
           coverage: none
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor
           key: composer-v2-${{ hashFiles('composer.lock') }}
@@ -175,7 +202,7 @@ jobs:
         run: composer install --no-interaction --prefer-dist
 
       - name: Restore dead-code PHPStan result cache
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: tmp/phpstan-dead-code
           # Bust the cache when the analyzer's rules change: provider source,
@@ -190,7 +217,7 @@ jobs:
         run: php bin/check-dead-code
 
       - name: Save dead-code PHPStan result cache
-        uses: actions/cache/save@v6
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: ${{ !cancelled() }}
         with:
           path: tmp/phpstan-dead-code
@@ -200,7 +227,7 @@ jobs:
     name: ci/unit-tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
 
@@ -212,7 +239,7 @@ jobs:
           coverage: pcov
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor
           key: composer-v2-${{ hashFiles('composer.lock') }}
@@ -236,7 +263,7 @@ jobs:
         run: ./vendor/bin/phpunit --testsuite Integration --exclude-group fresh-install-cutover --no-coverage --log-junit build/logs/junit-integration.xml
 
       - name: Upload test artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: test-results
@@ -250,7 +277,7 @@ jobs:
     name: ci/random-order
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
 
@@ -262,7 +289,7 @@ jobs:
           coverage: none
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor
           key: composer-v2-${{ hashFiles('composer.lock') }}
@@ -281,7 +308,7 @@ jobs:
     name: ci/package-isolation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
 
@@ -293,7 +320,7 @@ jobs:
           coverage: none
 
       - name: Cache Composer downloads
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/composer/files
           key: split-package-composer-${{ hashFiles('packages/access/composer.json', 'packages/testing/composer.json', 'packages/user/composer.json') }}
@@ -306,7 +333,7 @@ jobs:
     name: ci/coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
           fetch-depth: 0
@@ -319,7 +346,7 @@ jobs:
           coverage: pcov
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor
           key: composer-v2-${{ hashFiles('composer.lock') }}
@@ -347,7 +374,7 @@ jobs:
         run: php bin/check-changed-php-coverage --clover=build/logs/clover.xml --base="$COVERAGE_BASE_SHA" --threshold=80
 
       - name: Upload PHP coverage
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: php-coverage
@@ -361,7 +388,7 @@ jobs:
     name: ci/mutation-pilot
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
 
@@ -373,7 +400,7 @@ jobs:
           coverage: pcov
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor
           key: composer-v2-${{ hashFiles('composer.lock') }}
@@ -386,7 +413,7 @@ jobs:
         run: time php bin/test-mutation-pilot
 
       - name: Upload mutation evidence
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: mutation-pilot
@@ -400,7 +427,7 @@ jobs:
     name: ci/skeleton-create-project
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
 
@@ -471,7 +498,7 @@ jobs:
     name: packaged-form
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
 
@@ -483,7 +510,7 @@ jobs:
           coverage: none
 
       - name: Cache packaged-form Composer dependencies
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: tests/PackagedForm/skeleton/vendor
           key: packaged-form-composer-v1-${{ hashFiles('tests/PackagedForm/skeleton/composer.lock') }}
@@ -505,7 +532,7 @@ jobs:
     name: ci/core-only-boot
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
 
@@ -554,7 +581,7 @@ jobs:
     # `composer check-external-consumers`. See roadmap triage for the retire/narrow follow-up.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
 
@@ -566,12 +593,12 @@ jobs:
           coverage: none
 
       - name: Set up Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: '.nvmrc'
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor
           key: composer-v2-${{ hashFiles('composer.lock') }}
@@ -615,7 +642,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [frontend-build]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
 
@@ -627,7 +654,7 @@ jobs:
           coverage: none
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor
           key: composer-v2-${{ hashFiles('composer.lock') }}
@@ -637,20 +664,20 @@ jobs:
         run: composer install --no-interaction --prefer-dist
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
           cache-dependency-path: packages/admin/package-lock.json
 
       - name: Cache node modules
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: packages/admin/node_modules
           key: node-${{ hashFiles('packages/admin/package-lock.json') }}
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ hashFiles('packages/admin/package-lock.json') }}
@@ -674,7 +701,7 @@ jobs:
         run: cd packages/admin && npm run test:e2e:summary
 
       - name: Upload Playwright artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: playwright-smoke-results
@@ -684,7 +711,7 @@ jobs:
           retention-days: 30
 
       - name: Upload server logs on failure
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
           name: server-logs
@@ -700,20 +727,20 @@ jobs:
       run:
         working-directory: packages/admin
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
           fetch-depth: 0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
           cache-dependency-path: packages/admin/package-lock.json
 
       - name: Cache node modules
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: packages/admin/node_modules
           key: node-${{ hashFiles('packages/admin/package-lock.json') }}
@@ -733,7 +760,7 @@ jobs:
         run: node scripts/check-changed-coverage.mjs
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: frontend-build
@@ -741,7 +768,7 @@ jobs:
           retention-days: 14
 
       - name: Upload frontend coverage
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: frontend-coverage
@@ -752,7 +779,7 @@ jobs:
     name: Manifest conformance
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
 
@@ -779,7 +806,7 @@ jobs:
           exit $fail
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: '.nvmrc'
 
@@ -801,7 +828,7 @@ jobs:
     name: Ingestion defaults
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
       - name: Validate ingestion schema metadata and compatibility rules
@@ -811,7 +838,7 @@ jobs:
     name: Release publish shape
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
       - name: Assert exactly-once Packagist publish + forward-only release shape
@@ -821,7 +848,7 @@ jobs:
     name: Security defaults
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.sha }}
 
@@ -836,7 +863,7 @@ jobs:
           coverage: none
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor
           key: composer-v2-${{ hashFiles('composer.lock') }}

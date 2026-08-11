@@ -13,7 +13,7 @@ jobs:
       actions: read
       contents: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
@@ -128,7 +128,7 @@ jobs:
           # The RP106 guard in bin/check-release-publish-shape enforces this.
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
@@ -210,6 +210,26 @@ jobs:
             fi
             exit 1
           fi
+          mkdir -p release-split-provenance
+          jq -n \
+            --arg source_repository "${GITHUB_REPOSITORY}" \
+            --arg source_sha "${GITHUB_SHA}" \
+            --arg package "$(jq -r '.name' "${LOCAL_PREFIX}/composer.json")" \
+            --arg prefix "${LOCAL_PREFIX}" \
+            --arg split_repository "${REPO_OWNER}/${REMOTE_REPO}" \
+            --arg split_sha "${SHA}" \
+            --arg tag "${TAG_NAME}" \
+            --arg run_id "${GITHUB_RUN_ID}" \
+            '{source_repository: $source_repository, source_sha: $source_sha, package: $package, prefix: $prefix, split_repository: $split_repository, split_sha: $split_sha, tag: $tag, run_id: $run_id}' \
+            > "release-split-provenance/${REMOTE_REPO}.json"
+
+      - name: Retain exact split provenance
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: split-provenance-${{ matrix.package.remote }}
+          path: release-split-provenance/${{ matrix.package.remote }}.json
+          if-no-files-found: error
+          retention-days: 30
 
   verify-monorepo-main-intact:
     name: Verify the tagged commit is still reachable from monorepo main
@@ -246,7 +266,7 @@ jobs:
     needs: split
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
@@ -269,7 +289,7 @@ jobs:
     needs: split
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
@@ -297,7 +317,7 @@ jobs:
     needs: [publish-packagist]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
 
@@ -364,6 +384,60 @@ jobs:
           echo "All ${total} packages installable at \`${TAG}\` after ${elapsed}s." >> "${GITHUB_STEP_SUMMARY}"
           echo "::notice::All ${total} packages visible at ${TAG} after ${elapsed}s."
 
+  assemble-release-evidence:
+    name: Assemble deterministic release evidence
+    needs: [split, verify-monorepo-main-intact, verify-tag-parity, verify-require-parity, verify-packagist]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Download exact split provenance
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: split-provenance-*
+          path: release-split-provenance
+          merge-multiple: true
+
+      - name: Set up PHP and Composer
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+          tools: composer
+          coverage: none
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Generate SBOM, provenance, and checksums
+        run: |
+          bin/generate-release-evidence \
+            --repository-root="${GITHUB_WORKSPACE}" \
+            --split-provenance-dir="${GITHUB_WORKSPACE}/release-split-provenance" \
+            --output-dir="${GITHUB_WORKSPACE}/release-evidence" \
+            --source-repository="${GITHUB_REPOSITORY}" \
+            --source-sha="${GITHUB_SHA}" \
+            --tag="${GITHUB_REF_NAME}" \
+            --builder-id="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/workflows/split.yml" \
+            --workflow-run-id="${GITHUB_RUN_ID}" \
+            --composer-version="$(composer --version --no-ansi | awk '{print $3}')" \
+            --node-version="$(node --version)"
+
+      - name: Retain complete release evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: waaseyaa-release-evidence
+          path: |
+            release-evidence/waaseyaa-framework.cdx.json
+            release-evidence/waaseyaa-framework-provenance.json
+            release-evidence/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 90
+
   # Publish only after split matrix + monorepo integrity + parity + PACKAGIST
   # VERIFICATION — avoids racing github-release.yml on tag push, blocks releases
   # if main was overwritten, and (alpha.285) refuses to announce a release whose
@@ -375,15 +449,21 @@ jobs:
   # that `composer require` cannot resolve is worse than a late release note.
   publish-github-release:
     name: Publish GitHub Release
-    needs: [verify-monorepo-main-intact, verify-tag-parity, verify-require-parity, verify-packagist]
+    needs: [verify-monorepo-main-intact, verify-tag-parity, verify-require-parity, verify-packagist, assemble-release-evidence]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
+
+      - name: Download complete release evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: waaseyaa-release-evidence
+          path: release-evidence
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
@@ -392,6 +472,8 @@ jobs:
           name: ${{ github.ref_name }}
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          files: release-evidence/*
+          fail_on_unmatched_files: true
 
   # Single-crawl publish (WP01, audit §1). Packagist's GitHub auto-update PUSH
   # webhooks are DISABLED on the monorepo + every split repo (they fired once
@@ -407,7 +489,7 @@ jobs:
     needs: [split, verify-monorepo-main-intact, verify-tag-parity, verify-require-parity]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
 

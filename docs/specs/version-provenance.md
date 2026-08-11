@@ -52,3 +52,11 @@ The canonical base is `Waaseyaa\GraphQL\Testing\AbstractGraphQlSchemaContractTes
 ## Compatibility matrix
 
 The extension / surface compatibility story remains in [extension-compatibility-matrix.md](./extension-compatibility-matrix.md). This document covers **framework revision identity** only.
+
+## Tagged-release evidence
+
+The deterministic SBOM, monorepo-to-split provenance, immutable workflow-input,
+and GitHub Release retention contract is defined in
+[release-evidence.md](./release-evidence.md). Consumer build and deployed
+identity remain consumer-owned evidence layered on top of that framework
+record.
