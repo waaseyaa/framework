@@ -13,6 +13,7 @@ use Waaseyaa\Api\JsonApiDocument;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Field\FieldDefinition;
@@ -32,6 +33,7 @@ final class JsonApiCrudIntegrationTest extends TestCase
 
     protected function setUp(): void
     {
+        EntityReadRuntime::installFieldRegistry(null);
         $this->storage = new InMemoryEntityStorage('node');
 
         $this->entityTypeManager = new EntityTypeManager(
@@ -60,6 +62,11 @@ final class JsonApiCrudIntegrationTest extends TestCase
 
         $serializer = new ResourceSerializer($this->entityTypeManager);
         $this->controller = new JsonApiController($this->entityTypeManager, $serializer);
+    }
+
+    protected function tearDown(): void
+    {
+        EntityReadRuntime::installFieldRegistry(null);
     }
 
     #[Test]

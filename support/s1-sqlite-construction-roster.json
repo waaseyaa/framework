@@ -2569,12 +2569,12 @@
         },
         {
             "path": "packages/entity-storage/tests/Unit/Config/DatabaseActiveConfigurationBridgeTest.php",
-            "line": 27,
+            "line": 31,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "35cd2b13d7b3b53d94cd598fa231f750e1596227ea4a81c56ed490338c1b297c",
-            "source_sha256": "3f7f38f2a59917944586b8ee724fc6ad3da5ef466235bc80ba1b62b4fb639d93"
+            "source_sha256": "4e32f585f6d738f70468fdecc1aee36d8aa229d0cd9241ad4a497eb84b185490"
         },
         {
             "path": "packages/entity-storage/tests/Unit/Connection/SingleConnectionResolverTest.php",

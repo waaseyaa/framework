@@ -9,12 +9,16 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityUnavailableException;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
+use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\EntityStorage\Config\ConfigurationStorageServiceProvider;
 use Waaseyaa\EntityStorage\Config\DatabaseActiveConfigurationBridge;
+use Waaseyaa\EntityStorage\Config\DatabaseActiveConfigurationStorage;
 use Waaseyaa\EntityStorage\Config\DatabaseConfigurationGenerationResolver;
 use Waaseyaa\EntityStorage\Config\TestingActiveConfigurationBridge;
 use Waaseyaa\EntityStorage\Config\TestingConfigurationGenerationResolver;
 use Waaseyaa\Foundation\Migration\SchemaBuilder;
+use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 
 final class DatabaseActiveConfigurationBridgeTest extends TestCase
 {
@@ -82,6 +86,108 @@ final class DatabaseActiveConfigurationBridgeTest extends TestCase
 
         $bridge = new TestingActiveConfigurationBridge($context);
         self::assertSame([], $bridge->activeStorage()->listAll());
+    }
+
+    #[Test]
+    public function testingBridgeImplementsCreateUpdateIterateDeleteSemantics(): void
+    {
+        $resolver = new TestingConfigurationGenerationResolver(
+            new DatabaseConfigurationGenerationResolver($this->database),
+        );
+        $context = $resolver->bind($this->baseContext);
+        $bridge = new TestingActiveConfigurationBridge($context);
+        $file = new ConfigSyncFile(
+            entityType: 'system',
+            entityId: 'site',
+            uuid: ConfigSyncFile::deterministicUuid('system', 'site'),
+            dependencies: [],
+            langcode: 'en',
+            fields: ['name' => 'Waaseyaa'],
+        );
+
+        self::assertSame('created', $bridge->apply($file));
+        self::assertSame('unchanged', $bridge->apply($file));
+        $updated = new ConfigSyncFile(
+            entityType: 'system',
+            entityId: 'site',
+            uuid: $file->uuid,
+            dependencies: [],
+            langcode: 'en',
+            fields: ['name' => 'Waaseyaa', 'slogan' => 'Living knowledge'],
+        );
+        self::assertSame('updated', $bridge->apply($updated));
+        self::assertSame($context, $bridge->authorityContext());
+        self::assertSame(['system.site'], $bridge->activeStorage()->listAll());
+        self::assertSame(
+            ['name' => 'Waaseyaa', 'slogan' => 'Living knowledge'],
+            iterator_to_array($bridge->iterate())[0]->fields,
+        );
+
+        $bridge->activeStorage()->write('not-a-config-ref', ['ignored' => true]);
+        self::assertCount(1, iterator_to_array($bridge->iterate()));
+        $bridge->delete('system.site');
+        self::assertSame([], iterator_to_array($bridge->iterate()));
+    }
+
+    #[Test]
+    public function databaseStorageProvidesCollectionsAndRefusesEveryMutationSurface(): void
+    {
+        $this->seedActiveGeneration(['name' => 'Waaseyaa']);
+        $context = new DatabaseConfigurationGenerationResolver($this->database)->bind($this->baseContext);
+        $storage = new DatabaseActiveConfigurationStorage($this->database, $context);
+        $collection = $storage->createCollection('language');
+
+        self::assertSame($collection, $storage->createCollection('language'));
+        self::assertSame('language', $collection->getCollectionName());
+        self::assertFalse($collection->exists('en'));
+        self::assertSame([], $collection->readMultiple(['en', 'fr']));
+        self::assertSame(['system.site' => ['name' => 'Waaseyaa']], $storage->readMultiple(['missing', 'system.site']));
+        self::assertSame([], $storage->getAllCollectionNames());
+
+        foreach ([
+            static fn() => $storage->write('system.site', []),
+            static fn() => $storage->delete('system.site'),
+            static fn() => $storage->rename('system.site', 'system.home'),
+            static fn() => $storage->deleteAll(),
+        ] as $mutation) {
+            try {
+                $mutation();
+                self::fail('Immutable active configuration storage accepted a mutation.');
+            } catch (ConfigurationAuthorityUnavailableException $exception) {
+                self::assertStringContainsString('immutable', strtolower($exception->getMessage()));
+            }
+        }
+    }
+
+    #[Test]
+    public function storageProviderSelectsTestingAndDatabaseAuthoritiesExplicitly(): void
+    {
+        $testingContext = new TestingConfigurationGenerationResolver(
+            new DatabaseConfigurationGenerationResolver($this->database),
+        )->bind($this->baseContext);
+
+        $testing = $this->providerFor('testing', $testingContext);
+        self::assertInstanceOf(
+            TestingConfigurationGenerationResolver::class,
+            $testing->resolve(\Waaseyaa\Config\Authority\ConfigurationGenerationResolverInterface::class),
+        );
+        self::assertInstanceOf(
+            TestingActiveConfigurationBridge::class,
+            $testing->resolve(\Waaseyaa\Config\Authority\ActiveConfigurationBridgeInterface::class),
+        );
+        self::assertCount(1, iterator_to_array($testing->capabilityRequirements()));
+
+        $this->seedActiveGeneration(['name' => 'Waaseyaa']);
+        $productionContext = new DatabaseConfigurationGenerationResolver($this->database)->bind($this->baseContext);
+        $production = $this->providerFor('production', $productionContext);
+        self::assertInstanceOf(
+            DatabaseConfigurationGenerationResolver::class,
+            $production->resolve(\Waaseyaa\Config\Authority\ConfigurationGenerationResolverInterface::class),
+        );
+        self::assertInstanceOf(
+            DatabaseActiveConfigurationBridge::class,
+            $production->resolve(\Waaseyaa\Config\Authority\ActiveConfigurationBridgeInterface::class),
+        );
     }
 
     #[Test]
@@ -206,5 +312,29 @@ final class DatabaseActiveConfigurationBridgeTest extends TestCase
             . 'VALUES (?, ?, 1, ?)',
             [$this->baseContext->authorityId, $this->generationId, '2026-08-12T00:00:00Z'],
         );
+    }
+
+    private function providerFor(string $environment, ConfigurationAuthorityContext $context): ConfigurationStorageServiceProvider
+    {
+        $provider = new ConfigurationStorageServiceProvider();
+        $provider->setKernelContext('', ['environment' => $environment], []);
+        $provider->setKernelServices(new class ($this->database, $context) implements KernelServicesInterface {
+            public function __construct(
+                private readonly DatabaseInterface $database,
+                private readonly ConfigurationAuthorityContext $context,
+            ) {}
+
+            public function get(string $abstract): ?object
+            {
+                return match ($abstract) {
+                    DatabaseInterface::class => $this->database,
+                    ConfigurationAuthorityContext::class => $this->context,
+                    default => null,
+                };
+            }
+        });
+        $provider->register();
+
+        return $provider;
     }
 }

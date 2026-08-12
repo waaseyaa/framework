@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Config\Tests\Contract;
 
-use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
@@ -20,10 +20,10 @@ use Waaseyaa\Config\Sync\ConfigSyncRepository;
  *  - Warn-and-skip behaviour on files outside the naming convention.
  *  - `list()`, `get()`, `put()`, `delete()`, `has()`, `syncPath()` surface.
  *
- * Marked `@CoversNothing` because contract tests document API shape; the
- * concrete unit tests cover the implementation.
+ * These executable contract tests are also the concrete implementation's
+ * filesystem and crash-safety coverage.
  */
-#[CoversNothing]
+#[CoversClass(ConfigSyncRepository::class)]
 final class ConfigSyncRepositoryContractTest extends TestCase
 {
     private string $tempDir;

@@ -12,6 +12,7 @@ use Waaseyaa\Api\JsonApiController;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
+use Waaseyaa\Entity\EntityReadRuntime;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Field\FieldDefinition;
@@ -31,6 +32,7 @@ final class JsonApiFilterSortPageIntegrationTest extends TestCase
 
     protected function setUp(): void
     {
+        EntityReadRuntime::installFieldRegistry(null);
         $this->storage = new InMemoryEntityStorage('node');
 
         $entityTypeManager = new EntityTypeManager(
@@ -63,6 +65,11 @@ final class JsonApiFilterSortPageIntegrationTest extends TestCase
 
         // Seed 12 nodes with varying attributes.
         $this->seedNodes();
+    }
+
+    protected function tearDown(): void
+    {
+        EntityReadRuntime::installFieldRegistry(null);
     }
 
     private function seedNodes(): void
