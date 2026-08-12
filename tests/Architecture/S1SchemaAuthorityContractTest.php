@@ -21,6 +21,7 @@ final class S1SchemaAuthorityContractTest extends TestCase
     #[Test]
     public function every_executable_schema_boundary_has_one_reviewed_authority(): void
     {
+        self::assertFileExists($this->root . '/packages/foundation/src/Migration/SchemaMutationCoordinator.php');
         self::assertFileExists($this->root . '/support/s1-schema-authority-roster.json');
         self::assertFileExists($this->root . '/bin/check-s1-schema-authority');
         self::assertTrue(is_executable($this->root . '/bin/check-s1-schema-authority'));
