@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **explicit S1 SQLite topology (`S1-FW-DB-01`):** Define the one-node,
+  one-authoritative-file SQLite contract, bounded connection invariants,
+  optional rebuildable search projection, stable refusal diagnostics, and
+  forge-neutral verification authority before runtime enforcement lands.
+
 - **deterministic release evidence (#2336):** Generate byte-stable CycloneDX SBOM, release provenance, and checksums from exact lockfiles and every split-package SHA; retain a pull-request dry run, require both automatic and manual release paths to attach a checksum- and identity-verified evidence set, and pin all external workflow actions to immutable commits.
 - **bounded S1 support contract (#2336):** Define the versioned S1 platform and alpha lifecycle boundaries, distinguish framework conformance from pending consumer certification, and reserve unsupported H1 and untested runtime combinations from implied support.
 - **fail-closed S1 upgrade compatibility (#2336):** Define the named alpha.293-to-S1 transition, ordered read-only preflight decisions, mixed/unknown-state refusal, and forward-only failure containment without claiming consumer recovery. Ship the versioned machine contract and loader inside the Foundation split package so installed consumers use the reviewed artifact rather than a copied contract.

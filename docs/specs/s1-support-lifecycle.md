@@ -97,7 +97,9 @@ does not turn hosted-runner metadata into consumer certification.
 
 ## Change control
 
-Any boundary expansion or lifecycle change requires an anchor issue, an updated
-contract version or revision, a red conformance test, matching executable
-evidence, changelog and upgrade-impact review, and normal pull-request approval.
+Any boundary expansion or lifecycle change requires a stable, forge-neutral
+change record, an updated contract version or revision, a red conformance test,
+matching executable evidence, changelog and upgrade-impact review, and
+independent review approval. A forge issue and pull request may mirror that
+record but cannot replace it.
 Removing a supported point is a breaking change under the pre-1.0 policy.
