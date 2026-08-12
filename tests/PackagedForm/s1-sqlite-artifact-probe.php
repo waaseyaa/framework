@@ -6,8 +6,28 @@ $packageRoot = $argv[1] ?? '';
 $thirdPartyRoot = $argv[2] ?? '';
 $expectedCommit = $argv[3] ?? '';
 $expectedPackageTree = $argv[4] ?? '';
+$dependencyManifestPath = $argv[5] ?? '';
+$expectedDependencyManifestSha256 = $argv[6] ?? '';
 if (!is_file($packageRoot . '/composer.json') || !is_dir($thirdPartyRoot)) {
     fwrite(STDERR, "Installed-artifact package or dependency root is missing.\n");
+    exit(1);
+}
+$dependencyManifest = json_decode(
+    (string) file_get_contents($dependencyManifestPath),
+    true,
+    flags: JSON_THROW_ON_ERROR,
+);
+if (hash_file('sha256', $dependencyManifestPath) !== $expectedDependencyManifestSha256
+    || ($dependencyManifest['schema_version'] ?? null) !== 1
+    || count($dependencyManifest['dependencies'] ?? []) !== 4
+) {
+    fwrite(STDERR, "Installed artifact dependency manifest is invalid.\n");
+    exit(1);
+}
+$dependencyNames = array_column($dependencyManifest['dependencies'], 'name');
+sort($dependencyNames);
+if ($dependencyNames !== ['doctrine/dbal', 'doctrine/deprecations', 'psr/cache', 'psr/log']) {
+    fwrite(STDERR, "Installed artifact dependency roster is incomplete.\n");
     exit(1);
 }
 
@@ -31,6 +51,12 @@ spl_autoload_register(static function (string $class) use ($prefixes): void {
     }
 });
 
+$canonicalPath = static function (string $path): string {
+    $resolved = realpath($path);
+
+    return is_string($resolved) ? $resolved : '/missing';
+};
+
 $manifest = json_decode((string) file_get_contents($packageRoot . '/composer.json'), true, flags: JSON_THROW_ON_ERROR);
 if (($manifest['name'] ?? null) !== 'waaseyaa/database-legacy'
     || ($manifest['version'] ?? null) !== '1.0.0-alpha.1'
@@ -45,12 +71,12 @@ if (($manifest['name'] ?? null) !== 'waaseyaa/database-legacy'
 }
 
 $classFile = new ReflectionClass(Waaseyaa\Database\SqliteTopology::class)->getFileName();
-if (!is_string($classFile) || !str_starts_with(realpath($classFile) ?: '', realpath($packageRoot) ?: '/missing')) {
+if (!is_string($classFile) || !str_starts_with($canonicalPath($classFile), $canonicalPath($packageRoot))) {
     fwrite(STDERR, "SqliteTopology did not load from the installed package artifact.\n");
     exit(1);
 }
 $middlewareFile = new ReflectionClass(Waaseyaa\Database\SqliteDriverMiddleware::class)->getFileName();
-if (!is_string($middlewareFile) || !str_starts_with(realpath($middlewareFile) ?: '', realpath($packageRoot) ?: '/missing')) {
+if (!is_string($middlewareFile) || !str_starts_with($canonicalPath($middlewareFile), $canonicalPath($packageRoot))) {
     fwrite(STDERR, "SqliteDriverMiddleware did not load from the installed package artifact.\n");
     exit(1);
 }

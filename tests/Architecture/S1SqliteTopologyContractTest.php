@@ -86,6 +86,9 @@ final class S1SqliteTopologyContractTest extends TestCase
             'path repository masks installed artifact' => static function (array &$contract): void {
                 $contract['verification']['artifact_uses_path_repository'] = true;
             },
+            'unbound dependency bytes' => static function (array &$contract): void {
+                $contract['verification']['artifact_binds_dependency_bytes'] = false;
+            },
         ];
 
         foreach ($mutations as $name => $mutate) {
@@ -105,6 +108,106 @@ final class S1SqliteTopologyContractTest extends TestCase
                     $exitCode,
                 );
 
+                self::assertNotSame(0, $exitCode, "{$name}: " . implode("\n", $output));
+            } finally {
+                if (is_file($path)) {
+                    unlink($path);
+                }
+            }
+        }
+    }
+
+    #[Test]
+    public function checker_rejects_construction_roster_omission_substitution_and_invention(): void
+    {
+        $canonical = json_decode(
+            (string) file_get_contents($this->root . '/support/s1-sqlite-construction-roster.json'),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
+        $mutations = [
+            'omitted occurrence' => static function (array &$roster): void {
+                array_pop($roster['candidates']);
+            },
+            'valid class substitution' => static function (array &$roster): void {
+                $roster['candidates'][0]['class'] = $roster['candidates'][0]['class'] === 'test'
+                    ? 'test-utility'
+                    : 'test';
+            },
+            'invented occurrence' => static function (array &$roster): void {
+                $invented = $roster['candidates'][0];
+                $invented['line'] = 999_999;
+                $roster['candidates'][] = $invented;
+            },
+            'weakened query' => static function (array &$roster): void {
+                unset($roster['patterns']['pdo_constructor']);
+            },
+        ];
+
+        foreach ($mutations as $name => $mutate) {
+            $roster = $canonical;
+            $mutate($roster);
+            $path = tempnam(sys_get_temp_dir(), 's1-sqlite-roster-');
+            self::assertNotFalse($path);
+            try {
+                file_put_contents($path, json_encode($roster, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
+                $output = [];
+                exec(
+                    escapeshellarg(PHP_BINARY) . ' '
+                    . escapeshellarg($this->root . '/bin/check-s1-sqlite-contract') . ' '
+                    . escapeshellarg('--roster=' . $path) . ' 2>&1',
+                    $output,
+                    $exitCode,
+                );
+                self::assertNotSame(0, $exitCode, "{$name}: " . implode("\n", $output));
+            } finally {
+                if (is_file($path)) {
+                    unlink($path);
+                }
+            }
+        }
+    }
+
+    #[Test]
+    public function checker_rejects_dependency_identity_byte_omission_and_invention(): void
+    {
+        $canonical = json_decode(
+            (string) file_get_contents($this->root . '/support/s1-sqlite-dependency-bytes.json'),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
+        $mutations = [
+            'dependency byte drift' => static function (array &$authority): void {
+                $authority['dependencies'][0]['bytes'] = str_repeat('0', 64);
+            },
+            'valid alternate version' => static function (array &$authority): void {
+                $authority['dependencies'][0]['version'] = '99.0.0';
+            },
+            'missing dependency' => static function (array &$authority): void {
+                array_pop($authority['dependencies']);
+            },
+            'extra dependency' => static function (array &$authority): void {
+                $extra = $authority['dependencies'][0];
+                $extra['name'] = 'example/extra';
+                $authority['dependencies'][] = $extra;
+            },
+        ];
+
+        foreach ($mutations as $name => $mutate) {
+            $authority = $canonical;
+            $mutate($authority);
+            $path = tempnam(sys_get_temp_dir(), 's1-sqlite-dependencies-');
+            self::assertNotFalse($path);
+            try {
+                file_put_contents($path, json_encode($authority, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
+                $output = [];
+                exec(
+                    escapeshellarg(PHP_BINARY) . ' '
+                    . escapeshellarg($this->root . '/bin/check-s1-sqlite-contract') . ' '
+                    . escapeshellarg('--dependencies=' . $path) . ' 2>&1',
+                    $output,
+                    $exitCode,
+                );
                 self::assertNotSame(0, $exitCode, "{$name}: " . implode("\n", $output));
             } finally {
                 if (is_file($path)) {

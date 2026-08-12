@@ -55,12 +55,20 @@ the same fail-closed authority; `DatabaseBootstrapper` owns application-database
 directory preparation and the production missing-file guard.
 
 The repository checker binds the JSON contract to runtime constants,
-documentation, package composition, and reproducible verification commands.
+documentation, package composition, reproducible verification commands, and a
+repository-wide occurrence roster for DBAL factories/wrappers, raw PDO/SQLite3
+constructors, driver tokens, and SQLite DSNs. Every occurrence is classified as
+a serving authority/entry point, offline artifact authority, inherited
+migration wrapper, runtime capability configuration, test utility, test, or
+tooling query; omission, invention, or valid-class substitution fails.
 The installed-artifact proof seals the exact candidate database package,
 extracts it into an isolated consumer `vendor` boundary without a Composer path
 repository, proves that the runtime class loaded from that artifact, and then
-repeats the effective-PRAGMA and refused-path assertions. It is offline-capable
-and does not substitute a previously published package for the candidate.
+repeats the effective-PRAGMA, reconnect, environment, and refused-path
+assertions. Its isolated Doctrine/PSR dependencies must match the root lock and
+installed metadata, are recursively byte-digested after copying, and produce a
+canonical dependency-manifest digest. It is offline-capable and does not
+substitute a previously published package for the candidate.
 GitHub Actions may execute those commands, but neither GitHub nor any other
 forge is a contract or evidence authority.
 
