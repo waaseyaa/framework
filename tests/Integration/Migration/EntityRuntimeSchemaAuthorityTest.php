@@ -21,33 +21,31 @@ use Waaseyaa\Foundation\Log\LogManager;
 final class EntityRuntimeSchemaAuthorityTest extends TestCase
 {
     #[Test]
-    public function direct_schema_handler_refuses_uncoordinated_ddl(): void
+    public function direct_schema_handler_routes_ddl_through_the_coordinator(): void
     {
         $database = DBALDatabase::createSqlite();
+        new SqlSchemaHandler($this->entityType(), $database)->ensureTable();
 
-        try {
-            new SqlSchemaHandler($this->entityType(), $database)->ensureTable();
-            self::fail('Direct entity-schema mutation must require the schema coordinator.');
-        } catch (\RuntimeException $exception) {
-            self::assertStringContainsString('S1-DB107', $exception->getMessage());
-        }
-
-        self::assertFalse($database->schema()->tableExists('authority_probe'));
+        self::assertTrue($database->schema()->tableExists('authority_probe'));
+        self::assertTrue($database->schema()->tableExists('waaseyaa_migrations'));
+        self::assertTrue($database->schema()->tableExists('waaseyaa_schema_authority'));
+        self::assertSame(1, (int) $database->getConnection()->fetchOne(
+            'SELECT generation FROM waaseyaa_schema_authority WHERE authority_id = 1',
+        ));
     }
 
     #[Test]
-    public function schema_sync_runner_refuses_an_uncoordinated_write(): void
+    public function schema_sync_runner_routes_the_complete_transition_through_the_coordinator(): void
     {
         $database = DBALDatabase::createSqlite();
+        new EntitySchemaSyncRunner($database)->run([$this->entityType()]);
 
-        try {
-            new EntitySchemaSyncRunner($database)->run([$this->entityType()]);
-            self::fail('Entity schema sync must execute through the schema coordinator.');
-        } catch (\RuntimeException $exception) {
-            self::assertStringContainsString('S1-DB107', $exception->getMessage());
-        }
-
-        self::assertFalse($database->schema()->tableExists('authority_probe'));
+        self::assertTrue($database->schema()->tableExists('authority_probe'));
+        self::assertTrue($database->schema()->tableExists('waaseyaa_migrations'));
+        self::assertTrue($database->schema()->tableExists('waaseyaa_schema_authority'));
+        self::assertSame(1, (int) $database->getConnection()->fetchOne(
+            'SELECT generation FROM waaseyaa_schema_authority WHERE authority_id = 1',
+        ));
     }
 
     #[Test]
