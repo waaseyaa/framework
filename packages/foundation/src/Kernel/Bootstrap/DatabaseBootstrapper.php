@@ -6,6 +6,7 @@ namespace Waaseyaa\Foundation\Kernel\Bootstrap;
 
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Database\SqliteTopology;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 
@@ -18,7 +19,10 @@ final class DatabaseBootstrapper
      */
     public function boot(string $projectRoot, array $config, ?LoggerInterface $logger = null): DatabaseInterface
     {
+        $this->assertConfiguredPathShape($config);
         $path = $this->resolvePath($projectRoot, $config, $logger ?? new NullLogger());
+        // S1-DB002: production memory databases are refused before connection.
+        SqliteTopology::assertEnvironmentAllowsPath($path, $this->resolveEnvironment($config));
         $this->guardMissingProductionSqliteDatabase($path, $config);
 
         return DBALDatabase::createSqlite($path);
@@ -174,7 +178,7 @@ final class DatabaseBootstrapper
             return;
         }
 
-        if ($path === ':memory:' || file_exists($path)) {
+        if (file_exists($path)) {
             return;
         }
 
@@ -186,6 +190,21 @@ final class DatabaseBootstrapper
                 $path,
             ),
         );
+    }
+
+    /** @param array<string, mixed> $config */
+    private function assertConfiguredPathShape(array $config): void
+    {
+        $configured = $config['database'] ?? null;
+        if (is_string($configured) && $configured !== '') {
+            SqliteTopology::assertSupportedPath($configured);
+            return;
+        }
+
+        $environmentPath = getenv('WAASEYAA_DB');
+        if (is_string($environmentPath) && $environmentPath !== '') {
+            SqliteTopology::assertSupportedPath($environmentPath);
+        }
     }
 
     private static function isAbsoluteOrMemory(string $path): bool

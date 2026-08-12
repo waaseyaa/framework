@@ -6,6 +6,8 @@ namespace Waaseyaa\Database\Tests\Unit;
 
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\TransactionIsolationLevel;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\ConsistentReadDatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Database\DeleteInterface;
@@ -15,8 +17,6 @@ use Waaseyaa\Database\SelectInterface;
 use Waaseyaa\Database\SqliteTopology;
 use Waaseyaa\Database\TransactionInterface;
 use Waaseyaa\Database\UpdateInterface;
-use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\TestCase;
 
 #[CoversClass(DBALDatabase::class)]
 final class DBALDatabaseTest extends TestCase
@@ -83,29 +83,38 @@ final class DBALDatabaseTest extends TestCase
                 $this->fail("Unsupported SQLite path was accepted: {$path}");
             } catch (\RuntimeException $exception) {
                 $this->assertStringContainsString('S1-DB001', $exception->getMessage());
-            } finally {
-                if (is_file($path)) {
-                    unlink($path);
-                }
             }
         }
     }
 
-    public function testEffectivePragmaDriftFailsWithTheStableS1Diagnostic(): void
+    public function testEveryEffectivePragmaDriftFailsWithTheStableS1Diagnostic(): void
     {
-        $path = sys_get_temp_dir() . '/waaseyaa-s1-drift-' . bin2hex(random_bytes(8)) . '.sqlite';
+        $mutations = [
+            'foreign_keys' => 'PRAGMA foreign_keys = OFF',
+            'journal_mode' => 'PRAGMA journal_mode = DELETE',
+            'busy_timeout' => 'PRAGMA busy_timeout = 1',
+        ];
 
-        try {
-            $connection = DBALDatabase::createSqlite($path)->getConnection();
-            $connection->executeStatement('PRAGMA busy_timeout = 1');
+        foreach ($mutations as $name => $mutation) {
+            $path = sys_get_temp_dir() . '/waaseyaa-s1-drift-' . bin2hex(random_bytes(8)) . '.sqlite';
 
-            $this->expectException(\RuntimeException::class);
-            $this->expectExceptionMessage('S1-DB003');
-            SqliteTopology::assertEffectivePragmas($connection, fileBacked: true);
-        } finally {
-            foreach ([$path, $path . '-wal', $path . '-shm'] as $candidate) {
-                if (is_file($candidate)) {
-                    unlink($candidate);
+            try {
+                $connection = DBALDatabase::createSqlite($path)->getConnection();
+                $connection->executeStatement($mutation);
+
+                try {
+                    SqliteTopology::assertEffectivePragmas($connection, fileBacked: true);
+                    $this->fail("{$name} drift was accepted.");
+                } catch (\RuntimeException $exception) {
+                    $this->assertStringContainsString('S1-DB003', $exception->getMessage());
+                    $this->assertStringContainsString($name, $exception->getMessage());
+                }
+            } finally {
+                $connection = null;
+                foreach ([$path, $path . '-wal', $path . '-shm'] as $candidate) {
+                    if (is_file($candidate)) {
+                        unlink($candidate);
+                    }
                 }
             }
         }

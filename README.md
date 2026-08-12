@@ -27,7 +27,16 @@ Waaseyaa replaces Drupal's legacy runtime with a clean, modular architecture org
 - exact Composer 2.x feature line recorded in the S1 contract (currently 2.10)
 - SQLite `>=3.40 <4` for the S1 profile
 
-The complete, versioned support boundary is [S1 support and lifecycle](docs/specs/s1-support-lifecycle.md). S1 consumer certification is still pending its named downstream evidence. H1, MySQL/PostgreSQL, remote/shared filesystems, WebKit/Safari, and unlisted web runtimes are not supported claims.
+S1 is one application node with one authoritative SQLite database on a local,
+non-network filesystem. An optional second SQLite file may hold only a
+non-authoritative, rebuildable search projection. File connections verify WAL,
+foreign keys, and a 5000 ms busy timeout. Invalid DSN, URI, UNC, and device
+paths fail with `S1-DB001`; production refuses `:memory:`.
+
+The complete boundaries are [S1 support and lifecycle](docs/specs/s1-support-lifecycle.md)
+and the [S1 SQLite topology](docs/specs/s1-sqlite-topology.md). S1 consumer certification is still pending its named downstream evidence. H1,
+MySQL/PostgreSQL, remote/shared filesystems, WebKit/Safari, and unlisted web
+runtimes are not supported claims.
 
 ## Quick Start
 

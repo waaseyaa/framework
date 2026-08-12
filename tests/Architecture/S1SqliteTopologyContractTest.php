@@ -11,7 +11,7 @@ use PHPUnit\Framework\TestCase;
 #[CoversNothing]
 final class S1SqliteTopologyContractTest extends TestCase
 {
-    private string $root;
+    private string $root = '';
 
     protected function setUp(): void
     {
@@ -35,32 +35,53 @@ final class S1SqliteTopologyContractTest extends TestCase
     }
 
     #[Test]
-    public function checker_rejects_a_count_preserving_topology_substitution(): void
+    public function checker_rejects_semantic_contract_substitutions(): void
     {
-        $contract = json_decode(
+        $canonical = json_decode(
             (string) file_get_contents($this->root . '/support/s1-sqlite-v1.json'),
             true,
             flags: JSON_THROW_ON_ERROR,
         );
-        $contract['authority']['application_nodes'] = 2;
-        $path = tempnam(sys_get_temp_dir(), 's1-sqlite-');
-        self::assertNotFalse($path);
+        $mutations = [
+            'two application nodes' => static function (array &$contract): void {
+                $contract['authority']['application_nodes'] = 2;
+            },
+            'unbounded busy wait' => static function (array &$contract): void {
+                $contract['connection']['busy_timeout_ms'] = 60_000;
+            },
+            'authoritative search copy' => static function (array &$contract): void {
+                $contract['optional_search_projection']['authoritative'] = true;
+            },
+            'dropped alternate-engine refusal' => static function (array &$contract): void {
+                $contract['refused']['alternate_databases'] = ['mysql', 'postgresql'];
+            },
+            'forge as authority' => static function (array &$contract): void {
+                $contract['verification']['forge_is_authority'] = true;
+            },
+        ];
 
-        try {
-            file_put_contents($path, json_encode($contract, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
-            exec(
-                escapeshellarg(PHP_BINARY) . ' '
-                . escapeshellarg($this->root . '/bin/check-s1-sqlite-contract') . ' '
-                . escapeshellarg('--contract=' . $path) . ' 2>&1',
-                $output,
-                $exitCode,
-            );
+        foreach ($mutations as $name => $mutate) {
+            $contract = $canonical;
+            $mutate($contract);
+            $path = tempnam(sys_get_temp_dir(), 's1-sqlite-');
+            self::assertNotFalse($path);
 
-            self::assertNotSame(0, $exitCode, implode("\n", $output));
-            self::assertStringContainsString('authority differs', implode("\n", $output));
-        } finally {
-            if (is_file($path)) {
-                unlink($path);
+            try {
+                file_put_contents($path, json_encode($contract, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
+                $output = [];
+                exec(
+                    escapeshellarg(PHP_BINARY) . ' '
+                    . escapeshellarg($this->root . '/bin/check-s1-sqlite-contract') . ' '
+                    . escapeshellarg('--contract=' . $path) . ' 2>&1',
+                    $output,
+                    $exitCode,
+                );
+
+                self::assertNotSame(0, $exitCode, "{$name}: " . implode("\n", $output));
+            } finally {
+                if (is_file($path)) {
+                    unlink($path);
+                }
             }
         }
     }

@@ -104,7 +104,7 @@ try {
         'H1',
     ], $errors);
     s1SqliteRequires($root . '/packages/database-legacy/src/SqliteTopology.php', [
-        "BUSY_TIMEOUT_MS = 5000",
+        'BUSY_TIMEOUT_MS = 5000',
         "INVALID_PATH = 'S1-DB001'",
         "PRAGMA_MISMATCH = 'S1-DB003'",
         'assertEffectivePragmas',
@@ -121,6 +121,17 @@ try {
         'rebuildable projection',
         'non-authoritative',
         'S1 SQLite topology',
+    ], $errors);
+    s1SqliteRequires($root . '/docs/specs/infrastructure.md', [
+        '[S1 SQLite topology](s1-sqlite-topology.md)',
+        'S1-DB001',
+        'S1-DB002',
+        'S1-DB003',
+    ], $errors);
+    s1SqliteRequires($root . '/skeleton/README.md', [
+        'one authoritative local',
+        '5000 ms busy timeout',
+        'non-authoritative rebuildable projection',
     ], $errors);
 
     $charter = (string) file_get_contents($root . '/docs/governance/charter.md');

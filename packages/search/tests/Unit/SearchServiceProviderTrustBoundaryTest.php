@@ -10,14 +10,14 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\EntityAccessHandler;
-use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
+use Waaseyaa\Search\Fts5\Fts5SearchContentCatalogue;
 use Waaseyaa\Search\SearchCandidateResolverInterface;
 use Waaseyaa\Search\SearchCandidateResolverRegistry;
 use Waaseyaa\Search\SearchContentCatalogueInterface;
-use Waaseyaa\Search\Fts5\Fts5SearchContentCatalogue;
 use Waaseyaa\Search\SearchServiceProvider;
 
 #[CoversClass(SearchServiceProvider::class)]

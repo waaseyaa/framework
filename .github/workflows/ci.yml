@@ -40,6 +40,11 @@ jobs:
       - name: Verify bounded S1 support contract
         run: php bin/check-support-contract --ci --evidence=support-contract-evidence.json
 
+      # GitHub is a replaceable executor. This command and its repository
+      # evidence are the portable topology gate.
+      - name: Verify S1 SQLite topology contract
+        run: php bin/check-s1-sqlite-contract --ci
+
       - name: Publish exact environment evidence
         if: always()
         run: |

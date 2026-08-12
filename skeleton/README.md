@@ -66,6 +66,13 @@ This app defaults to a **SQLite** database (`storage/waaseyaa.sqlite`), so the P
 runtime must have **`pdo_sqlite`** and **`sqlite3`** (and `sodium`). These are
 declared in `composer.json`, so `composer install` flags a runtime missing them.
 
+The S1 production topology is one application node and one authoritative local
+SQLite file. File-backed connections verify WAL, foreign keys, and a bounded
+5000 ms busy timeout. Do not configure a database DSN, UNC/network share,
+replica, or `:memory:` production database. A separate search database, when
+configured, is only a non-authoritative rebuildable projection and obeys the
+same local SQLite connection contract.
+
 ### Serving with FrankenPHP (`composer run dev`)
 
 `composer run dev` runs the app on [FrankenPHP](https://frankenphp.dev) — the real
