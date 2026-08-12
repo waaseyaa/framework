@@ -42,6 +42,7 @@ function s1ConfigPatterns(): array
 function s1ConfigClass(string $path): string
 {
     $classes = [
+        'config/waaseyaa.php' => 'bootstrap-declaration',
         'packages/ai-agent/src/Mcp/McpServiceProvider.php' => 'optional-consumer',
         'packages/cli/src/Command/Config/ConfigImportCommand.php' => 'command-adapter',
         'packages/cli/src/Handler/AboutHandler.php' => 'diagnostic-consumer',
@@ -87,6 +88,7 @@ function s1ConfigClass(string $path): string
         'packages/ssr/src/Twig/WaaseyaaExtension.php' => 'legacy-compatibility',
         'packages/workflows/src/Binding/WorkflowBindingResolver.php' => 'legacy-compatibility',
         'packages/workflows/src/WorkflowServiceProvider.php' => 'legacy-compatibility',
+        'skeleton/config/waaseyaa.php' => 'bootstrap-declaration',
     ];
 
     return $classes[$path] ?? 'unclassified';
@@ -111,6 +113,7 @@ function s1ConfigBuildRoster(string $root): array
         'legacy-compatibility',
         'excluded-runtime-overlay',
         'explicit-testing-profile',
+        'bootstrap-declaration',
     ];
     $candidates = [];
     $iterator = new RecursiveIteratorIterator(
@@ -125,6 +128,26 @@ function s1ConfigBuildRoster(string $root): array
         if (!str_contains($relative, '/src/') && !str_contains($relative, '/migrations/')) {
             continue;
         }
+        $contents = (string) file_get_contents($path);
+        $lines = explode("\n", $contents);
+        foreach ($patterns as $patternId => $pattern) {
+            preg_match_all($pattern, $contents, $matches, PREG_OFFSET_CAPTURE);
+            foreach ($matches[0] as [$matched, $offset]) {
+                $line = substr_count(substr($contents, 0, $offset), "\n") + 1;
+                $candidates[] = [
+                    'path' => $relative,
+                    'line' => $line,
+                    'pattern' => $patternId,
+                    'class' => s1ConfigClass($relative),
+                    'match_sha256' => hash('sha256', $matched),
+                    'line_sha256' => hash('sha256', trim($lines[$line - 1] ?? '')),
+                    'source_sha256' => hash('sha256', $contents),
+                ];
+            }
+        }
+    }
+    foreach (['config/waaseyaa.php', 'skeleton/config/waaseyaa.php'] as $relative) {
+        $path = $root . '/' . $relative;
         $contents = (string) file_get_contents($path);
         $lines = explode("\n", $contents);
         foreach ($patterns as $patternId => $pattern) {

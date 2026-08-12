@@ -28,9 +28,19 @@
         "derived-consumer",
         "legacy-compatibility",
         "excluded-runtime-overlay",
-        "explicit-testing-profile"
+        "explicit-testing-profile",
+        "bootstrap-declaration"
     ],
     "candidates": [
+        {
+            "path": "config/waaseyaa.php",
+            "line": 42,
+            "pattern": "canonical_selector",
+            "class": "bootstrap-declaration",
+            "match_sha256": "5d6ee5d9c95df0495d29c15803eaed935e24f09dfd820e6ac195cfbff9c6773f",
+            "line_sha256": "3d93ec6a0190f00c39c8eefdd0cbb7e279ce374d7bde518e33c53ee951d70d74",
+            "source_sha256": "28c9a206ef8d8860df28ea507f82b460b4c7ff557989a48036220b053901a301"
+        },
         {
             "path": "packages/ai-agent/src/Mcp/McpServiceProvider.php",
             "line": 9,
@@ -1380,6 +1390,15 @@
             "match_sha256": "bd44e8bda0fe1afee655c60e997d71600d7a7c18135cf539228ec4ca5e9c6776",
             "line_sha256": "69f4aa9b19454bd5ca36e7dd6178233281ae17bc3d56e63b49545f7c9850f6a4",
             "source_sha256": "012428e3524f84dfc885353b3d7cd46f52aabbb2c87b1122769b23f5047ed95a"
+        },
+        {
+            "path": "skeleton/config/waaseyaa.php",
+            "line": 51,
+            "pattern": "canonical_selector",
+            "class": "bootstrap-declaration",
+            "match_sha256": "5d6ee5d9c95df0495d29c15803eaed935e24f09dfd820e6ac195cfbff9c6773f",
+            "line_sha256": "3d93ec6a0190f00c39c8eefdd0cbb7e279ce374d7bde518e33c53ee951d70d74",
+            "source_sha256": "bd0bc451884881101c4592d5368de3677826d3f2d0bd97b832bc3c40909c105f"
         }
     ]
 }
