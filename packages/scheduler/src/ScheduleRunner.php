@@ -11,6 +11,11 @@ use Waaseyaa\Scheduler\Execution\LeaseAwareCommandInterface;
 use Waaseyaa\Scheduler\Execution\LeaseExecutionContext;
 use Waaseyaa\Scheduler\Fence\FenceGuardInterface;
 use Waaseyaa\Scheduler\Lease\LeaseAuthorityInterface;
+use Waaseyaa\Scheduler\Occurrence\IdempotencyKeyRequiredException;
+use Waaseyaa\Scheduler\Occurrence\InvalidIdempotencyKeyException;
+use Waaseyaa\Scheduler\Occurrence\OccurrenceRepositoryInterface;
+use Waaseyaa\Scheduler\Occurrence\ScheduledOccurrence;
+use Waaseyaa\Scheduler\Occurrence\UnsafeManualExecutionException;
 use Waaseyaa\Scheduler\Storage\ScheduleStateRepository;
 
 final class ScheduleRunner
@@ -24,6 +29,7 @@ final class ScheduleRunner
         private readonly ?ScheduleStateRepository $stateRepository = null,
         ?LoggerInterface $logger = null,
         private readonly ?FenceGuardInterface $fenceGuard = null,
+        private readonly ?OccurrenceRepositoryInterface $occurrenceRepository = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -38,7 +44,11 @@ final class ScheduleRunner
                 continue;
             }
 
-            $result = $this->runTask($task, $now);
+            $occurrence = null;
+            if ($task->preventOverlap && $this->occurrenceRepository !== null) {
+                $occurrence = $this->occurrenceRepository->recordScheduled($task, $now);
+            }
+            $result = $this->runTask($task, $now, $occurrence);
             // Schedule-wide `run()` reports a count of successfully-executed
             // tasks; overlap-blocked invocations are not counted as either
             // success or failure (they are an intentional skip, not an
@@ -75,8 +85,11 @@ final class ScheduleRunner
      * the dashboard reflects the attempt.
      *
      * @throws \InvalidArgumentException When no task with `$taskName` is registered.
+     * @throws IdempotencyKeyRequiredException When the caller omits the retry identity.
+     * @throws InvalidIdempotencyKeyException When the retry identity is malformed.
+     * @throws UnsafeManualExecutionException When the task cannot honor durable idempotency.
      */
-    public function runOne(string $taskName, \DateTimeInterface $now): ScheduleRunResult
+    public function runOne(string $taskName, \DateTimeInterface $now, ?string $idempotencyKey = null): ScheduleRunResult
     {
         $task = null;
         foreach ($this->schedule->tasks() as $candidate) {
@@ -92,7 +105,24 @@ final class ScheduleRunner
             );
         }
 
-        return $this->runTask($task, $now);
+        if ($idempotencyKey === null || trim($idempotencyKey) === '') {
+            throw new IdempotencyKeyRequiredException('Manual scheduler runs require an Idempotency-Key.');
+        }
+        if (strlen(trim($idempotencyKey)) > 255) {
+            throw new InvalidIdempotencyKeyException('Manual scheduler runs require an idempotency key of 1 to 255 bytes.');
+        }
+        if (!$task->preventOverlap) {
+            throw new UnsafeManualExecutionException(sprintf(
+                'Task "%s" cannot be triggered manually until it uses durable occurrence and fence protection.',
+                $task->name,
+            ));
+        }
+        if ($this->occurrenceRepository === null) {
+            throw new UnsafeManualExecutionException('Durable occurrence authority is unavailable.');
+        }
+        $occurrence = $this->occurrenceRepository->recordManual($task, $now, $idempotencyKey);
+
+        return $this->runTask($task, $now, $occurrence);
     }
 
     /**
@@ -103,13 +133,22 @@ final class ScheduleRunner
      * is bound — including for overlap-skipped invocations — so the dashboard
      * never goes stale relative to actual runner activity.
      */
-    private function runTask(ScheduledTask $task, \DateTimeInterface $now): ScheduleRunResult
+    private function runTask(ScheduledTask $task, \DateTimeInterface $now, ?ScheduledOccurrence $occurrence): ScheduleRunResult
     {
         // Per-task overlap-lock TTL (scheduler m2): must exceed the task's
         // expected runtime, since a mid-run lease expiry is what opens the
         // split-brain reclaim window that scheduler m15's ownership token closes.
         $leaseContext = null;
         if ($task->preventOverlap) {
+            if ($occurrence === null) {
+                return new ScheduleRunResult(
+                    count: 0,
+                    taskNames: [],
+                    status: ScheduleRunResult::STATUS_FAILED,
+                    message: 'Durable occurrence authority is unavailable.',
+                    exceptionClass: \LogicException::class,
+                );
+            }
             try {
                 $handle = $this->leaseAuthority->acquire($task->name, $task->lockTtl * 1000);
             } catch (\Throwable $error) {
@@ -148,7 +187,23 @@ final class ScheduleRunner
                     exceptionClass: \LogicException::class,
                 );
             }
-            $leaseContext = new LeaseExecutionContext($this->leaseAuthority, $handle, $task->lockTtl * 1000, $this->fenceGuard);
+            if (!$this->occurrenceRepository->begin($occurrence->id, $handle->fence)) {
+                $this->leaseAuthority->release($handle);
+
+                return new ScheduleRunResult(
+                    count: 0,
+                    taskNames: [],
+                    status: ScheduleRunResult::STATUS_SKIPPED_DUPLICATE,
+                    message: sprintf('Task "%s" occurrence is already owned or complete.', $task->name),
+                );
+            }
+            $leaseContext = new LeaseExecutionContext(
+                $this->leaseAuthority,
+                $handle,
+                $task->lockTtl * 1000,
+                $this->fenceGuard,
+                $occurrence->id,
+            );
         }
 
         try {
@@ -164,6 +219,9 @@ final class ScheduleRunner
             } else {
                 ($task->command)();
             }
+            if ($occurrence !== null && $leaseContext !== null) {
+                $this->occurrenceRepository?->complete($occurrence->id, $leaseContext->fence());
+            }
             $this->stateRepository?->recordRun($task->name, ScheduleRunResult::STATUS_SUCCESS, $now);
 
             return new ScheduleRunResult(
@@ -173,6 +231,9 @@ final class ScheduleRunner
                 message: sprintf('Task "%s" completed.', $task->name),
             );
         } catch (\Throwable $e) {
+            if ($occurrence !== null && $leaseContext !== null) {
+                $this->occurrenceRepository?->fail($occurrence->id, $leaseContext->fence(), $e::class);
+            }
             // FR-010 — surface a structured failure to the controller WITHOUT
             // passing the throwable through. The dashboard JSON payload is
             // built from `status`, `message`, and `exceptionClass` (FQCN

@@ -20,6 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fail, exact replays no-op, distinct equal-fence effects fail closed, and
   effect failure rolls back the claim. Classification purge, redaction, and
   hold-conflict writes now execute through this sink boundary.
+- Record deterministic cron-slot occurrences for overlap-protected direct
+  commands. The ledger binds the schedule generation and due minute, grants
+  execution to one global fence, permits recovery only under a higher fence,
+  rejects a completed duplicate, and scopes effect IDs to the occurrence. A
+  higher-fence recovery advances sink ownership without replaying an already
+  committed effect from that occurrence. Manual triggers require a bounded
+  idempotency key; unprotected tasks are refused rather than falsely claiming
+  retry safety.
 
 - Enforce the DB-03 aggregate mutation token across entity saves, deletes,
   batches, revision-pointer moves, rollback, pruning, and translation writes;

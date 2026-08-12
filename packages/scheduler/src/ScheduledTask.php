@@ -54,4 +54,18 @@ final class ScheduledTask
     {
         return $this->cronExpression->getNextRunDate($now);
     }
+
+    public function scheduleGeneration(): string
+    {
+        $commandIdentity = is_string($this->command) ? $this->command : $this->command::class;
+
+        return hash('sha256', implode("\0", [
+            $this->name,
+            $this->expression,
+            $this->timezone ?? '',
+            $commandIdentity,
+            $this->preventOverlap ? 'overlap' : 'parallel',
+            (string) $this->lockTtl,
+        ]));
+    }
 }

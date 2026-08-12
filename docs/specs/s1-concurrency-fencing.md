@@ -104,8 +104,9 @@ must escape best-effort domain catches.
 
 Database-local effects pass through `DatabaseFenceGuard`. Its row is keyed by
 resource and lease domain and is updated in the same database transaction as
-the supplied effect. A lower fence is rejected, an exact same-fence/effect
-replay is a no-op, and a distinct effect at the same fence is rejected unless a
+the supplied effect. A lower fence is rejected, the same deterministic effect
+is a no-op even when occurrence recovery owns a higher fence, and a distinct
+effect at the same fence is rejected unless a
 future domain-specific ordering contract explicitly provides stronger
 semantics. A failed effect rolls back its fence claim. The retention purge,
 redaction, and hold-conflict writers use this boundary around repository and
@@ -130,6 +131,23 @@ The producer transaction records the occurrence and enqueue outbox. A durable
 worker separately acquires the execution lease; it never informally resumes a
 producer lease. Recorded-before-enqueue, enqueue-before-ack,
 effect-before-completion, retry, and dead-letter states reconcile idempotently.
+
+The direct-command path now records the scheduled occurrence before acquiring
+execution ownership. `ScheduledTask::scheduleGeneration()` binds the stable
+name, cron expression, timezone, command type, overlap policy, and TTL; the due
+instant is the canonical UTC minute. `OccurrenceRepository::begin()` attaches
+the winning global fence. A completed occurrence cannot run again, while a
+failed or abandoned occurrence can be recovered only by a higher fence. The
+occurrence ID scopes every sink effect ID, so retries are exact replays rather
+than unrelated writes. Manual direct runs require an `Idempotency-Key`; its
+digest becomes the stable trigger key, and repeating it returns the completed
+occurrence without another effect. The admin SPA creates one UUID per operator
+confirmation and the HTTP boundary returns 428 when it is absent. A task
+without durable occurrence and fence protection is refused with 409 rather
+than accepting an idempotency key it cannot honor.
+Transactional enqueue outbox, worker-side acquisition, retry, and dead-letter
+state remain part of the next queued-execution tranche and are not implied by
+this direct-path milestone.
 
 Queue dispatch means enqueued, not completed. A void dispatch return,
 serialization, and `UniqueJob` marker are not cross-process ownership. Generated

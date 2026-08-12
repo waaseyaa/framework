@@ -55,6 +55,12 @@ final class DatabaseFenceGuard implements FenceGuardInterface
                 if ($affected !== 1) {
                     throw new StaleFenceException('The resource fence changed concurrently.');
                 }
+                if (hash_equals((string) $row['effect_id'], $effectId)) {
+                    // Recovery under a higher lease fence advances ownership
+                    // without replaying an effect already committed by this
+                    // deterministic occurrence.
+                    return false;
+                }
             }
 
             $effect();

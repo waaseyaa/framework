@@ -11,7 +11,11 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Waaseyaa\Api\Controller\SchedulerController;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Queue\SyncQueue;
+use Waaseyaa\Scheduler\Execution\LeaseAwareClosureCommand;
+use Waaseyaa\Scheduler\Execution\LeaseExecutionContext;
 use Waaseyaa\Scheduler\Testing\InMemoryLeaseAuthority;
+use Waaseyaa\Scheduler\Testing\InMemoryFenceGuard;
+use Waaseyaa\Scheduler\Testing\InMemoryOccurrenceRepository;
 use Waaseyaa\Scheduler\Schedule;
 use Waaseyaa\Scheduler\ScheduledTask;
 use Waaseyaa\Scheduler\ScheduleRunner;
@@ -40,7 +44,8 @@ final class SchedulerControllerTest extends TestCase
         $schedule->add(new ScheduledTask(
             name: 'nightly-sync',
             expression: '0 2 * * *',
-            command: fn() => null,
+            command: self::safeCommand(static fn() => null),
+            preventOverlap: true,
             description: 'Nightly content sync.',
         ));
 
@@ -72,12 +77,20 @@ final class SchedulerControllerTest extends TestCase
         $schedule->add(new ScheduledTask(
             name: 'hourly-job',
             expression: '0 * * * *',
-            command: fn() => null,
+            command: self::safeCommand(static fn() => null),
+            preventOverlap: true,
         ));
 
         $stateRepo = self::makeStateRepository();
-        $runner = new ScheduleRunner($schedule, new SyncQueue(), new InMemoryLeaseAuthority(), $stateRepo);
-        $runner->runOne('hourly-job', new \DateTimeImmutable());
+        $runner = new ScheduleRunner(
+            $schedule,
+            new SyncQueue(),
+            new InMemoryLeaseAuthority(),
+            $stateRepo,
+            fenceGuard: new InMemoryFenceGuard(),
+            occurrenceRepository: new InMemoryOccurrenceRepository(),
+        );
+        $runner->runOne('hourly-job', new \DateTimeImmutable(), 'seed-hourly');
 
         $controller = new SchedulerController($schedule, $stateRepo, $runner);
         $payload = $controller->index();
@@ -109,9 +122,10 @@ final class SchedulerControllerTest extends TestCase
         $schedule->add(new ScheduledTask(
             name: 'manual-now',
             expression: '0 0 1 1 *', // Never due — runOne() bypasses isDue().
-            command: function () use (&$invoked) {
+            command: self::safeCommand(function () use (&$invoked): void {
                 $invoked = true;
-            },
+            }),
+            preventOverlap: true,
         ));
 
         $controller = new SchedulerController(
@@ -120,7 +134,7 @@ final class SchedulerControllerTest extends TestCase
             self::makeRunner($schedule),
         );
 
-        $response = $controller->trigger('manual-now');
+        $response = $controller->trigger('manual-now', 'trigger-manual-now');
 
         self::assertTrue($invoked);
         self::assertInstanceOf(JsonResponse::class, $response);
@@ -141,7 +155,7 @@ final class SchedulerControllerTest extends TestCase
             self::makeRunner($schedule),
         );
 
-        $response = $controller->trigger('ghost');
+        $response = $controller->trigger('ghost', 'trigger-ghost');
 
         self::assertInstanceOf(JsonResponse::class, $response);
         self::assertSame(404, $response->getStatusCode());
@@ -152,13 +166,51 @@ final class SchedulerControllerTest extends TestCase
     }
 
     #[Test]
+    public function triggerRequiresAnIdempotencyKeyBeforeRunningTask(): void
+    {
+        $invoked = false;
+        $schedule = new Schedule();
+        $schedule->add(new ScheduledTask('manual', '* * * * *', function () use (&$invoked): void {
+            $invoked = true;
+        }));
+        $controller = new SchedulerController($schedule, self::makeStateRepository(), self::makeRunner($schedule));
+
+        $response = $controller->trigger('manual');
+
+        self::assertFalse($invoked);
+        self::assertSame(428, $response->getStatusCode());
+        self::assertStringContainsString('Idempotency-Key', (string) $response->getContent());
+    }
+
+    #[Test]
+    public function triggerRejectsAnOversizedIdempotencyKeyAsBadRequest(): void
+    {
+        $schedule = new Schedule();
+        $schedule->add(new ScheduledTask(
+            'manual',
+            '* * * * *',
+            self::safeCommand(static fn() => null),
+            preventOverlap: true,
+        ));
+        $controller = new SchedulerController($schedule, self::makeStateRepository(), self::makeRunner($schedule));
+
+        $response = $controller->trigger('manual', str_repeat('x', 256));
+
+        self::assertSame(400, $response->getStatusCode());
+        self::assertStringContainsString('1 to 255 bytes', (string) $response->getContent());
+    }
+
+    #[Test]
     public function triggerExtractsThrowableIntoStructuredEnvelopeWithoutSerializingException(): void
     {
         $schedule = new Schedule();
         $schedule->add(new ScheduledTask(
             name: 'kaboom',
             expression: '* * * * *',
-            command: fn() => throw new \DomainException('this is fine'),
+            command: self::safeCommand(
+                static fn() => throw new \DomainException('this is fine'),
+            ),
+            preventOverlap: true,
         ));
 
         $controller = new SchedulerController(
@@ -167,7 +219,7 @@ final class SchedulerControllerTest extends TestCase
             self::makeRunner($schedule),
         );
 
-        $response = $controller->trigger('kaboom');
+        $response = $controller->trigger('kaboom', 'trigger-kaboom');
 
         self::assertSame(200, $response->getStatusCode());
         $body = json_decode((string) $response->getContent(), true, flags: \JSON_THROW_ON_ERROR);
@@ -184,7 +236,7 @@ final class SchedulerControllerTest extends TestCase
     }
 
     #[Test]
-    public function triggerExecutesStringCommandTasksByDispatchingToQueue(): void
+    public function triggerRefusesStringCommandUntilQueuedOccurrenceOwnershipExists(): void
     {
         $schedule = new Schedule();
         $schedule->add(new ScheduledTask(
@@ -200,11 +252,12 @@ final class SchedulerControllerTest extends TestCase
             self::makeRunner($schedule),
         );
 
-        $response = $controller->trigger('enqueue-me');
+        $response = $controller->trigger('enqueue-me', 'trigger-enqueue');
 
-        self::assertSame(200, $response->getStatusCode());
+        self::assertSame(409, $response->getStatusCode());
         $body = json_decode((string) $response->getContent(), true, flags: \JSON_THROW_ON_ERROR);
-        self::assertSame('success', $body['status']);
+        self::assertSame('Conflict', $body['errors'][0]['title']);
+        self::assertStringContainsString('occurrence and fence protection', $body['errors'][0]['detail']);
     }
 
     private static function makeStateRepository(): ScheduleStateRepository
@@ -228,6 +281,17 @@ final class SchedulerControllerTest extends TestCase
             new SyncQueue(),
             new InMemoryLeaseAuthority(),
             self::makeStateRepository(),
+            fenceGuard: new InMemoryFenceGuard(),
+            occurrenceRepository: new InMemoryOccurrenceRepository(),
+        );
+    }
+
+    private static function safeCommand(\Closure $effect): LeaseAwareClosureCommand
+    {
+        return new LeaseAwareClosureCommand(
+            static function (LeaseExecutionContext $context) use ($effect): void {
+                $context->effect('scheduler-controller-test', 'manual-effect', $effect);
+            },
         );
     }
 }

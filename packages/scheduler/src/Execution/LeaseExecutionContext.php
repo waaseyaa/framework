@@ -16,6 +16,7 @@ final class LeaseExecutionContext
         private LeaseHandle $handle,
         private readonly int $ttlMs,
         private readonly FenceGuardInterface $fenceGuard,
+        private readonly string $occurrenceId = '',
     ) {}
 
     public function domain(): string
@@ -44,6 +45,8 @@ final class LeaseExecutionContext
     {
         $this->checkpoint();
 
-        return $this->fenceGuard->execute($resourceKey, $this->handle->domain, $this->handle->fence, $effectId, $effect);
+        $scopedEffectId = $this->occurrenceId === '' ? $effectId : $this->occurrenceId . ':' . $effectId;
+
+        return $this->fenceGuard->execute($resourceKey, $this->handle->domain, $this->handle->fence, $scopedEffectId, $effect);
     }
 }

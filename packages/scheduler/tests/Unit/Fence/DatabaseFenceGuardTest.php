@@ -86,4 +86,20 @@ final class DatabaseFenceGuardTest extends TestCase
         }));
         self::assertTrue($ran);
     }
+
+    #[Test]
+    public function higherFenceRecoveryDoesNotReplayTheSameOccurrenceEffect(): void
+    {
+        $runs = 0;
+        self::assertTrue($this->guard->execute('resource', 'domain', 3, 'occurrence:effect', function () use (&$runs): void {
+            ++$runs;
+        }));
+        self::assertFalse($this->guard->execute('resource', 'domain', 8, 'occurrence:effect', function () use (&$runs): void {
+            ++$runs;
+        }));
+        self::assertSame(1, $runs);
+
+        $this->expectException(StaleFenceException::class);
+        $this->guard->execute('resource', 'domain', 7, 'late-different-effect', static function (): void {});
+    }
 }

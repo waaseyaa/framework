@@ -20,6 +20,8 @@ use Waaseyaa\Scheduler\Lease\UnavailableLeaseAuthority;
 use Waaseyaa\Scheduler\Fence\DatabaseFenceGuard;
 use Waaseyaa\Scheduler\Fence\FenceGuardInterface;
 use Waaseyaa\Scheduler\Fence\UnavailableFenceGuard;
+use Waaseyaa\Scheduler\Occurrence\OccurrenceRepository;
+use Waaseyaa\Scheduler\Occurrence\OccurrenceRepositoryInterface;
 
 #[CoversClass(SchedulerServiceProvider::class)]
 final class SchedulerServiceProviderTest extends TestCase
@@ -36,6 +38,7 @@ final class SchedulerServiceProviderTest extends TestCase
         self::assertInstanceOf(DatabaseLock::class, $provider->resolve(LockInterface::class));
         self::assertInstanceOf(DatabaseLease::class, $provider->resolve(LeaseAuthorityInterface::class));
         self::assertInstanceOf(DatabaseFenceGuard::class, $provider->resolve(FenceGuardInterface::class));
+        self::assertInstanceOf(OccurrenceRepository::class, $provider->resolve(OccurrenceRepositoryInterface::class));
     }
 
     #[Test]

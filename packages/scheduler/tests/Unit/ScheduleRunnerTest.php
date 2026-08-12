@@ -11,8 +11,10 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Queue\SyncQueue;
 use Waaseyaa\Scheduler\Execution\LeaseAwareClosureCommand;
 use Waaseyaa\Scheduler\Execution\LeaseExecutionContext;
+use Waaseyaa\Scheduler\Occurrence\UnsafeManualExecutionException;
 use Waaseyaa\Scheduler\Testing\InMemoryLeaseAuthority;
 use Waaseyaa\Scheduler\Testing\InMemoryFenceGuard;
+use Waaseyaa\Scheduler\Testing\InMemoryOccurrenceRepository;
 use Waaseyaa\Scheduler\Lease\UnavailableLeaseAuthority;
 use Waaseyaa\Scheduler\Schedule;
 use Waaseyaa\Scheduler\ScheduledTask;
@@ -76,7 +78,7 @@ final class ScheduleRunnerTest extends TestCase
             preventOverlap: true,
         ));
 
-        $runner = new ScheduleRunner($schedule, new SyncQueue(), $lock);
+        $runner = new ScheduleRunner($schedule, new SyncQueue(), $lock, occurrenceRepository: new InMemoryOccurrenceRepository());
         $result = $runner->run(new \DateTimeImmutable());
 
         self::assertSame(0, $result->count);
@@ -97,7 +99,12 @@ final class ScheduleRunnerTest extends TestCase
             preventOverlap: true,
         ));
 
-        $result = (new ScheduleRunner($schedule, new SyncQueue(), new UnavailableLeaseAuthority()))
+        $result = (new ScheduleRunner(
+            $schedule,
+            new SyncQueue(),
+            new UnavailableLeaseAuthority(),
+            occurrenceRepository: new InMemoryOccurrenceRepository(),
+        ))
             ->run(new \DateTimeImmutable());
 
         self::assertNull($result->status);
@@ -126,11 +133,41 @@ final class ScheduleRunnerTest extends TestCase
             new SyncQueue(),
             new InMemoryLeaseAuthority(),
             fenceGuard: new InMemoryFenceGuard(),
+            occurrenceRepository: new InMemoryOccurrenceRepository(),
         );
         $result = $runner->run(new \DateTimeImmutable());
 
         self::assertSame(1, $result->count);
         self::assertSame(1, $observedFence);
+    }
+
+    #[Test]
+    public function sameScheduledOccurrenceExecutesOnlyOnce(): void
+    {
+        $runs = 0;
+        $schedule = new Schedule();
+        $schedule->add(new ScheduledTask(
+            name: 'once-per-slot',
+            expression: '* * * * *',
+            command: new LeaseAwareClosureCommand(static function (LeaseExecutionContext $context) use (&$runs): void {
+                $context->effect('resource', 'write', static function () use (&$runs): void {
+                    ++$runs;
+                });
+            }),
+            preventOverlap: true,
+        ));
+        $runner = new ScheduleRunner(
+            $schedule,
+            new SyncQueue(),
+            new InMemoryLeaseAuthority(),
+            fenceGuard: new InMemoryFenceGuard(),
+            occurrenceRepository: new InMemoryOccurrenceRepository(),
+        );
+        $now = new \DateTimeImmutable('2026-08-12 10:14:20 UTC');
+
+        self::assertSame(1, $runner->run($now)->count);
+        self::assertSame(0, $runner->run($now)->count);
+        self::assertSame(1, $runs);
     }
 
     #[Test]
@@ -226,15 +263,25 @@ final class ScheduleRunnerTest extends TestCase
         $schedule->add(new ScheduledTask(
             name: 'manual-task',
             expression: '0 0 1 1 *', // Never due — runOne() bypasses isDue().
-            command: function () use (&$executed) {
-                $executed = true;
-            },
+            command: new LeaseAwareClosureCommand(static function (LeaseExecutionContext $context) use (&$executed): void {
+                $context->effect('manual-task', 'execute', static function () use (&$executed): void {
+                    $executed = true;
+                });
+            }),
+            preventOverlap: true,
         ));
 
         $stateRepo = self::makeStateRepository();
-        $runner = new ScheduleRunner($schedule, new SyncQueue(), new InMemoryLeaseAuthority(), $stateRepo);
+        $runner = new ScheduleRunner(
+            $schedule,
+            new SyncQueue(),
+            new InMemoryLeaseAuthority(),
+            $stateRepo,
+            fenceGuard: new InMemoryFenceGuard(),
+            occurrenceRepository: new InMemoryOccurrenceRepository(),
+        );
 
-        $result = $runner->runOne('manual-task', new \DateTimeImmutable('2026-06-15 14:30:00'));
+        $result = $runner->runOne('manual-task', new \DateTimeImmutable('2026-06-15 14:30:00'), 'manual-1');
 
         self::assertTrue($executed, 'closure command must run even when isDue() would be false');
         self::assertSame(1, $result->count);
@@ -249,7 +296,7 @@ final class ScheduleRunnerTest extends TestCase
     }
 
     #[Test]
-    public function runOneExecutesStringCommandTaskAndDispatchesToQueue(): void
+    public function runOneRefusesStringCommandUntilQueuedOccurrenceOwnershipExists(): void
     {
         $schedule = new Schedule();
         $schedule->add(new ScheduledTask(
@@ -262,11 +309,8 @@ final class ScheduleRunnerTest extends TestCase
         $stateRepo = self::makeStateRepository();
         $runner = new ScheduleRunner($schedule, new SyncQueue(), new InMemoryLeaseAuthority(), $stateRepo);
 
-        $result = $runner->runOne('queue-manual', new \DateTimeImmutable());
-
-        self::assertSame(1, $result->count);
-        self::assertSame(ScheduleRunResult::STATUS_SUCCESS, $result->status);
-        self::assertNotNull($stateRepo->getState('queue-manual'));
+        $this->expectException(UnsafeManualExecutionException::class);
+        $runner->runOne('queue-manual', new \DateTimeImmutable(), 'manual-2');
     }
 
     #[Test]
@@ -278,7 +322,46 @@ final class ScheduleRunnerTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessageMatches('/ghost/');
 
-        $runner->runOne('ghost', new \DateTimeImmutable());
+        $runner->runOne('ghost', new \DateTimeImmutable(), 'manual-3');
+    }
+
+    #[Test]
+    public function runOneRequiresCallerIdempotencyKey(): void
+    {
+        $schedule = new Schedule();
+        $schedule->add(new ScheduledTask('manual', '* * * * *', static fn() => null));
+        $runner = new ScheduleRunner($schedule, new SyncQueue(), new InMemoryLeaseAuthority());
+
+        $this->expectException(\Waaseyaa\Scheduler\Occurrence\IdempotencyKeyRequiredException::class);
+        $runner->runOne('manual', new \DateTimeImmutable());
+    }
+
+    #[Test]
+    public function runOneIdempotencyKeyExecutesOverlapCommandOnce(): void
+    {
+        $runs = 0;
+        $schedule = new Schedule();
+        $schedule->add(new ScheduledTask(
+            name: 'manual-once',
+            expression: '* * * * *',
+            command: new LeaseAwareClosureCommand(static function (LeaseExecutionContext $context) use (&$runs): void {
+                $context->effect('manual-resource', 'manual-write', static function () use (&$runs): void {
+                    ++$runs;
+                });
+            }),
+            preventOverlap: true,
+        ));
+        $runner = new ScheduleRunner(
+            $schedule,
+            new SyncQueue(),
+            new InMemoryLeaseAuthority(),
+            fenceGuard: new InMemoryFenceGuard(),
+            occurrenceRepository: new InMemoryOccurrenceRepository(),
+        );
+
+        self::assertSame(ScheduleRunResult::STATUS_SUCCESS, $runner->runOne('manual-once', new \DateTimeImmutable(), 'request-1')->status);
+        self::assertSame(ScheduleRunResult::STATUS_SKIPPED_DUPLICATE, $runner->runOne('manual-once', new \DateTimeImmutable(), 'request-1')->status);
+        self::assertSame(1, $runs);
     }
 
     #[Test]
@@ -288,13 +371,23 @@ final class ScheduleRunnerTest extends TestCase
         $schedule->add(new ScheduledTask(
             name: 'kaboom',
             expression: '* * * * *',
-            command: fn() => throw new \DomainException('boom'),
+            command: new LeaseAwareClosureCommand(
+                static fn(LeaseExecutionContext $context) => throw new \DomainException('boom'),
+            ),
+            preventOverlap: true,
         ));
 
         $stateRepo = self::makeStateRepository();
-        $runner = new ScheduleRunner($schedule, new SyncQueue(), new InMemoryLeaseAuthority(), $stateRepo);
+        $runner = new ScheduleRunner(
+            $schedule,
+            new SyncQueue(),
+            new InMemoryLeaseAuthority(),
+            $stateRepo,
+            fenceGuard: new InMemoryFenceGuard(),
+            occurrenceRepository: new InMemoryOccurrenceRepository(),
+        );
 
-        $result = $runner->runOne('kaboom', new \DateTimeImmutable());
+        $result = $runner->runOne('kaboom', new \DateTimeImmutable(), 'manual-4');
 
         self::assertSame(0, $result->count);
         self::assertSame(ScheduleRunResult::STATUS_FAILED, $result->status);
@@ -327,9 +420,15 @@ final class ScheduleRunnerTest extends TestCase
         ));
 
         $stateRepo = self::makeStateRepository();
-        $runner = new ScheduleRunner($schedule, new SyncQueue(), $lock, $stateRepo);
+        $runner = new ScheduleRunner(
+            $schedule,
+            new SyncQueue(),
+            $lock,
+            $stateRepo,
+            occurrenceRepository: new InMemoryOccurrenceRepository(),
+        );
 
-        $result = $runner->runOne('locked-task', new \DateTimeImmutable());
+        $result = $runner->runOne('locked-task', new \DateTimeImmutable(), 'manual-5');
 
         self::assertFalse($invoked);
         self::assertSame(0, $result->count);

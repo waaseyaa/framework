@@ -26,7 +26,11 @@ final class InMemoryFenceGuard implements FenceGuardInterface
             }
             throw new StaleFenceException('Distinct equal-fence effect.');
         }
+        $sameEffectRecovery = $current !== null && $current['effect'] === $effectId;
         $this->accepted[$key] = ['fence' => $fence, 'effect' => $effectId];
+        if ($sameEffectRecovery) {
+            return false;
+        }
         try {
             $effect();
         } catch (\Throwable $error) {

@@ -17,6 +17,8 @@ use Waaseyaa\Scheduler\Lease\UnavailableLeaseAuthority;
 use Waaseyaa\Scheduler\Lock\DatabaseLock;
 use Waaseyaa\Scheduler\Lock\InMemoryLock;
 use Waaseyaa\Scheduler\Lock\LockInterface;
+use Waaseyaa\Scheduler\Occurrence\OccurrenceRepository;
+use Waaseyaa\Scheduler\Occurrence\OccurrenceRepositoryInterface;
 use Waaseyaa\Scheduler\Storage\ScheduleStateRepository;
 
 final class SchedulerServiceProvider extends ServiceProvider
@@ -54,6 +56,14 @@ final class SchedulerServiceProvider extends ServiceProvider
                 ? new DatabaseFenceGuard($database)
                 : new UnavailableFenceGuard();
         });
+        $this->singleton(OccurrenceRepositoryInterface::class, function (): OccurrenceRepositoryInterface {
+            $database = $this->resolveOptional(DatabaseInterface::class);
+            if (!$database instanceof DBALDatabase) {
+                throw new \RuntimeException('Scheduled occurrences require the durable DBAL database authority.');
+            }
+
+            return new OccurrenceRepository($database);
+        });
 
         // Bind ScheduleStateRepository as a first-class container service so
         // the admin scheduler dashboard (M4B WP02 — Layer 4 ApiServiceProvider)
@@ -83,6 +93,7 @@ final class SchedulerServiceProvider extends ServiceProvider
                 $this->resolve(LeaseAuthorityInterface::class),
                 $hasDatabase ? $this->resolve(ScheduleStateRepository::class) : null,
                 fenceGuard: $this->resolve(FenceGuardInterface::class),
+                occurrenceRepository: $hasDatabase ? $this->resolve(OccurrenceRepositoryInterface::class) : null,
             );
         });
     }

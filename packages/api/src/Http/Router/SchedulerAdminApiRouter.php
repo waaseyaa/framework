@@ -50,7 +50,10 @@ final class SchedulerAdminApiRouter implements DomainRouterInterface
                 200,
                 ['Content-Type' => 'application/vnd.api+json'],
             ),
-            'trigger' => $this->controller->trigger(self::routeName($request)),
+            'trigger' => $this->controller->trigger(
+                self::routeName($request),
+                $request->headers->get('Idempotency-Key'),
+            ),
             default => self::errorResponse(
                 404,
                 'Not Found',
