@@ -18,7 +18,7 @@
             "class": "tooling-query",
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
             "line_sha256": "8d5ae8e1e2319ace6169d5c65650df2eaa537092590f016e10b022818b2e3ef0",
-            "source_sha256": "b3b1a2723fb88518810af7fd467223637e13e1f83f3ef604fc0cc3a660d1c48d"
+            "source_sha256": "ed27d857bbb7229dc1c07ed05e2a5d564053e1ec16f6f8ad304f4d886f5b9a16"
         },
         {
             "path": "bin/check-s1-sqlite-contract",
@@ -27,7 +27,7 @@
             "class": "tooling-query",
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
             "line_sha256": "8d5ae8e1e2319ace6169d5c65650df2eaa537092590f016e10b022818b2e3ef0",
-            "source_sha256": "b3b1a2723fb88518810af7fd467223637e13e1f83f3ef604fc0cc3a660d1c48d"
+            "source_sha256": "ed27d857bbb7229dc1c07ed05e2a5d564053e1ec16f6f8ad304f4d886f5b9a16"
         },
         {
             "path": "bin/check-s1-sqlite-contract",
@@ -36,52 +36,115 @@
             "class": "tooling-query",
             "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
             "line_sha256": "0962b4fdca84fa32ef60ec5f6ffb5806bc508134bc18852d3bb28a83eea91638",
-            "source_sha256": "b3b1a2723fb88518810af7fd467223637e13e1f83f3ef604fc0cc3a660d1c48d"
+            "source_sha256": "ed27d857bbb7229dc1c07ed05e2a5d564053e1ec16f6f8ad304f4d886f5b9a16"
         },
         {
             "path": "bin/check-s1-sqlite-contract",
-            "line": 318,
+            "line": 60,
+            "pattern": "pdo_sqlite_token",
+            "class": "tooling-query",
+            "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
+            "line_sha256": "a15703c78f0db57073da83b4a20baa50da9c85216c20d20088f1dbd42c532713",
+            "source_sha256": "ed27d857bbb7229dc1c07ed05e2a5d564053e1ec16f6f8ad304f4d886f5b9a16"
+        },
+        {
+            "path": "bin/check-s1-sqlite-contract",
+            "line": 66,
+            "pattern": "pdo_sqlite_token",
+            "class": "tooling-query",
+            "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
+            "line_sha256": "861128efb163023be82eec6124be3b08f7fd77712d2e9bf7e6e2a3699956cb4f",
+            "source_sha256": "ed27d857bbb7229dc1c07ed05e2a5d564053e1ec16f6f8ad304f4d886f5b9a16"
+        },
+        {
+            "path": "bin/check-s1-sqlite-contract",
+            "line": 74,
+            "pattern": "pdo_sqlite_token",
+            "class": "tooling-query",
+            "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
+            "line_sha256": "c39dd1cb4650caf055e91d366e12157c4c66d7aa0e30e226bf0a5642bc909b1c",
+            "source_sha256": "ed27d857bbb7229dc1c07ed05e2a5d564053e1ec16f6f8ad304f4d886f5b9a16"
+        },
+        {
+            "path": "bin/check-s1-sqlite-contract",
+            "line": 77,
+            "pattern": "pdo_sqlite_token",
+            "class": "tooling-query",
+            "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
+            "line_sha256": "b14e3430e2000c918fa16a8c71f3f4b2f7aecd218d8a9c4cace2c683c97e9cb7",
+            "source_sha256": "ed27d857bbb7229dc1c07ed05e2a5d564053e1ec16f6f8ad304f4d886f5b9a16"
+        },
+        {
+            "path": "bin/check-s1-sqlite-contract",
+            "line": 324,
             "pattern": "dbal_factory",
             "class": "tooling-query",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "93e75a20b962d54a545ea39de28d0579bbc883a4c3f047508e3ad1ad378b2c1f",
-            "source_sha256": "b3b1a2723fb88518810af7fd467223637e13e1f83f3ef604fc0cc3a660d1c48d"
+            "source_sha256": "ed27d857bbb7229dc1c07ed05e2a5d564053e1ec16f6f8ad304f4d886f5b9a16"
         },
         {
             "path": "bin/check-s1-sqlite-contract",
-            "line": 322,
+            "line": 328,
             "pattern": "dbal_factory",
             "class": "tooling-query",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "c2396b6063198e84df6496073cb8354f971da1cfce1a85aa64aabd1888e67e6d",
-            "source_sha256": "b3b1a2723fb88518810af7fd467223637e13e1f83f3ef604fc0cc3a660d1c48d"
+            "source_sha256": "ed27d857bbb7229dc1c07ed05e2a5d564053e1ec16f6f8ad304f4d886f5b9a16"
         },
         {
             "path": "bin/check-s1-sqlite-contract",
-            "line": 325,
+            "line": 331,
             "pattern": "dbal_factory",
             "class": "tooling-query",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "77c93914e12cd9fad31a3798aa9174a9f2c3204e68bd38a5c706ff133f89eaf4",
-            "source_sha256": "b3b1a2723fb88518810af7fd467223637e13e1f83f3ef604fc0cc3a660d1c48d"
+            "source_sha256": "ed27d857bbb7229dc1c07ed05e2a5d564053e1ec16f6f8ad304f4d886f5b9a16"
         },
         {
             "path": "bin/check-s1-sqlite-contract",
-            "line": 382,
+            "line": 388,
             "pattern": "pdo_sqlite_token",
             "class": "tooling-query",
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
             "line_sha256": "03b465f197d78a425a5c69c40c29f2ff35c7f2a617aad5c9b03a7885bdf3395f",
-            "source_sha256": "b3b1a2723fb88518810af7fd467223637e13e1f83f3ef604fc0cc3a660d1c48d"
+            "source_sha256": "ed27d857bbb7229dc1c07ed05e2a5d564053e1ec16f6f8ad304f4d886f5b9a16"
         },
         {
             "path": "bin/check-s1-sqlite-contract",
-            "line": 383,
+            "line": 389,
             "pattern": "pdo_sqlite_token",
             "class": "tooling-query",
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
             "line_sha256": "a4b1aab105f00e4d620616dc0775d3110d6365a89bfbba77fd305e3272c322d1",
-            "source_sha256": "b3b1a2723fb88518810af7fd467223637e13e1f83f3ef604fc0cc3a660d1c48d"
+            "source_sha256": "ed27d857bbb7229dc1c07ed05e2a5d564053e1ec16f6f8ad304f4d886f5b9a16"
+        },
+        {
+            "path": "bin/check-support-contract",
+            "line": 203,
+            "pattern": "pdo_sqlite_token",
+            "class": "tooling-query",
+            "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
+            "line_sha256": "e11dc7b5a95bff00c84035ed195bf18c6d6e26c11740595fe8016a0ee7ff2815",
+            "source_sha256": "e23859e93f2760384f834910cf2c709ed07d4424b0c0c9324a46a5419d0dd464"
+        },
+        {
+            "path": "bin/check-support-contract",
+            "line": 203,
+            "pattern": "pdo_sqlite_token",
+            "class": "tooling-query",
+            "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
+            "line_sha256": "e11dc7b5a95bff00c84035ed195bf18c6d6e26c11740595fe8016a0ee7ff2815",
+            "source_sha256": "e23859e93f2760384f834910cf2c709ed07d4424b0c0c9324a46a5419d0dd464"
+        },
+        {
+            "path": "bin/test-quality-inventory",
+            "line": 183,
+            "pattern": "sqlite_dsn_token",
+            "class": "tooling-query",
+            "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "line_sha256": "5602a8ff38284a9c559d3d42df160ec658ce6549c52ab29b191ad682e56045ca",
+            "source_sha256": "a644d60e70d42f71e8be542c93530ba46149db9cba5251125404875ff6199e32"
         },
         {
             "path": "packages/admin-surface/tests/Integration/Host/AuthenticatedNoteOwnershipFlowTest.php",

@@ -46,37 +46,39 @@ function s1SqliteConstructionPatterns(): array
     ];
 }
 
-function s1SqliteConstructionClass(string $path): string
+function s1SqliteConstructionClass(string $path, string $patternId): string
 {
     if (str_starts_with($path, 'tests/') || str_contains($path, '/tests/')) {
         return 'test';
     }
-    if (str_starts_with($path, 'packages/deployer/src/RuntimeState/')) {
-        return 'offline-artifact-authority';
-    }
-    if (str_contains($path, '/migrations/')) {
-        return 'inherited-connection-migration';
-    }
-    if ($path === 'packages/database-legacy/src/DBALDatabase.php') {
-        return 'serving-connection-authority';
-    }
-    if (str_starts_with($path, 'packages/cli/src/')
-        || str_starts_with($path, 'packages/foundation/src/')
-        || str_starts_with($path, 'packages/search/src/')
-    ) {
-        return 'serving-entrypoint';
-    }
-    if (str_starts_with($path, 'packages/testing/src/')) {
-        return 'test-utility';
-    }
-    if ($path === 'packages/frankenphp/src/Binary/Installer.php') {
-        return 'runtime-capability-configuration';
-    }
-    if ($path === 'bin/check-s1-sqlite-contract') {
-        return 'tooling-query';
-    }
 
-    return 'unclassified';
+    $reviewed = [
+        'packages/audit/migrations/2026_05_25_000001_create_audit_event_table.php|dbal_wrapper_constructor' => 'inherited-connection-migration',
+        'packages/cli/src/Handler/DbInitHandler.php|dbal_factory' => 'serving-entrypoint',
+        'packages/cli/src/Provider/MigrateServiceProvider.php|dbal_factory' => 'serving-entrypoint',
+        'packages/database-legacy/src/DBALDatabase.php|doctrine_factory' => 'serving-connection-authority',
+        'packages/database-legacy/src/DBALDatabase.php|pdo_sqlite_token' => 'serving-connection-authority',
+        'packages/deployer/src/RuntimeState/SqliteArtifactInstaller.php|pdo_constructor' => 'offline-artifact-authority',
+        'packages/deployer/src/RuntimeState/SqliteArtifactInstaller.php|sqlite_dsn_token' => 'offline-artifact-authority',
+        'packages/deployer/src/RuntimeState/SqliteArtifactPreparer.php|pdo_constructor' => 'offline-artifact-authority',
+        'packages/deployer/src/RuntimeState/SqliteArtifactPreparer.php|sqlite_dsn_token' => 'offline-artifact-authority',
+        'packages/foundation/src/Kernel/Bootstrap/DatabaseBootstrapper.php|dbal_factory' => 'serving-entrypoint',
+        'packages/frankenphp/src/Binary/Installer.php|pdo_sqlite_token' => 'runtime-capability-configuration',
+        'packages/node/migrations/2026_07_06_000001_node_revision_schema.php|dbal_wrapper_constructor' => 'inherited-connection-migration',
+        'packages/search/src/SearchServiceProvider.php|dbal_factory' => 'serving-entrypoint',
+        'packages/testing/src/Database/TemporarySqliteDatabase.php|dbal_factory' => 'test-utility',
+        'bin/check-s1-sqlite-contract|dbal_factory' => 'tooling-query',
+        'bin/check-s1-sqlite-contract|dbal_wrapper_constructor' => 'tooling-query',
+        'bin/check-s1-sqlite-contract|doctrine_factory' => 'tooling-query',
+        'bin/check-s1-sqlite-contract|pdo_constructor' => 'tooling-query',
+        'bin/check-s1-sqlite-contract|pdo_sqlite_token' => 'tooling-query',
+        'bin/check-s1-sqlite-contract|sqlite3_constructor' => 'tooling-query',
+        'bin/check-s1-sqlite-contract|sqlite_dsn_token' => 'tooling-query',
+        'bin/check-support-contract|pdo_sqlite_token' => 'tooling-query',
+        'bin/test-quality-inventory|sqlite_dsn_token' => 'tooling-query',
+    ];
+
+    return $reviewed[$path . '|' . $patternId] ?? 'unclassified';
 }
 
 /** @return array{schema_version: int, query_version: string, patterns: array<string, string>, candidates: list<array<string, int|string>>} */
@@ -93,14 +95,18 @@ function s1SqliteBuildConstructionRoster(string $root): array
         }
         $path = str_replace('\\', '/', $file->getPathname());
         $relative = substr($path, strlen(str_replace('\\', '/', $root)) + 1);
-        if ((!str_ends_with($relative, '.php') && $relative !== 'bin/check-s1-sqlite-contract')
-            || str_starts_with($relative, 'vendor/')
+        if (str_starts_with($relative, 'vendor/')
             || str_starts_with($relative, 'tmp/')
         ) {
             continue;
         }
 
         $contents = (string) file_get_contents($path);
+        $firstLine = strtok($contents, "\n");
+        $phpShebang = is_string($firstLine) && preg_match('/^#!.*\bphp(?:\s|$)/', $firstLine) === 1;
+        if (!str_ends_with($relative, '.php') && !$phpShebang) {
+            continue;
+        }
         foreach ($patterns as $patternId => $pattern) {
             preg_match_all($pattern, $contents, $matches, PREG_OFFSET_CAPTURE);
             foreach ($matches[0] as [$matched, $offset]) {
@@ -110,7 +116,7 @@ function s1SqliteBuildConstructionRoster(string $root): array
                     'path' => $relative,
                     'line' => $line,
                     'pattern' => $patternId,
-                    'class' => s1SqliteConstructionClass($relative),
+                    'class' => s1SqliteConstructionClass($relative, $patternId),
                     'match_sha256' => hash('sha256', $matched),
                     'line_sha256' => hash('sha256', trim($lineText)),
                     'source_sha256' => hash('sha256', $contents),

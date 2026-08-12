@@ -169,6 +169,26 @@ final class S1SqliteTopologyContractTest extends TestCase
     }
 
     #[Test]
+    public function construction_classifier_does_not_auto_approve_new_serving_paths(): void
+    {
+        $checker = (string) file_get_contents($this->root . '/bin/check-s1-sqlite-contract');
+
+        self::assertStringContainsString('s1SqliteConstructionClass(string $path, string $patternId)', $checker);
+        self::assertStringContainsString("\$reviewed[\$path . '|' . \$patternId] ?? 'unclassified'", $checker);
+        self::assertStringNotContainsString("str_starts_with(\$path, 'packages/cli/src/')", $checker);
+        self::assertStringContainsString('phpShebang', $checker);
+    }
+
+    #[Test]
+    public function packaged_archive_normalizes_permissions_across_runner_identities(): void
+    {
+        $script = (string) file_get_contents($this->root . '/tests/PackagedForm/check-s1-sqlite-artifact');
+
+        self::assertStringContainsString('--no-same-owner --no-same-permissions', $script);
+        self::assertSame(2, substr_count($script, '--mode=u=rwX,go=rX'));
+    }
+
+    #[Test]
     public function checker_rejects_dependency_identity_byte_omission_and_invention(): void
     {
         $canonical = json_decode(

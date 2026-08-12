@@ -27,7 +27,8 @@ if [[ -n "$($root/bin/git -C "$root" status --porcelain=v1 -- packages/database-
     echo 'S1 artifact evidence refuses dirty database-package bytes.' >&2
     exit 1
 fi
-$root/bin/git -C "$root" archive --format=tar HEAD packages/database-legacy | tar -xf - -C "$source_tree"
+$root/bin/git -C "$root" archive --format=tar HEAD packages/database-legacy \
+    | tar --no-same-owner --no-same-permissions -xf - -C "$source_tree"
 
 # Composer artifact repositories read the package version from the archive's
 # manifest. Stamp only the disposable staging copy; source bytes stay intact.
@@ -43,10 +44,10 @@ php -r '
     file_put_contents($path, json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
 ' "$package/composer.json" "$version" "$candidate" "$package_tree"
 
-tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner \
+tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner --mode=u=rwX,go=rX \
     -czf "$artifacts/waaseyaa-database-legacy-$version.tar.gz" -C "$package" .
 archive="$artifacts/waaseyaa-database-legacy-$version.tar.gz"
-tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner \
+tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner --mode=u=rwX,go=rX \
     -czf "$artifacts/reproduced.tar.gz" -C "$package" .
 if [[ "$(sha256sum "$archive" | cut -d ' ' -f 1)" != "$(sha256sum "$artifacts/reproduced.tar.gz" | cut -d ' ' -f 1)" ]]; then
     echo 'S1 artifact archive is not byte-reproducible.' >&2
