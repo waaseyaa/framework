@@ -13,6 +13,11 @@ use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
+use Waaseyaa\Config\Activation\ConfigurationActivationRequest;
+use Waaseyaa\Config\Activation\ConfigurationActivationResult;
+use Waaseyaa\Config\Activation\ConfigurationActivatorInterface;
+use Waaseyaa\Config\Activation\ConfigurationRollbackRequest;
+use Waaseyaa\Config\Authority\ConfigurationActiveToken;
 use Waaseyaa\Config\Exception\ConfigImportFailedException;
 use Waaseyaa\Config\Sync\ConfigImportApplyHookInterface;
 use Waaseyaa\Config\Sync\ConfigImportEntryResult;
@@ -78,6 +83,28 @@ final class ConfigImportCommandTest extends TestCase
         self::assertStringContainsString('[dry-run]', $stdout);
         self::assertStringContainsString('[dry-run] 0 created, 1 updated, 0 deleted, 0 failed, 0 unchanged.', $stdout);
         self::assertFalse($hookSpy->applyCalled, '--dry-run must never call the apply hook.');
+    }
+
+    #[Test]
+    public function transactional_dry_run_prints_generation_and_plan_identities(): void
+    {
+        $this->seed(['role.admin' => []]);
+        $activator = new class implements ConfigurationActivatorInterface {
+            public function activate(ConfigurationActivationRequest $request): ConfigurationActivationResult { throw new \LogicException('dry-run activated'); }
+            public function rollback(ConfigurationRollbackRequest $request): ConfigurationActivationResult { throw new \LogicException('not used'); }
+            public function committedResult(string $requestId): ?ConfigurationActivationResult { return null; }
+            public function currentToken(): ?ConfigurationActiveToken { return null; }
+            public function readGeneration(ConfigurationActiveToken $token): iterable { return []; }
+        };
+        $tester = $this->makeTester(activator: $activator);
+
+        $tester->execute(['--dry-run']);
+
+        self::assertSame(0, $tester->getExitCode());
+        self::assertMatchesRegularExpression(
+            '/\[dry-run\] generation [a-f0-9]{64}; plan [a-f0-9]{64}/',
+            $tester->getStdout(),
+        );
     }
 
     #[Test]
@@ -170,6 +197,7 @@ final class ConfigImportCommandTest extends TestCase
     private function makeTester(
         ?ConfigImportApplyHookInterface $hook = null,
         ?ConfigImportPreflightInterface $preflight = null,
+        ?ConfigurationActivatorInterface $activator = null,
     ): CliTester {
         $repository = new ConfigSyncRepository($this->tempDir);
         $hook ??= new class implements ConfigImportApplyHookInterface {
@@ -184,6 +212,7 @@ final class ConfigImportCommandTest extends TestCase
             $repository,
             $hook,
             $preflight ?? new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight(),
+            activator: $activator,
         );
         $command = new ConfigImportCommand($importer);
 

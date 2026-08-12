@@ -92,6 +92,13 @@ final class ConfigImportCommand
                 $io->writeln($line);
             }
         }
+        if ($dryRun && $result->generationId !== null && $result->planHash !== null) {
+            $io->writeln(sprintf(
+                '[dry-run] generation %s; plan %s',
+                $result->generationId,
+                $result->planHash,
+            ));
+        }
 
         $summary = $result->summary();
         if ($dryRun) {

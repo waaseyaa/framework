@@ -87,7 +87,7 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
                     $request->requestId,
                 );
             }
-            if ((string) $existing['lifecycle_state'] !== 'staged') {
+            if (!in_array((string) $existing['lifecycle_state'], ['staged', 'superseded'], true)) {
                 throw new ConfigurationActivationRequestReuseException(sprintf(
                     'Configuration activation request ID is terminal in lifecycle state "%s"; retry with a new request ID.',
                     (string) $existing['lifecycle_state'],
@@ -146,6 +146,8 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
             $this->stage($request, $inputHash, $generationId, $manifestHash, $planHash, $nextEntries);
         } elseif ((string) $existing['generation_id'] !== $generationId || (string) $existing['plan_hash'] !== $planHash) {
             throw new ConfigurationActivationRequestReuseException('Staged activation request no longer resolves to its original plan.');
+        } elseif ((string) $existing['lifecycle_state'] === 'superseded') {
+            $this->restageSupersededCandidate($request->requestId, $inputHash, $generationId, $planHash);
         }
 
         $this->ensureInitialCounter();
@@ -324,24 +326,56 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
 
     private function claimSweepFence(ConfigurationCandidateSweepRequest $request): void
     {
-        try {
-            $this->database->query(
-                'INSERT INTO waaseyaa_config_candidate_sweep_fence (authority_id, lease_domain, last_fence) VALUES (?, ?, ?)',
-                [$this->context->authorityId, $request->leaseDomain, $request->fence],
-            );
-
-            return;
-        } catch (UniqueConstraintViolationException) {
-            // The durable domain exists; only a strictly newer lease holder may advance it.
-        }
         $affected = $this->database->update('waaseyaa_config_candidate_sweep_fence')
             ->fields(['last_fence' => $request->fence])
             ->condition('authority_id', $this->context->authorityId)
             ->condition('lease_domain', $request->leaseDomain)
             ->condition('last_fence', $request->fence, '<')
             ->execute();
-        if ($affected !== 1) {
+        if ($affected === 1) {
+            return;
+        }
+        foreach ($this->database->query(
+            'SELECT last_fence FROM waaseyaa_config_candidate_sweep_fence WHERE authority_id = ? AND lease_domain = ?',
+            [$this->context->authorityId, $request->leaseDomain],
+        ) as $_row) {
             throw new ConfigurationActivationConflictException('Configuration candidate sweep fence is stale or replayed.');
+        }
+        try {
+            $this->database->query(
+                'INSERT INTO waaseyaa_config_candidate_sweep_fence (authority_id, lease_domain, last_fence) VALUES (?, ?, ?)',
+                [$this->context->authorityId, $request->leaseDomain, $request->fence],
+            );
+        } catch (UniqueConstraintViolationException $exception) {
+            throw new ConfigurationActivationConflictException(
+                'Configuration candidate sweep fence was concurrently initialized; retry with the same lease fence.',
+                previous: $exception,
+            );
+        }
+    }
+
+    private function restageSupersededCandidate(
+        string $requestId,
+        string $inputHash,
+        string $generationId,
+        string $planHash,
+    ): void {
+        $affected = $this->database->update('waaseyaa_config_candidate')
+            ->fields([
+                'lifecycle_state' => 'staged',
+                'created_at' => gmdate('c'),
+            ])
+            ->condition('authority_id', $this->context->authorityId)
+            ->condition('activation_request_id', $requestId)
+            ->condition('input_hash', $inputHash)
+            ->condition('generation_id', $generationId)
+            ->condition('plan_hash', $planHash)
+            ->condition('lifecycle_state', 'superseded')
+            ->execute();
+        if ($affected !== 1) {
+            throw new ConfigurationActivationConflictException(
+                'Superseded configuration candidate changed before its exact retry could be re-staged.',
+            );
         }
     }
 

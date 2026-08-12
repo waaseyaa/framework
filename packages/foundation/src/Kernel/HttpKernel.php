@@ -194,7 +194,7 @@ final class HttpKernel extends AbstractKernel
         ));
         $runtimeEpoch = $this->getHttpServiceResolver()->resolve(RuntimeEpochInterface::class);
         if (!$runtimeEpoch instanceof RuntimeEpochInterface) {
-            if (!in_array(strtolower($this->resolveEnvironment()), ['dev', 'development', 'local', 'testing'], true)) {
+            if (!$this->isDevelopmentMode()) {
                 throw new \LogicException('The MCP read cache requires a composed runtime epoch authority.');
             }
             $runtimeEpoch = new StableRuntimeEpoch();

@@ -8,6 +8,7 @@ declare(strict_types=1);
 $root = dirname(__DIR__);
 $rosterPath = $root . '/support/s1-configuration-activation-roster.json';
 $contractPath = $root . '/support/s1-configuration-activation-v1.json';
+$migrationPath = $root . '/packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php';
 $arguments = array_values(array_filter($_SERVER['argv'] ?? [], 'is_string'));
 $writeRoster = in_array('--write-roster', $arguments, true);
 foreach ($arguments as $argument) {
@@ -18,6 +19,10 @@ foreach ($arguments as $argument) {
     if (str_starts_with($argument, '--contract=')) {
         $candidate = substr($argument, strlen('--contract='));
         $contractPath = str_starts_with($candidate, '/') ? $candidate : $root . '/' . $candidate;
+    }
+    if (str_starts_with($argument, '--migration=')) {
+        $candidate = substr($argument, strlen('--migration='));
+        $migrationPath = str_starts_with($candidate, '/') ? $candidate : $root . '/' . $candidate;
     }
 }
 
@@ -174,6 +179,47 @@ function s1ActivationRequireRefusingMethod(string $root, string $relative, strin
     }
 }
 
+function s1ActivationMethodBody(string $contents, string $method): string
+{
+    $tokens = token_get_all($contents);
+    $count = count($tokens);
+    for ($index = 0; $index < $count; ++$index) {
+        if (!is_array($tokens[$index]) || $tokens[$index][0] !== T_FUNCTION) {
+            continue;
+        }
+        for ($cursor = $index + 1; $cursor < $count; ++$cursor) {
+            $token = $tokens[$cursor];
+            if (is_array($token) && $token[0] === T_STRING) {
+                if ($token[1] !== $method) {
+                    break;
+                }
+                while ($cursor < $count && $tokens[$cursor] !== '{') {
+                    ++$cursor;
+                }
+                if ($cursor >= $count) {
+                    break;
+                }
+                $body = '';
+                $depth = 0;
+                for (; $cursor < $count; ++$cursor) {
+                    $part = is_array($tokens[$cursor]) ? $tokens[$cursor][1] : $tokens[$cursor];
+                    if ($part === '{') {
+                        ++$depth;
+                    } elseif ($part === '}') {
+                        --$depth;
+                        if ($depth === 0) {
+                            return $body;
+                        }
+                    } elseif ($depth > 0) {
+                        $body .= $part;
+                    }
+                }
+            }
+        }
+    }
+    throw new RuntimeException(sprintf('CFG-02 migration is missing an inspectable %s() method.', $method));
+}
+
 try {
     $contract = json_decode((string) file_get_contents($contractPath), true, flags: JSON_THROW_ON_ERROR);
     if (!is_array($contract)) {
@@ -221,18 +267,16 @@ try {
     s1ActivationRequireContains($root, 'packages/entity-storage/src/Config/DatabaseConfigurationActivator.php', 'ensureInitialCounter()');
     s1ActivationRequireContains($root, 'packages/queue/src/QueueServiceProvider.php', 'Activated queue workers require a runtime epoch authority.');
     $httpKernel = (string) file_get_contents($root . '/packages/foundation/src/Kernel/HttpKernel.php');
-    if (!str_contains($httpKernel, "['dev', 'development', 'local', 'testing']") || !str_contains($httpKernel, 'requires a composed runtime epoch authority')) {
+    if (!str_contains($httpKernel, '$this->isDevelopmentMode()') || !str_contains($httpKernel, 'requires a composed runtime epoch authority')) {
         throw new RuntimeException('Serving HTTP cache composition must restrict stable epochs to an explicit non-production allowlist.');
     }
-    $migration = (string) file_get_contents($root . '/packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php');
+    $migration = (string) file_get_contents($migrationPath);
     if (stripos($migration, 'CREATE TABLE') === false || stripos($migration, 'down') === false) {
         throw new RuntimeException('CFG-02 schema authority is incomplete.');
     }
-    if (preg_match('/function\s+down\s*\([^)]*\)[^{]*\{(?<body>[\s\S]*)\}\s*;\s*$/i', $migration, $down) !== 1) {
-        throw new RuntimeException('CFG-02 forward-only migration must expose an inspectable down() method.');
-    }
-    if (preg_match('/\bDROP\s+TABLE\b/i', (string) $down['body']) === 1) {
-        throw new RuntimeException('CFG-02 forward-only migration must not drop activation authority tables.');
+    $downBody = s1ActivationMethodBody($migration, 'down');
+    if (preg_match('/\b(?:DROP\s+TABLE|TRUNCATE\s+TABLE|DELETE\s+FROM|ALTER\s+TABLE[\s\S]*?\bDROP\b)/i', $downBody) === 1) {
+        throw new RuntimeException('CFG-02 forward-only migration must not delete, truncate, or structurally drop activation authority data.');
     }
     echo sprintf("S1 configuration activation contract passed: %d classified production boundaries, one transactional authority.\n", count($live['candidates']));
 } catch (Throwable $exception) {

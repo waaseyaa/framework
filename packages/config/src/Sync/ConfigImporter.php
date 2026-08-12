@@ -256,6 +256,15 @@ final class ConfigImporter
             foreach (array_keys($tombstones) as $ref) {
                 $entries[] = new ConfigImportEntryResult($ref, ConfigImportEntryResult::STATUS_DELETED);
             }
+            if (!$deleteOrphans) {
+                foreach (array_diff_key($activeByRef, $syncFiles) as $ref => $_file) {
+                    $entries[] = new ConfigImportEntryResult(
+                        $ref,
+                        ConfigImportEntryResult::STATUS_UNCHANGED,
+                        'orphan retained; use --delete-orphans for explicit removal',
+                    );
+                }
+            }
 
             return new ConfigImportResult($entries, true, $generationId, $planHash);
         }
@@ -282,6 +291,15 @@ final class ConfigImporter
         }
         foreach (array_keys($tombstones) as $ref) {
             $entries[] = new ConfigImportEntryResult($ref, ConfigImportEntryResult::STATUS_DELETED);
+        }
+        if (!$deleteOrphans) {
+            foreach (array_diff_key($activeByRef, $syncFiles) as $ref => $_file) {
+                $entries[] = new ConfigImportEntryResult(
+                    $ref,
+                    ConfigImportEntryResult::STATUS_UNCHANGED,
+                    'orphan retained; use --delete-orphans for explicit removal',
+                );
+            }
         }
         $this->audit('info', 'config:import generation committed.', [
             'activation_request_id' => $activation->requestId,

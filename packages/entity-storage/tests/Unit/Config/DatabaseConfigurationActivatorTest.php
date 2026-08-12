@@ -508,12 +508,15 @@ final class DatabaseConfigurationActivatorTest extends TestCase
             "SELECT lifecycle_state FROM waaseyaa_config_candidate WHERE activation_request_id = 'sweep-staged'",
         ));
         self::assertEquals($head->token, $activator->currentToken());
-        try {
-            $activator->activate($this->request('sweep-staged', $head->token, [$this->file('system', 'site', ['name' => 'B'])]));
-            self::fail('A terminal superseded request ID was silently retried.');
-        } catch (ConfigurationActivationRequestReuseException $exception) {
-            self::assertStringContainsString('terminal', $exception->getMessage());
-        }
+        $retried = $activator->activate($this->request(
+            'sweep-staged',
+            $head->token,
+            [$this->file('system', 'site', ['name' => 'B'])],
+        ));
+        self::assertSame(2, $retried->token->activationSequence);
+        self::assertSame('committed', $this->stringScalar(
+            "SELECT lifecycle_state FROM waaseyaa_config_candidate WHERE activation_request_id = 'sweep-staged'",
+        ));
     }
 
     #[Test]

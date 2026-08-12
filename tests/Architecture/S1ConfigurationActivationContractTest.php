@@ -106,11 +106,43 @@ final class S1ConfigurationActivationContractTest extends TestCase
         $checker = (string) file_get_contents($this->root . '/bin/check-s1-configuration-activation');
 
         self::assertStringContainsString('s1ActivationRequireRefusingMethod', $checker);
-        self::assertStringContainsString("preg_match('/\\bDROP\\s+TABLE\\b/i'", $checker);
+        self::assertStringContainsString('s1ActivationMethodBody', $checker);
+        self::assertStringContainsString('TRUNCATE\\s+TABLE', $checker);
         self::assertStringContainsString('claimSweepFence($request)', $checker);
         self::assertStringContainsString('ensureInitialCounter()', $checker);
-        self::assertStringContainsString("['dev', 'development', 'local', 'testing']", $checker);
+        self::assertStringContainsString('$this->isDevelopmentMode()', $checker);
         self::assertStringContainsString('requires a composed runtime epoch authority', $checker);
+    }
+
+    #[Test]
+    public function checker_rejects_destructive_statements_after_nested_down_blocks(): void
+    {
+        $canonical = (string) file_get_contents(
+            $this->root . '/packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php',
+        );
+        $mutated = str_replace(
+            '// Forward-only authority: activation ordering and evidence never rewind.',
+            "if (true) { /* nested block */ }\n        DELETE FROM waaseyaa_config_activation_v2;",
+            $canonical,
+        );
+        self::assertNotSame($canonical, $mutated);
+        $path = tempnam(sys_get_temp_dir(), 's1-cfg02-migration-');
+        self::assertNotFalse($path);
+        try {
+            file_put_contents($path, $mutated);
+            exec(
+                escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($this->root . '/bin/check-s1-configuration-activation')
+                . ' ' . escapeshellarg('--migration=' . $path) . ' 2>&1',
+                $output,
+                $exitCode,
+            );
+            self::assertNotSame(0, $exitCode, implode("\n", $output));
+            self::assertStringContainsString('must not delete', implode("\n", $output));
+        } finally {
+            if (is_file($path)) {
+                unlink($path);
+            }
+        }
     }
 
     #[Test]
