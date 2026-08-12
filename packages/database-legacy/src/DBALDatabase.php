@@ -14,7 +14,7 @@ use Waaseyaa\Database\Query\DBALSelect;
 use Waaseyaa\Database\Query\DBALUpdate;
 use Waaseyaa\Database\Schema\DBALSchema;
 
-final class DBALDatabase implements ConsistentReadDatabaseInterface
+final class DBALDatabase implements ConsistentReadDatabaseInterface, DatabaseIdentityProviderInterface
 {
     public function __construct(
         private readonly Connection $connection,
@@ -219,6 +219,28 @@ final class DBALDatabase implements ConsistentReadDatabaseInterface
     public function getConnection(): Connection
     {
         return $this->connection;
+    }
+
+    public function databaseIdentity(): string
+    {
+        $params = $this->connection->getParams();
+        $path = $params['path'] ?? null;
+        if (is_string($path) && $path !== '') {
+            $real = realpath($path);
+            $path = str_replace('\\', '/', $real !== false ? $real : $path);
+        }
+
+        $canonical = json_encode([
+            'schema' => 'database-identity.v1',
+            'driver' => $params['driver'] ?? $params['driverClass'] ?? 'unknown',
+            'path' => $path,
+            'memory' => $params['memory'] ?? false,
+            'host' => $params['host'] ?? null,
+            'port' => $params['port'] ?? null,
+            'dbname' => $params['dbname'] ?? null,
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+
+        return 'database:v1:' . hash('sha256', $canonical);
     }
 
     public function quoteIdentifier(string $identifier): string

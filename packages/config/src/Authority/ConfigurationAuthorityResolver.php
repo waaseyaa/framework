@@ -89,7 +89,7 @@ final class ConfigurationAuthorityResolver
         }
         $absolute = str_starts_with($selected, '/')
             || preg_match('/^[A-Za-z]:\//D', $selected) === 1;
-        $candidate = $absolute ? $selected : $root.'/'.$selected;
+        $candidate = $absolute ? $selected : $root . '/' . $selected;
 
         $prefix = str_starts_with($candidate, '/') ? '/' : '';
         $segments = [];
@@ -106,7 +106,7 @@ final class ConfigurationAuthorityResolver
             }
             $segments[] = $segment;
         }
-        $normalized = $prefix.implode('/', $segments);
+        $normalized = $prefix . implode('/', $segments);
 
         $existing = $normalized;
         $suffix = [];
@@ -126,7 +126,7 @@ final class ConfigurationAuthorityResolver
         if ($real !== false) {
             $normalized = rtrim($this->slash($real), '/');
             if ($suffix !== []) {
-                $normalized .= '/'.implode('/', $suffix);
+                $normalized .= '/' . implode('/', $suffix);
             }
         }
 
@@ -135,7 +135,7 @@ final class ConfigurationAuthorityResolver
 
     private function isWithin(string $path, string $root): bool
     {
-        return $path === $root || str_starts_with($path, rtrim($root, '/').'/');
+        return $path === $root || str_starts_with($path, rtrim($root, '/') . '/');
     }
 
     private function slash(string $path): string
