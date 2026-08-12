@@ -9381,6 +9381,15 @@
             "source_sha256": "0b4a425c3a95337cdede3d59ae0d7d7aca55a683034283551ea34b095400154f"
         },
         {
+            "path": "tests/Integration/Migration/InfrastructureRuntimeSchemaAuthorityTest.php",
+            "line": 56,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "7234bb62441f2077abcb69cc5a5c2a82f977ccae025697adc9206391b92a79e1",
+            "source_sha256": "9c69144bacfe14cbbfeedf1a6a31ad3e81e3b18a507e35cc05ed4d37bee36eb9"
+        },
+        {
             "path": "tests/Integration/Migration/MigrationRoundTripTest.php",
             "line": 46,
             "pattern": "legacy_schema_method",

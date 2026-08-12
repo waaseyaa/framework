@@ -6294,6 +6294,42 @@
             "source_sha256": "0b4a425c3a95337cdede3d59ae0d7d7aca55a683034283551ea34b095400154f"
         },
         {
+            "path": "tests/Integration/Migration/InfrastructureRuntimeSchemaAuthorityTest.php",
+            "line": 21,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "9c69144bacfe14cbbfeedf1a6a31ad3e81e3b18a507e35cc05ed4d37bee36eb9"
+        },
+        {
+            "path": "tests/Integration/Migration/InfrastructureRuntimeSchemaAuthorityTest.php",
+            "line": 32,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "9c69144bacfe14cbbfeedf1a6a31ad3e81e3b18a507e35cc05ed4d37bee36eb9"
+        },
+        {
+            "path": "tests/Integration/Migration/InfrastructureRuntimeSchemaAuthorityTest.php",
+            "line": 43,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "9c69144bacfe14cbbfeedf1a6a31ad3e81e3b18a507e35cc05ed4d37bee36eb9"
+        },
+        {
+            "path": "tests/Integration/Migration/InfrastructureRuntimeSchemaAuthorityTest.php",
+            "line": 54,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "9c69144bacfe14cbbfeedf1a6a31ad3e81e3b18a507e35cc05ed4d37bee36eb9"
+        },
+        {
             "path": "tests/Integration/Migration/MigrationRoundTripTest.php",
             "line": 61,
             "pattern": "doctrine_factory",
