@@ -31,10 +31,11 @@ install_shape() {
   COMPOSER_ROOT_VERSION=dev-main composer install --working-dir="$project_root" \
     --no-interaction --no-scripts --no-plugins --quiet
 
-  APP_ENV=local php "$framework_root/tools/skeleton-smoke/smoke.php" "$project_root"
-  APP_ENV=local php "$framework_root/tools/optional-domain-install-smoke.php" "$project_root" "$shape"
+  local database_path="$project_root/storage/waaseyaa.sqlite"
+  APP_ENV=testing WAASEYAA_DB="$database_path" php "$project_root/vendor/bin/waaseyaa" db:init
+  APP_ENV=testing WAASEYAA_DB="$database_path" php "$framework_root/tools/skeleton-smoke/smoke.php" "$project_root"
+  APP_ENV=testing WAASEYAA_DB="$database_path" php "$framework_root/tools/optional-domain-install-smoke.php" "$project_root" "$shape"
 }
 
 install_shape minimal
 install_shape full
-

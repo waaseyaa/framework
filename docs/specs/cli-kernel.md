@@ -61,6 +61,26 @@ Command presentation belongs to this Layer-6 package even when the domain operat
 
 `HealthSchemaServiceProvider` registers `tenancy:repair-translation-peers <entity_type> [--dry-run] [--json]`. `CommunityTranslationPeerRepairHandler` resolves the entity type, delegates to the entity-storage repairer, and renders either a stable JSON report or concise operator output. This command follows ordinary full console boot because it requires entity metadata and a database connection. It is not part of the restricted pre-boot command set. Applying repairs is an explicit operator action and requires the quiesce procedure in `docs/specs/operations-playbooks.md`.
 
+## Configuration authority commands and diagnostics
+
+The reserved `config:*` namespace is owned by the framework CLI. Provider
+discovery rejects both third-party collisions and duplicate framework handlers
+for those verbs. The canonical command set is `config:export`, `config:import`,
+`config:diff`, `config:status`, `config:validate`, and `config:reset`.
+
+Every command resolves the same `configuration.authority.v1` capability and
+`ConfigurationAuthorityContext` as the HTTP kernel. Export, diff, status,
+validate, reset, cache compilation, and import therefore cannot select an
+independent directory or active store. Import is additionally guarded by the
+deployment preflight boundary and compares the sync artifact against the exact
+active references before any mutation. The `--no-dependency-check` option does
+not bypass authority or deployment preflight.
+
+`about`, `health:check`, and `health:report` expose the resolved authority ID,
+active generation, sync path, and selector provenance. They do not print secret
+values. An unavailable or divergent authority is a boot/composition failure,
+not a diagnostic warning.
+
 ## Input And Output
 
 Commands use Symfony Console input/output:

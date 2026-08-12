@@ -611,7 +611,9 @@ jobs:
           # require a real active configuration generation and fail closed.
           printf 'APP_ENV=testing\nAPP_DEBUG=false\n' > "$work/.env"
           cp "$GITHUB_WORKSPACE/tests/CoreOnlyBoot/boot.php" "$work/boot.php"
-          php "$work/boot.php"
+          cp "$GITHUB_WORKSPACE/tests/CoreOnlyBoot/prepare-runtime-schema.php" "$work/prepare-runtime-schema.php"
+          php "$work/prepare-runtime-schema.php"
+          WAASEYAA_DB="$work/storage/core-only.sqlite" php "$work/boot.php"
 
   verify-gates:
     name: ci/verify-gates

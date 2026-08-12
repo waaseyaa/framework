@@ -19,8 +19,8 @@ if (!is_string($projectRoot) || !is_dir($projectRoot) || !in_array($shape, ['min
 
 require $projectRoot . '/vendor/autoload.php';
 
-putenv('APP_ENV=local');
-$_ENV['APP_ENV'] = $_SERVER['APP_ENV'] = 'local';
+putenv('APP_ENV=testing');
+$_ENV['APP_ENV'] = $_SERVER['APP_ENV'] = 'testing';
 putenv('APP_URL=https://catalog-smoke.example');
 $_ENV['APP_URL'] = $_SERVER['APP_URL'] = 'https://catalog-smoke.example';
 

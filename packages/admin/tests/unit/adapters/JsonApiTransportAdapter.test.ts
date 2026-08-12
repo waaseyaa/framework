@@ -78,30 +78,60 @@ describe('AdminSurfaceTransportAdapter', () => {
   })
 
   describe('update', () => {
-    it('sends POST to /_surface/{type}/action/update with id and attributes', async () => {
-      const fetchFn = mockFetchResponse({
-        ok: true,
-        data: { type: 'node', id: '3', attributes: { title: 'Updated' } },
-      })
+    it('sends POST to /_surface/{type}/action/update with id, attributes, and the loaded mutation token', async () => {
+      const fetchFn = vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({
+            ok: true,
+            data: { type: 'node', id: '3', attributes: { title: 'Old' }, mutation_token: 'token-3' },
+          }),
+        } as unknown as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({
+            ok: true,
+            data: { type: 'node', id: '3', attributes: { title: 'Updated' }, mutation_token: 'token-4' },
+          }),
+        } as unknown as Response)
       const adapter = makeAdapter(fetchFn)
+      await adapter.get('node', '3')
       await adapter.update('node', '3', { title: 'Updated' })
-      const [url, opts] = fetchFn.mock.calls[0]
+      const [url, opts] = fetchFn.mock.calls[1]
       expect(url).toBe('/_surface/node/action/update')
       expect(opts.method).toBe('POST')
       const body = JSON.parse(opts.body)
       expect(body.id).toBe('3')
       expect(body.attributes.title).toBe('Updated')
+      expect(body.mutation_token).toBe('token-3')
     })
   })
 
   describe('remove', () => {
-    it('sends POST to /_surface/{type}/action/delete', async () => {
-      const fetchFn = mockFetchResponse({ ok: true }, 204)
+    it('sends POST to /_surface/{type}/action/delete with the loaded mutation token', async () => {
+      const fetchFn = vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({
+            ok: true,
+            data: { type: 'node', id: '5', attributes: {}, mutation_token: 'token-5' },
+          }),
+        } as unknown as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 204,
+          json: () => Promise.resolve({ ok: true }),
+        } as unknown as Response)
       const adapter = makeAdapter(fetchFn)
+      await adapter.get('node', '5')
       await adapter.remove('node', '5')
-      const [url, opts] = fetchFn.mock.calls[0]
+      const [url, opts] = fetchFn.mock.calls[1]
       expect(url).toBe('/_surface/node/action/delete')
       expect(opts.method).toBe('POST')
+      expect(JSON.parse(opts.body).mutation_token).toBe('token-5')
     })
   })
 

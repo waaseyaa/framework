@@ -589,6 +589,28 @@ abstract class PluginBase implements PluginInspectionInterface
 
 Plugin classes extend `PluginBase` and receive their ID, definition, and configuration at construction time via `ContainerFactory`.
 
+## Provider capability composition
+
+Package discovery determines which service providers are installed; capability
+composition determines whether that exact provider graph is safe to boot. After
+all discovered providers register and before any provider boots,
+`CapabilityRegistry` collects `ProvidesCapabilitiesInterface` declarations and
+validates every `RequiresCapabilitiesInterface` requirement.
+
+A declaration contains a stable capability ID, positive version, and authority
+fingerprint. A requirement contains the accepted version range. Missing or
+incompatible requirements fail with `RequiredCapabilityUnavailableException`.
+Two providers may repeat a declaration only when version and authority
+fingerprint are identical; divergent authorities fail composition. Capability
+validation never selects an authority by registration order and never reaches a
+network service, source forge, or CI provider.
+
+The first governed capability is `configuration.authority.v1`. Configuration
+consumers declare an exact version requirement, while the configuration
+authority provider publishes the declaration that binds the active database,
+generation, and selector provenance. This makes missing or split configuration
+authority a deterministic pre-boot refusal.
+
 ## File Reference
 
 ### packages/foundation/src/ServiceProvider/
@@ -597,6 +619,11 @@ Plugin classes extend `PluginBase` and receive their ID, definition, and configu
 ServiceProviderInterface.php    -- register/boot/provides/isDeferred contract
 ServiceProvider.php             -- abstract base with singleton/bind/tag + getBindings/getTags
 ProviderDiscovery.php           -- reads extra.waaseyaa.providers from installed.json
+Capability/CapabilityDeclaration.php -- provided capability id/version/fingerprint
+Capability/CapabilityRequirement.php -- accepted version range
+Capability/CapabilityRegistry.php -- validates the complete provider graph pre-boot
+Capability/ProvidesCapabilitiesInterface.php -- declaration capability
+Capability/RequiresCapabilitiesInterface.php -- requirement capability
 ```
 
 ### packages/foundation/src/Discovery/
