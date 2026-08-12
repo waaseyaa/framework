@@ -62,7 +62,7 @@ final class KernelBoundRequestContextTest extends TestCase
 
             return [
                 'database' => '{$databasePath}',
-                'environment' => 'local',
+                'environment' => 'testing',
                 'app' => ['url' => 'http://localhost', 'name' => 'RequestContext regression'],
             ];
             PHP);

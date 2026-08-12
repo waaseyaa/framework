@@ -29,10 +29,12 @@ use Waaseyaa\Config\Sync\ConfigStatusReporter;
 use Waaseyaa\Config\Sync\ConfigSyncRepository;
 use Waaseyaa\Config\Sync\ConfigSyncValidator;
 use Waaseyaa\Config\Sync\RefusingConfigImportPreflight;
+use Waaseyaa\Foundation\ServiceProvider\Capability\CapabilityRequirement;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\RequiresCapabilitiesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
-final class ConfigCacheDbAuditServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface
+final class ConfigCacheDbAuditServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface, RequiresCapabilitiesInterface
 {
     public function register(): void
     {
@@ -110,6 +112,11 @@ final class ConfigCacheDbAuditServiceProvider extends ServiceProvider implements
         $this->singleton(ConfigResetCommand::class, fn(): ConfigResetCommand => new ConfigResetCommand(
             $this->resolve(ConfigResetter::class),
         ));
+    }
+
+    public function capabilityRequirements(): iterable
+    {
+        yield CapabilityRequirement::exact('configuration.authority.v1', 1);
     }
 
     public function consoleCommands(): iterable

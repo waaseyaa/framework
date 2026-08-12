@@ -46,7 +46,7 @@ final class MediaVersionSchemaFreshInstallTest extends TestCase
     {
         $projectRoot = dirname(__DIR__, 3);
         $command = sprintf(
-            'APP_ENV=local WAASEYAA_DB=%s %s %s',
+            'APP_ENV=testing WAASEYAA_DB=%s %s %s',
             escapeshellarg($database),
             escapeshellarg($projectRoot . '/bin/waaseyaa'),
             implode(' ', array_map('escapeshellarg', $arguments)),

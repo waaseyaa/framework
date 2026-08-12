@@ -14,12 +14,19 @@ use Waaseyaa\Config\Authority\ConfigurationAuthorityConflictException;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Config\Cache\ConfigCacheCompiler;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
+use Waaseyaa\Foundation\ServiceProvider\Capability\CapabilityRequirement;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\RequiresCapabilitiesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
-final class OptimizeServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface
+final class OptimizeServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface, RequiresCapabilitiesInterface
 {
     public function register(): void {}
+
+    public function capabilityRequirements(): iterable
+    {
+        yield CapabilityRequirement::exact('configuration.authority.v1', 1);
+    }
 
     public function consoleCommands(): iterable
     {

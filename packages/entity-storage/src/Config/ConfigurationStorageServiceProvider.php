@@ -15,17 +15,24 @@ final class ConfigurationStorageServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->singleton(ConfigurationGenerationResolverInterface::class, function (): DatabaseConfigurationGenerationResolver {
+        $testing = strtolower((string) ($this->config['environment'] ?? '')) === 'testing';
+        $this->singleton(ConfigurationGenerationResolverInterface::class, function () use ($testing): ConfigurationGenerationResolverInterface {
             $database = $this->resolve(DatabaseInterface::class);
             assert($database instanceof DatabaseInterface);
 
-            return new DatabaseConfigurationGenerationResolver($database);
+            $resolver = new DatabaseConfigurationGenerationResolver($database);
+
+            return $testing ? new TestingConfigurationGenerationResolver($resolver) : $resolver;
         });
-        $this->singleton(ActiveConfigurationBridgeInterface::class, function (): DatabaseActiveConfigurationBridge {
+        $this->singleton(ActiveConfigurationBridgeInterface::class, function () use ($testing): ActiveConfigurationBridgeInterface {
             $database = $this->resolve(DatabaseInterface::class);
             $context = $this->resolve(ConfigurationAuthorityContext::class);
             assert($database instanceof DatabaseInterface);
             assert($context instanceof ConfigurationAuthorityContext);
+
+            if ($testing && $context->activeGenerationId === TestingConfigurationGenerationResolver::generationId($context)) {
+                return new TestingActiveConfigurationBridge($context);
+            }
 
             return new DatabaseActiveConfigurationBridge($database, $context);
         });

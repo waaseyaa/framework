@@ -21,6 +21,8 @@ use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ProviderRegistry;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\Foundation\ServiceProvider\Capability\CapabilityDeclaration;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesCapabilitiesInterface;
 use Waaseyaa\HttpClient\HttpClientInterface;
 use Waaseyaa\Tests\Integration\PhaseN\AgentRuntime\Fixture\InMemoryConfigStorage;
 use Waaseyaa\Tests\Integration\PhaseN\AgentRuntime\Fixture\StubMcpServerHttpClient;
@@ -105,7 +107,7 @@ final class McpServiceProviderManifestTest extends TestCase
     }
 }
 
-final class McpHostServicesProvider extends ServiceProvider
+final class McpHostServicesProvider extends ServiceProvider implements ProvidesCapabilitiesInterface
 {
     public static ?HttpClientInterface $http = null;
     public static ?ConfigStorageInterface $storage = null;
@@ -114,5 +116,10 @@ final class McpHostServicesProvider extends ServiceProvider
     {
         $this->singleton(HttpClientInterface::class, static fn(): HttpClientInterface => self::$http ?? throw new \LogicException('HTTP fixture missing.'));
         $this->singleton(ConfigStorageInterface::class, static fn(): ConfigStorageInterface => self::$storage ?? throw new \LogicException('Config fixture missing.'));
+    }
+
+    public function capabilityDeclarations(): iterable
+    {
+        yield new CapabilityDeclaration('configuration.authority.v1', 1, 'test-host-authority');
     }
 }

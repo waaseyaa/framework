@@ -12,6 +12,8 @@ use Waaseyaa\Config\Sync\ConfigSyncFile;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\EntityStorage\Config\DatabaseActiveConfigurationBridge;
 use Waaseyaa\EntityStorage\Config\DatabaseConfigurationGenerationResolver;
+use Waaseyaa\EntityStorage\Config\TestingActiveConfigurationBridge;
+use Waaseyaa\EntityStorage\Config\TestingConfigurationGenerationResolver;
 use Waaseyaa\Foundation\Migration\SchemaBuilder;
 
 final class DatabaseActiveConfigurationBridgeTest extends TestCase
@@ -64,6 +66,39 @@ final class DatabaseActiveConfigurationBridgeTest extends TestCase
         $this->expectException(ConfigurationAuthorityUnavailableException::class);
         $this->expectExceptionMessage('Active configuration generation is unavailable');
         new DatabaseActiveConfigurationBridge($this->database, $context);
+    }
+
+    #[Test]
+    public function explicitTestingResolverCreatesOnlyItsDeterministicEmptyGeneration(): void
+    {
+        $resolver = new TestingConfigurationGenerationResolver(
+            new DatabaseConfigurationGenerationResolver($this->database),
+        );
+        $context = $resolver->bind($this->baseContext);
+
+        self::assertSame(TestingConfigurationGenerationResolver::generationId($this->baseContext), $context->activeGenerationId);
+        self::assertSame(1, $context->activationSequence);
+        self::assertContains('testing-empty-generation', $context->selectorProvenance);
+
+        $bridge = new TestingActiveConfigurationBridge($context);
+        self::assertSame([], $bridge->activeStorage()->listAll());
+    }
+
+    #[Test]
+    public function testingResolverNeverOverridesARealDatabaseActivation(): void
+    {
+        $this->seedActiveGeneration(['name' => 'Waaseyaa']);
+        $resolver = new TestingConfigurationGenerationResolver(
+            new DatabaseConfigurationGenerationResolver($this->database),
+        );
+
+        $context = $resolver->bind($this->baseContext);
+        self::assertSame($this->generationId, $context->activeGenerationId);
+        self::assertNotContains('testing-empty-generation', $context->selectorProvenance);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('non-testing generation');
+        new TestingActiveConfigurationBridge($context);
     }
 
     #[Test]

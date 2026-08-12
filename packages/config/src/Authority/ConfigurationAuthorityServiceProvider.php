@@ -12,10 +12,12 @@ use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\ConfigManager;
 use Waaseyaa\Config\ConfigManagerInterface;
 use Waaseyaa\Database\DatabaseIdentityProviderInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\CapabilityDeclaration;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesCapabilitiesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 /** Sole production composition root for configuration.authority.v1. @api */
-class ConfigurationAuthorityServiceProvider extends ServiceProvider
+class ConfigurationAuthorityServiceProvider extends ServiceProvider implements ProvidesCapabilitiesInterface
 {
     private const array BOOTSTRAP_ENVIRONMENT_KEYS = [
         'WAASEYAA_CONFIG_SYNC_PATH',
@@ -70,6 +72,14 @@ class ConfigurationAuthorityServiceProvider extends ServiceProvider
                 eventDispatcher: $this->resolveEventDispatcher(),
             );
         });
+    }
+
+    public function capabilityDeclarations(): iterable
+    {
+        $context = $this->resolve(ConfigurationAuthorityContext::class);
+        assert($context instanceof ConfigurationAuthorityContext);
+
+        yield new CapabilityDeclaration('configuration.authority.v1', 1, $context->authorityId);
     }
 
     private function resolveActiveBridge(): ActiveConfigurationBridgeInterface

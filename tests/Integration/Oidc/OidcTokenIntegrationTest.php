@@ -186,7 +186,7 @@ final class OidcTokenIntegrationTest extends TestCase
 
             return [
                 'database' => '{$databasePath}',
-                'environment' => 'local',
+                'environment' => 'testing',
                 'app' => ['url' => 'http://localhost', 'name' => 'Waaseyaa Oidc Token Test'],
                 'cors_origins' => ['http://localhost:3000'],
                 'oidc' => [
