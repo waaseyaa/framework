@@ -24,9 +24,22 @@ final class S1SqliteTopologyContractTest extends TestCase
         self::assertFileExists($this->root . '/support/s1-sqlite-v1.json');
         self::assertFileExists($this->root . '/docs/specs/s1-sqlite-topology.md');
         self::assertTrue(is_executable($this->root . '/bin/check-s1-sqlite-contract'));
+        self::assertTrue(is_executable($this->root . '/tests/PackagedForm/check-s1-sqlite-artifact'));
 
         exec(
             escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($this->root . '/bin/check-s1-sqlite-contract') . ' 2>&1',
+            $output,
+            $exitCode,
+        );
+
+        self::assertSame(0, $exitCode, implode("\n", $output));
+    }
+
+    #[Test]
+    public function exact_candidate_contract_survives_an_installed_artifact_boundary(): void
+    {
+        exec(
+            escapeshellarg($this->root . '/tests/PackagedForm/check-s1-sqlite-artifact') . ' 2>&1',
             $output,
             $exitCode,
         );
@@ -57,6 +70,9 @@ final class S1SqliteTopologyContractTest extends TestCase
             },
             'forge as authority' => static function (array &$contract): void {
                 $contract['verification']['forge_is_authority'] = true;
+            },
+            'path repository masks installed artifact' => static function (array &$contract): void {
+                $contract['verification']['artifact_uses_path_repository'] = true;
             },
         ];
 

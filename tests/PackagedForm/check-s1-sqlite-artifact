@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-s1-sqlite-artifact.XXXXXX")"
+package="$work/package"
+artifacts="$work/artifacts"
+consumer="$work/consumer"
+version="1.0.0-alpha.1"
+
+cleanup() {
+    rm -rf -- "$work"
+}
+trap cleanup EXIT
+
+mkdir -p "$package" "$artifacts" "$consumer"
+cp -R "$root/packages/database-legacy/." "$package/"
+candidate="$($root/bin/git rev-parse HEAD)"
+
+# Composer artifact repositories read the package version from the archive's
+# manifest. Stamp only the disposable staging copy; source bytes stay intact.
+php -r '
+    $path = $argv[1];
+    $manifest = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $manifest["version"] = $argv[2];
+    $manifest["extra"]["waaseyaa"]["artifact-source"] = ["commit" => $argv[3]];
+    unset($manifest["require-dev"], $manifest["autoload-dev"], $manifest["repositories"]);
+    file_put_contents($path, json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$package/composer.json" "$version" "$candidate"
+
+tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner \
+    -czf "$artifacts/waaseyaa-database-legacy-$version.tar.gz" -C "$package" .
+archive="$artifacts/waaseyaa-database-legacy-$version.tar.gz"
+
+installed="$consumer/vendor/waaseyaa/database-legacy"
+mkdir -p "$installed"
+tar -xzf "$archive" -C "$installed"
+
+if find "$installed" -type l -print -quit | grep -q .; then
+    echo 'S1 artifact unexpectedly contains a symbolic link.' >&2
+    exit 1
+fi
+
+php "$root/tests/PackagedForm/s1-sqlite-artifact-probe.php" "$installed" "$root/vendor"
+printf 'Candidate: %s\nArtifact SHA-256: %s\n' "$candidate" "$(sha256sum "$archive" | cut -d ' ' -f 1)"

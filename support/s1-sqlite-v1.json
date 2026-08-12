@@ -62,6 +62,8 @@
   "verification": {
     "repository_command": "php bin/check-s1-sqlite-contract",
     "ci_command": "php bin/check-s1-sqlite-contract --ci",
+    "installed_artifact_command": "tests/PackagedForm/check-s1-sqlite-artifact",
+    "artifact_uses_path_repository": false,
     "forge_is_authority": false
   }
 }

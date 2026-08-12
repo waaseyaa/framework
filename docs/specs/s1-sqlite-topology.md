@@ -52,6 +52,11 @@ environment-specific production refusal and directory preparation.
 
 The repository checker binds the JSON contract to runtime constants,
 documentation, package composition, and reproducible verification commands.
+The installed-artifact proof seals the exact candidate database package,
+extracts it into an isolated consumer `vendor` boundary without a Composer path
+repository, proves that the runtime class loaded from that artifact, and then
+repeats the effective-PRAGMA and refused-path assertions. It is offline-capable
+and does not substitute a previously published package for the candidate.
 GitHub Actions may execute those commands, but neither GitHub nor any other
 forge is a contract or evidence authority.
 

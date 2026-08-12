@@ -90,7 +90,13 @@ try {
         'production_memory' => 'S1-DB002',
         'pragma_mismatch' => 'S1-DB003',
     ], 'diagnostics', $errors);
-    s1SqliteSame($contract['verification']['forge_is_authority'] ?? null, false, 'verification.forge_is_authority', $errors);
+    s1SqliteSame($contract['verification'] ?? null, [
+        'repository_command' => 'php bin/check-s1-sqlite-contract',
+        'ci_command' => 'php bin/check-s1-sqlite-contract --ci',
+        'installed_artifact_command' => 'tests/PackagedForm/check-s1-sqlite-artifact',
+        'artifact_uses_path_repository' => false,
+        'forge_is_authority' => false,
+    ], 'verification', $errors);
 
     s1SqliteRequires($root . '/docs/specs/s1-sqlite-topology.md', [
         'one authoritative SQLite database',
@@ -132,6 +138,20 @@ try {
         'one authoritative local',
         '5000 ms busy timeout',
         'non-authoritative rebuildable projection',
+    ], $errors);
+    s1SqliteRequires($root . '/tests/PackagedForm/check-s1-sqlite-artifact', [
+        'waaseyaa-database-legacy',
+        'tar -xzf',
+        'vendor/waaseyaa/database-legacy',
+        's1-sqlite-artifact-probe.php',
+    ], $errors);
+    s1SqliteRequires($root . '/tests/PackagedForm/s1-sqlite-artifact-probe.php', [
+        'ReflectionClass',
+        'realpath($packageRoot)',
+        "'foreign_keys' => 1",
+        "'busy_timeout' => 5000",
+        "'journal_mode' => 'wal'",
+        'S1 installed-artifact SQLite contract passed.',
     ], $errors);
 
     $charter = (string) file_get_contents($root . '/docs/governance/charter.md');
