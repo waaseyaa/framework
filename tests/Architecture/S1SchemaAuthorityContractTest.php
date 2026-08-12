@@ -121,7 +121,19 @@ final class S1SchemaAuthorityContractTest extends TestCase
 
         self::assertStringContainsString('packages=(database-legacy foundation cli)', $script);
         self::assertStringContainsString('archive --format=tar HEAD', $script);
-        self::assertStringContainsString('status --porcelain=v1 -- packages/database-legacy packages/foundation packages/cli', $script);
+        self::assertStringContainsString('consumed_paths=(', $script);
+        self::assertStringContainsString('status --porcelain=v1 -- "${consumed_paths[@]}"', $script);
+        foreach ([
+            'packages/database-legacy',
+            'packages/foundation',
+            'packages/cli',
+            'composer.lock',
+            'support/s1-sqlite-dependency-bytes.json',
+            'tests/PackagedForm/check-s1-schema-authority-artifact',
+            'tests/PackagedForm/s1-schema-authority-artifact-probe.php',
+        ] as $consumedPath) {
+            self::assertStringContainsString($consumedPath, $script);
+        }
         self::assertStringContainsString('unset($manifest["require-dev"], $manifest["autoload-dev"], $manifest["repositories"]);', $script);
         self::assertStringContainsString('support/s1-sqlite-dependency-bytes.json', $script);
         self::assertSame(2, substr_count($script, '--mode=u=rwX,go=rX'));
