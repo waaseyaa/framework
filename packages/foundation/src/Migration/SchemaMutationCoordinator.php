@@ -15,11 +15,14 @@ use Doctrine\DBAL\Connection;
  *
  * @api
  */
-final readonly class SchemaMutationCoordinator
+final class SchemaMutationCoordinator
 {
+    /** @var \WeakMap<Connection, int>|null */
+    private static ?\WeakMap $activeConnections = null;
+
     public function __construct(
-        private Connection $connection,
-        private MigrationRepository $repository,
+        private readonly Connection $connection,
+        private readonly MigrationRepository $repository,
     ) {}
 
     /**
@@ -29,11 +32,33 @@ final readonly class SchemaMutationCoordinator
      */
     public function execute(callable $transition): mixed
     {
+        $active = self::$activeConnections ??= new \WeakMap();
+        if (($active[$this->connection] ?? 0) > 0) {
+            return $transition();
+        }
+
         return $this->connection->transactional(function () use ($transition): mixed {
             $this->repository->acquireSchemaAuthority();
             $this->repository->installOrUpgradeLedger();
 
-            return $transition();
+            $active = self::$activeConnections ??= new \WeakMap();
+            $active[$this->connection] = ($active[$this->connection] ?? 0) + 1;
+            try {
+                return $transition();
+            } finally {
+                $depth = $active[$this->connection] - 1;
+                if ($depth === 0) {
+                    unset($active[$this->connection]);
+                } else {
+                    $active[$this->connection] = $depth;
+                }
+            }
         });
+    }
+
+    /** Whether this exact connection is already inside the coordinator boundary. */
+    public static function isActive(Connection $connection): bool
+    {
+        return (self::$activeConnections[$connection] ?? 0) > 0;
     }
 }

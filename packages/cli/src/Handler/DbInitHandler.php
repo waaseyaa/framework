@@ -139,7 +139,7 @@ final class DbInitHandler
     private function syncSchema(SymfonyCommandIO $io): void
     {
         $kernel = new ConsoleKernel($this->projectRoot);
-        $kernel->bootForCli();
+        $kernel->bootForSchemaSync();
 
         // Trigger the (lazy) kernel boot and capture the services BEFORE the
         // try/finally. If the boot fails (e.g. a project with no registered

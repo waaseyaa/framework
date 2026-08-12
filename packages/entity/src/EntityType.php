@@ -23,7 +23,7 @@ use Waaseyaa\Field\FieldStorage;
  * `@internal` and is reserved for that factory plus the package-local and
  * `waaseyaa/testing` synthetic entity-type helpers.
  */
-final readonly class EntityType implements EntityTypeInterface, ApiExposableEntityTypeInterface, EntityTypeForeignKeyDefinitionInterface
+final readonly class EntityType implements EntityTypeInterface, ApiExposableEntityTypeInterface, EntityTypeForeignKeyDefinitionInterface, EntityTypeStorageUniqueKeyDefinitionInterface, EntityTypeStorageSchemaTransitionDefinitionInterface
 {
     /**
      * Canonical scope identifier for community-scoped tenancy.
@@ -81,6 +81,8 @@ final readonly class EntityType implements EntityTypeInterface, ApiExposableEnti
         private bool $api = false,
         private array $_fieldDefinitions = [],
         private array $_foreignKeys = [],
+        private array $_storageUniqueKeys = [],
+        private array $_storageSchemaTransitions = [],
     ) {
         // T036: revisionable entity types must declare a non-empty revision key.
         if ($this->revisionable) {
@@ -120,6 +122,16 @@ final readonly class EntityType implements EntityTypeInterface, ApiExposableEnti
     public function getStorageForeignKeys(): array
     {
         return $this->_foreignKeys;
+    }
+
+    public function getStorageUniqueKeys(): array
+    {
+        return $this->_storageUniqueKeys;
+    }
+
+    public function getStorageSchemaTransitions(): array
+    {
+        return $this->_storageSchemaTransitions;
     }
 
     /**
@@ -274,6 +286,8 @@ final readonly class EntityType implements EntityTypeInterface, ApiExposableEnti
             // leaves the historical sql-blob default in place.
             primaryStorageBackend: $metadata->storageBackend !== '' ? $metadata->storageBackend : null,
             _fieldDefinitions: $metadata->fields,
+            _storageUniqueKeys: $metadata->storageUniqueKeys,
+            _storageSchemaTransitions: $metadata->storageSchemaTransitions,
         );
         $cache[$class][] = ['arguments' => $arguments, 'entityType' => $entityType];
 

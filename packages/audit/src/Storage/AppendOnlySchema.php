@@ -93,7 +93,7 @@ final class AppendOnlySchema implements SchemaInterface
     private function refuse(string $table, string $operation): never
     {
         throw new \LogicException(sprintf(
-            'Runtime schema mutation is coordinator-only: %s on table "%s" is forbidden through the audit database. '
+            'Runtime schema mutation is coordinator-only for append-only audit tables: %s on table "%s" is forbidden through the audit database. '
                 . 'Migrations use the coordinator connection; bulk retention deletion goes through audit:prune via the raw '
                 . 'DatabaseInterface.',
             $operation,

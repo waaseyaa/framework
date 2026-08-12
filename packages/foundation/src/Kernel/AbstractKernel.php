@@ -94,7 +94,7 @@ abstract class AbstractKernel
 
     private ?KnowledgeToolingExtensionRunner $knowledgeExtensionRunner = null;
     private bool $booted = false;
-    private bool $fieldAccessPreflightOnly = false;
+    private bool $restrictedDiscoveryOnly = false;
     protected LoggerInterface $logger;
 
     /**
@@ -201,10 +201,10 @@ abstract class AbstractKernel
         $this->injectAiCatalogEntryProviders();
         $this->loadAppEntityTypes();
         $this->validateContentTypes();
-        if (!$this->fieldAccessPreflightOnly && !$this->isDevelopmentMode()) {
+        if (!$this->restrictedDiscoveryOnly && !$this->isDevelopmentMode()) {
             $this->assertFieldAccessActivationReady();
         }
-        if (!$this->fieldAccessPreflightOnly) {
+        if (!$this->restrictedDiscoveryOnly) {
             $this->bootProviders();
             $this->discoverAccessPolicies();
             $this->installFieldReadRuntime();
@@ -214,7 +214,7 @@ abstract class AbstractKernel
             $this->bootKnowledgeExtensionRunner();
         }
 
-        if (!$this->fieldAccessPreflightOnly) {
+        if (!$this->restrictedDiscoveryOnly) {
             $this->finalizeBoot();
         }
 
@@ -977,12 +977,32 @@ abstract class AbstractKernel
      */
     public function bootForFieldAccessPreflight(): void
     {
-        $previous = $this->fieldAccessPreflightOnly;
-        $this->fieldAccessPreflightOnly = true;
+        $this->bootForRestrictedDiscovery();
+    }
+
+    /**
+     * Definition-only bootstrap for the explicit schema transition commands.
+     *
+     * Entity definitions and migration providers are discovered, but provider
+     * boot hooks, repositories, policies, schedulers, queries, and HTTP runtime
+     * are not activated. This lets schema:sync repair a missing runtime schema
+     * without reintroducing lazy DDL during ordinary kernel boot.
+     *
+     * @internal
+     */
+    public function bootForSchemaSync(): void
+    {
+        $this->bootForRestrictedDiscovery();
+    }
+
+    private function bootForRestrictedDiscovery(): void
+    {
+        $previous = $this->restrictedDiscoveryOnly;
+        $this->restrictedDiscoveryOnly = true;
         try {
             $this->boot();
         } finally {
-            $this->fieldAccessPreflightOnly = $previous;
+            $this->restrictedDiscoveryOnly = $previous;
         }
     }
 

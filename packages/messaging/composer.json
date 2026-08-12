@@ -18,6 +18,10 @@
         },
         {
             "type": "path",
+            "url": "../entity-storage"
+        },
+        {
+            "type": "path",
             "url": "../foundation"
         }
     ],
@@ -26,6 +30,7 @@
         "waaseyaa/access": "^0.1.0-alpha.293",
         "waaseyaa/database-legacy": "^0.1.0-alpha.293",
         "waaseyaa/entity": "^0.1.0-alpha.293",
+        "waaseyaa/entity-storage": "^0.1.0-alpha.293",
         "waaseyaa/foundation": "^0.1.0-alpha.293"
     },
     "require-dev": {

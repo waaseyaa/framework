@@ -4,17 +4,24 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Messaging\Schema;
 
-use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\EntityStorage\Schema\EntityStorageSchemaTransitionInterface;
 
 /** Materializes the participant identity columns and their uniqueness rule. */
-final class ThreadParticipantSchema
+final class ThreadParticipantSchema implements EntityStorageSchemaTransitionInterface
 {
     private const TABLE = 'thread_participant';
-    private const UNIQUE_KEY = 'thread_participant_thread_user_unique';
 
-    public function __construct(
-        private readonly DBALDatabase $database,
-    ) {}
+    public function __construct(private DatabaseInterface $database) {}
+
+    public function apply(DatabaseInterface $database, string $table): void
+    {
+        if ($table !== self::TABLE) {
+            throw new \LogicException(sprintf('ThreadParticipantSchema cannot transition table "%s".', $table));
+        }
+        $this->database = $database;
+        $this->ensureTable();
+    }
 
     public function ensureTable(): void
     {
@@ -25,11 +32,6 @@ final class ThreadParticipantSchema
 
         $needsColumns = !$schema->fieldExists(self::TABLE, 'thread_id')
             || !$schema->fieldExists(self::TABLE, 'user_id');
-        $indexes = $this->database->getConnection()->createSchemaManager()->listTableIndexes(self::TABLE);
-        if (!$needsColumns && isset($indexes[self::UNIQUE_KEY])) {
-            return;
-        }
-
         $transaction = $this->database->transaction();
         try {
             foreach (['thread_id', 'user_id'] as $field) {
@@ -44,11 +46,6 @@ final class ThreadParticipantSchema
 
             $this->backfillIdentityColumns();
             $this->mergeDuplicateParticipants();
-
-            $indexes = $this->database->getConnection()->createSchemaManager()->listTableIndexes(self::TABLE);
-            if (!isset($indexes[self::UNIQUE_KEY])) {
-                $schema->addUniqueKey(self::TABLE, self::UNIQUE_KEY, ['thread_id', 'user_id']);
-            }
 
             $transaction->commit();
         } catch (\Throwable $e) {

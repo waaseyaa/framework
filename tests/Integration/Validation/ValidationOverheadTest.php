@@ -121,7 +121,7 @@ final class ValidationOverheadTest extends TestCase
             public function __construct(string $projectRoot, LoggerInterface $logger)
             {
                 parent::__construct($projectRoot, $logger);
-                $this->config = ['database' => ':memory:'];
+                $this->config = ['database' => ':memory:', 'environment' => 'testing'];
                 $this->dispatcher = new SymfonyEventDispatcherAdapter();
             }
 
@@ -188,6 +188,11 @@ final class ValidationOverheadTest extends TestCase
             );
         }
         $kernel->publicFieldRegistry()->registerCoreFields(self::ENTITY_TYPE_ID, $fields);
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::entities(
+            $kernel->publicDatabase(),
+            $kernel->publicEntityTypeManager(),
+            [$type],
+        );
 
         return $kernel->publicEntityTypeManager()->getRepository(self::ENTITY_TYPE_ID);
     }

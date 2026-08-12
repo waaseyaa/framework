@@ -78,7 +78,11 @@ final class ConsoleKernel extends AbstractKernel
         }
 
         try {
-            $this->bootForCli();
+            if ($input->getFirstArgument() === 'schema:sync') {
+                $this->bootForSchemaSync();
+            } else {
+                $this->bootForCli();
+            }
         } catch (\Throwable $e) {
             $application = new WaaseyaaConsoleApplication(
                 version: new VersionResolver($this->projectRoot)->resolve(),

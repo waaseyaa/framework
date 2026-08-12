@@ -846,7 +846,7 @@
             "class": "read-only-or-declaration",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "6daab85c98585316b3fc48450fe5e0cbf652c158b16c374ceeca8fcbc4a0d453",
-            "source_sha256": "993f4a39442a5898bb13a185019d41a15b862a282ca55650a9c27026a87982d9"
+            "source_sha256": "33fcd84b5eb8639f7afc332d2023fb32fcff6515ac7ed665c7879419810dea63"
         },
         {
             "path": "packages/audit/src/Storage/AppendOnlySchema.php",
@@ -855,7 +855,7 @@
             "class": "read-only-or-declaration",
             "match_sha256": "6283169e002fa4e20fae879d20f59a51c6f7a2adf22c604a520bd08bc2c18cd9",
             "line_sha256": "58cca93db41be6bb9beca204e3b7c0035c22b53e5f7c51e9aeb6bee325325f9a",
-            "source_sha256": "993f4a39442a5898bb13a185019d41a15b862a282ca55650a9c27026a87982d9"
+            "source_sha256": "33fcd84b5eb8639f7afc332d2023fb32fcff6515ac7ed665c7879419810dea63"
         },
         {
             "path": "packages/audit/src/Storage/AppendOnlySchema.php",
@@ -864,7 +864,7 @@
             "class": "read-only-or-declaration",
             "match_sha256": "f72c69d56240d662918da2a012e6420655b21fccd4e21ab7931ddc0d4bbe5376",
             "line_sha256": "eb88ab945de0ae6b46c95f148017c4ebe37e12885ec1e76e8c6e96c158318cd9",
-            "source_sha256": "993f4a39442a5898bb13a185019d41a15b862a282ca55650a9c27026a87982d9"
+            "source_sha256": "33fcd84b5eb8639f7afc332d2023fb32fcff6515ac7ed665c7879419810dea63"
         },
         {
             "path": "packages/audit/src/Storage/AppendOnlySchema.php",
@@ -873,7 +873,7 @@
             "class": "read-only-or-declaration",
             "match_sha256": "b994a5c3ee5d26c944d13d2c5202cd014b11e2ad08b32295b03a4fc8eee4ac1c",
             "line_sha256": "92176036ef3184662f1eb68cbb16c39dd7b46d6c25145eec2537fe5d7dbcf94d",
-            "source_sha256": "993f4a39442a5898bb13a185019d41a15b862a282ca55650a9c27026a87982d9"
+            "source_sha256": "33fcd84b5eb8639f7afc332d2023fb32fcff6515ac7ed665c7879419810dea63"
         },
         {
             "path": "packages/audit/src/Storage/AppendOnlySchema.php",
@@ -882,7 +882,7 @@
             "class": "read-only-or-declaration",
             "match_sha256": "2d52dcb3fc5e1214a87232f9f36b00313f5973a074b1d12bfd81d2874ab0e460",
             "line_sha256": "61ae98bbb6f77c02ed290d1dfb949a1c4153681479b68fbd0eb44e70845ea2dd",
-            "source_sha256": "993f4a39442a5898bb13a185019d41a15b862a282ca55650a9c27026a87982d9"
+            "source_sha256": "33fcd84b5eb8639f7afc332d2023fb32fcff6515ac7ed665c7879419810dea63"
         },
         {
             "path": "packages/audit/tests/Integration/AuditAttributionTest.php",
@@ -3730,12 +3730,12 @@
         },
         {
             "path": "packages/entity-storage/src/EntitySchemaSync.php",
-            "line": 160,
+            "line": 168,
             "pattern": "schema_method",
-            "class": "authoritative-bypass-remediation-required",
+            "class": "coordinator-plan-or-executor",
             "match_sha256": "e431fd84d26f5db27add19cfe9c9eb73ae94421d42d85c6a32731070a13ec2c4",
             "line_sha256": "a8d30fe23d0f8eb1f8d9dbcc9422472f9f1054a0c07743e1cda47393a47042dd",
-            "source_sha256": "d132ff02a422042a6396c691daf4870276a424f472e3340db8ae9c4476587107"
+            "source_sha256": "2da8ca09548a2b9eb1e5ed16136894b561e82ad802a5ea43df65cd3b02a0284b"
         },
         {
             "path": "packages/entity-storage/src/Schema/RevisionTableBuilder.php",
@@ -3766,21 +3766,21 @@
         },
         {
             "path": "packages/entity-storage/src/Schema/TranslationSchemaHandler.php",
-            "line": 104,
+            "line": 109,
             "pattern": "schema_method",
-            "class": "authoritative-bypass-remediation-required",
+            "class": "coordinator-plan-or-executor",
             "match_sha256": "7a58133564c60e8f34ddde862bac483b98fb2890d578d176a8b832f4387c451e",
             "line_sha256": "49f82c482467a119daa797815d924e5c226c41c021f2bf3f685aa95bf638320d",
-            "source_sha256": "59476b0a9efb0ea024170971668fd172ab00cc2b5061103e56b158b1dfbe5a6c"
+            "source_sha256": "c0cc95f61ef0f2cca681cb104de20fdae8d521d654dda2a8e7137a22a11510a0"
         },
         {
             "path": "packages/entity-storage/src/Schema/TranslationSchemaHandler.php",
-            "line": 268,
+            "line": 283,
             "pattern": "schema_method",
-            "class": "authoritative-bypass-remediation-required",
+            "class": "coordinator-plan-or-executor",
             "match_sha256": "7a58133564c60e8f34ddde862bac483b98fb2890d578d176a8b832f4387c451e",
             "line_sha256": "dc2ea62f30266cfa5966ef10213dcadc7d369b3c3006b621979fcd7393377443",
-            "source_sha256": "59476b0a9efb0ea024170971668fd172ab00cc2b5061103e56b158b1dfbe5a6c"
+            "source_sha256": "c0cc95f61ef0f2cca681cb104de20fdae8d521d654dda2a8e7137a22a11510a0"
         },
         {
             "path": "packages/entity-storage/src/SqlEntityQuery.php",
@@ -3793,120 +3793,129 @@
         },
         {
             "path": "packages/entity-storage/src/SqlSchemaHandler.php",
-            "line": 100,
+            "line": 109,
             "pattern": "schema_method",
-            "class": "authoritative-bypass-remediation-required",
+            "class": "coordinator-plan-or-executor",
             "match_sha256": "7a58133564c60e8f34ddde862bac483b98fb2890d578d176a8b832f4387c451e",
             "line_sha256": "fca68a48f06d4a1f3a61ff51271d02daa104447eaadfd2ca2c5748a07411206e",
-            "source_sha256": "d9676ce78492a3d41616e9f02d3f2cacbea496ef169b9238227ca102bb6044eb"
+            "source_sha256": "4ac8c53811249018630044b0bf0cb94f47787a2ad2bb67155e0faa03910290aa"
         },
         {
             "path": "packages/entity-storage/src/SqlSchemaHandler.php",
-            "line": 184,
+            "line": 292,
             "pattern": "schema_method",
-            "class": "authoritative-bypass-remediation-required",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "c556b38d4459d2acb7179b870ffaec9af9bb8930f4882d56315f7c52c8ec8a64",
+            "line_sha256": "4d5a7a9df377408d7d2d07bba575b2d97b11946d49c613632dfec609bd905450",
+            "source_sha256": "4ac8c53811249018630044b0bf0cb94f47787a2ad2bb67155e0faa03910290aa"
+        },
+        {
+            "path": "packages/entity-storage/src/SqlSchemaHandler.php",
+            "line": 406,
+            "pattern": "schema_method",
+            "class": "coordinator-plan-or-executor",
             "match_sha256": "7a58133564c60e8f34ddde862bac483b98fb2890d578d176a8b832f4387c451e",
             "line_sha256": "a0d639fbcb9901a08491cc39d51e65fd11df0cf024955c1da31ac7129688eee9",
-            "source_sha256": "d9676ce78492a3d41616e9f02d3f2cacbea496ef169b9238227ca102bb6044eb"
+            "source_sha256": "4ac8c53811249018630044b0bf0cb94f47787a2ad2bb67155e0faa03910290aa"
         },
         {
             "path": "packages/entity-storage/src/SqlSchemaHandler.php",
-            "line": 194,
+            "line": 416,
             "pattern": "schema_method",
-            "class": "authoritative-bypass-remediation-required",
+            "class": "coordinator-plan-or-executor",
             "match_sha256": "c556b38d4459d2acb7179b870ffaec9af9bb8930f4882d56315f7c52c8ec8a64",
             "line_sha256": "11c2dea9af0fbb3e0f3e7d4b4c4d89ab5e221e2e0c625fbf228637aad713e744",
-            "source_sha256": "d9676ce78492a3d41616e9f02d3f2cacbea496ef169b9238227ca102bb6044eb"
+            "source_sha256": "4ac8c53811249018630044b0bf0cb94f47787a2ad2bb67155e0faa03910290aa"
         },
         {
             "path": "packages/entity-storage/src/SqlSchemaHandler.php",
-            "line": 256,
+            "line": 482,
             "pattern": "schema_method",
-            "class": "authoritative-bypass-remediation-required",
+            "class": "coordinator-plan-or-executor",
             "match_sha256": "7a58133564c60e8f34ddde862bac483b98fb2890d578d176a8b832f4387c451e",
             "line_sha256": "f815d2bfccb0acf0fc1dcef931106f9e4427fb7d6515b5dc275f0c2470623301",
-            "source_sha256": "d9676ce78492a3d41616e9f02d3f2cacbea496ef169b9238227ca102bb6044eb"
+            "source_sha256": "4ac8c53811249018630044b0bf0cb94f47787a2ad2bb67155e0faa03910290aa"
         },
         {
             "path": "packages/entity-storage/src/SqlSchemaHandler.php",
-            "line": 283,
+            "line": 509,
             "pattern": "ddl_sql",
-            "class": "authoritative-bypass-remediation-required",
+            "class": "coordinator-plan-or-executor",
             "match_sha256": "18fe2016fea59dc69f3d1391d957282b50f5f93674e668ed7abfb5703f02f573",
             "line_sha256": "09f34f9bf63ccbbabf4e5c2c7bc3c92a7717bf064048e760c02c319f8d103c88",
-            "source_sha256": "d9676ce78492a3d41616e9f02d3f2cacbea496ef169b9238227ca102bb6044eb"
+            "source_sha256": "4ac8c53811249018630044b0bf0cb94f47787a2ad2bb67155e0faa03910290aa"
         },
         {
             "path": "packages/entity-storage/src/SqlSchemaHandler.php",
-            "line": 300,
+            "line": 530,
             "pattern": "schema_method",
-            "class": "authoritative-bypass-remediation-required",
+            "class": "coordinator-plan-or-executor",
             "match_sha256": "7a58133564c60e8f34ddde862bac483b98fb2890d578d176a8b832f4387c451e",
             "line_sha256": "131856ce3ee4da8b2f212dac529f7938887c8a92e7388f4da7ef87b057fc5b1e",
-            "source_sha256": "d9676ce78492a3d41616e9f02d3f2cacbea496ef169b9238227ca102bb6044eb"
+            "source_sha256": "4ac8c53811249018630044b0bf0cb94f47787a2ad2bb67155e0faa03910290aa"
         },
         {
             "path": "packages/entity-storage/src/SqlSchemaHandler.php",
-            "line": 338,
+            "line": 568,
             "pattern": "ddl_sql",
-            "class": "authoritative-bypass-remediation-required",
+            "class": "coordinator-plan-or-executor",
             "match_sha256": "18fe2016fea59dc69f3d1391d957282b50f5f93674e668ed7abfb5703f02f573",
             "line_sha256": "16e6aa22e7ea36de2a5a414c8a57b7cdd3beb31c3c58e90a00e0c7ecb62b8c6a",
-            "source_sha256": "d9676ce78492a3d41616e9f02d3f2cacbea496ef169b9238227ca102bb6044eb"
+            "source_sha256": "4ac8c53811249018630044b0bf0cb94f47787a2ad2bb67155e0faa03910290aa"
         },
         {
             "path": "packages/entity-storage/src/SqlSchemaHandler.php",
-            "line": 387,
+            "line": 621,
             "pattern": "schema_method",
-            "class": "authoritative-bypass-remediation-required",
+            "class": "coordinator-plan-or-executor",
             "match_sha256": "7a58133564c60e8f34ddde862bac483b98fb2890d578d176a8b832f4387c451e",
             "line_sha256": "50fc7088694d22a1f10196f40500bb589fb4fccdd818682e104e8399ad5c5599",
-            "source_sha256": "d9676ce78492a3d41616e9f02d3f2cacbea496ef169b9238227ca102bb6044eb"
+            "source_sha256": "4ac8c53811249018630044b0bf0cb94f47787a2ad2bb67155e0faa03910290aa"
         },
         {
             "path": "packages/entity-storage/src/SqlSchemaHandler.php",
-            "line": 463,
+            "line": 705,
             "pattern": "schema_method",
-            "class": "authoritative-bypass-remediation-required",
+            "class": "coordinator-plan-or-executor",
             "match_sha256": "c556b38d4459d2acb7179b870ffaec9af9bb8930f4882d56315f7c52c8ec8a64",
             "line_sha256": "62acab88787d9358a19a1214e16e6b2b7dc7d379bad4a6ba083946fbb211ca30",
-            "source_sha256": "d9676ce78492a3d41616e9f02d3f2cacbea496ef169b9238227ca102bb6044eb"
+            "source_sha256": "4ac8c53811249018630044b0bf0cb94f47787a2ad2bb67155e0faa03910290aa"
         },
         {
             "path": "packages/entity-storage/src/SqlSchemaHandler.php",
-            "line": 481,
+            "line": 727,
             "pattern": "schema_method",
-            "class": "authoritative-bypass-remediation-required",
+            "class": "coordinator-plan-or-executor",
             "match_sha256": "c556b38d4459d2acb7179b870ffaec9af9bb8930f4882d56315f7c52c8ec8a64",
             "line_sha256": "6833fe245dedb69beeb44dac8b12fe69da7a2c8258146d64e65ea4087e6bc504",
-            "source_sha256": "d9676ce78492a3d41616e9f02d3f2cacbea496ef169b9238227ca102bb6044eb"
+            "source_sha256": "4ac8c53811249018630044b0bf0cb94f47787a2ad2bb67155e0faa03910290aa"
         },
         {
             "path": "packages/entity-storage/src/SqlSchemaHandler.php",
-            "line": 1000,
+            "line": 1259,
             "pattern": "ddl_sql",
-            "class": "authoritative-bypass-remediation-required",
+            "class": "coordinator-plan-or-executor",
             "match_sha256": "2d52dcb3fc5e1214a87232f9f36b00313f5973a074b1d12bfd81d2874ab0e460",
             "line_sha256": "830992bd8aad9404a3ae7b429f74377371469a55f9b32a12efc5c56fa502a5de",
-            "source_sha256": "d9676ce78492a3d41616e9f02d3f2cacbea496ef169b9238227ca102bb6044eb"
+            "source_sha256": "4ac8c53811249018630044b0bf0cb94f47787a2ad2bb67155e0faa03910290aa"
         },
         {
             "path": "packages/entity-storage/src/SqlSchemaHandler.php",
-            "line": 1035,
+            "line": 1294,
             "pattern": "ddl_sql",
-            "class": "authoritative-bypass-remediation-required",
+            "class": "coordinator-plan-or-executor",
             "match_sha256": "f72c69d56240d662918da2a012e6420655b21fccd4e21ab7931ddc0d4bbe5376",
             "line_sha256": "f40e10fe8acd0fe842f62c728b85b631f7bb22315af5da6527bd3f654fe95bf3",
-            "source_sha256": "d9676ce78492a3d41616e9f02d3f2cacbea496ef169b9238227ca102bb6044eb"
+            "source_sha256": "4ac8c53811249018630044b0bf0cb94f47787a2ad2bb67155e0faa03910290aa"
         },
         {
             "path": "packages/entity-storage/src/SqlSchemaHandler.php",
-            "line": 1045,
+            "line": 1304,
             "pattern": "ddl_sql",
-            "class": "authoritative-bypass-remediation-required",
+            "class": "coordinator-plan-or-executor",
             "match_sha256": "2d52dcb3fc5e1214a87232f9f36b00313f5973a074b1d12bfd81d2874ab0e460",
             "line_sha256": "dab981bc51ea41411211d17f32cf457ae5f22bae7a6b9e05e87188313a368b84",
-            "source_sha256": "d9676ce78492a3d41616e9f02d3f2cacbea496ef169b9238227ca102bb6044eb"
+            "source_sha256": "4ac8c53811249018630044b0bf0cb94f47787a2ad2bb67155e0faa03910290aa"
         },
         {
             "path": "packages/entity-storage/tests/Contract/SqlStorageDriverContractTest.php",
@@ -5130,16 +5139,16 @@
             "class": "explicit-exclusion",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "4af93b5c2fac46b866e8ce8880ae4de90071226c8ed7faa9e6338596895c60cc",
-            "source_sha256": "4baf3e78bf2e58fc4360f92f80507b259392a1a4874cc1e9c29bd5ef03d7a049"
+            "source_sha256": "f7fd3bb986ab10455f77e34026596cd0ae878f9778991eaee661a8e81fa5ca64"
         },
         {
             "path": "packages/foundation/src/Kernel/ConsoleKernel.php",
-            "line": 98,
+            "line": 102,
             "pattern": "legacy_schema_method",
             "class": "explicit-exclusion",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "62e60a7b676959e6cf5c123ee6ef0f81ef0b399e35f2398a6d98e97adc230515",
-            "source_sha256": "466727b15040c5fbab57684309ede49035014afa03d85d298aeed18deef5e760"
+            "source_sha256": "0aa9e47623ae5a0e4cb9738c80be53f04d78f6eb6745ea8e98e4ffbd25d1f1ba"
         },
         {
             "path": "packages/foundation/src/Migration/MigrationRepository.php",
@@ -5922,7 +5931,16 @@
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "fa5d4b59eead30270417e75fe5a6bd8e8e58a5a3cd23bf42d04a9224d33d97ce",
-            "source_sha256": "3d4b7a17be2793501a071507dbe8c13b115715034273752e25a59c98a00884dd"
+            "source_sha256": "8b4b39e3fd850ac0dc7aad6d48cc88d83d7f54229bcde940ff1b132065d4236b"
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/SchemaMutationCoordinatorTest.php",
+            "line": 72,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "f82c2f9ae42077eff8860e41e3b5b687d7c6c6886cac1cc1080545edf7a0da1a",
+            "source_sha256": "8b4b39e3fd850ac0dc7aad6d48cc88d83d7f54229bcde940ff1b132065d4236b"
         },
         {
             "path": "packages/foundation/tests/Unit/Schema/Compiler/CompiledMigrationPlanTest.php",
@@ -6880,12 +6898,12 @@
         },
         {
             "path": "packages/messaging/src/Schema/ThreadParticipantSchema.php",
-            "line": 37,
+            "line": 39,
             "pattern": "schema_method",
             "class": "coordinator-plan-or-executor",
             "match_sha256": "c556b38d4459d2acb7179b870ffaec9af9bb8930f4882d56315f7c52c8ec8a64",
             "line_sha256": "a215a8deed963993b5bc88bd76943561240c879566acda452eff302037cbddda",
-            "source_sha256": "55a3445da61f0bab6ace0d6c725f0e7aa1a5c929f54425c7ec87b46678c2f6c8"
+            "source_sha256": "5a44546128804ede51538a77fb2f227be0a8cebfe6f0e75657ffb9e3cb7ad4e1"
         },
         {
             "path": "packages/messaging/tests/Unit/EventSubscriber/ThreadParticipantBootstrapSubscriberTest.php",
@@ -6934,39 +6952,39 @@
         },
         {
             "path": "packages/messaging/tests/Unit/ThreadParticipantSchemaTest.php",
-            "line": 38,
+            "line": 46,
             "pattern": "legacy_schema_method",
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "6d53d613488e2eab78b55cbbb712289f2ed86f970f095f023bded4a15d0885a7",
-            "source_sha256": "03940e1f890be593249003deb94138642d126752671cf71cc84c082721cf584d"
+            "source_sha256": "2f6cdb6231c447562e0561a4463baf628cbb9a6fb79f43eb70d9347252610b29"
         },
         {
             "path": "packages/messaging/tests/Unit/ThreadParticipantSchemaTest.php",
-            "line": 60,
+            "line": 68,
             "pattern": "legacy_schema_method",
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "75b9496c7ea8291ce5c42e1d1a38935ff1bcfc84bd963798fababd690da698b8",
-            "source_sha256": "03940e1f890be593249003deb94138642d126752671cf71cc84c082721cf584d"
+            "source_sha256": "2f6cdb6231c447562e0561a4463baf628cbb9a6fb79f43eb70d9347252610b29"
         },
         {
             "path": "packages/messaging/tests/Unit/ThreadParticipantSchemaTest.php",
-            "line": 85,
+            "line": 101,
             "pattern": "legacy_schema_method",
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "04f5913551ab546ebcb0a1e766783e418deabc9fd36a0bd374f735c98b88c8c5",
-            "source_sha256": "03940e1f890be593249003deb94138642d126752671cf71cc84c082721cf584d"
+            "source_sha256": "2f6cdb6231c447562e0561a4463baf628cbb9a6fb79f43eb70d9347252610b29"
         },
         {
             "path": "packages/messaging/tests/Unit/ThreadParticipantSchemaTest.php",
-            "line": 94,
+            "line": 110,
             "pattern": "legacy_schema_method",
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "56fdeaad7d0d84e5fa55d98270370fec77a24f730c07922c4b461f1e6cef6b68",
-            "source_sha256": "03940e1f890be593249003deb94138642d126752671cf71cc84c082721cf584d"
+            "source_sha256": "2f6cdb6231c447562e0561a4463baf628cbb9a6fb79f43eb70d9347252610b29"
         },
         {
             "path": "packages/migration/src/Plugin/Destination/EntityDestinationFactory.php",
@@ -7087,12 +7105,12 @@
         },
         {
             "path": "packages/migration/src/ServiceProvider.php",
-            "line": 178,
+            "line": 181,
             "pattern": "legacy_schema_method",
             "class": "etl-boundary",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "82ff946f18df384a5821ae6c0b7bca7ce552c0c472c1098dbaaf6b0a3dd08433",
-            "source_sha256": "34681d297e4f6ca8da851067b19e2e3ba184881ed647466eff01969807dffd35"
+            "source_sha256": "06e304600bf05f9004a981e43e4e2ce21137a226f365a73c23a671a48cd38bfe"
         },
         {
             "path": "packages/migration/tests/Contract/ReferenceDestinationConformanceTest.php",
@@ -9369,7 +9387,7 @@
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "f8ab30e113f72f53038d5e0d33a2c58871495f9a516855b6111b58b12255e921",
-            "source_sha256": "dfa4038b496d2f41b08fcc0b6f4317bd5154d091e8d7f29970b6556dcb157c44"
+            "source_sha256": "98c0453117efb7f84dea736368f9cd76a3814c3637ddf750f616807971b6358c"
         },
         {
             "path": "tests/Integration/Phase29/MinooTeachingTwoAxisE2ETest.php",
@@ -9877,12 +9895,12 @@
         },
         {
             "path": "tests/Integration/PhaseClassificationRetention/ClassificationRetentionIntegrationTest.php",
-            "line": 522,
+            "line": 527,
             "pattern": "legacy_schema_method",
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "187f493db5188d91f6732ee2b5f841b1660e0a92b41aa2b3985db8fcd40bcf63",
-            "source_sha256": "b73b6c4ce4e43ea2f4574f0c017cd627adca0b5e606ffd7b2b2180c5eff74bd7"
+            "source_sha256": "0610e886297d8412f217134570d67d09589225089c573e83726583e53f4efa04"
         },
         {
             "path": "tests/Integration/PhaseMediaVersioning/ForbiddenVersionIntegrationTest.php",
@@ -10255,39 +10273,39 @@
         },
         {
             "path": "tests/Support/RuntimeSchemaMigrations.php",
-            "line": 27,
+            "line": 55,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "ca10322741851f383b2c1daaa32f5cce8d12ee77a3c731cb8a2251edebcd1314",
-            "source_sha256": "7962dcbcac11d50d32e59cd3ca932a675747f39940b2466b1d5332846adafb8b"
-        },
-        {
-            "path": "tests/Support/RuntimeSchemaMigrations.php",
-            "line": 89,
-            "pattern": "schema_method",
-            "class": "test-only",
-            "match_sha256": "7a58133564c60e8f34ddde862bac483b98fb2890d578d176a8b832f4387c451e",
-            "line_sha256": "3cf2341eee15c3361cab13fe0e706a1cc5e50dd90e537efa21adb73df6e6604c",
-            "source_sha256": "7962dcbcac11d50d32e59cd3ca932a675747f39940b2466b1d5332846adafb8b"
+            "source_sha256": "79e671db595ccaf19b84a9072fc06cab3dbda31d53432cbca4d039068de93dcf"
         },
         {
             "path": "tests/Support/RuntimeSchemaMigrations.php",
             "line": 117,
             "pattern": "schema_method",
             "class": "test-only",
-            "match_sha256": "c556b38d4459d2acb7179b870ffaec9af9bb8930f4882d56315f7c52c8ec8a64",
-            "line_sha256": "46703431ca652234039b136b1d9acfdee8615f01947d0bef9cda23035e2c902f",
-            "source_sha256": "7962dcbcac11d50d32e59cd3ca932a675747f39940b2466b1d5332846adafb8b"
+            "match_sha256": "7a58133564c60e8f34ddde862bac483b98fb2890d578d176a8b832f4387c451e",
+            "line_sha256": "3cf2341eee15c3361cab13fe0e706a1cc5e50dd90e537efa21adb73df6e6604c",
+            "source_sha256": "79e671db595ccaf19b84a9072fc06cab3dbda31d53432cbca4d039068de93dcf"
         },
         {
             "path": "tests/Support/RuntimeSchemaMigrations.php",
-            "line": 132,
+            "line": 145,
+            "pattern": "schema_method",
+            "class": "test-only",
+            "match_sha256": "c556b38d4459d2acb7179b870ffaec9af9bb8930f4882d56315f7c52c8ec8a64",
+            "line_sha256": "46703431ca652234039b136b1d9acfdee8615f01947d0bef9cda23035e2c902f",
+            "source_sha256": "79e671db595ccaf19b84a9072fc06cab3dbda31d53432cbca4d039068de93dcf"
+        },
+        {
+            "path": "tests/Support/RuntimeSchemaMigrations.php",
+            "line": 160,
             "pattern": "schema_method",
             "class": "test-only",
             "match_sha256": "179586185d58c76978df4fca596acad8506fff96a9b06b4947251e2d3a878029",
             "line_sha256": "d021c75a57c8a3ea3be78384e8bd1e9b5fa9ff47416263fe462e202cfa6fc0e4",
-            "source_sha256": "7962dcbcac11d50d32e59cd3ca932a675747f39940b2466b1d5332846adafb8b"
+            "source_sha256": "79e671db595ccaf19b84a9072fc06cab3dbda31d53432cbca4d039068de93dcf"
         }
     ]
 }

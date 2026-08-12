@@ -57,4 +57,26 @@ final class SchemaMutationCoordinatorTest extends TestCase
             'waaseyaa_migrations',
         ]));
     }
+
+    #[Test]
+    public function nested_executor_on_the_same_connection_uses_one_authority_generation(): void
+    {
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        $outer = new SchemaMutationCoordinator($connection, new MigrationRepository($connection));
+        $inner = new SchemaMutationCoordinator($connection, new MigrationRepository($connection));
+
+        $outer->execute(function () use ($connection, $inner): void {
+            self::assertTrue(SchemaMutationCoordinator::isActive($connection));
+            $inner->execute(function () use ($connection): void {
+                self::assertTrue(SchemaMutationCoordinator::isActive($connection));
+                $connection->executeStatement('CREATE TABLE nested_entity_schema (id INTEGER PRIMARY KEY)');
+            });
+        });
+
+        self::assertFalse(SchemaMutationCoordinator::isActive($connection));
+        self::assertSame(1, (int) $connection->fetchOne(
+            'SELECT generation FROM waaseyaa_schema_authority WHERE authority_id = 1',
+        ));
+        self::assertTrue($connection->createSchemaManager()->tablesExist(['nested_entity_schema']));
+    }
 }

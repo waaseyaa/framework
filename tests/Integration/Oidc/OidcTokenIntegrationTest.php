@@ -52,6 +52,7 @@ final class OidcTokenIntegrationTest extends TestCase
         \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::broadcast($database);
         \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::cache($database);
         \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::oidc($database);
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::entitiesForProject($this->projectRoot);
     }
 
     protected function tearDown(): void

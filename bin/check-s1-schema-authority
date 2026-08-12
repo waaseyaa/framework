@@ -89,11 +89,11 @@ function s1SchemaClass(string $path): string
         'packages/entity-storage/src/Driver/RevisionableStorageDriverV2.php' => 'explicit-exclusion',
         'packages/entity-storage/src/Driver/SqlStorageDriverV2.php' => 'explicit-exclusion',
         'packages/entity-storage/src/EntityRepository.php' => 'explicit-exclusion',
-        'packages/entity-storage/src/EntitySchemaSync.php' => 'authoritative-bypass-remediation-required',
+        'packages/entity-storage/src/EntitySchemaSync.php' => 'coordinator-plan-or-executor',
         'packages/entity-storage/src/Schema/RevisionTableBuilder.php' => 'coordinator-plan-or-executor',
-        'packages/entity-storage/src/Schema/TranslationSchemaHandler.php' => 'authoritative-bypass-remediation-required',
+        'packages/entity-storage/src/Schema/TranslationSchemaHandler.php' => 'coordinator-plan-or-executor',
         'packages/entity-storage/src/SqlEntityQuery.php' => 'explicit-exclusion',
-        'packages/entity-storage/src/SqlSchemaHandler.php' => 'authoritative-bypass-remediation-required',
+        'packages/entity-storage/src/SqlSchemaHandler.php' => 'coordinator-plan-or-executor',
         'packages/entity/src/Attribute/Field.php' => 'read-only-or-declaration',
         'packages/entity/testing/StorageBackedStubRepository.php' => 'test-tooling',
         'packages/entity/testing/Translation/TranslatableEntityContractTest.php' => 'test-only',
@@ -266,6 +266,36 @@ try {
         }
         if (!in_array($candidate['class'], $live['allowed_classes'], true)) {
             $errors[] = sprintf('Invalid schema-boundary class %s at %s:%d.', $candidate['class'], $candidate['path'], $candidate['line']);
+        }
+    }
+
+    foreach ([
+        'packages/entity-storage/src/EntitySchemaSync.php',
+        'packages/entity-storage/src/Schema/TranslationSchemaHandler.php',
+        'packages/entity-storage/src/SqlSchemaHandler.php',
+    ] as $executorPath) {
+        $executorSource = (string) file_get_contents($root . '/' . $executorPath);
+        if (!str_contains($executorSource, 'CoordinatedEntitySchemaExecutor')) {
+            $errors[] = sprintf('Entity schema executor is not coordinator-bound: %s.', $executorPath);
+        }
+    }
+
+    $coordinatorAdapter = (string) file_get_contents(
+        $root . '/packages/entity-storage/src/CoordinatedEntitySchemaExecutor.php',
+    );
+    foreach (['SchemaMutationCoordinator', 'MigrationRepository', 'S1-DB107'] as $requiredToken) {
+        if (!str_contains($coordinatorAdapter, $requiredToken)) {
+            $errors[] = sprintf('Entity schema coordinator adapter is missing %s.', $requiredToken);
+        }
+    }
+
+    $kernelFactory = (string) file_get_contents($root . '/packages/foundation/src/Kernel/EntityTypeManagerFactory.php');
+    if (!str_contains($kernelFactory, 'assertRuntimeSchema()')) {
+        $errors[] = 'Kernel repository composition does not validate entity schema read-only.';
+    }
+    foreach (['->ensureTable()', '->ensureRevisionTable()', '->ensureTranslationTable()', '->sync($definition)'] as $runtimeMutation) {
+        if (str_contains($kernelFactory, $runtimeMutation)) {
+            $errors[] = sprintf('Kernel repository composition still contains runtime entity DDL: %s.', $runtimeMutation);
         }
     }
 } catch (Throwable $exception) {

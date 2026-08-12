@@ -11,6 +11,7 @@ use Waaseyaa\Access\Context\AccountFieldReadScope;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\EntityStorage\EntitySchemaSync;
 use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestRevisionableEntity;
 use Waaseyaa\Field\FieldDefinitionRegistry;
@@ -103,6 +104,9 @@ final class EntityTypeManagerFactoryTest extends TestCase
             class: \stdClass::class,
             keys: ['id' => 'id'],
         ));
+        new EntitySchemaSync($this->database, $this->fieldRegistry)->syncAll([
+            $manager->getDefinition('attach_test'),
+        ]);
         $manager->getRepository('attach_test');
 
         $this->assertCount(1, $attached, 'accountContextAttacher must be called once per repository build');
@@ -135,6 +139,9 @@ final class EntityTypeManagerFactoryTest extends TestCase
             class: \stdClass::class,
             keys: ['id' => 'id'],
         ));
+        new EntitySchemaSync($this->database, $this->fieldRegistry)->syncAll([
+            $manager->getDefinition('scope_test'),
+        ]);
         $manager->getRepository('scope_test');
 
         $this->assertContains('scope_test', $resolvedTypes, 'communityScoreResolver must be called with the entity type definition');
@@ -165,6 +172,9 @@ final class EntityTypeManagerFactoryTest extends TestCase
             revisionDefault: true,
             tenancy: ['scope' => EntityType::TENANCY_SCOPE_COMMUNITY],
         ));
+        new EntitySchemaSync($this->database, $this->fieldRegistry)->syncAll([
+            $manager->getDefinition('kernel_scoped_revisionable'),
+        ]);
         $repository = $manager->getRepository('kernel_scoped_revisionable');
         $entity = new TestRevisionableEntity(values: [
             'id' => '1',

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Migration\ContentModel;
 
+use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\EntityStorage\EntitySchemaSync;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Migration\Exception\ContentModelRegistrationException;
@@ -89,6 +91,7 @@ final readonly class ContentModelRegistrar
 
     public function __construct(
         private EntityTypeManager $entityTypeManager,
+        private DatabaseInterface $database,
         ?LoggerInterface $logger = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
@@ -131,6 +134,26 @@ final readonly class ContentModelRegistrar
         foreach ($model->types as $type) {
             $this->ensureBundleConfigEntity($type);
             $this->declareFields($type);
+        }
+
+        $entityTypeIds = ['taxonomy_term'];
+        foreach ($model->types as $type) {
+            $entityTypeIds[] = $type->entityTypeId;
+        }
+        $definitions = [];
+        foreach (array_unique($entityTypeIds) as $entityTypeId) {
+            if ($entityTypeId === 'taxonomy_term' && $model->vocabularies === []) {
+                continue;
+            }
+            $definitions[] = $this->entityTypeManager->getDefinition($entityTypeId);
+        }
+
+        if ($definitions !== []) {
+            new EntitySchemaSync(
+                $this->database,
+                $this->entityTypeManager->getFieldRegistry(),
+                logger: $this->logger,
+            )->syncAll($definitions);
         }
     }
 

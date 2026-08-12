@@ -453,6 +453,18 @@ final class HttpKernelTest extends TestCase
         \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::audit($database);
         $database->getConnection()->close();
 
+        $schemaKernel = new \Waaseyaa\Foundation\Kernel\ConsoleKernel($this->projectRoot);
+        $schemaKernel->bootForCli();
+        $schemaManager = $schemaKernel->getEntityTypeManager();
+        $schemaDatabase = $schemaKernel->getDatabase();
+        new \Waaseyaa\EntityStorage\EntitySchemaSync(
+            $schemaDatabase,
+            $schemaManager->getFieldRegistry(),
+        )->syncAll($schemaManager->getDefinitions());
+        if ($schemaDatabase instanceof DBALDatabase) {
+            $schemaDatabase->getConnection()->close();
+        }
+
         $kernel = new HttpKernel($this->projectRoot);
         new \ReflectionMethod(AbstractKernel::class, 'boot')->invoke($kernel);
         $pipeline = new \ReflectionMethod(HttpKernel::class, 'buildMiddlewareStack')->invoke($kernel);

@@ -20,3 +20,37 @@
 No issue, pull request, hosted check, forge API, merge, split, publication,
 release, deployment, production operation, backup, restore, or recovery action
 is authorized by this record.
+
+## Entity schema-authority slice
+
+The entity storage transition is explicit and read-only at runtime:
+
+- `EntitySchemaSyncRunner` and direct schema-handler calls enter the singular
+  re-entrant `SchemaMutationCoordinator`; nested definition, translation, and
+  domain transitions share one transaction and one authority generation.
+- ordinary repository resolution validates required tables and declared unique
+  keys without creating or repairing them. Missing schema fails with
+  `S1-DB106` and directs the operator to `waaseyaa schema:sync`.
+- entity classes can declare storage unique keys and versioned domain schema
+  transitions as metadata. The thread-participant legacy merge and uniqueness
+  transition now executes only inside the explicit coordinated sync.
+- console discovery has a restricted schema-sync boot mode. `db:init` and
+  content-model registration invoke that mode explicitly; HTTP/runtime boot
+  does not acquire schema mutation authority.
+- fixture projects use an explicit schema-migration helper rather than relying
+  on repository construction to materialize schema.
+
+Verification on PHP 8.5.9:
+
+- schema roster: 1,143 occurrences across 357 files, with no
+  `authoritative-bypass-remediation-required` occurrence;
+- SQLite construction roster: 814 exact occurrences;
+- PHPStan: 2,056 files, zero errors;
+- architecture: 144 tests, 18,891 assertions;
+- unit: 10,896 tests, 228,723 assertions (one unrelated environment skip);
+- integration: 1,857 tests, 8,220 assertions;
+- Composer validation, formatting, package-layer, policy, and secret gates pass.
+
+This evidence closes the entity runtime-schema slice only. The encompassing
+`S1-FW-DB-02` exit gate remains open until every remaining authoritative DDL
+surface is migrated and installed-form and independent-review evidence pass.

@@ -176,7 +176,7 @@ final class SkeletonSmokeBooleanStatusTest extends TestCase
             public function __construct(string $projectRoot, LoggerInterface $logger)
             {
                 parent::__construct($projectRoot, $logger);
-                $this->config = ['database' => ':memory:'];
+                $this->config = ['database' => ':memory:', 'environment' => 'testing'];
                 $this->dispatcher = new SymfonyEventDispatcherAdapter();
             }
 
@@ -211,9 +211,15 @@ final class SkeletonSmokeBooleanStatusTest extends TestCase
      */
     private function registerUserType(object $kernel): EntityRepositoryInterface
     {
+        $type = EntityType::fromClass(User::class);
         $kernel->publicEntityTypeManager()->registerEntityType(
-            EntityType::fromClass(User::class),
+            $type,
             registrant: self::class,
+        );
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::entities(
+            $kernel->publicDatabase(),
+            $kernel->publicEntityTypeManager(),
+            [$type],
         );
 
         return $kernel->publicEntityTypeManager()->getRepository('user');

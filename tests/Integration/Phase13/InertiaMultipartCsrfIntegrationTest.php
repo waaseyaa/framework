@@ -83,6 +83,7 @@ final class InertiaMultipartCsrfIntegrationTest extends TestCase
                 ],
             ],
         ], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT));
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::entitiesForProject($this->projectRoot);
     }
 
     protected function tearDown(): void

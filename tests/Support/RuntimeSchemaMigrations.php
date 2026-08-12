@@ -11,6 +11,34 @@ use Waaseyaa\Foundation\Migration\SchemaBuilder;
 /** Explicit migration fixtures for cross-package tests. */
 final class RuntimeSchemaMigrations
 {
+    /** @param iterable<int|string, \Waaseyaa\Entity\EntityTypeInterface> $definitions */
+    public static function entities(
+        \Waaseyaa\Database\DatabaseInterface $database,
+        \Waaseyaa\Entity\EntityTypeManager $manager,
+        iterable $definitions,
+    ): void {
+        new \Waaseyaa\EntityStorage\EntitySchemaSyncRunner(
+            $database,
+            $manager->getFieldRegistry(),
+        )->run($definitions);
+    }
+
+    /** Explicitly discover and synchronize every entity type composed by a fixture project. */
+    public static function entitiesForProject(string $projectRoot): void
+    {
+        $kernel = new \Waaseyaa\Foundation\Kernel\ConsoleKernel($projectRoot);
+        $kernel->bootForSchemaSync();
+        $manager = $kernel->getEntityTypeManager();
+        $database = $kernel->getDatabase();
+        new \Waaseyaa\EntityStorage\EntitySchemaSyncRunner(
+            $database,
+            $manager->getFieldRegistry(),
+        )->run($manager->getDefinitions());
+        if ($database instanceof DBALDatabase) {
+            $database->getConnection()->close();
+        }
+    }
+
     public static function broadcast(DBALDatabase $database): void
     {
         self::apply($database, 'packages/api/migrations/2026_08_12_000001_broadcast_schema.php');

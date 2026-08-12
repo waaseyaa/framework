@@ -208,6 +208,8 @@ return [
     'Waaseyaa\Entity\ConfigEntityInterface' => 'public',
     'Waaseyaa\Entity\EntityTypeInterface' => 'public',
     'Waaseyaa\Entity\EntityTypeForeignKeyDefinitionInterface' => 'public',
+    'Waaseyaa\Entity\EntityTypeStorageUniqueKeyDefinitionInterface' => 'internal',
+    'Waaseyaa\Entity\EntityTypeStorageSchemaTransitionDefinitionInterface' => 'internal',
     'Waaseyaa\Entity\EntityTypeManagerInterface' => 'public',
     'Waaseyaa\Entity\DefinesEntityType' => 'public',
     'Waaseyaa\Entity\ApiExposableEntityTypeInterface' => 'public',
@@ -297,6 +299,7 @@ return [
     'Waaseyaa\Entity\RevisionableEntityInterface' => 'public',
     'Waaseyaa\Entity\RevisionMetadata' => 'public',
     'Waaseyaa\EntityStorage\Schema\RevisionTableBuilder' => 'public',
+    'Waaseyaa\EntityStorage\Schema\EntityStorageSchemaTransitionInterface' => 'internal',
     // WP08 — revisionable storage
     'Waaseyaa\EntityStorage\RevisionPruningPolicy' => 'public',
     'Waaseyaa\EntityStorage\RevisionPruningReport' => 'public',

@@ -152,9 +152,12 @@ final class ServiceProvider extends BaseServiceProvider implements AcceptsMigrat
         $this->singleton(ContentModelRegistrar::class, function () {
             $entityTypeManager = $this->resolve(EntityTypeManager::class);
             \assert($entityTypeManager instanceof EntityTypeManager);
+            $database = $this->resolve(DatabaseInterface::class);
+            \assert($database instanceof DatabaseInterface);
 
             return new ContentModelRegistrar(
                 entityTypeManager: $entityTypeManager,
+                database: $database,
                 logger: $this->resolveLogger(),
             );
         });
