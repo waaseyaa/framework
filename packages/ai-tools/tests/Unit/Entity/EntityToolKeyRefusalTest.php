@@ -14,6 +14,7 @@ use Waaseyaa\AI\Tools\Entity\EntityCreateTool;
 use Waaseyaa\AI\Tools\Entity\EntityKeyGuard;
 use Waaseyaa\AI\Tools\Entity\EntityUpdateTool;
 use Waaseyaa\AI\Tools\Tests\Fixtures\InMemoryToolRepository;
+use Waaseyaa\AI\Tools\Tests\Fixtures\MutationTokenFixture;
 use Waaseyaa\AI\Tools\Tests\Fixtures\SingleTypeEntityTypeManager;
 use Waaseyaa\AI\Tools\Tests\Fixtures\ToolTestEntity;
 use Waaseyaa\Entity\EntityInterface;
@@ -188,7 +189,7 @@ final class EntityToolKeyRefusalTest extends TestCase
         $tool = new EntityUpdateTool($this->etm);
 
         $result = $tool->execute(
-            ['entity_type' => 'tool_test', 'id' => '1', 'values' => ['title' => 'Renamed']],
+            ['entity_type' => 'tool_test', 'id' => '1', 'values' => ['title' => 'Renamed'], 'mutation_token' => MutationTokenFixture::for($this->repo, 'tool_test', '1')],
             $this->account(['tool.entity.update']),
         );
 
@@ -256,7 +257,7 @@ final class EntityToolKeyRefusalTest extends TestCase
         $tool = new EntityUpdateTool($etm);
 
         $result = $tool->execute(
-            ['entity_type' => 'tool_test', 'id' => '1', 'values' => ['title' => 'zzz', 'score' => 200]],
+            ['entity_type' => 'tool_test', 'id' => '1', 'values' => ['title' => 'zzz', 'score' => 200], 'mutation_token' => MutationTokenFixture::for($repo, 'tool_test', '1')],
             $this->account(['tool.entity.update']),
         );
 

@@ -276,6 +276,36 @@ abstract class AbstractAgentTool implements AgentToolInterface
     }
 
     /**
+     * Whether this caller may receive a mutation token for the entity.
+     *
+     * Mutation tokens are write authority metadata, so an anonymous/read-only
+     * caller must never receive one merely because it may view the entity.
+     * Capability-only hosts use the explicit update/delete capabilities. Once
+     * entity access is enforced, both the capability and the matching entity
+     * policy decision are required; a missing handler fails closed.
+     */
+    /** @param \Waaseyaa\Access\AuthorizationPrincipalInterface $account */
+    protected function canMutateEntity(EntityInterface $entity, AccountInterface $account): bool
+    {
+        foreach (['update' => 'tool.entity.update', 'delete' => 'tool.entity.delete'] as $operation => $capability) {
+            if (!$account->hasPermission($capability)) {
+                continue;
+            }
+            if ($this->accessHandler === null) {
+                if (!$this->accessEnforced) {
+                    return true;
+                }
+                continue;
+            }
+            if ($this->accessHandler->check($entity, $operation, $account)->isAllowed()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Field-access-checked entity LABEL/TITLE for enumeration output, mirroring
      * {@see applyFieldAccessFilter()} for the single label-key field.
      * `EntityInterface::label()` reads the label-key field directly and bypasses

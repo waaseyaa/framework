@@ -130,6 +130,12 @@ final class EntityReadTool extends AbstractAgentTool
                 $data['revision_id'] = $revisionId;
             }
         }
+        if ($entity instanceof EntityBase && $this->canMutateEntity($entity, $account)) {
+            $mutationToken = $entity->mutationToken();
+            if ($mutationToken !== null) {
+                $data['mutation_token'] = $mutationToken->toOpaqueString();
+            }
+        }
         // Prefer a curated getValues() when an entity provides one; otherwise use
         // the EntityInterface-guaranteed toArray(), so field values are exposed
         // for every entity, not only those that happen to define getValues().

@@ -20,6 +20,7 @@ use Waaseyaa\AI\Tools\Entity\EntitySearchTool;
 use Waaseyaa\AI\Tools\Entity\EntitySetCurrentRevisionTool;
 use Waaseyaa\AI\Tools\Entity\EntityUpdateTool;
 use Waaseyaa\AI\Tools\Tests\Fixtures\InMemoryToolRepository;
+use Waaseyaa\AI\Tools\Tests\Fixtures\MutationTokenFixture;
 use Waaseyaa\AI\Tools\Tests\Fixtures\SingleTypeEntityTypeManager;
 use Waaseyaa\AI\Tools\Tests\Fixtures\ToolTestEntity;
 use Waaseyaa\Entity\EntityInterface;
@@ -145,7 +146,7 @@ final class EntityToolAccessTest extends TestCase
         $tool->setAccessHandler($this->handler);
 
         $result = $tool->execute(
-            ['entity_type' => 'tool_test', 'id' => '1', 'values' => ['title' => 'New'], 'revision_log' => 'Agent edit'],
+            ['entity_type' => 'tool_test', 'id' => '1', 'values' => ['title' => 'New'], 'revision_log' => 'Agent edit', 'mutation_token' => MutationTokenFixture::for($this->repo, 'tool_test', '1')],
             $this->account(['tool.entity.update', 'may write']),
         );
 
@@ -163,7 +164,7 @@ final class EntityToolAccessTest extends TestCase
         $tool = new EntityUpdateTool($this->etm); // no access handler attached
 
         $result = $tool->execute(
-            ['entity_type' => 'tool_test', 'id' => '1', 'values' => ['title' => 'New']],
+            ['entity_type' => 'tool_test', 'id' => '1', 'values' => ['title' => 'New'], 'mutation_token' => MutationTokenFixture::for($this->repo, 'tool_test', '1')],
             $this->account(['tool.entity.update']), // capability only, no 'may write'
         );
 
@@ -231,9 +232,49 @@ final class EntityToolAccessTest extends TestCase
         $this->assertTrue($denied->isError);
         $this->assertSame([], $this->repo->deleted);
 
-        $ok = $tool->execute(['entity_type' => 'tool_test', 'id' => '2'], $this->account(['tool.entity.delete', 'may write']));
+        $ok = $tool->execute(['entity_type' => 'tool_test', 'id' => '2', 'mutation_token' => MutationTokenFixture::for($this->repo, 'tool_test', '2')], $this->account(['tool.entity.delete', 'may write']));
         $this->assertFalse($ok->isError);
         $this->assertSame(['2'], $this->repo->deleted);
+    }
+
+    #[Test]
+    public function delete_refuses_missing_invalid_transplanted_and_stale_tokens_without_deleting(): void
+    {
+        $this->repo->seed(new ToolTestEntity(['id' => '2', 'title' => 'Keep']));
+        $tool = new EntityDeleteTool($this->etm);
+        $tool->setAccessHandler($this->handler);
+        $account = $this->account(['tool.entity.delete', 'may write']);
+
+        $missing = $tool->execute(['entity_type' => 'tool_test', 'id' => '2'], $account);
+        $this->assertSame('entity.delete: mutation_token is required.', $missing->content[0]['text'] ?? null);
+
+        $invalid = $tool->execute(['entity_type' => 'tool_test', 'id' => '2', 'mutation_token' => 'not-a-token'], $account);
+        $this->assertSame('entity.delete: mutation_token is invalid.', $invalid->content[0]['text'] ?? null);
+        $invalidDryRun = $tool->dryRun(['entity_type' => 'tool_test', 'id' => '2', 'mutation_token' => 'not-a-token'], $account);
+        $this->assertSame('entity.delete: mutation_token is invalid.', $invalidDryRun->content[0]['text'] ?? null);
+
+        $transplanted = $tool->execute([
+            'entity_type' => 'tool_test',
+            'id' => '2',
+            'mutation_token' => MutationTokenFixture::for($this->repo, 'tool_test', '1'),
+        ], $account);
+        $this->assertSame('mutation_conflict', $transplanted->content[1]['data']['error'] ?? null);
+
+        $stale = MutationTokenFixture::for($this->repo, 'tool_test', '2');
+        $winner = $this->repo->find('2');
+        $this->assertInstanceOf(ToolTestEntity::class, $winner);
+        $winner->set('title', 'Winner');
+        $this->repo->save($winner);
+        $this->repo->saved = [];
+
+        $staleResult = $tool->execute([
+            'entity_type' => 'tool_test',
+            'id' => '2',
+            'mutation_token' => $stale,
+        ], $account);
+        $this->assertSame('mutation_conflict', $staleResult->content[1]['data']['error'] ?? null);
+        $this->assertTrue($this->repo->exists('2'));
+        $this->assertSame([], $this->repo->deleted);
     }
 
     #[Test]
@@ -274,6 +315,31 @@ final class EntityToolAccessTest extends TestCase
         $data = $result->content[0]['data'] ?? [];
         $this->assertArrayHasKey('values', $data);
         $this->assertSame('Original', $data['values']['title'] ?? null);
+        $this->assertArrayNotHasKey('mutation_token', $data, 'read-only callers never receive write-authority metadata');
+    }
+
+    #[Test]
+    public function read_exposes_the_mutation_token_only_to_a_policy_authorized_mutator(): void
+    {
+        $tool = new EntityReadTool($this->etm);
+        $tool->setAccessHandler($this->handler);
+
+        $denied = $tool->execute(
+            ['entity_type' => 'tool_test', 'id' => '1'],
+            $this->account(['tool.entity.read', 'tool.entity.update']),
+        );
+        $this->assertFalse($denied->isError);
+        $this->assertArrayNotHasKey('mutation_token', $denied->content[0]['data'] ?? []);
+
+        $allowed = $tool->execute(
+            ['entity_type' => 'tool_test', 'id' => '1'],
+            $this->account(['tool.entity.read', 'tool.entity.update', 'may write']),
+        );
+        $this->assertFalse($allowed->isError);
+        $this->assertSame(
+            MutationTokenFixture::for($this->repo, 'tool_test', '1'),
+            $allowed->content[0]['data']['mutation_token'] ?? null,
+        );
     }
 
     #[Test]
