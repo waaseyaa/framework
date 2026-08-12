@@ -139,12 +139,12 @@
         },
         {
             "path": "bin/test-quality-inventory",
-            "line": 183,
+            "line": 184,
             "pattern": "sqlite_dsn_token",
             "class": "tooling-query",
             "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
             "line_sha256": "5602a8ff38284a9c559d3d42df160ec658ce6549c52ab29b191ad682e56045ca",
-            "source_sha256": "a644d60e70d42f71e8be542c93530ba46149db9cba5251125404875ff6199e32"
+            "source_sha256": "c0ab2e693224806b384aceaea39892b3937b15c3a3aed105650ceca7e27121b8"
         },
         {
             "path": "packages/admin-surface/tests/Integration/Host/AuthenticatedNoteOwnershipFlowTest.php",
