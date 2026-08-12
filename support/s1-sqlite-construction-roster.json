@@ -4936,75 +4936,75 @@
         },
         {
             "path": "packages/oidc/tests/Integration/Security/OidcSecretStorageTest.php",
-            "line": 21,
+            "line": 22,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "5d7055d1bacc4d1958a4464398c40dd7abd7e0d6a22c323b417fb14510530a05"
+            "source_sha256": "6147b8e9d8178a1574f4970e1e3b99fec9f893ea33269e4662c06d2c54fa2117"
         },
         {
             "path": "packages/oidc/tests/Integration/Security/OidcSecretStorageTest.php",
-            "line": 35,
+            "line": 37,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "5d7055d1bacc4d1958a4464398c40dd7abd7e0d6a22c323b417fb14510530a05"
+            "source_sha256": "6147b8e9d8178a1574f4970e1e3b99fec9f893ea33269e4662c06d2c54fa2117"
         },
         {
             "path": "packages/oidc/tests/Integration/Security/OidcSecretStorageTest.php",
-            "line": 66,
+            "line": 69,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "5d7055d1bacc4d1958a4464398c40dd7abd7e0d6a22c323b417fb14510530a05"
+            "source_sha256": "6147b8e9d8178a1574f4970e1e3b99fec9f893ea33269e4662c06d2c54fa2117"
         },
         {
             "path": "packages/oidc/tests/Integration/Security/OidcSecretStorageTest.php",
-            "line": 80,
+            "line": 84,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "5d7055d1bacc4d1958a4464398c40dd7abd7e0d6a22c323b417fb14510530a05"
+            "source_sha256": "6147b8e9d8178a1574f4970e1e3b99fec9f893ea33269e4662c06d2c54fa2117"
         },
         {
             "path": "packages/oidc/tests/Integration/Token/TokenControllerTest.php",
-            "line": 54,
+            "line": 55,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "69607dd53a524e26545b6ed1b2ce98982f8e6c2f019b62d8f8a0ce7716701f5d"
+            "source_sha256": "cf207e0db1c1a000902879a41ac93b4d6ef70e95e16458c157a6268fe8c271ed"
         },
         {
             "path": "packages/oidc/tests/Integration/Token/TokenControllerTest.php",
-            "line": 332,
+            "line": 333,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "69607dd53a524e26545b6ed1b2ce98982f8e6c2f019b62d8f8a0ce7716701f5d"
+            "source_sha256": "cf207e0db1c1a000902879a41ac93b4d6ef70e95e16458c157a6268fe8c271ed"
         },
         {
             "path": "packages/oidc/tests/Integration/Userinfo/UserinfoControllerTest.php",
-            "line": 53,
+            "line": 54,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "174ca75f4c63cb34709e0d0668d6a10752edd18c3a78ab13835cae756b803411",
-            "source_sha256": "fe3b6a01bc8f7c2d82574bdecb9b06c8101cacce3c73c067f355343202f175bc"
+            "source_sha256": "9ce662aa6c51ac663cec01a9e23200d10a947ac477b371593e3a78a587fed9e7"
         },
         {
             "path": "packages/oidc/tests/Integration/Userinfo/UserinfoControllerTest.php",
-            "line": 58,
+            "line": 60,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "63dc0903585f551803d879524c10049db0287eab8d3a868a68a48de8225291ab",
-            "source_sha256": "fe3b6a01bc8f7c2d82574bdecb9b06c8101cacce3c73c067f355343202f175bc"
+            "source_sha256": "9ce662aa6c51ac663cec01a9e23200d10a947ac477b371593e3a78a587fed9e7"
         },
         {
             "path": "packages/oidc/tests/Unit/Consent/ConsentScreenControllerTest.php",
@@ -5044,21 +5044,21 @@
         },
         {
             "path": "packages/oidc/tests/Unit/Revoke/RevocationControllerTest.php",
-            "line": 35,
+            "line": 36,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "8074c666c3db097df23b382066cf5d822c284b5e04db0946247e5f23944ea3a4",
-            "source_sha256": "5b29b7c96751c0125604942fbe65b2520903cd7027ae0e0e9cafa442401936a6"
+            "source_sha256": "363f5edb21282c822774cd78729ffd26ab679fecd63b36fdc271cc8436720643"
         },
         {
             "path": "packages/oidc/tests/Unit/Revoke/RevocationControllerTest.php",
-            "line": 61,
+            "line": 62,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "174ca75f4c63cb34709e0d0668d6a10752edd18c3a78ab13835cae756b803411",
-            "source_sha256": "5b29b7c96751c0125604942fbe65b2520903cd7027ae0e0e9cafa442401936a6"
+            "source_sha256": "363f5edb21282c822774cd78729ffd26ab679fecd63b36fdc271cc8436720643"
         },
         {
             "path": "packages/publishing/tests/Unit/ContentPublisherTest.php",

@@ -7680,15 +7680,6 @@
             "source_sha256": "3acbfb1b0c8b14e646b707bee312ca9865a5cf0d3c576efbb8939411f2ebddcf"
         },
         {
-            "path": "packages/oidc/src/Key/SigningKeyRepository.php",
-            "line": 167,
-            "pattern": "ddl_sql",
-            "class": "authoritative-bypass-remediation-required",
-            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "ee32d74caacfbf6fd78899fefac2b1dd29d4c97d17de38b369b92f75c449986e",
-            "source_sha256": "346cdbab107406d9294f2daabfc9e954bc0cc56f61f461b17eef9a6271eefc8f"
-        },
-        {
             "path": "packages/oidc/src/Repository/DatabaseAuthorizationCodeRepository.php",
             "line": 129,
             "pattern": "ddl_sql",
@@ -7732,42 +7723,6 @@
             "match_sha256": "c556b38d4459d2acb7179b870ffaec9af9bb8930f4882d56315f7c52c8ec8a64",
             "line_sha256": "a34e817b3ae70baa37f19e30840d0c16abebff24ae95d653369b2bfd56158768",
             "source_sha256": "042c6571ceff676c6b43d4fd8118688befc8cfb2a4a943c95c87ee47ecf7289b"
-        },
-        {
-            "path": "packages/oidc/src/Token/AccessTokenIssuer.php",
-            "line": 167,
-            "pattern": "ddl_sql",
-            "class": "authoritative-bypass-remediation-required",
-            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "a4de52a0e8ffae898f7716c0c7cd81e7949cf2b10ebb88a0447521743670aa13",
-            "source_sha256": "254b24481583344a0c8ac4a00fca168faf15f7a0913ef48a6efa86859e595682"
-        },
-        {
-            "path": "packages/oidc/src/Token/AccessTokenIssuer.php",
-            "line": 185,
-            "pattern": "schema_method",
-            "class": "authoritative-bypass-remediation-required",
-            "match_sha256": "c556b38d4459d2acb7179b870ffaec9af9bb8930f4882d56315f7c52c8ec8a64",
-            "line_sha256": "9a1c05589dc0130e45d0dcbd77419624691b62391b8627004841b750ac4b4053",
-            "source_sha256": "254b24481583344a0c8ac4a00fca168faf15f7a0913ef48a6efa86859e595682"
-        },
-        {
-            "path": "packages/oidc/src/Token/RefreshTokenIssuer.php",
-            "line": 190,
-            "pattern": "ddl_sql",
-            "class": "authoritative-bypass-remediation-required",
-            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "0a73112254a746a595a7f759eeff207b15557156c59155b45c8ae53470361d9b",
-            "source_sha256": "588bb1874ecf3370a719037a6aa58f48427f25087d0ebb2d904ba1395e1e2222"
-        },
-        {
-            "path": "packages/oidc/src/Token/RefreshTokenIssuer.php",
-            "line": 211,
-            "pattern": "schema_method",
-            "class": "authoritative-bypass-remediation-required",
-            "match_sha256": "c556b38d4459d2acb7179b870ffaec9af9bb8930f4882d56315f7c52c8ec8a64",
-            "line_sha256": "9a1c05589dc0130e45d0dcbd77419624691b62391b8627004841b750ac4b4053",
-            "source_sha256": "588bb1874ecf3370a719037a6aa58f48427f25087d0ebb2d904ba1395e1e2222"
         },
         {
             "path": "packages/oidc/tests/Integration/Authorize/AuthorizeControllerTest.php",
@@ -7915,48 +7870,48 @@
         },
         {
             "path": "packages/oidc/tests/Integration/Security/OidcSecretStorageTest.php",
-            "line": 82,
+            "line": 86,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "deda5caf06c25d8b4f41e08803153b5b8d7b56d75bb94f2609fe7854f606669a",
-            "source_sha256": "5d7055d1bacc4d1958a4464398c40dd7abd7e0d6a22c323b417fb14510530a05"
+            "source_sha256": "6147b8e9d8178a1574f4970e1e3b99fec9f893ea33269e4662c06d2c54fa2117"
         },
         {
             "path": "packages/oidc/tests/Integration/Security/OidcSecretStorageTest.php",
-            "line": 83,
+            "line": 87,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "ed1b78b2a041b70a39f5a8f5f4dcae0f39cd8c99ab9df37c902eea6abdcd04bb",
-            "source_sha256": "5d7055d1bacc4d1958a4464398c40dd7abd7e0d6a22c323b417fb14510530a05"
+            "source_sha256": "6147b8e9d8178a1574f4970e1e3b99fec9f893ea33269e4662c06d2c54fa2117"
         },
         {
             "path": "packages/oidc/tests/Integration/Security/OidcSecretStorageTest.php",
-            "line": 84,
+            "line": 88,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "44ac4e4c34db55d1c259cce7758f1d8e5f5703cc883e690f173db6b8a705ed8f",
-            "source_sha256": "5d7055d1bacc4d1958a4464398c40dd7abd7e0d6a22c323b417fb14510530a05"
+            "source_sha256": "6147b8e9d8178a1574f4970e1e3b99fec9f893ea33269e4662c06d2c54fa2117"
         },
         {
             "path": "packages/oidc/tests/Integration/Token/TokenControllerTest.php",
-            "line": 353,
+            "line": 355,
             "pattern": "legacy_schema_method",
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "21b5addc4d0925a81fcd3e5c444d547aa1e46af7cdbf17789bd1b3df03575e9f",
-            "source_sha256": "69607dd53a524e26545b6ed1b2ce98982f8e6c2f019b62d8f8a0ce7716701f5d"
+            "source_sha256": "cf207e0db1c1a000902879a41ac93b4d6ef70e95e16458c157a6268fe8c271ed"
         },
         {
             "path": "packages/oidc/tests/Integration/Token/TokenControllerTest.php",
-            "line": 371,
+            "line": 373,
             "pattern": "legacy_schema_method",
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "21b5addc4d0925a81fcd3e5c444d547aa1e46af7cdbf17789bd1b3df03575e9f",
-            "source_sha256": "69607dd53a524e26545b6ed1b2ce98982f8e6c2f019b62d8f8a0ce7716701f5d"
+            "source_sha256": "cf207e0db1c1a000902879a41ac93b4d6ef70e95e16458c157a6268fe8c271ed"
         },
         {
             "path": "packages/oidc/tests/Unit/OidcClientSchemaMigrationTest.php",
@@ -7969,12 +7924,12 @@
         },
         {
             "path": "packages/oidc/tests/Unit/Revoke/RevocationControllerTest.php",
-            "line": 297,
+            "line": 299,
             "pattern": "legacy_schema_method",
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "e07f2fc8948bd03e39d80087be6e6dd0fc1f29e67d8c6ef7c8f2437555c2f523",
-            "source_sha256": "5b29b7c96751c0125604942fbe65b2520903cd7027ae0e0e9cafa442401936a6"
+            "source_sha256": "363f5edb21282c822774cd78729ffd26ab679fecd63b36fdc271cc8436720643"
         },
         {
             "path": "packages/publishing/src/ContentPublisher.php",

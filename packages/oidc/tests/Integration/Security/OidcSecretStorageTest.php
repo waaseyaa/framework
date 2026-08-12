@@ -10,6 +10,7 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Oidc\Key\SigningKeyRepository;
 use Waaseyaa\Oidc\Security\LegacyOidcSecretMigrator;
 use Waaseyaa\Oidc\Security\SecretBoxEnvelope;
+use Waaseyaa\Oidc\Tests\Support\OidcSchema;
 use Waaseyaa\Oidc\Token\AccessTokenIssuer;
 use Waaseyaa\Oidc\Token\RefreshTokenIssuer;
 
@@ -19,6 +20,7 @@ final class OidcSecretStorageTest extends TestCase
     public function signing_private_keys_are_stored_in_a_versioned_encrypted_envelope(): void
     {
         $db = DBALDatabase::createSqlite();
+        OidcSchema::installSigningKeys($db);
         $repository = new SigningKeyRepository($db, random_bytes(32));
 
         $key = $repository->rotate();
@@ -33,6 +35,7 @@ final class OidcSecretStorageTest extends TestCase
     public function opaque_tokens_use_encrypted_storage_and_purpose_bound_lookup_values(): void
     {
         $db = DBALDatabase::createSqlite();
+        OidcSchema::installTokenStorage($db);
         $access = new AccessTokenIssuer($db, random_bytes(32), random_bytes(32));
         $refresh = new RefreshTokenIssuer($db, random_bytes(32), random_bytes(32));
         $now = new \DateTimeImmutable('@1700000000');
@@ -64,6 +67,7 @@ final class OidcSecretStorageTest extends TestCase
     public function invalid_envelopes_fail_loudly(): void
     {
         $db = DBALDatabase::createSqlite();
+        OidcSchema::installSigningKeys($db);
         $repository = new SigningKeyRepository($db, random_bytes(32));
         $repository->rotate();
         $db->getConnection()->executeStatement(

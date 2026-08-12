@@ -6,6 +6,7 @@ namespace Waaseyaa\Oidc\Key;
 
 use DateTimeImmutable;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\Schema\SchemaRequirement;
 use Waaseyaa\Oidc\Keys\OpenSslKeyFactory;
 use Waaseyaa\Oidc\Keys\SigningKey;
 use Waaseyaa\Oidc\Security\SecretBoxEnvelope;
@@ -27,7 +28,7 @@ final class SigningKeyRepository
     private const TABLE = 'oidc_signing_key';
     private const ALGORITHM = 'RS256';
 
-    private bool $tableEnsured = false;
+    private bool $schemaVerified = false;
     private readonly SecretBoxEnvelope $envelope;
 
     public function __construct(
@@ -44,7 +45,7 @@ final class SigningKeyRepository
      */
     public function currentKey(): SigningKey
     {
-        $this->ensureTable();
+        $this->assertSchemaAvailable();
 
         $row = $this->fetchCurrent();
         if ($row !== null) {
@@ -60,7 +61,7 @@ final class SigningKeyRepository
      */
     public function previousKey(): ?SigningKey
     {
-        $this->ensureTable();
+        $this->assertSchemaAvailable();
 
         foreach (
             $this->database->query(
@@ -81,7 +82,7 @@ final class SigningKeyRepository
      */
     public function allActive(): array
     {
-        $this->ensureTable();
+        $this->assertSchemaAvailable();
 
         $current = $this->currentKey();
         $prev = $this->previousKey();
@@ -101,7 +102,7 @@ final class SigningKeyRepository
      */
     public function rotate(): SigningKey
     {
-        $this->ensureTable();
+        $this->assertSchemaAvailable();
 
         $now = new DateTimeImmutable();
         $nowTs = $now->getTimestamp();
@@ -157,24 +158,20 @@ final class SigningKeyRepository
         return null;
     }
 
-    private function ensureTable(): void
+    private function assertSchemaAvailable(): void
     {
-        if ($this->tableEnsured) {
+        if ($this->schemaVerified) {
             return;
         }
 
-        $this->database->query(<<<'SQL'
-                CREATE TABLE IF NOT EXISTS oidc_signing_key (
-                    kid VARCHAR(36) PRIMARY KEY NOT NULL,
-                    algorithm VARCHAR(16) NOT NULL DEFAULT 'RS256',
-                    private_key_pem TEXT NOT NULL,
-                    public_key_pem TEXT NOT NULL,
-                    created_at INTEGER NOT NULL,
-                    rotated_out_at INTEGER
-                )
-            SQL);
+        SchemaRequirement::assertAvailable(
+            $this->database,
+            self::TABLE,
+            ['kid', 'algorithm', 'private_key_pem', 'public_key_pem', 'created_at', 'rotated_out_at'],
+            'waaseyaa/oidc:2026_05_25_000003_oidc_signing_key_schema',
+        );
 
-        $this->tableEnsured = true;
+        $this->schemaVerified = true;
     }
 
     /**

@@ -6,6 +6,7 @@ namespace Waaseyaa\Oidc\Token;
 
 use DateTimeImmutable;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\Schema\SchemaRequirement;
 use Waaseyaa\Oidc\Security\OpaqueTokenProtector;
 
 /**
@@ -23,7 +24,7 @@ final class RefreshTokenIssuer
     private const TABLE = 'oidc_refresh_token';
     private const EXPIRY_SECONDS = 7_776_000; // 90 days
 
-    private bool $tableEnsured = false;
+    private bool $schemaVerified = false;
     private readonly OpaqueTokenProtector $protector;
 
     public function __construct(
@@ -50,7 +51,7 @@ final class RefreshTokenIssuer
         DateTimeImmutable $now,
         ?string $chainRootJti = null,
     ): RefreshTokenRecord {
-        $this->ensureTable();
+        $this->assertSchemaAvailable();
 
         $jti = $this->uuid();
         $token = $this->opaqueToken();
@@ -95,7 +96,7 @@ final class RefreshTokenIssuer
      */
     public function findByToken(string $token): ?RefreshTokenRecord
     {
-        $this->ensureTable();
+        $this->assertSchemaAvailable();
 
         foreach ($this->database->select(self::TABLE)->condition('token_lookup', $this->protector->lookup($token))->execute() as $row) {
             $storedToken = $this->protector->open((string) $row['token']);
@@ -114,7 +115,7 @@ final class RefreshTokenIssuer
      */
     public function findByJti(string $jti): ?RefreshTokenRecord
     {
-        $this->ensureTable();
+        $this->assertSchemaAvailable();
 
         foreach ($this->database->select(self::TABLE)->condition('jti', $jti)->execute() as $row) {
             $row['token'] = $this->protector->open((string) $row['token']);
@@ -130,7 +131,7 @@ final class RefreshTokenIssuer
      */
     public function revoke(string $jti, DateTimeImmutable $now): void
     {
-        $this->ensureTable();
+        $this->assertSchemaAvailable();
 
         $this->database->query(
             'UPDATE ' . self::TABLE . ' SET revoked_at = ? WHERE jti = ?',
@@ -145,7 +146,7 @@ final class RefreshTokenIssuer
      */
     public function revokeChain(string $chainRootJti, DateTimeImmutable $now): array
     {
-        $this->ensureTable();
+        $this->assertSchemaAvailable();
 
         // Collect affected access_token_jtis before revoking
         $accessJtis = [];
@@ -172,7 +173,7 @@ final class RefreshTokenIssuer
      */
     public function revokeByAccessTokenJti(string $accessTokenJti, DateTimeImmutable $now): void
     {
-        $this->ensureTable();
+        $this->assertSchemaAvailable();
 
         $this->database->query(
             'UPDATE ' . self::TABLE . ' SET revoked_at = ? WHERE access_token_jti = ? AND revoked_at IS NULL',
@@ -180,39 +181,20 @@ final class RefreshTokenIssuer
         );
     }
 
-    private function ensureTable(): void
+    private function assertSchemaAvailable(): void
     {
-        if ($this->tableEnsured) {
+        if ($this->schemaVerified) {
             return;
         }
 
-        $this->database->query(<<<'SQL'
-                CREATE TABLE IF NOT EXISTS oidc_refresh_token (
-                    jti VARCHAR(128) PRIMARY KEY NOT NULL,
-                    token TEXT NOT NULL UNIQUE,
-                    token_lookup CHAR(64) NOT NULL UNIQUE,
-                    access_token_jti VARCHAR(128) NOT NULL,
-                    client_id VARCHAR(255) NOT NULL,
-                    account_id VARCHAR(255) NOT NULL,
-                    scope TEXT NOT NULL,
-                    auth_time INTEGER NOT NULL,
-                    chain_root_jti VARCHAR(128) NOT NULL,
-                    issued_at INTEGER NOT NULL,
-                    expires_at INTEGER NOT NULL,
-                    revoked_at INTEGER
-                )
-            SQL);
+        SchemaRequirement::assertAvailable(
+            $this->database,
+            self::TABLE,
+            ['jti', 'token', 'token_lookup', 'access_token_jti', 'client_id', 'account_id', 'scope', 'auth_time', 'chain_root_jti', 'issued_at', 'expires_at', 'revoked_at'],
+            'waaseyaa/oidc:2026_07_15_000005_oidc_secret_storage',
+        );
 
-        $schema = $this->database->schema();
-        if (!$schema->tableExists(self::TABLE)) {
-            throw new \RuntimeException('OIDC refresh-token schema is unavailable.');
-        }
-        if (!$schema->fieldExists(self::TABLE, 'token_lookup')) {
-            $schema->addField(self::TABLE, 'token_lookup', ['type' => 'varchar', 'length' => 64]);
-            $schema->addUniqueKey(self::TABLE, 'idx_oidc_refresh_token_lookup', ['token_lookup']);
-        }
-
-        $this->tableEnsured = true;
+        $this->schemaVerified = true;
     }
 
     private function uuid(): string
