@@ -74,14 +74,14 @@ final class InMemoryToolRepository implements EntityRepositoryInterface
         unset($this->store[(string) $entity->id()]);
     }
 
-    public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface
+    public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         $this->setCurrentCalls[] = [$entityId, $revisionId];
 
         return $this->store[$entityId] ?? new ToolTestEntity(['id' => $entityId]);
     }
 
-    public function rollback(string $entityId, int $targetRevisionId): EntityInterface
+    public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         $this->rollbackCalls[] = [$entityId, $targetRevisionId];
 
@@ -130,7 +130,7 @@ final class InMemoryToolRepository implements EntityRepositoryInterface
         return null;
     }
 
-    public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface
+    public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         return $this->store[$entityId] ?? new ToolTestEntity(['id' => $entityId]);
     }
@@ -153,7 +153,7 @@ final class InMemoryToolRepository implements EntityRepositoryInterface
     // Two-axis translation surface (EntityRepositoryInterface, b1) — this fixture
     // is single-axis only and never exercises it.
 
-    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int
+    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int
     {
         throw new \BadMethodCallException('two-axis translation is not supported by ' . self::class);
     }

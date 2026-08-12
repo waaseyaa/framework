@@ -144,7 +144,7 @@ final class DefaultRevisionDisciplineTest extends TestCase
         $repo->save($entity);
         $this->assertTrue($entity->entityStructure()->revisionTip, 'a new saved revision is current');
         $this->assertTrue($entity->entityStructure()->defaultRevision, 'a new saved revision is default');
-        $repo->setPublishedRevision('1', 1);
+        $repo->setPublishedRevision('1', 1, $this->mutationToken($repo, '1'));
 
         $before = $this->rawBaseRow('1');
 
@@ -179,7 +179,7 @@ final class DefaultRevisionDisciplineTest extends TestCase
         $entity = new TestRevisionableEntity(values: ['title' => 'v1', 'id' => '1', 'uuid' => 'a']);
         $entity->enforceIsNew();
         $repo->save($entity);
-        $repo->setPublishedRevision('1', 1);
+        $repo->setPublishedRevision('1', 1, $this->mutationToken($repo, '1'));
 
         $entity = $repo->find('1');
         $this->assertSame(1, $entity->getRevisionId(), 'sanity: the tip IS the published revision');
@@ -207,7 +207,7 @@ final class DefaultRevisionDisciplineTest extends TestCase
         $entity = new TestRevisionableEntity(values: ['title' => 'v1', 'id' => '1', 'uuid' => 'a']);
         $entity->enforceIsNew();
         $repo->save($entity);
-        $repo->setPublishedRevision('1', 1);
+        $repo->setPublishedRevision('1', 1, $this->mutationToken($repo, '1'));
 
         // Diverge: a disciplined revision-creating save produces tip rev 2,
         // base row stays on rev 1 (test 1's mechanic).
@@ -246,7 +246,7 @@ final class DefaultRevisionDisciplineTest extends TestCase
         $repo->save($entity);
         // Pointered, exactly like a Playbook-H install steps 1-4 (bound = NO):
         // the discipline flag is never set on any save/event below.
-        $repo->setPublishedRevision('1', 1);
+        $repo->setPublishedRevision('1', 1, $this->mutationToken($repo, '1'));
 
         // Ordinary save (no discipline flag): the base row advances exactly
         // as it always has, even though a published pointer is set. Full-row
@@ -272,7 +272,7 @@ final class DefaultRevisionDisciplineTest extends TestCase
         // setPublishedRevision() stays the targeted single-column update:
         // the FULL base row is untouched except the pointer column itself.
         $beforeRepublish = $this->rawBaseRow('1');
-        $repo->setPublishedRevision('1', 1);
+        $repo->setPublishedRevision('1', 1, $this->mutationToken($repo, '1'));
         $afterRepublish = $this->rawBaseRow('1');
         $this->assertSame(
             [],
@@ -285,7 +285,7 @@ final class DefaultRevisionDisciplineTest extends TestCase
 
         // rollback() stays unchanged: it DOES write the base row (a new
         // revision is created AND repointed).
-        $repo->rollback('1', 1);
+        $repo->rollback('1', 1, $this->mutationToken($repo, '1'));
         $this->assertSame('v1', $repo->find('1')?->label(), 'rollback() still writes the base row when undisciplined');
         $this->assertSame(3, $this->rawBaseRow('1')['revision_id'] ?? null, 'rollback() created and pointed at a new revision');
     }
@@ -307,7 +307,7 @@ final class DefaultRevisionDisciplineTest extends TestCase
         $repo->save($entity); // rev 2, base tracks it (ordinary, undisciplined save)
 
         $this->alwaysApplyDefaultRevisionSemantics();
-        $repo->setPublishedRevision('1', 1);
+        $repo->setPublishedRevision('1', 1, $this->mutationToken($repo, '1'));
 
         $row = $this->rawBaseRow('1');
         $this->assertSame(1, $row['revision_id'] ?? null, 'base revision_id pointer now equals the target');
@@ -337,7 +337,7 @@ final class DefaultRevisionDisciplineTest extends TestCase
         );
 
         $this->alwaysApplyDefaultRevisionSemantics();
-        $repo->setPublishedRevision('1', 1);
+        $repo->setPublishedRevision('1', 1, $this->mutationToken($repo, '1'));
 
         self::assertSame(true, $repo->find('1')?->toArray()['flag']);
     }
@@ -389,7 +389,7 @@ final class DefaultRevisionDisciplineTest extends TestCase
         );
         $entity->enforceIsNew();
         $repo->save($entity, validate: false);
-        $repo->setPublishedRevision('1', 1);
+        $repo->setPublishedRevision('1', 1, $this->mutationToken($repo, '1'));
 
         $draft = $repo->find('1');
         self::assertNotNull($draft);
@@ -399,7 +399,7 @@ final class DefaultRevisionDisciplineTest extends TestCase
         self::assertSame('old', $repo->find('1')?->get('tagline'), 'draft save must not leak into the served subtable row');
 
         $this->alwaysApplyDefaultRevisionSemantics();
-        $repo->setPublishedRevision('1', 2);
+        $repo->setPublishedRevision('1', 2, $this->mutationToken($repo, '1'));
 
         self::assertSame('new', $repo->find('1')?->get('tagline'));
         self::assertSame('new', $repo->loadPublishedRevision('1')?->get('tagline'));
@@ -428,7 +428,7 @@ final class DefaultRevisionDisciplineTest extends TestCase
         );
 
         try {
-            $repo->setPublishedRevision('1', 1);
+            $repo->setPublishedRevision('1', 1, $this->mutationToken($repo, '1'));
             $this->fail('AbortOperationException should have propagated out of setPublishedRevision().');
         } catch (AbortOperationException $e) {
             $this->assertSame('publish refused', $e->reason);
@@ -457,7 +457,7 @@ final class DefaultRevisionDisciplineTest extends TestCase
         $before = $this->rawBaseRow('1');
 
         $this->alwaysApplyDefaultRevisionSemantics();
-        $rolledBack = $repo->rollback('1', 1);
+        $rolledBack = $repo->rollback('1', 1, $this->mutationToken($repo, '1'));
 
         $this->assertSame($before, $this->rawBaseRow('1'), 'a flagged rollback must not touch the base row at all');
         $this->assertSame('v2', $repo->find('1')?->label(), 'the base row keeps serving what it served before the rollback');
@@ -478,7 +478,7 @@ final class DefaultRevisionDisciplineTest extends TestCase
         $entity = new TestRevisionableEntity(values: ['title' => 'v1', 'id' => '1', 'uuid' => 'a']);
         $entity->enforceIsNew();
         $repo->save($entity); // rev 1 (current + published pointer will sit here)
-        $repo->setPublishedRevision('1', 1);
+        $repo->setPublishedRevision('1', 1, $this->mutationToken($repo, '1'));
 
         // Two disciplined revision-creating saves diverge the tip further and
         // further while the base row (current + published) stays on rev 1.
@@ -529,7 +529,11 @@ final class DefaultRevisionDisciplineTest extends TestCase
         $entity->set('title', 'v3');
         $repo->save($entity); // rev 3 (latest — immortal)
 
-        $report = $repo->pruneRevisions('1', RevisionPruningPolicy::keepLastUniform(0));
+        $report = $repo->pruneRevisions(
+            '1',
+            RevisionPruningPolicy::keepLastUniform(0),
+            $this->mutationToken($repo, '1'),
+        );
 
         $this->assertSame(3, $report->candidatesFound);
         $this->assertSame(1, $report->pruned, 'only rev 2 (neither current nor latest) is prunable');
@@ -614,5 +618,13 @@ final class DefaultRevisionDisciplineTest extends TestCase
 
         $this->assertSame('v1', $repo->loadWorkingCopy('1')?->label());
         $this->assertSame($repo->find('1')?->label(), $repo->loadWorkingCopy('1')?->label());
+    }
+
+    private function mutationToken(EntityRepository $repository, string $entityId): \Waaseyaa\Entity\Concurrency\EntityMutationToken
+    {
+        $token = $repository->find($entityId)?->mutationToken();
+        self::assertNotNull($token);
+
+        return $token;
     }
 }

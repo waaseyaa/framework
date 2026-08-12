@@ -492,12 +492,12 @@ final class RelationshipEdgeRepository implements EntityRepositoryInterface
         throw new \LogicException('RelationshipEdgeRepository does not support delete().');
     }
 
-    public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface
+    public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         throw new \LogicException('RelationshipEdgeRepository does not support setCurrentRevision().');
     }
 
-    public function rollback(string $entityId, int $targetRevisionId): EntityInterface
+    public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         throw new \LogicException('RelationshipEdgeRepository does not support rollback().');
     }
@@ -527,7 +527,7 @@ final class RelationshipEdgeRepository implements EntityRepositoryInterface
         return null;
     }
 
-    public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface
+    public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         throw new \LogicException('RelationshipEdgeRepository does not support setPublishedRevision().');
     }
@@ -547,7 +547,7 @@ final class RelationshipEdgeRepository implements EntityRepositoryInterface
         return [];
     }
 
-    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int
+    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int
     {
         throw new \BadMethodCallException('two-axis translation is not supported by ' . self::class);
     }

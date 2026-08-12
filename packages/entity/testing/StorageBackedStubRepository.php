@@ -92,7 +92,7 @@ final class StorageBackedStubRepository implements EntityRepositoryInterface
         throw new \BadMethodCallException('StorageBackedStubRepository does not support revisions.');
     }
 
-    public function rollback(string $entityId, int $targetRevisionId): EntityInterface
+    public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         throw new \BadMethodCallException('StorageBackedStubRepository does not support revisions.');
     }
@@ -102,7 +102,7 @@ final class StorageBackedStubRepository implements EntityRepositoryInterface
         throw new \BadMethodCallException('StorageBackedStubRepository does not support revisions.');
     }
 
-    public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface
+    public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         throw new \BadMethodCallException('StorageBackedStubRepository does not support revisions.');
     }
@@ -112,7 +112,7 @@ final class StorageBackedStubRepository implements EntityRepositoryInterface
         throw new \BadMethodCallException('StorageBackedStubRepository does not support revisions.');
     }
 
-    public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface
+    public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         throw new \BadMethodCallException('StorageBackedStubRepository does not support revisions.');
     }
@@ -136,7 +136,7 @@ final class StorageBackedStubRepository implements EntityRepositoryInterface
         return [];
     }
 
-    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int
+    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int
     {
         throw new \BadMethodCallException('StorageBackedStubRepository does not support translations.');
     }

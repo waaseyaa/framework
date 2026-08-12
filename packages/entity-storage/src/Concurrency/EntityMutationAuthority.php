@@ -97,6 +97,18 @@ final class EntityMutationAuthority
         return (string) $row['lifecycle_state'];
     }
 
+    public function assertCurrentForIdentity(
+        string $tenantId,
+        string $entityTypeId,
+        string $entityId,
+        EntityMutationToken $expected,
+    ): void {
+        $this->assertIdentity($tenantId, $entityTypeId, $entityId, $expected);
+        if ($this->state($expected) !== 'active') {
+            throw $this->conflict($tenantId, $entityTypeId, $entityId);
+        }
+    }
+
     private function transition(
         EntityMutationToken $expected,
         string $expectedState,

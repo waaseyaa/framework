@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Workflows\Listener;
 
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Event\EntityEvent;
@@ -87,7 +88,8 @@ final class WorkflowRepublishListener
         // a meaningful return value" static-analysis rule (same convention
         // TransitionService's own promote branch follows for the identical
         // call).
-        $promoted = $repository->setPublishedRevision((string) $id, $revisionId);
+        $expected = $entity instanceof EntityBase ? $entity->mutationToken() : null;
+        $promoted = $repository->setPublishedRevision((string) $id, $revisionId, $expected);
     }
 
     /**

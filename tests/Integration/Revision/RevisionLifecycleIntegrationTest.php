@@ -95,7 +95,7 @@ final class RevisionLifecycleIntegrationTest extends TestCase
         $this->assertSame('Greetings', $loaded->label());
 
         // Step 4: Rollback to rev 1 → rev 4 (copy-forward)
-        $rolledBack = $this->repo->rollback('1', 1);
+        $rolledBack = $this->repo->rollback('1', 1, $loaded->mutationToken());
         $this->assertSame(4, $rolledBack->getRevisionId());
         $this->assertSame('Hello', $rolledBack->label());
 
@@ -140,7 +140,7 @@ final class RevisionLifecycleIntegrationTest extends TestCase
         $this->assertContains('revision_created', $this->events);
 
         $this->events = [];
-        $this->repo->rollback('1', 1);
+        $this->repo->rollback('1', 1, $entity->mutationToken());
         $this->assertContains('revision_reverted', $this->events);
     }
 
@@ -204,7 +204,7 @@ final class RevisionLifecycleIntegrationTest extends TestCase
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Revision 99 does not exist');
-        $this->repo->rollback('1', 99);
+        $this->repo->rollback('1', 99, $entity->mutationToken());
     }
 
     #[Test]

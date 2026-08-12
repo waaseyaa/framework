@@ -242,7 +242,7 @@ final class FirstPublishEstablishmentFlowTest extends TestCase
         $accountContext->set($attacker);
         $denied = null;
         try {
-            $nodeRepository->setPublishedRevision($entityId, $orphanRevisionId);
+            $nodeRepository->setPublishedRevision($entityId, $orphanRevisionId, $orphanTip->mutationToken());
         } catch (TransitionDeniedException $e) {
             $denied = $e;
         }
@@ -271,7 +271,9 @@ final class FirstPublishEstablishmentFlowTest extends TestCase
         // Null ambient context (CLI/queue/bootstrap): edge-legality only,
         // and establishment has no edge to check.
         $accountContext->set(null);
-        $entity = $nodeRepository->setPublishedRevision($entityId, $revisionId);
+        $observed = $nodeRepository->find($entityId);
+        $this->assertNotNull($observed);
+        $entity = $nodeRepository->setPublishedRevision($entityId, $revisionId, $observed->mutationToken());
 
         $this->assertSame((string) $revisionId, (string) $entity->get('revision_id'));
         $published = $nodeRepository->loadPublishedRevision($entityId);
@@ -304,7 +306,9 @@ final class FirstPublishEstablishmentFlowTest extends TestCase
         $draftRevisionId = (int) $draftRevision->get('revision_id');
 
         $accountContext->set($this->account(53, ['use review_required transition reject']));
-        $established = $nodeRepository->setPublishedRevision($entityId, $draftRevisionId);
+        $observed = $nodeRepository->find($entityId);
+        $this->assertNotNull($observed);
+        $established = $nodeRepository->setPublishedRevision($entityId, $draftRevisionId, $observed->mutationToken());
 
         $this->assertSame('draft', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($established));
         $this->assertSame(0, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($established), 'A draft-stamped pointer must derive status=0 — nothing is publicly served.');

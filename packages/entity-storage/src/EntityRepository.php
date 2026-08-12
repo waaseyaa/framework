@@ -45,9 +45,10 @@ use Waaseyaa\EntityStorage\Event\AbortOperationException;
 use Waaseyaa\EntityStorage\Event\AfterSaveEvent;
 use Waaseyaa\EntityStorage\Event\BeforeRevisionPointerMoveEvent;
 use Waaseyaa\EntityStorage\Event\BeforeSaveEvent;
+use Waaseyaa\EntityStorage\Event\EntityMutationAuthorityBackfilledEvent;
 use Waaseyaa\EntityStorage\Event\RevisionPointerMovedEvent;
-use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
 use Waaseyaa\EntityStorage\Exception\MissingEntityMutationTokenException;
+use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
 use Waaseyaa\EntityStorage\Revision\RevisionPruningPolicy;
 use Waaseyaa\I18n\LanguageManagerInterface;
 
@@ -1484,8 +1485,11 @@ final class EntityRepository implements EntityRepositoryInterface
         return $this->find($id);
     }
 
-    public function rollback(string $entityId, int $targetRevisionId): EntityInterface
-    {
+    public function rollback(
+        string $entityId,
+        int $targetRevisionId,
+        ?EntityMutationToken $expected = null,
+    ): EntityInterface {
         if ($this->revisionDriver === null) {
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
         }
@@ -1523,31 +1527,27 @@ final class EntityRepository implements EntityRepositoryInterface
             actorUid: $actor,
             revisionValues: $targetRow,
         );
-        $this->dispatchEvent($beforeEvent, BeforeRevisionPointerMoveEvent::class);
-
-        // Remove revision metadata from the row — we're creating a new revision.
-        // revision_author included: the old revision's author must not leak
-        // onto the new revision or into the base row.
-        unset($targetRow['revision_id'], $targetRow['revision_created'], $targetRow['revision_log'], $targetRow['revision_author'], $targetRow['entity_id']);
-
-        // Invariant (WP-2 rework, review finding #4 containment): revision-restore
-        // operations restore CONTENT; they never move the published pointer or
-        // flip status — those belong exclusively to TransitionService (CW-v1
-        // decision 2). The target revision's frozen published_revision_id/status
-        // snapshot must not overwrite the live base row's values. Reuse the base
-        // row already read above ($priorBaseRow) rather than re-reading.
-        foreach (['published_revision_id', 'status'] as $pointerKey) {
-            if ($priorBaseRow !== null && array_key_exists($pointerKey, $priorBaseRow)) {
-                $targetRow[$pointerKey] = $priorBaseRow[$pointerKey];
-            } else {
-                unset($targetRow[$pointerKey]);
-            }
-        }
-        $targetRow = $this->canonicalizeBooleanFieldValues($targetRow, entityId: $entityId);
-
-        // Wrap in transaction (invariant #4: atomic pointer update).
         $transaction = $this->database?->transaction();
         try {
+            $this->claimMutationForId($entityId, $expected);
+            $this->dispatchEvent($beforeEvent, BeforeRevisionPointerMoveEvent::class);
+
+            // Remove revision metadata from the row — we're creating a new revision.
+            // revision_author included: the old revision's author must not leak
+            // onto the new revision or into the base row.
+            unset($targetRow['revision_id'], $targetRow['revision_created'], $targetRow['revision_log'], $targetRow['revision_author'], $targetRow['entity_id']);
+
+            // Restore content only; publication/status remain under the live
+            // pointer authority observed above.
+            foreach (['published_revision_id', 'status'] as $pointerKey) {
+                if ($priorBaseRow !== null && array_key_exists($pointerKey, $priorBaseRow)) {
+                    $targetRow[$pointerKey] = $priorBaseRow[$pointerKey];
+                } else {
+                    unset($targetRow[$pointerKey]);
+                }
+            }
+            $targetRow = $this->canonicalizeBooleanFieldValues($targetRow, entityId: $entityId);
+
             $log = "Reverted to revision {$targetRevisionId}";
             $newRevisionId = $this->writeRevisionRow($entityId, $targetRow, $log, author: $actor);
 
@@ -1623,8 +1623,11 @@ final class EntityRepository implements EntityRepositoryInterface
      * rollback() when the revert should itself be recorded as a fresh revision
      * at the head of history.
      */
-    public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface
-    {
+    public function setCurrentRevision(
+        string $entityId,
+        int $revisionId,
+        ?EntityMutationToken $expected = null,
+    ): EntityInterface {
         if ($this->revisionDriver === null) {
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
         }
@@ -1648,17 +1651,14 @@ final class EntityRepository implements EntityRepositoryInterface
         // Bypass-choke-point pre-event (CW-v1 WP-2 task 2.4, #1920): dispatched
         // BEFORE any write. $toRevisionId is the caller-supplied target
         // revision id — already known, unlike rollback()'s freshly-assigned one.
-        $this->dispatchEvent(
-            new BeforeRevisionPointerMoveEvent(
-                entityTypeId: $this->entityType->id(),
-                entityId: $entityId,
-                operation: 'revert',
-                fromRevisionId: $fromRevisionId,
-                toRevisionId: $revisionId,
-                actorUid: $actor,
-                revisionValues: $row,
-            ),
-            BeforeRevisionPointerMoveEvent::class,
+        $beforeEvent = new BeforeRevisionPointerMoveEvent(
+            entityTypeId: $this->entityType->id(),
+            entityId: $entityId,
+            operation: 'revert',
+            fromRevisionId: $fromRevisionId,
+            toRevisionId: $revisionId,
+            actorUid: $actor,
+            revisionValues: $row,
         );
 
         // Re-point the base table at this revision's values. Strip revision-table
@@ -1688,6 +1688,8 @@ final class EntityRepository implements EntityRepositoryInterface
 
         $transaction = $this->database?->transaction();
         try {
+            $this->claimMutationForId($entityId, $expected);
+            $this->dispatchEvent($beforeEvent, BeforeRevisionPointerMoveEvent::class);
             $this->writeDriverRow($this->entityType->id(), $entityId, $row);
             $transaction?->commit();
         } catch (\Throwable $e) {
@@ -1756,8 +1758,11 @@ final class EntityRepository implements EntityRepositoryInterface
      * so the live view and an in-progress draft can differ. Publishing an older
      * revision is how a live-view rollback works.
      */
-    public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface
-    {
+    public function setPublishedRevision(
+        string $entityId,
+        int $revisionId,
+        ?EntityMutationToken $expected = null,
+    ): EntityInterface {
         if ($this->revisionDriver === null) {
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
         }
@@ -1798,12 +1803,13 @@ final class EntityRepository implements EntityRepositoryInterface
             actorUid: $actor,
             revisionValues: $targetRow,
         );
-        $this->dispatchEvent($beforeEvent, BeforeRevisionPointerMoveEvent::class);
-
         $fromRevisionId = null;
 
         $transaction = $this->database?->transaction();
         try {
+            $this->claimMutationForId($entityId, $expected);
+            $this->dispatchEvent($beforeEvent, BeforeRevisionPointerMoveEvent::class);
+
             // Read the prior pointer inside the transaction so the from→to
             // transition the event reports is the one this move performed.
             $priorBaseRow = $this->readDriverRow($this->entityType->id(), $entityId);
@@ -1924,8 +1930,13 @@ final class EntityRepository implements EntityRepositoryInterface
      *
      * @param array<string, mixed> $values Field values for this language.
      */
-    public function saveTranslationRevision(string $entityId, string $langcode, array $values, ?string $log = null): int
-    {
+    public function saveTranslationRevision(
+        string $entityId,
+        string $langcode,
+        array $values,
+        ?string $log = null,
+        ?EntityMutationToken $expected = null,
+    ): int {
         $driver = $this->assertTwoAxis(__FUNCTION__);
         $driver->assertEntityMutationAllowed($entityId);
 
@@ -1936,21 +1947,27 @@ final class EntityRepository implements EntityRepositoryInterface
         // Bypass-choke-point pre-event (CW-v1 WP-2 task 2.4, #1920): dispatched
         // BEFORE the write. No transaction wraps this single-language write, so
         // a throwing subscriber simply prevents writeRevision() from running.
-        $this->dispatchEvent(
-            new BeforeRevisionPointerMoveEvent(
-                entityTypeId: $this->entityType->id(),
-                entityId: $entityId,
-                operation: 'translation_save',
-                fromRevisionId: $driver->getLatestLangcodeRevisionId($entityId, $langcode),
-                toRevisionId: null,
-                actorUid: $actor,
-                revisionValues: $values,
-            ),
-            BeforeRevisionPointerMoveEvent::class,
+        $beforeEvent = new BeforeRevisionPointerMoveEvent(
+            entityTypeId: $this->entityType->id(),
+            entityId: $entityId,
+            operation: 'translation_save',
+            fromRevisionId: $driver->getLatestLangcodeRevisionId($entityId, $langcode),
+            toRevisionId: null,
+            actorUid: $actor,
+            revisionValues: $values,
         );
 
-        $values = $this->canonicalizeBooleanFieldValues($values, entityId: $entityId);
-        $revisionId = $this->writeRevisionRow($entityId, $values, $log, $langcode, $actor);
+        $transaction = $this->database?->transaction();
+        try {
+            $this->claimMutationForId($entityId, $expected);
+            $this->dispatchEvent($beforeEvent, BeforeRevisionPointerMoveEvent::class);
+            $values = $this->canonicalizeBooleanFieldValues($values, entityId: $entityId);
+            $revisionId = $this->writeRevisionRow($entityId, $values, $log, $langcode, $actor);
+            $transaction?->commit();
+        } catch (\Throwable $e) {
+            $transaction?->rollBack();
+            throw $e;
+        }
 
         $entity = $this->loadTranslationRevision($entityId, $langcode, $revisionId);
         if ($entity !== null) {
@@ -1967,8 +1984,12 @@ final class EntityRepository implements EntityRepositoryInterface
      * @param array<string, array<string, mixed>> $byLangcode langcode => field values
      * @return array<string, int> langcode => new per-language revision id
      */
-    public function saveTranslationRevisions(string $entityId, array $byLangcode, ?string $log = null): array
-    {
+    public function saveTranslationRevisions(
+        string $entityId,
+        array $byLangcode,
+        ?string $log = null,
+        ?EntityMutationToken $expected = null,
+    ): array {
         $driver = $this->assertTwoAxis(__FUNCTION__);
         $driver->assertEntityMutationAllowed($entityId);
         if ($byLangcode === []) {
@@ -1982,6 +2003,7 @@ final class EntityRepository implements EntityRepositoryInterface
         $transaction = $this->database?->transaction();
         $created = [];
         try {
+            $this->claimMutationForId($entityId, $expected);
             foreach ($byLangcode as $langcode => $values) {
                 // Bypass-choke-point pre-event (CW-v1 WP-2 task 2.4, #1920):
                 // dispatched BEFORE this langcode's write. A throwing
@@ -2102,8 +2124,13 @@ final class EntityRepository implements EntityRepositoryInterface
      * @param array<string, mixed> $values This language's field values.
      * @return int The new per-language revision id.
      */
-    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int
-    {
+    public function saveTranslation(
+        string $entityId,
+        string $langcode,
+        array $values,
+        ?string $log = null,
+        ?EntityMutationToken $expected = null,
+    ): int {
         $driver = $this->assertTwoAxis(__FUNCTION__);
         $driver->assertEntityMutationAllowed($entityId);
         if ($this->database === null) {
@@ -2124,6 +2151,8 @@ final class EntityRepository implements EntityRepositoryInterface
 
         $transaction = $this->database->transaction();
         try {
+            $this->claimMutationForId($entityId, $expected);
+
             // Refuse foreign, ownerless, and conflicting exact peers before an
             // event subscriber can observe the attempted pointer move. The
             // write repeats this check inside the same transaction as defense
@@ -2387,13 +2416,17 @@ final class EntityRepository implements EntityRepositoryInterface
      * report and deletes nothing. Drive this from a CLI/scheduled task with a
      * policy such as {@see RevisionPruningPolicy::keepLastUniform()}.
      */
-    public function pruneRevisions(string $entityId, RevisionPruningPolicy $policy): RevisionPruningReport
-    {
+    public function pruneRevisions(
+        string $entityId,
+        RevisionPruningPolicy $policy,
+        ?EntityMutationToken $expected = null,
+    ): RevisionPruningReport {
         if ($this->revisionDriver === null) {
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
         }
         $this->revisionDriver->assertEntityMutationAllowed($entityId);
 
+        $this->assertCurrentMutationForId($entityId, $expected);
         if ($policy->isNoOp()) {
             return RevisionPruningReport::disabled();
         }
@@ -2433,7 +2466,7 @@ final class EntityRepository implements EntityRepositoryInterface
         $newestKept = $keep > 0 ? array_slice($revisionIds, -$keep) : [];
 
         $candidatesFound = 0;
-        $pruned = 0;
+        $toPrune = [];
         foreach ($revisionIds as $vid) {
             if (in_array($vid, $newestKept, true)) {
                 continue;
@@ -2448,14 +2481,33 @@ final class EntityRepository implements EntityRepositoryInterface
             if ($latestRevisionId !== null && $vid === $latestRevisionId) {
                 continue; // never delete the latest/working-copy revision (CW-v1 option-1, #1920 PR-1)
             }
-            $this->revisionDriver->deleteRevision($entityId, $vid);
-            ++$pruned;
+            $toPrune[] = $vid;
+        }
+
+        if ($toPrune === []) {
+            return new RevisionPruningReport(
+                candidatesFound: $candidatesFound,
+                pruned: 0,
+                retained: $total,
+            );
+        }
+
+        $transaction = $this->database?->transaction();
+        try {
+            $this->claimMutationForId($entityId, $expected);
+            foreach ($toPrune as $vid) {
+                $this->revisionDriver->deleteRevision($entityId, $vid);
+            }
+            $transaction?->commit();
+        } catch (\Throwable $e) {
+            $transaction?->rollBack();
+            throw $e;
         }
 
         return new RevisionPruningReport(
             candidatesFound: $candidatesFound,
-            pruned: $pruned,
-            retained: $total - $pruned,
+            pruned: count($toPrune),
+            retained: $total - count($toPrune),
         );
     }
 
@@ -2518,6 +2570,54 @@ final class EntityRepository implements EntityRepositoryInterface
         }
 
         return $count;
+    }
+
+    /**
+     * Privileged, explicit legacy migration for rows created before aggregate
+     * mutation authority existed. Ordinary reads never synthesize authority.
+     */
+    public function backfillMutationAuthorities(string $reason): int
+    {
+        $reason = trim($reason);
+        if ($reason === '') {
+            throw new \InvalidArgumentException('Mutation-authority backfill requires an audit reason.');
+        }
+        if ($this->mutationAuthority === null || $this->database === null) {
+            throw new \LogicException('Mutation-authority backfill requires the database authority boundary.');
+        }
+
+        $keys = $this->entityType->getKeys();
+        $idKey = $keys['id'] ?? 'id';
+        $seen = [];
+        $created = 0;
+        foreach ($this->findDriverRows($this->entityType->id()) as $row) {
+            $entityId = (string) ($row[$idKey] ?? '');
+            if ($entityId === '' || isset($seen[$entityId])) {
+                continue;
+            }
+            $seen[$entityId] = true;
+            $tenantId = $this->tenantIdFromValues($row);
+            if ($this->mutationAuthority->load($tenantId, $this->entityType->id(), $entityId) !== null) {
+                continue;
+            }
+
+            $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher);
+            $unitOfWork->transaction(function () use ($tenantId, $entityId, $reason, $unitOfWork): void {
+                $this->mutationAuthority->create($tenantId, $this->entityType->id(), $entityId);
+                $unitOfWork->bufferEvent(
+                    new EntityMutationAuthorityBackfilledEvent(
+                        $tenantId,
+                        $this->entityType->id(),
+                        $entityId,
+                        $reason,
+                    ),
+                    EntityMutationAuthorityBackfilledEvent::class,
+                );
+            });
+            ++$created;
+        }
+
+        return $created;
     }
 
     /**
@@ -2697,6 +2797,53 @@ final class EntityRepository implements EntityRepositoryInterface
         }
 
         return $entity->mutationToken();
+    }
+
+    private function claimMutationForId(
+        string $entityId,
+        ?EntityMutationToken $expected,
+    ): ?EntityMutationToken {
+        if ($this->mutationAuthority === null) {
+            return null;
+        }
+        if ($expected === null) {
+            throw new MissingEntityMutationTokenException($this->entityType->id(), $entityId);
+        }
+
+        $baseRow = $this->readDriverRow($this->entityType->id(), $entityId);
+        if ($baseRow === null) {
+            throw new \InvalidArgumentException("Entity {$entityId} does not exist.");
+        }
+
+        return $this->mutationAuthority->claimForIdentity(
+            $this->tenantIdFromValues($baseRow),
+            $this->entityType->id(),
+            $entityId,
+            $expected,
+        );
+    }
+
+    private function assertCurrentMutationForId(
+        string $entityId,
+        ?EntityMutationToken $expected,
+    ): void {
+        if ($this->mutationAuthority === null) {
+            return;
+        }
+        if ($expected === null) {
+            throw new MissingEntityMutationTokenException($this->entityType->id(), $entityId);
+        }
+
+        $baseRow = $this->readDriverRow($this->entityType->id(), $entityId);
+        if ($baseRow === null) {
+            throw new \InvalidArgumentException("Entity {$entityId} does not exist.");
+        }
+        $this->mutationAuthority->assertCurrentForIdentity(
+            $this->tenantIdFromValues($baseRow),
+            $this->entityType->id(),
+            $entityId,
+            $expected,
+        );
     }
 
     private function installTokenAfterCommit(

@@ -164,7 +164,7 @@ final class MediaTypeTest extends TestCase
         $this->assertTrue($type->isNew());
 
         $type = new MediaType(['id' => 'image', 'label' => 'Image']);
-        $this->assertFalse($type->isNew());
+        $this->assertTrue($type->isNew());
     }
 
     public function testConfigEntityHasNoUuid(): void

@@ -52,6 +52,12 @@ abstract class ConfigEntityBase extends EntityBase implements ConfigEntityInterf
         }
 
         parent::__construct($values, $entityTypeId, $entityKeys);
+
+        // A directly constructed config object is an explicit absent-row
+        // command even though its machine-name identifier is already known.
+        // Repository hydration resets this flag to false after loading. This
+        // prevents tokenless explicit-ID objects from masquerading as updates.
+        $this->enforceIsNew();
     }
 
     public function status(): bool

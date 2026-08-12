@@ -328,7 +328,11 @@ final class JsonApiControllerConflictTest extends TestCase
     {
         $repo = $this->entityTypeManager->getRepository('test_constrained');
         \assert($repo instanceof EntityRepository);
-        $entity = new TestRevisionableEntity(values: ['title' => 'valid', 'id' => '1', 'uuid' => 'c1']);
+        $entity = new TestRevisionableEntity(
+            values: ['title' => 'valid', 'id' => '1', 'uuid' => 'c1'],
+            entityTypeId: 'test_constrained',
+            entityKeys: self::REV_KEYS,
+        );
         $entity->enforceIsNew();
         $repo->save($entity);
 
@@ -369,7 +373,11 @@ final class JsonApiControllerConflictTest extends TestCase
     public function patchWithoutExpectationValidationFailureMapsTo422(): void
     {
         $repo = $this->entityTypeManager->getRepository('test_constrained');
-        $entity = new TestRevisionableEntity(values: ['title' => 'valid', 'id' => '1', 'uuid' => 'c2']);
+        $entity = new TestRevisionableEntity(
+            values: ['title' => 'valid', 'id' => '1', 'uuid' => 'c2'],
+            entityTypeId: 'test_constrained',
+            entityKeys: self::REV_KEYS,
+        );
         $entity->enforceIsNew();
         $repo->save($entity);
 

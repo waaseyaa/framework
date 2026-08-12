@@ -104,18 +104,24 @@ final class AuthenticatedVocabularyActionsFlowTest extends TestCase
         $admin->enforceIsNew();
         $this->entityTypeManager->getRepository('user')->save($admin, validate: false);
 
-        $this->entityTypeManager->getRepository('taxonomy_vocabulary')->save(new Vocabulary([
+        $renamed = new Vocabulary([
             'vid' => 'renamed',
             'name' => '',
-        ]), validate: false);
-        $this->entityTypeManager->getRepository('taxonomy_vocabulary')->save(new Vocabulary([
+        ]);
+        $renamed->enforceIsNew();
+        $this->entityTypeManager->getRepository('taxonomy_vocabulary')->save($renamed, validate: false);
+        $empty = new Vocabulary([
             'vid' => 'empty',
             'name' => 'Empty vocabulary',
-        ]), validate: false);
-        $this->entityTypeManager->getRepository('taxonomy_vocabulary')->save(new Vocabulary([
+        ]);
+        $empty->enforceIsNew();
+        $this->entityTypeManager->getRepository('taxonomy_vocabulary')->save($empty, validate: false);
+        $occupied = new Vocabulary([
             'vid' => 'occupied',
             'name' => 'Occupied vocabulary',
-        ]), validate: false);
+        ]);
+        $occupied->enforceIsNew();
+        $this->entityTypeManager->getRepository('taxonomy_vocabulary')->save($occupied, validate: false);
         $term = new Term([
             'uuid' => 'f782010a-f4c0-42d2-a5ca-33593aa8c310',
             'vid' => 'occupied',

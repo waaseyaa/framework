@@ -82,7 +82,7 @@ final class EntityRepositoryPublishedRevisionTest extends TestCase
         $this->repo->save($entity);
 
         // Publish the OLDER revision (1).
-        $published = $this->repo->setPublishedRevision('1', 1);
+        $published = $this->repo->setPublishedRevision('1', 1, $this->mutationToken('1'));
 
         // Published view = v1; current/latest (find) still = v2.
         $this->assertSame('v1', $published->label());
@@ -101,11 +101,11 @@ final class EntityRepositoryPublishedRevisionTest extends TestCase
         $entity->set('title', 'v2');
         $this->repo->save($entity);
 
-        $this->repo->setPublishedRevision('1', 1);
+        $this->repo->setPublishedRevision('1', 1, $this->mutationToken('1'));
         $this->assertSame('v1', $this->repo->loadPublishedRevision('1')->label());
 
         // Promote the newer revision: live view rolls forward to v2.
-        $this->repo->setPublishedRevision('1', 2);
+        $this->repo->setPublishedRevision('1', 2, $this->mutationToken('1'));
         $this->assertSame('v2', $this->repo->loadPublishedRevision('1')->label());
     }
 
@@ -117,6 +117,14 @@ final class EntityRepositoryPublishedRevisionTest extends TestCase
         $this->repo->save($entity);
 
         $this->expectException(\InvalidArgumentException::class);
-        $this->repo->setPublishedRevision('1', 99);
+        $this->repo->setPublishedRevision('1', 99, $this->mutationToken('1'));
+    }
+
+    private function mutationToken(string $entityId): \Waaseyaa\Entity\Concurrency\EntityMutationToken
+    {
+        $token = $this->repo->find($entityId)?->mutationToken();
+        self::assertNotNull($token);
+
+        return $token;
     }
 }

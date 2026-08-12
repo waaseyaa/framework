@@ -10,6 +10,7 @@ use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\RevisionableEntityInterface;
@@ -261,7 +262,22 @@ final class TransitionService
                 // already carries the correct new content — but it is
                 // captured to satisfy the "don't discard a meaningful
                 // return value" static-analysis rule.
-                $publishedNow = $repository->setPublishedRevision((string) $entity->id(), $newRevisionId);
+                $expected = $entity instanceof EntityBase ? $entity->mutationToken() : null;
+                $publishedNow = $repository->setPublishedRevision(
+                    (string) $entity->id(),
+                    $newRevisionId,
+                    $expected,
+                );
+                // Publishing advances the aggregate token. Preserve the
+                // caller's working entity shape (the hydrated revision adds
+                // read-only structural flags), but install the committed
+                // successor token before the status-alignment save.
+                if ($entity instanceof EntityBase
+                    && $publishedNow instanceof EntityBase
+                    && $publishedNow->mutationToken() !== null
+                ) {
+                    $entity->_hydrateMutationToken($publishedNow->mutationToken());
+                }
 
                 // Refresh the entity's OWN copy of the pointer BEFORE the
                 // follow-up save below. `published_revision_id` is a

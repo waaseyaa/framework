@@ -80,11 +80,15 @@ final class TrailStore
      */
     public function editAsHuman(string $trailId, string $langcode, string $title, array $beacons): SavedTrail
     {
-        $owner = $this->resolveOwner($trailId, $langcode);
+        $observed = $this->trails->loadTranslation($trailId, $langcode) ?? $this->trails->find($trailId);
+        $owner = $observed instanceof Trail
+            ? (int) (($this->trailValuesAuthority)($observed)['owner_uid'] ?? 0)
+            : 0;
         $this->trails->saveTranslation(
             $trailId,
             $langcode,
             $this->valuesFor($title, $beacons, Trail::ORIGIN_HUMAN, $owner, $langcode),
+            expected: $this->mutationTokenFor($trailId, $observed),
         );
 
         return $this->current($trailId, $langcode)
@@ -116,13 +120,23 @@ final class TrailStore
         if ($humanOwned) {
             // Draft only: append a revision; the live peer row (human edits) is
             // not touched. The draft is recoverable from the revision history.
-            $revisionId = $this->trails->saveTranslationRevision($trailId, $langcode, $values);
+            $revisionId = $this->trails->saveTranslationRevision(
+                $trailId,
+                $langcode,
+                $values,
+                expected: $this->mutationTokenFor($trailId, $current),
+            );
 
             return new ReRecordResult(promoted: false, revisionId: $revisionId);
         }
 
         // Nothing human to protect — advance the live value to the re-recording.
-        $revisionId = $this->trails->saveTranslation($trailId, $langcode, $values);
+        $revisionId = $this->trails->saveTranslation(
+            $trailId,
+            $langcode,
+            $values,
+            expected: $this->mutationTokenFor($trailId, $current),
+        );
 
         return new ReRecordResult(promoted: true, revisionId: $revisionId);
     }
@@ -196,6 +210,18 @@ final class TrailStore
         $values = ($this->trailValuesAuthority)($default);
 
         return (int) ($values['owner_uid'] ?? 0);
+    }
+
+    private function mutationTokenFor(
+        string $trailId,
+        ?EntityInterface $observed = null,
+    ): \Waaseyaa\Entity\Concurrency\EntityMutationToken {
+        $candidate = $observed instanceof Trail ? $observed : $this->trails->find($trailId);
+        if (!$candidate instanceof Trail || $candidate->mutationToken() === null) {
+            throw new \UnexpectedValueException("Trail {$trailId} has no aggregate mutation token.");
+        }
+
+        return $candidate->mutationToken();
     }
 
     /**

@@ -202,7 +202,7 @@ final class ImportSaveContextGuardTest extends TestCase
         );
         $repository->save($published, true, SaveContext::default()->asImport());
         $entityId = (string) $published->id();
-        $repository->setPublishedRevision($entityId, (int) $published->get('revision_id'));
+        $repository->setPublishedRevision($entityId, (int) $published->get('revision_id'), $repository->find($entityId)?->mutationToken());
         $this->assertNotNull($repository->loadPublishedRevision($entityId), 'A live published pointer must exist for this adjacency to be meaningful.');
 
         // An authenticated ambient account with NO any-of authorization
@@ -211,11 +211,9 @@ final class ImportSaveContextGuardTest extends TestCase
         // workflow discipline did not exist at all.
         $unauthorizedImporter = $this->account(10, []);
         $accountContext->set($unauthorizedImporter);
-        $deniedUpdate = new ImportGuardSubject(
-            ['id' => $published->id(), 'bundle' => self::ENTITY_TYPE_ID, 'workflow_state' => 'published', 'title' => 'Unauthorized re-import'],
-            self::ENTITY_TYPE_ID,
-            $this->entityKeys(),
-        );
+        $deniedUpdate = $repository->find($entityId);
+        $this->assertNotNull($deniedUpdate);
+        $deniedUpdate->set('title', 'Unauthorized re-import');
         $deniedUpdate->setNewRevision(true);
 
         $denied = null;
@@ -236,11 +234,9 @@ final class ImportSaveContextGuardTest extends TestCase
         // outcome-equivalent to a pre-option-1 import's direct base-row
         // write.
         $accountContext->set(null);
-        $nullContextUpdate = new ImportGuardSubject(
-            ['id' => $published->id(), 'bundle' => self::ENTITY_TYPE_ID, 'workflow_state' => 'published', 'title' => 'Null-context re-import'],
-            self::ENTITY_TYPE_ID,
-            $this->entityKeys(),
-        );
+        $nullContextUpdate = $repository->find($entityId);
+        $this->assertNotNull($nullContextUpdate);
+        $nullContextUpdate->set('title', 'Null-context re-import');
         $nullContextUpdate->setNewRevision(true);
         $repository->save($nullContextUpdate, true, SaveContext::default()->asImport());
 

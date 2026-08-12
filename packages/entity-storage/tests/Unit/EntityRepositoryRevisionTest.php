@@ -149,7 +149,7 @@ final class EntityRepositoryRevisionTest extends TestCase
         $entity->set('title', 'v3');
         $this->repo->save($entity);
 
-        $rolledBack = $this->repo->rollback('1', 1);
+        $rolledBack = $this->repo->rollback('1', 1, $this->mutationToken('1'));
 
         $this->assertSame(4, $rolledBack->getRevisionId());
         $this->assertSame('v1', $rolledBack->label());
@@ -168,7 +168,7 @@ final class EntityRepositoryRevisionTest extends TestCase
         $this->repo->save($entity);
 
         $this->dispatchedEvents = [];
-        $this->repo->rollback('1', 1);
+        $this->repo->rollback('1', 1, $this->mutationToken('1'));
 
         $this->assertContains(EntityEvents::REVISION_CREATED->value, $this->dispatchedEvents);
         $this->assertContains(EntityEvents::REVISION_REVERTED->value, $this->dispatchedEvents);
@@ -196,14 +196,14 @@ final class EntityRepositoryRevisionTest extends TestCase
         // Publish revision 1 — a targeted column update, touching ONLY the
         // base row's published_revision_id (never revision 1's own snapshot,
         // which still reads published_revision_id=null).
-        $this->repo->setPublishedRevision('1', 1);
+        $this->repo->setPublishedRevision('1', 1, $this->mutationToken('1'));
         $this->assertSame(1, $this->repo->find('1')->get('published_revision_id'), 'live pointer set before rollback');
         $this->assertSame(true, $this->repo->find('1')->get('status'), 'live status before rollback');
 
         // Roll back CONTENT to revision 1 (whose frozen snapshot has
         // status=0 and published_revision_id=null — stale values that must
         // NOT clobber the live base row).
-        $rolledBack = $this->repo->rollback('1', 1);
+        $rolledBack = $this->repo->rollback('1', 1, $this->mutationToken('1'));
 
         $this->assertSame('v1', $rolledBack->label(), 'content restored from the target revision');
         $this->assertSame(true, $this->repo->find('1')->get('status'), 'live status untouched by rollback');
@@ -222,7 +222,7 @@ final class EntityRepositoryRevisionTest extends TestCase
         $this->repo->save($entity);
 
         $this->expectException(\InvalidArgumentException::class);
-        $this->repo->rollback('1', 99);
+        $this->repo->rollback('1', 99, $this->mutationToken('1'));
     }
 
     #[Test]
@@ -252,5 +252,13 @@ final class EntityRepositoryRevisionTest extends TestCase
 
         $this->assertNull($this->repo->find('1'));
         $this->assertNull($this->repo->loadRevision('1', 1));
+    }
+
+    private function mutationToken(string $entityId): \Waaseyaa\Entity\Concurrency\EntityMutationToken
+    {
+        $token = $this->repo->find($entityId)?->mutationToken();
+        self::assertNotNull($token);
+
+        return $token;
     }
 }

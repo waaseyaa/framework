@@ -132,7 +132,9 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
         ));
 
         $workflowRepository = $entityTypeManager->getRepository('workflow');
-        $workflowRepository->save(new Workflow(DefaultWorkflows::EDITORIAL));
+        $workflow = new Workflow(DefaultWorkflows::EDITORIAL);
+        $workflow->enforceIsNew();
+        $workflowRepository->save($workflow);
 
         $repository = $entityTypeManager->getRepository(self::ENTITY_TYPE_ID);
         \assert($repository instanceof EntityRepository);
@@ -176,7 +178,7 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
      */
     private function saveWorkflowWithoutPublishedDefaultRevisionState(EntityTypeManager $entityTypeManager): void
     {
-        $entityTypeManager->getRepository('workflow')->save(new Workflow([
+        $workflow = new Workflow([
             'id' => 'custom_live',
             'label' => 'Custom live',
             'initial_state' => 'draft',
@@ -187,7 +189,9 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
             'transitions' => [
                 'go_live' => ['label' => 'Go live', 'from' => ['draft'], 'to' => 'live'],
             ],
-        ]));
+        ]);
+        $workflow->enforceIsNew();
+        $entityTypeManager->getRepository('workflow')->save($workflow);
     }
 
     #[Test]
@@ -562,7 +566,9 @@ final class WorkflowsBackfillStateHandlerTest extends TestCase
         ));
 
         $workflowRepository = $entityTypeManager->getRepository('workflow');
-        $workflowRepository->save(new Workflow(DefaultWorkflows::EDITORIAL));
+        $workflow = new Workflow(DefaultWorkflows::EDITORIAL);
+        $workflow->enforceIsNew();
+        $workflowRepository->save($workflow);
 
         $repository = $entityTypeManager->getRepository(self::ENTITY_TYPE_ID);
         \assert($repository instanceof EntityRepository);

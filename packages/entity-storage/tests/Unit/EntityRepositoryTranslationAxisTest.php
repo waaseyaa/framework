@@ -14,6 +14,7 @@ use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
+use Waaseyaa\EntityStorage\Exception\EntityMutationConflictException;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestRevisionableEntity;
 
@@ -72,18 +73,38 @@ final class EntityRepositoryTranslationAxisTest extends TestCase
     }
 
     #[Test]
+    public function staleAggregateCannotWriteATranslation(): void
+    {
+        $entity = new TestRevisionableEntity(values: ['title' => 'v1', 'uuid' => 'translation-race']);
+        $entity->enforceIsNew();
+        $this->repo->save($entity);
+        $id = (string) $entity->id();
+        $stale = $this->repo->find($id);
+        $winner = $this->repo->find($id);
+        self::assertNotNull($stale);
+        self::assertNotNull($winner);
+        self::assertNotNull($stale->mutationToken());
+
+        $winner->set('title', 'v2');
+        $this->repo->save($winner);
+
+        $this->expectException(EntityMutationConflictException::class);
+        $this->repo->saveTranslation($id, 'oj', ['title' => 'stale'], expected: $stale->mutationToken());
+    }
+
+    #[Test]
     public function languages_sequence_independently_fr043(): void
     {
         // 1. create en (en rev 1)        2. add oj (oj rev 1)
-        $this->assertSame(1, $this->repo->saveTranslationRevision('1', 'en', ['title' => 'Teaching about turtles']));
-        $this->assertSame(1, $this->repo->saveTranslationRevision('1', 'oj', ['title' => "Mikinaak-gikinoo'amaadiwin"]));
+        $this->assertSame(1, $this->repo->saveTranslationRevision('1', 'en', ['title' => 'Teaching about turtles'], expected: $this->mutationToken('1')));
+        $this->assertSame(1, $this->repo->saveTranslationRevision('1', 'oj', ['title' => "Mikinaak-gikinoo'amaadiwin"], expected: $this->mutationToken('1')));
         // 3. edit en x3 -> en rev 2,3,4 (oj untouched)
-        $this->assertSame(2, $this->repo->saveTranslationRevision('1', 'en', ['title' => 'en v2']));
-        $this->assertSame(3, $this->repo->saveTranslationRevision('1', 'en', ['title' => 'en v3']));
-        $this->assertSame(4, $this->repo->saveTranslationRevision('1', 'en', ['title' => 'en v4']));
+        $this->assertSame(2, $this->repo->saveTranslationRevision('1', 'en', ['title' => 'en v2'], expected: $this->mutationToken('1')));
+        $this->assertSame(3, $this->repo->saveTranslationRevision('1', 'en', ['title' => 'en v3'], expected: $this->mutationToken('1')));
+        $this->assertSame(4, $this->repo->saveTranslationRevision('1', 'en', ['title' => 'en v4'], expected: $this->mutationToken('1')));
         // 4. edit oj x2 -> oj rev 2,3 (en untouched)
-        $this->assertSame(2, $this->repo->saveTranslationRevision('1', 'oj', ['title' => 'oj v2']));
-        $this->assertSame(3, $this->repo->saveTranslationRevision('1', 'oj', ['title' => 'oj v3']));
+        $this->assertSame(2, $this->repo->saveTranslationRevision('1', 'oj', ['title' => 'oj v2'], expected: $this->mutationToken('1')));
+        $this->assertSame(3, $this->repo->saveTranslationRevision('1', 'oj', ['title' => 'oj v3'], expected: $this->mutationToken('1')));
 
         // Tips: en at 4, oj at 3 — independent.
         $en = $this->repo->loadTranslationTip('1', 'en');
@@ -115,7 +136,10 @@ final class EntityRepositoryTranslationAxisTest extends TestCase
         $this->assertSame('Teaching about turtles', $enFirst->label());
         self::assertSame(1, $enFirst->entityStructure()->revisionId);
         self::assertFalse($enFirst->entityStructure()->revisionTip);
-        self::assertFalse($enFirst->entityStructure()->defaultRevision);
+        self::assertTrue(
+            $enFirst->entityStructure()->defaultRevision,
+            'the required aggregate base row points at the first default-language revision',
+        );
     }
 
     #[Test]
@@ -124,7 +148,7 @@ final class EntityRepositoryTranslationAxisTest extends TestCase
         $created = $this->repo->saveTranslationRevisions('1', [
             'en' => ['title' => 'Hello'],
             'oj' => ['title' => 'Aanii'],
-        ]);
+        ], expected: $this->mutationToken('1'));
         $this->assertSame(['en' => 1, 'oj' => 1], $created);
 
         $en = $this->repo->loadTranslationTip('1', 'en');
@@ -138,18 +162,18 @@ final class EntityRepositoryTranslationAxisTest extends TestCase
     #[Test]
     public function every_translation_write_uses_canonical_native_boolean(): void
     {
-        $single = $this->repo->saveTranslationRevision('1', 'en', ['title' => 'Single', 'status' => true]);
+        $single = $this->repo->saveTranslationRevision('1', 'en', ['title' => 'Single', 'status' => true], expected: $this->mutationToken('1'));
         self::assertSame(true, $this->repo->loadTranslationRevision('1', 'en', $single)?->toArray()['status']);
 
         $batch = $this->repo->saveTranslationRevisions('2', [
             'en' => ['title' => 'Batch', 'status' => true],
-        ]);
+        ], expected: $this->mutationToken('2'));
         self::assertSame(true, $this->repo->loadTranslationRevision('2', 'en', $batch['en'])?->toArray()['status']);
 
         $entity = new TestRevisionableEntity(values: ['title' => 'Default', 'uuid' => 'translation-bool']);
         $entity->enforceIsNew();
         $this->repo->save($entity);
-        $this->repo->saveTranslation((string) $entity->id(), 'oj', ['title' => 'Peer', 'status' => true]);
+        $this->repo->saveTranslation((string) $entity->id(), 'oj', ['title' => 'Peer', 'status' => true], expected: $this->mutationToken((string) $entity->id()));
 
         self::assertSame(true, $this->repo->loadTranslation((string) $entity->id(), 'oj')?->toArray()['status']);
         self::assertSame(true, $this->repo->loadTranslationTip((string) $entity->id(), 'oj')?->toArray()['status']);
@@ -158,7 +182,7 @@ final class EntityRepositoryTranslationAxisTest extends TestCase
     #[Test]
     public function tip_is_null_for_an_untranslated_language(): void
     {
-        $this->repo->saveTranslationRevision('1', 'en', ['title' => 'x']);
+        $this->repo->saveTranslationRevision('1', 'en', ['title' => 'x'], expected: $this->mutationToken('1'));
         $this->assertNull($this->repo->loadTranslationTip('1', 'fr'));
         $this->assertSame([], $this->repo->listTranslationRevisions('1', 'fr'));
     }
@@ -196,7 +220,7 @@ final class EntityRepositoryTranslationAxisTest extends TestCase
 
         // Anishinaabemowin: a true peer — its own (id, langcode) base row AND its
         // own per-language revision, in one call.
-        $rev = $this->repo->saveTranslation($id, 'oj', ['title' => 'Niizhwaaswi Mishomis']);
+        $rev = $this->repo->saveTranslation($id, 'oj', ['title' => 'Niizhwaaswi Mishomis'], expected: $this->mutationToken($id));
         $this->assertSame(1, $rev);
 
         // The peer base row is the current oj value; the default row is unchanged.
@@ -215,7 +239,7 @@ final class EntityRepositoryTranslationAxisTest extends TestCase
 
         // The per-language revision history exists and sequences independently.
         $this->assertCount(1, $this->repo->listTranslationRevisions($id, 'oj'));
-        $this->assertSame(2, $this->repo->saveTranslation($id, 'oj', ['title' => 'oj v2']));
+        $this->assertSame(2, $this->repo->saveTranslation($id, 'oj', ['title' => 'oj v2'], expected: $this->mutationToken($id)));
         $this->assertCount(2, $this->repo->listTranslationRevisions($id, 'oj'));
 
         // The second save updated the same peer row in place (no duplicate).
@@ -249,7 +273,7 @@ final class EntityRepositoryTranslationAxisTest extends TestCase
         $this->repo->save($en);
         $id = (string) $en->id();
 
-        $this->repo->saveTranslation($id, 'oj', ['title' => 'Niizhwaaswi Mishomis']);
+        $this->repo->saveTranslation($id, 'oj', ['title' => 'Niizhwaaswi Mishomis'], expected: $this->mutationToken($id));
 
         // The Anishinaabemowin peer is found despite the sibling table existing.
         $oj = $this->repo->loadTranslation($id, 'oj');
@@ -266,5 +290,25 @@ final class EntityRepositoryTranslationAxisTest extends TestCase
         $many = $driver->readMultiple('test_revisionable', [$id], 'oj');
         $this->assertArrayHasKey($id, $many);
         $this->assertSame('Niizhwaaswi Mishomis', $many[$id]['title'] ?? null);
+    }
+
+    private function mutationToken(string $entityId): \Waaseyaa\Entity\Concurrency\EntityMutationToken
+    {
+        $entity = $this->repo->find($entityId);
+        if ($entity === null) {
+            $entity = new TestRevisionableEntity(values: [
+                'id' => $entityId,
+                'uuid' => 'translation-authority-' . $entityId,
+                'title' => 'Default ' . $entityId,
+                'langcode' => 'en',
+                'default_langcode' => 'en',
+            ]);
+            $entity->enforceIsNew();
+            $this->repo->save($entity);
+        }
+        $token = $entity->mutationToken();
+        self::assertNotNull($token);
+
+        return $token;
     }
 }

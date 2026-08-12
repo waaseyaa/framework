@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Handler;
 
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\RevisionableEntityInterface;
@@ -392,11 +393,17 @@ final class WorkflowsBackfillStateHandler
         if ($pointerPhaseActive) {
             foreach ($pointerPending as $p) {
                 try {
+                    $snapshot = $repository->find($p['id']);
+                    $expected = $snapshot instanceof EntityBase ? $snapshot->mutationToken() : null;
                     // The return value (the reloaded published-revision
                     // entity) isn't needed here, but it is captured to
                     // satisfy setPublishedRevision()'s #[\NoDiscard] contract
                     // (same convention as TransitionService::publish()).
-                    $published = $repository->setPublishedRevision($p['id'], $p['revisionId']);
+                    $published = $repository->setPublishedRevision(
+                        $p['id'],
+                        $p['revisionId'],
+                        $expected,
+                    );
                     ++$pointerEstablished;
                 } catch (\Throwable $e) {
                     ++$failed;
