@@ -4863,6 +4863,15 @@
             "source_sha256": "2e496b0d7dbcb1eba32df7fd8e4f03e56e15a62df1312dae671f0e9f4445d089"
         },
         {
+            "path": "packages/oidc/tests/Integration/Consent/ConsentRepositorySchemaAuthorityTest.php",
+            "line": 20,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "25ad50c97eff182bc338d82f81e9309e33fc081163a9a0850effda1b9a333e96"
+        },
+        {
             "path": "packages/oidc/tests/Integration/Entity/OidcClientStorageTest.php",
             "line": 34,
             "pattern": "dbal_factory",
