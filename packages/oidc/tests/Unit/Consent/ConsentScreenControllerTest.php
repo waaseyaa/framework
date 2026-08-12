@@ -11,6 +11,7 @@ use Symfony\Component\HttpFoundation\Session\Session;
 use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Foundation\Migration\SchemaBuilder;
 use Waaseyaa\Oidc\Authorize\AuthorizeController;
 use Waaseyaa\Oidc\Consent\ConsentRepository;
 use Waaseyaa\Oidc\Consent\ConsentScreenController;
@@ -118,10 +119,19 @@ final class ConsentScreenControllerTest extends TestCase
     private function controller(AuthorizationCodeRepositoryInterface $codeRepo): ConsentScreenController
     {
         return new ConsentScreenController(
-            new ConsentRepository(DBALDatabase::createSqlite()),
+            new ConsentRepository($this->migratedConsentDatabase()),
             new UserinfoClaimResolver(),
             $codeRepo,
         );
+    }
+
+    private function migratedConsentDatabase(): DBALDatabase
+    {
+        $database = DBALDatabase::createSqlite();
+        $migration = require dirname(__DIR__, 3) . '/migrations/2026_05_25_000004_oidc_user_consent_schema.php';
+        $migration->up(new SchemaBuilder($database->getConnection()));
+
+        return $database;
     }
 
     /**
