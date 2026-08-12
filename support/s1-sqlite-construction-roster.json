@@ -1273,21 +1273,21 @@
         },
         {
             "path": "packages/auth/tests/Unit/AuthRuntimeSchemaMigrationTest.php",
-            "line": 39,
+            "line": 52,
             "pattern": "doctrine_factory",
             "class": "test",
             "match_sha256": "65a741e0d55eb2861c610e5e9e76011723217735d85acbcae099c79eb496d73d",
             "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
-            "source_sha256": "11019a6241370bd3819bc2001f9c0b6aa3a5b1e7c9d9eca39764c47136355f67"
+            "source_sha256": "5806d95fe89e1993eb92aea6c951fdcfc9dd8a3ec32cdee82ef7cb74eb9aaec1"
         },
         {
             "path": "packages/auth/tests/Unit/AuthRuntimeSchemaMigrationTest.php",
-            "line": 39,
+            "line": 52,
             "pattern": "pdo_sqlite_token",
             "class": "test",
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
             "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
-            "source_sha256": "11019a6241370bd3819bc2001f9c0b6aa3a5b1e7c9d9eca39764c47136355f67"
+            "source_sha256": "5806d95fe89e1993eb92aea6c951fdcfc9dd8a3ec32cdee82ef7cb74eb9aaec1"
         },
         {
             "path": "packages/auth/tests/Unit/AuthServiceProviderTest.php",
