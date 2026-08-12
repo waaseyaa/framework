@@ -45,6 +45,8 @@ final class JsonApiAccessIntegrationTest extends TestCase
 
     protected function setUp(): void
     {
+        EntityReadRuntime::installGuard(null);
+        EntityReadRuntime::installFieldRegistry(null);
         $this->storage = new NodeInMemoryStorage('node');
 
         $this->entityTypeManager = new EntityTypeManager(
@@ -82,6 +84,12 @@ final class JsonApiAccessIntegrationTest extends TestCase
             $this->fieldReadScope,
             $this->accessHandler->checkProtectedFieldRead(...),
         ));
+    }
+
+    protected function tearDown(): void
+    {
+        EntityReadRuntime::installGuard(null);
+        EntityReadRuntime::installFieldRegistry(null);
     }
 
     private function buildController(AccountInterface $account): JsonApiController

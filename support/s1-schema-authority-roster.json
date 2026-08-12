@@ -10156,39 +10156,39 @@
         },
         {
             "path": "tests/Integration/Phase7/ApiRoutingIntegrationTest.php",
-            "line": 169,
+            "line": 176,
             "pattern": "legacy_schema_method",
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "67a8e3068440c1bf4be5a969e06c42d9bfd0c63bc77ccd78027314ea47e2c308",
-            "source_sha256": "2a8814201a96518d0aab2b7641a7bd37e54a6fc5de1d9ba9b044eeefb3537391"
+            "source_sha256": "53e8fc3c751908e56c63766070539914a134056bdd7afb05e34f2099f1f63176"
         },
         {
             "path": "tests/Integration/Phase7/ApiRoutingIntegrationTest.php",
-            "line": 344,
+            "line": 351,
             "pattern": "legacy_schema_method",
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "67a8e3068440c1bf4be5a969e06c42d9bfd0c63bc77ccd78027314ea47e2c308",
-            "source_sha256": "2a8814201a96518d0aab2b7641a7bd37e54a6fc5de1d9ba9b044eeefb3537391"
+            "source_sha256": "53e8fc3c751908e56c63766070539914a134056bdd7afb05e34f2099f1f63176"
         },
         {
             "path": "tests/Integration/Phase7/FieldAccessWiringTest.php",
-            "line": 138,
+            "line": 145,
             "pattern": "legacy_schema_method",
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "207281ce4e2747a00925cad0f414a19c20918f64d927e3e5caacada3afc3e1eb",
-            "source_sha256": "210f622f8d16646b2476ce36efabe6b441db6719e6781cd3a147af78d0e4218f"
+            "source_sha256": "168f30fe88c5643d25a6a473e494f3aad5b9d3dae69ee2f347d3f3f532204195"
         },
         {
             "path": "tests/Integration/Phase7/FieldAccessWiringTest.php",
-            "line": 199,
+            "line": 206,
             "pattern": "legacy_schema_method",
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "207281ce4e2747a00925cad0f414a19c20918f64d927e3e5caacada3afc3e1eb",
-            "source_sha256": "210f622f8d16646b2476ce36efabe6b441db6719e6781cd3a147af78d0e4218f"
+            "source_sha256": "168f30fe88c5643d25a6a473e494f3aad5b9d3dae69ee2f347d3f3f532204195"
         },
         {
             "path": "tests/Integration/Phase7/JsonApiFilterSortPageIntegrationTest.php",
