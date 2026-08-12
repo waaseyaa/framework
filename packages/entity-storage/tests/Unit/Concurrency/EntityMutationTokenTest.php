@@ -43,7 +43,7 @@ final class EntityMutationTokenTest extends TestCase
                 EntityMutationToken::fromHttpIfMatch($invalid);
                 self::fail("Invalid validator was accepted: {$invalid}");
             } catch (\InvalidArgumentException) {
-                // Expected.
+                self::addToAssertionCount(1);
             }
         }
     }

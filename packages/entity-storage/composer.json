@@ -71,6 +71,7 @@
             "dev-develop/v1.1": "0.1.x-dev"
         },
         "waaseyaa": {
+            "migrations": "migrations",
             "providers": [
                 "Waaseyaa\\EntityStorage\\Backend\\FrameworkFieldStorageBackendProvider"
             ]
