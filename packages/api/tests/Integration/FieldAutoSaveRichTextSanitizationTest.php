@@ -153,6 +153,8 @@ final class FieldAutoSaveRichTextSanitizationTest extends TestCase
             json_encode(['value' => $value], JSON_THROW_ON_ERROR),
         );
         $request->attributes->set('_account', $this->account);
+        $entity = $this->entityTypeManager->getRepository('article')->find($entityId);
+        $request->headers->set('If-Match', $entity instanceof TestEntity ? $entity->mutationToken()?->toStrongEtag() ?? '' : '');
 
         return $request;
     }
@@ -160,8 +162,10 @@ final class FieldAutoSaveRichTextSanitizationTest extends TestCase
     private function createSavedEntity(array $values): TestEntity
     {
         /** @var TestEntity $entity */
-        $entity = $this->storage->create($values);
-        $this->storage->save($entity);
+        $repository = $this->entityTypeManager->getRepository('article');
+        $entity = $repository->create($values);
+        $entity->enforceIsNew();
+        $repository->save($entity);
 
         return $entity;
     }

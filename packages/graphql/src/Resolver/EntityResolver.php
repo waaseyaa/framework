@@ -10,6 +10,8 @@ use Waaseyaa\Api\Query\ParsedQuery;
 use Waaseyaa\Api\Query\QueryApplier;
 use Waaseyaa\Api\Query\QueryFilter;
 use Waaseyaa\Api\Query\QuerySort;
+use Waaseyaa\Entity\Concurrency\EntityMutationConflictException;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
@@ -252,6 +254,9 @@ final class EntityResolver
      */
     public function resolveUpdate(string $entityTypeId, int|string $id, array $input): array
     {
+        $expectedMutation = $this->mutationExpectation($input['mutationToken'] ?? null);
+        unset($input['mutationToken']);
+
         $entity = $this->loadEntity($entityTypeId, $id);
         if ($entity === null) {
             throw new UserError("Entity not found: {$entityTypeId}/{$id}");
@@ -297,6 +302,7 @@ final class EntityResolver
         // undisciplined entities (=== find()).
         $repository = $this->entityTypeManager->getRepository($entityTypeId);
         $target = $repository->loadWorkingCopy((string) $entity->id()) ?? $entity;
+        $this->applyMutationExpectation($target, $expectedMutation);
 
         // CW-v1 option-1 PR-4 (findings #1/#2) rework, defense-in-depth: the
         // echo-tolerant companion to resolveCreate()'s hard
@@ -341,6 +347,8 @@ final class EntityResolver
         // makes routine.
         try {
             $repository->save($target);
+        } catch (EntityMutationConflictException) {
+            throw new UserError('Mutation precondition failed.');
         } catch (TransitionDeniedException $e) {
             throw new UserError($e->getMessage());
         }
@@ -348,8 +356,9 @@ final class EntityResolver
         return $this->projectVisible($target);
     }
 
-    public function resolveDelete(string $entityTypeId, int|string $id): bool
+    public function resolveDelete(string $entityTypeId, int|string $id, string $mutationToken): bool
     {
+        $expectedMutation = $this->mutationExpectation($mutationToken);
         $entity = $this->loadEntity($entityTypeId, $id);
         if ($entity === null) {
             throw new UserError("Entity not found: {$entityTypeId}/{$id}");
@@ -363,7 +372,12 @@ final class EntityResolver
         }
 
         // C-22 WP3: delete path now goes through the canonical repository.
-        $this->entityTypeManager->getRepository($entityTypeId)->delete($entity);
+        $this->applyMutationExpectation($entity, $expectedMutation);
+        try {
+            $this->entityTypeManager->getRepository($entityTypeId)->delete($entity);
+        } catch (EntityMutationConflictException) {
+            throw new UserError('Mutation precondition failed.');
+        }
 
         return true;
     }
@@ -373,9 +387,37 @@ final class EntityResolver
     {
         $allowed = $this->guard->filterFields($entity, EntityValues::ordinaryFieldNames($entity), 'view');
         $values = EntityValues::toCastAwareMap($entity, $allowed);
+        $values['mutationToken'] = $entity instanceof EntityBase && $this->guard->canUpdate($entity)
+            ? $entity->mutationToken()?->toOpaqueString()
+            : null;
         $values['_graphql_depth'] = 0;
 
         return $values;
+    }
+
+    private function mutationExpectation(mixed $encoded): EntityMutationToken
+    {
+        if (!is_string($encoded) || trim($encoded) === '') {
+            throw new UserError('Mutation precondition required.');
+        }
+
+        try {
+            return EntityMutationToken::fromOpaqueString($encoded);
+        } catch (\InvalidArgumentException) {
+            throw new UserError('Invalid mutation precondition.');
+        }
+    }
+
+    private function applyMutationExpectation(EntityInterface $entity, EntityMutationToken $expected): void
+    {
+        if (!$entity instanceof EntityBase
+            || $expected->entityTypeId !== $entity->getEntityTypeId()
+            || $expected->entityId !== (string) $entity->id()
+        ) {
+            throw new UserError('Mutation precondition failed.');
+        }
+
+        $entity->_hydrateMutationToken($expected);
     }
 
     private function loadEntity(string $entityTypeId, int|string $id): ?EntityInterface

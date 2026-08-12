@@ -20,6 +20,7 @@ final readonly class JsonApiDocument
      * @param array<string, mixed>                        $meta     Top-level meta information.
      * @param array<string, string>                       $links    Top-level links (self, next, prev, etc.).
      * @param array<JsonApiResource>                      $included Sideloaded (included) resource objects.
+     * @param array<string, string>                       $headers  HTTP representation metadata for the transport adapter.
      */
     /**
      * @param int $statusCode Suggested HTTP status code for the response.
@@ -31,6 +32,7 @@ final readonly class JsonApiDocument
         public array $links = [],
         public array $included = [],
         public int $statusCode = 200,
+        public array $headers = [],
     ) {}
 
     /**
@@ -87,9 +89,9 @@ final readonly class JsonApiDocument
     /**
      * Create a document containing a single resource.
      */
-    public static function fromResource(JsonApiResource $resource, array $links = [], array $meta = [], int $statusCode = 200): self
+    public static function fromResource(JsonApiResource $resource, array $links = [], array $meta = [], int $statusCode = 200, array $headers = []): self
     {
-        return new self(data: $resource, links: $links, meta: $meta, statusCode: $statusCode);
+        return new self(data: $resource, links: $links, meta: $meta, statusCode: $statusCode, headers: $headers);
     }
 
     /**

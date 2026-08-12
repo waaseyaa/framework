@@ -11,6 +11,8 @@ use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Api\Tests\Fixtures\TestEntity;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
@@ -80,6 +82,7 @@ final class EntityResolverWorkingCopyTest extends TestCase
         $resolver = new EntityResolver($entityTypeManager, $guard, $account);
 
         $result = $resolver->resolveUpdate('article', 1, [
+            'mutationToken' => $workingCopy->mutationToken()?->toOpaqueString(),
             'title' => 'Edited via GraphQL',
             'revision_id' => 9, // echoes the WORKING COPY's own revision_id
         ]);
@@ -92,24 +95,15 @@ final class EntityResolverWorkingCopyTest extends TestCase
 
     private function entity(int $id, string $title, int $revisionId): EntityInterface&FieldableInterface
     {
-        return new class ($id, $title, $revisionId) implements EntityInterface, FieldableInterface {
-            private array $values;
-            public function __construct(int $id, string $title, int $revisionId) {
-                $this->values = ['id' => $id, 'title' => $title, 'revision_id' => $revisionId];
-            }
-            public function id(): int|string|null { return $this->values['id']; }
-            public function uuid(): string { return 'u-' . (string) $this->values['id']; }
-            public function label(): string { return 'Fixture'; }
-            public function getEntityTypeId(): string { return 'article'; }
-            public function bundle(): string { return 'article'; }
-            public function isNew(): bool { return false; }
-            public function get(string $name): mixed { return $this->values[$name] ?? null; }
-            public function set(string $name, mixed $value): static { $this->values[$name] = $value; return $this; }
-            public function toArray(): array { return $this->values; }
-            public function language(): string { return 'en'; }
-            public function hasField(string $name): bool { return \array_key_exists($name, $this->values); }
-            public function getFieldDefinitions(): array { return []; }
-        };
+        $entity = new TestEntity([
+            'id' => $id,
+            'title' => $title,
+            'revision_id' => $revisionId,
+        ], 'article');
+        $entity->enforceIsNew(false);
+        $entity->_hydrateMutationToken(EntityMutationToken::issue('graphql-test', 'default', 'article', (string) $id, 1));
+
+        return $entity;
     }
 }
 

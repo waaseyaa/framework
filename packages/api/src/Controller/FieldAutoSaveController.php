@@ -10,6 +10,9 @@ use Waaseyaa\Access\DecisionAccountResolver;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Http\JsonApiResponse;
 use Waaseyaa\Api\Sanitizer\RichTextSanitizer;
+use Waaseyaa\Entity\Concurrency\EntityMutationConflictException;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
 use Waaseyaa\Workflows\Transition\TransitionDeniedException;
@@ -93,6 +96,16 @@ final class FieldAutoSaveController
             return $this->error(422, 'malformed_body', 'Body must be {"value": "<string>"}');
         }
 
+        $ifMatch = $request->headers->get('If-Match');
+        if (!is_string($ifMatch) || trim($ifMatch) === '') {
+            return $this->error(428, 'mutation_precondition_required', 'If-Match is required');
+        }
+        try {
+            $expectedMutation = EntityMutationToken::fromHttpIfMatch($ifMatch);
+        } catch (\InvalidArgumentException) {
+            return $this->error(400, 'invalid_mutation_precondition', 'If-Match must contain one strong entity mutation ETag');
+        }
+
         // 4. Load entity type and entity (404 if missing).
         if (!$this->entityTypeManager->hasDefinition($entityType)) {
             return $this->error(404, 'entity_type_not_found', "Unknown entity type '{$entityType}'");
@@ -148,10 +161,18 @@ final class FieldAutoSaveController
         // `loadWorkingCopy()` is mechanically safe for undisciplined entities
         // (=== find()).
         $target = $repository->loadWorkingCopy($id) ?? $entity;
+        if (!$target instanceof EntityBase
+            || $expectedMutation->entityTypeId !== $entityType
+            || $expectedMutation->entityId !== (string) $target->id()
+        ) {
+            return $this->error(412, 'mutation_precondition_failed', 'The entity changed after it was read');
+        }
+        $target->_hydrateMutationToken($expectedMutation);
 
         // 9. Persist. The RAW, author-submitted value is what gets stored:
         //    sanitization (below) is a read/response-boundary concern only,
         //    so the stored value stays byte-for-byte as authored (non-lossy).
+        $previousValue = $target->get($key);
         $target->set($key, $body['value']);
 
         // CW-v1 option-1 (#1920 PR-2, design §3.1 finding A2): WorkflowStateGuard
@@ -161,6 +182,9 @@ final class FieldAutoSaveController
         // as JsonApiController::workflowTransitionDeniedError().
         try {
             $repository->save($target);
+        } catch (EntityMutationConflictException) {
+            $target->set($key, $previousValue);
+            return $this->error(412, 'mutation_precondition_failed', 'The entity changed after it was read');
         } catch (TransitionDeniedException $e) {
             return $this->workflowTransitionDeniedError($e);
         }
@@ -182,8 +206,9 @@ final class FieldAutoSaveController
                 'id' => (string) $target->id(),
                 'type' => $entityType,
                 'attributes' => [$key => $responseValue],
+                'meta' => ['mutation_token' => $target->mutationToken()?->toOpaqueString()],
             ],
-        ]);
+        ], headers: ['ETag' => $target->mutationToken()?->toStrongEtag() ?? '']);
     }
 
     private function isJsonContentType(Request $request): bool

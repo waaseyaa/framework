@@ -70,6 +70,7 @@ final class ResourceSerializer
         EntityInterface $entity,
         ?EntityAccessHandler $accessHandler = null,
         ?AccountInterface $account = null,
+        bool $includeMutationToken = false,
     ): JsonApiResource {
         if (($accessHandler === null) !== ($account === null)) {
             throw PartialAccessContextException::forSerializer(__METHOD__);
@@ -128,6 +129,9 @@ final class ResourceSerializer
             id: $resourceId,
             attributes: $attributes,
             links: ['self' => $selfLink],
+            meta: $includeMutationToken && $entity instanceof \Waaseyaa\Entity\EntityBase && $entity->mutationToken() !== null
+                ? ['mutation_token' => $entity->mutationToken()->toOpaqueString()]
+                : [],
         );
     }
 

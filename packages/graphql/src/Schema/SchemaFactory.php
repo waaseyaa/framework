@@ -182,9 +182,10 @@ final class SchemaFactory
                 'type' => $this->getDeleteResultType(),
                 'args' => [
                     'id' => Type::nonNull(Type::id()),
+                    'mutationToken' => Type::nonNull(Type::string()),
                 ],
                 'resolve' => static fn(mixed $root, array $args, GraphQlExecutionContext $context): array => [
-                    'deleted' => $context->entityResolver->resolveDelete($typeId, $args['id']),
+                    'deleted' => $context->entityResolver->resolveDelete($typeId, $args['id'], $args['mutationToken']),
                 ],
             ]);
         }

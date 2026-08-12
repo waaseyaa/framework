@@ -26,6 +26,7 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
    * a refetch after a save — still hits the server.
    */
   private readonly inflightGets = new Map<string, Promise<EntityResource>>()
+  private readonly mutationTokens = new Map<string, string>()
 
   constructor(
     /** Same normalization as the admin plugin (`normalizeAppBaseURL(app.baseURL)`). */
@@ -89,24 +90,28 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
   }
 
   async update(type: string, id: string, attributes: Record<string, any>): Promise<EntityResource> {
+    const mutationToken = this.mutationTokens.get(`${type}:${id}`)
+    if (!mutationToken) throw new TransportError(428, 'Precondition required', 'Reload the entity before saving it.')
     const entity = await this.request<SurfaceEntity>(
       this.surfaceUrl('admin_surface.action', { type, action: 'update' }),
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, attributes }),
+        body: JSON.stringify({ id, attributes, mutation_token: mutationToken }),
       },
     )
     return this.normalizeEntity(entity)
   }
 
   async remove(type: string, id: string): Promise<void> {
+    const mutationToken = this.mutationTokens.get(`${type}:${id}`)
+    if (!mutationToken) throw new TransportError(428, 'Precondition required', 'Reload the entity before deleting it.')
     await this.request(
       this.surfaceUrl('admin_surface.action', { type, action: 'delete' }),
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ id, mutation_token: mutationToken }),
       },
     )
   }
@@ -190,6 +195,7 @@ export class AdminSurfaceTransportAdapter implements TransportAdapter {
   }
 
   private normalizeEntity(entity: SurfaceEntity): EntityResource {
+    if (entity.mutation_token) this.mutationTokens.set(`${entity.type}:${entity.id}`, entity.mutation_token)
     return {
       type: entity.type,
       id: entity.id,

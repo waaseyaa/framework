@@ -12,6 +12,9 @@ use Waaseyaa\Access\AccessPolicyInterface;
 use Waaseyaa\Access\AccessResult;
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Api\Tests\Fixtures\TestEntity;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
+use Waaseyaa\Entity\Concurrency\EntityMutationConflictException;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
@@ -60,14 +63,34 @@ final class EntityResolverWorkflowMappingTest extends TestCase
         $this->expectException(UserError::class);
         $this->expectExceptionMessage('No transition for that edge.');
 
-        $resolver->resolveUpdate('article', 1, ['title' => 'Updated']);
+        $resolver->resolveUpdate('article', 1, [
+            'mutationToken' => EntityMutationToken::issue('graphql-test', 'default', 'article', '1', 1)->toOpaqueString(),
+            'title' => 'Updated',
+        ]);
     }
 
-    private function resolver(TransitionDeniedException $denial): EntityResolver
+    #[Test]
+    public function resolve_update_maps_a_stale_aggregate_to_a_safe_precondition_error(): void
+    {
+        $resolver = $this->resolver(new EntityMutationConflictException('default', 'article', '1'));
+
+        try {
+            $resolver->resolveUpdate('article', 1, [
+                'mutationToken' => EntityMutationToken::issue('graphql-test', 'default', 'article', '1', 1)->toOpaqueString(),
+                'title' => 'Stale write',
+            ]);
+            self::fail('Expected the stale aggregate mutation to be refused.');
+        } catch (UserError $error) {
+            self::assertSame('Mutation precondition failed.', $error->getMessage());
+            self::assertStringNotContainsString('emt1.', $error->getMessage());
+        }
+    }
+
+    private function resolver(\Throwable $denial): EntityResolver
     {
         $entity = $this->entity();
         $repository = new class ($entity, $denial) implements EntityRepositoryInterface {
-            public function __construct(private readonly EntityInterface $entity, private readonly TransitionDeniedException $denial) {}
+            public function __construct(private readonly EntityInterface $entity, private readonly \Throwable $denial) {}
             public function create(array $values = []): EntityInterface { return $this->entity; }
             public function find(string $id, ?string $langcode = null, bool $fallback = false): ?EntityInterface { return $this->entity; }
             public function loadWorkingCopy(string $id): ?EntityInterface { return $this->find($id); }
@@ -130,20 +153,9 @@ final class EntityResolverWorkflowMappingTest extends TestCase
 
     private function entity(): EntityInterface&FieldableInterface
     {
-        return new class implements EntityInterface, FieldableInterface {
-            private array $values = ['id' => 1, 'title' => 'Original'];
-            public function id(): int|string|null { return $this->values['id']; }
-            public function uuid(): string { return 'u-1'; }
-            public function label(): string { return 'Fixture'; }
-            public function getEntityTypeId(): string { return 'article'; }
-            public function bundle(): string { return 'article'; }
-            public function isNew(): bool { return false; }
-            public function get(string $name): mixed { return $this->values[$name] ?? null; }
-            public function set(string $name, mixed $value): static { $this->values[$name] = $value; return $this; }
-            public function toArray(): array { return $this->values; }
-            public function language(): string { return 'en'; }
-            public function hasField(string $name): bool { return \array_key_exists($name, $this->values); }
-            public function getFieldDefinitions(): array { return []; }
-        };
+        $entity = new TestEntity(['id' => 1, 'title' => 'Original'], 'article');
+        $entity->enforceIsNew(false);
+
+        return $entity;
     }
 }

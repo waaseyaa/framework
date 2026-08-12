@@ -417,6 +417,7 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
 
             $edited = $scope->run($principal, fn() => $host->action('node', 'update', [
                 'id' => $draftUuid,
+                'mutation_token' => $detail->data['mutation_token'],
                 'attributes' => ['title' => 'Editor draft revised'],
             ]));
             self::assertTrue($edited->ok, 'edit: ' . json_encode($edited->error));
@@ -571,6 +572,7 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
         try {
             $updateResult = $scope->run($principal, fn() => $host->action('node', 'update', [
                 'id' => $entityId,
+                'mutation_token' => $getResult->data['mutation_token'],
                 'attributes' => $patchAttributes,
             ]));
         } finally {

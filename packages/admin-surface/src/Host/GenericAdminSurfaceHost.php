@@ -18,6 +18,7 @@ use Waaseyaa\Api\JsonApiError;
 use Waaseyaa\Api\JsonApiResource;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Api\Schema\SchemaPresenter;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 use Waaseyaa\Entity\ConfigEntityBase;
 use Waaseyaa\Entity\DateTime\EntityClockInterface;
 use Waaseyaa\Entity\DateTime\UtcEntityClock;
@@ -369,15 +370,20 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             $serializer = $this->serializer();
             $rows = [];
             foreach ($entities as $entity) {
+                $isMutableConfigRow = in_array($type, self::MUTABLE_CONFIG_ROW_TYPES, true)
+                    && !in_array($type, $this->readOnlyTypes, true);
                 $row = $this->jsonApiResourceToSurfaceEntity(
-                    $serializer->serialize($entity, $this->accessHandler, $this->currentAccount),
+                    $serializer->serialize(
+                        $entity,
+                        $this->accessHandler,
+                        $this->currentAccount,
+                        includeMutationToken: $isMutableConfigRow,
+                    ),
                 );
                 $row['attributes'] = array_replace(
                     $row['attributes'],
                     $this->publicationFields($entity),
                 );
-                $isMutableConfigRow = in_array($type, self::MUTABLE_CONFIG_ROW_TYPES, true)
-                    && !in_array($type, $this->readOnlyTypes, true);
                 $row['capabilities'] = [
                     'view' => true,
                     'edit' => $isMutableConfigRow
@@ -530,7 +536,14 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         $surfaceEntities = [];
         foreach ($pageEntities as $entity) {
             $surfaceEntity = $this->jsonApiResourceToSurfaceEntity(
-                $serializer->serialize($entity, $this->accessHandler, $this->currentAccount),
+                $serializer->serialize(
+                    $entity,
+                    $this->accessHandler,
+                    $this->currentAccount,
+                    includeMutationToken: !in_array($type, $this->readOnlyTypes, true)
+                        && ($this->accessHandler->check($entity, 'update', $this->currentAccount)->isAllowed()
+                            || $this->accessHandler->check($entity, 'delete', $this->currentAccount)->isAllowed()),
+                ),
             );
             $surfaceEntity['attributes'] = array_replace(
                 $surfaceEntity['attributes'],
@@ -854,7 +867,13 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             $target = $this->entityTypeManager->getRepository($type)->loadWorkingCopy((string) $entity->id()) ?? $entity;
         }
 
-        $resource = $this->serializer()->serialize($target, $this->accessHandler, $this->currentAccount);
+        $resource = $this->serializer()->serialize(
+            $target,
+            $this->accessHandler,
+            $this->currentAccount,
+            includeMutationToken: $this->accessHandler->check($entity, 'update', $this->currentAccount)->isAllowed()
+                || $this->accessHandler->check($entity, 'delete', $this->currentAccount)->isAllowed(),
+        );
 
         return AdminSurfaceResultData::success($this->jsonApiResourceToSurfaceEntity($resource));
     }
@@ -1115,6 +1134,10 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
         }
 
         $api = $this->jsonApi();
+        $expectation = $this->mutationExpectation($payload);
+        if ($expectation instanceof AdminSurfaceResultData) {
+            return $expectation;
+        }
 
         try {
             $doc = $api->update($type, (string) $id, [
@@ -1122,7 +1145,7 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
                     'type' => $type,
                     'attributes' => $payload['attributes'] ?? [],
                 ],
-            ]);
+            ], $expectation);
         } catch (\InvalidArgumentException $e) {
             return AdminSurfaceResultData::error(422, 'Unprocessable', $e->getMessage());
         }
@@ -1175,8 +1198,14 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             return AdminSurfaceResultData::error(403, 'Access denied', $detail);
         }
 
-        // C-22 WP3: delete path now goes through the canonical repository.
-        $this->entityTypeManager->getRepository($type)->delete($entity);
+        $expectation = $this->mutationExpectation($payload);
+        if ($expectation instanceof AdminSurfaceResultData) {
+            return $expectation;
+        }
+        $document = $this->jsonApi()->destroy($type, (string) $id, $expectation);
+        if ($document->errors !== []) {
+            return $this->jsonApiDocumentToSurfaceError($document);
+        }
 
         return AdminSurfaceResultData::success(['deleted' => true]);
     }
@@ -1322,7 +1351,30 @@ class GenericAdminSurfaceHost extends AbstractAdminSurfaceHost
             'type' => $resource->type,
             'id' => $resource->id,
             'attributes' => $resource->attributes,
+            'mutation_token' => $resource->meta['mutation_token'] ?? null,
         ];
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function mutationExpectation(array $payload): EntityMutationToken|AdminSurfaceResultData
+    {
+        $opaque = $payload['mutation_token'] ?? null;
+        if (!is_string($opaque) || trim($opaque) === '') {
+            return AdminSurfaceResultData::error(
+                428,
+                'Precondition required',
+                'Reload the entity before attempting this mutation.',
+            );
+        }
+        try {
+            return EntityMutationToken::fromOpaqueString($opaque);
+        } catch (\InvalidArgumentException) {
+            return AdminSurfaceResultData::error(
+                400,
+                'Invalid precondition',
+                'The entity mutation precondition is malformed.',
+            );
+        }
     }
 
     private function jsonApiDocumentToSurfaceError(\Waaseyaa\Api\JsonApiDocument $doc): AdminSurfaceResultData

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Api\Tests\Fixtures;
 
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
+use Waaseyaa\Entity\Concurrency\EntityMutationConflictException;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
@@ -20,6 +23,9 @@ use Waaseyaa\Entity\Storage\EntityQueryInterface;
  */
 final class InMemoryEntityRepository implements EntityRepositoryInterface
 {
+    /** @var array<string, EntityMutationToken> */
+    private array $mutationAuthorities = [];
+
     public function __construct(
         private readonly InMemoryEntityStorage $storage,
     ) {}
@@ -65,7 +71,30 @@ final class InMemoryEntityRepository implements EntityRepositoryInterface
 
     public function save(EntityInterface $entity, bool $validate = true): int
     {
-        return $this->storage->save($entity);
+        $id = $entity->id();
+        $expected = $entity instanceof EntityBase ? $entity->mutationToken() : null;
+        if ($id !== null && isset($this->mutationAuthorities[(string) $id])) {
+            $current = $this->mutationAuthorities[(string) $id];
+            if ($expected === null || !hash_equals($current->toOpaqueString(), $expected->toOpaqueString())) {
+                throw new EntityMutationConflictException('default', $entity->getEntityTypeId(), (string) $id);
+            }
+        }
+
+        $result = $this->storage->save($entity);
+        if ($entity instanceof EntityBase && $entity->id() !== null) {
+            $version = ($expected?->aggregateVersion ?? 0) + 1;
+            $token = EntityMutationToken::issue(
+                'in-memory-test',
+                'default',
+                $entity->getEntityTypeId(),
+                (string) $entity->id(),
+                $version,
+            );
+            $this->mutationAuthorities[(string) $entity->id()] = $token;
+            $entity->_hydrateMutationToken($token);
+        }
+
+        return $result;
     }
 
     public function delete(EntityInterface $entity): void

@@ -222,13 +222,21 @@ final class AuthenticatedVocabularyActionsFlowTest extends TestCase
         $browserAttributes['name'] = 'Audit vocabulary';
         $updated = $this->request($router, '/admin/_surface/taxonomy_vocabulary/action/update', 'POST', [
             'id' => 'renamed',
+            'mutation_token' => $loaded['data']['mutation_token'],
             // Mirror SchemaForm's schema-declared writable projection after
             // loading the complete migrated row and changing only its title.
             'attributes' => $browserAttributes,
         ]);
         $list = $this->request($router, '/admin/_surface/taxonomy_vocabulary', 'GET');
-        $emptyDelete = $this->request($router, '/admin/_surface/taxonomy_vocabulary/action/delete', 'POST', ['id' => 'empty']);
-        $occupiedDelete = $this->request($router, '/admin/_surface/taxonomy_vocabulary/action/delete', 'POST', ['id' => 'occupied']);
+        $byId = array_column($list['data']['entities'] ?? [], null, 'id');
+        $emptyDelete = $this->request($router, '/admin/_surface/taxonomy_vocabulary/action/delete', 'POST', [
+            'id' => 'empty',
+            'mutation_token' => $byId['empty']['mutation_token'] ?? null,
+        ]);
+        $occupiedDelete = $this->request($router, '/admin/_surface/taxonomy_vocabulary/action/delete', 'POST', [
+            'id' => 'occupied',
+            'mutation_token' => $byId['occupied']['mutation_token'] ?? null,
+        ]);
 
         $body = [
             'catalog' => $entry,

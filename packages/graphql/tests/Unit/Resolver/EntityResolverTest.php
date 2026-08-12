@@ -16,6 +16,8 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Tests\Helper\TestEntityType;
@@ -104,6 +106,26 @@ final class EntityResolverTest extends TestCase
         $this->storage->save($entity);
 
         return $entity;
+    }
+
+    private function mutationToken(EntityInterface $entity): string
+    {
+        self::assertInstanceOf(EntityBase::class, $entity);
+        $token = $entity->mutationToken() ?? EntityMutationToken::issue(
+            'graphql-test',
+            'default',
+            $entity->getEntityTypeId(),
+            (string) $entity->id(),
+            1,
+        );
+        $entity->_hydrateMutationToken($token);
+
+        return $token->toOpaqueString();
+    }
+
+    private function mutationTokenForId(int|string $id): string
+    {
+        return EntityMutationToken::issue('graphql-test', 'default', 'article', (string) $id, 1)->toOpaqueString();
     }
 
     // ── resolveList ──────────────────────────────────────────────
@@ -469,9 +491,28 @@ final class EntityResolverTest extends TestCase
         $entity = $this->seedArticle('Old');
         $resolver = $this->createResolver($this->openAccessHandler());
 
-        $result = $resolver->resolveUpdate('article', $entity->id(), ['title' => 'New']);
+        $result = $resolver->resolveUpdate('article', $entity->id(), [
+            'mutationToken' => $this->mutationToken($entity),
+            'title' => 'New',
+        ]);
 
         self::assertSame('New', $result['title']);
+    }
+
+    #[Test]
+    public function resolveUpdateRefusesAnOmittedMutationTokenBeforeWriting(): void
+    {
+        $entity = $this->seedArticle('Old');
+        $resolver = $this->createResolver($this->openAccessHandler());
+
+        try {
+            $resolver->resolveUpdate('article', $entity->id(), ['title' => 'New']);
+            self::fail('Expected an omitted mutation token to be refused.');
+        } catch (UserError $error) {
+            self::assertSame('Mutation precondition required.', $error->getMessage());
+        }
+
+        self::assertSame('Old', $this->storage->load($entity->id())?->get('title'));
     }
 
     #[Test]
@@ -483,7 +524,11 @@ final class EntityResolverTest extends TestCase
         $this->expectException(UserError::class);
         $this->expectExceptionMessage('published_revision_id');
 
-        $resolver->resolveUpdate('article', $entity->id(), ['title' => 'New', 'published_revision_id' => 99]);
+        $resolver->resolveUpdate('article', $entity->id(), [
+            'mutationToken' => $this->mutationToken($entity),
+            'title' => 'New',
+            'published_revision_id' => 99,
+        ]);
     }
 
     #[Test]
@@ -497,7 +542,11 @@ final class EntityResolverTest extends TestCase
         $this->storage->save($entity);
         $resolver = $this->createResolver($this->openAccessHandler());
 
-        $result = $resolver->resolveUpdate('article', $entity->id(), ['title' => 'New', 'published_revision_id' => 99]);
+        $result = $resolver->resolveUpdate('article', $entity->id(), [
+            'mutationToken' => $this->mutationToken($entity),
+            'title' => 'New',
+            'published_revision_id' => 99,
+        ]);
 
         self::assertSame('New', $result['title']);
         self::assertArrayNotHasKey(
@@ -520,7 +569,11 @@ final class EntityResolverTest extends TestCase
         $this->expectException(UserError::class);
         $this->expectExceptionMessage('published_revision_id');
 
-        $resolver->resolveUpdate('article', $entity->id(), ['title' => 'New', 'published_revision_id' => 7]);
+        $resolver->resolveUpdate('article', $entity->id(), [
+            'mutationToken' => $this->mutationToken($entity),
+            'title' => 'New',
+            'published_revision_id' => 7,
+        ]);
     }
 
     #[Test]
@@ -531,7 +584,10 @@ final class EntityResolverTest extends TestCase
         $this->expectException(UserError::class);
         $this->expectExceptionMessage('Entity not found');
 
-        $resolver->resolveUpdate('article', 999, ['title' => 'Ghost']);
+        $resolver->resolveUpdate('article', 999, [
+            'mutationToken' => $this->mutationTokenForId(999),
+            'title' => 'Ghost',
+        ]);
     }
 
     #[Test]
@@ -549,7 +605,10 @@ final class EntityResolverTest extends TestCase
         $this->expectException(UserError::class);
         $this->expectExceptionMessage('Entity not found');
 
-        $resolver->resolveUpdate('article', $entity->id(), ['title' => 'Hacked']);
+        $resolver->resolveUpdate('article', $entity->id(), [
+            'mutationToken' => $this->mutationToken($entity),
+            'title' => 'Hacked',
+        ]);
     }
 
     #[Test]
@@ -566,14 +625,20 @@ final class EntityResolverTest extends TestCase
 
         $absentMessage = null;
         try {
-            $resolver->resolveUpdate('article', 999999, ['title' => 'Ghost']);
+            $resolver->resolveUpdate('article', 999999, [
+                'mutationToken' => $this->mutationTokenForId(999999),
+                'title' => 'Ghost',
+            ]);
         } catch (UserError $e) {
             $absentMessage = $e->getMessage();
         }
 
         $deniedMessage = null;
         try {
-            $resolver->resolveUpdate('article', $entity->id(), ['title' => 'Hacked']);
+            $resolver->resolveUpdate('article', $entity->id(), [
+                'mutationToken' => $this->mutationToken($entity),
+                'title' => 'Hacked',
+            ]);
         } catch (UserError $e) {
             $deniedMessage = $e->getMessage();
         }
@@ -593,10 +658,26 @@ final class EntityResolverTest extends TestCase
         $entity = $this->seedArticle('Doomed');
         $resolver = $this->createResolver($this->openAccessHandler());
 
-        $result = $resolver->resolveDelete('article', $entity->id());
+        $result = $resolver->resolveDelete('article', $entity->id(), $this->mutationToken($entity));
 
         self::assertTrue($result);
         self::assertNull($this->storage->load($entity->id()));
+    }
+
+    #[Test]
+    public function resolveDeleteRefusesAnOmittedMutationTokenBeforeWriting(): void
+    {
+        $entity = $this->seedArticle('Retained');
+        $resolver = $this->createResolver($this->openAccessHandler());
+
+        try {
+            $resolver->resolveDelete('article', $entity->id(), '');
+            self::fail('Expected an omitted mutation token to be refused.');
+        } catch (UserError $error) {
+            self::assertSame('Mutation precondition required.', $error->getMessage());
+        }
+
+        self::assertNotNull($this->storage->load($entity->id()));
     }
 
     #[Test]
@@ -607,7 +688,7 @@ final class EntityResolverTest extends TestCase
         $this->expectException(UserError::class);
         $this->expectExceptionMessage('Entity not found');
 
-        $resolver->resolveDelete('article', 999);
+        $resolver->resolveDelete('article', 999, $this->mutationTokenForId(999));
     }
 
     #[Test]
@@ -622,7 +703,7 @@ final class EntityResolverTest extends TestCase
         $this->expectException(UserError::class);
         $this->expectExceptionMessage('Entity not found');
 
-        $resolver->resolveDelete('article', $entity->id());
+        $resolver->resolveDelete('article', $entity->id(), $this->mutationToken($entity));
     }
 
     #[Test]
@@ -633,14 +714,14 @@ final class EntityResolverTest extends TestCase
 
         $absentMessage = null;
         try {
-            $resolver->resolveDelete('article', 999999);
+            $resolver->resolveDelete('article', 999999, $this->mutationTokenForId(999999));
         } catch (UserError $e) {
             $absentMessage = $e->getMessage();
         }
 
         $deniedMessage = null;
         try {
-            $resolver->resolveDelete('article', $entity->id());
+            $resolver->resolveDelete('article', $entity->id(), $this->mutationToken($entity));
         } catch (UserError $e) {
             $deniedMessage = $e->getMessage();
         }
