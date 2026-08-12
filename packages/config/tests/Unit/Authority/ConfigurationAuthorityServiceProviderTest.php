@@ -44,6 +44,7 @@ final class ConfigurationAuthorityServiceProviderTest extends TestCase
         $provider->setKernelServices(new TestKernelServices([
             DatabaseIdentityProviderInterface::class => new TestDatabaseIdentityProvider(),
             ActiveConfigurationBridgeInterface::class => $bridge,
+            \Waaseyaa\Foundation\Event\EventDispatcherInterface::class => new \Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter(),
         ]));
         $provider->register();
 
@@ -113,7 +114,7 @@ final class ConfigurationAuthorityServiceProviderTest extends TestCase
     public function equivalentLegacySelectorEmitsTypedDeprecationEvidenceOnce(): void
     {
         $events = [];
-        $dispatcher = new \Symfony\Component\EventDispatcher\EventDispatcher();
+        $dispatcher = new \Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter();
         $dispatcher->addListener(
             ConfigurationSelectorDeprecationEvent::class,
             static function (ConfigurationSelectorDeprecationEvent $event) use (&$events): void {
@@ -128,7 +129,7 @@ final class ConfigurationAuthorityServiceProviderTest extends TestCase
         ], []);
         $provider->setKernelServices(new TestKernelServices([
             DatabaseIdentityProviderInterface::class => new TestDatabaseIdentityProvider(),
-            \Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class => $dispatcher,
+            \Waaseyaa\Foundation\Event\EventDispatcherInterface::class => $dispatcher,
         ]));
         $provider->register();
 

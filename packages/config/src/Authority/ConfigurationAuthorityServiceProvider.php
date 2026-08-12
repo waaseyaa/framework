@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Config\Authority;
 
-use Symfony\Component\EventDispatcher\EventDispatcher;
-use Symfony\Component\EventDispatcher\EventDispatcherInterface as ComponentEventDispatcherInterface;
-use Symfony\Contracts\EventDispatcher\EventDispatcherInterface as ContractEventDispatcherInterface;
 use Waaseyaa\Config\ConfigFactory;
 use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\ConfigManager;
@@ -14,6 +11,7 @@ use Waaseyaa\Config\ConfigManagerInterface;
 use Waaseyaa\Config\Event\ConfigurationSelectorDeprecationEvent;
 use Waaseyaa\Config\Schema\ConfigSchemaValidator;
 use Waaseyaa\Database\DatabaseIdentityProviderInterface;
+use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\CapabilityDeclaration;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesCapabilitiesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -125,12 +123,15 @@ class ConfigurationAuthorityServiceProvider extends ServiceProvider implements P
         return $bridge;
     }
 
-    private function resolveEventDispatcher(): ComponentEventDispatcherInterface
+    private function resolveEventDispatcher(): EventDispatcherInterface&\Symfony\Contracts\EventDispatcher\EventDispatcherInterface
     {
-        $dispatcher = $this->resolveOptional(ContractEventDispatcherInterface::class);
+        $dispatcher = $this->resolveOptional(EventDispatcherInterface::class);
 
-        return $dispatcher instanceof ComponentEventDispatcherInterface
+        return $dispatcher instanceof EventDispatcherInterface
+            && $dispatcher instanceof \Symfony\Contracts\EventDispatcher\EventDispatcherInterface
             ? $dispatcher
-            : new EventDispatcher();
+            : throw new ConfigurationAuthorityUnavailableException(
+                'configuration.authority.v1 event dispatcher is unavailable.',
+            );
     }
 }
