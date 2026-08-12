@@ -23,6 +23,7 @@ consumed_paths=(
     support/s1-configuration-authority-v1.json
     support/s1-configuration-authority-roster.json
     tests/CoreOnlyBoot/boot.php
+    tests/CoreOnlyBoot/prepare-runtime-schema.php
     tests/PackagedForm/check-s1-configuration-core-only
 )
 if [[ -n "$($root/bin/git -C "$root" status --porcelain=v1 -- "${consumed_paths[@]}")" ]]; then
@@ -57,8 +58,13 @@ if [[ -d "$consumer/vendor/waaseyaa/ai-agent" ]]; then
 fi
 mkdir -p "$consumer/config" "$consumer/storage/files" "$consumer/storage/framework"
 cp "$source_root/skeleton/config/waaseyaa.php" "$consumer/config/waaseyaa.php"
-printf 'APP_ENV=testing\nAPP_DEBUG=false\n' > "$consumer/.env"
+printf 'APP_ENV=testing\nAPP_DEBUG=false\nWAASEYAA_DB=%s/storage/core-only.sqlite\n' "$consumer" > "$consumer/.env"
 cp "$source_root/tests/CoreOnlyBoot/boot.php" "$consumer/boot.php"
+cp "$source_root/tests/CoreOnlyBoot/prepare-runtime-schema.php" "$consumer/prepare-runtime-schema.php"
+if ! php "$consumer/prepare-runtime-schema.php" >"$work/schema.out" 2>&1; then
+    cat "$work/schema.out" >&2
+    exit 1
+fi
 if ! php "$consumer/boot.php" >"$work/positive.out" 2>&1; then
     cat "$work/positive.out" >&2
     exit 1
@@ -66,8 +72,9 @@ fi
 grep -Fq 'core-only kernel boot OK' "$work/positive.out"
 
 php -r '
-    $path = $argv[1];
-    $installed = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $installedPath = $argv[1];
+    $packagePath = $argv[2];
+    $installed = json_decode((string) file_get_contents($installedPath), true, flags: JSON_THROW_ON_ERROR);
     $packages = isset($installed["packages"]) ? $installed["packages"] : $installed;
     foreach ($packages as &$package) {
         if (($package["name"] ?? null) === "waaseyaa/config") {
@@ -80,8 +87,12 @@ php -r '
     } else {
         $installed = $packages;
     }
-    file_put_contents($path, json_encode($installed, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
-' "$consumer/vendor/composer/installed.json"
+    file_put_contents($installedPath, json_encode($installed, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+
+    $package = json_decode((string) file_get_contents($packagePath), true, flags: JSON_THROW_ON_ERROR);
+    $package["extra"]["waaseyaa"]["providers"] = [];
+    file_put_contents($packagePath, json_encode($package, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$consumer/vendor/composer/installed.json" "$consumer/vendor/waaseyaa/config/composer.json"
 rm -f "$consumer/storage/framework/package_manifest.php"
 if php "$consumer/boot.php" >"$work/missing.out" 2>&1; then
     echo 'Core-only boot accepted a missing configuration authority provider.' >&2
