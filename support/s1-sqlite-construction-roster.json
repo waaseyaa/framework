@@ -4734,7 +4734,7 @@
             "class": "test",
             "match_sha256": "65a741e0d55eb2861c610e5e9e76011723217735d85acbcae099c79eb496d73d",
             "line_sha256": "e6cf881ba74243d9bafe40e59cf887f434e8be4f41ee3a4548bd16c773d1953c",
-            "source_sha256": "27d22e7bcf36e9f4444e38cea17a15ca21c164e836c6003ad16a45c2f03350ec"
+            "source_sha256": "ca0a1a290e98f98978797ffc68a948ea3f1f338c73734b64ae72a2ab36f833dd"
         },
         {
             "path": "packages/migration/tests/Integration/FreshInstallContentModelHydrationTest.php",
@@ -4743,7 +4743,7 @@
             "class": "test",
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
             "line_sha256": "e6cf881ba74243d9bafe40e59cf887f434e8be4f41ee3a4548bd16c773d1953c",
-            "source_sha256": "27d22e7bcf36e9f4444e38cea17a15ca21c164e836c6003ad16a45c2f03350ec"
+            "source_sha256": "ca0a1a290e98f98978797ffc68a948ea3f1f338c73734b64ae72a2ab36f833dd"
         },
         {
             "path": "packages/migration/tests/Integration/FreshInstallContentModelHydrationTest.php",
@@ -4752,7 +4752,7 @@
             "class": "test",
             "match_sha256": "65a741e0d55eb2861c610e5e9e76011723217735d85acbcae099c79eb496d73d",
             "line_sha256": "e6cf881ba74243d9bafe40e59cf887f434e8be4f41ee3a4548bd16c773d1953c",
-            "source_sha256": "27d22e7bcf36e9f4444e38cea17a15ca21c164e836c6003ad16a45c2f03350ec"
+            "source_sha256": "ca0a1a290e98f98978797ffc68a948ea3f1f338c73734b64ae72a2ab36f833dd"
         },
         {
             "path": "packages/migration/tests/Integration/FreshInstallContentModelHydrationTest.php",
@@ -4761,7 +4761,7 @@
             "class": "test",
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
             "line_sha256": "e6cf881ba74243d9bafe40e59cf887f434e8be4f41ee3a4548bd16c773d1953c",
-            "source_sha256": "27d22e7bcf36e9f4444e38cea17a15ca21c164e836c6003ad16a45c2f03350ec"
+            "source_sha256": "ca0a1a290e98f98978797ffc68a948ea3f1f338c73734b64ae72a2ab36f833dd"
         },
         {
             "path": "packages/migration/tests/Integration/LazyRegistryKernelOrderingTest.php",

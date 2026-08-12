@@ -22,16 +22,16 @@ final class FreshInstallContentModelHydrationTest extends TestCase
     protected function setUp(): void
     {
         $this->repoRoot = (string) realpath(__DIR__ . '/../../../..');
-        $processClass = (new \ReflectionClass(Process::class))->getFileName();
+        $processClass = new \ReflectionClass(Process::class)->getFileName();
         self::assertIsString($processClass);
         $this->vendorRoot = dirname($processClass, 3);
         $this->projectRoot = sys_get_temp_dir() . '/waaseyaa_1982_' . bin2hex(random_bytes(6));
-        mkdir($this->projectRoot . '/config', 0755, true);
-        mkdir($this->projectRoot . '/storage', 0755, true);
-        mkdir($this->projectRoot . '/vendor/composer', 0755, true);
+        mkdir($this->projectRoot . '/config', 0o755, true);
+        mkdir($this->projectRoot . '/storage', 0o755, true);
+        mkdir($this->projectRoot . '/vendor/composer', 0o755, true);
 
         symlink($this->repoRoot . '/packages', $this->projectRoot . '/packages');
-        mkdir($this->projectRoot . '/vendor/waaseyaa', 0755, true);
+        mkdir($this->projectRoot . '/vendor/waaseyaa', 0o755, true);
         foreach (glob($this->repoRoot . '/packages/*', GLOB_ONLYDIR) ?: [] as $packageRoot) {
             symlink($packageRoot, $this->projectRoot . '/vendor/waaseyaa/' . basename($packageRoot));
         }
@@ -43,7 +43,7 @@ final class FreshInstallContentModelHydrationTest extends TestCase
         ], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT));
         file_put_contents($this->projectRoot . '/config/entity-types.php', "<?php\nreturn [];\n");
         file_put_contents($this->projectRoot . '/config/waaseyaa.php', sprintf(
-            "<?php\nreturn ['environment' => 'local', 'database' => %s, 'entity_schema_validation' => 'off'];\n",
+            "<?php\nreturn ['environment' => 'testing', 'database' => %s, 'entity_schema_validation' => 'off'];\n",
             var_export($this->projectRoot . '/storage/fresh.sqlite', true),
         ));
     }
@@ -127,23 +127,23 @@ final class FreshInstallContentModelHydrationTest extends TestCase
         }
 
         $autoload = <<<'PHP'
-<?php
-require_once __VENDOR_AUTOLOAD__;
+            <?php
+            require_once __VENDOR_AUTOLOAD__;
 
-$map = __REPO_MAP__;
-spl_autoload_register(static function (string $class) use ($map): void {
-    foreach ($map as $prefix => $baseDir) {
-        if (!str_starts_with($class, $prefix)) {
-            continue;
-        }
-        $candidate = $baseDir . '/' . str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
-        if (is_file($candidate)) {
-            require_once $candidate;
-        }
-        return;
-    }
-}, true, true);
-PHP;
+            $map = __REPO_MAP__;
+            spl_autoload_register(static function (string $class) use ($map): void {
+                foreach ($map as $prefix => $baseDir) {
+                    if (!str_starts_with($class, $prefix)) {
+                        continue;
+                    }
+                    $candidate = $baseDir . '/' . str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
+                    if (is_file($candidate)) {
+                        require_once $candidate;
+                    }
+                    return;
+                }
+            }, true, true);
+            PHP;
         $map = ['Waaseyaa\\Migration\\Tests\\' => $this->repoRoot . '/packages/migration/tests/'];
         foreach (glob($this->repoRoot . '/packages/*/composer.json') as $composerFile) {
             $data = json_decode((string) file_get_contents($composerFile), true, flags: JSON_THROW_ON_ERROR);
