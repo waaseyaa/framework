@@ -17,6 +17,24 @@ return new class extends Migration {
                     last_sequence INTEGER NOT NULL CHECK (last_sequence >= 0)
                 )
                 SQL);
+            if ($schema->hasTable('waaseyaa_config_activation')) {
+                $connection->executeStatement(<<<'SQL'
+                    INSERT INTO waaseyaa_config_activation_counter (authority_id, last_sequence)
+                    SELECT authority_id, MAX(activation_sequence)
+                    FROM waaseyaa_config_activation
+                    GROUP BY authority_id
+                    SQL);
+            }
+        }
+        if (!$schema->hasTable('waaseyaa_config_candidate_sweep_fence')) {
+            $connection->executeStatement(<<<'SQL'
+                CREATE TABLE waaseyaa_config_candidate_sweep_fence (
+                    authority_id VARCHAR(64) NOT NULL,
+                    lease_domain VARCHAR(128) NOT NULL,
+                    last_fence INTEGER NOT NULL CHECK (last_fence > 0),
+                    PRIMARY KEY (authority_id, lease_domain)
+                )
+                SQL);
         }
         if (!$schema->hasTable('waaseyaa_config_generation_v2')) {
             $connection->executeStatement(<<<'SQL'

@@ -63,6 +63,9 @@ final class Worker
         $this->authorityRuntime = $authorityRuntime ?? new NoAuthorityQueueRuntime();
         $this->occurrenceRuntime = $occurrenceRuntime ?? new NoOccurrenceRuntime();
         $this->boundaryConfig = $boundaryConfig ?? PersistentQueueBoundaryConfig::dormant();
+        if ($this->boundaryConfig->requireAuthorityEnvelope && !$runtimeEpoch instanceof RuntimeEpochInterface) {
+            throw new \InvalidArgumentException('Activated queue workers require a runtime epoch authority.');
+        }
         $this->runtimeEpoch = $runtimeEpoch ?? new StableRuntimeEpoch();
         if ($this->boundaryConfig->requireAuthorityEnvelope && $this->authorityRuntime instanceof NoAuthorityQueueRuntime) {
             throw new \InvalidArgumentException('Activated queue workers require an authority-restoring runtime.');

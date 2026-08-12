@@ -89,6 +89,9 @@ final class QueueServiceProvider extends ServiceProvider
             if ($driver === 'database' && !$authorityRuntime instanceof QueueAuthorityRuntimeInterface) {
                 throw new \InvalidArgumentException('Activated queue workers require an authority-restoring runtime.');
             }
+            if ($driver === 'database' && !$runtimeEpoch instanceof RuntimeEpochInterface) {
+                throw new \InvalidArgumentException('Activated queue workers require a runtime epoch authority.');
+            }
 
             return new Worker(
                 $this->resolve(TransportInterface::class),

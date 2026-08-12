@@ -101,6 +101,19 @@ final class S1ConfigurationActivationContractTest extends TestCase
     }
 
     #[Test]
+    public function checker_executes_refusing_default_forward_only_and_epoch_semantics(): void
+    {
+        $checker = (string) file_get_contents($this->root . '/bin/check-s1-configuration-activation');
+
+        self::assertStringContainsString('s1ActivationRequireRefusingMethod', $checker);
+        self::assertStringContainsString("preg_match('/\\bDROP\\s+TABLE\\b/i'", $checker);
+        self::assertStringContainsString('claimSweepFence($request)', $checker);
+        self::assertStringContainsString('ensureInitialCounter()', $checker);
+        self::assertStringContainsString("['dev', 'development', 'local', 'testing']", $checker);
+        self::assertStringContainsString('requires a composed runtime epoch authority', $checker);
+    }
+
+    #[Test]
     public function exact_head_archives_prove_cas_rollback_and_worker_epoch_reconciliation(): void
     {
         $script = $this->root . '/tests/PackagedForm/check-s1-configuration-archives';

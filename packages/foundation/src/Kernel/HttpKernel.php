@@ -193,7 +193,12 @@ final class HttpKernel extends AbstractKernel
             projectionDiagnostic: $projectionDiagnostic,
         ));
         $runtimeEpoch = $this->getHttpServiceResolver()->resolve(RuntimeEpochInterface::class);
-        $runtimeEpoch ??= new StableRuntimeEpoch();
+        if (!$runtimeEpoch instanceof RuntimeEpochInterface) {
+            if (!in_array(strtolower($this->resolveEnvironment()), ['dev', 'development', 'local', 'testing'], true)) {
+                throw new \LogicException('The MCP read cache requires a composed runtime epoch authority.');
+            }
+            $runtimeEpoch = new StableRuntimeEpoch();
+        }
         $cacheConfig->setFactoryForBin('mcp_read', fn(): RuntimeEpochCacheBackend => new RuntimeEpochCacheBackend(
             new DatabaseBackend(
                 $pdo,

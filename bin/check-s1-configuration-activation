@@ -37,7 +37,7 @@ function s1ActivationPatterns(): array
         'runtime_epoch' => '/\bRuntimeEpochInterface\b/',
         'runtime_epoch_cache' => '/\bRuntimeEpochCacheBackend\b/',
         'typed_mutation_failure' => '/\bConfigMutationFailedException\b/',
-        'activation_table' => '/\bwaaseyaa_config_(?:activation_counter|generation_v2|entry_v2|candidate|activation_v2)\b/',
+        'activation_table' => '/\bwaaseyaa_config_(?:activation_counter|generation_v2|entry_v2|candidate|candidate_sweep_fence|activation_v2)\b/',
         'activation_command_option' => '/\b(?:activation-request-id|expected-generation|expected-sequence)\b/',
         'sqlite_contention' => '/\b(?:SQLITE_BUSY|database is locked|DeadlockException|LockWaitTimeoutException)\b/i',
     ];
@@ -165,6 +165,15 @@ function s1ActivationRequireContains(string $root, string $relative, string $nee
     }
 }
 
+function s1ActivationRequireRefusingMethod(string $root, string $relative, string $method): void
+{
+    $contents = (string) file_get_contents($root . '/' . $relative);
+    $pattern = sprintf('/function\s+%s\s*\([^)]*\)\s*:\s*void\s*\{\s*throw\s+new\s+\\\\DomainException\b/s', preg_quote($method, '/'));
+    if (preg_match($pattern, $contents) !== 1) {
+        throw new RuntimeException(sprintf('%s must implement %s() as an executable refusing default.', $relative, $method));
+    }
+}
+
 try {
     $contract = json_decode((string) file_get_contents($contractPath), true, flags: JSON_THROW_ON_ERROR);
     if (!is_array($contract)) {
@@ -201,14 +210,31 @@ try {
     foreach ($anchors as [$path, $needle]) {
         s1ActivationRequireContains($root, $path, $needle);
     }
+    foreach ([
+        ['packages/config/src/Activation/RefusingConfigurationActivationAuthorizer.php', 'authorize'],
+        ['packages/config/src/Activation/RefusingConfigurationRollbackValidator.php', 'validate'],
+        ['packages/config/src/Activation/RefusingConfigurationCandidateSweepAuthorizer.php', 'authorize'],
+    ] as [$path, $method]) {
+        s1ActivationRequireRefusingMethod($root, $path, $method);
+    }
+    s1ActivationRequireContains($root, 'packages/entity-storage/src/Config/DatabaseConfigurationActivator.php', 'claimSweepFence($request)');
+    s1ActivationRequireContains($root, 'packages/entity-storage/src/Config/DatabaseConfigurationActivator.php', 'ensureInitialCounter()');
+    s1ActivationRequireContains($root, 'packages/queue/src/QueueServiceProvider.php', 'Activated queue workers require a runtime epoch authority.');
+    $httpKernel = (string) file_get_contents($root . '/packages/foundation/src/Kernel/HttpKernel.php');
+    if (!str_contains($httpKernel, "['dev', 'development', 'local', 'testing']") || !str_contains($httpKernel, 'requires a composed runtime epoch authority')) {
+        throw new RuntimeException('Serving HTTP cache composition must restrict stable epochs to an explicit non-production allowlist.');
+    }
     $migration = (string) file_get_contents($root . '/packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php');
     if (stripos($migration, 'CREATE TABLE') === false || stripos($migration, 'down') === false) {
         throw new RuntimeException('CFG-02 schema authority is incomplete.');
     }
-    if (preg_match('/function\s+down[^}]+DROP\s+TABLE/is', $migration) === 1) {
+    if (preg_match('/function\s+down\s*\([^)]*\)[^{]*\{(?<body>[\s\S]*)\}\s*;\s*$/i', $migration, $down) !== 1) {
+        throw new RuntimeException('CFG-02 forward-only migration must expose an inspectable down() method.');
+    }
+    if (preg_match('/\bDROP\s+TABLE\b/i', (string) $down['body']) === 1) {
         throw new RuntimeException('CFG-02 forward-only migration must not drop activation authority tables.');
     }
-    echo sprintf("S1 configuration activation contract passed: %d classified boundaries, one transactional authority.\n", count($live['candidates']));
+    echo sprintf("S1 configuration activation contract passed: %d classified production boundaries, one transactional authority.\n", count($live['candidates']));
 } catch (Throwable $exception) {
     fwrite(STDERR, $exception->getMessage() . "\n");
     exit(1);

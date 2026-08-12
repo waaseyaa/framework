@@ -22,12 +22,12 @@
     "candidates": [
         {
             "path": "bin/check-s1-configuration-activation",
-            "line": 205,
+            "line": 228,
             "pattern": "ddl_sql",
             "class": "tooling-query",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "70aec7103eab15854065476f6762f5b5fbc6575f50ebfe1dcf961f23bcd84004",
-            "source_sha256": "5c9dad7e7929e501ef1aecf9493cef6bbd060200f85c4d178d6be98458c06c2c"
+            "source_sha256": "d3efd29e8f2c3156ebf61af3c78aad9a74016ad2fdf6a9d93b45f6d21d9c8295"
         },
         {
             "path": "packages/admin-surface/tests/Integration/Host/GenericAdminSurfaceHostFieldAccessPaginationTest.php",
@@ -2244,6 +2244,15 @@
             "source_sha256": "1ec7971d5ef989eb83c16fa9fe8c4ff7809920a3f0470b0dd985a24b9d989d73"
         },
         {
+            "path": "packages/config/tests/Unit/Activation/TransactionalConfigurationStorageTest.php",
+            "line": 82,
+            "pattern": "legacy_schema_method",
+            "class": "test-only",
+            "match_sha256": "848452b59be362b1d974e7eba2f687f559b5d8214154e372ba5603ec7787c6a2",
+            "line_sha256": "dcc8e1d5e49d64956a40dc93f206daa7aa607d549adde441828ea7eea14df596",
+            "source_sha256": "09ed3fdc74552ad34d58b740f9387ba7c56b36b7cdf038889d1f7be7ee070908"
+        },
+        {
             "path": "packages/config/tests/Unit/ConfigFactoryTest.php",
             "line": 212,
             "pattern": "legacy_schema_method",
@@ -3519,43 +3528,52 @@
             "class": "coordinator-plan-or-executor",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "b985791a48ecf49db9aff519267161b3a5345effea79853254de9f2b792b646c",
-            "source_sha256": "77beca62ad288c0a4d833d562d9161215621e43134264b3fe4b97726bddd27ed"
+            "source_sha256": "e83fbcbd1798e0e1fa041df828e28a4a4754d5f760f5b2b948f31a11123201b0"
         },
         {
             "path": "packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php",
-            "line": 23,
+            "line": 31,
+            "pattern": "ddl_sql",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "973aee2cd1db1c1bba1517274afc4d6ed8c97af4f19835e2e92c0e51ff4d8428",
+            "source_sha256": "e83fbcbd1798e0e1fa041df828e28a4a4754d5f760f5b2b948f31a11123201b0"
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php",
+            "line": 41,
             "pattern": "ddl_sql",
             "class": "coordinator-plan-or-executor",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "43b2b83c440af253fc831b91bdc713a9a2185560a0378fba16a1adfe7568ef60",
-            "source_sha256": "77beca62ad288c0a4d833d562d9161215621e43134264b3fe4b97726bddd27ed"
+            "source_sha256": "e83fbcbd1798e0e1fa041df828e28a4a4754d5f760f5b2b948f31a11123201b0"
         },
         {
             "path": "packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php",
-            "line": 35,
+            "line": 53,
             "pattern": "ddl_sql",
             "class": "coordinator-plan-or-executor",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "9f16c2bd3c8b53d3588795dbefa60746b3fbcf8cedb57dbd4c9205ad02e35757",
-            "source_sha256": "77beca62ad288c0a4d833d562d9161215621e43134264b3fe4b97726bddd27ed"
+            "source_sha256": "e83fbcbd1798e0e1fa041df828e28a4a4754d5f760f5b2b948f31a11123201b0"
         },
         {
             "path": "packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php",
-            "line": 55,
+            "line": 73,
             "pattern": "ddl_sql",
             "class": "coordinator-plan-or-executor",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "ac7daa698d5beb37c66e9c71d65b733fac549af618dadf7b68fbce3450171341",
-            "source_sha256": "77beca62ad288c0a4d833d562d9161215621e43134264b3fe4b97726bddd27ed"
+            "source_sha256": "e83fbcbd1798e0e1fa041df828e28a4a4754d5f760f5b2b948f31a11123201b0"
         },
         {
             "path": "packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php",
-            "line": 76,
+            "line": 94,
             "pattern": "ddl_sql",
             "class": "coordinator-plan-or-executor",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "7f2e934c1c27b7cdf6432c1c38447034ad75f9586201a3adb154b619f322d251",
-            "source_sha256": "77beca62ad288c0a4d833d562d9161215621e43134264b3fe4b97726bddd27ed"
+            "source_sha256": "e83fbcbd1798e0e1fa041df828e28a4a4754d5f760f5b2b948f31a11123201b0"
         },
         {
             "path": "packages/entity-storage/src/Backend/SqlColumnSchemaBuilder.php",
@@ -4401,7 +4419,7 @@
             "class": "test-only",
             "match_sha256": "8da7ba06b5f582f6ded2f77e1fd50df4a3de90dd741e51d366a2474e697b11a2",
             "line_sha256": "6eb17a0a03d431a70b0dff49ae67eef558120668d13ce87d092501b19b668cdf",
-            "source_sha256": "41959acbd3100bc2298226078060d4cbf39c476a0e8d9cebef9198f944d0bbb9"
+            "source_sha256": "bdb859922a3c534f9ef7bb0adec2419d579c4d35ab4e3c9bb8b5138d6a9817bd"
         },
         {
             "path": "packages/entity-storage/tests/Unit/Config/DatabaseConfigurationActivatorTest.php",
@@ -4410,7 +4428,7 @@
             "class": "test-only",
             "match_sha256": "76ca3de696864714bd6dc836c58a1daaab29a32b1da19e8ba4a78cd3f073450e",
             "line_sha256": "504c48412148198b90e1ba5eb4967364ac04d6c43b96825f422723bdcb8ecac0",
-            "source_sha256": "41959acbd3100bc2298226078060d4cbf39c476a0e8d9cebef9198f944d0bbb9"
+            "source_sha256": "bdb859922a3c534f9ef7bb0adec2419d579c4d35ab4e3c9bb8b5138d6a9817bd"
         },
         {
             "path": "packages/entity-storage/tests/Unit/Config/DatabaseConfigurationActivatorTest.php",
@@ -4419,7 +4437,7 @@
             "class": "test-only",
             "match_sha256": "8da7ba06b5f582f6ded2f77e1fd50df4a3de90dd741e51d366a2474e697b11a2",
             "line_sha256": "c59fe73d3bc656c07cba97cb5c43c31997abc035ea66d1966fe4ddc3b3082344",
-            "source_sha256": "41959acbd3100bc2298226078060d4cbf39c476a0e8d9cebef9198f944d0bbb9"
+            "source_sha256": "bdb859922a3c534f9ef7bb0adec2419d579c4d35ab4e3c9bb8b5138d6a9817bd"
         },
         {
             "path": "packages/entity-storage/tests/Unit/Config/DatabaseConfigurationActivatorTest.php",
@@ -4428,7 +4446,7 @@
             "class": "test-only",
             "match_sha256": "8da7ba06b5f582f6ded2f77e1fd50df4a3de90dd741e51d366a2474e697b11a2",
             "line_sha256": "a2bd78a9b0f7ffbad1431e5d8e146b10a0163f22dda1d5495af7b65e87654494",
-            "source_sha256": "41959acbd3100bc2298226078060d4cbf39c476a0e8d9cebef9198f944d0bbb9"
+            "source_sha256": "bdb859922a3c534f9ef7bb0adec2419d579c4d35ab4e3c9bb8b5138d6a9817bd"
         },
         {
             "path": "packages/entity-storage/tests/Unit/Config/DatabaseConfigurationActivatorTest.php",
@@ -4437,7 +4455,7 @@
             "class": "test-only",
             "match_sha256": "76ca3de696864714bd6dc836c58a1daaab29a32b1da19e8ba4a78cd3f073450e",
             "line_sha256": "7fe144feabb4bc74b3d42c8737b31f5157e8a9f82b47f6d9131f87ac050d8b2d",
-            "source_sha256": "41959acbd3100bc2298226078060d4cbf39c476a0e8d9cebef9198f944d0bbb9"
+            "source_sha256": "bdb859922a3c534f9ef7bb0adec2419d579c4d35ab4e3c9bb8b5138d6a9817bd"
         },
         {
             "path": "packages/entity-storage/tests/Unit/Driver/EntityStorageDriverV2ContractTest.php",

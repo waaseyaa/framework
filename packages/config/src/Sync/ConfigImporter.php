@@ -126,7 +126,7 @@ final class ConfigImporter
             }
         }
 
-        if ($this->activator !== null && !$dryRun) {
+        if ($this->activator !== null) {
             return $this->activateGeneration(
                 $syncFiles,
                 $orderedRefs,
@@ -134,6 +134,7 @@ final class ConfigImporter
                 $activationRequestId,
                 $expectedToken,
                 $activeFiles,
+                $dryRun,
             );
         }
 
@@ -172,14 +173,23 @@ final class ConfigImporter
         ?string $activationRequestId,
         ?ConfigurationActiveToken $expectedToken,
         array $activeFiles,
+        bool $dryRun = false,
     ): ConfigImportResult {
-        if ($activationRequestId === null || $activationRequestId === '') {
+        if (!$dryRun && ($activationRequestId === null || $activationRequestId === '')) {
             return new ConfigImportResult(entries: [new ConfigImportEntryResult(
                 ref: '<generation>',
                 status: ConfigImportEntryResult::STATUS_FAILED,
                 reason: 'production config:import requires --activation-request-id',
             )]);
         }
+        $activationRequestId ??= 'dry-run:' . substr(hash('sha256', json_encode([
+            'expected' => $expectedToken === null ? null : [
+                'generation_id' => $expectedToken->generationId,
+                'activation_sequence' => $expectedToken->activationSequence,
+            ],
+            'refs' => $orderedRefs,
+            'delete_orphans' => $deleteOrphans,
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)), 0, 64);
 
         $activeByRef = [];
         foreach ($activeFiles as $file) {
@@ -201,15 +211,57 @@ final class ConfigImporter
             }
         }
 
+        $request = new ConfigurationActivationRequest(
+            $activationRequestId,
+            $expectedToken,
+            $orderedFiles,
+            $tombstones,
+            $expectedEntryHashes,
+            completeReplacement: $deleteOrphans,
+        );
+        $nextByRef = $deleteOrphans ? [] : $activeByRef;
+        foreach ($orderedFiles as $file) {
+            $nextByRef[$file->ref()] = $file;
+        }
+        foreach ($tombstones as $ref => $_hash) {
+            unset($nextByRef[$ref]);
+        }
+        ksort($nextByRef, SORT_STRING);
+        $manifest = [];
+        foreach ($nextByRef as $ref => $file) {
+            $manifest[$ref] = $file->contentHash();
+        }
+        $generationId = hash('sha256', json_encode([
+            'schema' => 'configuration-generation.v1',
+            'entries' => $manifest,
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+        $planHash = hash('sha256', json_encode([
+            'schema' => 'configuration-activation-plan.v1',
+            'input_hash' => $request->inputHash(),
+            'generation_id' => $generationId,
+            'refs' => array_keys($nextByRef),
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+
+        if ($dryRun) {
+            $entries = [];
+            foreach ($orderedFiles as $file) {
+                $previous = $activeByRef[$file->ref()] ?? null;
+                $status = !$previous instanceof ConfigSyncFile
+                    ? ConfigImportEntryResult::STATUS_CREATED
+                    : (hash_equals($previous->contentHash(), $file->contentHash())
+                        ? ConfigImportEntryResult::STATUS_UNCHANGED
+                        : ConfigImportEntryResult::STATUS_UPDATED);
+                $entries[] = new ConfigImportEntryResult($file->ref(), $status);
+            }
+            foreach (array_keys($tombstones) as $ref) {
+                $entries[] = new ConfigImportEntryResult($ref, ConfigImportEntryResult::STATUS_DELETED);
+            }
+
+            return new ConfigImportResult($entries, true, $generationId, $planHash);
+        }
+
         try {
-            $activation = $this->activator->activate(new ConfigurationActivationRequest(
-                $activationRequestId,
-                $expectedToken,
-                $orderedFiles,
-                $tombstones,
-                $expectedEntryHashes,
-                completeReplacement: $deleteOrphans,
-            ));
+            $activation = $this->activator->activate($request);
         } catch (\Throwable $exception) {
             return new ConfigImportResult(entries: [new ConfigImportEntryResult(
                 ref: '<generation>',
@@ -239,7 +291,11 @@ final class ConfigImporter
             'status' => $activation->status,
         ]);
 
-        return new ConfigImportResult(entries: $entries);
+        return new ConfigImportResult(
+            entries: $entries,
+            generationId: $activation->token->generationId,
+            planHash: $activation->planHash,
+        );
     }
 
     /**

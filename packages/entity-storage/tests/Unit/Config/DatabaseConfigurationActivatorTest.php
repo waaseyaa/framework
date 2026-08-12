@@ -508,6 +508,12 @@ final class DatabaseConfigurationActivatorTest extends TestCase
             "SELECT lifecycle_state FROM waaseyaa_config_candidate WHERE activation_request_id = 'sweep-staged'",
         ));
         self::assertEquals($head->token, $activator->currentToken());
+        try {
+            $activator->activate($this->request('sweep-staged', $head->token, [$this->file('system', 'site', ['name' => 'B'])]));
+            self::fail('A terminal superseded request ID was silently retried.');
+        } catch (ConfigurationActivationRequestReuseException $exception) {
+            self::assertStringContainsString('terminal', $exception->getMessage());
+        }
     }
 
     #[Test]
@@ -531,6 +537,62 @@ final class DatabaseConfigurationActivatorTest extends TestCase
             "SELECT lifecycle_state FROM waaseyaa_config_candidate WHERE activation_request_id = 'sweep-refusal-base'",
         ));
         self::assertEquals($head->token, $activator->currentToken());
+    }
+
+    #[Test]
+    public function candidateSweepRejectsAStaleOrReplayedFenceWithinItsLeaseDomain(): void
+    {
+        $sweepAuthorizer = new class implements ConfigurationCandidateSweepAuthorizerInterface {
+            public function authorize(ConfigurationCandidateSweepRequest $request): void {}
+        };
+        $activator = new DatabaseConfigurationActivator(
+            $this->database,
+            $this->context,
+            $this->authorizer,
+            sweepAuthorizer: $sweepAuthorizer,
+        );
+        $first = new ConfigurationCandidateSweepRequest(
+            'sweep-fence-10',
+            'configuration-candidate-maintenance',
+            10,
+            new \DateTimeImmutable('tomorrow'),
+        );
+        self::assertSame(0, $activator->supersedeStagedCandidates($first));
+
+        foreach ([10, 9] as $staleFence) {
+            try {
+                $activator->supersedeStagedCandidates(new ConfigurationCandidateSweepRequest(
+                    'sweep-fence-' . $staleFence,
+                    'configuration-candidate-maintenance',
+                    $staleFence,
+                    new \DateTimeImmutable('tomorrow'),
+                ));
+                self::fail('A stale or replayed candidate-sweep fence was accepted.');
+            } catch (ConfigurationActivationConflictException $exception) {
+                self::assertStringContainsString('stale or replayed', $exception->getMessage());
+            }
+        }
+        self::assertSame(10, $this->scalar(
+            "SELECT last_fence FROM waaseyaa_config_candidate_sweep_fence WHERE lease_domain = 'configuration-candidate-maintenance'",
+        ));
+    }
+
+    #[Test]
+    public function missingCounterFailsClosedAfterActivationHistoryExists(): void
+    {
+        $activator = $this->activator();
+        $head = $activator->activate($this->request('counter-history-a', null, [$this->file('system', 'site', ['name' => 'A'])]));
+        $this->database->delete('waaseyaa_config_activation_counter')
+            ->condition('authority_id', $this->context->authorityId)
+            ->execute();
+
+        try {
+            $activator->activate($this->request('counter-history-b', $head->token, [$this->file('system', 'site', ['name' => 'B'])]));
+            self::fail('A deleted activation counter was recreated after durable history existed.');
+        } catch (ConfigurationActivationConflictException $exception) {
+            self::assertStringContainsString('counter is missing', $exception->getMessage());
+        }
+        self::assertSame(1, $this->scalar('SELECT COUNT(*) FROM waaseyaa_config_activation_v2'));
     }
 
     private function activator(): DatabaseConfigurationActivator

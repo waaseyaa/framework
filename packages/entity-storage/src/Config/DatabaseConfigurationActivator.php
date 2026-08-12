@@ -87,6 +87,12 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
                     $request->requestId,
                 );
             }
+            if ((string) $existing['lifecycle_state'] !== 'staged') {
+                throw new ConfigurationActivationRequestReuseException(sprintf(
+                    'Configuration activation request ID is terminal in lifecycle state "%s"; retry with a new request ID.',
+                    (string) $existing['lifecycle_state'],
+                ));
+            }
         }
 
         if (!$this->tokensEqual($request->expectedToken, $this->currentToken())) {
@@ -142,7 +148,7 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
             throw new ConfigurationActivationRequestReuseException('Staged activation request no longer resolves to its original plan.');
         }
 
-        $this->ensureCounter();
+        $this->ensureInitialCounter();
         $previousCounter = $this->counter();
         $transaction = $this->database->transaction('configuration-activation');
         try {
@@ -280,24 +286,62 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
 
     public function supersedeStagedCandidates(ConfigurationCandidateSweepRequest $request): int
     {
-        ($this->sweepAuthorizer)->authorize($request);
-        $transaction = $this->database->transaction('configuration-candidate-sweep');
         try {
-            $affected = $this->database->update('waaseyaa_config_candidate')
-                ->fields(['lifecycle_state' => 'superseded'])
-                ->condition('authority_id', $this->context->authorityId)
-                ->condition('lifecycle_state', 'staged')
-                ->condition('created_at', $request->createdBefore->setTimezone(new \DateTimeZone('UTC'))->format('c'), '<')
-                ->execute();
-            $transaction->commit();
-
-            return $affected;
-        } catch (\Throwable $exception) {
+            ($this->sweepAuthorizer)->authorize($request);
+            $transaction = $this->database->transaction('configuration-candidate-sweep');
             try {
-                $transaction->rollBack();
-            } catch (\Throwable) {
+                $this->claimSweepFence($request);
+                $affected = $this->database->update('waaseyaa_config_candidate')
+                    ->fields(['lifecycle_state' => 'superseded'])
+                    ->condition('authority_id', $this->context->authorityId)
+                    ->condition('lifecycle_state', 'staged')
+                    ->condition('created_at', $request->createdBefore->setTimezone(new \DateTimeZone('UTC'))->format('c'), '<')
+                    ->execute();
+                $transaction->commit();
+
+                return $affected;
+            } catch (\Throwable $exception) {
+                try {
+                    $transaction->rollBack();
+                } catch (\Throwable) {
+                }
+                throw $exception;
+            }
+        } catch (\Throwable $exception) {
+            if (
+                $exception instanceof LockWaitTimeoutException
+                || $exception instanceof DeadlockException
+                || preg_match('/\b(?:database is locked|database table is locked|SQLITE_BUSY|SQLITE_LOCKED)\b/i', $exception->getMessage()) === 1
+            ) {
+                throw new ConfigurationActivationContentionException(
+                    'Configuration candidate sweep could not acquire its writer authority before timeout.',
+                    previous: $exception,
+                );
             }
             throw $exception;
+        }
+    }
+
+    private function claimSweepFence(ConfigurationCandidateSweepRequest $request): void
+    {
+        try {
+            $this->database->query(
+                'INSERT INTO waaseyaa_config_candidate_sweep_fence (authority_id, lease_domain, last_fence) VALUES (?, ?, ?)',
+                [$this->context->authorityId, $request->leaseDomain, $request->fence],
+            );
+
+            return;
+        } catch (UniqueConstraintViolationException) {
+            // The durable domain exists; only a strictly newer lease holder may advance it.
+        }
+        $affected = $this->database->update('waaseyaa_config_candidate_sweep_fence')
+            ->fields(['last_fence' => $request->fence])
+            ->condition('authority_id', $this->context->authorityId)
+            ->condition('lease_domain', $request->leaseDomain)
+            ->condition('last_fence', $request->fence, '<')
+            ->execute();
+        if ($affected !== 1) {
+            throw new ConfigurationActivationConflictException('Configuration candidate sweep fence is stale or replayed.');
         }
     }
 
@@ -326,9 +370,13 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
     /** @return iterable<ConfigSyncFile> */
     public function readGeneration(ConfigurationActiveToken $token): iterable
     {
-        $table = $this->generationExists($token->generationId)
-            ? 'waaseyaa_config_entry_v2'
-            : 'waaseyaa_config_entry';
+        if ($this->generationExists($token->generationId)) {
+            $table = 'waaseyaa_config_entry_v2';
+        } elseif ($this->legacyGenerationExists($token->generationId)) {
+            $table = 'waaseyaa_config_entry';
+        } else {
+            throw new ConfigurationActivationConflictException('Configuration generation content is absent.');
+        }
         foreach ($this->database->query(
             'SELECT entity_type, entity_id, uuid, dependencies_json, langcode, fields_json '
             . "FROM {$table} WHERE authority_id = ? AND generation_id = ? ORDER BY config_name",
@@ -393,6 +441,7 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
         string $manifestHash,
         string $planHash,
         array $entries,
+        bool $allowConcurrentRetry = true,
     ): void {
         $now = gmdate('c');
         $transaction = $this->database->transaction('configuration-candidate-stage');
@@ -447,6 +496,32 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
                 $transaction->rollBack();
             } catch (\Throwable) {
             }
+            if ($exception instanceof UniqueConstraintViolationException) {
+                $candidate = $this->candidate($request->requestId);
+                if ($candidate !== null) {
+                    if (
+                        hash_equals((string) $candidate['input_hash'], $inputHash)
+                        && hash_equals((string) $candidate['generation_id'], $generationId)
+                        && hash_equals((string) $candidate['plan_hash'], $planHash)
+                        && (string) $candidate['lifecycle_state'] === 'staged'
+                    ) {
+                        return;
+                    }
+                    throw new ConfigurationActivationRequestReuseException(
+                        'Concurrent staging found the request ID bound to a different or terminal candidate.',
+                        previous: $exception,
+                    );
+                }
+                if ($allowConcurrentRetry) {
+                    $this->stage($request, $inputHash, $generationId, $manifestHash, $planHash, $entries, false);
+
+                    return;
+                }
+                throw new ConfigurationActivationConflictException(
+                    'Concurrent configuration generation staging did not converge.',
+                    previous: $exception,
+                );
+            }
             throw $exception;
         }
     }
@@ -465,9 +540,15 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
         return null;
     }
 
-    private function ensureCounter(): void
+    private function ensureInitialCounter(): void
     {
         $currentToken = $this->currentToken();
+        if ($currentToken !== null && $this->hasV2ActivationHistory()) {
+            // Once an authority has history, deletion of its never-decreasing counter is corruption.
+            $this->counter();
+
+            return;
+        }
         $initialSequence = $currentToken === null ? 0 : $currentToken->activationSequence;
         try {
             $this->database->query(
@@ -479,10 +560,37 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
         }
     }
 
+    private function hasV2ActivationHistory(): bool
+    {
+        foreach ($this->database->query(
+            'SELECT 1 FROM waaseyaa_config_activation_v2 WHERE authority_id = ? LIMIT 1',
+            [$this->context->authorityId],
+        ) as $_row) {
+            return true;
+        }
+
+        return false;
+    }
+
     private function generationExists(string $generationId): bool
     {
         foreach ($this->database->query(
             'SELECT 1 FROM waaseyaa_config_generation_v2 WHERE authority_id = ? AND generation_id = ?',
+            [$this->context->authorityId, $generationId],
+        ) as $_row) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function legacyGenerationExists(string $generationId): bool
+    {
+        if (!$this->database->schema()->tableExists('waaseyaa_config_generation')) {
+            return false;
+        }
+        foreach ($this->database->query(
+            'SELECT 1 FROM waaseyaa_config_generation WHERE authority_id = ? AND generation_id = ? LIMIT 1',
             [$this->context->authorityId, $generationId],
         ) as $_row) {
             return true;

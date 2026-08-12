@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Runtime\RuntimeEpochInterface;
+use Waaseyaa\Foundation\Runtime\StableRuntimeEpoch;
 use Waaseyaa\Queue\Envelope\QueueAuthorityRuntimeInterface;
 use Waaseyaa\Queue\Envelope\QueueEnvelopeV1;
 use Waaseyaa\Queue\Envelope\QueueOccurrenceV1;
@@ -46,6 +47,23 @@ final class WorkerTest extends TestCase
         );
     }
 
+    public function test_activation_refuses_no_runtime_epoch_authority(): void
+    {
+        $runtime = new class implements QueueAuthorityRuntimeInterface {
+            public function run(QueueEnvelopeV1 $envelope, \Closure $handler): mixed { return $handler(); }
+        };
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('runtime epoch authority');
+        new Worker(
+            $this->transport,
+            $this->failedRepo,
+            [],
+            $this->signer,
+            authorityRuntime: $runtime,
+            boundaryConfig: PersistentQueueBoundaryConfig::enforced(),
+        );
+    }
+
     public function test_activation_rejects_legacy_payload_before_handler_execution(): void
     {
         $handled = false;
@@ -73,6 +91,7 @@ final class WorkerTest extends TestCase
             $this->signer,
             authorityRuntime: $runtime,
             boundaryConfig: PersistentQueueBoundaryConfig::enforced(),
+            runtimeEpoch: new StableRuntimeEpoch(),
         );
         $this->transport->push('default', $this->signer->seal(serialize(new SuccessfulJob())));
 

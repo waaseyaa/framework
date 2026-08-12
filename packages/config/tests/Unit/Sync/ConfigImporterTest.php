@@ -397,6 +397,38 @@ final class ConfigImporterTest extends TestCase
         self::assertStringContainsString('activation-request-id', (string) $result->entries[0]->reason);
     }
 
+    #[Test]
+    public function transactionalDryRunBuildsTheExactPlanWithoutActivationOrLegacyMutation(): void
+    {
+        $repository = $this->seed(['system.site' => []]);
+        $activeSite = $this->file('system.site', [], ['name' => 'Old']);
+        $expected = new ConfigurationActiveToken(str_repeat('a', 64), 4);
+        $activator = $this->createMock(ConfigurationActivatorInterface::class);
+        $activator->expects($this->never())->method('activate');
+        $hook = new class implements ConfigImportApplyHookInterface {
+            public function apply(ConfigSyncFile $file): string { throw new \LogicException('legacy apply called'); }
+            public function delete(string $ref): void { throw new \LogicException('legacy delete called'); }
+        };
+        $importer = new ConfigImporter(
+            $repository,
+            $hook,
+            new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight(),
+            activator: $activator,
+        );
+
+        $result = $importer->import(
+            dryRun: true,
+            activeRefs: [$activeSite->ref()],
+            expectedToken: $expected,
+            activeFiles: [$activeSite],
+        );
+
+        self::assertTrue($result->dryRun);
+        self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/D', (string) $result->generationId);
+        self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/D', (string) $result->planHash);
+        self::assertSame(ConfigImportEntryResult::STATUS_UPDATED, $result->entries[0]->status);
+    }
+
     /**
      * @param array<string, list<string>> $refsWithDeps Map of ref => declared deps.
      */

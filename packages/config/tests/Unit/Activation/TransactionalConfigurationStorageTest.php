@@ -69,6 +69,28 @@ final class TransactionalConfigurationStorageTest extends TestCase
         self::assertNull($activator->request);
     }
 
+    #[Test]
+    public function sequentialMutationsAdvanceTheObservedToken(): void
+    {
+        $token = new ConfigurationActiveToken(str_repeat('a', 64), 4);
+        $site = $this->file('system', 'site', ['name' => 'Old']);
+        $role = $this->file('role', 'editor', ['label' => 'Editor']);
+        $activator = new CapturingActivator($token, [$site, $role]);
+        $storage = new TransactionalConfigurationStorage(new MemoryStorage(), $activator, $token);
+
+        self::assertTrue($storage->write('system.site', ['name' => 'New']));
+        self::assertTrue($storage->rename('role.editor', 'role.author'));
+        self::assertTrue($storage->deleteAll('role.'));
+
+        self::assertCount(3, $activator->requests);
+        self::assertSame([4, 5, 6], array_map(
+            static fn(ConfigurationActivationRequest $request): int => $request->expectedToken?->activationSequence ?? -1,
+            $activator->requests,
+        ));
+        self::assertTrue($activator->requests[2]->completeReplacement);
+        self::assertArrayHasKey('role.author', $activator->requests[2]->tombstones());
+    }
+
     /** @param array<string, mixed> $fields */
     private function file(string $type, string $id, array $fields): ConfigSyncFile
     {
@@ -86,16 +108,38 @@ final class TransactionalConfigurationStorageTest extends TestCase
 final class CapturingActivator implements ConfigurationActivatorInterface
 {
     public ?ConfigurationActivationRequest $request = null;
+    /** @var list<ConfigurationActivationRequest> */
+    public array $requests = [];
 
     /** @param list<ConfigSyncFile> $files */
     public function __construct(
-        private readonly ConfigurationActiveToken $token,
-        private readonly array $files,
+        private ConfigurationActiveToken $token,
+        private array $files,
     ) {}
 
     public function activate(ConfigurationActivationRequest $request): ConfigurationActivationResult
     {
         $this->request = $request;
+        $this->requests[] = $request;
+        $byRef = [];
+        foreach ($this->files as $file) {
+            $byRef[$file->ref()] = $file;
+        }
+        if ($request->completeReplacement) {
+            $byRef = [];
+        }
+        foreach ($request->files() as $file) {
+            $byRef[$file->ref()] = $file;
+        }
+        foreach ($request->tombstones() as $ref => $_hash) {
+            unset($byRef[$ref]);
+        }
+        $this->files = array_values($byRef);
+        $this->token = new ConfigurationActiveToken(
+            hash('sha256', $request->inputHash()),
+            $this->token->activationSequence + 1,
+        );
+
         return new ConfigurationActivationResult('committed', $this->token, $request->requestId, str_repeat('f', 64));
     }
     public function rollback(ConfigurationRollbackRequest $request): ConfigurationActivationResult { throw new \LogicException('not used'); }

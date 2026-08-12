@@ -20,7 +20,7 @@ final class TransactionalConfigurationStorage implements StorageInterface
     public function __construct(
         private readonly StorageInterface $reader,
         private readonly ConfigurationActivatorInterface $activator,
-        private readonly ConfigurationActiveToken $observedToken,
+        private ConfigurationActiveToken $observedToken,
         private readonly string $collection = '',
     ) {}
 
@@ -63,8 +63,8 @@ final class TransactionalConfigurationStorage implements StorageInterface
             $existing === null ? 'en' : $existing->langcode,
             $data,
         );
-        $this->activator->activate(new ConfigurationActivationRequest(
-            $this->requestId('save', $ref),
+        $this->activateAndRefresh(new ConfigurationActivationRequest(
+            $this->requestId('save', $ref, $file->contentHash()),
             $this->observedToken,
             [$file],
             expectedEntryHashes: $existing === null ? [] : [$ref => $existing->contentHash()],
@@ -80,8 +80,8 @@ final class TransactionalConfigurationStorage implements StorageInterface
         if (!$existing instanceof ConfigSyncFile) {
             return false;
         }
-        $this->activator->activate(new ConfigurationActivationRequest(
-            $this->requestId('delete', $ref),
+        $this->activateAndRefresh(new ConfigurationActivationRequest(
+            $this->requestId('delete', $ref, $existing->contentHash()),
             $this->observedToken,
             [],
             [$ref => $existing->contentHash()],
@@ -107,8 +107,8 @@ final class TransactionalConfigurationStorage implements StorageInterface
             $existing->langcode,
             $existing->fields,
         );
-        $this->activator->activate(new ConfigurationActivationRequest(
-            $this->requestId('rename', $oldRef . ':' . $newRef),
+        $this->activateAndRefresh(new ConfigurationActivationRequest(
+            $this->requestId('rename', $oldRef . ':' . $newRef, $replacement->contentHash()),
             $this->observedToken,
             [$replacement],
             [$oldRef => $existing->contentHash()],
@@ -136,8 +136,8 @@ final class TransactionalConfigurationStorage implements StorageInterface
         foreach ($retained as $file) {
             $expectedEntryHashes[$file->ref()] = $file->contentHash();
         }
-        $this->activator->activate(new ConfigurationActivationRequest(
-            $this->requestId('delete-all', $prefix),
+        $this->activateAndRefresh(new ConfigurationActivationRequest(
+            $this->requestId('delete-all', $prefix, hash('sha256', json_encode($tombstones, JSON_THROW_ON_ERROR))),
             $this->observedToken,
             $retained,
             $tombstones,
@@ -182,8 +182,20 @@ final class TransactionalConfigurationStorage implements StorageInterface
         return $name;
     }
 
-    private function requestId(string $operation, string $scope): string
+    private function activateAndRefresh(ConfigurationActivationRequest $request): void
     {
-        return 'config-' . $operation . ':' . substr(hash('sha256', $scope), 0, 16) . ':' . bin2hex(random_bytes(16));
+        $result = $this->activator->activate($request);
+        $this->observedToken = $result->token;
+        $this->observedFiles = null;
+    }
+
+    private function requestId(string $operation, string $scope, string $payloadHash): string
+    {
+        return 'config-' . $operation . ':' . hash('sha256', json_encode([
+            'scope' => $scope,
+            'payload_hash' => $payloadHash,
+            'expected_generation_id' => $this->observedToken->generationId,
+            'expected_activation_sequence' => $this->observedToken->activationSequence,
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
     }
 }
