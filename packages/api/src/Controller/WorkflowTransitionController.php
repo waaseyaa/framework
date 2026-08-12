@@ -12,6 +12,9 @@ use Waaseyaa\Access\DecisionAccountResolver;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Http\JsonApiResponse;
 use Waaseyaa\Api\JsonApiError;
+use Waaseyaa\Entity\Concurrency\EntityMutationConflictException;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
@@ -88,6 +91,9 @@ final class WorkflowTransitionController
         }
 
         $state = $this->workflowSubjectReader->read($workingCopy)->workflowState;
+        $mutationToken = $available !== [] && $workingCopy instanceof EntityBase
+            ? $workingCopy->mutationToken()
+            : null;
 
         // Field-level view gate on the surfaced state (PR #1956 reviewer
         // finding): the entity-level view check above only gates `data`
@@ -104,11 +110,15 @@ final class WorkflowTransitionController
         ) {
             $state = null;
         }
+        $meta = ['workflow_state' => $state];
+        if ($mutationToken !== null) {
+            $meta['mutation_token'] = $mutationToken->toOpaqueString();
+        }
 
         return new JsonApiResponse([
             'data' => $data,
-            'meta' => ['workflow_state' => $state],
-        ]);
+            'meta' => $meta,
+        ], headers: $mutationToken !== null ? ['ETag' => $mutationToken->toStrongEtag()] : []);
     }
 
     /**
@@ -152,6 +162,10 @@ final class WorkflowTransitionController
         // this first-party caller (the passed object IS the working copy).
         $repository = $this->entityTypeManager->getRepository($entityType);
         $workingCopy = $repository->loadWorkingCopy((string) $entity->id()) ?? $entity;
+        $expectedMutation = $this->mutationExpectation($request, $entityType, (string) $entity->id(), $workingCopy);
+        if ($expectedMutation instanceof JsonApiResponse) {
+            return $expectedMutation;
+        }
 
         try {
             $result = $this->transitionService->transition($workingCopy, $body['transition'], $account);
@@ -173,7 +187,11 @@ final class WorkflowTransitionController
                     'current_revision_id' => $e->currentRevisionId,
                 ],
             ));
+        } catch (EntityMutationConflictException) {
+            return $this->mutationConflictResponse();
         }
+
+        $successor = $workingCopy instanceof EntityBase ? $workingCopy->mutationToken() : null;
 
         return new JsonApiResponse([
             'data' => [
@@ -181,7 +199,8 @@ final class WorkflowTransitionController
                 'from' => $result->fromState,
                 'to' => $result->toState,
             ],
-        ]);
+            'meta' => ['mutation_token' => $successor?->toOpaqueString()],
+        ], headers: $successor !== null ? ['ETag' => $successor->toStrongEtag()] : []);
     }
 
     /**
@@ -274,5 +293,55 @@ final class WorkflowTransitionController
     private function errorResponse(JsonApiError $error): JsonApiResponse
     {
         return new JsonApiResponse(['errors' => [$error->toArray()]], (int) $error->status);
+    }
+
+    private function mutationExpectation(
+        Request $request,
+        string $entityTypeId,
+        string $entityId,
+        EntityInterface $entity,
+    ): EntityMutationToken|JsonApiResponse {
+        $ifMatch = $request->headers->get('If-Match');
+        if ($ifMatch === null || trim($ifMatch) === '') {
+            return $this->errorResponse(new JsonApiError(
+                status: '428',
+                title: 'Precondition Required',
+                detail: 'If-Match is required for an existing aggregate mutation.',
+                code: 'MUTATION_PRECONDITION_REQUIRED',
+            ));
+        }
+
+        try {
+            $expected = EntityMutationToken::fromHttpIfMatch($ifMatch);
+        } catch (\InvalidArgumentException) {
+            return $this->errorResponse(new JsonApiError(
+                status: '400',
+                title: 'Bad Request',
+                detail: 'If-Match must contain exactly one strong entity mutation ETag.',
+                code: 'INVALID_MUTATION_PRECONDITION',
+            ));
+        }
+
+        if (!$entity instanceof EntityBase
+            || $expected->entityTypeId !== $entityTypeId
+            || $expected->entityId !== $entityId
+            || $entity->mutationToken() === null
+            || !hash_equals($entity->mutationToken()->toOpaqueString(), $expected->toOpaqueString())
+        ) {
+            return $this->mutationConflictResponse();
+        }
+        $entity->_hydrateMutationToken($expected);
+
+        return $expected;
+    }
+
+    private function mutationConflictResponse(): JsonApiResponse
+    {
+        return $this->errorResponse(new JsonApiError(
+            status: '412',
+            title: 'Precondition Failed',
+            detail: 'The resource changed after the supplied mutation precondition was observed.',
+            code: 'MUTATION_PRECONDITION_FAILED',
+        ));
     }
 }

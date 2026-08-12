@@ -59,7 +59,7 @@ use Waaseyaa\I18n\LanguageManagerInterface;
  * and language fallback. Delegates raw I/O to a storage driver.
  * @api
  */
-final class EntityRepository implements EntityRepositoryInterface
+final class EntityRepository implements EntityRepositoryInterface, AggregateMutationRepositoryInterface
 {
     private readonly EntityStorageDriverV2Interface $driver;
 
@@ -641,6 +641,76 @@ final class EntityRepository implements EntityRepositoryInterface
         return $this->doSave($entity, validate: $validate, saveContext: $context);
     }
 
+    public function saveAggregateMutation(
+        EntityInterface $entity,
+        \Closure $mutation,
+        bool $publishRevision = false,
+        bool $validate = true,
+        ?\Closure $publicationFinalizer = null,
+        ?\Closure $beforeCommit = null,
+    ): EntityInterface {
+        if ($entity->isNew()) {
+            throw new \LogicException('Aggregate mutation commands require an existing persisted entity.');
+        }
+        if ($this->database === null || $this->mutationAuthority === null) {
+            throw new \LogicException('Aggregate mutation commands require database-backed mutation authority.');
+        }
+        if ($publishRevision && $this->revisionDriver === null) {
+            throw new \LogicException('Atomic publication requires revision storage.');
+        }
+
+        $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher);
+
+        return $unitOfWork->transaction(function () use ($entity, $mutation, $publishRevision, $validate, $publicationFinalizer, $beforeCommit, $unitOfWork): EntityInterface {
+            $this->doSave(
+                $entity,
+                $unitOfWork,
+                $validate,
+                afterMutationClaim: $mutation,
+                validateAfterMutationClaim: true,
+            );
+            if (!$publishRevision) {
+                $beforeCommit?->__invoke($entity);
+
+                return $entity;
+            }
+
+            $revisionId = null;
+            if ($entity instanceof RevisionableInterface) {
+                $revisionId = $entity->getRevisionId();
+            } elseif ($entity instanceof RevisionableEntityInterface && method_exists($entity, 'getRevisionId')) {
+                $candidate = $entity->getRevisionId();
+                $revisionId = is_int($candidate) ? $candidate : null;
+            }
+            if ($revisionId === null) {
+                throw new \LogicException('Atomic publication did not produce a revision identifier.');
+            }
+            if ($publicationFinalizer !== null) {
+                $publicationFinalizer($entity);
+                $this->updateRevisionRow(
+                    (string) $entity->id(),
+                    $revisionId,
+                    $this->canonicalizeBooleanFieldValues(
+                        $this->extractPersistenceValues($entity),
+                        $entity,
+                    ),
+                );
+            }
+
+            $published = $this->doSetPublishedRevision(
+                (string) $entity->id(),
+                $revisionId,
+                expected: null,
+                unitOfWork: $unitOfWork,
+                claimMutation: false,
+            );
+            $entity->set('published_revision_id', $revisionId);
+            $beforeCommit?->__invoke($published);
+
+            return $published;
+        });
+    }
+
     public function delete(EntityInterface $entity): void
     {
         if ($this->mutationAuthority !== null && $this->database !== null) {
@@ -817,6 +887,8 @@ final class EntityRepository implements EntityRepositoryInterface
         ?UnitOfWork $unitOfWork = null,
         bool $validate = true,
         ?SaveContext $saveContext = null,
+        ?\Closure $afterMutationClaim = null,
+        bool $validateAfterMutationClaim = false,
     ): int {
         $isNew = $entity->isNew();
         $entityTypeId = $this->entityType->id();
@@ -876,17 +948,8 @@ final class EntityRepository implements EntityRepositoryInterface
         // deferred-id revision writes below (FR-001, clause 2).
         $actor = $this->resolveActor($resolvedContext);
 
-        if ($validate && $this->validator !== null) {
-            $constraints = EntityTypeValidationConstraints::forEntityType(
-                $this->entityType,
-                $this->resolveValidationFieldDefinitions($entity),
-            );
-            if ($constraints !== []) {
-                $violations = $this->validator->validate($entity, $constraints);
-                if ($violations->count() > 0) {
-                    throw new EntityValidationException($violations);
-                }
-            }
+        if ($validate && !$validateAfterMutationClaim) {
+            $this->validateEntity($entity);
         }
 
         $successorMutationToken = null;
@@ -894,6 +957,10 @@ final class EntityRepository implements EntityRepositoryInterface
             $expectedMutationToken = $this->requireMutationToken($entity);
             $successorMutationToken = $this->mutationAuthority->claim($expectedMutationToken);
             $this->installTokenAfterCommit($entity, $successorMutationToken, $unitOfWork);
+        }
+        $afterMutationClaim?->__invoke($entity);
+        if ($validate && $validateAfterMutationClaim) {
+            $this->validateEntity($entity);
         }
 
         $originalEntity = null;
@@ -1338,6 +1405,24 @@ final class EntityRepository implements EntityRepositoryInterface
         return $result;
     }
 
+    private function validateEntity(EntityInterface $entity): void
+    {
+        if ($this->validator === null) {
+            return;
+        }
+        $constraints = EntityTypeValidationConstraints::forEntityType(
+            $this->entityType,
+            $this->resolveValidationFieldDefinitions($entity),
+        );
+        if ($constraints === []) {
+            return;
+        }
+        $violations = $this->validator->validate($entity, $constraints);
+        if ($violations->count() > 0) {
+            throw new EntityValidationException($violations);
+        }
+    }
+
     private function doDelete(EntityInterface $entity, ?UnitOfWork $unitOfWork = null): void
     {
         if ($this->revisionDriver !== null) {
@@ -1763,6 +1848,16 @@ final class EntityRepository implements EntityRepositoryInterface
         int $revisionId,
         ?EntityMutationToken $expected = null,
     ): EntityInterface {
+        return $this->doSetPublishedRevision($entityId, $revisionId, $expected);
+    }
+
+    private function doSetPublishedRevision(
+        string $entityId,
+        int $revisionId,
+        ?EntityMutationToken $expected,
+        ?UnitOfWork $unitOfWork = null,
+        bool $claimMutation = true,
+    ): EntityInterface {
         if ($this->revisionDriver === null) {
             throw new \LogicException('Revision driver not configured for entity type ' . $this->entityType->id());
         }
@@ -1805,9 +1900,11 @@ final class EntityRepository implements EntityRepositoryInterface
         );
         $fromRevisionId = null;
 
-        $transaction = $this->database?->transaction();
+        $transaction = $unitOfWork === null ? $this->database?->transaction() : null;
         try {
-            $this->claimMutationForId($entityId, $expected);
+            if ($claimMutation) {
+                $this->claimMutationForId($entityId, $expected);
+            }
             $this->dispatchEvent($beforeEvent, BeforeRevisionPointerMoveEvent::class);
 
             // Read the prior pointer inside the transaction so the from→to
@@ -1894,6 +1991,7 @@ final class EntityRepository implements EntityRepositoryInterface
         $this->dispatchEvent(
             $this->eventFactory->create($entity),
             EntityEvents::REVISION_REVERTED->value,
+            $unitOfWork,
         );
 
         // Typed pointer-transition event (FR-006, research D4) — by FQCN,
@@ -1909,6 +2007,7 @@ final class EntityRepository implements EntityRepositoryInterface
                 actorUid: $actor,
             ),
             RevisionPointerMovedEvent::class,
+            $unitOfWork,
         );
 
         return $entity;

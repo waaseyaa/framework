@@ -79,6 +79,7 @@ final class WorkflowTransitionControllerWorkingCopyTest extends TestCase
             json_encode(['transition' => 'publish'], JSON_THROW_ON_ERROR),
         );
         $postRequest->attributes->set('_account', $this->account(['use editorial transition publish']));
+        $postRequest->headers->set('If-Match', $workingCopy->mutationToken()?->toStrongEtag());
 
         $response = $controller->transition($postRequest, self::ENTITY_TYPE_ID, '1');
 
@@ -155,7 +156,7 @@ final class WorkflowTransitionControllerWorkingCopyTest extends TestCase
  * actually records what it was called with (needed to prove the POST
  * transition's save lands on the WORKING COPY object, not the gate entity).
  */
-final class WorkingCopyDivergentRepository implements \Waaseyaa\Entity\Repository\EntityRepositoryInterface
+final class WorkingCopyDivergentRepository implements \Waaseyaa\Entity\Repository\EntityRepositoryInterface, \Waaseyaa\EntityStorage\AggregateMutationRepositoryInterface
 {
     public ?EntityInterface $savedEntity = null;
 
@@ -176,6 +177,16 @@ final class WorkingCopyDivergentRepository implements \Waaseyaa\Entity\Repositor
         $this->savedEntity = $entity;
 
         return 1;
+    }
+
+    public function saveAggregateMutation(EntityInterface $entity, \Closure $mutation, bool $publishRevision = false, bool $validate = true, ?\Closure $publicationFinalizer = null, ?\Closure $beforeCommit = null): EntityInterface
+    {
+        $mutation($entity);
+        $publicationFinalizer?->__invoke($entity);
+        $this->save($entity, $validate);
+        $beforeCommit?->__invoke($entity);
+
+        return $entity;
     }
 
     public function delete(EntityInterface $entity): void {}

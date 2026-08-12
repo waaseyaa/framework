@@ -55,6 +55,13 @@ identities, and commit all items or none. History operations state the exact
 expected aggregate token and relevant current, working, or published heads.
 Backfills use bounded, resumable batches rather than an unbounded transaction.
 
+Workflow transitions use the internal `AggregateMutationRepositoryInterface`
+command boundary. The transition mutation runs only after the aggregate claim;
+revision creation, status finalization, pointer guards, publication pointer
+movement, and the configured audit write share that transaction. Pointer or
+required-audit failure rolls everything back, and one successful workflow
+command advances the aggregate version exactly once.
+
 ## Protocol surfaces
 
 HTTP reads return one canonical quoted strong ETag. Existing-entity mutation

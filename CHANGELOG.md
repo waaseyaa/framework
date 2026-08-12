@@ -11,8 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Enforce the DB-03 aggregate mutation token across entity saves, deletes,
   batches, revision-pointer moves, rollback, pruning, and translation writes;
-  add an audited legacy-authority backfill command and keep write-capable
-  events inside the same transaction as the aggregate claim.
+  require strong protocol preconditions across JSON:API, GraphQL, AI tools,
+  translations, and workflow transitions; make workflow revision creation,
+  status finalization, and publication-pointer movement one atomic aggregate
+  command; add an audited legacy-authority backfill command and keep
+  write-capable events inside the same transaction as the aggregate claim.
 - Begin `S1-FW-DB-03`: make existing-entity mutation token-based by default and
   replace fixed-TTL scheduler overlap locks with durable renewable leases and
   fenced effects.

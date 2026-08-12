@@ -143,6 +143,52 @@ final class EntityRepositoryOptimisticLockingTest extends TestCase
         $this->assertSame('v2', $reloaded->label());
     }
 
+    #[Test]
+    public function aggregateMutationValidatesTheClaimedStateAndRollsBackOnFailure(): void
+    {
+        $constrainedType = new EntityType(
+            id: 'test_revisionable',
+            label: 'Test',
+            class: TestRevisionableEntity::class,
+            keys: self::KEYS,
+            revisionable: true,
+            revisionDefault: true,
+            constraints: ['title' => [new NotBlank()]],
+        );
+        $handler = new SqlSchemaHandler($constrainedType, $this->db);
+        $handler->ensureTable();
+        $handler->ensureRevisionTable();
+        $resolver = new SingleConnectionResolver($this->db);
+        $repository = \Waaseyaa\EntityStorage\Testing\V2EntityRepositoryFactory::createFromSqlStorageDriver(
+            $constrainedType,
+            new SqlStorageDriver($resolver),
+            $this->spyDispatcher(),
+            new RevisionableStorageDriver($resolver, $constrainedType),
+            $this->db,
+            validator: new EntityValidator(Validation::createValidator()),
+        );
+        $entity = new TestRevisionableEntity(values: ['title' => 'valid', 'id' => '1', 'uuid' => 'a']);
+        $entity->enforceIsNew();
+        $repository->save($entity);
+        $loaded = $repository->find('1');
+        self::assertInstanceOf(TestRevisionableEntity::class, $loaded);
+        $tokenBefore = $loaded->mutationToken()?->toOpaqueString();
+        $revisionCountBefore = $this->revisionRowCount();
+
+        try {
+            $repository->saveAggregateMutation(
+                $loaded,
+                static fn (TestRevisionableEntity $subject) => $subject->set('title', ''),
+            );
+            self::fail('An invalid aggregate state was committed.');
+        } catch (EntityValidationException) {
+        }
+
+        self::assertSame('valid', $repository->find('1')?->label());
+        self::assertSame($revisionCountBefore, $this->revisionRowCount());
+        self::assertSame($tokenBefore, $repository->find('1')?->mutationToken()?->toOpaqueString());
+    }
+
     // -----------------------------------------------------------------------
     // Pre-check refusal (contract §4–§6, NFR-003)
     // -----------------------------------------------------------------------
