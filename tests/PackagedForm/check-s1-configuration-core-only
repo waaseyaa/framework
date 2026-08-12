@@ -46,7 +46,10 @@ composer init --working-dir="$consumer" \
 composer config --working-dir="$consumer" repositories.waaseyaa path "$source_root/packages/*"
 composer config --working-dir="$consumer" minimum-stability dev
 composer config --working-dir="$consumer" prefer-stable true
-composer install --working-dir="$consumer" --no-interaction --no-progress --prefer-dist >/dev/null
+if ! composer install --working-dir="$consumer" --no-interaction --no-progress --prefer-dist >"$work/composer.out" 2>&1; then
+    tail -100 "$work/composer.out" >&2
+    exit 1
+fi
 
 if [[ -d "$consumer/vendor/waaseyaa/ai-agent" ]]; then
     echo 'Core-only configuration proof unexpectedly installed waaseyaa/ai-agent.' >&2
@@ -56,8 +59,11 @@ mkdir -p "$consumer/config" "$consumer/storage/files" "$consumer/storage/framewo
 cp "$source_root/skeleton/config/waaseyaa.php" "$consumer/config/waaseyaa.php"
 printf 'APP_ENV=testing\nAPP_DEBUG=false\n' > "$consumer/.env"
 cp "$source_root/tests/CoreOnlyBoot/boot.php" "$consumer/boot.php"
-positive="$(php "$consumer/boot.php" 2>&1)"
-grep -Fq 'core-only kernel boot OK' <<<"$positive"
+if ! php "$consumer/boot.php" >"$work/positive.out" 2>&1; then
+    cat "$work/positive.out" >&2
+    exit 1
+fi
+grep -Fq 'core-only kernel boot OK' "$work/positive.out"
 
 php -r '
     $path = $argv[1];
