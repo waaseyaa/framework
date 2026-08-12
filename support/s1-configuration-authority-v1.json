@@ -23,6 +23,13 @@
   "testing_profile": "testing",
   "production_missing_activation": "refuse",
   "production_missing_import_gates": "refuse",
+  "bootstrap_active_collision": "refuse",
+  "secret_export_policy": "references-only",
+  "read_only_proof": "byte-for-byte",
+  "packaged_proofs": [
+    "path-repository-core-only",
+    "exact-head-local-archives"
+  ],
   "deferred_to": [
     "S1-FW-CFG-02",
     "S1-FW-CFG-03",

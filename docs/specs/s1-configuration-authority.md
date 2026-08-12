@@ -35,3 +35,16 @@ generation activation and compare-and-swap. CFG-03 owns schema, version,
 manifest, and drift decisions. CFG-04 owns secret-reference resolution and
 rotation. Missing successor bindings fail closed rather than restoring a
 filesystem or environment fallback.
+
+Bootstrap keys can neither be exported nor shadowed by an active generation.
+`DeployableConfigurationPolicy` rejects bootstrap-owned names and raw
+credential-shaped fields at sync-file construction and again while binding a
+database generation. Credential-bearing fields contain opaque environment or
+custody references only; resolution remains CFG-04's responsibility.
+
+The retained proof suite snapshots bootstrap, active SQLite, sync-artifact and
+compiled-derived bytes around status, diff, validate and dry-run import. It
+also builds reproducible local archives for every split package from the exact
+candidate tree, installs those extracted archives into an isolated CLI/core
+consumer, and proves exactly one adapter for each configuration command. No
+forge or package publication participates in that proof.

@@ -28,7 +28,9 @@ function s1ConfigPatterns(): array
         'active_bridge' => '/\bActiveConfigurationBridgeInterface\b/',
         'active_source' => '/\bConfigSyncFileSourceInterface\b/',
         'apply_hook' => '/\bConfigImportApplyHookInterface\b/',
+        'import_preflight' => '/\bConfigImportPreflightInterface\b/',
         'authority_context' => '/\bConfigurationAuthorityContext\b/',
+        'deployable_policy' => '/\bDeployableConfigurationPolicy\b/',
         'factory_compatibility' => '/\bConfigFactoryInterface\b/',
         'manager_compatibility' => '/\bConfigManagerInterface\b/',
         'file_storage_construction' => '/new\s+FileStorage\s*\(/',
@@ -60,6 +62,7 @@ function s1ConfigClass(string $path): string
         'packages/config/src/Authority/ConfigurationAuthorityContext.php' => 'authority-contract',
         'packages/config/src/Authority/ConfigurationAuthorityResolver.php' => 'authority-root',
         'packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php' => 'authority-root',
+        'packages/config/src/Authority/DeployableConfigurationPolicy.php' => 'authority-contract',
         'packages/config/src/Authority/ConfigurationGenerationResolverInterface.php' => 'authority-contract',
         'packages/config/src/Authority/SyncArtifactStorageAdapter.php' => 'sync-adapter',
         'packages/config/src/Cache/CachedConfigFactory.php' => 'legacy-compatibility',
@@ -73,9 +76,13 @@ function s1ConfigClass(string $path): string
         'packages/config/src/Sync/ConfigExporter.php' => 'command-orchestrator',
         'packages/config/src/Sync/ConfigImportApplyHookInterface.php' => 'authority-contract',
         'packages/config/src/Sync/ConfigImporter.php' => 'command-orchestrator',
+        'packages/config/src/Sync/ConfigImportPreflightInterface.php' => 'authority-contract',
+        'packages/config/src/Sync/ConfigSyncFile.php' => 'authority-contract',
         'packages/config/src/Sync/ConfigResetter.php' => 'command-orchestrator',
         'packages/config/src/Sync/ConfigSyncFileSourceInterface.php' => 'authority-contract',
         'packages/config/src/Sync/ConfigSyncRepository.php' => 'sync-adapter',
+        'packages/config/src/Sync/RefusingConfigImportPreflight.php' => 'authority-contract',
+        'packages/config/src/Testing/AllowingConfigImportPreflight.php' => 'explicit-testing-profile',
         'packages/config/src/TranslatableConfigFactory.php' => 'legacy-compatibility',
         'packages/config/src/TranslatableConfigFactoryInterface.php' => 'legacy-compatibility',
         'packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php' => 'higher-layer-bridge',
@@ -197,6 +204,10 @@ function s1ConfigAssertContract(array $actual): void
         'testing_profile' => 'testing',
         'production_missing_activation' => 'refuse',
         'production_missing_import_gates' => 'refuse',
+        'bootstrap_active_collision' => 'refuse',
+        'secret_export_policy' => 'references-only',
+        'read_only_proof' => 'byte-for-byte',
+        'packaged_proofs' => ['path-repository-core-only', 'exact-head-local-archives'],
         'deferred_to' => ['S1-FW-CFG-02', 'S1-FW-CFG-03', 'S1-FW-CFG-04'],
     ];
     if ($actual !== $expected) {
@@ -260,6 +271,9 @@ try {
     s1ConfigRequireContains($root, 'packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php', "=== 'testing'");
     s1ConfigRequireContains($root, 'packages/entity-storage/src/Config/DatabaseActiveConfigurationStorage.php', 'requireActiveGenerationId()');
     s1ConfigRequireContains($root, 'packages/config/src/Sync/RefusingConfigImportPreflight.php', 'CFG-03 schema, manifest, and drift gates are bound');
+    s1ConfigRequireContains($root, 'packages/config/src/Authority/DeployableConfigurationPolicy.php', 'immutable bootstrap authority');
+    s1ConfigRequireContains($root, 'packages/config/src/Authority/DeployableConfigurationPolicy.php', 'opaque reference field');
+    s1ConfigRequireContains($root, 'packages/entity-storage/src/Config/DatabaseConfigurationGenerationResolver.php', 'DeployableConfigurationPolicy::assertDeployableName');
     s1ConfigRequireContains($root, 'packages/entity-storage/migrations/2026_08_12_000002_configuration_authority.php', 'waaseyaa_config_activation');
     s1ConfigRequireContains($root, 'packages/cli/src/Handler/AboutHandler.php', 'Config Selectors');
     s1ConfigRequireContains($root, 'packages/cli/src/Handler/HealthCheckHandler.php', 'selector_provenance');

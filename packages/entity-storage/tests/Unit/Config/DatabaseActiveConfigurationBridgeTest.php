@@ -139,6 +139,33 @@ final class DatabaseActiveConfigurationBridgeTest extends TestCase
         new DatabaseConfigurationGenerationResolver($this->database)->bind($this->baseContext);
     }
 
+    #[Test]
+    public function activeGenerationCannotOverrideImmutableBootstrapSelectors(): void
+    {
+        $this->seedActiveGeneration(['name' => 'Waaseyaa']);
+        $this->database->query(
+            'UPDATE waaseyaa_config_entry SET config_name = ?, entity_type = ?, entity_id = ? '
+            . 'WHERE authority_id = ? AND generation_id = ?',
+            ['config.sync_path', 'config', 'sync_path', $this->baseContext->authorityId, $this->generationId],
+        );
+
+        $this->expectExceptionMessage('immutable bootstrap authority');
+        new DatabaseConfigurationGenerationResolver($this->database)->bind($this->baseContext);
+    }
+
+    #[Test]
+    public function activeGenerationCannotContainRawSecretTypedFields(): void
+    {
+        $this->seedActiveGeneration(['name' => 'Waaseyaa']);
+        $this->database->query(
+            'UPDATE waaseyaa_config_entry SET fields_json = ? WHERE authority_id = ? AND generation_id = ?',
+            [json_encode(['api_key' => 'raw-value-not-a-reference'], JSON_THROW_ON_ERROR), $this->baseContext->authorityId, $this->generationId],
+        );
+
+        $this->expectExceptionMessage('opaque reference field');
+        new DatabaseConfigurationGenerationResolver($this->database)->bind($this->baseContext);
+    }
+
     /** @param array<string, mixed> $fields */
     private function seedActiveGeneration(array $fields): void
     {

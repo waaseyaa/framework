@@ -7,6 +7,7 @@ namespace Waaseyaa\EntityStorage\Config;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityConflictException;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Config\Authority\ConfigurationGenerationResolverInterface;
+use Waaseyaa\Config\Authority\DeployableConfigurationPolicy;
 use Waaseyaa\Database\DatabaseInterface;
 
 final class DatabaseConfigurationGenerationResolver implements ConfigurationGenerationResolverInterface
@@ -46,6 +47,18 @@ final class DatabaseConfigurationGenerationResolver implements ConfigurationGene
             throw new ConfigurationAuthorityConflictException(
                 'configuration.authority.v1 activation pointer does not identify one matching active generation.',
             );
+        }
+
+        foreach ($this->database->query(
+            'SELECT config_name, fields_json FROM waaseyaa_config_entry WHERE authority_id = ? AND generation_id = ?',
+            [$context->authorityId, (string) $activation['generation_id']],
+        ) as $row) {
+            DeployableConfigurationPolicy::assertDeployableName((string) $row['config_name']);
+            $fields = json_decode((string) $row['fields_json'], true, flags: JSON_THROW_ON_ERROR);
+            if (!is_array($fields)) {
+                throw new ConfigurationAuthorityConflictException('Active configuration entry fields must decode to an object.');
+            }
+            DeployableConfigurationPolicy::assertReferenceOnlyFields($fields);
         }
 
         return new ConfigurationAuthorityContext(

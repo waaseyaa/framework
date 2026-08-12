@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Config\Sync;
 
+use Waaseyaa\Config\Authority\DeployableConfigurationPolicy;
 use Waaseyaa\Config\Exception\ConfigSerializationException;
 
 /**
@@ -255,5 +256,6 @@ final readonly class ConfigSyncFile
                 'ConfigSyncFile fields must be passed with alphabetically-sorted keys.',
             );
         }
+        DeployableConfigurationPolicy::assertDeployableFile($this);
     }
 }
