@@ -92,6 +92,16 @@ expiry; local monotonic elapsed time, measured round-trip, and a safety margin
 schedule heartbeats. Same-tick renewal must extend ownership. Clock rollback,
 invalid TTL/precision, ambiguity, and counter overflow fail readiness.
 
+`ScheduleRunner` resolves `LeaseAuthorityInterface`, never the legacy lock
+adapter. A database-less composition receives `UnavailableLeaseAuthority` and
+an overlap-protected run is a structured failure, not an overlap skip. Only a
+live competing owner produces `skipped: overlap`. An overlap task must have an
+explicit stable name and implement `LeaseAwareCommandInterface`; arbitrary
+closures and job-class strings are rejected because they cannot renew or carry
+a fence. Direct commands receive `LeaseExecutionContext` and renew before and
+after execution and before each declared durable effect. Lease loss is fatal and
+must escape best-effort domain catches.
+
 Every effect carries lease domain, global fence, deterministic occurrence ID,
 and effect ID. Entity writes check and advance the accepted resource fence in
 the same transaction as the entity CAS. Equal delivery of the same effect is a

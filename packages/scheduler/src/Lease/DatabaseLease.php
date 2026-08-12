@@ -12,7 +12,7 @@ use Waaseyaa\Database\DBALDatabase;
  *
  * @api
  */
-final class DatabaseLease
+final class DatabaseLease implements LeaseAuthorityInterface
 {
     private const string LEASE_TABLE = 'waaseyaa_scheduler_leases';
     private const string FENCE_TABLE = 'waaseyaa_scheduler_fence_sequence';

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Scheduler;
 
 use Cron\CronExpression;
+use Waaseyaa\Scheduler\Execution\LeaseAwareCommandInterface;
 
 final class ScheduledTask
 {
@@ -13,7 +14,7 @@ final class ScheduledTask
     public function __construct(
         public readonly string $name,
         public readonly string $expression,
-        public readonly string|\Closure $command,
+        public readonly string|\Closure|LeaseAwareCommandInterface $command,
         public readonly bool $preventOverlap = false,
         public readonly ?string $timezone = null,
         public readonly ?string $description = null,
@@ -29,6 +30,12 @@ final class ScheduledTask
             throw new \InvalidArgumentException(
                 sprintf('Invalid cron expression "%s" for scheduled task "%s".', $this->expression, $this->name),
             );
+        }
+        if ($this->preventOverlap && !$this->command instanceof LeaseAwareCommandInterface) {
+            throw new \InvalidArgumentException(sprintf(
+                'Overlap-protected task "%s" must use a stable lease-aware command.',
+                $this->name,
+            ));
         }
         $this->cronExpression = new CronExpression($this->expression);
     }

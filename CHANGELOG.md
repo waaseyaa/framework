@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Require renewable durable database leases for overlap-protected scheduler
+  execution. Infrastructure faults are failures rather than false overlap
+  skips; overlap tasks require stable names and cooperative lease-aware
+  commands. The five first-party retention and agent registrations now use the
+  lease-aware boundary, and classification jobs renew before policy/entity
+  effects without swallowing lease loss.
+
 - Enforce the DB-03 aggregate mutation token across entity saves, deletes,
   batches, revision-pointer moves, rollback, pruning, and translation writes;
   require strong protocol preconditions across JSON:API, GraphQL, AI tools,

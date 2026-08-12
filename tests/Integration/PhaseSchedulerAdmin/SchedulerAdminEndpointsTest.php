@@ -21,11 +21,11 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Kernel\BuiltinRouteRegistrar;
 use Waaseyaa\Queue\SyncQueue;
 use Waaseyaa\Routing\WaaseyaaRouter;
-use Waaseyaa\Scheduler\Lock\InMemoryLock;
 use Waaseyaa\Scheduler\Schedule;
 use Waaseyaa\Scheduler\ScheduledTask;
 use Waaseyaa\Scheduler\ScheduleRunner;
 use Waaseyaa\Scheduler\Storage\ScheduleStateRepository;
+use Waaseyaa\Scheduler\Testing\InMemoryLeaseAuthority;
 
 /**
  * End-to-end wiring for the M4B WP02 admin scheduler dashboard.
@@ -259,7 +259,7 @@ final class SchedulerAdminEndpointsTest extends TestCase
             $schedule->add($task);
         }
 
-        $runner = new ScheduleRunner($schedule, new SyncQueue(), new InMemoryLock(), $stateRepo);
+        $runner = new ScheduleRunner($schedule, new SyncQueue(), new InMemoryLeaseAuthority(), $stateRepo);
         $controller = new SchedulerController($schedule, $stateRepo, $runner);
 
         return [$controller, $schedule, $stateRepo, $db];

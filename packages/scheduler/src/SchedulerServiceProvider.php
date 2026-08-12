@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace Waaseyaa\Scheduler;
 
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Queue\QueueInterface;
+use Waaseyaa\Scheduler\Lease\DatabaseLease;
+use Waaseyaa\Scheduler\Lease\LeaseAuthorityInterface;
+use Waaseyaa\Scheduler\Lease\UnavailableLeaseAuthority;
 use Waaseyaa\Scheduler\Lock\DatabaseLock;
 use Waaseyaa\Scheduler\Lock\InMemoryLock;
 use Waaseyaa\Scheduler\Lock\LockInterface;
@@ -31,6 +35,14 @@ final class SchedulerServiceProvider extends ServiceProvider
             return $database instanceof DatabaseInterface
                 ? new DatabaseLock($database)
                 : new InMemoryLock();
+        });
+
+        $this->singleton(LeaseAuthorityInterface::class, function (): LeaseAuthorityInterface {
+            $database = $this->resolveOptional(DatabaseInterface::class);
+
+            return $database instanceof DBALDatabase
+                ? new DatabaseLease($database)
+                : new UnavailableLeaseAuthority();
         });
 
         // Bind ScheduleStateRepository as a first-class container service so
@@ -58,7 +70,7 @@ final class SchedulerServiceProvider extends ServiceProvider
             return new ScheduleRunner(
                 $this->resolve(ScheduleInterface::class),
                 $this->resolve(QueueInterface::class),
-                $this->resolve(LockInterface::class),
+                $this->resolve(LeaseAuthorityInterface::class),
                 $hasDatabase ? $this->resolve(ScheduleStateRepository::class) : null,
             );
         });

@@ -11,7 +11,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Waaseyaa\Api\Controller\SchedulerController;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Queue\SyncQueue;
-use Waaseyaa\Scheduler\Lock\InMemoryLock;
+use Waaseyaa\Scheduler\Testing\InMemoryLeaseAuthority;
 use Waaseyaa\Scheduler\Schedule;
 use Waaseyaa\Scheduler\ScheduledTask;
 use Waaseyaa\Scheduler\ScheduleRunner;
@@ -76,7 +76,7 @@ final class SchedulerControllerTest extends TestCase
         ));
 
         $stateRepo = self::makeStateRepository();
-        $runner = new ScheduleRunner($schedule, new SyncQueue(), new InMemoryLock(), $stateRepo);
+        $runner = new ScheduleRunner($schedule, new SyncQueue(), new InMemoryLeaseAuthority(), $stateRepo);
         $runner->runOne('hourly-job', new \DateTimeImmutable());
 
         $controller = new SchedulerController($schedule, $stateRepo, $runner);
@@ -226,7 +226,7 @@ final class SchedulerControllerTest extends TestCase
         return new ScheduleRunner(
             $schedule,
             new SyncQueue(),
-            new InMemoryLock(),
+            new InMemoryLeaseAuthority(),
             self::makeStateRepository(),
         );
     }

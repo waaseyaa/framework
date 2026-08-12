@@ -7,7 +7,9 @@ namespace Waaseyaa\Scheduler;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Queue\QueueInterface;
-use Waaseyaa\Scheduler\Lock\LockInterface;
+use Waaseyaa\Scheduler\Execution\LeaseAwareCommandInterface;
+use Waaseyaa\Scheduler\Execution\LeaseExecutionContext;
+use Waaseyaa\Scheduler\Lease\LeaseAuthorityInterface;
 use Waaseyaa\Scheduler\Storage\ScheduleStateRepository;
 
 final class ScheduleRunner
@@ -17,7 +19,7 @@ final class ScheduleRunner
     public function __construct(
         private readonly ScheduleInterface $schedule,
         private readonly QueueInterface $queue,
-        private readonly LockInterface $lock,
+        private readonly LeaseAuthorityInterface $leaseAuthority,
         private readonly ?ScheduleStateRepository $stateRepository = null,
         ?LoggerInterface $logger = null,
     ) {
@@ -104,10 +106,26 @@ final class ScheduleRunner
         // Per-task overlap-lock TTL (scheduler m2): must exceed the task's
         // expected runtime, since a mid-run lease expiry is what opens the
         // split-brain reclaim window that scheduler m15's ownership token closes.
-        $lockToken = null;
+        $leaseContext = null;
         if ($task->preventOverlap) {
-            $lockToken = $this->lock->acquire($task->name, $task->lockTtl, $now);
-            if ($lockToken === null) {
+            try {
+                $handle = $this->leaseAuthority->acquire($task->name, $task->lockTtl * 1000);
+            } catch (\Throwable $error) {
+                $this->stateRepository?->recordRun($task->name, 'failed: lease authority unavailable', $now);
+                $this->logger->error('scheduler.lease_acquire_failed', [
+                    'task' => $task->name,
+                    'exception' => $error,
+                ]);
+
+                return new ScheduleRunResult(
+                    count: 0,
+                    taskNames: [],
+                    status: ScheduleRunResult::STATUS_FAILED,
+                    message: 'Durable lease acquisition failed.',
+                    exceptionClass: $error::class,
+                );
+            }
+            if ($handle === null) {
                 $this->stateRepository?->recordRun($task->name, ScheduleRunResult::STATUS_SKIPPED_OVERLAP, $now);
 
                 return new ScheduleRunResult(
@@ -117,10 +135,18 @@ final class ScheduleRunner
                     message: sprintf('Task "%s" is already running (overlap lock held).', $task->name),
                 );
             }
+            $leaseContext = new LeaseExecutionContext($this->leaseAuthority, $handle, $task->lockTtl * 1000);
         }
 
         try {
-            if (is_string($task->command)) {
+            if ($task->command instanceof LeaseAwareCommandInterface) {
+                if ($leaseContext === null) {
+                    throw new \LogicException('Lease-aware commands require overlap protection.');
+                }
+                $leaseContext->checkpoint();
+                $task->command->run($leaseContext);
+                $leaseContext->checkpoint();
+            } elseif (is_string($task->command)) {
                 $this->queue->dispatch(new ($task->command)());
             } else {
                 ($task->command)();
@@ -152,8 +178,15 @@ final class ScheduleRunner
             // Release only the lock THIS run acquired, scoped by its owner token
             // so a lease that expired mid-run (and was reclaimed by another node)
             // is never torn down here (scheduler m15).
-            if ($lockToken !== null) {
-                $this->lock->release($task->name, $lockToken);
+            if ($leaseContext !== null) {
+                try {
+                    $leaseContext->release();
+                } catch (\Throwable $error) {
+                    $this->logger->error('scheduler.lease_release_failed', [
+                        'task' => $task->name,
+                        'exception' => $error,
+                    ]);
+                }
             }
         }
     }

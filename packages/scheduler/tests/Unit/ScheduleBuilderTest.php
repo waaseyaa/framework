@@ -9,6 +9,8 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Scheduler\Schedule;
 use Waaseyaa\Scheduler\ScheduleBuilder;
+use Waaseyaa\Scheduler\Execution\LeaseAwareClosureCommand;
+use Waaseyaa\Scheduler\Execution\LeaseExecutionContext;
 
 #[CoversClass(ScheduleBuilder::class)]
 #[CoversClass(Schedule::class)]
@@ -18,7 +20,7 @@ final class ScheduleBuilderTest extends TestCase
     public function buildsTaskWithFluentApi(): void
     {
         $schedule = new Schedule();
-        $task = $schedule->job('App\\Jobs\\CleanUp')
+        $task = $schedule->command(new LeaseAwareClosureCommand(static function (LeaseExecutionContext $context): void {}))
             ->everyFiveMinutes()
             ->named('cleanup')
             ->withoutOverlapping()
@@ -87,5 +89,17 @@ final class ScheduleBuilderTest extends TestCase
         self::assertSame('*/30 * * * *', $tasks[3]->expression);
         self::assertSame('0 * * * *', $tasks[4]->expression);
         self::assertSame('0 0 1 * *', $tasks[5]->expression);
+    }
+
+    #[Test]
+    public function overlapProtectedCommandRequiresAnExplicitStableName(): void
+    {
+        $schedule = new Schedule();
+        $builder = $schedule->command(new LeaseAwareClosureCommand(static function (LeaseExecutionContext $context): void {}))
+            ->withoutOverlapping();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('explicit stable name');
+        $builder->register();
     }
 }

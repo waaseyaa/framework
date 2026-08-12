@@ -14,6 +14,9 @@ use Waaseyaa\Scheduler\Lock\DatabaseLock;
 use Waaseyaa\Scheduler\Lock\InMemoryLock;
 use Waaseyaa\Scheduler\Lock\LockInterface;
 use Waaseyaa\Scheduler\SchedulerServiceProvider;
+use Waaseyaa\Scheduler\Lease\DatabaseLease;
+use Waaseyaa\Scheduler\Lease\LeaseAuthorityInterface;
+use Waaseyaa\Scheduler\Lease\UnavailableLeaseAuthority;
 
 #[CoversClass(SchedulerServiceProvider::class)]
 final class SchedulerServiceProviderTest extends TestCase
@@ -28,6 +31,7 @@ final class SchedulerServiceProviderTest extends TestCase
         $provider->register();
 
         self::assertInstanceOf(DatabaseLock::class, $provider->resolve(LockInterface::class));
+        self::assertInstanceOf(DatabaseLease::class, $provider->resolve(LeaseAuthorityInterface::class));
     }
 
     #[Test]
@@ -37,6 +41,7 @@ final class SchedulerServiceProviderTest extends TestCase
         $provider->register();
 
         self::assertInstanceOf(InMemoryLock::class, $provider->resolve(LockInterface::class));
+        self::assertInstanceOf(UnavailableLeaseAuthority::class, $provider->resolve(LeaseAuthorityInterface::class));
     }
 
     /**
