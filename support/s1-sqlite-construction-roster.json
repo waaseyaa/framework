@@ -7419,6 +7419,24 @@
             "source_sha256": "799b273bf20e03db1ac1f46f35f61017863a43a220909c9e76bfb23111027c26"
         },
         {
+            "path": "tests/PackagedForm/s1-schema-authority-artifact-probe.php",
+            "line": 76,
+            "pattern": "doctrine_factory",
+            "class": "test",
+            "match_sha256": "716c896e8ecb5d9cbdec1ebdf5080ef1f90530a29a0b8a886e96fb7856cc1ea2",
+            "line_sha256": "afde90f654393dc7aded173d3cfa024e9af26562e0b1c1af5b833e9df42852ce",
+            "source_sha256": "bb1dffb3d7842cd333bbad3e92cd105602fa03156c814e0f7f7d415a421f39f4"
+        },
+        {
+            "path": "tests/PackagedForm/s1-schema-authority-artifact-probe.php",
+            "line": 76,
+            "pattern": "pdo_sqlite_token",
+            "class": "test",
+            "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
+            "line_sha256": "afde90f654393dc7aded173d3cfa024e9af26562e0b1c1af5b833e9df42852ce",
+            "source_sha256": "bb1dffb3d7842cd333bbad3e92cd105602fa03156c814e0f7f7d415a421f39f4"
+        },
+        {
             "path": "tests/PackagedForm/s1-sqlite-artifact-probe.php",
             "line": 91,
             "pattern": "dbal_factory",

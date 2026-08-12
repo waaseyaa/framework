@@ -10299,6 +10299,24 @@
             "source_sha256": "799b273bf20e03db1ac1f46f35f61017863a43a220909c9e76bfb23111027c26"
         },
         {
+            "path": "tests/PackagedForm/s1-schema-authority-artifact-probe.php",
+            "line": 78,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "8543550db17de7b56fe752f2e35ef5310c09a565f04010ba074ba9feef23a010",
+            "source_sha256": "bb1dffb3d7842cd333bbad3e92cd105602fa03156c814e0f7f7d415a421f39f4"
+        },
+        {
+            "path": "tests/PackagedForm/s1-schema-authority-artifact-probe.php",
+            "line": 124,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "18fe2016fea59dc69f3d1391d957282b50f5f93674e668ed7abfb5703f02f573",
+            "line_sha256": "3b1b5207a7fe95dc7579cebae13610e2871b9176c28ded2e6ed4451078bfcff6",
+            "source_sha256": "bb1dffb3d7842cd333bbad3e92cd105602fa03156c814e0f7f7d415a421f39f4"
+        },
+        {
             "path": "tests/PackagedForm/skeleton/tests/Integration/PackagedKernelPathTest.php",
             "line": 45,
             "pattern": "legacy_schema_method",
