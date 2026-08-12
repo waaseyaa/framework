@@ -19,6 +19,8 @@ return [
         => 'Process-lifetime WeakMap custody keyed by kernel-owned ApplicationSecret objects; entries disappear with their kernel, contain no request/account data, and keep master bytes out of object debug and serialization surfaces.',
     'packages/foundation/src/Security/SensitiveKey.php::$keys'
         => 'Process-lifetime WeakMap custody keyed by derived-key holder objects; entries disappear with their holder, contain no request/account data, and keep derived bytes out of object debug and serialization surfaces.',
+    'packages/foundation/src/Migration/SchemaMutationCoordinator.php::$activeConnections'
+        => 'Transition-lifetime re-entrancy depth keyed by DBAL Connection in a WeakMap; each outer transition removes its entry in finally, abandoned connections are weakly collected, and no request, account, entity, credential, or decision data is retained.',
     'packages/graphql/src/Schema/SchemaFactory.php::$schemaCache'
         => 'Process-lifetime structural GraphQL schemas only; resolvers obtain request/account collaborators from GraphQlExecutionContext.',
     'packages/inertia/src/Inertia.php::$shared'
