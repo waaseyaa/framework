@@ -32,7 +32,7 @@ install_shape() {
     --no-interaction --no-scripts --no-plugins --quiet
 
   local database_path="$project_root/storage/waaseyaa.sqlite"
-  APP_ENV=testing WAASEYAA_DB="$database_path" php "$project_root/vendor/bin/waaseyaa" db:init
+  (cd "$project_root" && APP_ENV=testing WAASEYAA_DB="$database_path" php vendor/bin/waaseyaa db:init)
   APP_ENV=testing WAASEYAA_DB="$database_path" php "$framework_root/tools/skeleton-smoke/smoke.php" "$project_root"
   APP_ENV=testing WAASEYAA_DB="$database_path" php "$framework_root/tools/optional-domain-install-smoke.php" "$project_root" "$shape"
 }
