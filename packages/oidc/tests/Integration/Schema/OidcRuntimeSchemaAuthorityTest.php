@@ -8,12 +8,25 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Oidc\Key\SigningKeyRepository;
+use Waaseyaa\Oidc\Repository\DatabaseAuthorizationCodeRepository;
 use Waaseyaa\Oidc\Token\AccessTokenIssuer;
 use Waaseyaa\Oidc\Token\RefreshTokenIssuer;
 
 /** Retained-red proof for migration-backed OIDC runtime stores. */
 final class OidcRuntimeSchemaAuthorityTest extends TestCase
 {
+    #[Test]
+    public function authorization_code_maintenance_refuses_missing_schema_without_installing_it(): void
+    {
+        $database = DBALDatabase::createSqlite();
+
+        $this->assertMissingSchemaRefused(
+            $database,
+            'oidc_authorization_codes',
+            static fn(): mixed => new DatabaseAuthorizationCodeRepository($database)->purgeExpired(),
+        );
+    }
+
     #[Test]
     public function signing_key_reads_refuse_missing_schema_without_installing_it(): void
     {

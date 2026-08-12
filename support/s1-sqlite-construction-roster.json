@@ -4909,30 +4909,39 @@
         },
         {
             "path": "packages/oidc/tests/Integration/Schema/OidcRuntimeSchemaAuthorityTest.php",
-            "line": 20,
+            "line": 21,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "17f5288462dda76357131bed7787aa00aded8976ce7bfbcfc38722127100b304"
+            "source_sha256": "fd77a73079bbfbc2f672b19c91f61462c9cc57b2fe4a27b96792e3dd5c647281"
         },
         {
             "path": "packages/oidc/tests/Integration/Schema/OidcRuntimeSchemaAuthorityTest.php",
-            "line": 32,
+            "line": 33,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "17f5288462dda76357131bed7787aa00aded8976ce7bfbcfc38722127100b304"
+            "source_sha256": "fd77a73079bbfbc2f672b19c91f61462c9cc57b2fe4a27b96792e3dd5c647281"
         },
         {
             "path": "packages/oidc/tests/Integration/Schema/OidcRuntimeSchemaAuthorityTest.php",
-            "line": 44,
+            "line": 45,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "17f5288462dda76357131bed7787aa00aded8976ce7bfbcfc38722127100b304"
+            "source_sha256": "fd77a73079bbfbc2f672b19c91f61462c9cc57b2fe4a27b96792e3dd5c647281"
+        },
+        {
+            "path": "packages/oidc/tests/Integration/Schema/OidcRuntimeSchemaAuthorityTest.php",
+            "line": 57,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "fd77a73079bbfbc2f672b19c91f61462c9cc57b2fe4a27b96792e3dd5c647281"
         },
         {
             "path": "packages/oidc/tests/Integration/Security/OidcSecretStorageTest.php",
