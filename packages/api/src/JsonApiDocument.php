@@ -99,9 +99,9 @@ final readonly class JsonApiDocument
      *
      * @param array<JsonApiResource> $resources
      */
-    public static function fromCollection(array $resources, array $links = [], array $meta = []): self
+    public static function fromCollection(array $resources, array $links = [], array $meta = [], array $headers = []): self
     {
-        return new self(data: $resources, links: $links, meta: $meta);
+        return new self(data: $resources, links: $links, meta: $meta, headers: $headers);
     }
 
     /**
@@ -117,8 +117,8 @@ final readonly class JsonApiDocument
     /**
      * Create a document with null data (e.g. after a DELETE).
      */
-    public static function empty(array $meta = [], int $statusCode = 200): self
+    public static function empty(array $meta = [], int $statusCode = 200, array $headers = []): self
     {
-        return new self(data: null, meta: $meta, statusCode: $statusCode);
+        return new self(data: null, meta: $meta, statusCode: $statusCode, headers: $headers);
     }
 }

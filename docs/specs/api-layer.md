@@ -476,8 +476,21 @@ Mission `optimistic-locking-01KTXCHY`. Canonical contract:
 controller translates the storage contract (`revision-system-unified.md` §3b);
 it implements no conflict check of its own.
 
-**Request seam — resource-object meta, not `If-Match`.** The expectation rides
-the PATCH body:
+> **DB-03 aggregate-mutation contract supersedes the historical revision-only
+> request seam below.** Every externally routed update or delete of an existing
+> aggregate now requires exactly one strong `If-Match` value containing the
+> opaque aggregate mutation token returned by an authorized read. Missing
+> preconditions return 428, weak/wildcard/list or malformed validators return
+> 400, and an identity mismatch or stale token returns 412. The repository CAS
+> is authoritative at commit and a successful mutation returns the successor
+> token in both resource metadata and `ETag`. `expected_revision_id` remains a
+> compatibility input for the narrower historical revision-head contract; it
+> is not a substitute for the aggregate precondition. Because
+> `WaaseyaaContext` does not carry headers, the public HTTP router parses and
+> validates `If-Match` before dispatching to `JsonApiController`.
+
+**Historical revision-head seam.** The optional revision expectation rides the
+PATCH body:
 
 ```json
 { "data": { "type": "<type>", "attributes": { "...": "..." },
@@ -485,9 +498,9 @@ the PATCH body:
 ```
 
 Headers do not reach `JsonApiController` (`WaaseyaaContext` carries
-`account/parsedBody/query/method` — no headers), so `If-Match`/ETag is
-**explicitly not part of this contract**. A future additive change may map
-`If-Match` onto the same `SaveContext` seam without altering the body seam.
+`account/parsedBody/query/method` — no headers), which is why the aggregate
+precondition is enforced by the HTTP router rather than by this controller
+method. The body seam remains available only for revision-head compatibility.
 
 **Request-state table:**
 
@@ -1560,6 +1573,14 @@ final class TranslationController
 | `destroy(entityTypeId, id, langcode)` | `DELETE /api/{type}/{id}/translations/{langcode}` | Delete translation |
 
 Creating a translation requires `MutableTranslatableInterface`. Deleting the original language returns 422.
+
+Translation creation, update, and deletion mutate the existing aggregate and
+therefore require the same strong aggregate `If-Match` precondition as other
+existing-resource mutations. Authorized mutation-capable reads expose the
+opaque token in resource metadata and `ETag`; view-only callers receive neither.
+Missing, malformed, and stale preconditions return 428, 400, and 412
+respectively without changing the entity. Each successful translation mutation
+returns the successor aggregate token and `ETag`.
 
 ### Error Handling Pattern
 

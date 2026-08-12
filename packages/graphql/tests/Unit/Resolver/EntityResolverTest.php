@@ -384,6 +384,43 @@ final class EntityResolverTest extends TestCase
     }
 
     #[Test]
+    public function resolveSingleExposesTheMutationTokenToADeleteOnlyCaller(): void
+    {
+        $entity = $this->seedArticle('Delete me');
+        $expectedToken = $this->mutationToken($entity);
+        $policy = new class implements AccessPolicyInterface, FieldAccessPolicyInterface {
+            public function access(EntityInterface $entity, string $operation, AccountInterface $account): AccessResult
+            {
+                return in_array($operation, ['view', 'delete'], true)
+                    ? AccessResult::allowed()
+                    : AccessResult::neutral();
+            }
+
+            public function createAccess(string $entityTypeId, string $bundle, AccountInterface $account): AccessResult
+            {
+                return AccessResult::neutral();
+            }
+
+            public function appliesTo(string $entityTypeId): bool
+            {
+                return true;
+            }
+
+            public function fieldAccess(EntityInterface $entity, string $fieldName, string $operation, AccountInterface $account): AccessResult
+            {
+                return AccessResult::neutral();
+            }
+        };
+        $resolver = $this->createResolver(new EntityAccessHandler([$policy]));
+
+        $data = $resolver->resolveSingle('article', $entity->id());
+
+        self::assertNotNull($data);
+        self::assertIsString($data['mutationToken']);
+        self::assertSame($expectedToken, $data['mutationToken']);
+    }
+
+    #[Test]
     public function resolveSingleReturnsNullForNonexistent(): void
     {
         $resolver = $this->createResolver($this->openAccessHandler());

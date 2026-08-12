@@ -14,6 +14,9 @@ use Waaseyaa\Api\JsonApiError;
 use Waaseyaa\Api\JsonApiResource;
 use Waaseyaa\Api\MutableTranslatableInterface;
 use Waaseyaa\Api\ResourceSerializer;
+use Waaseyaa\Entity\Concurrency\EntityMutationConflictException;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\FieldableInterface;
@@ -67,6 +70,7 @@ final class TranslationController
 
         $languages = $entity->getTranslationLanguages();
         $resources = [];
+        $mutationToken = $this->readableMutationToken($entity, $account);
 
         foreach ($languages as $langcode) {
             $translation = $entity->getTranslation($langcode);
@@ -77,7 +81,10 @@ final class TranslationController
                 attributes: $resource->attributes,
                 relationships: $resource->relationships,
                 links: ['self' => "/api/{$entityTypeId}/{$resource->id}/translations/{$langcode}"],
-                meta: ['langcode' => $langcode],
+                meta: array_filter([
+                    'langcode' => $langcode,
+                    'mutation_token' => $mutationToken?->toOpaqueString(),
+                ], static fn(mixed $value): bool => $value !== null),
             );
         }
 
@@ -85,6 +92,7 @@ final class TranslationController
             $resources,
             links: ['self' => "/api/{$entityTypeId}/{$id}/translations"],
             meta: ['total' => count($resources)],
+            headers: $mutationToken !== null ? ['ETag' => $mutationToken->toStrongEtag()] : [],
         );
     }
 
@@ -119,6 +127,7 @@ final class TranslationController
         }
 
         $translation = $entity->getTranslation($langcode);
+        $mutationToken = $this->readableMutationToken($entity, $account);
         $resource = $this->serializer->serialize($translation, $this->accessHandler, $account);
         $resource = new JsonApiResource(
             type: $resource->type,
@@ -126,12 +135,16 @@ final class TranslationController
             attributes: $resource->attributes,
             relationships: $resource->relationships,
             links: ['self' => "/api/{$entityTypeId}/{$resource->id}/translations/{$langcode}"],
-            meta: ['langcode' => $langcode],
+            meta: array_filter([
+                'langcode' => $langcode,
+                'mutation_token' => $mutationToken?->toOpaqueString(),
+            ], static fn(mixed $value): bool => $value !== null),
         );
 
         return JsonApiDocument::fromResource(
             $resource,
             links: ['self' => "/api/{$entityTypeId}/{$id}/translations/{$langcode}"],
+            headers: $mutationToken !== null ? ['ETag' => $mutationToken->toStrongEtag()] : [],
         );
     }
 
@@ -183,8 +196,7 @@ final class TranslationController
             );
         }
 
-        $translation = $entity->addTranslation($langcode);
-        if ($translation instanceof FieldableInterface) {
+        if ($entity instanceof FieldableInterface) {
             // Field-level edit gate (B-6): reject any submitted field the actor
             // may not edit BEFORE mutating, mirroring JsonApiController. Without
             // it, a caller with create access could set a FieldAccessPolicy-
@@ -196,13 +208,26 @@ final class TranslationController
                     );
                 }
             }
+        }
+
+        $expectedMutation = $this->mutationExpectation($request, $entityTypeId, (string) $id, $entity);
+        if ($expectedMutation instanceof JsonApiDocument) {
+            return $expectedMutation;
+        }
+
+        $translation = $entity->addTranslation($langcode);
+        if ($translation instanceof FieldableInterface) {
             foreach ($attributes as $field => $value) {
                 $translation->set($field, $value);
             }
         }
 
         // Save the entity with its new translation (C-22 WP3: canonical repository).
-        $this->entityTypeManager->getRepository($entityTypeId)->save($entity);
+        try {
+            $this->entityTypeManager->getRepository($entityTypeId)->save($entity);
+        } catch (EntityMutationConflictException) {
+            return $this->mutationConflictDocument();
+        }
 
         $resource = $this->serializer->serialize($translation, $this->accessHandler, $account);
         $resource = new JsonApiResource(
@@ -211,7 +236,7 @@ final class TranslationController
             attributes: $resource->attributes,
             relationships: $resource->relationships,
             links: ['self' => "/api/{$entityTypeId}/{$resource->id}/translations/{$langcode}"],
-            meta: ['langcode' => $langcode],
+            meta: ['langcode' => $langcode, 'mutation_token' => $this->mutationTokenValue($entity)],
         );
 
         return new JsonApiDocument(
@@ -219,6 +244,7 @@ final class TranslationController
             links: ['self' => "/api/{$entityTypeId}/{$id}/translations/{$langcode}"],
             meta: ['created' => true],
             statusCode: 201,
+            headers: $this->mutationHeaders($entity),
         );
     }
 
@@ -269,13 +295,25 @@ final class TranslationController
                     );
                 }
             }
+        }
+
+        $expectedMutation = $this->mutationExpectation($request, $entityTypeId, (string) $id, $entity);
+        if ($expectedMutation instanceof JsonApiDocument) {
+            return $expectedMutation;
+        }
+
+        if ($translation instanceof FieldableInterface) {
             foreach ($attributes as $field => $value) {
                 $translation->set($field, $value);
             }
         }
 
         // C-22 WP3: canonical repository.
-        $this->entityTypeManager->getRepository($entityTypeId)->save($entity);
+        try {
+            $this->entityTypeManager->getRepository($entityTypeId)->save($entity);
+        } catch (EntityMutationConflictException) {
+            return $this->mutationConflictDocument();
+        }
 
         $resource = $this->serializer->serialize($translation, $this->accessHandler, $account);
         $resource = new JsonApiResource(
@@ -284,12 +322,13 @@ final class TranslationController
             attributes: $resource->attributes,
             relationships: $resource->relationships,
             links: ['self' => "/api/{$entityTypeId}/{$resource->id}/translations/{$langcode}"],
-            meta: ['langcode' => $langcode],
+            meta: ['langcode' => $langcode, 'mutation_token' => $this->mutationTokenValue($entity)],
         );
 
         return JsonApiDocument::fromResource(
             $resource,
             links: ['self' => "/api/{$entityTypeId}/{$id}/translations/{$langcode}"],
+            headers: $this->mutationHeaders($entity),
         );
     }
 
@@ -307,6 +346,11 @@ final class TranslationController
         $denied = $this->checkAccess($request, $entity, 'delete');
         if ($denied !== null) {
             return $denied;
+        }
+
+        $expectedMutation = $this->mutationExpectation($request, $entityTypeId, (string) $id, $entity);
+        if ($expectedMutation instanceof JsonApiDocument) {
+            return $expectedMutation;
         }
 
         // Cannot delete the original language.
@@ -329,11 +373,20 @@ final class TranslationController
         // removeTranslation is now part of TranslatableInterface — call it directly.
         $entity->removeTranslation($langcode);
         // C-22 WP3: canonical repository.
-        $this->entityTypeManager->getRepository($entityTypeId)->save($entity);
+        try {
+            $this->entityTypeManager->getRepository($entityTypeId)->save($entity);
+        } catch (EntityMutationConflictException) {
+            return $this->mutationConflictDocument();
+        }
 
         return JsonApiDocument::empty(
-            meta: ['deleted' => true, 'langcode' => $langcode],
+            meta: [
+                'deleted' => true,
+                'langcode' => $langcode,
+                'mutation_token' => $this->mutationTokenValue($entity),
+            ],
             statusCode: 204,
+            headers: $this->mutationHeaders($entity),
         );
     }
 
@@ -387,6 +440,85 @@ final class TranslationController
     private function forbiddenDocument(): JsonApiDocument
     {
         return $this->errorDocument(JsonApiError::forbidden());
+    }
+
+    private function mutationExpectation(
+        Request $request,
+        string $entityTypeId,
+        string $entityId,
+        EntityInterface $entity,
+    ): EntityMutationToken|JsonApiDocument {
+        $ifMatch = $request->headers->get('If-Match');
+        if ($ifMatch === null || trim($ifMatch) === '') {
+            return $this->errorDocument(new JsonApiError(
+                status: '428',
+                title: 'Precondition Required',
+                detail: 'If-Match is required for an existing aggregate mutation.',
+                code: 'MUTATION_PRECONDITION_REQUIRED',
+            ));
+        }
+        try {
+            $expected = EntityMutationToken::fromHttpIfMatch($ifMatch);
+        } catch (\InvalidArgumentException) {
+            return $this->errorDocument(new JsonApiError(
+                status: '400',
+                title: 'Bad Request',
+                detail: 'If-Match must contain exactly one strong entity mutation ETag.',
+                code: 'INVALID_MUTATION_PRECONDITION',
+            ));
+        }
+        if (!$entity instanceof EntityBase
+            || $expected->entityTypeId !== $entityTypeId
+            || $expected->entityId !== $entityId
+            || $entity->mutationToken() === null
+            || !hash_equals($entity->mutationToken()->toOpaqueString(), $expected->toOpaqueString())
+        ) {
+            return $this->mutationConflictDocument();
+        }
+        $entity->_hydrateMutationToken($expected);
+
+        return $expected;
+    }
+
+    private function mutationConflictDocument(): JsonApiDocument
+    {
+        return $this->errorDocument(new JsonApiError(
+            status: '412',
+            title: 'Precondition Failed',
+            detail: 'The resource changed after the supplied mutation precondition was observed.',
+            code: 'MUTATION_PRECONDITION_FAILED',
+        ));
+    }
+
+    private function readableMutationToken(
+        EntityInterface $entity,
+        AuthorizationPrincipalInterface $account,
+    ): ?EntityMutationToken {
+        if (!$entity instanceof EntityBase) {
+            return null;
+        }
+        foreach (['create', 'update', 'delete'] as $operation) {
+            if ($this->accessHandler->check($entity, $operation, $account)->isAllowed()) {
+                return $entity->mutationToken();
+            }
+        }
+
+        return null;
+    }
+
+    /** @return array<string, string> */
+    private function mutationHeaders(EntityInterface $entity): array
+    {
+        return $entity instanceof EntityBase && $entity->mutationToken() !== null
+            ? ['ETag' => $entity->mutationToken()->toStrongEtag()]
+            : [];
+    }
+
+    private function mutationTokenValue(EntityInterface $entity): ?string
+    {
+        return $entity instanceof EntityBase
+            ? $entity->mutationToken()?->toOpaqueString()
+            : null;
     }
 
     /**

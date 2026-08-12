@@ -387,7 +387,7 @@ final class EntityResolver
     {
         $allowed = $this->guard->filterFields($entity, EntityValues::ordinaryFieldNames($entity), 'view');
         $values = EntityValues::toCastAwareMap($entity, $allowed);
-        $values['mutationToken'] = $entity instanceof EntityBase && $this->guard->canUpdate($entity)
+        $values['mutationToken'] = $entity instanceof EntityBase && $this->guard->canMutate($entity)
             ? $entity->mutationToken()?->toOpaqueString()
             : null;
         $values['_graphql_depth'] = 0;
