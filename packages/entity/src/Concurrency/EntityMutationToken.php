@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Waaseyaa\EntityStorage\Concurrency;
+namespace Waaseyaa\Entity\Concurrency;
 
 /**
  * Opaque, identity-bound expectation for one persisted aggregate snapshot.

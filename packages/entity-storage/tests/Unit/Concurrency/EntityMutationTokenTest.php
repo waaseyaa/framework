@@ -6,7 +6,7 @@ namespace Waaseyaa\EntityStorage\Tests\Unit\Concurrency;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\EntityStorage\Concurrency\EntityMutationToken;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 
 final class EntityMutationTokenTest extends TestCase
 {

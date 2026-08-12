@@ -6,6 +6,7 @@ namespace Waaseyaa\EntityStorage\Concurrency;
 
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 use Waaseyaa\EntityStorage\Exception\EntityMutationConflictException;
 
 /**
