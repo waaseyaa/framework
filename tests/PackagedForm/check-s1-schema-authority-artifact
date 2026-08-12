@@ -16,8 +16,17 @@ cleanup() {
 trap cleanup EXIT
 
 candidate="$($root/bin/git -C "$root" rev-parse HEAD)"
-if [[ -n "$($root/bin/git -C "$root" status --porcelain=v1 -- packages/database-legacy packages/foundation packages/cli)" ]]; then
-    echo 'S1 schema artifact evidence refuses dirty authority-package bytes.' >&2
+consumed_paths=(
+    packages/database-legacy
+    packages/foundation
+    packages/cli
+    composer.lock
+    support/s1-sqlite-dependency-bytes.json
+    tests/PackagedForm/check-s1-schema-authority-artifact
+    tests/PackagedForm/s1-schema-authority-artifact-probe.php
+)
+if [[ -n "$($root/bin/git -C "$root" status --porcelain=v1 -- "${consumed_paths[@]}")" ]]; then
+    echo 'S1 schema artifact evidence refuses dirty package, lock, dependency-authority, or probe bytes.' >&2
     exit 1
 fi
 

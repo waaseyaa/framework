@@ -147,7 +147,8 @@ foreach ($phpTestFiles as $path) {
     if (preg_match('/\b(?:sleep|usleep)\s*\(/', $contents) === 1) {
         $waitCategory = match ($path) {
             'tests/Integration/FieldReadPagePerformance/PagePerformanceHarnessContractTest.php',
-            'tests/Integration/FreshInstall/CutoverFreshInstallSmokeTest.php' => 'subprocess_polling',
+            'tests/Integration/FreshInstall/CutoverFreshInstallSmokeTest.php',
+            'packages/foundation/tests/Integration/Migration/SchemaAuthorityConcurrencyTest.php' => 'subprocess_polling',
             'tests/Integration/Phase13/SsrHttpKernelIntegrationTest.php' => 'filesystem_retry',
             default => 'unclassified',
         };
