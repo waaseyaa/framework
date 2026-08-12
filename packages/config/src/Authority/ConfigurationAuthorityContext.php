@@ -27,6 +27,9 @@ final readonly class ConfigurationAuthorityContext
         if (($activeGenerationId === null) !== ($activationSequence === null)) {
             throw new \InvalidArgumentException('Active generation id and activation sequence must be present together.');
         }
+        if ($activeGenerationId !== null && preg_match('/^[a-f0-9]{64}$/D', $activeGenerationId) !== 1) {
+            throw new \InvalidArgumentException('Active configuration generation id must be a lowercase SHA-256 digest.');
+        }
         if ($activationSequence !== null && $activationSequence < 1) {
             throw new \InvalidArgumentException('Activation sequence must be positive.');
         }

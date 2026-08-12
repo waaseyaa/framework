@@ -73,7 +73,8 @@
         "waaseyaa": {
             "migrations": "migrations",
             "providers": [
-                "Waaseyaa\\EntityStorage\\Backend\\FrameworkFieldStorageBackendProvider"
+                "Waaseyaa\\EntityStorage\\Backend\\FrameworkFieldStorageBackendProvider",
+                "Waaseyaa\\EntityStorage\\Config\\ConfigurationStorageServiceProvider"
             ]
         }
     },

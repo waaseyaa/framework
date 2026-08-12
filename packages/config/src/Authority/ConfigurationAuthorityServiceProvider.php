@@ -47,36 +47,22 @@ class ConfigurationAuthorityServiceProvider extends ServiceProvider
             $resolver = $this->resolve(ConfigurationAuthorityResolver::class);
             assert($resolver instanceof ConfigurationAuthorityResolver);
 
-            return $resolver->resolve($root, $database->databaseIdentity(), $bootstrap, $environment);
-        });
-        $this->singleton(ActiveConfigurationBridgeInterface::class, function (): ActiveConfigurationBridgeInterface {
-            $bridge = $this->kernelServices?->get(ActiveConfigurationBridgeInterface::class);
-            if (!$bridge instanceof ActiveConfigurationBridgeInterface) {
-                throw new ConfigurationAuthorityUnavailableException(
-                    'configuration.authority.v1 active-store bridge is unavailable; install the entity-storage authority bridge.',
-                );
-            }
-            $context = $this->resolve(ConfigurationAuthorityContext::class);
-            assert($context instanceof ConfigurationAuthorityContext);
-            if ($bridge->authorityContext() !== $context) {
-                throw new ConfigurationAuthorityConflictException(
-                    'configuration.authority.v1 bridge published a divergent authority context.',
-                );
-            }
+            $context = $resolver->resolve($root, $database->databaseIdentity(), $bootstrap, $environment);
+            $generationResolver = $this->kernelServices?->get(ConfigurationGenerationResolverInterface::class);
 
-            return $bridge;
+            return $generationResolver instanceof ConfigurationGenerationResolverInterface
+                ? $generationResolver->bind($context)
+                : $context;
         });
         $this->singleton(ConfigFactoryInterface::class, function (): ConfigFactory {
-            $bridge = $this->resolve(ActiveConfigurationBridgeInterface::class);
-            assert($bridge instanceof ActiveConfigurationBridgeInterface);
+            $bridge = $this->resolveActiveBridge();
 
             return new ConfigFactory($bridge->activeStorage(), $this->resolveEventDispatcher());
         });
         $this->singleton(ConfigManagerInterface::class, function (): ConfigManager {
             $context = $this->resolve(ConfigurationAuthorityContext::class);
-            $bridge = $this->resolve(ActiveConfigurationBridgeInterface::class);
+            $bridge = $this->resolveActiveBridge();
             assert($context instanceof ConfigurationAuthorityContext);
-            assert($bridge instanceof ActiveConfigurationBridgeInterface);
 
             return new ConfigManager(
                 activeStorage: $bridge->activeStorage(),
@@ -84,6 +70,25 @@ class ConfigurationAuthorityServiceProvider extends ServiceProvider
                 eventDispatcher: $this->resolveEventDispatcher(),
             );
         });
+    }
+
+    private function resolveActiveBridge(): ActiveConfigurationBridgeInterface
+    {
+        $bridge = $this->kernelServices?->get(ActiveConfigurationBridgeInterface::class);
+        if (!$bridge instanceof ActiveConfigurationBridgeInterface) {
+            throw new ConfigurationAuthorityUnavailableException(
+                'configuration.authority.v1 active-store bridge is unavailable; install the entity-storage authority bridge.',
+            );
+        }
+        $context = $this->resolve(ConfigurationAuthorityContext::class);
+        assert($context instanceof ConfigurationAuthorityContext);
+        if ($bridge->authorityContext() !== $context) {
+            throw new ConfigurationAuthorityConflictException(
+                'configuration.authority.v1 bridge published a divergent authority context.',
+            );
+        }
+
+        return $bridge;
     }
 
     private function resolveEventDispatcher(): ComponentEventDispatcherInterface
