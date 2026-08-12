@@ -1,0 +1,134 @@
+# S1 entity concurrency and scheduler fencing
+
+Status: implementation contract for `S1-FW-DB-03`.
+
+Parent candidate: `S1-FW-DB-02` commit
+`4f0eaeaa69733f7cf6fb3c91d5a0a98c354ff72d`, tree
+`d0564935a578238ddd23ef73250867a64540137d`.
+
+This is a forge-neutral change record. Git objects, executable tests, exact
+installed artifacts, and signed evidence are the authorities. No forge,
+registry, issue, pull request, hosted artifact, or hosted approval is required
+to reproduce or verify this package.
+
+## Outcome
+
+Persisted entities reject stale updates, deletes, pointer moves, translations,
+and batch operations by default. Overlap-protected scheduled work uses durable,
+renewable leases and fences every durable effect; expiry can never turn an old
+worker into an authorized writer.
+
+This package closes the framework implementation boundary for `F-DB-003`,
+`F-DB-004`, and `F-DB-005`. Exact Sheg compatibility remains required before
+those findings or S1 can close.
+
+## Aggregate mutation authority
+
+Every persisted entity identity owns one DB-02-managed authority record keyed
+by storage authority, tenant/community, entity type, and canonical entity ID.
+It contains a monotonic aggregate version, an unguessable opaque tag, active or
+tombstone state, and the last accepted scheduler fence per declared fence
+domain. A revision ID is never the aggregate version: in-place saves,
+translations, lifecycle pointers, and disciplined forward drafts can change
+without mapping one-to-one to a revision head.
+
+Repository loads hydrate an opaque `EntityMutationToken` from that authority.
+Creation states an absent-row condition. Existing update, delete, translation,
+history, pointer, and batch commands require the token; omission fails before
+events or writes. Blind maintenance is a distinct privileged, audited command
+with an explicit reason, never a nullable token or environment switch.
+
+After pure validation, the first authoritative mutation is one compare-and-swap
+on the authority record inside the same transaction as base, bundle, revision,
+translation, pointer, fence, outbox, and audit writes. Transactional guards and
+write-capable pre-events run only after the claim. A losing command produces no
+row, revision, pointer, event, outbox entry, or external effect. A no-op retains
+the token and emits no mutation event; every effective success advances exactly
+one aggregate version and returns the successor token.
+
+Deletes retain a minimal tombstone through the stale-client and retained-backup
+horizon. Re-creation advances the authority rather than resetting it, preventing
+ABA acceptance. Purge is separately authorized and dependency-aware.
+
+Batch commands sort canonical identities before claims, reject duplicate
+identities, and commit all items or none. History operations state the exact
+expected aggregate token and relevant current, working, or published heads.
+Backfills use bounded, resumable batches rather than an unbounded transaction.
+
+## Protocol surfaces
+
+HTTP reads return one canonical quoted strong ETag. Existing-entity mutation
+requires exactly one strong `If-Match`; absence returns 428, stale state returns
+412, and weak, wildcard, or list validators are rejected. Conflict responses do
+not disclose the current token or mutable entity data.
+
+Admin, JSON:API, GraphQL, MCP/AI, CLI, workflow, publishing, migration, worker,
+translation, and batch surfaces carry the same opaque expectation. Arbitrary
+automatic retries are forbidden. Only registered deterministic commutative
+operations may re-read, recompute, and retry within a bounded policy.
+
+Direct coordinator and driver mutation paths are internal or enforce the same
+authority. Public upsert is not a mutation command: create, update, and delete
+have distinct intent and failure semantics.
+
+## Lease and fence authority
+
+Production overlap prevention requires the authoritative database. It never
+falls back to process memory. A stable lease-domain row retains owner,
+expiration, renewal generation and nonce, and fence history after release. One
+global signed-64-bit sequence supplies comparable fences to domains that share
+a durable resource.
+
+Acquire and renew use integer-millisecond database time and exact
+owner/fence/generation compare-and-swap. The database returns its time and
+expiry; local monotonic elapsed time, measured round-trip, and a safety margin
+schedule heartbeats. Same-tick renewal must extend ownership. Clock rollback,
+invalid TTL/precision, ambiguity, and counter overflow fail readiness.
+
+Every effect carries lease domain, global fence, deterministic occurrence ID,
+and effect ID. Entity writes check and advance the accepted resource fence in
+the same transaction as the entity CAS. Equal delivery of the same effect is a
+no-op; distinct equal-fence effects require declared ordering. Duplicate-safe
+additive external effects may use occurrence/effect idempotency. Ordered
+replacement effects require destination fence/CAS or a serialized transactional
+outbox that discards stale fences. An unfenceable task cannot claim
+`preventOverlap`.
+
+## Occurrence and queue ownership
+
+A scheduled occurrence is uniquely identified by stable task ID, schedule
+generation, and canonical due instant. Manual runs require an idempotency key.
+The producer transaction records the occurrence and enqueue outbox. A durable
+worker separately acquires the execution lease; it never informally resumes a
+producer lease. Recorded-before-enqueue, enqueue-before-ack,
+effect-before-completion, retry, and dead-letter states reconcile idempotently.
+
+Queue dispatch means enqueued, not completed. A void dispatch return,
+serialization, and `UniqueJob` marker are not cross-process ownership. Generated
+closure names are not stable identities. The three classification-retention and
+two agent-maintenance overlap closures must become stable lease-aware commands.
+
+Only a proven live owner is an overlap skip. Busy/locked, connection, timeout,
+permission, schema, and unknown database failures remain failures. Ambiguous
+acquire or renewal runs nothing unless exact owner, fence, generation, nonce,
+and safety horizon are proven by read-back.
+
+## Verification boundary
+
+The exact predecessor keeps all 48 critical DB-03 anchors byte-identical to the
+reviewed design baseline. The complete mutation-call vocabulary still resolves
+to 89 first-party candidates; DB-02 changed ten excluded schema/storage matches
+only by removing runtime DDL. The successor inventory is regenerated and
+hash-bound before implementation evidence is sealed.
+
+Retained reds cover two-reader/one-winner updates across entity shapes, stale
+delete races, all-or-nothing batches, translation and pointer races, every
+supported protocol surface, lease overrun/renewal ambiguity, stale fenced
+effects, deterministic occurrences, queue crash points, database fault
+classification, and all five unstable overlap closures.
+
+The package is complete only when split Unit, Integration, Architecture,
+static-analysis, package-layer, Composer-policy, secret, formatting, roster,
+and isolated installed-artifact gates pass at one exact candidate and an
+independent read-only review is reconciled. This authorizes no release,
+deployment, production, backup, restore, or recovery operation.

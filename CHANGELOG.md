@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Begin `S1-FW-DB-03`: make existing-entity mutation token-based by default and
+  replace fixed-TTL scheduler overlap locks with durable renewable leases and
+  fenced effects.
+
 ### Added
 
 - **single S1 schema authority (`S1-FW-DB-02`):** Define one
