@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Auth\DatabaseRateLimiter;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Auth\Tests\Support\AuthSchema;
 
 #[CoversClass(DatabaseRateLimiter::class)]
 final class DatabaseRateLimiterTest extends TestCase
@@ -20,6 +21,7 @@ final class DatabaseRateLimiterTest extends TestCase
     protected function setUp(): void
     {
         $this->db = DBALDatabase::createSqlite();
+        AuthSchema::install($this->db);
         $this->limiter = new DatabaseRateLimiter($this->db);
     }
 
@@ -94,6 +96,7 @@ final class DatabaseRateLimiterTest extends TestCase
     public function persists_across_instances_with_same_database(): void
     {
         $db = DBALDatabase::createSqlite();
+        AuthSchema::install($db);
         $limiter1 = new DatabaseRateLimiter($db);
         $limiter1->hit('login:alice', 60);
         $limiter1->hit('login:alice', 60);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Auth;
 
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\Schema\SchemaRequirement;
 
 /**
  * @api
@@ -142,24 +143,12 @@ final class DatabaseRateLimiter implements AtomicRateLimiterInterface
             return;
         }
 
-        $schema = $this->database->schema();
-        if (!$schema->tableExists(self::TABLE)) {
-            try {
-                $schema->createTable(self::TABLE, [
-                    'fields' => [
-                        'bucket_key' => ['type' => 'text', 'not null' => true],
-                        'hits' => ['type' => 'integer', 'not null' => true],
-                        'reset_at' => ['type' => 'integer', 'not null' => true],
-                    ],
-                    'primary key' => ['bucket_key'],
-                ]);
-            } catch (\Throwable $e) {
-                // A concurrent boot created the table between our check and create.
-                if (!$this->database->schema()->tableExists(self::TABLE)) {
-                    throw $e;
-                }
-            }
-        }
+        SchemaRequirement::assertAvailable(
+            $this->database,
+            self::TABLE,
+            ['bucket_key', 'hits', 'reset_at'],
+            'waaseyaa/auth:2026_08_12_000001_auth_runtime_schema',
+        );
 
         $this->tableCreated = true;
     }

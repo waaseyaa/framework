@@ -9,6 +9,8 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\RateLimit\DatabaseRateLimiter;
+use Waaseyaa\Foundation\Migration\Migration;
+use Waaseyaa\Foundation\Migration\SchemaBuilder;
 
 #[CoversClass(DatabaseRateLimiter::class)]
 final class DatabaseRateLimiterTest extends TestCase
@@ -29,10 +31,22 @@ final class DatabaseRateLimiterTest extends TestCase
         }
     }
 
+    private function migratedDatabase(): DBALDatabase
+    {
+        $database = DBALDatabase::createSqlite($this->dbPath);
+        $migration = require dirname(__DIR__, 3) . '/migrations/2026_08_12_000001_rate_limit_window_schema.php';
+        if (!$migration instanceof Migration) {
+            throw new \LogicException('The Foundation rate-limit migration is invalid.');
+        }
+        $migration->up(new SchemaBuilder($database->getConnection()));
+
+        return $database;
+    }
+
     #[Test]
     public function allows_first_attempt(): void
     {
-        $limiter = new DatabaseRateLimiter(DBALDatabase::createSqlite($this->dbPath));
+        $limiter = new DatabaseRateLimiter($this->migratedDatabase());
 
         $result = $limiter->attempt('key1', 5, 60);
 
@@ -44,7 +58,7 @@ final class DatabaseRateLimiterTest extends TestCase
     #[Test]
     public function tracks_remaining_then_denies_with_retry_after(): void
     {
-        $limiter = new DatabaseRateLimiter(DBALDatabase::createSqlite($this->dbPath));
+        $limiter = new DatabaseRateLimiter($this->migratedDatabase());
 
         self::assertSame(2, $limiter->attempt('key1', 3, 60)['remaining']);
         self::assertSame(1, $limiter->attempt('key1', 3, 60)['remaining']);
@@ -60,7 +74,7 @@ final class DatabaseRateLimiterTest extends TestCase
     #[Test]
     public function isolates_keys(): void
     {
-        $limiter = new DatabaseRateLimiter(DBALDatabase::createSqlite($this->dbPath));
+        $limiter = new DatabaseRateLimiter($this->migratedDatabase());
 
         for ($i = 0; $i < 3; $i++) {
             $limiter->attempt('key1', 3, 60);
@@ -81,13 +95,13 @@ final class DatabaseRateLimiterTest extends TestCase
     #[Test]
     public function limit_persists_across_separate_connections(): void
     {
-        $writer = new DatabaseRateLimiter(DBALDatabase::createSqlite($this->dbPath));
+        $writer = new DatabaseRateLimiter($this->migratedDatabase());
         for ($i = 0; $i < 3; $i++) {
             $writer->attempt('shared', 3, 60);
         }
 
         // A brand-new limiter on a brand-new connection to the same file.
-        $reader = new DatabaseRateLimiter(DBALDatabase::createSqlite($this->dbPath));
+        $reader = new DatabaseRateLimiter($this->migratedDatabase());
         $result = $reader->attempt('shared', 3, 60);
 
         self::assertFalse($result['allowed'], 'the 4th attempt must be denied across connections');
@@ -101,7 +115,7 @@ final class DatabaseRateLimiterTest extends TestCase
         $clock = function () use (&$now): int {
             return $now;
         };
-        $limiter = new DatabaseRateLimiter(DBALDatabase::createSqlite($this->dbPath), $clock);
+        $limiter = new DatabaseRateLimiter($this->migratedDatabase(), $clock);
 
         // Exhaust the window of 10s.
         for ($i = 0; $i < 3; $i++) {

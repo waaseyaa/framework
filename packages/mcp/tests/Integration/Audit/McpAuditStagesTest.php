@@ -23,6 +23,7 @@ use Waaseyaa\Audit\Storage\AppendOnlyAuditDatabase;
 use Waaseyaa\Audit\Writer\AuditEventWriter;
 use Waaseyaa\Auth\AtomicRateLimiterInterface;
 use Waaseyaa\Auth\DatabaseRateLimiter;
+use Waaseyaa\Auth\Tests\Support\AuthSchema;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Mcp\Auth\BearerTokenAuth;
 use Waaseyaa\Mcp\CapabilityScopedToolRegistry;
@@ -56,6 +57,7 @@ final class McpAuditStagesTest extends TestCase
     {
         self::$executed = false;
         $this->db = DBALDatabase::createSqlite();
+        AuthSchema::install($this->db);
         new AuditEventSchemaHandler($this->db)->ensureSchema();
         $this->dispatcher = new EventDispatcher();
         $this->dispatcher->addSubscriber(new McpDispatchAuditListener(

@@ -58,6 +58,7 @@
     },
     "extra": {
         "waaseyaa": {
+            "migrations": "migrations",
             "providers": [
                 "Waaseyaa\\Auth\\AuthServiceProvider"
             ]

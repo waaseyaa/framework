@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Auth\Token\Bearer;
 
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\Schema\SchemaRequirement;
 use Waaseyaa\Entity\DateTime\EntityClockInterface;
 use Waaseyaa\Entity\DateTime\UtcEntityClock;
 
@@ -23,9 +24,7 @@ use Waaseyaa\Entity\DateTime\UtcEntityClock;
  * constant-time over the verifier hash (`hash_equals`), with a dummy
  * comparison on unknown ids so the id-existence timing surface stays flat.
  *
- * Schema is owned here: `ensureSchema()` is idempotent and tolerant of the
- * concurrent-cold-boot create race (same reasoning as
- * {@see \Waaseyaa\Auth\Token\AuthTokenRepository::ensureSchema()}).
+ * Runtime access verifies migration-owned schema and never installs it.
  */
 final class DatabaseBearerTokenStore implements BearerTokenStoreInterface
 {
@@ -263,55 +262,23 @@ final class DatabaseBearerTokenStore implements BearerTokenStoreInterface
         }
     }
 
-    /**
-     * Idempotent, race-safe schema bootstrap (see class docblock).
-     */
+    /** Read-only compatibility alias; schema installation belongs to migrations. */
     public function ensureSchema(): void
     {
         if ($this->schemaEnsured) {
             return;
         }
 
-        $schema = $this->database->schema();
-
-        if ($schema->tableExists(self::TABLE)) {
-            $this->schemaEnsured = true;
-
-            return;
-        }
-
-        try {
-            $schema->createTable(self::TABLE, [
-                'fields' => [
-                    'id' => ['type' => 'varchar', 'length' => 20, 'not null' => true],
-                    'account_uid' => ['type' => 'integer', 'not null' => true],
-                    'audience' => ['type' => 'varchar', 'length' => 64, 'not null' => true],
-                    'scopes' => ['type' => 'text', 'not null' => true],
-                    'label' => ['type' => 'varchar', 'length' => 128, 'not null' => true],
-                    'secret_hash' => ['type' => 'varchar', 'length' => 64, 'not null' => true],
-                    'fingerprint' => ['type' => 'varchar', 'length' => 16, 'not null' => true],
-                    'issued_at' => ['type' => 'varchar', 'length' => 26, 'not null' => true],
-                    'expires_at' => ['type' => 'varchar', 'length' => 26, 'not null' => true],
-                    'revoked_at' => ['type' => 'varchar', 'length' => 26, 'not null' => false],
-                    'rotated_from' => ['type' => 'varchar', 'length' => 20, 'not null' => false],
-                ],
-                'primary key' => ['id'],
-            ]);
-            $this->database->query(\sprintf(
-                'CREATE UNIQUE INDEX IF NOT EXISTS auth_bearer_token_secret_hash ON %s (secret_hash)',
-                self::TABLE,
-            ));
-            $this->database->query(\sprintf(
-                'CREATE INDEX IF NOT EXISTS auth_bearer_token_account ON %s (account_uid)',
-                self::TABLE,
-            ));
-        } catch (\Throwable $e) {
-            // A concurrent boot may have created the table between the check
-            // and the create; only a genuinely missing table is a failure.
-            if (!$this->database->schema()->tableExists(self::TABLE)) {
-                throw $e;
-            }
-        }
+        SchemaRequirement::assertAvailable(
+            $this->database,
+            self::TABLE,
+            [
+                'id', 'account_uid', 'audience', 'scopes', 'label',
+                'secret_hash', 'fingerprint', 'issued_at', 'expires_at',
+                'revoked_at', 'rotated_from',
+            ],
+            'waaseyaa/auth:2026_08_12_000001_auth_runtime_schema',
+        );
 
         $this->schemaEnsured = true;
     }

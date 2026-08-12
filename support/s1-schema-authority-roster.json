@@ -1182,58 +1182,58 @@
             "source_sha256": "26e10ab7cb91bec1f122f99ea96700b8996fed291d4d1e896dcbf54738fe0a74"
         },
         {
-            "path": "packages/auth/src/DatabaseRateLimiter.php",
-            "line": 148,
-            "pattern": "schema_method",
-            "class": "authoritative-bypass-remediation-required",
-            "match_sha256": "7a58133564c60e8f34ddde862bac483b98fb2890d578d176a8b832f4387c451e",
-            "line_sha256": "64a6f006649ec6c68e330a278897bec632028b8089f23a22ad4a4841104fb518",
-            "source_sha256": "c0038206928f97042fd475f1228270f6227c92808db2899db95132d7358ac086"
-        },
-        {
-            "path": "packages/auth/src/Token/AuthTokenRepository.php",
-            "line": 29,
+            "path": "packages/auth/migrations/2026_08_12_000001_auth_runtime_schema.php",
+            "line": 16,
             "pattern": "ddl_sql",
-            "class": "authoritative-bypass-remediation-required",
+            "class": "coordinator-plan-or-executor",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "e29e4ef9018a5752f63b42eaad8203d0eef06583a5075e9237b41d1eba0d9cb2",
-            "source_sha256": "a2a859882e28954463cdb0a5ff76c5019887b5714352bd0b47bbda8df3135ea1"
+            "line_sha256": "0fddcb49c4070b34b98fff1129b4933ef805c91547e77086a0aa2ab16b01c3b1",
+            "source_sha256": "f56e6ce26a9b67ae7be1bc71a607601e263af041f51e9e88feb3348625813fbd"
         },
         {
-            "path": "packages/auth/src/Token/AuthTokenRepository.php",
-            "line": 44,
-            "pattern": "schema_method",
-            "class": "authoritative-bypass-remediation-required",
-            "match_sha256": "7a58133564c60e8f34ddde862bac483b98fb2890d578d176a8b832f4387c451e",
-            "line_sha256": "64a6f006649ec6c68e330a278897bec632028b8089f23a22ad4a4841104fb518",
-            "source_sha256": "a2a859882e28954463cdb0a5ff76c5019887b5714352bd0b47bbda8df3135ea1"
-        },
-        {
-            "path": "packages/auth/src/Token/Bearer/DatabaseBearerTokenStore.php",
-            "line": 284,
-            "pattern": "schema_method",
-            "class": "authoritative-bypass-remediation-required",
-            "match_sha256": "7a58133564c60e8f34ddde862bac483b98fb2890d578d176a8b832f4387c451e",
-            "line_sha256": "64a6f006649ec6c68e330a278897bec632028b8089f23a22ad4a4841104fb518",
-            "source_sha256": "d315e8ac295e236f0f29f5dfb14231deeaa237ca44f4db77f0a34d931ccf2ce8"
-        },
-        {
-            "path": "packages/auth/src/Token/Bearer/DatabaseBearerTokenStore.php",
-            "line": 301,
+            "path": "packages/auth/migrations/2026_08_12_000001_auth_runtime_schema.php",
+            "line": 32,
             "pattern": "ddl_sql",
-            "class": "authoritative-bypass-remediation-required",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "a355144d88eb55a38519d6778d20995114fa124b0befa919b1e95c5d94b276de",
+            "source_sha256": "f56e6ce26a9b67ae7be1bc71a607601e263af041f51e9e88feb3348625813fbd"
+        },
+        {
+            "path": "packages/auth/migrations/2026_08_12_000001_auth_runtime_schema.php",
+            "line": 48,
+            "pattern": "ddl_sql",
+            "class": "coordinator-plan-or-executor",
             "match_sha256": "2d52dcb3fc5e1214a87232f9f36b00313f5973a074b1d12bfd81d2874ab0e460",
-            "line_sha256": "e292fdf9dd7e80fea211776705e7bd634cf3bb09bc6dc2c59507e691229c1cf5",
-            "source_sha256": "d315e8ac295e236f0f29f5dfb14231deeaa237ca44f4db77f0a34d931ccf2ce8"
+            "line_sha256": "a42f0a3443f1846e8581fc8dea356174f989508cf4196cd1415ad6543e5a4559",
+            "source_sha256": "f56e6ce26a9b67ae7be1bc71a607601e263af041f51e9e88feb3348625813fbd"
         },
         {
-            "path": "packages/auth/src/Token/Bearer/DatabaseBearerTokenStore.php",
-            "line": 305,
+            "path": "packages/auth/migrations/2026_08_12_000001_auth_runtime_schema.php",
+            "line": 51,
             "pattern": "ddl_sql",
-            "class": "authoritative-bypass-remediation-required",
+            "class": "coordinator-plan-or-executor",
             "match_sha256": "f72c69d56240d662918da2a012e6420655b21fccd4e21ab7931ddc0d4bbe5376",
-            "line_sha256": "34d7bbe44a1e3328012fd9c2a1d7d63ba2333c440e06794e546636ea503cc462",
-            "source_sha256": "d315e8ac295e236f0f29f5dfb14231deeaa237ca44f4db77f0a34d931ccf2ce8"
+            "line_sha256": "22a98e99264c229291d266d6ea0622164f78e72a6bc68274012a739adb21e95f",
+            "source_sha256": "f56e6ce26a9b67ae7be1bc71a607601e263af041f51e9e88feb3348625813fbd"
+        },
+        {
+            "path": "packages/auth/migrations/2026_08_12_000001_auth_runtime_schema.php",
+            "line": 56,
+            "pattern": "ddl_sql",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "6974d026349274aaec859b095a2811007fbedd795d61c5b183f3403fe9ab568d",
+            "source_sha256": "f56e6ce26a9b67ae7be1bc71a607601e263af041f51e9e88feb3348625813fbd"
+        },
+        {
+            "path": "packages/auth/tests/Unit/Token/AuthTokenRepositoryTest.php",
+            "line": 45,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "4d259f5fc08d4c4665f54c2367879fe9ea73224ab6700b584a646592dc56546d",
+            "source_sha256": "59cc2ebb27d97d83c7bb6cd4504eb46853a90c2ff1288c29841a2fa631cf1971"
         },
         {
             "path": "packages/cache/src/Backend/DatabaseBackend.php",
@@ -5268,6 +5268,15 @@
             "source_sha256": "6d6f793d099af16df0f353c1dc56e7dd4bdbb0a75ee7b87b77e6bbe5e36b25b2"
         },
         {
+            "path": "packages/foundation/migrations/2026_08_12_000001_rate_limit_window_schema.php",
+            "line": 17,
+            "pattern": "ddl_sql",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "19d709787982d7ccf5a365a7e41c147e1c290658d37cb9255107eb65d9877c2c",
+            "source_sha256": "cf58b4d7ea8f652d3e1196db548278c8c2ec37b275b53ff7c7703a047c401040"
+        },
+        {
             "path": "packages/foundation/src/Kernel/AbstractKernel.php",
             "line": 792,
             "pattern": "legacy_schema_method",
@@ -5374,15 +5383,6 @@
             "match_sha256": "6283169e002fa4e20fae879d20f59a51c6f7a2adf22c604a520bd08bc2c18cd9",
             "line_sha256": "0c1d0b098a29560365c446c4071538d69e5efbf4d1feaca18e68fcd390678eb6",
             "source_sha256": "c6a03cee7ba28dd28af08ca6c77f716675897dbb2c90b598ef136d5cf81d1c8e"
-        },
-        {
-            "path": "packages/foundation/src/RateLimit/DatabaseRateLimiter.php",
-            "line": 118,
-            "pattern": "ddl_sql",
-            "class": "authoritative-bypass-remediation-required",
-            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "923d297ae49a3ae63cb835d5356d245a78e1ffa276e87c11efa030f69543e410",
-            "source_sha256": "979963e9eb7c46e79bf03bd6fa48c2178ca2fe354e9a398d0b08e023f622826f"
         },
         {
             "path": "packages/foundation/src/Schema/Compiler/Sqlite/SqliteCapabilities.php",

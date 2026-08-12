@@ -12,6 +12,7 @@ use Waaseyaa\Auth\Token\AuthTokenRepository;
 use Waaseyaa\Auth\Token\AuthTokenRepositoryInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
+use Waaseyaa\Auth\Tests\Support\AuthSchema;
 
 #[CoversClass(AuthServiceProvider::class)]
 final class AuthServiceProviderTest extends TestCase
@@ -96,13 +97,17 @@ final class AuthServiceProviderTest extends TestCase
 
     private function providerWith(array $config): AuthServiceProvider
     {
+        $database = DBALDatabase::createSqlite();
+        AuthSchema::install($database);
         $provider = new AuthServiceProvider();
         $provider->setKernelContext('', $config, []);
-        $provider->setKernelServices(new class implements KernelServicesInterface {
+        $provider->setKernelServices(new class($database) implements KernelServicesInterface {
+            public function __construct(private readonly DBALDatabase $database) {}
+
             public function get(string $abstract): ?object
             {
                 if ($abstract === \Waaseyaa\Database\DatabaseInterface::class) {
-                    return DBALDatabase::createSqlite();
+                    return $this->database;
                 }
 
                 return null;

@@ -19,6 +19,7 @@ use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\ToolNotFoundException;
 use Waaseyaa\AI\Tools\ToolRegistryInterface as AgentToolRegistryInterface;
 use Waaseyaa\Auth\Token\Bearer\DatabaseBearerTokenStore;
+use Waaseyaa\Auth\Tests\Support\AuthSchema;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
@@ -53,6 +54,7 @@ final class DurableBearerTokenLifecycleTest extends TestCase
     {
         $this->databaseFixture = new TemporarySqliteDatabase();
         $this->database = $this->databaseFixture->database();
+        AuthSchema::install($this->databaseFixture->database());
         $this->clock = new MutableEntityClock(new \DateTimeImmutable(self::START, new \DateTimeZone('UTC')));
         $this->store = new DatabaseBearerTokenStore($this->database, $this->clock);
 

@@ -14,6 +14,7 @@ use Waaseyaa\Auth\Token\Bearer\DatabaseBearerTokenStore;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Auth\Tests\Support\AuthSchema;
 
 #[CoversClass(BearerTokenConsoleCommands::class)]
 final class BearerTokenConsoleCommandsTest extends TestCase
@@ -25,7 +26,9 @@ final class BearerTokenConsoleCommandsTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->store = new DatabaseBearerTokenStore(DBALDatabase::createSqlite());
+        $database = DBALDatabase::createSqlite();
+        AuthSchema::install($database);
+        $this->store = new DatabaseBearerTokenStore($database);
 
         foreach (new BearerTokenConsoleCommands(fn(): BearerTokenStoreInterface => $this->store)->commands() as $command) {
             \assert($command instanceof HandlerCommand);
