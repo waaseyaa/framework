@@ -512,6 +512,7 @@
         "check-access-hardening": "bash tests/Tooling/AccessHardeningGateTest.sh",
         "check-s1-sqlite-contract": "php bin/check-s1-sqlite-contract",
         "check-s1-schema-authority": "php bin/check-s1-schema-authority",
+        "check-s1-configuration-authority": "php bin/check-s1-configuration-authority",
         "test": "php -d memory_limit=1G vendor/bin/phpunit --no-coverage",
         "test:random": "php bin/test-random-order",
         "verify": [
@@ -523,7 +524,8 @@
             "@check-phpunit-paths",
             "@check-contract-suite-coverage",
             "@check-s1-sqlite-contract",
-            "@check-s1-schema-authority",
+                   "@check-s1-schema-authority",
+                   "@check-s1-configuration-authority",
             "@check-composer-policy",
             "@check-package-layers",
             "@check-package-layers-pl008-self-test",

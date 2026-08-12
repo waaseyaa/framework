@@ -1,0 +1,260 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/** Exact, forge-neutral inventory and semantic gate for S1-FW-CFG-01. */
+
+$root = dirname(__DIR__);
+$rosterPath = $root . '/support/s1-configuration-authority-roster.json';
+$contractPath = $root . '/support/s1-configuration-authority-v1.json';
+$arguments = array_values(array_filter($_SERVER['argv'] ?? [], 'is_string'));
+$writeRoster = in_array('--write-roster', $arguments, true);
+foreach ($arguments as $argument) {
+    if (str_starts_with($argument, '--roster=')) {
+        $candidate = substr($argument, strlen('--roster='));
+        $rosterPath = str_starts_with($candidate, '/') ? $candidate : $root . '/' . $candidate;
+    }
+    if (str_starts_with($argument, '--contract=')) {
+        $candidate = substr($argument, strlen('--contract='));
+        $contractPath = str_starts_with($candidate, '/') ? $candidate : $root . '/' . $candidate;
+    }
+}
+
+/** @return array<string, string> */
+function s1ConfigPatterns(): array
+{
+    return [
+        'active_bridge' => '/\bActiveConfigurationBridgeInterface\b/',
+        'active_source' => '/\bConfigSyncFileSourceInterface\b/',
+        'apply_hook' => '/\bConfigImportApplyHookInterface\b/',
+        'authority_context' => '/\bConfigurationAuthorityContext\b/',
+        'factory_compatibility' => '/\bConfigFactoryInterface\b/',
+        'manager_compatibility' => '/\bConfigManagerInterface\b/',
+        'file_storage_construction' => '/new\s+FileStorage\s*\(/',
+        'environment_factory_construction' => '/new\s+EnvironmentConfigFactory\s*\(/',
+        'null_config_construction' => '/new\s+NullConfigStorage\s*\(/',
+        'canonical_selector' => '/\b(?:config\.sync_path|WAASEYAA_CONFIG_SYNC_PATH)\b/',
+        'legacy_selector' => '/\b(?:config_dir|WAASEYAA_CONFIG_DIR)\b/',
+    ];
+}
+
+function s1ConfigClass(string $path): string
+{
+    $classes = [
+        'packages/ai-agent/src/Mcp/McpServiceProvider.php' => 'optional-consumer',
+        'packages/cli/src/Command/Config/ConfigImportCommand.php' => 'command-adapter',
+        'packages/cli/src/Handler/AboutHandler.php' => 'diagnostic-consumer',
+        'packages/cli/src/Handler/ConfigExportHandler.php' => 'command-adapter',
+        'packages/cli/src/Handler/ConfigImportHandler.php' => 'command-adapter',
+        'packages/cli/src/Handler/HealthCheckHandler.php' => 'diagnostic-consumer',
+        'packages/cli/src/Handler/HealthReportHandler.php' => 'diagnostic-consumer',
+        'packages/cli/src/Handler/InstallHandler.php' => 'legacy-compatibility',
+        'packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php' => 'command-composition',
+        'packages/cli/src/Provider/HealthSchemaServiceProvider.php' => 'diagnostic-composition',
+        'packages/cli/src/Provider/MiscAServiceProvider.php' => 'diagnostic-composition',
+        'packages/cli/src/Provider/MiscBServiceProvider.php' => 'legacy-compatibility',
+        'packages/cli/src/Provider/OptimizeServiceProvider.php' => 'derived-consumer',
+        'packages/config/src/Authority/ActiveConfigurationBridgeInterface.php' => 'authority-contract',
+        'packages/config/src/Authority/ConfigurationAuthorityContext.php' => 'authority-contract',
+        'packages/config/src/Authority/ConfigurationAuthorityResolver.php' => 'authority-root',
+        'packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php' => 'authority-root',
+        'packages/config/src/Authority/ConfigurationGenerationResolverInterface.php' => 'authority-contract',
+        'packages/config/src/Authority/SyncArtifactStorageAdapter.php' => 'sync-adapter',
+        'packages/config/src/Cache/CachedConfigFactory.php' => 'legacy-compatibility',
+        'packages/config/src/Cache/ConfigCacheCompiler.php' => 'derived-consumer',
+        'packages/config/src/ConfigFactory.php' => 'legacy-compatibility',
+        'packages/config/src/ConfigFactoryInterface.php' => 'legacy-compatibility',
+        'packages/config/src/ConfigManager.php' => 'legacy-compatibility',
+        'packages/config/src/ConfigManagerInterface.php' => 'legacy-compatibility',
+        'packages/config/src/EnvironmentConfigFactory.php' => 'excluded-runtime-overlay',
+        'packages/config/src/Sync/ConfigDiffer.php' => 'command-orchestrator',
+        'packages/config/src/Sync/ConfigExporter.php' => 'command-orchestrator',
+        'packages/config/src/Sync/ConfigImportApplyHookInterface.php' => 'authority-contract',
+        'packages/config/src/Sync/ConfigImporter.php' => 'command-orchestrator',
+        'packages/config/src/Sync/ConfigResetter.php' => 'command-orchestrator',
+        'packages/config/src/Sync/ConfigSyncFileSourceInterface.php' => 'authority-contract',
+        'packages/config/src/Sync/ConfigSyncRepository.php' => 'sync-adapter',
+        'packages/config/src/TranslatableConfigFactory.php' => 'legacy-compatibility',
+        'packages/config/src/TranslatableConfigFactoryInterface.php' => 'legacy-compatibility',
+        'packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php' => 'higher-layer-bridge',
+        'packages/entity-storage/src/Config/DatabaseActiveConfigurationBridge.php' => 'higher-layer-bridge',
+        'packages/entity-storage/src/Config/DatabaseActiveConfigurationStorage.php' => 'higher-layer-bridge',
+        'packages/entity-storage/src/Config/DatabaseConfigurationGenerationResolver.php' => 'higher-layer-bridge',
+        'packages/entity-storage/src/Config/TestingActiveConfigurationBridge.php' => 'explicit-testing-profile',
+        'packages/entity-storage/src/Config/TestingConfigurationGenerationResolver.php' => 'explicit-testing-profile',
+        'packages/ssr/src/ThemeServiceProvider.php' => 'legacy-compatibility',
+        'packages/ssr/src/Twig/WaaseyaaExtension.php' => 'legacy-compatibility',
+        'packages/workflows/src/Binding/WorkflowBindingResolver.php' => 'legacy-compatibility',
+        'packages/workflows/src/WorkflowServiceProvider.php' => 'legacy-compatibility',
+    ];
+
+    return $classes[$path] ?? 'unclassified';
+}
+
+/** @return array{schema_version: int, query_version: string, patterns: array<string, string>, allowed_classes: list<string>, candidates: list<array<string, int|string>>} */
+function s1ConfigBuildRoster(string $root): array
+{
+    $patterns = s1ConfigPatterns();
+    $allowedClasses = [
+        'authority-root',
+        'authority-contract',
+        'higher-layer-bridge',
+        'command-composition',
+        'command-adapter',
+        'command-orchestrator',
+        'sync-adapter',
+        'diagnostic-composition',
+        'diagnostic-consumer',
+        'optional-consumer',
+        'derived-consumer',
+        'legacy-compatibility',
+        'excluded-runtime-overlay',
+        'explicit-testing-profile',
+    ];
+    $candidates = [];
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($root . '/packages', FilesystemIterator::SKIP_DOTS),
+    );
+    foreach ($iterator as $file) {
+        if (!$file instanceof SplFileInfo || !$file->isFile() || $file->getExtension() !== 'php') {
+            continue;
+        }
+        $path = str_replace('\\', '/', $file->getPathname());
+        $relative = substr($path, strlen(str_replace('\\', '/', $root)) + 1);
+        if (!str_contains($relative, '/src/') && !str_contains($relative, '/migrations/')) {
+            continue;
+        }
+        $contents = (string) file_get_contents($path);
+        $lines = explode("\n", $contents);
+        foreach ($patterns as $patternId => $pattern) {
+            preg_match_all($pattern, $contents, $matches, PREG_OFFSET_CAPTURE);
+            foreach ($matches[0] as [$matched, $offset]) {
+                $line = substr_count(substr($contents, 0, $offset), "\n") + 1;
+                $candidates[] = [
+                    'path' => $relative,
+                    'line' => $line,
+                    'pattern' => $patternId,
+                    'class' => s1ConfigClass($relative),
+                    'match_sha256' => hash('sha256', $matched),
+                    'line_sha256' => hash('sha256', trim($lines[$line - 1] ?? '')),
+                    'source_sha256' => hash('sha256', $contents),
+                ];
+            }
+        }
+    }
+    usort($candidates, static fn(array $left, array $right): int => [
+        $left['path'], $left['line'], $left['pattern'], $left['match_sha256'],
+    ] <=> [$right['path'], $right['line'], $right['pattern'], $right['match_sha256']]);
+
+    return [
+        'schema_version' => 1,
+        'query_version' => 's1-configuration-boundaries-v1',
+        'patterns' => $patterns,
+        'allowed_classes' => $allowedClasses,
+        'candidates' => $candidates,
+    ];
+}
+
+/** @param array<string, mixed> $actual */
+function s1ConfigAssertContract(array $actual): void
+{
+    $expected = [
+        'schema_version' => 1,
+        'contract_id' => 's1-configuration-authority-v1',
+        'capability' => 'configuration.authority.v1',
+        'capability_version' => 1,
+        'authority_provider' => 'Waaseyaa\\Config\\Authority\\ConfigurationAuthorityServiceProvider',
+        'active_bridge' => 'Waaseyaa\\EntityStorage\\Config\\DatabaseActiveConfigurationBridge',
+        'commands' => ['config:export', 'config:import', 'config:diff', 'config:status', 'config:validate', 'config:reset'],
+        'canonical_sync_setting' => 'config.sync_path',
+        'canonical_sync_environment' => 'WAASEYAA_CONFIG_SYNC_PATH',
+        'canonical_sync_default' => 'storage/config-sync',
+        'legacy_aliases' => ['config_dir', 'WAASEYAA_CONFIG_DIR'],
+        'testing_profile' => 'testing',
+        'production_missing_activation' => 'refuse',
+        'production_missing_import_gates' => 'refuse',
+        'deferred_to' => ['S1-FW-CFG-02', 'S1-FW-CFG-03', 'S1-FW-CFG-04'],
+    ];
+    if ($actual !== $expected) {
+        throw new RuntimeException('S1 configuration machine contract differs from the verifier-owned exact schema and values.');
+    }
+}
+
+function s1ConfigRequireContains(string $root, string $relative, string $needle): void
+{
+    $contents = (string) file_get_contents($root . '/' . $relative);
+    if (!str_contains($contents, $needle)) {
+        throw new RuntimeException(sprintf('%s is missing required CFG-01 semantic anchor: %s', $relative, $needle));
+    }
+}
+
+try {
+    $contract = json_decode(
+        (string) file_get_contents($contractPath),
+        true,
+        flags: JSON_THROW_ON_ERROR,
+    );
+    if (!is_array($contract)) {
+        throw new RuntimeException('S1 configuration contract must decode to an object.');
+    }
+    s1ConfigAssertContract($contract);
+
+    $live = s1ConfigBuildRoster($root);
+    foreach ($live['candidates'] as $candidate) {
+        if ($candidate['class'] === 'unclassified' || !in_array($candidate['class'], $live['allowed_classes'], true)) {
+            throw new RuntimeException(sprintf('Unclassified configuration boundary: %s:%d', $candidate['path'], $candidate['line']));
+        }
+    }
+    if ($writeRoster) {
+        file_put_contents($rosterPath, json_encode($live, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+        fwrite(STDOUT, sprintf("Wrote %d configuration boundary occurrences.\n", count($live['candidates'])));
+        exit(0);
+    }
+    $recorded = json_decode((string) file_get_contents($rosterPath), true, flags: JSON_THROW_ON_ERROR);
+    if ($recorded !== $live) {
+        throw new RuntimeException('Configuration authority roster differs from the verifier-owned live occurrence set.');
+    }
+
+    $provider = (string) file_get_contents($root . '/packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php');
+    foreach ($contract['commands'] as $command) {
+        if (substr_count($provider, "name: '" . $command . "'") !== 1) {
+            throw new RuntimeException(sprintf('Expected exactly one modern adapter for %s.', $command));
+        }
+    }
+    foreach (['config/active', 'config/sync'] as $forbidden) {
+        foreach ($live['candidates'] as $candidate) {
+            if ($candidate['pattern'] !== 'file_storage_construction') {
+                continue;
+            }
+            $source = (string) file_get_contents($root . '/' . $candidate['path']);
+            if (str_contains($source, $forbidden)) {
+                throw new RuntimeException(sprintf('Production FileStorage fallback remains for %s in %s.', $forbidden, $candidate['path']));
+            }
+        }
+    }
+    s1ConfigRequireContains($root, 'packages/config/src/Authority/ActiveConfigurationBridgeInterface.php', 'extends ConfigSyncFileSourceInterface, ConfigImportApplyHookInterface');
+    s1ConfigRequireContains($root, 'packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php', "=== 'testing'");
+    s1ConfigRequireContains($root, 'packages/entity-storage/src/Config/DatabaseActiveConfigurationStorage.php', 'requireActiveGenerationId()');
+    s1ConfigRequireContains($root, 'packages/config/src/Sync/RefusingConfigImportPreflight.php', 'CFG-03 schema, manifest, and drift gates are bound');
+    s1ConfigRequireContains($root, 'packages/entity-storage/migrations/2026_08_12_000002_configuration_authority.php', 'waaseyaa_config_activation');
+    s1ConfigRequireContains($root, 'packages/cli/src/Handler/AboutHandler.php', 'Config Selectors');
+    s1ConfigRequireContains($root, 'packages/cli/src/Handler/HealthCheckHandler.php', 'selector_provenance');
+    s1ConfigRequireContains($root, 'packages/cli/src/Handler/HealthReportHandler.php', 'Config Sync Path');
+    s1ConfigRequireContains($root, 'packages/ai-agent/src/Mcp/McpServiceProvider.php', 'NullConfigStorage is permitted only in explicit local/test profiles');
+
+    foreach ([
+        'packages/ai-agent/src/Mcp/McpServiceProvider.php',
+        'packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php',
+        'packages/cli/src/Provider/HealthSchemaServiceProvider.php',
+        'packages/cli/src/Provider/MiscAServiceProvider.php',
+        'packages/cli/src/Provider/OptimizeServiceProvider.php',
+    ] as $consumer) {
+        s1ConfigRequireContains($root, $consumer, "CapabilityRequirement::exact('configuration.authority.v1', 1)");
+    }
+
+    fwrite(STDOUT, sprintf("S1 configuration authority contract passed: %d classified boundaries, 6 commands, one authority.\n", count($live['candidates'])));
+} catch (Throwable $exception) {
+    fwrite(STDERR, 'S1 configuration authority contract failed: ' . $exception->getMessage() . "\n");
+    exit(1);
+}
