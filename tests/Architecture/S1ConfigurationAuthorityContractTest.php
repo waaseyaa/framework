@@ -141,4 +141,18 @@ final class S1ConfigurationAuthorityContractTest extends TestCase
         self::assertStringContainsString('core-only packaged proof passed', implode("\n", $output));
         self::assertStringNotContainsString('github.com', strtolower((string) file_get_contents($script)));
     }
+
+    #[Test]
+    public function exact_head_local_archives_install_and_boot_in_an_isolated_core_consumer(): void
+    {
+        $script = $this->root . '/tests/PackagedForm/check-s1-configuration-archives';
+        self::assertFileExists($script);
+        self::assertTrue(is_executable($script));
+
+        exec(escapeshellarg($script) . ' 2>&1', $output, $exitCode);
+
+        self::assertSame(0, $exitCode, implode("\n", $output));
+        self::assertStringContainsString('exact-head archive proof passed', implode("\n", $output));
+        self::assertStringNotContainsString('github.com', strtolower((string) file_get_contents($script)));
+    }
 }

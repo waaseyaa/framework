@@ -6,6 +6,13 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-s1-config-core.XXXXXX")"
 source_root="$work/source"
 consumer="$work/consumer"
+composer_bin="${COMPOSER_BIN:-}"
+if [[ -z "$composer_bin" && -x "${HOME}/.local/bin/composer" ]]; then
+    composer_bin="${HOME}/.local/bin/composer"
+fi
+if [[ -z "$composer_bin" ]]; then
+    composer_bin="$(command -v composer)"
+fi
 
 cleanup() {
     rm -rf -- "$work"
@@ -40,14 +47,22 @@ git -C "$source_root" add .
 git -C "$source_root" commit -qm candidate
 git -C "$source_root" branch -M main
 
-composer init --working-dir="$consumer" \
+composer_setup="$work/composer-setup.out"
+run_composer_setup() {
+    if ! "$composer_bin" "$@" >>"$composer_setup" 2>&1; then
+        tail -100 "$composer_setup" >&2
+        exit 1
+    fi
+}
+
+run_composer_setup init --working-dir="$consumer" \
     --name=waaseyaa/s1-configuration-core-only \
     --require='waaseyaa/core:*' \
-    --no-interaction >/dev/null
-composer config --working-dir="$consumer" repositories.waaseyaa path "$source_root/packages/*"
-composer config --working-dir="$consumer" minimum-stability dev
-composer config --working-dir="$consumer" prefer-stable true
-if ! composer install --working-dir="$consumer" --no-interaction --no-progress --prefer-dist >"$work/composer.out" 2>&1; then
+    --no-interaction
+run_composer_setup config --working-dir="$consumer" repositories.waaseyaa path "$source_root/packages/*"
+run_composer_setup config --working-dir="$consumer" minimum-stability dev
+run_composer_setup config --working-dir="$consumer" prefer-stable true
+if ! "$composer_bin" install --working-dir="$consumer" --no-interaction --no-progress --prefer-dist >"$work/composer.out" 2>&1; then
     tail -100 "$work/composer.out" >&2
     exit 1
 fi
