@@ -17,8 +17,8 @@ use Waaseyaa\Foundation\Schema\Migration\MigrationInterfaceV2;
  * Applies pending migrations.
  *
  * Post-WP06, the Migrator routes both legacy and v2 migrations through a
- * single {@see MigrationGraph}: one batch per `run()`, one transaction
- * per node, deterministic order via Q4's `(package ASC, id ASC)`
+ * single {@see MigrationGraph}: one batch per `run()`, one outer transaction
+ * for the complete ordered plan, deterministic order via Q4's `(package ASC, id ASC)`
  * tie-break. Empty v2 plans write a ledger row and execute zero SQL.
  *
  * **Post-WP09 ledger discipline.** Every successful v2 apply writes the
@@ -36,11 +36,9 @@ use Waaseyaa\Foundation\Schema\Migration\MigrationInterfaceV2;
  *   treated as a match — verify mode (WP10) is the place to surface
  *   "I cannot verify this row" via {@see VerifyResult::Unknown}.
  *
- * **Failure semantics (intentional, locked by tests):** a SQL or compile
- * failure inside a node aborts that node's transaction (rollback of both
- * SQL and ledger row for the failing node). Prior nodes in the same
- * batch retain their ledger rows. There is no "atomic batch" guarantee
- * across nodes — matches pre-WP06 legacy behaviour.
+ * **S1-FW-DB-02 failure semantics:** the repository acquires SQLite writer
+ * authority before reading ledger state, and a SQL/compile/verification
+ * failure rolls back every node and ledger effect in the requested plan.
  *
  * **Backward compatibility:** the legacy `run(array $migrations)` shape
  * still works. v2 callers pass a list of {@see MigrationInterfaceV2}
@@ -75,23 +73,26 @@ final class Migrator
             );
         }
 
-        $ordered = MigrationGraph::build($nodes)->topologicalOrder();
-        $batch = $this->repository->getLastBatchNumber() + 1;
-        $ran = [];
+        return $this->connection->transactional(function () use ($nodes, $policy): MigrationResult {
+            $this->repository->acquireSchemaAuthority();
+            $ordered = MigrationGraph::build($nodes)->topologicalOrder();
+            $batch = $this->repository->getLastBatchNumber() + 1;
+            $ran = [];
 
-        foreach ($ordered as $node) {
-            if ($this->repository->hasRun($node->id)) {
-                if ($node->kind === MigrationKind::V2) {
-                    $this->guardV2Replay($node);
+            foreach ($ordered as $node) {
+                if ($this->repository->hasRun($node->id)) {
+                    if ($node->kind === MigrationKind::V2) {
+                        $this->guardV2Replay($node);
+                    }
+                    continue;
                 }
-                continue;
+
+                $this->applyNode($node, $batch, $policy);
+                $ran[] = $node->id;
             }
 
-            $this->applyNode($node, $batch, $policy);
-            $ran[] = $node->id;
-        }
-
-        return new MigrationResult(count($ran), $ran);
+            return new MigrationResult(count($ran), $ran);
+        });
     }
 
     /**
@@ -106,19 +107,36 @@ final class Migrator
 
         $records = $this->repository->getByBatch($batch);
         $flat = $this->flattenMigrations($migrations);
-        $rolledBack = [];
-
         foreach ($records as $record) {
             $name = $record['migration'];
-            $this->connection->transactional(function () use ($flat, $name): void {
-                if (isset($flat[$name])) {
+            if (!isset($flat[$name])) {
+                throw new \RuntimeException(sprintf(
+                    '[S1-DB103] Rollback refused: source migration "%s" is unavailable; schema and ledger remain unchanged.',
+                    $name,
+                ));
+            }
+            $declaringClass = (new \ReflectionMethod($flat[$name], 'down'))->getDeclaringClass()->getName();
+            if ($declaringClass === Migration::class) {
+                throw new \RuntimeException(sprintf(
+                    '[S1-DB104] Rollback refused: migration "%s" has no declared reverse plan.',
+                    $name,
+                ));
+            }
+        }
+        $rolledBack = [];
+
+        $this->connection->transactional(function () use ($records, $flat, &$rolledBack): void {
+            $this->repository->acquireSchemaAuthority();
+            foreach ($records as $record) {
+                $name = $record['migration'];
+                $this->connection->transactional(function () use ($flat, $name): void {
                     $schema = new SchemaBuilder($this->connection);
                     $flat[$name]->down($schema);
-                }
-                $this->repository->remove($name);
-            });
-            $rolledBack[] = $name;
-        }
+                    $this->repository->remove($name);
+                });
+                $rolledBack[] = $name;
+            }
+        });
 
         return new MigrationResult(count($rolledBack), $rolledBack);
     }

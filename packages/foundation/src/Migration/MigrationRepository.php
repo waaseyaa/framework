@@ -63,6 +63,33 @@ final class MigrationRepository
         );
 
         $this->ensureCurrentSchema();
+        $this->ensureUniqueMigrationIdentity();
+    }
+
+    /**
+     * Acquire SQLite writer ownership for one schema transition.
+     *
+     * This is deliberately the first operation inside the coordinator's outer
+     * transaction. Creating/updating the singleton authority row upgrades the
+     * deferred SQLite transaction to a writer before any ledger or plan read.
+     */
+    public function acquireSchemaAuthority(): void
+    {
+        $this->connection->executeStatement(
+            'CREATE TABLE IF NOT EXISTS waaseyaa_schema_authority (
+                authority_id INTEGER PRIMARY KEY CHECK (authority_id = 1),
+                generation INTEGER NOT NULL
+            )',
+        );
+        $this->connection->executeStatement(
+            'INSERT OR IGNORE INTO waaseyaa_schema_authority (authority_id, generation) VALUES (1, 0)',
+        );
+        $affected = $this->connection->executeStatement(
+            'UPDATE waaseyaa_schema_authority SET generation = generation + 1 WHERE authority_id = 1',
+        );
+        if ($affected !== 1) {
+            throw new \RuntimeException('[S1-DB101] Failed to acquire the schema mutation authority.');
+        }
     }
 
     /**
@@ -89,6 +116,24 @@ final class MigrationRepository
                 'ALTER TABLE ' . self::TABLE . ' ADD COLUMN diff_hash VARCHAR(64) NULL',
             );
         }
+    }
+
+    private function ensureUniqueMigrationIdentity(): void
+    {
+        $duplicate = $this->connection->executeQuery(
+            'SELECT migration FROM ' . self::TABLE . ' GROUP BY migration HAVING COUNT(*) > 1 ORDER BY migration LIMIT 1',
+        )->fetchOne();
+        if (is_string($duplicate) && $duplicate !== '') {
+            throw new \RuntimeException(sprintf(
+                '[S1-DB102] Duplicate migration identity "%s" requires operator reconciliation before ledger upgrade.',
+                $duplicate,
+            ));
+        }
+
+        $this->connection->executeStatement(
+            'CREATE UNIQUE INDEX IF NOT EXISTS waaseyaa_migrations_migration_unique ON '
+            . self::TABLE . ' (migration)',
+        );
     }
 
     public function hasRun(string $migration): bool
