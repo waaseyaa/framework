@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   commands. The five first-party retention and agent registrations now use the
   lease-aware boundary, and classification jobs renew before policy/entity
   effects without swallowing lease loss.
+- Add the scheduler's database-local effect fence. Each resource/domain retains
+  its last accepted global fence and effect ID transactionally: stale owners
+  fail, exact replays no-op, distinct equal-fence effects fail closed, and
+  effect failure rolls back the claim. Classification purge, redaction, and
+  hold-conflict writes now execute through this sink boundary.
 
 - Enforce the DB-03 aggregate mutation token across entity saves, deletes,
   batches, revision-pointer moves, rollback, pruning, and translation writes;

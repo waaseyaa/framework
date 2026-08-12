@@ -12,6 +12,7 @@ use Waaseyaa\Queue\SyncQueue;
 use Waaseyaa\Scheduler\Execution\LeaseAwareClosureCommand;
 use Waaseyaa\Scheduler\Execution\LeaseExecutionContext;
 use Waaseyaa\Scheduler\Testing\InMemoryLeaseAuthority;
+use Waaseyaa\Scheduler\Testing\InMemoryFenceGuard;
 use Waaseyaa\Scheduler\Lease\UnavailableLeaseAuthority;
 use Waaseyaa\Scheduler\Schedule;
 use Waaseyaa\Scheduler\ScheduledTask;
@@ -102,6 +103,34 @@ final class ScheduleRunnerTest extends TestCase
         self::assertNull($result->status);
         self::assertSame(1, $result->failedCount);
         self::assertSame(['requires-durable-lease'], $result->failedTaskNames);
+    }
+
+    #[Test]
+    public function leaseAwareTaskCarriesItsFenceIntoTheDurableEffect(): void
+    {
+        $observedFence = null;
+        $schedule = new Schedule();
+        $schedule->add(new ScheduledTask(
+            name: 'fenced-task',
+            expression: '* * * * *',
+            command: new LeaseAwareClosureCommand(static function (LeaseExecutionContext $context) use (&$observedFence): void {
+                $context->effect('resource:1', 'effect:1', static function () use ($context, &$observedFence): void {
+                    $observedFence = $context->fence();
+                });
+            }),
+            preventOverlap: true,
+        ));
+
+        $runner = new ScheduleRunner(
+            $schedule,
+            new SyncQueue(),
+            new InMemoryLeaseAuthority(),
+            fenceGuard: new InMemoryFenceGuard(),
+        );
+        $result = $runner->run(new \DateTimeImmutable());
+
+        self::assertSame(1, $result->count);
+        self::assertSame(1, $observedFence);
     }
 
     #[Test]

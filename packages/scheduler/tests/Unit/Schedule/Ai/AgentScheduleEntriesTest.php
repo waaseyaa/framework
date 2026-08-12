@@ -12,6 +12,7 @@ use Waaseyaa\Scheduler\Schedule\Ai\AgentScheduleEntries;
 use Waaseyaa\Scheduler\Execution\LeaseAwareCommandInterface;
 use Waaseyaa\Scheduler\Execution\LeaseExecutionContext;
 use Waaseyaa\Scheduler\Testing\InMemoryLeaseAuthority;
+use Waaseyaa\Scheduler\Testing\InMemoryFenceGuard;
 
 #[CoversClass(AgentScheduleEntries::class)]
 final class AgentScheduleEntriesTest extends TestCase
@@ -80,7 +81,7 @@ final class AgentScheduleEntriesTest extends TestCase
         $handle = $authority->acquire($domain, 300_000);
         self::assertNotNull($handle);
 
-        return new LeaseExecutionContext($authority, $handle, 300_000);
+        return new LeaseExecutionContext($authority, $handle, 300_000, new InMemoryFenceGuard());
     }
 
     #[Test]

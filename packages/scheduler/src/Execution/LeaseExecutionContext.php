@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Scheduler\Execution;
 
+use Waaseyaa\Scheduler\Fence\FenceGuardInterface;
 use Waaseyaa\Scheduler\Lease\LeaseAuthorityInterface;
 use Waaseyaa\Scheduler\Lease\LeaseHandle;
 
@@ -14,6 +15,7 @@ final class LeaseExecutionContext
         private readonly LeaseAuthorityInterface $authority,
         private LeaseHandle $handle,
         private readonly int $ttlMs,
+        private readonly FenceGuardInterface $fenceGuard,
     ) {}
 
     public function domain(): string
@@ -35,5 +37,13 @@ final class LeaseExecutionContext
     public function release(): void
     {
         $this->authority->release($this->handle);
+    }
+
+    /** Execute a durable effect under the current lease's sink-side fence. */
+    public function effect(string $resourceKey, string $effectId, \Closure $effect): bool
+    {
+        $this->checkpoint();
+
+        return $this->fenceGuard->execute($resourceKey, $this->handle->domain, $this->handle->fence, $effectId, $effect);
     }
 }

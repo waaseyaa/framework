@@ -161,11 +161,23 @@ final class PurgeJob
                     continue;
                 }
 
-                // repository->delete() dispatches POST_DELETE, which the audit
-                // substrate's EntityLifecycleAuditListener records as entity.delete.
-                $this->entityTypeManager->getRepository($entityTypeId)->delete($entity);
-                $this->recordPurge($policy, $entityTypeId, $uuid, $labelId);
-                ++$deleted;
+                $effect = function () use ($entityTypeId, $entity, $policy, $uuid, $labelId): void {
+                    // The repository delete and retention audit share the fence
+                    // transaction when composed over the application database.
+                    $this->entityTypeManager->getRepository($entityTypeId)->delete($entity);
+                    $this->recordPurge($policy, $entityTypeId, $uuid, $labelId);
+                };
+                $executed = $lease?->effect(
+                    sprintf('entity:%s:%s', $entityTypeId, (string) $entity->id()),
+                    sprintf('purge:%s:%s', (string) $policy->id(), (string) $entity->id()),
+                    $effect,
+                ) ?? (function () use ($effect): bool {
+                    $effect();
+                    return true;
+                })();
+                if ($executed) {
+                    ++$deleted;
+                }
             }
         }
 

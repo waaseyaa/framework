@@ -102,6 +102,17 @@ a fence. Direct commands receive `LeaseExecutionContext` and renew before and
 after execution and before each declared durable effect. Lease loss is fatal and
 must escape best-effort domain catches.
 
+Database-local effects pass through `DatabaseFenceGuard`. Its row is keyed by
+resource and lease domain and is updated in the same database transaction as
+the supplied effect. A lower fence is rejected, an exact same-fence/effect
+replay is a no-op, and a distinct effect at the same fence is rejected unless a
+future domain-specific ordering contract explicitly provides stronger
+semantics. A failed effect rolls back its fence claim. The retention purge,
+redaction, and hold-conflict writers use this boundary around repository and
+audit writes. A composition that places those writes in another database must
+fail readiness until it supplies an equivalent sink-local guard; transaction
+nesting does not imply cross-database atomicity.
+
 Every effect carries lease domain, global fence, deterministic occurrence ID,
 and effect ID. Entity writes check and advance the accepted resource fence in
 the same transaction as the entity CAS. Equal delivery of the same effect is a

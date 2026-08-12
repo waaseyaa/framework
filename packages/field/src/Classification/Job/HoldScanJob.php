@@ -114,8 +114,18 @@ final class HoldScanJob
                 }
 
                 $uuid = (string) ($entity->get('uuid') ?? '');
-                $this->recordConflict($entityTypeId, $uuid, $labelId, $holdPolicy, $purgePolicy);
-                ++$conflicts;
+                $effect = fn() => $this->recordConflict($entityTypeId, $uuid, $labelId, $holdPolicy, $purgePolicy);
+                $executed = $lease?->effect(
+                    sprintf('retention-conflict:%s:%s', $entityTypeId, (string) $entity->id()),
+                    sprintf('hold-scan:%s:%s', (string) $holdPolicy->id(), (string) $purgePolicy->id()),
+                    $effect,
+                ) ?? (function () use ($effect): bool {
+                    $effect();
+                    return true;
+                })();
+                if ($executed) {
+                    ++$conflicts;
+                }
             }
         }
 

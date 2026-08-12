@@ -7,6 +7,7 @@ namespace Waaseyaa\Field\Tests\Unit\Classification\Schedule;
 use Waaseyaa\Scheduler\Execution\LeaseAwareCommandInterface;
 use Waaseyaa\Scheduler\Execution\LeaseExecutionContext;
 use Waaseyaa\Scheduler\Testing\InMemoryLeaseAuthority;
+use Waaseyaa\Scheduler\Testing\InMemoryFenceGuard;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
@@ -82,7 +83,7 @@ final class ClassificationRetentionScheduleEntriesTest extends TestCase
             $authority = new InMemoryLeaseAuthority();
             $handle = $authority->acquire($task->name, 300_000);
             self::assertNotNull($handle);
-            $task->command->run(new LeaseExecutionContext($authority, $handle, 300_000));
+            $task->command->run(new LeaseExecutionContext($authority, $handle, 300_000, new InMemoryFenceGuard()));
         }
     }
 

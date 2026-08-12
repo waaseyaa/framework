@@ -9,6 +9,7 @@ use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Queue\QueueInterface;
 use Waaseyaa\Scheduler\Execution\LeaseAwareCommandInterface;
 use Waaseyaa\Scheduler\Execution\LeaseExecutionContext;
+use Waaseyaa\Scheduler\Fence\FenceGuardInterface;
 use Waaseyaa\Scheduler\Lease\LeaseAuthorityInterface;
 use Waaseyaa\Scheduler\Storage\ScheduleStateRepository;
 
@@ -22,6 +23,7 @@ final class ScheduleRunner
         private readonly LeaseAuthorityInterface $leaseAuthority,
         private readonly ?ScheduleStateRepository $stateRepository = null,
         ?LoggerInterface $logger = null,
+        private readonly ?FenceGuardInterface $fenceGuard = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -135,7 +137,18 @@ final class ScheduleRunner
                     message: sprintf('Task "%s" is already running (overlap lock held).', $task->name),
                 );
             }
-            $leaseContext = new LeaseExecutionContext($this->leaseAuthority, $handle, $task->lockTtl * 1000);
+            if ($this->fenceGuard === null) {
+                $this->leaseAuthority->release($handle);
+
+                return new ScheduleRunResult(
+                    count: 0,
+                    taskNames: [],
+                    status: ScheduleRunResult::STATUS_FAILED,
+                    message: 'Durable fence authority is unavailable.',
+                    exceptionClass: \LogicException::class,
+                );
+            }
+            $leaseContext = new LeaseExecutionContext($this->leaseAuthority, $handle, $task->lockTtl * 1000, $this->fenceGuard);
         }
 
         try {

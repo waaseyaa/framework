@@ -8,6 +8,9 @@ use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Queue\QueueInterface;
+use Waaseyaa\Scheduler\Fence\DatabaseFenceGuard;
+use Waaseyaa\Scheduler\Fence\FenceGuardInterface;
+use Waaseyaa\Scheduler\Fence\UnavailableFenceGuard;
 use Waaseyaa\Scheduler\Lease\DatabaseLease;
 use Waaseyaa\Scheduler\Lease\LeaseAuthorityInterface;
 use Waaseyaa\Scheduler\Lease\UnavailableLeaseAuthority;
@@ -44,6 +47,13 @@ final class SchedulerServiceProvider extends ServiceProvider
                 ? new DatabaseLease($database)
                 : new UnavailableLeaseAuthority();
         });
+        $this->singleton(FenceGuardInterface::class, function (): FenceGuardInterface {
+            $database = $this->resolveOptional(DatabaseInterface::class);
+
+            return $database instanceof DBALDatabase
+                ? new DatabaseFenceGuard($database)
+                : new UnavailableFenceGuard();
+        });
 
         // Bind ScheduleStateRepository as a first-class container service so
         // the admin scheduler dashboard (M4B WP02 — Layer 4 ApiServiceProvider)
@@ -72,6 +82,7 @@ final class SchedulerServiceProvider extends ServiceProvider
                 $this->resolve(QueueInterface::class),
                 $this->resolve(LeaseAuthorityInterface::class),
                 $hasDatabase ? $this->resolve(ScheduleStateRepository::class) : null,
+                fenceGuard: $this->resolve(FenceGuardInterface::class),
             );
         });
     }
