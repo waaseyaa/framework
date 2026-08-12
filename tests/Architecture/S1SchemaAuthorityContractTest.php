@@ -90,4 +90,17 @@ final class S1SchemaAuthorityContractTest extends TestCase
         self::assertStringContainsString('return $reviewed[$path] ?? \'unclassified\';', $checker);
         self::assertStringNotContainsString("str_starts_with(\$path, 'packages/", $checker);
     }
+
+    #[Test]
+    public function exact_installed_artifact_reproduces_the_schema_authority_contract_offline(): void
+    {
+        $script = $this->root . '/tests/PackagedForm/check-s1-schema-authority-artifact';
+        self::assertFileExists($script);
+        self::assertTrue(is_executable($script));
+
+        exec(escapeshellarg($script) . ' 2>&1', $output, $exitCode);
+
+        self::assertSame(0, $exitCode, implode("\n", $output));
+        self::assertStringContainsString('S1 installed-artifact schema authority contract passed.', implode("\n", $output));
+    }
 }
