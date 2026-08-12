@@ -101,6 +101,31 @@ final class S1SchemaAuthorityContractTest extends TestCase
         exec(escapeshellarg($script) . ' 2>&1', $output, $exitCode);
 
         self::assertSame(0, $exitCode, implode("\n", $output));
-        self::assertStringContainsString('S1 installed-artifact schema authority contract passed.', implode("\n", $output));
+        $rendered = implode("\n", $output);
+        self::assertStringContainsString('S1 installed-artifact schema authority contract passed.', $rendered);
+        exec(escapeshellarg($this->root . '/bin/git') . ' -C ' . escapeshellarg($this->root) . ' rev-parse HEAD', $head, $headExit);
+        self::assertSame(0, $headExit, implode("\n", $head));
+        self::assertStringContainsString('Candidate: ' . $head[0], $rendered);
+        foreach (['database-legacy', 'foundation', 'cli'] as $package) {
+            self::assertStringContainsString('Package tree ' . $package . ': ', $rendered);
+            self::assertStringContainsString('Artifact SHA-256 ' . $package . ': ', $rendered);
+        }
+    }
+
+    #[Test]
+    public function installed_artifact_proof_is_reproducible_and_has_no_path_or_forge_dependency(): void
+    {
+        $script = (string) file_get_contents(
+            $this->root . '/tests/PackagedForm/check-s1-schema-authority-artifact',
+        );
+
+        self::assertStringContainsString('packages=(database-legacy foundation cli)', $script);
+        self::assertStringContainsString('archive --format=tar HEAD', $script);
+        self::assertStringContainsString('status --porcelain=v1 -- packages/database-legacy packages/foundation packages/cli', $script);
+        self::assertStringContainsString('unset($manifest["require-dev"], $manifest["autoload-dev"], $manifest["repositories"]);', $script);
+        self::assertStringContainsString('support/s1-sqlite-dependency-bytes.json', $script);
+        self::assertSame(2, substr_count($script, '--mode=u=rwX,go=rX'));
+        self::assertStringNotContainsString('github.com', strtolower($script));
+        self::assertStringNotContainsString('"type": "path"', $script);
     }
 }

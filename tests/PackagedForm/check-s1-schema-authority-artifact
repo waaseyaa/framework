@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-s1-schema-artifact.XXXXXX")"
+source_root="$work/source"
+artifacts="$work/artifacts"
+consumer="$work/consumer"
+version="1.0.0-alpha.1"
+packages=(database-legacy foundation cli)
+
+cleanup() {
+    rm -rf -- "$work"
+}
+trap cleanup EXIT
+
+candidate="$($root/bin/git -C "$root" rev-parse HEAD)"
+if [[ -n "$($root/bin/git -C "$root" status --porcelain=v1 -- packages/database-legacy packages/foundation packages/cli)" ]]; then
+    echo 'S1 schema artifact evidence refuses dirty authority-package bytes.' >&2
+    exit 1
+fi
+
+mkdir -p "$source_root/packages" "$artifacts" "$consumer/vendor/waaseyaa"
+tree_manifest="$work/package-trees.tsv"
+: > "$tree_manifest"
+
+for package_name in "${packages[@]}"; do
+    package_tree="$($root/bin/git -C "$root" rev-parse "HEAD:packages/$package_name")"
+    printf '%s\t%s\n' "$package_name" "$package_tree" >> "$tree_manifest"
+    $root/bin/git -C "$root" archive --format=tar HEAD "packages/$package_name" \
+        | tar --no-same-owner --no-same-permissions -xf - -C "$source_root"
+    package="$source_root/packages/$package_name"
+
+    php -r '
+        [$path, $version, $commit, $tree] = array_slice($argv, 1);
+        $manifest = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+        $manifest["version"] = $version;
+        $manifest["extra"]["waaseyaa"]["artifact-source"] = [
+            "commit" => $commit,
+            "package_tree" => $tree,
+        ];
+        unset($manifest["require-dev"], $manifest["autoload-dev"], $manifest["repositories"]);
+        file_put_contents($path, json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+    ' "$package/composer.json" "$version" "$candidate" "$package_tree"
+
+    archive="$artifacts/waaseyaa-$package_name-$version.tar.gz"
+    reproduced="$artifacts/waaseyaa-$package_name-$version.reproduced.tar.gz"
+    tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner --mode=u=rwX,go=rX \
+        -czf "$archive" -C "$package" .
+    tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner --mode=u=rwX,go=rX \
+        -czf "$reproduced" -C "$package" .
+    if [[ "$(sha256sum "$archive" | cut -d ' ' -f 1)" != "$(sha256sum "$reproduced" | cut -d ' ' -f 1)" ]]; then
+        echo "S1 schema artifact is not byte-reproducible: $package_name" >&2
+        exit 1
+    fi
+
+    installed="$consumer/vendor/waaseyaa/$package_name"
+    mkdir -p "$installed"
+    tar -xzf "$archive" -C "$installed"
+    if find "$installed" -type l -print -quit | grep -q .; then
+        echo "S1 schema artifact unexpectedly contains a symbolic link: $package_name" >&2
+        exit 1
+    fi
+done
+
+dependency_authority="$root/support/s1-sqlite-dependency-bytes.json"
+if [[ "$(sha256sum "$root/composer.lock" | cut -d ' ' -f 1)" != "$(php -r 'echo json_decode(file_get_contents($argv[1]), true, flags: JSON_THROW_ON_ERROR)["composer_lock_sha256"];' "$dependency_authority")" ]]; then
+    echo 'S1 schema artifact dependency authority does not bind the current Composer lock.' >&2
+    exit 1
+fi
+
+for dependency in doctrine/dbal doctrine/deprecations psr/cache psr/log; do
+    mkdir -p "$consumer/vendor/$(dirname "$dependency")"
+    expected="$(php -r '
+        [$path, $name] = array_slice($argv, 1);
+        $manifest = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+        foreach ($manifest["dependencies"] as $dependency) {
+            if ($dependency["name"] === $name) { echo $dependency["bytes"]; exit(0); }
+        }
+        exit(2);
+    ' "$dependency_authority" "$dependency")"
+    actual="$(tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner \
+        -cf - -C "$root/vendor/$dependency" . | sha256sum | cut -d ' ' -f 1)"
+    if [[ "$expected" != "$actual" ]]; then
+        echo "S1 schema artifact dependency bytes drifted: $dependency" >&2
+        exit 1
+    fi
+    cp -R "$root/vendor/$dependency" "$consumer/vendor/$dependency"
+done
+
+php "$root/tests/PackagedForm/s1-schema-authority-artifact-probe.php" \
+    "$consumer/vendor" "$candidate" "$tree_manifest"
+
+printf 'Candidate: %s\n' "$candidate"
+while IFS=$'\t' read -r package_name package_tree; do
+    printf 'Package tree %s: %s\n' "$package_name" "$package_tree"
+    printf 'Artifact SHA-256 %s: %s\n' "$package_name" \
+        "$(sha256sum "$artifacts/waaseyaa-$package_name-$version.tar.gz" | cut -d ' ' -f 1)"
+done < "$tree_manifest"
