@@ -144,6 +144,30 @@ final class ConfigCommandCollisionBootTest extends TestCase
         $this->simulateBoot($registrations);
     }
 
+    #[Test]
+    public function duplicateFrameworkAdapterAlsoRefusesBoot(): void
+    {
+        $this->expectException(ConfigCommandCollisionException::class);
+        $this->expectExceptionMessage('registered more than once');
+
+        ConfigCommand::assertNoDuplicate(
+            'config:export',
+            ConfigExportCommand::class,
+            ConfigExportCommand::class,
+        );
+    }
+
+    #[Test]
+    public function legacyHandlerCanNoLongerBeLaunderedAsTheModernAdapter(): void
+    {
+        $this->expectException(ConfigCommandCollisionException::class);
+
+        ConfigCommand::assertNoCollision(
+            'config:export',
+            \Waaseyaa\CLI\Handler\ConfigExportHandler::class,
+        );
+    }
+
     /**
      * Drive the Symfony CLI boot-time command-registration hook.
      *

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\AI\Agent\Mcp;
 
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityUnavailableException;
 use Waaseyaa\Config\ConfigManagerInterface;
 use Waaseyaa\Config\Schema\Ai\McpServersConfig;
 use Waaseyaa\Config\Schema\ConfigSchemaValidator;
@@ -134,6 +135,13 @@ final class McpServiceProvider extends ServiceProvider
             return $manager->getActiveStorage();
         }
 
-        return new NullConfigStorage();
+        $environment = strtolower((string) ($this->config['environment'] ?? ''));
+        if (in_array($environment, ['local', 'dev', 'development', 'testing'], true)) {
+            return new NullConfigStorage();
+        }
+
+        throw new ConfigurationAuthorityUnavailableException(
+            'MCP configuration requires configuration.authority.v1; NullConfigStorage is permitted only in explicit local/test profiles.',
+        );
     }
 }

@@ -12,6 +12,7 @@ use Waaseyaa\AI\Agent\Mcp\McpCapabilitiesSource;
 use Waaseyaa\AI\Agent\Mcp\McpServiceProvider;
 use Waaseyaa\AI\Tools\AiToolsServiceProvider;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityUnavailableException;
 use Waaseyaa\Config\Schema\Ai\McpServersConfig;
 use Waaseyaa\Config\StorageInterface as ConfigStorageInterface;
 use Waaseyaa\Database\DBALDatabase;
@@ -41,11 +42,23 @@ final class McpServiceProviderManifestTest extends TestCase
         self::assertContains(McpServiceProvider::class, $manifest['extra']['waaseyaa']['providers']);
 
         $provider = new McpServiceProvider();
-        $provider->setKernelContext(dirname($packageRoot, 2), [], []);
+        $provider->setKernelContext(dirname($packageRoot, 2), ['environment' => 'testing'], []);
         $provider->register();
         $provider->boot();
 
         self::assertInstanceOf(McpCapabilitiesSource::class, $provider->resolve(McpCapabilitiesSource::class));
+    }
+
+    #[Test]
+    public function productionProfileCannotSilentlyFallBackToNullConfiguration(): void
+    {
+        $provider = new McpServiceProvider();
+        $provider->setKernelContext(dirname(__DIR__, 5), ['environment' => 'production'], []);
+        $provider->register();
+
+        $this->expectException(ConfigurationAuthorityUnavailableException::class);
+        $this->expectExceptionMessage('NullConfigStorage is permitted only');
+        $provider->resolve(McpCapabilitiesSource::class);
     }
 
     #[Test]

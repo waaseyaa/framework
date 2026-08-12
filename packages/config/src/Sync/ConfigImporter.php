@@ -55,6 +55,7 @@ final class ConfigImporter
     public function __construct(
         private readonly ConfigSyncRepository $repository,
         private readonly ConfigImportApplyHookInterface $applyHook,
+        private readonly ConfigImportPreflightInterface $preflight,
         private readonly DependencyResolver $resolver = new DependencyResolver(),
         ?callable $auditLogger = null,
     ) {
@@ -80,6 +81,14 @@ final class ConfigImporter
     ): ConfigImportResult {
         $syncFiles = $this->collectSyncFiles();
         $entries = [];
+
+        $this->preflight->assertReady(
+            syncFiles: $syncFiles,
+            activeRefs: $activeRefs,
+            dryRun: $dryRun,
+            deleteOrphans: $deleteOrphans,
+            noDependencyCheck: $noDependencyCheck,
+        );
 
         if ($noDependencyCheck) {
             $this->audit(

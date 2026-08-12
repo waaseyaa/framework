@@ -101,6 +101,7 @@ final class ConfigSyncCycleDetectionTest extends TestCase
         $importer = new ConfigImporter(
             repository: $repository,
             applyHook: $hook,
+            preflight: new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight(),
         );
 
         $result = $importer->import();
@@ -151,6 +152,7 @@ final class ConfigSyncCycleDetectionTest extends TestCase
         $importer = new ConfigImporter(
             repository: $repository,
             applyHook: $hook,
+            preflight: new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight(),
             auditLogger: $auditor,
         );
 

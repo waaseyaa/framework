@@ -60,4 +60,17 @@ final class ConfigCommandCollisionException extends \LogicException
     {
         return new self($reservedVerb, $offendingFqcn);
     }
+
+    public static function duplicateVerb(string $reservedVerb, string $offendingFqcn, string $existingFqcn): self
+    {
+        $exception = new self($reservedVerb, $offendingFqcn);
+        $exception->message = sprintf(
+            'CLI command "%s" was registered more than once (%s and %s); reserved config verbs require exactly one adapter.',
+            $reservedVerb,
+            $existingFqcn,
+            $offendingFqcn,
+        );
+
+        return $exception;
+    }
 }

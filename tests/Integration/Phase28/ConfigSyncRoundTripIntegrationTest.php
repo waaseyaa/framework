@@ -93,6 +93,7 @@ final class ConfigSyncRoundTripIntegrationTest extends TestCase
         $importer = new ConfigImporter(
             repository: $repository,
             applyHook: $activeStore,
+            preflight: new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight(),
         );
         $importResult = $importer->import(activeRefs: $activeStore->refs());
         self::assertSame(0, $importResult->failureCount());
@@ -149,6 +150,7 @@ final class ConfigSyncRoundTripIntegrationTest extends TestCase
         $importer = new ConfigImporter(
             repository: $repository,
             applyHook: $activeStore,
+            preflight: new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight(),
         );
         $importer->import(activeRefs: $activeStore->refs());
 

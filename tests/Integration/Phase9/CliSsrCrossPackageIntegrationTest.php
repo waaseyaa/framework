@@ -12,17 +12,18 @@ use Twig\Environment;
 use Twig\Loader\ArrayLoader;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
-use Waaseyaa\Api\Tests\Fixtures\TestEntity;
 use Waaseyaa\Cache\CacheFactory;
+use Waaseyaa\CLI\Command\Config\ConfigDiffCommand;
+use Waaseyaa\CLI\Command\Config\ConfigExportCommand;
+use Waaseyaa\CLI\Command\Config\ConfigImportCommand;
+use Waaseyaa\CLI\Command\Config\ConfigResetCommand;
+use Waaseyaa\CLI\Command\Config\ConfigStatusCommand;
+use Waaseyaa\CLI\Command\Config\ConfigValidateCommand;
 use Waaseyaa\CLI\Handler\CacheClearHandler;
-use Waaseyaa\CLI\Handler\ConfigExportHandler;
-use Waaseyaa\CLI\Handler\ConfigImportHandler;
 use Waaseyaa\CLI\Handler\EntityCreateHandler;
 use Waaseyaa\CLI\Provider\ConfigCacheDbAuditServiceProvider;
 use Waaseyaa\CLI\Provider\EntityTypeServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
-use Waaseyaa\Config\ConfigManager;
-use Waaseyaa\Config\Storage\MemoryStorage;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -45,9 +46,6 @@ final class CliSsrCrossPackageIntegrationTest extends TestCase
     private EntityTypeManager $entityTypeManager;
     private InMemoryEntityStorage $articleStorage;
     private InMemoryEntityStorage $userStorage;
-    private ConfigManager $configManager;
-    private MemoryStorage $activeStorage;
-    private MemoryStorage $syncStorage;
     private CacheFactory $cacheFactory;
     private ComponentRegistry $registry;
     private ComponentRenderer $renderer;
@@ -119,14 +117,6 @@ final class CliSsrCrossPackageIntegrationTest extends TestCase
         ));
 
         // Config system.
-        $this->activeStorage = new MemoryStorage();
-        $this->syncStorage = new MemoryStorage();
-        $this->configManager = new ConfigManager(
-            $this->activeStorage,
-            $this->syncStorage,
-            new EventDispatcher(),
-        );
-
         // Cache system.
         $this->cacheFactory = new CacheFactory();
 
@@ -212,69 +202,24 @@ final class CliSsrCrossPackageIntegrationTest extends TestCase
     }
 
     #[Test]
-    public function testConfigExportImportPreservesEntityTypes(): void
+    public function testConfigCommandsUseModernAuthorityAdapters(): void
     {
-        // Set up entity type definitions as config.
-        $this->activeStorage->write('entity_type.article', [
-            'id' => 'article',
-            'label' => 'Article',
-            'class' => TestEntity::class,
-            'keys' => ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type'],
-        ]);
-        $this->activeStorage->write('entity_type.user', [
-            'id' => 'user',
-            'label' => 'User',
-            'class' => TestEntity::class,
-            'keys' => ['id' => 'id', 'uuid' => 'uuid', 'label' => 'name'],
-        ]);
-
-        // Export config via native handler.
         $provider = new ConfigCacheDbAuditServiceProvider();
-        $exportDef = null;
-        $importDef = null;
+        $commands = [];
         foreach ($provider->consoleCommands() as $cmd) {
-            if ($cmd->name === 'config:export') {
-                $exportDef = $cmd;
-            }
-            if ($cmd->name === 'config:import') {
-                $importDef = $cmd;
+            $name = $cmd->getName();
+            if (is_string($name) && str_starts_with($name, 'config:')) {
+                $commands[$name] = $cmd->sourceClass();
             }
         }
-        $this->assertNotNull($exportDef);
-        $this->assertNotNull($importDef);
-
-        $configManager = $this->configManager;
-        $configContainer = $this->makeConfigContainer($configManager);
-
-        $exportTester = CliTester::for($exportDef, $configContainer);
-        $exportTester->execute([]);
-        $this->assertSame(0, $exportTester->getExitCode());
-
-        // Verify sync has the entity type configs.
-        $this->assertNotFalse($this->syncStorage->read('entity_type.article'));
-        $this->assertNotFalse($this->syncStorage->read('entity_type.user'));
-
-        // Modify active storage (simulate a bad change).
-        $this->activeStorage->write('entity_type.article', [
-            'id' => 'article',
-            'label' => 'Modified Article',
-            'class' => TestEntity::class,
-            'keys' => ['id' => 'id', 'uuid' => 'uuid', 'label' => 'title', 'bundle' => 'type'],
-        ]);
-
-        // Import config via native handler (should restore from sync).
-        $importTester = CliTester::for($importDef, $configContainer);
-        $importTester->execute([]);
-        $this->assertSame(0, $importTester->getExitCode());
-
-        // Verify entity type definitions are restored.
-        $articleConfig = $this->activeStorage->read('entity_type.article');
-        $this->assertIsArray($articleConfig);
-        $this->assertSame('Article', $articleConfig['label']);
-
-        $userConfig = $this->activeStorage->read('entity_type.user');
-        $this->assertIsArray($userConfig);
-        $this->assertSame('User', $userConfig['label']);
+        $this->assertSame([
+            'config:export' => ConfigExportCommand::class,
+            'config:import' => ConfigImportCommand::class,
+            'config:diff' => ConfigDiffCommand::class,
+            'config:status' => ConfigStatusCommand::class,
+            'config:validate' => ConfigValidateCommand::class,
+            'config:reset' => ConfigResetCommand::class,
+        ], $commands);
     }
 
     #[Test]
@@ -340,24 +285,6 @@ final class CliSsrCrossPackageIntegrationTest extends TestCase
         $article2 = $this->articleStorage->load(2);
         $this->assertNotNull($article2);
         $this->assertSame('Cached Article 2', $article2->label());
-    }
-    private function makeConfigContainer(\Waaseyaa\Config\ConfigManagerInterface $manager): \Psr\Container\ContainerInterface
-    {
-        return new class ($manager) implements \Psr\Container\ContainerInterface {
-            public function __construct(private readonly \Waaseyaa\Config\ConfigManagerInterface $m) {}
-            public function get(string $id): mixed
-            {
-                return match ($id) {
-                    ConfigExportHandler::class => new ConfigExportHandler($this->m),
-                    ConfigImportHandler::class => new ConfigImportHandler($this->m),
-                    default => throw new \RuntimeException("Container::get({$id}) unexpected"),
-                };
-            }
-            public function has(string $id): bool
-            {
-                return in_array($id, [ConfigExportHandler::class, ConfigImportHandler::class], true);
-            }
-        };
     }
 }
 

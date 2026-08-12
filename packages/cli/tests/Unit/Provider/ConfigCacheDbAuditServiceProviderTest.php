@@ -31,4 +31,25 @@ final class ConfigCacheDbAuditServiceProviderTest extends TestCase
             array_column($options, 'mode'),
         );
     }
+
+    #[Test]
+    public function itPublishesExactlyOneModernAdapterForEveryReservedConfigVerb(): void
+    {
+        $provider = new ConfigCacheDbAuditServiceProvider();
+        $commands = [];
+        foreach ($provider->consoleCommands() as $command) {
+            if (str_starts_with((string) $command->name, 'config:')) {
+                $commands[(string) $command->name] = $command->sourceClass();
+            }
+        }
+
+        self::assertSame([
+            'config:export' => \Waaseyaa\CLI\Command\Config\ConfigExportCommand::class,
+            'config:import' => \Waaseyaa\CLI\Command\Config\ConfigImportCommand::class,
+            'config:diff' => \Waaseyaa\CLI\Command\Config\ConfigDiffCommand::class,
+            'config:status' => \Waaseyaa\CLI\Command\Config\ConfigStatusCommand::class,
+            'config:validate' => \Waaseyaa\CLI\Command\Config\ConfigValidateCommand::class,
+            'config:reset' => \Waaseyaa\CLI\Command\Config\ConfigResetCommand::class,
+        ], $commands);
+    }
 }

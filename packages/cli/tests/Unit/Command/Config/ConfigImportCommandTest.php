@@ -17,8 +17,10 @@ use Waaseyaa\Config\Exception\ConfigImportFailedException;
 use Waaseyaa\Config\Sync\ConfigImportApplyHookInterface;
 use Waaseyaa\Config\Sync\ConfigImportEntryResult;
 use Waaseyaa\Config\Sync\ConfigImporter;
+use Waaseyaa\Config\Sync\ConfigImportPreflightInterface;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
 use Waaseyaa\Config\Sync\ConfigSyncRepository;
+use Waaseyaa\Config\Sync\RefusingConfigImportPreflight;
 
 #[CoversClass(ConfigImportCommand::class)]
 final class ConfigImportCommandTest extends TestCase
@@ -117,6 +119,19 @@ final class ConfigImportCommandTest extends TestCase
         self::assertStringContainsString('imported role.admin', $tester->getStdout());
     }
 
+    #[Test]
+    public function refusedPreflightReturnsAStableNonzeroDiagnostic(): void
+    {
+        $this->seed(['role.admin' => []]);
+        $tester = $this->makeTester(preflight: new RefusingConfigImportPreflight());
+
+        $tester->execute(['--dry-run']);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('config:import preflight refused', $tester->getStderr());
+        self::assertStringContainsString('CFG-02 activation', $tester->getStderr());
+    }
+
     /**
      * @param array<string, list<string>> $refsWithDeps
      */
@@ -137,8 +152,10 @@ final class ConfigImportCommandTest extends TestCase
         }
     }
 
-    private function makeTester(?ConfigImportApplyHookInterface $hook = null): CliTester
-    {
+    private function makeTester(
+        ?ConfigImportApplyHookInterface $hook = null,
+        ?ConfigImportPreflightInterface $preflight = null,
+    ): CliTester {
         $repository = new ConfigSyncRepository($this->tempDir);
         $hook ??= new class implements ConfigImportApplyHookInterface {
             public function apply(ConfigSyncFile $file): string
@@ -148,7 +165,11 @@ final class ConfigImportCommandTest extends TestCase
 
             public function delete(string $ref): void {}
         };
-        $importer = new ConfigImporter($repository, $hook);
+        $importer = new ConfigImporter(
+            $repository,
+            $hook,
+            $preflight ?? new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight(),
+        );
         $command = new ConfigImportCommand($importer);
 
         return CliTester::for(
@@ -190,7 +211,7 @@ final class ConfigImportCommandTest extends TestCase
 
     private function makeContainer(ConfigImportCommand $command): ContainerInterface
     {
-        return new class($command) implements ContainerInterface {
+        return new class ($command) implements ContainerInterface {
             public function __construct(private readonly ConfigImportCommand $command) {}
 
             public function get(string $id): mixed
