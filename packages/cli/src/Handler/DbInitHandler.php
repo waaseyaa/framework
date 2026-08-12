@@ -239,7 +239,9 @@ final class DbInitHandler
         }
 
         $repository = new MigrationRepository($connection);
-        $repository->installOrUpgradeLedger();
+        // Validate the existing ledger with metadata reads only. An empty
+        // migration source set must not let a stale ledger escape inspection.
+        $repository->getCompleted();
         $manifest = new PackageManifestCompiler(
             basePath: $this->projectRoot,
             storagePath: $this->projectRoot . '/storage',

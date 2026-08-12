@@ -1413,7 +1413,7 @@
             "class": "serving-entrypoint",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "8e010f183fed94bab13380b4c36fb85265e094f11a454e56a2e3e90ff7a5ff99",
-            "source_sha256": "442484b23753a101de10bdff37a5f556bbfb213f683e99b8108640778d446a63"
+            "source_sha256": "c1aa5c4188cdddb74de43cb49b9930b0d1e6124b6054a2ea43e439a210fd19cf"
         },
         {
             "path": "packages/cli/src/Handler/DbInitHandler.php",
@@ -1422,7 +1422,7 @@
             "class": "serving-entrypoint",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "4e8f13638705185f927ea3ab8eb3b34874ead4d2a7ea9c5ab9176c1db1ecd37f",
-            "source_sha256": "442484b23753a101de10bdff37a5f556bbfb213f683e99b8108640778d446a63"
+            "source_sha256": "c1aa5c4188cdddb74de43cb49b9930b0d1e6124b6054a2ea43e439a210fd19cf"
         },
         {
             "path": "packages/cli/src/Provider/MigrateServiceProvider.php",
@@ -1620,7 +1620,7 @@
             "class": "test",
             "match_sha256": "65a741e0d55eb2861c610e5e9e76011723217735d85acbcae099c79eb496d73d",
             "line_sha256": "ac4c2769ce861959622e4f9d32a6ec836d4d604d41d5424ca9315ae466fdf563",
-            "source_sha256": "29be6cccc83e37697b6e05b6d905993865ce1b48ec0681e7adac22d1110b7a1b"
+            "source_sha256": "ad7277829ca0bb60cf956c164559efc52fc5e07a111f888ba26a384fe69e329b"
         },
         {
             "path": "packages/cli/tests/Unit/Handler/DbInitHandlerTest.php",
@@ -1629,7 +1629,7 @@
             "class": "test",
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
             "line_sha256": "ac4c2769ce861959622e4f9d32a6ec836d4d604d41d5424ca9315ae466fdf563",
-            "source_sha256": "29be6cccc83e37697b6e05b6d905993865ce1b48ec0681e7adac22d1110b7a1b"
+            "source_sha256": "ad7277829ca0bb60cf956c164559efc52fc5e07a111f888ba26a384fe69e329b"
         },
         {
             "path": "packages/cli/tests/Unit/Handler/DbInitHandlerTest.php",
@@ -1638,7 +1638,7 @@
             "class": "test",
             "match_sha256": "65a741e0d55eb2861c610e5e9e76011723217735d85acbcae099c79eb496d73d",
             "line_sha256": "ac4c2769ce861959622e4f9d32a6ec836d4d604d41d5424ca9315ae466fdf563",
-            "source_sha256": "29be6cccc83e37697b6e05b6d905993865ce1b48ec0681e7adac22d1110b7a1b"
+            "source_sha256": "ad7277829ca0bb60cf956c164559efc52fc5e07a111f888ba26a384fe69e329b"
         },
         {
             "path": "packages/cli/tests/Unit/Handler/DbInitHandlerTest.php",
@@ -1647,7 +1647,43 @@
             "class": "test",
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
             "line_sha256": "ac4c2769ce861959622e4f9d32a6ec836d4d604d41d5424ca9315ae466fdf563",
-            "source_sha256": "29be6cccc83e37697b6e05b6d905993865ce1b48ec0681e7adac22d1110b7a1b"
+            "source_sha256": "ad7277829ca0bb60cf956c164559efc52fc5e07a111f888ba26a384fe69e329b"
+        },
+        {
+            "path": "packages/cli/tests/Unit/Handler/DbInitHandlerTest.php",
+            "line": 183,
+            "pattern": "doctrine_factory",
+            "class": "test",
+            "match_sha256": "65a741e0d55eb2861c610e5e9e76011723217735d85acbcae099c79eb496d73d",
+            "line_sha256": "ac4c2769ce861959622e4f9d32a6ec836d4d604d41d5424ca9315ae466fdf563",
+            "source_sha256": "ad7277829ca0bb60cf956c164559efc52fc5e07a111f888ba26a384fe69e329b"
+        },
+        {
+            "path": "packages/cli/tests/Unit/Handler/DbInitHandlerTest.php",
+            "line": 183,
+            "pattern": "pdo_sqlite_token",
+            "class": "test",
+            "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
+            "line_sha256": "ac4c2769ce861959622e4f9d32a6ec836d4d604d41d5424ca9315ae466fdf563",
+            "source_sha256": "ad7277829ca0bb60cf956c164559efc52fc5e07a111f888ba26a384fe69e329b"
+        },
+        {
+            "path": "packages/cli/tests/Unit/Handler/DbInitHandlerTest.php",
+            "line": 202,
+            "pattern": "doctrine_factory",
+            "class": "test",
+            "match_sha256": "65a741e0d55eb2861c610e5e9e76011723217735d85acbcae099c79eb496d73d",
+            "line_sha256": "ac4c2769ce861959622e4f9d32a6ec836d4d604d41d5424ca9315ae466fdf563",
+            "source_sha256": "ad7277829ca0bb60cf956c164559efc52fc5e07a111f888ba26a384fe69e329b"
+        },
+        {
+            "path": "packages/cli/tests/Unit/Handler/DbInitHandlerTest.php",
+            "line": 202,
+            "pattern": "pdo_sqlite_token",
+            "class": "test",
+            "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
+            "line_sha256": "ac4c2769ce861959622e4f9d32a6ec836d4d604d41d5424ca9315ae466fdf563",
+            "source_sha256": "ad7277829ca0bb60cf956c164559efc52fc5e07a111f888ba26a384fe69e329b"
         },
         {
             "path": "packages/cli/tests/Unit/Handler/FieldAccessPreflightHandlerTest.php",

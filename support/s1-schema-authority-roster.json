@@ -2052,7 +2052,16 @@
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "f70f22c4148fdc334f89de640dedf945b6763f30a8da2d84847766c912bee917",
-            "source_sha256": "29be6cccc83e37697b6e05b6d905993865ce1b48ec0681e7adac22d1110b7a1b"
+            "source_sha256": "ad7277829ca0bb60cf956c164559efc52fc5e07a111f888ba26a384fe69e329b"
+        },
+        {
+            "path": "packages/cli/tests/Unit/Handler/DbInitHandlerTest.php",
+            "line": 185,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "09f19550a89f378754bf320442992a58105b01a1a6ae85d79f58eb6ca3e283b1",
+            "source_sha256": "ad7277829ca0bb60cf956c164559efc52fc5e07a111f888ba26a384fe69e329b"
         },
         {
             "path": "packages/cli/tests/Unit/Handler/FieldAccessPreflightHandlerTest.php",
