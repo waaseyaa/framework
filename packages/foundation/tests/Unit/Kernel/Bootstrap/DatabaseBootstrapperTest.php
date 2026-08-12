@@ -155,6 +155,18 @@ final class DatabaseBootstrapperTest extends TestCase
         $this->assertFileExists($dbPath);
     }
 
+    #[Test]
+    public function bootRefusesAnInMemoryDatabaseInProduction(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('S1-DB002');
+
+        new DatabaseBootstrapper()->boot(
+            $this->tempDir,
+            ['database' => ':memory:', 'environment' => 'production'],
+        );
+    }
+
     // ----- Mission request-surface-hardening (#1650) WP02: resolution matrix -----
     // Contract `bearer-and-dbpath.md` §9–13 / data-model.md path resolution
     // matrix. resolveDatabasePath() is a pure function of (configured value,

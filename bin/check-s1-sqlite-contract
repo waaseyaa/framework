@@ -1,0 +1,162 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Fail-closed parity gate for the S1 SQLite engine and topology contract.
+ */
+
+$root = dirname(__DIR__);
+$contractPath = $root . '/support/s1-sqlite-v1.json';
+$ci = in_array('--ci', $argv, true);
+$errors = [];
+
+foreach ($argv as $argument) {
+    if (str_starts_with($argument, '--contract=')) {
+        $candidate = substr($argument, strlen('--contract='));
+        $contractPath = str_starts_with($candidate, '/') ? $candidate : $root . '/' . $candidate;
+    }
+}
+
+/** @return array<string, mixed> */
+function s1SqliteReadJson(string $path): array
+{
+    if (!is_file($path)) {
+        throw new RuntimeException("Required JSON file is missing: {$path}");
+    }
+
+    $decoded = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    if (!is_array($decoded) || array_is_list($decoded)) {
+        throw new RuntimeException("Expected a JSON object: {$path}");
+    }
+
+    return $decoded;
+}
+
+/** @param list<string> $errors */
+function s1SqliteSame(mixed $actual, mixed $expected, string $path, array &$errors): void
+{
+    if ($actual !== $expected) {
+        $errors[] = sprintf('%s differs: expected %s, got %s', $path, json_encode($expected), json_encode($actual));
+    }
+}
+
+/** @param list<string> $needles @param list<string> $errors */
+function s1SqliteRequires(string $path, array $needles, array &$errors): void
+{
+    if (!is_file($path)) {
+        $errors[] = "Required contract surface is missing: {$path}";
+        return;
+    }
+
+    $contents = (string) file_get_contents($path);
+    foreach ($needles as $needle) {
+        if (!str_contains($contents, $needle)) {
+            $errors[] = sprintf('%s omits required contract text: %s', $path, $needle);
+        }
+    }
+}
+
+try {
+    $contract = s1SqliteReadJson($contractPath);
+    s1SqliteSame($contract['schema_version'] ?? null, 1, 'schema_version', $errors);
+    s1SqliteSame($contract['contract_version'] ?? null, 's1-sqlite-v1', 'contract_version', $errors);
+    s1SqliteSame($contract['profile'] ?? null, 'S1', 'profile', $errors);
+    s1SqliteSame($contract['authority'] ?? null, [
+        'application_nodes' => 1,
+        'engine' => 'sqlite',
+        'authoritative_database_files' => 1,
+        'filesystem' => 'local-non-network',
+        'consumer_filesystem' => 'ext4',
+    ], 'authority', $errors);
+    s1SqliteSame($contract['connection'] ?? null, [
+        'foreign_keys' => true,
+        'journal_mode' => 'wal',
+        'busy_timeout_ms' => 5000,
+        'verify_effective_pragmas' => true,
+    ], 'connection', $errors);
+    s1SqliteSame($contract['optional_search_projection'] ?? null, [
+        'maximum_files' => 1,
+        'engine' => 'sqlite',
+        'authoritative' => false,
+        'must_be_rebuildable' => true,
+        'inherits_connection_contract' => true,
+    ], 'optional_search_projection', $errors);
+    s1SqliteSame($contract['environment']['in_memory_refused'] ?? null, ['production'], 'environment.in_memory_refused', $errors);
+    s1SqliteSame($contract['refused']['alternate_databases'] ?? null, ['mysql', 'mariadb', 'postgresql'], 'refused.alternate_databases', $errors);
+    s1SqliteSame($contract['diagnostics'] ?? null, [
+        'invalid_path' => 'S1-DB001',
+        'production_memory' => 'S1-DB002',
+        'pragma_mismatch' => 'S1-DB003',
+    ], 'diagnostics', $errors);
+    s1SqliteSame($contract['verification']['forge_is_authority'] ?? null, false, 'verification.forge_is_authority', $errors);
+
+    s1SqliteRequires($root . '/docs/specs/s1-sqlite-topology.md', [
+        'one authoritative SQLite database',
+        'local, non-network filesystem',
+        'optional search projection',
+        'GitHub Actions may execute those commands',
+    ], $errors);
+    s1SqliteRequires($root . '/README.md', [
+        'one authoritative SQLite database',
+        'S1-DB001',
+        'H1',
+    ], $errors);
+    s1SqliteRequires($root . '/packages/database-legacy/src/SqliteTopology.php', [
+        "BUSY_TIMEOUT_MS = 5000",
+        "INVALID_PATH = 'S1-DB001'",
+        "PRAGMA_MISMATCH = 'S1-DB003'",
+        'assertEffectivePragmas',
+    ], $errors);
+    s1SqliteRequires($root . '/packages/database-legacy/src/DBALDatabase.php', [
+        'SqliteTopology::assertSupportedPath',
+        'SqliteTopology::configureAndVerify',
+    ], $errors);
+    s1SqliteRequires($root . '/packages/foundation/src/Kernel/Bootstrap/DatabaseBootstrapper.php', [
+        'SqliteTopology::assertEnvironmentAllowsPath',
+        'S1-DB002',
+    ], $errors);
+    s1SqliteRequires($root . '/packages/search/README.md', [
+        'rebuildable projection',
+        'non-authoritative',
+        'S1 SQLite topology',
+    ], $errors);
+
+    $charter = (string) file_get_contents($root . '/docs/governance/charter.md');
+    foreach (['PostgreSQL as mandatory', 'MySQL is optional but encouraged', 'SQLite/Postgres'] as $forbidden) {
+        if (str_contains($charter, $forbidden)) {
+            $errors[] = "docs/governance/charter.md retains unsupported product claim: {$forbidden}";
+        }
+    }
+
+    $composer = s1SqliteReadJson($root . '/composer.json');
+    s1SqliteSame($composer['scripts']['check-s1-sqlite-contract'] ?? null, 'php bin/check-s1-sqlite-contract', 'composer scripts.check-s1-sqlite-contract', $errors);
+    if (!in_array('@check-s1-sqlite-contract', $composer['scripts']['verify'] ?? [], true)) {
+        $errors[] = 'composer verify omits @check-s1-sqlite-contract';
+    }
+
+    s1SqliteRequires($root . '/.github/workflows/ci.yml', [
+        'php bin/check-s1-sqlite-contract --ci',
+    ], $errors);
+
+    if ($ci) {
+        if (!extension_loaded('pdo_sqlite') || !extension_loaded('sqlite3')) {
+            $errors[] = 'CI runner lacks required pdo_sqlite/sqlite3 extensions';
+        } else {
+            $version = SQLite3::version()['versionString'];
+            if (version_compare($version, '3.40.0', '<') || !version_compare($version, '4.0.0', '<')) {
+                $errors[] = "CI SQLite {$version} is outside >=3.40.0 <4.0.0";
+            }
+        }
+    }
+} catch (Throwable $exception) {
+    $errors[] = $exception->getMessage();
+}
+
+if ($errors !== []) {
+    fwrite(STDERR, "S1 SQLite topology contract FAILED:\n- " . implode("\n- ", $errors) . "\n");
+    exit(1);
+}
+
+fwrite(STDOUT, "S1 SQLite topology contract passed.\n");

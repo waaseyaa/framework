@@ -55,6 +55,41 @@ final class DBALDatabaseTest extends TestCase
         }
     }
 
+    public function testFileConnectionUsesTheVerifiedS1Pragmas(): void
+    {
+        $path = sys_get_temp_dir() . '/waaseyaa-s1-' . bin2hex(random_bytes(8)) . '.sqlite';
+
+        try {
+            $connection = DBALDatabase::createSqlite($path)->getConnection();
+
+            $this->assertSame(1, (int) $connection->fetchOne('PRAGMA foreign_keys'));
+            $this->assertSame('wal', strtolower((string) $connection->fetchOne('PRAGMA journal_mode')));
+            $this->assertSame(5000, (int) $connection->fetchOne('PRAGMA busy_timeout'));
+        } finally {
+            foreach ([$path, $path . '-wal', $path . '-shm'] as $candidate) {
+                if (is_file($candidate)) {
+                    unlink($candidate);
+                }
+            }
+        }
+    }
+
+    public function testDsnAndNetworkSharePathsFailWithTheStableS1Diagnostic(): void
+    {
+        foreach (['mysql:waaseyaa', 'postgresql://db/waaseyaa', 'sqlite:/tmp/waaseyaa', '\\\\server\\share\\waaseyaa.sqlite', '//server/share/waaseyaa.sqlite'] as $path) {
+            try {
+                DBALDatabase::createSqlite($path);
+                $this->fail("Unsupported SQLite path was accepted: {$path}");
+            } catch (\RuntimeException $exception) {
+                $this->assertStringContainsString('S1-DB001', $exception->getMessage());
+            } finally {
+                if (is_file($path)) {
+                    unlink($path);
+                }
+            }
+        }
+    }
+
     public function testSelectReturnsSelectInterface(): void
     {
         $select = $this->db->select('users', 'u');

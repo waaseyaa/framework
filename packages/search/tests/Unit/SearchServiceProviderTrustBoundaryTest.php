@@ -24,6 +24,26 @@ use Waaseyaa\Search\SearchServiceProvider;
 final class SearchServiceProviderTrustBoundaryTest extends TestCase
 {
     #[Test]
+    public function configuredProjectionRejectsAnAlternateDatabaseDsn(): void
+    {
+        $provider = new SearchServiceProvider();
+        $provider->setKernelContext('/tmp', [
+            'search' => ['database' => 'postgresql://db/waaseyaa'],
+        ], []);
+        $provider->setKernelServices(new class implements KernelServicesInterface {
+            public function get(string $abstract): ?object
+            {
+                return null;
+            }
+        });
+        $provider->register();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('S1-DB001');
+        $provider->resolve(SearchContentCatalogueInterface::class);
+    }
+
+    #[Test]
     public function production_wiring_resolves_the_fail_closed_candidate_registry(): void
     {
         $entityTypeManager = $this->createStub(EntityTypeManagerInterface::class);
