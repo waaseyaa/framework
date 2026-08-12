@@ -79,21 +79,48 @@ final class FileStorage implements StorageInterface
 
         $yaml = Yaml::dump($data, 8, 2);
         $target = $this->getFilePath($name);
-        $temp = $target . '.' . uniqid('tmp', true);
-
-        if (file_put_contents($temp, $yaml, \LOCK_EX) === false) {
-            @unlink($temp);
-
+        if (is_link($target) || (file_exists($target) && !is_file($target))) {
+            return false;
+        }
+        $temp = $target . '.tmp-' . bin2hex(random_bytes(12));
+        $handle = @fopen($temp, 'x+b');
+        if ($handle === false) {
             return false;
         }
 
-        if (!@rename($temp, $target)) {
-            @unlink($temp);
+        try {
+            $offset = 0;
+            $length = strlen($yaml);
+            while ($offset < $length) {
+                $written = @fwrite($handle, substr($yaml, $offset));
+                if ($written === false || $written === 0) {
+                    return false;
+                }
+                $offset += $written;
+            }
+            if (!@fflush($handle) || (function_exists('fsync') && !@fsync($handle))) {
+                return false;
+            }
+            @fclose($handle);
+            $handle = null;
 
-            return false;
+            $tempStat = @lstat($temp);
+            $targetStat = @lstat($target);
+            if ($tempStat === false || ($tempStat['mode'] & 0o170000) !== 0o100000
+                || ($targetStat !== false && ($targetStat['mode'] & 0o170000) !== 0o100000)
+            ) {
+                return false;
+            }
+
+            return @rename($temp, $target);
+        } finally {
+            if (is_resource($handle)) {
+                @fclose($handle);
+            }
+            if (file_exists($temp) || is_link($temp)) {
+                @unlink($temp);
+            }
         }
-
-        return true;
     }
 
     public function delete(string $name): bool

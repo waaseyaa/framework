@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityConflictException;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityResolver;
+use Waaseyaa\Config\Sync\ConfigSyncRepository;
 
 final class ConfigurationAuthorityResolverTest extends TestCase
 {
@@ -114,5 +115,74 @@ final class ConfigurationAuthorityResolverTest extends TestCase
         self::assertSame($first->authorityId, $same->authorityId);
         self::assertNotSame($first->authorityId, $otherDb->authorityId);
         self::assertNotSame($first->authorityId, $otherPath->authorityId);
+    }
+
+    #[Test]
+    public function replacing_an_existing_sync_directory_after_resolution_fails_at_use(): void
+    {
+        self::assertTrue(mkdir($this->root . '/storage/config-sync', 0o700, true));
+        $context = (new ConfigurationAuthorityResolver())->resolve($this->root, 'sqlite-primary', [], []);
+        self::assertTrue(rename($this->root . '/storage/config-sync', $this->root . '/storage/original'));
+        self::assertTrue(mkdir($this->root . '/storage/config-sync', 0o700));
+
+        try {
+            iterator_to_array(new ConfigSyncRepository($context->syncPath, authorityContext: $context)->list());
+            self::fail('A replaced sync directory retained authority.');
+        } catch (ConfigurationAuthorityConflictException $exception) {
+            self::assertStringContainsString('anchor identity changed', $exception->getMessage());
+        } finally {
+            rmdir($this->root . '/storage/config-sync');
+            rmdir($this->root . '/storage/original');
+            rmdir($this->root . '/storage');
+        }
+    }
+
+    #[Test]
+    public function creating_a_symlink_at_a_previously_missing_sync_path_fails_at_use(): void
+    {
+        $context = (new ConfigurationAuthorityResolver())->resolve($this->root, 'sqlite-primary', [], []);
+        self::assertTrue(mkdir($this->root . '/storage', 0o700));
+        self::assertTrue(mkdir($this->root . '/alternate', 0o700));
+        self::assertTrue(symlink($this->root . '/alternate', $this->root . '/storage/config-sync'));
+
+        try {
+            iterator_to_array(new ConfigSyncRepository($context->syncPath, authorityContext: $context)->list());
+            self::fail('A symlinked sync directory retained authority.');
+        } catch (ConfigurationAuthorityConflictException $exception) {
+            self::assertStringContainsString('symbolic link', $exception->getMessage());
+        } finally {
+            unlink($this->root . '/storage/config-sync');
+            rmdir($this->root . '/storage');
+            rmdir($this->root . '/alternate');
+        }
+    }
+
+    #[Test]
+    public function directoryCreatedOnFirstUseCannotBeReplacedLater(): void
+    {
+        $context = (new ConfigurationAuthorityResolver())->resolve($this->root, 'sqlite-primary', [], []);
+        $repository = new ConfigSyncRepository($context->syncPath, authorityContext: $context);
+        $repository->put(new \Waaseyaa\Config\Sync\ConfigSyncFile(
+            entityType: 'role',
+            entityId: 'editor',
+            uuid: \Waaseyaa\Config\Sync\ConfigSyncFile::deterministicUuid('role', 'editor'),
+            dependencies: [],
+            langcode: 'en',
+            fields: ['id' => 'editor'],
+        ));
+        self::assertTrue(rename($context->syncPath, $this->root . '/original-sync'));
+        self::assertTrue(mkdir($context->syncPath, 0o700, true));
+
+        try {
+            iterator_to_array($repository->list());
+            self::fail('A replaced directory retained authority after first use.');
+        } catch (ConfigurationAuthorityConflictException $exception) {
+            self::assertStringContainsString('identity changed after its first authorized use', $exception->getMessage());
+        } finally {
+            rmdir($context->syncPath);
+            unlink($this->root . '/original-sync/role.editor.yml');
+            rmdir($this->root . '/original-sync');
+            rmdir($this->root . '/storage');
+        }
     }
 }

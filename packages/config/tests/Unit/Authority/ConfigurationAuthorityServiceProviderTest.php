@@ -11,6 +11,7 @@ use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityServiceProvider;
 use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\ConfigManagerInterface;
+use Waaseyaa\Config\Event\ConfigurationSelectorDeprecationEvent;
 use Waaseyaa\Config\Schema\ConfigSchemaValidator;
 use Waaseyaa\Config\Storage\MemoryStorage;
 use Waaseyaa\Config\Sync\ConfigImportApplyHookInterface;
@@ -75,6 +76,68 @@ final class ConfigurationAuthorityServiceProviderTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('configuration.authority.v1 active-store bridge is unavailable');
         $provider->resolve(ConfigFactoryInterface::class);
+    }
+
+    #[Test]
+    public function productionCapabilityPublicationRefusesAMissingActiveGeneration(): void
+    {
+        $provider = new ConfigurationAuthorityServiceProvider();
+        $provider->setKernelContext($this->root, ['environment' => 'production'], []);
+        $provider->setKernelServices(new TestKernelServices([
+            DatabaseIdentityProviderInterface::class => new TestDatabaseIdentityProvider(),
+        ]));
+        $provider->register();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Active configuration generation is unavailable');
+        iterator_to_array($provider->capabilityDeclarations());
+    }
+
+    #[Test]
+    public function explicitTestingProfileMayPublishBeforePersistentActivation(): void
+    {
+        $provider = new ConfigurationAuthorityServiceProvider();
+        $provider->setKernelContext($this->root, ['environment' => 'testing'], []);
+        $provider->setKernelServices(new TestKernelServices([
+            DatabaseIdentityProviderInterface::class => new TestDatabaseIdentityProvider(),
+        ]));
+        $provider->register();
+
+        $declarations = iterator_to_array($provider->capabilityDeclarations());
+
+        self::assertCount(1, $declarations);
+        self::assertSame('configuration.authority.v1', $declarations[0]->id);
+    }
+
+    #[Test]
+    public function equivalentLegacySelectorEmitsTypedDeprecationEvidenceOnce(): void
+    {
+        $events = [];
+        $dispatcher = new \Symfony\Component\EventDispatcher\EventDispatcher();
+        $dispatcher->addListener(
+            ConfigurationSelectorDeprecationEvent::class,
+            static function (ConfigurationSelectorDeprecationEvent $event) use (&$events): void {
+                $events[] = $event;
+            },
+        );
+        $provider = new ConfigurationAuthorityServiceProvider();
+        $provider->setKernelContext($this->root, [
+            'environment' => 'testing',
+            'config' => ['sync_path' => 'storage/config-sync'],
+            'config_dir' => 'storage/./config-sync',
+        ], []);
+        $provider->setKernelServices(new TestKernelServices([
+            DatabaseIdentityProviderInterface::class => new TestDatabaseIdentityProvider(),
+            \Symfony\Contracts\EventDispatcher\EventDispatcherInterface::class => $dispatcher,
+        ]));
+        $provider->register();
+
+        $first = $provider->resolve(ConfigurationAuthorityContext::class);
+        self::assertSame($first, $provider->resolve(ConfigurationAuthorityContext::class));
+        self::assertCount(1, $events);
+        self::assertSame('config_dir', $events[0]->legacySelector);
+        self::assertSame('config.sync_path', $events[0]->canonicalSelector);
+        self::assertSame($first->authorityId, $events[0]->authorityId);
     }
 
     #[Test]

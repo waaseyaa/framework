@@ -10,8 +10,8 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityResolver;
 use Waaseyaa\Config\Sync\ConfigDiffer;
 use Waaseyaa\Config\Sync\ConfigImportApplyHookInterface;
-use Waaseyaa\Config\Sync\ConfigImportPreflightInterface;
 use Waaseyaa\Config\Sync\ConfigImporter;
+use Waaseyaa\Config\Sync\ConfigImportPreflightInterface;
 use Waaseyaa\Config\Sync\ConfigStatusReporter;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
 use Waaseyaa\Config\Sync\ConfigSyncRepository;
@@ -61,8 +61,8 @@ final class ConfigurationAuthorityStateProofTest extends TestCase
         $before = $this->snapshot();
 
         self::assertCount(1, $differ->diffAll());
-        self::assertCount(1, (new ConfigStatusReporter($differ))->status()->entries);
-        self::assertTrue((new ConfigSyncValidator($repository))->validate()->isValid());
+        self::assertCount(1, new ConfigStatusReporter($differ)->status()->entries);
+        self::assertTrue(new ConfigSyncValidator($repository)->validate()->isValid());
 
         self::assertSame($before, $this->snapshot());
         $database->getConnection()->close();
@@ -101,7 +101,7 @@ final class ConfigurationAuthorityStateProofTest extends TestCase
         $migration = require dirname(__DIR__, 3) . '/packages/entity-storage/migrations/2026_08_12_000002_configuration_authority.php';
         $migration->up(new SchemaBuilder($database->getConnection()));
 
-        $base = (new ConfigurationAuthorityResolver())->resolve(
+        $base = new ConfigurationAuthorityResolver()->resolve(
             $this->root,
             $database->databaseIdentity(),
             ['config' => ['sync_path' => 'storage/config-sync']],
@@ -143,7 +143,7 @@ final class ConfigurationAuthorityStateProofTest extends TestCase
             'INSERT INTO waaseyaa_config_activation (authority_id, generation_id, activation_sequence, activated_at) VALUES (?, ?, 1, ?)',
             [$base->authorityId, $generation, '2026-08-12T00:00:00Z'],
         );
-        $context = (new DatabaseConfigurationGenerationResolver($database))->bind($base);
+        $context = new DatabaseConfigurationGenerationResolver($database)->bind($base);
         $bridge = new DatabaseActiveConfigurationBridge($database, $context);
         $repository = new ConfigSyncRepository($context->syncPath);
         $repository->put($file);
@@ -169,7 +169,6 @@ final class ConfigurationAuthorityStateProofTest extends TestCase
         return $snapshot;
     }
 }
-
 final class RecordingConfigPreflight implements ConfigImportPreflightInterface
 {
     public int $calls = 0;
@@ -206,4 +205,3 @@ final class RecordingConfigApplyHook implements ConfigImportApplyHookInterface
         ++$this->deleteCalls;
     }
 }
-

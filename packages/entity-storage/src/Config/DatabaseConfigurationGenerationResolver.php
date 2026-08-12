@@ -68,6 +68,9 @@ final class DatabaseConfigurationGenerationResolver implements ConfigurationGene
             selectorProvenance: $context->selectorProvenance,
             activeGenerationId: (string) $activation['generation_id'],
             activationSequence: (int) $activation['activation_sequence'],
+            syncPathAnchor: $context->syncPathAnchor,
+            syncPathAnchorDevice: $context->syncPathAnchorDevice,
+            syncPathAnchorInode: $context->syncPathAnchorInode,
         );
     }
 }

@@ -34,4 +34,3 @@ foreach ([
 }
 
 $database->getConnection()->close();
-

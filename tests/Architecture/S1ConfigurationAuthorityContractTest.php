@@ -98,6 +98,9 @@ final class S1ConfigurationAuthorityContractTest extends TestCase
                 $contract['production_missing_activation'] = 'fallback';
             },
             static function (array &$contract): void {
+                $contract['sync_path_revalidation'] = 'lexical-only';
+            },
+            static function (array &$contract): void {
                 $contract['commands'][0] = 'config:legacy-export';
             },
             static function (array &$contract): void {

@@ -57,8 +57,9 @@ final class ConfigSyncRepositoryContractTest extends TestCase
         $target = $this->tempDir . '/role.coordinator.yml';
         self::assertFileExists($target);
 
-        // No temp file left behind.
+        // No legacy or uniquely-named temp file is left behind.
         self::assertFileDoesNotExist($target . '.tmp');
+        self::assertSame([], glob($target . '.tmp-*') ?: []);
 
         $contents = file_get_contents($target);
         self::assertIsString($contents);
@@ -185,6 +186,25 @@ final class ConfigSyncRepositoryContractTest extends TestCase
 
         self::assertDirectoryExists($nested);
         self::assertFileExists($nested . '/role.coordinator.yml');
+    }
+
+    #[Test]
+    public function putRefusesToReplaceASymbolicLink(): void
+    {
+        $outside = $this->tempDir . '/outside.yml';
+        file_put_contents($outside, "outside\n");
+        self::assertTrue(symlink($outside, $this->tempDir . '/role.coordinator.yml'));
+
+        $repo = new ConfigSyncRepository($this->tempDir);
+        try {
+            $repo->put($this->makeFile());
+            self::fail('A symbolic-link sync member was replaced.');
+        } catch (\Waaseyaa\Config\Authority\ConfigurationAuthorityConflictException $exception) {
+            self::assertStringContainsString('regular non-link file', $exception->getMessage());
+        }
+
+        self::assertSame("outside\n", file_get_contents($outside));
+        self::assertSame([], glob($this->tempDir . '/role.coordinator.yml.tmp-*') ?: []);
     }
 
     #[Test]

@@ -16,6 +16,7 @@
   "canonical_sync_setting": "config.sync_path",
   "canonical_sync_environment": "WAASEYAA_CONFIG_SYNC_PATH",
   "canonical_sync_default": "storage/config-sync",
+  "sync_path_revalidation": "anchor-device-inode-before-and-after-use",
   "legacy_aliases": [
     "config_dir",
     "WAASEYAA_CONFIG_DIR"

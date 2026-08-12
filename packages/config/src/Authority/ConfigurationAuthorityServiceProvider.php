@@ -11,6 +11,7 @@ use Waaseyaa\Config\ConfigFactory;
 use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\ConfigManager;
 use Waaseyaa\Config\ConfigManagerInterface;
+use Waaseyaa\Config\Event\ConfigurationSelectorDeprecationEvent;
 use Waaseyaa\Config\Schema\ConfigSchemaValidator;
 use Waaseyaa\Database\DatabaseIdentityProviderInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\CapabilityDeclaration;
@@ -20,6 +21,8 @@ use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 /** Sole production composition root for configuration.authority.v1. @api */
 class ConfigurationAuthorityServiceProvider extends ServiceProvider implements ProvidesCapabilitiesInterface
 {
+    private const array BOOTSTRAP_ONLY_ENVIRONMENTS = ['local', 'dev', 'development', 'testing'];
+
     private const array BOOTSTRAP_ENVIRONMENT_KEYS = [
         'WAASEYAA_CONFIG_SYNC_PATH',
         'WAASEYAA_CONFIG_DIR',
@@ -54,9 +57,24 @@ class ConfigurationAuthorityServiceProvider extends ServiceProvider implements P
             $context = $resolver->resolve($root, $database->databaseIdentity(), $bootstrap, $environment);
             $generationResolver = $this->kernelServices?->get(ConfigurationGenerationResolverInterface::class);
 
-            return $generationResolver instanceof ConfigurationGenerationResolverInterface
+            $context = $generationResolver instanceof ConfigurationGenerationResolverInterface
                 ? $generationResolver->bind($context)
                 : $context;
+            foreach (['config_dir', 'WAASEYAA_CONFIG_DIR'] as $legacySelector) {
+                if (!in_array($legacySelector, $context->selectorProvenance, true)) {
+                    continue;
+                }
+                $canonicalSelector = $legacySelector === 'config_dir'
+                    ? 'config.sync_path'
+                    : 'WAASEYAA_CONFIG_SYNC_PATH';
+                $this->resolveEventDispatcher()->dispatch(new ConfigurationSelectorDeprecationEvent(
+                    legacySelector: $legacySelector,
+                    canonicalSelector: $canonicalSelector,
+                    authorityId: $context->authorityId,
+                ));
+            }
+
+            return $context;
         });
         $this->singleton(ConfigFactoryInterface::class, function (): ConfigFactory {
             $bridge = $this->resolveActiveBridge();
@@ -80,6 +98,10 @@ class ConfigurationAuthorityServiceProvider extends ServiceProvider implements P
     {
         $context = $this->resolve(ConfigurationAuthorityContext::class);
         assert($context instanceof ConfigurationAuthorityContext);
+        $environment = strtolower(trim((string) ($this->config['environment'] ?? 'production')));
+        if (!in_array($environment, self::BOOTSTRAP_ONLY_ENVIRONMENTS, true)) {
+            $context->requireActiveGenerationId();
+        }
 
         yield new CapabilityDeclaration('configuration.authority.v1', 1, $context->authorityId);
     }

@@ -69,12 +69,16 @@ final class ConfigurationAuthorityResolver
             'database_identity' => $databaseIdentity,
             'sync_path' => $syncPath,
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+        [$anchor, $device, $inode] = $this->syncPathAnchorIdentity($syncPath);
 
         return new ConfigurationAuthorityContext(
             hash('sha256', $identity),
             $databaseIdentity,
             $syncPath,
             $provenance,
+            syncPathAnchor: $anchor,
+            syncPathAnchorDevice: $device,
+            syncPathAnchorInode: $inode,
         );
     }
 
@@ -136,6 +140,29 @@ final class ConfigurationAuthorityResolver
     private function isWithin(string $path, string $root): bool
     {
         return $path === $root || str_starts_with($path, rtrim($root, '/') . '/');
+    }
+
+    /** @return array{string, int, int} */
+    private function syncPathAnchorIdentity(string $syncPath): array
+    {
+        $anchor = $syncPath;
+        while (!file_exists($anchor)) {
+            if (is_link($anchor)) {
+                throw new ConfigurationAuthorityConflictException('Configuration sync path contains a dangling symbolic link.');
+            }
+            $parent = dirname($anchor);
+            if ($parent === $anchor) {
+                throw new ConfigurationAuthorityConflictException('Configuration sync path has no existing filesystem anchor.');
+            }
+            $anchor = $parent;
+        }
+        $real = realpath($anchor);
+        $stat = $real === false ? false : @stat($real);
+        if ($real === false || $stat === false || !is_dir($real)) {
+            throw new ConfigurationAuthorityConflictException('Configuration sync path anchor is not an inspectable local directory.');
+        }
+
+        return [$this->slash($real), $stat['dev'], $stat['ino']];
     }
 
     private function slash(string $path): string

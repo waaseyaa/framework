@@ -261,6 +261,17 @@ final class FileStorageTest extends TestCase
         $this->assertNoStrayTempFiles($this->directory);
     }
 
+    public function testWriteRefusesASymbolicLinkTarget(): void
+    {
+        $outside = $this->directory . '/outside.yml';
+        file_put_contents($outside, "original\n");
+        $this->assertTrue(symlink($outside, $this->directory . '/linked.yml'));
+
+        $this->assertFalse($this->storage->write('linked', ['name' => 'replacement']));
+        $this->assertSame("original\n", file_get_contents($outside));
+        $this->assertNoStrayTempFiles($this->directory);
+    }
+
     public function testTwoWritersOnTheSameKeyLeaveCompleteContentAndNoTempLitter(): void
     {
         // Two FileStorage instances pointed at the same directory simulate

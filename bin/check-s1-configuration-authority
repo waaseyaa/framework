@@ -38,6 +38,8 @@ function s1ConfigPatterns(): array
         'null_config_construction' => '/new\s+NullConfigStorage\s*\(/',
         'canonical_selector' => '/\b(?:config\.sync_path|WAASEYAA_CONFIG_SYNC_PATH)\b/',
         'legacy_selector' => '/\b(?:config_dir|WAASEYAA_CONFIG_DIR)\b/',
+        'selector_deprecation' => '/\bConfigurationSelectorDeprecationEvent\b/',
+        'sync_path_identity' => '/\b(?:assertSyncPathIdentity|syncPathAnchor(?:Device|Inode)?|openedSyncDirectoryIdentity)\b/',
     ];
 }
 
@@ -72,6 +74,7 @@ function s1ConfigClass(string $path): string
         'packages/config/src/ConfigManager.php' => 'legacy-compatibility',
         'packages/config/src/ConfigManagerInterface.php' => 'legacy-compatibility',
         'packages/config/src/EnvironmentConfigFactory.php' => 'excluded-runtime-overlay',
+        'packages/config/src/Event/ConfigurationSelectorDeprecationEvent.php' => 'authority-contract',
         'packages/config/src/Sync/ConfigDiffer.php' => 'command-orchestrator',
         'packages/config/src/Sync/ConfigExporter.php' => 'command-orchestrator',
         'packages/config/src/Sync/ConfigImportApplyHookInterface.php' => 'authority-contract',
@@ -200,6 +203,7 @@ function s1ConfigAssertContract(array $actual): void
         'canonical_sync_setting' => 'config.sync_path',
         'canonical_sync_environment' => 'WAASEYAA_CONFIG_SYNC_PATH',
         'canonical_sync_default' => 'storage/config-sync',
+        'sync_path_revalidation' => 'anchor-device-inode-before-and-after-use',
         'legacy_aliases' => ['config_dir', 'WAASEYAA_CONFIG_DIR'],
         'testing_profile' => 'testing',
         'production_missing_activation' => 'refuse',
@@ -280,6 +284,17 @@ try {
     s1ConfigRequireContains($root, 'packages/cli/src/Handler/HealthReportHandler.php', 'Config Sync Path');
     s1ConfigRequireContains($root, 'packages/ai-agent/src/Mcp/McpServiceProvider.php', 'NullConfigStorage is permitted only in explicit local/test profiles');
     s1ConfigRequireContains($root, 'packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php', 'ConfigSchemaValidator::class');
+    s1ConfigRequireContains($root, 'packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php', 'BOOTSTRAP_ONLY_ENVIRONMENTS');
+    s1ConfigRequireContains($root, 'packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php', 'requireActiveGenerationId()');
+    s1ConfigRequireContains($root, 'packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php', 'dispatch(new ConfigurationSelectorDeprecationEvent');
+    s1ConfigRequireContains($root, 'packages/config/src/Event/ConfigurationSelectorDeprecationEvent.php', "NAME = 'configuration.selector.deprecated'");
+    s1ConfigRequireContains($root, 'packages/config/src/Authority/ConfigurationAuthorityContext.php', 'assertSyncPathIdentity');
+    s1ConfigRequireContains($root, 'packages/config/src/Authority/ConfigurationAuthorityContext.php', "\$stat['ino'] !== \$this->syncPathAnchorInode");
+    s1ConfigRequireContains($root, 'packages/config/src/Sync/ConfigSyncRepository.php', "fopen(\$temp, 'x+b')");
+    s1ConfigRequireContains($root, 'packages/config/src/Sync/ConfigSyncRepository.php', 'assertRegularMember(basename($temp))');
+    s1ConfigRequireContains($root, 'packages/config/src/Sync/ConfigSyncRepository.php', 'identity changed after its first authorized use');
+    s1ConfigRequireContains($root, 'packages/config/src/Authority/SyncArtifactStorageAdapter.php', 'openedSyncDirectoryIdentity');
+    s1ConfigRequireContains($root, 'packages/config/src/Authority/SyncArtifactStorageAdapter.php', 'assertAllMembers');
 
     foreach ([
         'packages/ai-agent/src/Mcp/McpServiceProvider.php',

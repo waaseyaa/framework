@@ -42,7 +42,7 @@ final class ConfigCacheDbAuditServiceProvider extends ServiceProvider implements
             $context = $this->resolve(ConfigurationAuthorityContext::class);
             assert($context instanceof ConfigurationAuthorityContext);
 
-            return new ConfigSyncRepository($context->syncPath);
+            return new ConfigSyncRepository($context->syncPath, authorityContext: $context);
         });
         $this->singleton(ConfigExporter::class, function (): ConfigExporter {
             $bridge = $this->resolve(ActiveConfigurationBridgeInterface::class);

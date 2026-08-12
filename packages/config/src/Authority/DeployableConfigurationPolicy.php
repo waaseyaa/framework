@@ -68,7 +68,7 @@ final class DeployableConfigurationPolicy
         self::assertReferenceOnlyFields($file->fields);
     }
 
-    /** @param array<string, mixed> $fields */
+    /** @param array<array-key, mixed> $fields */
     public static function assertReferenceOnlyFields(array $fields, string $path = 'fields'): void
     {
         foreach ($fields as $key => $value) {
@@ -97,4 +97,3 @@ final class DeployableConfigurationPolicy
         return false;
     }
 }
-

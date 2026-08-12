@@ -26,6 +26,9 @@ final class TestingConfigurationGenerationResolver implements ConfigurationGener
             selectorProvenance: [...$context->selectorProvenance, 'testing-empty-generation'],
             activeGenerationId: self::generationId($context),
             activationSequence: 1,
+            syncPathAnchor: $context->syncPathAnchor,
+            syncPathAnchorDevice: $context->syncPathAnchorDevice,
+            syncPathAnchorInode: $context->syncPathAnchorInode,
         );
     }
 
