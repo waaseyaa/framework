@@ -3891,6 +3891,42 @@
             "source_sha256": "2978a10e302461176db122211acdccb32253e765e96b6564603a915d3130b3a1"
         },
         {
+            "path": "packages/foundation/tests/Unit/Migration/SchemaMutationCoordinatorTest.php",
+            "line": 20,
+            "pattern": "doctrine_factory",
+            "class": "test",
+            "match_sha256": "65a741e0d55eb2861c610e5e9e76011723217735d85acbcae099c79eb496d73d",
+            "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
+            "source_sha256": "3d4b7a17be2793501a071507dbe8c13b115715034273752e25a59c98a00884dd"
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/SchemaMutationCoordinatorTest.php",
+            "line": 20,
+            "pattern": "pdo_sqlite_token",
+            "class": "test",
+            "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
+            "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
+            "source_sha256": "3d4b7a17be2793501a071507dbe8c13b115715034273752e25a59c98a00884dd"
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/SchemaMutationCoordinatorTest.php",
+            "line": 46,
+            "pattern": "doctrine_factory",
+            "class": "test",
+            "match_sha256": "65a741e0d55eb2861c610e5e9e76011723217735d85acbcae099c79eb496d73d",
+            "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
+            "source_sha256": "3d4b7a17be2793501a071507dbe8c13b115715034273752e25a59c98a00884dd"
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Migration/SchemaMutationCoordinatorTest.php",
+            "line": 46,
+            "pattern": "pdo_sqlite_token",
+            "class": "test",
+            "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
+            "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
+            "source_sha256": "3d4b7a17be2793501a071507dbe8c13b115715034273752e25a59c98a00884dd"
+        },
+        {
             "path": "packages/foundation/tests/Unit/RateLimit/DatabaseRateLimiterTest.php",
             "line": 35,
             "pattern": "dbal_factory",

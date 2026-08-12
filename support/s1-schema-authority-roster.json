@@ -6051,6 +6051,15 @@
             "source_sha256": "2978a10e302461176db122211acdccb32253e765e96b6564603a915d3130b3a1"
         },
         {
+            "path": "packages/foundation/tests/Unit/Migration/SchemaMutationCoordinatorTest.php",
+            "line": 29,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "fa5d4b59eead30270417e75fe5a6bd8e8e58a5a3cd23bf42d04a9224d33d97ce",
+            "source_sha256": "3d4b7a17be2793501a071507dbe8c13b115715034273752e25a59c98a00884dd"
+        },
+        {
             "path": "packages/foundation/tests/Unit/Schema/Compiler/CompiledMigrationPlanTest.php",
             "line": 38,
             "pattern": "ddl_sql",

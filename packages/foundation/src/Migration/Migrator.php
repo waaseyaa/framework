@@ -47,13 +47,18 @@ use Waaseyaa\Foundation\Schema\Migration\MigrationInterfaceV2;
  */
 final class Migrator
 {
+    private readonly SchemaMutationCoordinator $coordinator;
+
     public function __construct(
         private readonly Connection $connection,
         private readonly MigrationRepository $repository,
         private readonly ?V2PlanExecutor $v2Executor = null,
         private readonly bool $isProduction = true,
         private readonly ?LoggerInterface $logger = null,
-    ) {}
+        ?SchemaMutationCoordinator $coordinator = null,
+    ) {
+        $this->coordinator = $coordinator ?? new SchemaMutationCoordinator($connection, $repository);
+    }
 
     /**
      * @param array<string, array<string, Migration>> $migrations    package => [name => Migration]
@@ -73,9 +78,7 @@ final class Migrator
             );
         }
 
-        return $this->connection->transactional(function () use ($nodes, $policy): MigrationResult {
-            $this->repository->acquireSchemaAuthority();
-            $this->repository->installOrUpgradeLedger();
+        return $this->coordinator->execute(function () use ($nodes, $policy): MigrationResult {
             $ordered = MigrationGraph::build($nodes)->topologicalOrder();
             $batch = $this->repository->getLastBatchNumber() + 1;
             $ran = [];
@@ -103,9 +106,7 @@ final class Migrator
     {
         $rolledBack = [];
 
-        $this->connection->transactional(function () use ($migrations, &$rolledBack): void {
-            $this->repository->acquireSchemaAuthority();
-            $this->repository->installOrUpgradeLedger();
+        $this->coordinator->execute(function () use ($migrations, &$rolledBack): void {
             $batch = $this->repository->getLastBatchNumber();
             if ($batch === 0) {
                 return;
