@@ -9396,7 +9396,7 @@
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "8409672b45b12ddb498c97d39549b0c52b8cbd25f1fdab5836b158aa0c60605d",
-            "source_sha256": "87d86ceba28139f102da02052d05b0513de1e41598692e81a1c3eb408bb95788"
+            "source_sha256": "9af4afaf9ab1ebcd1c3a5652805920ac0095b08ed87bc1620ef6c73a64488fb4"
         },
         {
             "path": "tests/Integration/GraphQL/GraphQlIntegrationTestBase.php",
@@ -9405,7 +9405,7 @@
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "96e394371f463afba31f46f316a805021de12127efa0c293f4404c2726f81294",
-            "source_sha256": "87d86ceba28139f102da02052d05b0513de1e41598692e81a1c3eb408bb95788"
+            "source_sha256": "9af4afaf9ab1ebcd1c3a5652805920ac0095b08ed87bc1620ef6c73a64488fb4"
         },
         {
             "path": "tests/Integration/GraphQL/GraphQlIntegrationTestBase.php",
@@ -9414,7 +9414,7 @@
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "4667f526fc14bb8b5dd70b3ddaa8bac0989c57e1e717baeb50eebd0273515352",
-            "source_sha256": "87d86ceba28139f102da02052d05b0513de1e41598692e81a1c3eb408bb95788"
+            "source_sha256": "9af4afaf9ab1ebcd1c3a5652805920ac0095b08ed87bc1620ef6c73a64488fb4"
         },
         {
             "path": "tests/Integration/GraphQL/GraphQlIntegrationTestBase.php",
@@ -9423,7 +9423,7 @@
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "f49d575e48edf48410d4a0ede9ba4ef5bfb7a9644188efbe0c28770f2e4d2acc",
-            "source_sha256": "87d86ceba28139f102da02052d05b0513de1e41598692e81a1c3eb408bb95788"
+            "source_sha256": "9af4afaf9ab1ebcd1c3a5652805920ac0095b08ed87bc1620ef6c73a64488fb4"
         },
         {
             "path": "tests/Integration/GraphQL/GraphQlIntegrationTestBase.php",
@@ -9432,7 +9432,7 @@
             "class": "test-only",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "481ba6ebf6c3c7743897d67b55f12c817c0c134d24394a309bd81b8a6ecceef5",
-            "source_sha256": "87d86ceba28139f102da02052d05b0513de1e41598692e81a1c3eb408bb95788"
+            "source_sha256": "9af4afaf9ab1ebcd1c3a5652805920ac0095b08ed87bc1620ef6c73a64488fb4"
         },
         {
             "path": "tests/Integration/GraphQL/GraphQlReferenceTest.php",
