@@ -635,7 +635,7 @@
             "class": "authority-root",
             "match_sha256": "bd44e8bda0fe1afee655c60e997d71600d7a7c18135cf539228ec4ca5e9c6776",
             "line_sha256": "869ba10f8671c16749c5123f1402ef59edc5ce00626a501d5fa1939a1457823e",
-            "source_sha256": "2f9b4fb8deada6a5edda70570260f44e5e5489287e66cac25cc8c1c45a2fc665"
+            "source_sha256": "9448919ca980d0f353c25321747e4730e1ec1b426741762804f72ac34e345c50"
         },
         {
             "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
@@ -644,70 +644,61 @@
             "class": "authority-root",
             "match_sha256": "6860307fa6357104fa46978fe044a7d06f9c4d21e4bce662a0dd869183a950d9",
             "line_sha256": "ea712e916ef5b6c9ac53ce24406b715bb4fb1d339d37367bbb9f3b8cd2238072",
-            "source_sha256": "2f9b4fb8deada6a5edda70570260f44e5e5489287e66cac25cc8c1c45a2fc665"
-        },
-        {
-            "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
-            "line": 23,
-            "pattern": "canonical_selector",
-            "class": "authority-root",
-            "match_sha256": "5d6ee5d9c95df0495d29c15803eaed935e24f09dfd820e6ac195cfbff9c6773f",
-            "line_sha256": "1e7f29b3f5c8d845dca31c7c07c4111d3a731f90c161a84c8e4f2fa252bd9a60",
-            "source_sha256": "2f9b4fb8deada6a5edda70570260f44e5e5489287e66cac25cc8c1c45a2fc665"
+            "source_sha256": "9448919ca980d0f353c25321747e4730e1ec1b426741762804f72ac34e345c50"
         },
         {
             "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
             "line": 24,
+            "pattern": "canonical_selector",
+            "class": "authority-root",
+            "match_sha256": "5d6ee5d9c95df0495d29c15803eaed935e24f09dfd820e6ac195cfbff9c6773f",
+            "line_sha256": "1e7f29b3f5c8d845dca31c7c07c4111d3a731f90c161a84c8e4f2fa252bd9a60",
+            "source_sha256": "9448919ca980d0f353c25321747e4730e1ec1b426741762804f72ac34e345c50"
+        },
+        {
+            "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
+            "line": 25,
             "pattern": "legacy_selector",
             "class": "authority-root",
             "match_sha256": "0a2e41c5e7693c2345b7ad2227e5f4127367c5d3f71976a551067c869199c8e6",
             "line_sha256": "e699ac7ae332a7b2beef5c92daa591ee7d3d1e9df8f226f7b36b43b348228bba",
-            "source_sha256": "2f9b4fb8deada6a5edda70570260f44e5e5489287e66cac25cc8c1c45a2fc665"
+            "source_sha256": "9448919ca980d0f353c25321747e4730e1ec1b426741762804f72ac34e345c50"
         },
         {
             "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
-            "line": 33,
+            "line": 35,
             "pattern": "authority_context",
             "class": "authority-root",
             "match_sha256": "0f68001dd6cc71ef6c3ffe1fb5bd8d20106c17b9375efbf4f1ff53c28cfdb125",
             "line_sha256": "51da9c43cfc9d1341a51a63fdea432b01f872e22610f029ee1a3aa1211613b4b",
-            "source_sha256": "2f9b4fb8deada6a5edda70570260f44e5e5489287e66cac25cc8c1c45a2fc665"
+            "source_sha256": "9448919ca980d0f353c25321747e4730e1ec1b426741762804f72ac34e345c50"
         },
         {
             "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
-            "line": 33,
+            "line": 35,
             "pattern": "authority_context",
             "class": "authority-root",
             "match_sha256": "0f68001dd6cc71ef6c3ffe1fb5bd8d20106c17b9375efbf4f1ff53c28cfdb125",
             "line_sha256": "51da9c43cfc9d1341a51a63fdea432b01f872e22610f029ee1a3aa1211613b4b",
-            "source_sha256": "2f9b4fb8deada6a5edda70570260f44e5e5489287e66cac25cc8c1c45a2fc665"
+            "source_sha256": "9448919ca980d0f353c25321747e4730e1ec1b426741762804f72ac34e345c50"
         },
         {
             "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
-            "line": 59,
+            "line": 61,
             "pattern": "factory_compatibility",
             "class": "authority-root",
             "match_sha256": "bd44e8bda0fe1afee655c60e997d71600d7a7c18135cf539228ec4ca5e9c6776",
             "line_sha256": "2de113565b482e9cd68c8bb881a7e9056d4469a7842d0195789952ea64853944",
-            "source_sha256": "2f9b4fb8deada6a5edda70570260f44e5e5489287e66cac25cc8c1c45a2fc665"
+            "source_sha256": "9448919ca980d0f353c25321747e4730e1ec1b426741762804f72ac34e345c50"
         },
         {
             "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
-            "line": 64,
+            "line": 66,
             "pattern": "manager_compatibility",
             "class": "authority-root",
             "match_sha256": "6860307fa6357104fa46978fe044a7d06f9c4d21e4bce662a0dd869183a950d9",
             "line_sha256": "92ae1a74423ee3d1837cdfea6e03dc96b17d4946d669fbcd05e9ecaef367db30",
-            "source_sha256": "2f9b4fb8deada6a5edda70570260f44e5e5489287e66cac25cc8c1c45a2fc665"
-        },
-        {
-            "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
-            "line": 65,
-            "pattern": "authority_context",
-            "class": "authority-root",
-            "match_sha256": "0f68001dd6cc71ef6c3ffe1fb5bd8d20106c17b9375efbf4f1ff53c28cfdb125",
-            "line_sha256": "843f906b2f2171961ce787354f3a8f6beb89efe65239b095b354e2fdd701c1d3",
-            "source_sha256": "2f9b4fb8deada6a5edda70570260f44e5e5489287e66cac25cc8c1c45a2fc665"
+            "source_sha256": "9448919ca980d0f353c25321747e4730e1ec1b426741762804f72ac34e345c50"
         },
         {
             "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
@@ -715,35 +706,35 @@
             "pattern": "authority_context",
             "class": "authority-root",
             "match_sha256": "0f68001dd6cc71ef6c3ffe1fb5bd8d20106c17b9375efbf4f1ff53c28cfdb125",
-            "line_sha256": "d9bf70c802cd710cffb0e31dae949668aa289f18ec3c4b47a5181703250853da",
-            "source_sha256": "2f9b4fb8deada6a5edda70570260f44e5e5489287e66cac25cc8c1c45a2fc665"
+            "line_sha256": "843f906b2f2171961ce787354f3a8f6beb89efe65239b095b354e2fdd701c1d3",
+            "source_sha256": "9448919ca980d0f353c25321747e4730e1ec1b426741762804f72ac34e345c50"
         },
         {
             "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
-            "line": 79,
+            "line": 69,
+            "pattern": "authority_context",
+            "class": "authority-root",
+            "match_sha256": "0f68001dd6cc71ef6c3ffe1fb5bd8d20106c17b9375efbf4f1ff53c28cfdb125",
+            "line_sha256": "d9bf70c802cd710cffb0e31dae949668aa289f18ec3c4b47a5181703250853da",
+            "source_sha256": "9448919ca980d0f353c25321747e4730e1ec1b426741762804f72ac34e345c50"
+        },
+        {
+            "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
+            "line": 81,
             "pattern": "authority_context",
             "class": "authority-root",
             "match_sha256": "0f68001dd6cc71ef6c3ffe1fb5bd8d20106c17b9375efbf4f1ff53c28cfdb125",
             "line_sha256": "843f906b2f2171961ce787354f3a8f6beb89efe65239b095b354e2fdd701c1d3",
-            "source_sha256": "2f9b4fb8deada6a5edda70570260f44e5e5489287e66cac25cc8c1c45a2fc665"
+            "source_sha256": "9448919ca980d0f353c25321747e4730e1ec1b426741762804f72ac34e345c50"
         },
         {
             "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
-            "line": 80,
+            "line": 82,
             "pattern": "authority_context",
             "class": "authority-root",
             "match_sha256": "0f68001dd6cc71ef6c3ffe1fb5bd8d20106c17b9375efbf4f1ff53c28cfdb125",
             "line_sha256": "d9bf70c802cd710cffb0e31dae949668aa289f18ec3c4b47a5181703250853da",
-            "source_sha256": "2f9b4fb8deada6a5edda70570260f44e5e5489287e66cac25cc8c1c45a2fc665"
-        },
-        {
-            "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
-            "line": 85,
-            "pattern": "active_bridge",
-            "class": "authority-root",
-            "match_sha256": "40a47be764150f5597491c1b591880cbd92e7eebe9ea6dae9be0d08927c02d79",
-            "line_sha256": "e806f0dccbe2ec34ec69461f491c8896ed7e762c9556bf41fa82f81e9474bc33",
-            "source_sha256": "2f9b4fb8deada6a5edda70570260f44e5e5489287e66cac25cc8c1c45a2fc665"
+            "source_sha256": "9448919ca980d0f353c25321747e4730e1ec1b426741762804f72ac34e345c50"
         },
         {
             "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
@@ -751,35 +742,44 @@
             "pattern": "active_bridge",
             "class": "authority-root",
             "match_sha256": "40a47be764150f5597491c1b591880cbd92e7eebe9ea6dae9be0d08927c02d79",
-            "line_sha256": "bd32b401f94b2cd05baf6c29398b2d2f4bc0c1cb3fdadbf8722903794e76f324",
-            "source_sha256": "2f9b4fb8deada6a5edda70570260f44e5e5489287e66cac25cc8c1c45a2fc665"
+            "line_sha256": "e806f0dccbe2ec34ec69461f491c8896ed7e762c9556bf41fa82f81e9474bc33",
+            "source_sha256": "9448919ca980d0f353c25321747e4730e1ec1b426741762804f72ac34e345c50"
         },
         {
             "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
-            "line": 88,
+            "line": 89,
+            "pattern": "active_bridge",
+            "class": "authority-root",
+            "match_sha256": "40a47be764150f5597491c1b591880cbd92e7eebe9ea6dae9be0d08927c02d79",
+            "line_sha256": "bd32b401f94b2cd05baf6c29398b2d2f4bc0c1cb3fdadbf8722903794e76f324",
+            "source_sha256": "9448919ca980d0f353c25321747e4730e1ec1b426741762804f72ac34e345c50"
+        },
+        {
+            "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
+            "line": 90,
             "pattern": "active_bridge",
             "class": "authority-root",
             "match_sha256": "40a47be764150f5597491c1b591880cbd92e7eebe9ea6dae9be0d08927c02d79",
             "line_sha256": "ac3f69c16581aa9e6f633e78b0156faacdcc241919a5e50e401949b21fe2f4f5",
-            "source_sha256": "2f9b4fb8deada6a5edda70570260f44e5e5489287e66cac25cc8c1c45a2fc665"
+            "source_sha256": "9448919ca980d0f353c25321747e4730e1ec1b426741762804f72ac34e345c50"
         },
         {
             "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
-            "line": 93,
+            "line": 95,
             "pattern": "authority_context",
             "class": "authority-root",
             "match_sha256": "0f68001dd6cc71ef6c3ffe1fb5bd8d20106c17b9375efbf4f1ff53c28cfdb125",
             "line_sha256": "843f906b2f2171961ce787354f3a8f6beb89efe65239b095b354e2fdd701c1d3",
-            "source_sha256": "2f9b4fb8deada6a5edda70570260f44e5e5489287e66cac25cc8c1c45a2fc665"
+            "source_sha256": "9448919ca980d0f353c25321747e4730e1ec1b426741762804f72ac34e345c50"
         },
         {
             "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
-            "line": 94,
+            "line": 96,
             "pattern": "authority_context",
             "class": "authority-root",
             "match_sha256": "0f68001dd6cc71ef6c3ffe1fb5bd8d20106c17b9375efbf4f1ff53c28cfdb125",
             "line_sha256": "d9bf70c802cd710cffb0e31dae949668aa289f18ec3c4b47a5181703250853da",
-            "source_sha256": "2f9b4fb8deada6a5edda70570260f44e5e5489287e66cac25cc8c1c45a2fc665"
+            "source_sha256": "9448919ca980d0f353c25321747e4730e1ec1b426741762804f72ac34e345c50"
         },
         {
             "path": "packages/config/src/Authority/ConfigurationGenerationResolverInterface.php",

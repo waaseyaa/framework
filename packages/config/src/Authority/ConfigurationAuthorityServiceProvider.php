@@ -11,6 +11,7 @@ use Waaseyaa\Config\ConfigFactory;
 use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\ConfigManager;
 use Waaseyaa\Config\ConfigManagerInterface;
+use Waaseyaa\Config\Schema\ConfigSchemaValidator;
 use Waaseyaa\Database\DatabaseIdentityProviderInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\CapabilityDeclaration;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesCapabilitiesInterface;
@@ -30,6 +31,7 @@ class ConfigurationAuthorityServiceProvider extends ServiceProvider implements P
         $bootstrap = $this->config;
 
         $this->singleton(ConfigurationAuthorityResolver::class, ConfigurationAuthorityResolver::class);
+        $this->singleton(ConfigSchemaValidator::class, ConfigSchemaValidator::class);
         $this->singleton(ConfigurationAuthorityContext::class, function () use ($root, $bootstrap): ConfigurationAuthorityContext {
             $database = $this->resolveOptional(DatabaseIdentityProviderInterface::class);
             if (!$database instanceof DatabaseIdentityProviderInterface) {

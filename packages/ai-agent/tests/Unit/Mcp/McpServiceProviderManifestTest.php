@@ -14,6 +14,7 @@ use Waaseyaa\AI\Tools\AiToolsServiceProvider;
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityUnavailableException;
 use Waaseyaa\Config\Schema\Ai\McpServersConfig;
+use Waaseyaa\Config\Schema\ConfigSchemaValidator;
 use Waaseyaa\Config\StorageInterface as ConfigStorageInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -83,6 +84,7 @@ final class McpServiceProviderManifestTest extends TestCase
         ]);
         McpHostServicesProvider::$http = $http;
         McpHostServicesProvider::$storage = $storage;
+        McpHostServicesProvider::$schemaValidator = new ConfigSchemaValidator();
 
         $dispatcher = new EventDispatcher();
         $registry = new ProviderRegistry(new NullLogger());
@@ -100,6 +102,8 @@ final class McpServiceProviderManifestTest extends TestCase
         );
         $registry->boot($providers);
 
+        self::assertTrue(McpHostServicesProvider::$schemaValidator->hasSchema(McpServersConfig::CONFIG_NAME));
+
         $toolsProvider = $providers[1];
         self::assertInstanceOf(AiToolsServiceProvider::class, $toolsProvider);
         $tools = $toolsProvider->resolve(ToolRegistryInterface::class);
@@ -111,11 +115,13 @@ final class McpHostServicesProvider extends ServiceProvider implements ProvidesC
 {
     public static ?HttpClientInterface $http = null;
     public static ?ConfigStorageInterface $storage = null;
+    public static ?ConfigSchemaValidator $schemaValidator = null;
 
     public function register(): void
     {
         $this->singleton(HttpClientInterface::class, static fn(): HttpClientInterface => self::$http ?? throw new \LogicException('HTTP fixture missing.'));
         $this->singleton(ConfigStorageInterface::class, static fn(): ConfigStorageInterface => self::$storage ?? throw new \LogicException('Config fixture missing.'));
+        $this->singleton(ConfigSchemaValidator::class, static fn(): ConfigSchemaValidator => self::$schemaValidator ?? throw new \LogicException('Schema validator fixture missing.'));
     }
 
     public function capabilityDeclarations(): iterable

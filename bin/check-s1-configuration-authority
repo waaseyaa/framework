@@ -279,6 +279,7 @@ try {
     s1ConfigRequireContains($root, 'packages/cli/src/Handler/HealthCheckHandler.php', 'selector_provenance');
     s1ConfigRequireContains($root, 'packages/cli/src/Handler/HealthReportHandler.php', 'Config Sync Path');
     s1ConfigRequireContains($root, 'packages/ai-agent/src/Mcp/McpServiceProvider.php', 'NullConfigStorage is permitted only in explicit local/test profiles');
+    s1ConfigRequireContains($root, 'packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php', 'ConfigSchemaValidator::class');
 
     foreach ([
         'packages/ai-agent/src/Mcp/McpServiceProvider.php',

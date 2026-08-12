@@ -11,6 +11,7 @@ use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityServiceProvider;
 use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\ConfigManagerInterface;
+use Waaseyaa\Config\Schema\ConfigSchemaValidator;
 use Waaseyaa\Config\Storage\MemoryStorage;
 use Waaseyaa\Config\Sync\ConfigImportApplyHookInterface;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
@@ -54,6 +55,7 @@ final class ConfigurationAuthorityServiceProviderTest extends TestCase
 
         $factory = $provider->resolve(ConfigFactoryInterface::class);
         $manager = $provider->resolve(ConfigManagerInterface::class);
+        self::assertInstanceOf(ConfigSchemaValidator::class, $provider->resolve(ConfigSchemaValidator::class));
         self::assertSame($bridge->activeStorage(), $manager->getActiveStorage());
 
         $factory->getEditable('system.site')->set('name', 'Waaseyaa')->save();
