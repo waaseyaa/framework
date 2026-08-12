@@ -212,6 +212,22 @@ final class MigrateHandlerDryRunVerifyTest extends TestCase
     }
 
     #[Test]
+    public function verifyMissingAuthorityFailsWithoutInstallingSchema(): void
+    {
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        $repo = new MigrationRepository($connection);
+        $tester = self::verifyTester($connection, $repo, []);
+
+        $tester->execute(['--verify']);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('authority_missing', $tester->getStdout());
+        self::assertSame([], $connection->fetchFirstColumn(
+            "SELECT name FROM sqlite_schema WHERE name LIKE 'waaseyaa_%' ORDER BY name",
+        ));
+    }
+
+    #[Test]
     public function dryRunAndVerifyTogetherFailWithIncompatibleFlags(): void
     {
         [, , $tester] = self::buildHarness([]);

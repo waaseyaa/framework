@@ -11,6 +11,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Foundation\Migration\Executor\V2PlanExecutor;
 use Waaseyaa\Foundation\Migration\LedgerRow;
 use Waaseyaa\Foundation\Migration\Migration;
+use Waaseyaa\Foundation\Migration\MigrationCatalogFingerprint;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
 use Waaseyaa\Foundation\Migration\SchemaBuilder;
@@ -54,7 +55,7 @@ final class ChecksumWriteTest extends TestCase
     }
 
     #[Test]
-    public function legacyApplyLeavesBothHashesNull(): void
+    public function legacyApplyWritesExactSourceAndProceduralPlanHashes(): void
     {
         [, $repo, $migrator] = self::buildHarness();
         $legacy = new class extends Migration {
@@ -70,8 +71,9 @@ final class ChecksumWriteTest extends TestCase
 
         $rows = $repo->allWithChecksums();
         self::assertCount(1, $rows);
-        self::assertNull($rows[0]->checksum);
-        self::assertNull($rows[0]->diffHash);
+        $sourceChecksum = MigrationCatalogFingerprint::legacySourceChecksum($legacy);
+        self::assertSame($sourceChecksum, $rows[0]->checksum);
+        self::assertSame(MigrationCatalogFingerprint::legacyPlanHash($sourceChecksum), $rows[0]->diffHash);
     }
 
     #[Test]

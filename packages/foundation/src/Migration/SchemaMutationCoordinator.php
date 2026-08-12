@@ -44,7 +44,12 @@ final class SchemaMutationCoordinator
             $active = self::$activeConnections ??= new \WeakMap();
             $active[$this->connection] = ($active[$this->connection] ?? 0) + 1;
             try {
-                return $transition();
+                $result = $transition();
+                $this->repository->recordSchemaManifest(
+                    LogicalSchemaFingerprint::capture($this->connection),
+                );
+
+                return $result;
             } finally {
                 $depth = $active[$this->connection] - 1;
                 if ($depth === 0) {

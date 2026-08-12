@@ -108,13 +108,13 @@ final class MigrateHandler
 
     private function handleVerify(SymfonyCommandIO $io, bool $json): int
     {
-        if ($this->repository === null) {
-            $io->error('--verify requires a MigrationRepository to be wired into MigrateHandler. See packages/foundation/src/Kernel/ConsoleKernel.php.');
+        if ($this->repository === null || $this->compiler === null) {
+            $io->error('--verify requires a MigrationRepository and SqliteCompiler to be wired into MigrateHandler. See packages/foundation/src/Kernel/ConsoleKernel.php.');
             return 2;
         }
 
         $sanitizer = new OutputSanitizer($this->isProduction);
-        $runner = new VerifyRunner($this->repository);
+        $runner = new VerifyRunner($this->repository, $this->compiler);
         $formatter = new VerifyFormatter($sanitizer);
 
         $outcome = $runner->verify(($this->migrationsProvider)(), ($this->v2MigrationsProvider)());

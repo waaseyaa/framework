@@ -54,3 +54,35 @@ Verification on PHP 8.5.9:
 This evidence closes the entity runtime-schema slice only. The encompassing
 `S1-FW-DB-02` exit gate remains open until every remaining authoritative DDL
 surface is migrated and installed-form and independent-review evidence pass.
+
+## Strict verification slice
+
+`migrate --verify` now fails closed across the complete authority tuple:
+
+- every ledger row binds its migration id, declaring package, exact source
+  checksum, and independently computed plan hash;
+- new legacy-procedural rows use an exact executable-class checksum and a
+  domain-separated procedural-plan hash, while historical null rows remain
+  honest `unknown` failures rather than receiving invented evidence;
+- every successful coordinator transition records canonical live-schema and
+  ledger fingerprints before commit, while migration runs also bind the exact
+  loaded source catalogue;
+- verification performs only reads, compares the current schema, ledger, and
+  source catalogue with that manifest, and reports missing authority, schema
+  drift, ledger drift, catalogue drift, package substitution, plan
+  substitution, orphan rows, and unknown rows as failures;
+- two concurrent processes applying the same plan produce one ledger result,
+  and a process killed after DDL but before commit leaves no partial schema,
+  ledger, or manifest state.
+
+Verification on PHP 8.5.9:
+
+- schema roster: 1,148 exact occurrences; SQLite construction roster: 826;
+- PHPStan: 2,060 files, zero errors;
+- architecture: 144 tests, 18,892 assertions;
+- unit: 10,901 tests, 228,740 assertions (one unrelated environment skip);
+- integration: 1,859 tests, 8,236 assertions;
+- focused migration/strict-verification matrix: 94 tests, 267 assertions.
+
+Installed-form proof and independent review remain required before this work
+package can be called closed.

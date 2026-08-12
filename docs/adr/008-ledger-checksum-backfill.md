@@ -1,6 +1,6 @@
 # 008 — Ledger checksum backfill for pre-WP09 rows
 
-**Status:** Accepted (2026-05-03)
+**Status:** Superseded for S1 certification (2026-08-12)
 **Mission:** #529 (Schema Evolution v2.0), WP09
 **Spec context:** `docs/specs/schema-evolution-v2.md` §6.3
 
@@ -11,7 +11,10 @@ WP09 added two columns to `waaseyaa_migrations`:
 - `checksum` — SHA-256 over the canonical SchemaDiff JSON (the source intent).
 - `diff_hash` — SHA-256 over the canonical compiled-plan JSON (the SQL emitted).
 
-Both are nullable VARCHAR(64). v2 migrations populate both on apply; legacy migrations leave both null (they have no canonical form).
+Both are nullable VARCHAR(64). V2 migrations populate canonical intent and
+compiled-plan hashes. New legacy applies now populate an exact executable-source
+checksum plus a domain-separated procedural-plan hash; historical nulls remain
+unchanged because current source cannot prove what ran in the past.
 
 Existing installs have ledger rows that pre-date WP09. Those rows have null `checksum` and null `diff_hash` — even for what *would* now be v2 migrations, no fingerprint was recorded at the time of apply. Verify mode (WP10) needs to know how to interpret these.
 
@@ -38,7 +41,11 @@ Verify mode reads a null `checksum` as `VerifyResult::Unknown` and logs a notice
 
 ## Decision
 
-**Adopt option B.** Null is the canonical sentinel for "pre-WP09 apply, fingerprint not recorded." Verify mode treats it as `VerifyResult::Unknown` (see `packages/foundation/src/Migration/VerifyResult.php`).
+**Historical decision:** null remains the canonical sentinel for "pre-WP09
+apply, fingerprint not recorded." S1 retains that honest representation but no
+longer treats it as successful verification: `unknown` is fail-closed until an
+operator supplies separately reviewed historical evidence or rebuilds from a
+fully verifiable source set.
 
 A backfill CLI is *not* shipped in v1. Most installs should never run one. If a future engagement genuinely needs a complete audit trail for legacy rows, the recipe is:
 
@@ -52,7 +59,8 @@ This is operator-driven, auditable, and refuses to lie about historical state.
 
 - The `checksum` column is nullable forever — removing it would break verify mode's tri-state (`Match` / `Mismatch` / `Unknown` / `Missing`).
 - Documentation must call out that null `checksum` is an *intentional* sentinel, not a bug. Operators reading the ledger should not "tidy up" by running an UPDATE that fills in nulls based on current source — that recreates option A's problems silently.
-- Verify mode (WP10) MUST log the count of `Unknown` rows so operators can audit the size of the un-verifiable surface, even if no individual row triggers an error.
+- Verify mode reports every `Unknown` row and exits non-zero. The count remains
+  visible so operators can scope the unverifiable historical surface.
 
 ## References
 

@@ -32,9 +32,8 @@ use Waaseyaa\Foundation\Schema\Migration\MigrationInterfaceV2;
  *   different structural intents.
  * - **Mismatch + `isProduction: false`:** log a warning via the
  *   optional {@see LoggerInterface} and skip the apply.
- * - **Stored checksum is null** (pre-WP09 row, or legacy migration):
- *   treated as a match — verify mode (WP10) is the place to surface
- *   "I cannot verify this row" via {@see VerifyResult::Unknown}.
+ * - **Stored checksum is null** (pre-WP09 row): the apply path does not invent
+ *   historical evidence; strict verify reports the row as unverifiable.
  *
  * **S1-FW-DB-02 failure semantics:** the repository acquires SQLite writer
  * authority before reading ledger state, and a SQL/compile/verification
@@ -78,7 +77,10 @@ final class Migrator
             );
         }
 
-        return $this->coordinator->execute(function () use ($nodes, $policy): MigrationResult {
+        return $this->coordinator->execute(function () use ($migrations, $v2Migrations, $nodes, $policy): MigrationResult {
+            $this->repository->recordSourceCatalogFingerprint(
+                MigrationCatalogFingerprint::capture($migrations, $v2Migrations),
+            );
             $ordered = MigrationGraph::build($nodes)->topologicalOrder();
             $batch = $this->repository->getLastBatchNumber() + 1;
             $ran = [];
@@ -206,7 +208,14 @@ final class Migrator
         $schema = new SchemaBuilder($this->connection);
         $this->connection->transactional(function () use ($migration, $schema, $node, $batch): void {
             $migration->up($schema);
-            $this->repository->record($node->id, $node->package, $batch);
+            $sourceChecksum = MigrationCatalogFingerprint::legacySourceChecksum($migration);
+            $this->repository->record(
+                $node->id,
+                $node->package,
+                $batch,
+                $sourceChecksum,
+                MigrationCatalogFingerprint::legacyPlanHash($sourceChecksum),
+            );
         });
     }
 

@@ -39,9 +39,12 @@ effect through a durable coordinator authority row. It does not issue raw
 
 The coordinator transaction contains ledger compatibility checks, plan
 discovery and recheck, every schema/data node declared part of the schema plan,
-ledger writes, the logical live-schema manifest, and post-state verification.
-The whole ordered plan commits or rolls back. A future resumable protocol must
-be a separately versioned contract.
+ledger writes, and the logical live-schema manifest. The manifest binds the
+authority generation, canonical SQLite schema objects, canonical ledger rows,
+and the exact loaded migration-catalogue fingerprint. It is written after the
+transition and before commit, so the whole ordered plan and its proof commit or
+roll back together. A future resumable protocol must be a separately versioned
+contract.
 
 Migration identity is globally unique. Before adding the database uniqueness
 constraint, legacy duplicates fail closed for explicit operator reconciliation;
@@ -74,6 +77,13 @@ orphan rows, missing sources, package/source/plan mismatches, stale expected
 pre-state, and live-schema drift. The logical schema fingerprint is based on
 canonical SQLite introspection and excludes SQLite internals, root pages,
 journal state, auto-index names, and raw file bytes.
+
+New legacy-procedural applies record an exact hash of the executable migration
+class body plus a domain-separated procedural-plan hash. This does not invent
+historical evidence: rows that predate those hashes remain `unknown` and make
+strict verification fail. V2 rows continue to bind canonical intent and the
+compiled SQLite plan independently. The catalogue identity is content based;
+it does not require a forge, issue, branch, or hosted artifact.
 
 ## Boundary inventory
 
