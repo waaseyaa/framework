@@ -272,6 +272,7 @@ try {
         'packages/cli/src/Provider/HealthSchemaServiceProvider.php',
         'packages/cli/src/Provider/MiscAServiceProvider.php',
         'packages/cli/src/Provider/OptimizeServiceProvider.php',
+        'packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php',
     ] as $consumer) {
         s1ConfigRequireContains($root, $consumer, "CapabilityRequirement::exact('configuration.authority.v1', 1)");
     }

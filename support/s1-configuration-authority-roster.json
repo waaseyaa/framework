@@ -1029,7 +1029,7 @@
             "class": "higher-layer-bridge",
             "match_sha256": "40a47be764150f5597491c1b591880cbd92e7eebe9ea6dae9be0d08927c02d79",
             "line_sha256": "46172c4e72c02a4aec5757fbcd56424b6d57bd0c044e7343143c5c3cb2c2d60b",
-            "source_sha256": "3c6a20c6d6e778e8d5637f9013951c9b7b66904ac812ba1f03a7986968839a3c"
+            "source_sha256": "21c807e68c56cdf5d7a822adcd01e75518c1d93f43674945073d41987ff38c4d"
         },
         {
             "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
@@ -1038,34 +1038,25 @@
             "class": "higher-layer-bridge",
             "match_sha256": "0f68001dd6cc71ef6c3ffe1fb5bd8d20106c17b9375efbf4f1ff53c28cfdb125",
             "line_sha256": "29811b57cc415313bf2929436613dc4173a0078fd06f54791e566f2c6c68e30c",
-            "source_sha256": "3c6a20c6d6e778e8d5637f9013951c9b7b66904ac812ba1f03a7986968839a3c"
-        },
-        {
-            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
-            "line": 27,
-            "pattern": "active_bridge",
-            "class": "higher-layer-bridge",
-            "match_sha256": "40a47be764150f5597491c1b591880cbd92e7eebe9ea6dae9be0d08927c02d79",
-            "line_sha256": "750f42089814e6bd56ec5221d7e377f306d46188c890eae9d3d4d978b6feb6b1",
-            "source_sha256": "3c6a20c6d6e778e8d5637f9013951c9b7b66904ac812ba1f03a7986968839a3c"
-        },
-        {
-            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
-            "line": 27,
-            "pattern": "active_bridge",
-            "class": "higher-layer-bridge",
-            "match_sha256": "40a47be764150f5597491c1b591880cbd92e7eebe9ea6dae9be0d08927c02d79",
-            "line_sha256": "750f42089814e6bd56ec5221d7e377f306d46188c890eae9d3d4d978b6feb6b1",
-            "source_sha256": "3c6a20c6d6e778e8d5637f9013951c9b7b66904ac812ba1f03a7986968839a3c"
+            "source_sha256": "21c807e68c56cdf5d7a822adcd01e75518c1d93f43674945073d41987ff38c4d"
         },
         {
             "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
             "line": 29,
-            "pattern": "authority_context",
+            "pattern": "active_bridge",
             "class": "higher-layer-bridge",
-            "match_sha256": "0f68001dd6cc71ef6c3ffe1fb5bd8d20106c17b9375efbf4f1ff53c28cfdb125",
-            "line_sha256": "843f906b2f2171961ce787354f3a8f6beb89efe65239b095b354e2fdd701c1d3",
-            "source_sha256": "3c6a20c6d6e778e8d5637f9013951c9b7b66904ac812ba1f03a7986968839a3c"
+            "match_sha256": "40a47be764150f5597491c1b591880cbd92e7eebe9ea6dae9be0d08927c02d79",
+            "line_sha256": "750f42089814e6bd56ec5221d7e377f306d46188c890eae9d3d4d978b6feb6b1",
+            "source_sha256": "21c807e68c56cdf5d7a822adcd01e75518c1d93f43674945073d41987ff38c4d"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 29,
+            "pattern": "active_bridge",
+            "class": "higher-layer-bridge",
+            "match_sha256": "40a47be764150f5597491c1b591880cbd92e7eebe9ea6dae9be0d08927c02d79",
+            "line_sha256": "750f42089814e6bd56ec5221d7e377f306d46188c890eae9d3d4d978b6feb6b1",
+            "source_sha256": "21c807e68c56cdf5d7a822adcd01e75518c1d93f43674945073d41987ff38c4d"
         },
         {
             "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
@@ -1073,8 +1064,17 @@
             "pattern": "authority_context",
             "class": "higher-layer-bridge",
             "match_sha256": "0f68001dd6cc71ef6c3ffe1fb5bd8d20106c17b9375efbf4f1ff53c28cfdb125",
+            "line_sha256": "843f906b2f2171961ce787354f3a8f6beb89efe65239b095b354e2fdd701c1d3",
+            "source_sha256": "21c807e68c56cdf5d7a822adcd01e75518c1d93f43674945073d41987ff38c4d"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 33,
+            "pattern": "authority_context",
+            "class": "higher-layer-bridge",
+            "match_sha256": "0f68001dd6cc71ef6c3ffe1fb5bd8d20106c17b9375efbf4f1ff53c28cfdb125",
             "line_sha256": "d9bf70c802cd710cffb0e31dae949668aa289f18ec3c4b47a5181703250853da",
-            "source_sha256": "3c6a20c6d6e778e8d5637f9013951c9b7b66904ac812ba1f03a7986968839a3c"
+            "source_sha256": "21c807e68c56cdf5d7a822adcd01e75518c1d93f43674945073d41987ff38c4d"
         },
         {
             "path": "packages/entity-storage/src/Config/DatabaseActiveConfigurationBridge.php",

@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+work="$(mktemp -d "${TMPDIR:-/tmp}/waaseyaa-s1-config-core.XXXXXX")"
+source_root="$work/source"
+consumer="$work/consumer"
+
+cleanup() {
+    rm -rf -- "$work"
+}
+trap cleanup EXIT
+
+candidate="$($root/bin/git -C "$root" rev-parse HEAD)"
+consumed_paths=(
+    packages/core
+    packages/config
+    packages/database-legacy
+    packages/entity-storage
+    packages/foundation
+    skeleton/config/waaseyaa.php
+    support/s1-configuration-authority-v1.json
+    support/s1-configuration-authority-roster.json
+    tests/CoreOnlyBoot/boot.php
+    tests/PackagedForm/check-s1-configuration-core-only
+)
+if [[ -n "$($root/bin/git -C "$root" status --porcelain=v1 -- "${consumed_paths[@]}")" ]]; then
+    echo 'S1 configuration core-only evidence refuses dirty authority, package, contract, or probe bytes.' >&2
+    exit 1
+fi
+
+mkdir -p "$source_root" "$consumer"
+$root/bin/git -C "$root" archive --format=tar HEAD | tar --no-same-owner --no-same-permissions -xf - -C "$source_root"
+git -C "$source_root" init -q
+git -C "$source_root" config user.email test@invalid
+git -C "$source_root" config user.name 'S1 configuration artifact proof'
+git -C "$source_root" add .
+git -C "$source_root" commit -qm candidate
+git -C "$source_root" branch -M main
+
+composer init --working-dir="$consumer" \
+    --name=waaseyaa/s1-configuration-core-only \
+    --require='waaseyaa/core:*' \
+    --no-interaction >/dev/null
+composer config --working-dir="$consumer" repositories.waaseyaa path "$source_root/packages/*"
+composer config --working-dir="$consumer" minimum-stability dev
+composer config --working-dir="$consumer" prefer-stable true
+composer install --working-dir="$consumer" --no-interaction --no-progress --prefer-dist >/dev/null
+
+if [[ -d "$consumer/vendor/waaseyaa/ai-agent" ]]; then
+    echo 'Core-only configuration proof unexpectedly installed waaseyaa/ai-agent.' >&2
+    exit 1
+fi
+mkdir -p "$consumer/config" "$consumer/storage/files" "$consumer/storage/framework"
+cp "$source_root/skeleton/config/waaseyaa.php" "$consumer/config/waaseyaa.php"
+printf 'APP_ENV=testing\nAPP_DEBUG=false\n' > "$consumer/.env"
+cp "$source_root/tests/CoreOnlyBoot/boot.php" "$consumer/boot.php"
+positive="$(php "$consumer/boot.php" 2>&1)"
+grep -Fq 'core-only kernel boot OK' <<<"$positive"
+
+php -r '
+    $path = $argv[1];
+    $installed = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+    $packages = isset($installed["packages"]) ? $installed["packages"] : $installed;
+    foreach ($packages as &$package) {
+        if (($package["name"] ?? null) === "waaseyaa/config") {
+            $package["extra"]["waaseyaa"]["providers"] = [];
+        }
+    }
+    unset($package);
+    if (isset($installed["packages"])) {
+        $installed["packages"] = $packages;
+    } else {
+        $installed = $packages;
+    }
+    file_put_contents($path, json_encode($installed, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
+' "$consumer/vendor/composer/installed.json"
+rm -f "$consumer/storage/framework/package_manifest.php"
+if php "$consumer/boot.php" >"$work/missing.out" 2>&1; then
+    echo 'Core-only boot accepted a missing configuration authority provider.' >&2
+    exit 1
+fi
+grep -Fq 'requires capability "configuration.authority.v1"' "$work/missing.out"
+
+printf 'S1 configuration core-only packaged proof passed.\n'
+printf 'Candidate: %s\n' "$candidate"
+printf 'Source tree: %s\n' "$($root/bin/git -C "$root" rev-parse HEAD^{tree})"

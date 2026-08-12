@@ -8,10 +8,12 @@ use Waaseyaa\Config\Authority\ActiveConfigurationBridgeInterface;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Config\Authority\ConfigurationGenerationResolverInterface;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\CapabilityRequirement;
+use Waaseyaa\Foundation\ServiceProvider\Capability\RequiresCapabilitiesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 /** Higher-layer implementation of the configuration authority seams. */
-final class ConfigurationStorageServiceProvider extends ServiceProvider
+final class ConfigurationStorageServiceProvider extends ServiceProvider implements RequiresCapabilitiesInterface
 {
     public function register(): void
     {
@@ -36,5 +38,10 @@ final class ConfigurationStorageServiceProvider extends ServiceProvider
 
             return new DatabaseActiveConfigurationBridge($database, $context);
         });
+    }
+
+    public function capabilityRequirements(): iterable
+    {
+        yield CapabilityRequirement::exact('configuration.authority.v1', 1);
     }
 }

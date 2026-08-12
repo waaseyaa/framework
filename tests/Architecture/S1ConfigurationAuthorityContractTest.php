@@ -127,4 +127,18 @@ final class S1ConfigurationAuthorityContractTest extends TestCase
             }
         }
     }
+
+    #[Test]
+    public function exact_head_core_only_consumer_boots_without_ai_agent_and_refuses_missing_authority(): void
+    {
+        $script = $this->root . '/tests/PackagedForm/check-s1-configuration-core-only';
+        self::assertFileExists($script);
+        self::assertTrue(is_executable($script));
+
+        exec(escapeshellarg($script) . ' 2>&1', $output, $exitCode);
+
+        self::assertSame(0, $exitCode, implode("\n", $output));
+        self::assertStringContainsString('core-only packaged proof passed', implode("\n", $output));
+        self::assertStringNotContainsString('github.com', strtolower((string) file_get_contents($script)));
+    }
 }
