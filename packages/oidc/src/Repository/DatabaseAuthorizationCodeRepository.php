@@ -6,7 +6,7 @@ namespace Waaseyaa\Oidc\Repository;
 
 use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Database\DBALDatabase;
-use Waaseyaa\Database\Schema\TableColumnNames;
+use Waaseyaa\Database\Schema\SchemaRequirement;
 
 /**
  * DBAL-backed authorization code repository.
@@ -26,7 +26,7 @@ final class DatabaseAuthorizationCodeRepository implements AuthorizationCodeRepo
     /** @var \Closure():int */
     private readonly \Closure $clock;
 
-    private bool $tableEnsured = false;
+    private bool $schemaVerified = false;
 
     /**
      * @param (\Closure():int)|null $clock Clock returning Unix timestamp; defaults to time().
@@ -47,7 +47,7 @@ final class DatabaseAuthorizationCodeRepository implements AuthorizationCodeRepo
         string $codeChallengeMethod,
         ?string $nonce = null,
     ): AuthorizationCode {
-        $this->ensureTable();
+        $this->assertSchemaAvailable();
 
         $now = ($this->clock)();
         $expiresAt = $now + self::TTL_SECONDS;
@@ -89,7 +89,7 @@ final class DatabaseAuthorizationCodeRepository implements AuthorizationCodeRepo
 
     public function consume(string $code): ?AuthorizationCode
     {
-        $this->ensureTable();
+        $this->assertSchemaAvailable();
 
         $now = ($this->clock)();
 
@@ -112,71 +112,31 @@ final class DatabaseAuthorizationCodeRepository implements AuthorizationCodeRepo
 
     public function purgeExpired(): int
     {
-        $this->ensureTable();
+        $this->assertSchemaAvailable();
 
         return $this->database->delete(self::TABLE)
             ->condition('expires_at', ($this->clock)(), '<=')
             ->execute();
     }
 
-    private function ensureTable(): void
+    private function assertSchemaAvailable(): void
     {
-        if ($this->tableEnsured) {
+        if ($this->schemaVerified) {
             return;
         }
 
-        $this->database->query(<<<'SQL'
-                CREATE TABLE IF NOT EXISTS oidc_authorization_codes (
-                    code VARCHAR(128) PRIMARY KEY,
-                    client_id VARCHAR(255) NOT NULL,
-                    account_id VARCHAR(255) NOT NULL,
-                    redirect_uri TEXT NOT NULL,
-                    scopes TEXT NOT NULL,
-                    code_challenge VARCHAR(128) NOT NULL,
-                    code_challenge_method VARCHAR(16) NOT NULL,
-                    issued_at INTEGER NOT NULL,
-                    expires_at INTEGER NOT NULL,
-                    consumed_at INTEGER,
-                    nonce VARCHAR(255)
-                )
-            SQL);
-
-        // Tables provisioned before #1289 lack the nonce column. Adding it lazily
-        // keeps the "one migration per schema bump" pattern and avoids a separate
-        // migration file for a single nullable column.
-        $this->ensureColumn('nonce', 'VARCHAR(255)');
-
-        $this->database->query(
-            'CREATE INDEX IF NOT EXISTS idx_oidc_auth_codes_expires_at ON oidc_authorization_codes (expires_at)',
-        );
-        $this->database->query(
-            'CREATE INDEX IF NOT EXISTS idx_oidc_auth_codes_client_id ON oidc_authorization_codes (client_id)',
-        );
-
-        $this->tableEnsured = true;
-    }
-
-    private function ensureColumn(string $column, string $definition): void
-    {
-        // Canonical names, never the raw `listTableColumns()` keys (#2171):
-        // Doctrine keys a reserved-word column by its quoted identifier, so
-        // `isset($columns[$column])` reports such a column as absent and this
-        // method re-runs ADD COLUMN on every boot until the statement errors.
-        $columns = TableColumnNames::for(
-            $this->database->getConnection()->createSchemaManager(),
+        SchemaRequirement::assertAvailable(
+            $this->database,
             self::TABLE,
+            [
+                'code', 'client_id', 'account_id', 'redirect_uri', 'scopes',
+                'code_challenge', 'code_challenge_method', 'issued_at',
+                'expires_at', 'consumed_at', 'nonce',
+            ],
+            'waaseyaa/oidc:2026_08_12_000006_oidc_authorization_code_schema',
         );
 
-        if (in_array($column, $columns, true)) {
-            return;
-        }
-
-        $this->database->query(sprintf(
-            'ALTER TABLE %s ADD COLUMN %s %s',
-            self::TABLE,
-            $column,
-            $definition,
-        ));
+        $this->schemaVerified = true;
     }
 
     /**

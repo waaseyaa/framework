@@ -11,6 +11,11 @@ use Waaseyaa\Foundation\Migration\SchemaBuilder;
 /** Explicit migration-source setup for OIDC tests; never used by runtime code. */
 final class OidcSchema
 {
+    public static function installAuthorizationCodes(DBALDatabase $database): void
+    {
+        self::apply($database, '2026_08_12_000006_oidc_authorization_code_schema.php');
+    }
+
     public static function installSigningKeys(DBALDatabase $database): void
     {
         self::apply($database, '2026_05_25_000003_oidc_signing_key_schema.php');

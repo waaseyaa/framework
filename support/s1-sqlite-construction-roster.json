@@ -4900,12 +4900,21 @@
         },
         {
             "path": "packages/oidc/tests/Integration/Repository/DatabaseAuthorizationCodeRepositoryTest.php",
-            "line": 25,
+            "line": 26,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
-            "source_sha256": "2601d2e43ee645457d0650dd34a785e187121013939fd6127267ac2553c46ed9"
+            "source_sha256": "b438334bb9c10d8c80b39cd3545c909def01c50bf85ca309d0886661e5d1874d"
+        },
+        {
+            "path": "packages/oidc/tests/Integration/Repository/DatabaseAuthorizationCodeRepositoryTest.php",
+            "line": 182,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
+            "source_sha256": "b438334bb9c10d8c80b39cd3545c909def01c50bf85ca309d0886661e5d1874d"
         },
         {
             "path": "packages/oidc/tests/Integration/Schema/OidcRuntimeSchemaAuthorityTest.php",
@@ -5040,7 +5049,7 @@
             "class": "test",
             "match_sha256": "65a741e0d55eb2861c610e5e9e76011723217735d85acbcae099c79eb496d73d",
             "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
-            "source_sha256": "68f1815e6cf04cd24f77d7328dab680119a0df0599d147ae3c4e971540fbec66"
+            "source_sha256": "0df9e7b7951bdb7f694811cd09982dce2ba4c3033d01772d8fb409160f95f359"
         },
         {
             "path": "packages/oidc/tests/Unit/OidcClientSchemaMigrationTest.php",
@@ -5049,7 +5058,7 @@
             "class": "test",
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
             "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
-            "source_sha256": "68f1815e6cf04cd24f77d7328dab680119a0df0599d147ae3c4e971540fbec66"
+            "source_sha256": "0df9e7b7951bdb7f694811cd09982dce2ba4c3033d01772d8fb409160f95f359"
         },
         {
             "path": "packages/oidc/tests/Unit/Revoke/RevocationControllerTest.php",
