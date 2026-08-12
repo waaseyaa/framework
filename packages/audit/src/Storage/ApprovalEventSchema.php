@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Audit\Storage;
 
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\Schema\SchemaRequirement;
 
 /**
  * Additive schema for the durable operation-approval event log (#2177 F1).
@@ -33,33 +34,11 @@ final readonly class ApprovalEventSchema
 
     public function ensure(): void
     {
-        $this->database->query('CREATE TABLE IF NOT EXISTS mcp_approval_event (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            request_id VARCHAR(64) NOT NULL,
-            event_type VARCHAR(32) NOT NULL,
-            request_key VARCHAR(64) NOT NULL,
-            principal_key VARCHAR(191) NOT NULL,
-            surface VARCHAR(64) NOT NULL,
-            operation VARCHAR(191) NOT NULL,
-            arguments_fingerprint VARCHAR(64) NOT NULL,
-            correlation_id VARCHAR(64) NOT NULL,
-            safe_arguments TEXT DEFAULT NULL,
-            expires_at VARCHAR(32) DEFAULT NULL,
-            decision VARCHAR(16) DEFAULT NULL,
-            operator_uid INTEGER DEFAULT NULL,
-            decision_reason VARCHAR(500) DEFAULT NULL,
-            receipt_id VARCHAR(64) DEFAULT NULL,
-            created_at VARCHAR(32) NOT NULL
-        )');
-        // Storage-level once-only guard for decision AND consumption.
-        $this->database->query(
-            'CREATE UNIQUE INDEX IF NOT EXISTS mcp_approval_event_once ON mcp_approval_event (request_id, event_type)',
-        );
-        $this->database->query(
-            'CREATE INDEX IF NOT EXISTS mcp_approval_event_request_key ON mcp_approval_event (request_key, id)',
-        );
-        $this->database->query(
-            'CREATE INDEX IF NOT EXISTS mcp_approval_event_correlation ON mcp_approval_event (correlation_id)',
+        SchemaRequirement::assertAvailable(
+            $this->database,
+            'mcp_approval_event',
+            ['id', 'request_id', 'event_type', 'request_key', 'principal_key', 'surface', 'operation', 'arguments_fingerprint', 'correlation_id', 'safe_arguments', 'expires_at', 'decision', 'operator_uid', 'decision_reason', 'receipt_id', 'created_at'],
+            'waaseyaa/audit:2026_08_12_000005_approval_event_schema',
         );
     }
 }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Audit\Tests\Unit;
 
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
@@ -58,7 +60,7 @@ final class AuditServiceProviderFieldReadMiddlewareTest extends TestCase
     public function provider_contributes_the_production_context_middleware_and_strict_ledger(): void
     {
         $database = DBALDatabase::createSqlite();
-        (new AuditEventSchemaHandler($database))->ensureSchema();
+        RuntimeSchemaMigrations::audit($database);
         $dispatcher = new EventDispatcher();
         $manager = new EntityTypeManager($dispatcher);
         $provider = new AuditServiceProvider();
@@ -85,7 +87,7 @@ final class AuditServiceProviderFieldReadMiddlewareTest extends TestCase
     public function entity_account_claims_are_strictly_reserved_before_the_principal_is_installed(): void
     {
         $database = DBALDatabase::createSqlite();
-        (new AuditEventSchemaHandler($database))->ensureSchema();
+        RuntimeSchemaMigrations::audit($database);
         $provider = new AuditServiceProvider();
         $provider->setKernelServices(new class($database) implements KernelServicesInterface {
             public function __construct(private readonly DatabaseInterface $database) {}
@@ -181,7 +183,7 @@ final class AuditServiceProviderFieldReadMiddlewareTest extends TestCase
     private function productionMiddleware(): array
     {
         $database = DBALDatabase::createSqlite();
-        (new AuditEventSchemaHandler($database))->ensureSchema();
+        RuntimeSchemaMigrations::audit($database);
         $provider = new AuditServiceProvider();
         $provider->setKernelServices(new class($database) implements KernelServicesInterface {
             public function __construct(private readonly DatabaseInterface $database) {}

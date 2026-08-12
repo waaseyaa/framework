@@ -41,6 +41,17 @@ final class RuntimeSchemaMigrations
         self::apply($database, 'packages/auth/migrations/2026_08_12_000001_auth_runtime_schema.php');
     }
 
+    public static function audit(DBALDatabase $database): void
+    {
+        foreach ([
+            '2026_08_12_000003_audit_runtime_schema.php',
+            '2026_08_12_000004_strict_audit_ledger_schema.php',
+            '2026_08_12_000005_approval_event_schema.php',
+        ] as $migration) {
+            self::apply($database, 'packages/audit/migrations/' . $migration);
+        }
+    }
+
     public static function oidc(DBALDatabase $database): void
     {
         foreach ([

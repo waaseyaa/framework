@@ -22,11 +22,10 @@ use Waaseyaa\Database\UpdateInterface;
  * {@see \Waaseyaa\Audit\Writer\AuditEventWriter} is wired with this decorator,
  * so the only mutation it can express is an append.
  *
- * Schema access is wrapped by {@see AppendOnlySchema}: destructive DDL (DROP
- * TABLE, DROP COLUMN, DROP INDEX) on append-only tables is refused with the
- * same {@see \LogicException}. Additive DDL (ADD COLUMN, ADD INDEX, etc.) and
- * all operations targeting non-append-only tables pass through to the inner
- * schema unchanged — legitimate audit-table migrations remain possible.
+ * Schema access is wrapped by {@see AppendOnlySchema}. Runtime callers may
+ * inspect schema state, but every DDL operation is refused. Audit schema
+ * changes belong exclusively to the migration coordinator and therefore use
+ * its raw database connection rather than this runtime decorator.
  *
  * Raw SQL is guarded too (FR-008, #1648): {@see query()} normalizes the SQL —
  * removing single-quoted string literals and SQL comments, and UNQUOTING

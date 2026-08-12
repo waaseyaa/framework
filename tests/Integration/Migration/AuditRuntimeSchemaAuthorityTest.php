@@ -23,7 +23,7 @@ final class AuditRuntimeSchemaAuthorityTest extends TestCase
     {
         $database = DBALDatabase::createSqlite();
         $provider = $this->provider($database);
-        $this->expectSchemaRefusal(static fn () => $provider->boot());
+        $this->expectSchemaRefusal(static fn() => $provider->boot());
         self::assertSame([], $this->tables($database));
     }
 
@@ -32,7 +32,7 @@ final class AuditRuntimeSchemaAuthorityTest extends TestCase
     {
         $database = DBALDatabase::createSqlite();
         $provider = $this->provider($database);
-        $this->expectSchemaRefusal(static fn () => $provider->resolve(StrictAuditLedgerInterface::class));
+        $this->expectSchemaRefusal(static fn() => $provider->resolve(StrictAuditLedgerInterface::class));
         self::assertSame([], $this->tables($database));
     }
 
@@ -41,7 +41,7 @@ final class AuditRuntimeSchemaAuthorityTest extends TestCase
     {
         $database = DBALDatabase::createSqlite();
         $provider = $this->provider($database);
-        $this->expectSchemaRefusal(static fn () => $provider->resolve(OperationApprovalStoreInterface::class));
+        $this->expectSchemaRefusal(static fn() => $provider->resolve(OperationApprovalStoreInterface::class));
         self::assertSame([], $this->tables($database));
     }
 
@@ -72,7 +72,7 @@ final class AuditRuntimeSchemaAuthorityTest extends TestCase
     private function tables(DBALDatabase $database): array
     {
         return array_values(array_map(
-            static fn (array $row): string => (string) $row['name'],
+            static fn(array $row): string => (string) $row['name'],
             iterator_to_array($database->query("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")),
         ));
     }

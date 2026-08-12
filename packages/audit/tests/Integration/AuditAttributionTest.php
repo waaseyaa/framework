@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Audit\Tests\Integration;
 
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -50,7 +52,7 @@ final class AuditAttributionTest extends TestCase
     protected function setUp(): void
     {
         $this->raw = DBALDatabase::createSqlite();
-        new AuditEventSchemaHandler($this->raw)->ensureSchema();
+        RuntimeSchemaMigrations::audit($this->raw);
         $this->writer = new AuditEventWriter(new AppendOnlyAuditDatabase($this->raw));
         $this->dispatcher = new EventDispatcher();
         $this->context = new RequestAccountContext();
@@ -319,7 +321,7 @@ final class AuditAttributionTest extends TestCase
 
         $this->assertFalse($legacy->schema()->fieldExists('audit_event', 'actor_uid'));
 
-        new AuditEventSchemaHandler($legacy)->ensureSchema();
+        RuntimeSchemaMigrations::audit($legacy);
 
         $this->assertTrue($legacy->schema()->fieldExists('audit_event', 'actor_uid'), 'Guarded ALTER must add actor_uid');
 
@@ -330,7 +332,7 @@ final class AuditAttributionTest extends TestCase
         $this->assertContains('audit_event_actor_uid', $indexNames, 'The actor index must be created');
 
         // Idempotency: a second boot is a no-op, not an error.
-        new AuditEventSchemaHandler($legacy)->ensureSchema();
+        RuntimeSchemaMigrations::audit($legacy);
 
         // The pre-migration row reads back a null actor through the read model.
         $events = iterator_to_array(

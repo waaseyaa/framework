@@ -32,7 +32,7 @@ final class AuditEventMigrationSchemaTest extends TestCase
         $db = DBALDatabase::createSqlite();
         $schema = new SchemaBuilder($db->getConnection());
 
-        $migration = require dirname(__DIR__, 2) . '/migrations/2026_05_25_000001_create_audit_event_table.php';
+        $migration = require dirname(__DIR__, 2) . '/migrations/2026_08_12_000003_audit_runtime_schema.php';
         $migration->up($schema);
 
         $this->assertTrue(
@@ -47,7 +47,7 @@ final class AuditEventMigrationSchemaTest extends TestCase
         $db = DBALDatabase::createSqlite();
         $schema = new SchemaBuilder($db->getConnection());
 
-        $migration = require dirname(__DIR__, 2) . '/migrations/2026_05_25_000001_create_audit_event_table.php';
+        $migration = require dirname(__DIR__, 2) . '/migrations/2026_08_12_000003_audit_runtime_schema.php';
         $migration->up($schema);
 
         $this->assertTrue(
@@ -62,7 +62,7 @@ final class AuditEventMigrationSchemaTest extends TestCase
         $db = DBALDatabase::createSqlite();
         $schema = new SchemaBuilder($db->getConnection());
 
-        $migration = require dirname(__DIR__, 2) . '/migrations/2026_05_25_000001_create_audit_event_table.php';
+        $migration = require dirname(__DIR__, 2) . '/migrations/2026_08_12_000003_audit_runtime_schema.php';
         $migration->up($schema);
 
         $this->assertTrue(
@@ -77,7 +77,7 @@ final class AuditEventMigrationSchemaTest extends TestCase
         $db = DBALDatabase::createSqlite();
         $schema = new SchemaBuilder($db->getConnection());
 
-        $migration = require dirname(__DIR__, 2) . '/migrations/2026_05_25_000001_create_audit_event_table.php';
+        $migration = require dirname(__DIR__, 2) . '/migrations/2026_08_12_000003_audit_runtime_schema.php';
         $migration->up($schema);
 
         foreach (['account_uid', 'event_kind', 'created_at'] as $col) {
@@ -94,7 +94,7 @@ final class AuditEventMigrationSchemaTest extends TestCase
         $db = DBALDatabase::createSqlite();
         $schema = new SchemaBuilder($db->getConnection());
 
-        $migration = require dirname(__DIR__, 2) . '/migrations/2026_05_25_000001_create_audit_event_table.php';
+        $migration = require dirname(__DIR__, 2) . '/migrations/2026_08_12_000003_audit_runtime_schema.php';
         $migration->up($schema);
 
         $this->assertTrue(

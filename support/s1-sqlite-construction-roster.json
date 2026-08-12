@@ -148,21 +148,21 @@
         },
         {
             "path": "packages/admin-surface/tests/Integration/Host/AuthenticatedNoteOwnershipFlowTest.php",
-            "line": 66,
+            "line": 68,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
-            "source_sha256": "c010c58bb9f924b7583114f3d0c6a042ef8e575187f1095c7d4486800ae18192"
+            "source_sha256": "4676ac2761460c39f862048f3be8683c03a8055a8cf0da6107f83704dd581ad9"
         },
         {
             "path": "packages/admin-surface/tests/Integration/Host/AuthenticatedVocabularyActionsFlowTest.php",
-            "line": 69,
+            "line": 71,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
-            "source_sha256": "bc8eadb9571974dfa5a6ce53c5e153506da88dbd969ded5098e939743c827e88"
+            "source_sha256": "94403c8c8226c90d4cd66cfb7ef148ccc59bd116487783d9812774b2adb0b975"
         },
         {
             "path": "packages/admin-surface/tests/Integration/Host/GenericAdminSurfaceHostFieldAccessPaginationTest.php",
@@ -795,15 +795,6 @@
             "source_sha256": "4cdc8e0b92a9fd10a60a83c0a9a5485f698dbe36a108d3c53bb6ddca1cfb485d"
         },
         {
-            "path": "packages/audit/migrations/2026_05_25_000001_create_audit_event_table.php",
-            "line": 37,
-            "pattern": "dbal_wrapper_constructor",
-            "class": "inherited-connection-migration",
-            "match_sha256": "7fef1d9923cd608efc4584c698147beac50547d32d53012ba6960d0daa9e8ad9",
-            "line_sha256": "e488614426d2b0dbe714965f196117f993a8192ef831e0a2298892619355f046",
-            "source_sha256": "4af6e0126627e37e530b55f78e4c69f6c8c0237118fe4f67c1e9f63535d2e108"
-        },
-        {
             "path": "packages/audit/tests/Contract/AuditWriterContractTest.php",
             "line": 31,
             "pattern": "dbal_factory",
@@ -814,39 +805,39 @@
         },
         {
             "path": "packages/audit/tests/Integration/AuditAttributionTest.php",
-            "line": 52,
+            "line": 54,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "7066fb0eb38ccf5d58f8d6d8f013325172352f8f6877d8ba2a85827e5a4eb33b",
-            "source_sha256": "3265e8f498cf3af3a066ebb23f23d315a4810e99ba7482f31fd80323b3d5e186"
+            "source_sha256": "86a2600a0ecde14eb4ea873a9a2377566703fd1ae643447ad01727710ff2c4ff"
         },
         {
             "path": "packages/audit/tests/Integration/AuditAttributionTest.php",
-            "line": 296,
+            "line": 298,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "a4e4089444afeb99d549a8dcdabc343e317bb53253a0fe4eb2d18691eef45a45",
-            "source_sha256": "3265e8f498cf3af3a066ebb23f23d315a4810e99ba7482f31fd80323b3d5e186"
+            "source_sha256": "86a2600a0ecde14eb4ea873a9a2377566703fd1ae643447ad01727710ff2c4ff"
         },
         {
             "path": "packages/audit/tests/Integration/AuditChainSchemaTest.php",
-            "line": 24,
+            "line": 26,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "cb99c6bcc0ff95a0d9549b8f914de0657e9168b87423cac6023568d3dafb24a0",
-            "source_sha256": "2aefb72b2e13b05939b256472dd613981a816c1be7ebab9e50215159c7e7b450"
+            "source_sha256": "debd394ea74eb08a0fbcfd04fb852f1641f3b44f1a8ebbb0456c20119cbcec13"
         },
         {
             "path": "packages/audit/tests/Integration/AuditChainSchemaTest.php",
-            "line": 36,
+            "line": 38,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "7066fb0eb38ccf5d58f8d6d8f013325172352f8f6877d8ba2a85827e5a4eb33b",
-            "source_sha256": "2aefb72b2e13b05939b256472dd613981a816c1be7ebab9e50215159c7e7b450"
+            "source_sha256": "debd394ea74eb08a0fbcfd04fb852f1641f3b44f1a8ebbb0456c20119cbcec13"
         },
         {
             "path": "packages/audit/tests/Integration/AuditChainSchemaTest.php",
@@ -855,7 +846,7 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "313be20102afced7e51a2d96e150bf16d02a4fc3c912061ce9c7183f20db0841",
-            "source_sha256": "2aefb72b2e13b05939b256472dd613981a816c1be7ebab9e50215159c7e7b450"
+            "source_sha256": "debd394ea74eb08a0fbcfd04fb852f1641f3b44f1a8ebbb0456c20119cbcec13"
         },
         {
             "path": "packages/audit/tests/Integration/AuditChainSchemaTest.php",
@@ -864,25 +855,25 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "42ecf2128c3afb77339e5b5a5767ebf52158cda774105b97eddcc3d6ced24eae",
-            "source_sha256": "2aefb72b2e13b05939b256472dd613981a816c1be7ebab9e50215159c7e7b450"
+            "source_sha256": "debd394ea74eb08a0fbcfd04fb852f1641f3b44f1a8ebbb0456c20119cbcec13"
         },
         {
             "path": "packages/audit/tests/Integration/AuditChainVerifierTest.php",
-            "line": 24,
+            "line": 26,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "aaa214af10e013c3e98e471a15cad1f05ef9ac68a6261974f7a6af3700a944e6",
-            "source_sha256": "5002e4a55158b0cb5e7ad36afe0e7e5ddbb73a35792870cfa10823625f063a8e"
+            "source_sha256": "84bf6fbf3d41037513fca88bdbc8a9f4d7f01de0cee171a8c1d37b43d47d505d"
         },
         {
             "path": "packages/audit/tests/Integration/AuditChainVerifierTest.php",
-            "line": 35,
+            "line": 37,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "ca61aee2525e2ffe56ea9e4ec7a9d83056768ddcbc355d840156c65afa4de753",
-            "source_sha256": "5002e4a55158b0cb5e7ad36afe0e7e5ddbb73a35792870cfa10823625f063a8e"
+            "source_sha256": "84bf6fbf3d41037513fca88bdbc8a9f4d7f01de0cee171a8c1d37b43d47d505d"
         },
         {
             "path": "packages/audit/tests/Integration/AuditChaosTest.php",
@@ -895,30 +886,30 @@
         },
         {
             "path": "packages/audit/tests/Integration/AuditCheckpointAppendOnlyTest.php",
-            "line": 33,
+            "line": 35,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "7066fb0eb38ccf5d58f8d6d8f013325172352f8f6877d8ba2a85827e5a4eb33b",
-            "source_sha256": "f35386f900c46d3993f930d61b0ee8a1c99ed98e0856b3e9ee44731f84e66df4"
+            "source_sha256": "ad02e1bd27b275cdec1c0121bb570e09bcd624fbe373b8a5a6bdf3ce11df166a"
         },
         {
             "path": "packages/audit/tests/Integration/AuditCheckpointBuilderTest.php",
-            "line": 21,
+            "line": 23,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "c08089d33637f70a85fb2fbf05396a5f1d763fe2f7719ac6b3c892b604ef7788",
-            "source_sha256": "52e99025d85e09b2211dd570695b4d3d1e0636a3fc4ad31016c3ebe2e71c7a83"
+            "source_sha256": "7ac1f466c8de587fb6d64f297239bb2e908875732aabcddd99ed0914d93d4883"
         },
         {
             "path": "packages/audit/tests/Integration/AuditCheckpointBuilderTest.php",
-            "line": 36,
+            "line": 38,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "ca61aee2525e2ffe56ea9e4ec7a9d83056768ddcbc355d840156c65afa4de753",
-            "source_sha256": "52e99025d85e09b2211dd570695b4d3d1e0636a3fc4ad31016c3ebe2e71c7a83"
+            "source_sha256": "7ac1f466c8de587fb6d64f297239bb2e908875732aabcddd99ed0914d93d4883"
         },
         {
             "path": "packages/audit/tests/Integration/AuditEventMigrationSchemaTest.php",
@@ -927,7 +918,7 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "494f62f7f432843b4f86d787c1e6979e7da416edf427b54b6d7d969f4a86262a"
+            "source_sha256": "751529e6885c6925e663119e387ccb93a354fb45a7919f19208266539518af83"
         },
         {
             "path": "packages/audit/tests/Integration/AuditEventMigrationSchemaTest.php",
@@ -936,7 +927,7 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "494f62f7f432843b4f86d787c1e6979e7da416edf427b54b6d7d969f4a86262a"
+            "source_sha256": "751529e6885c6925e663119e387ccb93a354fb45a7919f19208266539518af83"
         },
         {
             "path": "packages/audit/tests/Integration/AuditEventMigrationSchemaTest.php",
@@ -945,7 +936,7 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "494f62f7f432843b4f86d787c1e6979e7da416edf427b54b6d7d969f4a86262a"
+            "source_sha256": "751529e6885c6925e663119e387ccb93a354fb45a7919f19208266539518af83"
         },
         {
             "path": "packages/audit/tests/Integration/AuditEventMigrationSchemaTest.php",
@@ -954,7 +945,7 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "494f62f7f432843b4f86d787c1e6979e7da416edf427b54b6d7d969f4a86262a"
+            "source_sha256": "751529e6885c6925e663119e387ccb93a354fb45a7919f19208266539518af83"
         },
         {
             "path": "packages/audit/tests/Integration/AuditEventMigrationSchemaTest.php",
@@ -963,196 +954,196 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "494f62f7f432843b4f86d787c1e6979e7da416edf427b54b6d7d969f4a86262a"
+            "source_sha256": "751529e6885c6925e663119e387ccb93a354fb45a7919f19208266539518af83"
         },
         {
             "path": "packages/audit/tests/Integration/AuditImmutabilityTest.php",
-            "line": 39,
+            "line": 41,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "7066fb0eb38ccf5d58f8d6d8f013325172352f8f6877d8ba2a85827e5a4eb33b",
-            "source_sha256": "4ca76eb2b286272ab2f0b4a7ab6aaac32c749f4a117eca001601f0738ae673ad"
+            "source_sha256": "9151e8ca5a254df117d0af9d6d5eb49c80cf239594afc7999c930e0be715fc89"
         },
         {
             "path": "packages/audit/tests/Integration/AuditPruneCheckpointTest.php",
-            "line": 37,
+            "line": 39,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "ca61aee2525e2ffe56ea9e4ec7a9d83056768ddcbc355d840156c65afa4de753",
-            "source_sha256": "1c0ce256bb963e385314a6bce1e37eec562a7401a5dacb2a194a753ba073982f"
+            "source_sha256": "1ee2b296a3eec1fa46a50b972c186dbaebef20a148652fc9c6a55f94e453d895"
         },
         {
             "path": "packages/audit/tests/Integration/DatabaseStrictFieldStorageGatewayAuditTest.php",
-            "line": 21,
-            "pattern": "dbal_factory",
-            "class": "test",
-            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
-            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "fc99771b51aaedb5d5510fcfdd543eef1a194ff8e994e0f85dcdb95918d96352"
-        },
-        {
-            "path": "packages/audit/tests/Integration/DatabaseStrictFieldStorageGatewayAuditTest.php",
-            "line": 44,
-            "pattern": "dbal_factory",
-            "class": "test",
-            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
-            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "fc99771b51aaedb5d5510fcfdd543eef1a194ff8e994e0f85dcdb95918d96352"
-        },
-        {
-            "path": "packages/audit/tests/Integration/DatabaseStrictFieldStorageGatewayAuditTest.php",
-            "line": 61,
-            "pattern": "dbal_factory",
-            "class": "test",
-            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
-            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "fc99771b51aaedb5d5510fcfdd543eef1a194ff8e994e0f85dcdb95918d96352"
-        },
-        {
-            "path": "packages/audit/tests/Integration/OperationApprovalStoreListPendingTest.php",
-            "line": 43,
-            "pattern": "dbal_factory",
-            "class": "test",
-            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
-            "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
-            "source_sha256": "2ed441ef788629ce9d15c923fdb0afa66bd25ea6ece0433bbd121de59eeb6649"
-        },
-        {
-            "path": "packages/audit/tests/Integration/OperationApprovalStoreTest.php",
-            "line": 461,
-            "pattern": "dbal_factory",
-            "class": "test",
-            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
-            "line_sha256": "46ef06274a6c70c4b3b455c77f55314a37230b661743dd2fdfc5b5ead024a74d",
-            "source_sha256": "9c84106fdfc166bc738ae3fd9e2f9e3b21f8ff0ac1a5d61456206c0d8e40cb6f"
-        },
-        {
-            "path": "packages/audit/tests/Integration/StrictPrivilegedReadLedgerTest.php",
             "line": 23,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "415da5b4da63dac3327ea27643edafb405efc6a79e86b5e84953ef8070b4ea75"
+            "source_sha256": "13dc974ca867b1db6f77dcaf1be1d3489dfc7a09f34c793ed75d3d92e59da325"
         },
         {
-            "path": "packages/audit/tests/Integration/StrictPrivilegedReadLedgerTest.php",
+            "path": "packages/audit/tests/Integration/DatabaseStrictFieldStorageGatewayAuditTest.php",
+            "line": 46,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "13dc974ca867b1db6f77dcaf1be1d3489dfc7a09f34c793ed75d3d92e59da325"
+        },
+        {
+            "path": "packages/audit/tests/Integration/DatabaseStrictFieldStorageGatewayAuditTest.php",
+            "line": 63,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "13dc974ca867b1db6f77dcaf1be1d3489dfc7a09f34c793ed75d3d92e59da325"
+        },
+        {
+            "path": "packages/audit/tests/Integration/OperationApprovalStoreListPendingTest.php",
             "line": 45,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
-            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "415da5b4da63dac3327ea27643edafb405efc6a79e86b5e84953ef8070b4ea75"
+            "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
+            "source_sha256": "e100dfe5820e0158fa34522bafe3e2b4f5e1c6affce0561c9696556da7914b3d"
+        },
+        {
+            "path": "packages/audit/tests/Integration/OperationApprovalStoreTest.php",
+            "line": 463,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "46ef06274a6c70c4b3b455c77f55314a37230b661743dd2fdfc5b5ead024a74d",
+            "source_sha256": "2752b96ea052c0cce10f4e092b299decead5a31ca7e4a2cf8702a8f55588f9bd"
         },
         {
             "path": "packages/audit/tests/Integration/StrictPrivilegedReadLedgerTest.php",
-            "line": 60,
+            "line": 25,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "415da5b4da63dac3327ea27643edafb405efc6a79e86b5e84953ef8070b4ea75"
+            "source_sha256": "c3f1c45d5c90ddeccea68831f102822261884b8c67bfd956cc661765996a1ba1"
         },
         {
             "path": "packages/audit/tests/Integration/StrictPrivilegedReadLedgerTest.php",
-            "line": 101,
+            "line": 47,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "415da5b4da63dac3327ea27643edafb405efc6a79e86b5e84953ef8070b4ea75"
+            "source_sha256": "c3f1c45d5c90ddeccea68831f102822261884b8c67bfd956cc661765996a1ba1"
         },
         {
             "path": "packages/audit/tests/Integration/StrictPrivilegedReadLedgerTest.php",
-            "line": 112,
+            "line": 62,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "415da5b4da63dac3327ea27643edafb405efc6a79e86b5e84953ef8070b4ea75"
+            "source_sha256": "c3f1c45d5c90ddeccea68831f102822261884b8c67bfd956cc661765996a1ba1"
         },
         {
             "path": "packages/audit/tests/Integration/StrictPrivilegedReadLedgerTest.php",
-            "line": 123,
+            "line": 103,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "415da5b4da63dac3327ea27643edafb405efc6a79e86b5e84953ef8070b4ea75"
+            "source_sha256": "c3f1c45d5c90ddeccea68831f102822261884b8c67bfd956cc661765996a1ba1"
         },
         {
             "path": "packages/audit/tests/Integration/StrictPrivilegedReadLedgerTest.php",
-            "line": 147,
+            "line": 114,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "415da5b4da63dac3327ea27643edafb405efc6a79e86b5e84953ef8070b4ea75"
+            "source_sha256": "c3f1c45d5c90ddeccea68831f102822261884b8c67bfd956cc661765996a1ba1"
         },
         {
             "path": "packages/audit/tests/Integration/StrictPrivilegedReadLedgerTest.php",
-            "line": 160,
+            "line": 125,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "415da5b4da63dac3327ea27643edafb405efc6a79e86b5e84953ef8070b4ea75"
+            "source_sha256": "c3f1c45d5c90ddeccea68831f102822261884b8c67bfd956cc661765996a1ba1"
+        },
+        {
+            "path": "packages/audit/tests/Integration/StrictPrivilegedReadLedgerTest.php",
+            "line": 149,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "c3f1c45d5c90ddeccea68831f102822261884b8c67bfd956cc661765996a1ba1"
+        },
+        {
+            "path": "packages/audit/tests/Integration/StrictPrivilegedReadLedgerTest.php",
+            "line": 162,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "c3f1c45d5c90ddeccea68831f102822261884b8c67bfd956cc661765996a1ba1"
         },
         {
             "path": "packages/audit/tests/Unit/AuditReadModelDefinitionRegistryTest.php",
-            "line": 34,
+            "line": 36,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "f87316804f9fbd6bd8b17def37784b731e9ab9f1d3416b25717f418af4ce7c41"
+            "source_sha256": "f80f6b4e7da1ae3d9cba8a0e2e36849c1164f3c1b27bc14f64bd52938c6cba9e"
         },
         {
             "path": "packages/audit/tests/Unit/AuditServiceProviderApprovalStoreTest.php",
-            "line": 31,
+            "line": 33,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
-            "source_sha256": "390b90579bdae6c7720b1e6cc4adc06c48a5d274ace78511c68dad5ef3569c39"
+            "source_sha256": "09814807f6d87cca35b7c6c085a4c39de2a6a385f26e0cf68f5fc3e085b77700"
         },
         {
             "path": "packages/audit/tests/Unit/AuditServiceProviderFieldReadMiddlewareTest.php",
-            "line": 35,
+            "line": 37,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "74c753835095061fb15da05ec8e6b7ca8cc47ebdf4db2d468bda2d2e5c2f554f"
+            "source_sha256": "64d7bc142beaa5aa37380d08ccad5c52a5d5ab54c381f74a362867e717b2d961"
         },
         {
             "path": "packages/audit/tests/Unit/AuditServiceProviderFieldReadMiddlewareTest.php",
-            "line": 60,
+            "line": 62,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "74c753835095061fb15da05ec8e6b7ca8cc47ebdf4db2d468bda2d2e5c2f554f"
+            "source_sha256": "64d7bc142beaa5aa37380d08ccad5c52a5d5ab54c381f74a362867e717b2d961"
         },
         {
             "path": "packages/audit/tests/Unit/AuditServiceProviderFieldReadMiddlewareTest.php",
-            "line": 87,
+            "line": 89,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "74c753835095061fb15da05ec8e6b7ca8cc47ebdf4db2d468bda2d2e5c2f554f"
+            "source_sha256": "64d7bc142beaa5aa37380d08ccad5c52a5d5ab54c381f74a362867e717b2d961"
         },
         {
             "path": "packages/audit/tests/Unit/AuditServiceProviderFieldReadMiddlewareTest.php",
-            "line": 183,
+            "line": 185,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "74c753835095061fb15da05ec8e6b7ca8cc47ebdf4db2d468bda2d2e5c2f554f"
+            "source_sha256": "64d7bc142beaa5aa37380d08ccad5c52a5d5ab54c381f74a362867e717b2d961"
         },
         {
             "path": "packages/audit/tests/Unit/Storage/AppendOnlyAuditDatabaseTest.php",
@@ -1174,48 +1165,48 @@
         },
         {
             "path": "packages/audit/tests/Unit/Writer/AuditEventWriterFailOpenTest.php",
-            "line": 54,
+            "line": 56,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "65a7a1b4cd00fbd3a7d73f40effb4fa6e21ed916b9084df39ce6a660e4c6d449",
-            "source_sha256": "d02270b1b547dc88ee23aa797223084559ad51d2079782364c6ea2f456270db4"
+            "source_sha256": "eab2dd1899cb3caef37fc01e9ed8c41299d51773c8cef62b23ecbf92df2468d2"
         },
         {
             "path": "packages/audit/tests/Unit/Writer/AuditEventWriterFailOpenTest.php",
-            "line": 93,
+            "line": 95,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "783d2e438a136f35cabe7df9bd002f6630fbf229eba13dbf91bc29f62b59e154",
-            "source_sha256": "d02270b1b547dc88ee23aa797223084559ad51d2079782364c6ea2f456270db4"
+            "source_sha256": "eab2dd1899cb3caef37fc01e9ed8c41299d51773c8cef62b23ecbf92df2468d2"
         },
         {
             "path": "packages/audit/tests/Unit/Writer/AuditEventWriterTest.php",
-            "line": 24,
+            "line": 26,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "783d2e438a136f35cabe7df9bd002f6630fbf229eba13dbf91bc29f62b59e154",
-            "source_sha256": "4f200251083a63359232296bb7aa7ea8a3a7a4ded1e3b2e33b128fee94ac567d"
+            "source_sha256": "e33dba1005571828bf235216d05f09105a6a10a11849b5645fc4fed560f72f23"
         },
         {
             "path": "packages/audit/tests/Unit/Writer/AuditEventWriterTest.php",
-            "line": 55,
+            "line": 57,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "8ac8212ff8239a16f96b0c751f22a88aa88445953327a719e5f9b99e474590df",
-            "source_sha256": "4f200251083a63359232296bb7aa7ea8a3a7a4ded1e3b2e33b128fee94ac567d"
+            "source_sha256": "e33dba1005571828bf235216d05f09105a6a10a11849b5645fc4fed560f72f23"
         },
         {
             "path": "packages/audit/tests/Unit/Writer/AuditEventWriterTest.php",
-            "line": 71,
+            "line": 73,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "783d2e438a136f35cabe7df9bd002f6630fbf229eba13dbf91bc29f62b59e154",
-            "source_sha256": "4f200251083a63359232296bb7aa7ea8a3a7a4ded1e3b2e33b128fee94ac567d"
+            "source_sha256": "e33dba1005571828bf235216d05f09105a6a10a11849b5645fc4fed560f72f23"
         },
         {
             "path": "packages/auth/tests/Integration/Schema/AuthRuntimeSchemaAuthorityTest.php",
@@ -1579,21 +1570,21 @@
         },
         {
             "path": "packages/cli/tests/Unit/Command/Audit/MigrateCheckpointSignaturesCommandTest.php",
-            "line": 53,
+            "line": 55,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "20ef0146234219bd8d337b156a89091f18b26998819ceef2bfad1a54f7f6be71"
+            "source_sha256": "29ae72f257590abe270795cd1b9f6a73c2d463a5950fc4bd689a3af24abfdacd"
         },
         {
             "path": "packages/cli/tests/Unit/Command/Audit/PruneCommandTest.php",
-            "line": 344,
+            "line": 346,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "0ede4c125c1e1708d33554eb43b6cc3c9ff3c4bdef173065aedacd47e0f4ae2b"
+            "source_sha256": "43b1f7296a6e53c5f05218eae3c995ed43d138577d34307de9a15287e61b8b9f"
         },
         {
             "path": "packages/cli/tests/Unit/Command/BearerTokenConsoleCommandsTest.php",
@@ -3198,6 +3189,15 @@
             "source_sha256": "590b4713d68bcde32bd0a1bd9855c0cc1de70b63516b75674c2953d0d19bc517"
         },
         {
+            "path": "packages/foundation/tests/Integration/Kernel/DefinitionValidatorBootTest.php",
+            "line": 173,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
+            "line_sha256": "4cc77fbb6ab7340779691a77a5fe4b4ed48f1c8af4a57894123a3b018cc8a822",
+            "source_sha256": "fc34d5ea5e2889e9cf7bbe0e326f0925068fd309035f355b5639a6f882b67da8"
+        },
+        {
             "path": "packages/foundation/tests/Integration/Migration/SchemaAuthorityRetainedRedTest.php",
             "line": 31,
             "pattern": "doctrine_factory",
@@ -3712,84 +3712,93 @@
         },
         {
             "path": "packages/foundation/tests/Unit/Kernel/HttpKernelTest.php",
-            "line": 647,
+            "line": 452,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "f5e306c561a8f8f0335946d0be958476b63eba3e6ff38a1ffe3760f73cafe04f",
+            "source_sha256": "9bb78ec596f4fd567d2144e84fbdce9fcbad8baf8b0edb5cfdab5b6ba156e03b"
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Kernel/HttpKernelTest.php",
+            "line": 652,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "c5df3d203b8300ee94716ad3e9a33ae54b75b8e04f45a1f2255c51b29977dbe2",
-            "source_sha256": "b4c4f2a6639126b14f3fced40f6a8908c2682d3e0276a840ca45f87779360e58"
+            "source_sha256": "9bb78ec596f4fd567d2144e84fbdce9fcbad8baf8b0edb5cfdab5b6ba156e03b"
         },
         {
             "path": "packages/foundation/tests/Unit/Kernel/HttpKernelTest.php",
-            "line": 655,
+            "line": 660,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "c5df3d203b8300ee94716ad3e9a33ae54b75b8e04f45a1f2255c51b29977dbe2",
-            "source_sha256": "b4c4f2a6639126b14f3fced40f6a8908c2682d3e0276a840ca45f87779360e58"
+            "source_sha256": "9bb78ec596f4fd567d2144e84fbdce9fcbad8baf8b0edb5cfdab5b6ba156e03b"
         },
         {
             "path": "packages/foundation/tests/Unit/Kernel/HttpKernelTest.php",
-            "line": 663,
+            "line": 668,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "c5df3d203b8300ee94716ad3e9a33ae54b75b8e04f45a1f2255c51b29977dbe2",
-            "source_sha256": "b4c4f2a6639126b14f3fced40f6a8908c2682d3e0276a840ca45f87779360e58"
+            "source_sha256": "9bb78ec596f4fd567d2144e84fbdce9fcbad8baf8b0edb5cfdab5b6ba156e03b"
         },
         {
             "path": "packages/foundation/tests/Unit/Kernel/HttpKernelTest.php",
-            "line": 686,
+            "line": 691,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "c5df3d203b8300ee94716ad3e9a33ae54b75b8e04f45a1f2255c51b29977dbe2",
-            "source_sha256": "b4c4f2a6639126b14f3fced40f6a8908c2682d3e0276a840ca45f87779360e58"
+            "source_sha256": "9bb78ec596f4fd567d2144e84fbdce9fcbad8baf8b0edb5cfdab5b6ba156e03b"
         },
         {
             "path": "packages/foundation/tests/Unit/Kernel/HttpKernelTest.php",
-            "line": 697,
+            "line": 702,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "c5df3d203b8300ee94716ad3e9a33ae54b75b8e04f45a1f2255c51b29977dbe2",
-            "source_sha256": "b4c4f2a6639126b14f3fced40f6a8908c2682d3e0276a840ca45f87779360e58"
+            "source_sha256": "9bb78ec596f4fd567d2144e84fbdce9fcbad8baf8b0edb5cfdab5b6ba156e03b"
         },
         {
             "path": "packages/foundation/tests/Unit/Kernel/HttpKernelTest.php",
-            "line": 708,
+            "line": 713,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "c5df3d203b8300ee94716ad3e9a33ae54b75b8e04f45a1f2255c51b29977dbe2",
-            "source_sha256": "b4c4f2a6639126b14f3fced40f6a8908c2682d3e0276a840ca45f87779360e58"
+            "source_sha256": "9bb78ec596f4fd567d2144e84fbdce9fcbad8baf8b0edb5cfdab5b6ba156e03b"
         },
         {
             "path": "packages/foundation/tests/Unit/Kernel/HttpKernelTest.php",
-            "line": 723,
+            "line": 728,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "c5df3d203b8300ee94716ad3e9a33ae54b75b8e04f45a1f2255c51b29977dbe2",
-            "source_sha256": "b4c4f2a6639126b14f3fced40f6a8908c2682d3e0276a840ca45f87779360e58"
+            "source_sha256": "9bb78ec596f4fd567d2144e84fbdce9fcbad8baf8b0edb5cfdab5b6ba156e03b"
         },
         {
             "path": "packages/foundation/tests/Unit/Kernel/HttpKernelTest.php",
-            "line": 888,
+            "line": 893,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "c5df3d203b8300ee94716ad3e9a33ae54b75b8e04f45a1f2255c51b29977dbe2",
-            "source_sha256": "b4c4f2a6639126b14f3fced40f6a8908c2682d3e0276a840ca45f87779360e58"
+            "source_sha256": "9bb78ec596f4fd567d2144e84fbdce9fcbad8baf8b0edb5cfdab5b6ba156e03b"
         },
         {
             "path": "packages/foundation/tests/Unit/Kernel/HttpKernelTest.php",
-            "line": 951,
+            "line": 956,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "b4c4f2a6639126b14f3fced40f6a8908c2682d3e0276a840ca45f87779360e58"
+            "source_sha256": "9bb78ec596f4fd567d2144e84fbdce9fcbad8baf8b0edb5cfdab5b6ba156e03b"
         },
         {
             "path": "packages/foundation/tests/Unit/Kernel/ProviderDrivenRouteRegistrationTest.php",
@@ -4234,84 +4243,84 @@
         },
         {
             "path": "packages/mcp/tests/Integration/Approval/McpApprovalGateLifecycleTest.php",
-            "line": 76,
+            "line": 78,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "ca61aee2525e2ffe56ea9e4ec7a9d83056768ddcbc355d840156c65afa4de753",
-            "source_sha256": "664ac053d0b16bbdbf5c6805701c6627b3835fcfa27f35a7c753fa3775e369e7"
+            "source_sha256": "1044db27193b17b7e909339d402b2ad88079fb23868d92060764b2fa886136e1"
         },
         {
             "path": "packages/mcp/tests/Integration/Approval/McpApprovalGateLifecycleTest.php",
-            "line": 665,
+            "line": 667,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "6694cac000d0e7ec8c00d6e1e876ee630c741025a446bb869c986462fe8b7f86",
-            "source_sha256": "664ac053d0b16bbdbf5c6805701c6627b3835fcfa27f35a7c753fa3775e369e7"
+            "source_sha256": "1044db27193b17b7e909339d402b2ad88079fb23868d92060764b2fa886136e1"
         },
         {
             "path": "packages/mcp/tests/Integration/Approval/McpApprovalGateLifecycleTest.php",
-            "line": 693,
+            "line": 695,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "2168a3cb723063a0aee9ca82e7ab4a617d89a948d537ed6c92bb3eb03df3dd07",
-            "source_sha256": "664ac053d0b16bbdbf5c6805701c6627b3835fcfa27f35a7c753fa3775e369e7"
+            "source_sha256": "1044db27193b17b7e909339d402b2ad88079fb23868d92060764b2fa886136e1"
         },
         {
             "path": "packages/mcp/tests/Integration/Audit/McpAuditStagesTest.php",
-            "line": 59,
+            "line": 61,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "ca61aee2525e2ffe56ea9e4ec7a9d83056768ddcbc355d840156c65afa4de753",
-            "source_sha256": "c554a89a80917f3e20f46472d2c15a866ebec8a2101a103666d923a64408b276"
+            "source_sha256": "11c013b0faa37440d1a365b43dbd91712811c983f48e0c72fe39129eb16586d0"
         },
         {
             "path": "packages/mcp/tests/Integration/Audit/McpAuditStagesTest.php",
-            "line": 365,
+            "line": 367,
             "pattern": "sqlite_dsn_token",
             "class": "test",
             "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
             "line_sha256": "8d6fb066e63430ace0b5a43798500a855d9c40fbf96d6b133fe5efc7115f5e00",
-            "source_sha256": "c554a89a80917f3e20f46472d2c15a866ebec8a2101a103666d923a64408b276"
+            "source_sha256": "11c013b0faa37440d1a365b43dbd91712811c983f48e0c72fe39129eb16586d0"
         },
         {
             "path": "packages/mcp/tests/Integration/Audit/McpDurableWriteAuditTest.php",
-            "line": 54,
+            "line": 56,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "ca61aee2525e2ffe56ea9e4ec7a9d83056768ddcbc355d840156c65afa4de753",
-            "source_sha256": "46b57911ba08ad194f5cca88b44bfdf83c75f5cbde6334c3e14e9d03fb474535"
+            "source_sha256": "bcab885cc36c371a86b3ff09a69cd33d72ece464b267904cd154a0f777d7e762"
         },
         {
             "path": "packages/mcp/tests/Integration/Audit/McpDurableWriteAuditTest.php",
-            "line": 226,
+            "line": 228,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "6694cac000d0e7ec8c00d6e1e876ee630c741025a446bb869c986462fe8b7f86",
-            "source_sha256": "46b57911ba08ad194f5cca88b44bfdf83c75f5cbde6334c3e14e9d03fb474535"
+            "source_sha256": "bcab885cc36c371a86b3ff09a69cd33d72ece464b267904cd154a0f777d7e762"
         },
         {
             "path": "packages/mcp/tests/Integration/Audit/McpDurableWriteAuditTest.php",
-            "line": 249,
+            "line": 251,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "2168a3cb723063a0aee9ca82e7ab4a617d89a948d537ed6c92bb3eb03df3dd07",
-            "source_sha256": "46b57911ba08ad194f5cca88b44bfdf83c75f5cbde6334c3e14e9d03fb474535"
+            "source_sha256": "bcab885cc36c371a86b3ff09a69cd33d72ece464b267904cd154a0f777d7e762"
         },
         {
             "path": "packages/mcp/tests/Integration/Audit/McpDurableWriteAuditTest.php",
-            "line": 265,
+            "line": 267,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "2168a3cb723063a0aee9ca82e7ab4a617d89a948d537ed6c92bb3eb03df3dd07",
-            "source_sha256": "46b57911ba08ad194f5cca88b44bfdf83c75f5cbde6334c3e14e9d03fb474535"
+            "source_sha256": "bcab885cc36c371a86b3ff09a69cd33d72ece464b267904cd154a0f777d7e762"
         },
         {
             "path": "packages/mcp/tests/Unit/Auth/DurableBearerTokenAuthTest.php",
@@ -6021,7 +6030,7 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
-            "source_sha256": "63c4e2587d38776a9d46b79934d16d5f16afd8aeb2ca04179972a1f1a80357ab"
+            "source_sha256": "b62c80ce387118f76c3184fb555fd4c1dbaf9f0e9ecf7e6598849e3e32a71179"
         },
         {
             "path": "tests/Integration/AdminSurface/AdminSurfaceRouteWiringIntegrationTest.php",
@@ -6231,6 +6240,15 @@
             "source_sha256": "b67a2ed3947f44fe5f3df34c6305e5f3abd05def81ce23fe96226b017635089a"
         },
         {
+            "path": "tests/Integration/Listing/KernelBoundRequestContextTest.php",
+            "line": 69,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
+            "line_sha256": "026a4e7a403a1f2037c487430489e65c5d1f785ad1bb8b5b2d439f7361d58872",
+            "source_sha256": "1c4d17009bcfe7adb083306284b334a604b62e664122abdadce08fd40da5243f"
+        },
+        {
             "path": "tests/Integration/Locking/ConcurrentSaveConflictTest.php",
             "line": 51,
             "pattern": "dbal_factory",
@@ -6265,6 +6283,33 @@
             "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
             "line_sha256": "b2f0d42b074397dacb97ac8eec827d7501649829a6f5f3a43e8cd5abe3c6befd",
             "source_sha256": "0b4a425c3a95337cdede3d59ae0d7d7aca55a683034283551ea34b095400154f"
+        },
+        {
+            "path": "tests/Integration/Migration/AuditRuntimeSchemaAuthorityTest.php",
+            "line": 24,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "e727ae93adfe3e210f7873a07e8d0ea507eaa7226aa130cfc786e744867683ba"
+        },
+        {
+            "path": "tests/Integration/Migration/AuditRuntimeSchemaAuthorityTest.php",
+            "line": 33,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "e727ae93adfe3e210f7873a07e8d0ea507eaa7226aa130cfc786e744867683ba"
+        },
+        {
+            "path": "tests/Integration/Migration/AuditRuntimeSchemaAuthorityTest.php",
+            "line": 42,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "e727ae93adfe3e210f7873a07e8d0ea507eaa7226aa130cfc786e744867683ba"
         },
         {
             "path": "tests/Integration/Migration/CacheRuntimeSchemaAuthorityTest.php",
@@ -6381,7 +6426,7 @@
             "class": "test",
             "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
             "line_sha256": "93bf8fc5c2e99155180cbd01d7248e3e4c739688a3f9088004c687feaad566b7",
-            "source_sha256": "b73dc54dde69851e78d4249e156d3239c8e1baf5c65df84270b30fcbbcad9ebe"
+            "source_sha256": "b17479c916b801304ca107b1bbf4e1648dd9e674d4341f282609f2016b745066"
         },
         {
             "path": "tests/Integration/Oidc/OidcDiscoveryIntegrationTest.php",
@@ -6390,7 +6435,7 @@
             "class": "test",
             "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
             "line_sha256": "93bf8fc5c2e99155180cbd01d7248e3e4c739688a3f9088004c687feaad566b7",
-            "source_sha256": "809d9e721fe59eceaef56c94ade6397aeadf2ff19335f1b224a2efef3471bb76"
+            "source_sha256": "351f5f63896e06a566d1ae177d3fa583d2d8af38e38df6912b64828487255a6a"
         },
         {
             "path": "tests/Integration/Oidc/OidcJwksIntegrationTest.php",
@@ -6399,7 +6444,7 @@
             "class": "test",
             "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
             "line_sha256": "93bf8fc5c2e99155180cbd01d7248e3e4c739688a3f9088004c687feaad566b7",
-            "source_sha256": "d1c53ce54b71a9ded2e1d9be82c5c0b5c0e502c41ffb7884a6a8dc4573cd8e43"
+            "source_sha256": "a23489fb5f09bd7a0ee7b5becbb6e8fe3e84214cd279973fba705ca62f70a397"
         },
         {
             "path": "tests/Integration/Oidc/OidcTokenIntegrationTest.php",
@@ -6408,7 +6453,7 @@
             "class": "test",
             "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
             "line_sha256": "93bf8fc5c2e99155180cbd01d7248e3e4c739688a3f9088004c687feaad566b7",
-            "source_sha256": "5e5e9b69d813fb4818c1bbb8c6a3070d7491832420b23c3602c49f18aa4e059a"
+            "source_sha256": "5cedd90974ae75a5ef40795db93acbb0dd8b098d9588cc365accaa415dee933a"
         },
         {
             "path": "tests/Integration/Phase11/AuthorizationPipelineTest.php",
@@ -6444,7 +6489,7 @@
             "class": "test",
             "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
             "line_sha256": "93bf8fc5c2e99155180cbd01d7248e3e4c739688a3f9088004c687feaad566b7",
-            "source_sha256": "a05e9956e38107289e68e5c82f25491eae928477a00754139c5f172d8067927f"
+            "source_sha256": "dc3acc2cb291554fa245945fdabe43b9225b1668ba0cc5f6d7da4d059b6a18de"
         },
         {
             "path": "tests/Integration/Phase13/SsrHttpKernelIntegrationTest.php",
@@ -6988,12 +7033,12 @@
         },
         {
             "path": "tests/Integration/PhaseN/Mcp/McpApprovalDecisionSurfaceTest.php",
-            "line": 114,
+            "line": 112,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
-            "source_sha256": "083cbbe31a6c4f794fdc8e31cf5d9587f93d921d06035149820d0215780b56c9"
+            "source_sha256": "7bad7e342c05885b3beeda4f973227bbb10c5130e8230da4c5120af463b6bfc3"
         },
         {
             "path": "tests/Integration/PhaseN/Mcp/McpToolsCallSchemaEnforcementTest.php",
@@ -7011,16 +7056,16 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
-            "source_sha256": "8b7bcb762fd2e3357deb007715c8580b7b81d08f3338cc8d07e00eecd6a55bad"
+            "source_sha256": "55e0fcf01b3108be2ba57f00265aff66e9ea101f8958b93aff22485fbacfacee"
         },
         {
             "path": "tests/Integration/PhaseOcapAudit/OcapAuditEndpointTest.php",
-            "line": 74,
+            "line": 75,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
-            "source_sha256": "d6a34e32faf3ba5a753f9a69c3905ce9532041aecff48cdeecd04865ecc5178c"
+            "source_sha256": "dcf4f116af9d669d3198d34dbf06a68994a1f1e2ca33c59864f6775068ffe8ce"
         },
         {
             "path": "tests/Integration/PhaseQueueAdmin/QueueAdminEndpointsTest.php",

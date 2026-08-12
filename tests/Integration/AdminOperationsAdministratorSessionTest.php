@@ -25,7 +25,6 @@ use Waaseyaa\Api\ApiServiceProvider;
 use Waaseyaa\Audit\AuditedFieldRead;
 use Waaseyaa\Audit\Bootstrap\IdentityBootstrapReader;
 use Waaseyaa\Audit\Bootstrap\SessionBootstrapReader;
-use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
 use Waaseyaa\Audit\Writer\DatabaseStrictPrivilegedReadLedger;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityType;
@@ -39,6 +38,7 @@ use Waaseyaa\Foundation\Kernel\BuiltinRouteRegistrar;
 use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpPipeline;
 use Waaseyaa\Routing\WaaseyaaRouter;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 use Waaseyaa\User\Middleware\SessionMiddleware;
 use Waaseyaa\User\User;
 
@@ -95,7 +95,7 @@ final class AdminOperationsAdministratorSessionTest extends TestCase
         $administrator->enforceIsNew();
         $this->entityTypeManager->getRepository('user')->save($administrator, validate: false);
 
-        new AuditEventSchemaHandler($this->database)->ensureSchema();
+        RuntimeSchemaMigrations::audit($this->database);
         $this->capabilities = new InMemoryCapabilityRegistry();
         $this->capabilities->register(new CapabilityDeclaration(
             issuer: 'http.identity-bootstrap',

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Audit\Tests\Integration;
 
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -41,7 +43,7 @@ final class OperationApprovalStoreListPendingTest extends TestCase
     protected function setUp(): void
     {
         $this->database = DBALDatabase::createSqlite();
-        new ApprovalEventSchema($this->database)->ensure();
+        RuntimeSchemaMigrations::audit($this->database);
         $this->clock = new MutableEntityClock(new \DateTimeImmutable(self::START, new \DateTimeZone('UTC')));
         $this->store = new DatabaseOperationApprovalStore($this->countingDatabase(), $this->clock, ttlSeconds: 900);
     }

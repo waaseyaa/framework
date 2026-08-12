@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Audit\Tests\Integration;
 
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Access\Capability\CapabilityActorSemantics;
@@ -21,7 +23,7 @@ final class StrictPrivilegedReadLedgerTest extends TestCase
     public function reservation_and_finalization_are_durable_append_only_events_without_values(): void
     {
         $database = DBALDatabase::createSqlite();
-        (new AuditEventSchemaHandler($database))->ensureSchema();
+        RuntimeSchemaMigrations::audit($database);
         $ledger = new DatabaseStrictPrivilegedReadLedger($database);
 
         $receipt = $ledger->reserve($this->descriptor());
@@ -43,7 +45,7 @@ final class StrictPrivilegedReadLedgerTest extends TestCase
     public function reservation_and_success_share_the_callers_database_transaction(): void
     {
         $database = DBALDatabase::createSqlite();
-        (new AuditEventSchemaHandler($database))->ensureSchema();
+        RuntimeSchemaMigrations::audit($database);
         $ledger = new DatabaseStrictPrivilegedReadLedger($database);
         $transaction = $database->transaction('entity-write');
 
@@ -58,7 +60,7 @@ final class StrictPrivilegedReadLedgerTest extends TestCase
     public function batch_reservation_and_finalization_preserve_entity_scoped_evidence(): void
     {
         $database = DBALDatabase::createSqlite();
-        (new AuditEventSchemaHandler($database))->ensureSchema();
+        RuntimeSchemaMigrations::audit($database);
         $ledger = new DatabaseStrictPrivilegedReadLedger($database);
         $first = $this->descriptor();
         $second = new PrivilegedReadDescriptor(
@@ -99,7 +101,7 @@ final class StrictPrivilegedReadLedgerTest extends TestCase
     public function empty_reservation_batches_are_rejected_before_opening_a_transaction(): void
     {
         $database = DBALDatabase::createSqlite();
-        (new AuditEventSchemaHandler($database))->ensureSchema();
+        RuntimeSchemaMigrations::audit($database);
         $ledger = new DatabaseStrictPrivilegedReadLedger($database);
 
         $this->expectException(\InvalidArgumentException::class);
@@ -110,7 +112,7 @@ final class StrictPrivilegedReadLedgerTest extends TestCase
     public function empty_finalization_batches_are_rejected_before_opening_a_transaction(): void
     {
         $database = DBALDatabase::createSqlite();
-        (new AuditEventSchemaHandler($database))->ensureSchema();
+        RuntimeSchemaMigrations::audit($database);
         $ledger = new DatabaseStrictPrivilegedReadLedger($database);
 
         $this->expectException(\InvalidArgumentException::class);
@@ -121,7 +123,7 @@ final class StrictPrivilegedReadLedgerTest extends TestCase
     public function duplicate_receipts_roll_back_the_whole_finalization_batch(): void
     {
         $database = DBALDatabase::createSqlite();
-        (new AuditEventSchemaHandler($database))->ensureSchema();
+        RuntimeSchemaMigrations::audit($database);
         $ledger = new DatabaseStrictPrivilegedReadLedger($database);
         $receipt = $ledger->reserve($this->descriptor());
 
@@ -145,7 +147,7 @@ final class StrictPrivilegedReadLedgerTest extends TestCase
     public function unknown_or_already_finalized_receipts_are_rejected(): void
     {
         $database = DBALDatabase::createSqlite();
-        (new AuditEventSchemaHandler($database))->ensureSchema();
+        RuntimeSchemaMigrations::audit($database);
         $ledger = new DatabaseStrictPrivilegedReadLedger($database);
         $receipt = $ledger->reserve($this->descriptor());
         $ledger->finalize($receipt, PrivilegedReadOutcome::Failed);
@@ -158,7 +160,7 @@ final class StrictPrivilegedReadLedgerTest extends TestCase
     public function interrupted_reservation_remains_visible_and_schema_forbids_conflicting_finalization_events(): void
     {
         $database = DBALDatabase::createSqlite();
-        (new AuditEventSchemaHandler($database))->ensureSchema();
+        RuntimeSchemaMigrations::audit($database);
         $ledger = new DatabaseStrictPrivilegedReadLedger($database);
         $receipt = $ledger->reserve($this->descriptor());
 

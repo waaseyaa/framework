@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Tests\Unit\Command\Audit;
 
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -342,7 +344,7 @@ final class PruneCommandTest extends TestCase
     private function makeSealedRealDb(): DBALDatabase
     {
         $db = DBALDatabase::createSqlite();
-        new AuditEventSchemaHandler($db)->ensureSchema();
+        RuntimeSchemaMigrations::audit($db);
 
         return $db;
     }

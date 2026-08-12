@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Mcp\Tests\Integration\Audit;
 
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -58,7 +60,7 @@ final class McpAuditStagesTest extends TestCase
         self::$executed = false;
         $this->db = DBALDatabase::createSqlite();
         AuthSchema::install($this->db);
-        new AuditEventSchemaHandler($this->db)->ensureSchema();
+        RuntimeSchemaMigrations::audit($this->db);
         $this->dispatcher = new EventDispatcher();
         $this->dispatcher->addSubscriber(new McpDispatchAuditListener(
             new AuditEventWriter(new AppendOnlyAuditDatabase($this->db)),

@@ -3523,7 +3523,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/api",
-                "reference": "617ebd823cf541eefee02af5105049776db46b3a"
+                "reference": "eda0d014baa451744f251f956f931703005e8546"
             },
             "require": {
                 "php": ">=8.5",
@@ -3568,6 +3568,7 @@
             "type": "library",
             "extra": {
                 "waaseyaa": {
+                    "migrations": "migrations",
                     "providers": [
                         "Waaseyaa\\Api\\ApiServiceProvider"
                     ]
@@ -3652,7 +3653,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/audit",
-                "reference": "8cb33dc43ee487330461475c0afe6a8ac0eba126"
+                "reference": "7800a6f4f9dcc009663a1793aded6e5db1b5e265"
             },
             "require": {
                 "php": ">=8.5",
@@ -3673,7 +3674,8 @@
                 "waaseyaa": {
                     "providers": [
                         "Waaseyaa\\Audit\\AuditServiceProvider"
-                    ]
+                    ],
+                    "migrations": "migrations"
                 },
                 "branch-alias": {
                     "dev-main": "0.1.x-dev",
@@ -3704,7 +3706,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/auth",
-                "reference": "b1cb25ef2fe2ca7c1fb7dbd17e8ae23cbe94b75c"
+                "reference": "d32d2abc37991b15b6b796ecdfb8d57f02a65fcf"
             },
             "require": {
                 "php": ">=8.5",
@@ -3722,6 +3724,7 @@
             "type": "library",
             "extra": {
                 "waaseyaa": {
+                    "migrations": "migrations",
                     "providers": [
                         "Waaseyaa\\Auth\\AuthServiceProvider"
                     ]
@@ -3851,7 +3854,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/cache",
-                "reference": "813e9e3eb52d98dd1420bf64f9dc65473b31511c"
+                "reference": "da129078749a450c8805390947b956c414dd5928"
             },
             "require": {
                 "php": ">=8.5",
@@ -3867,6 +3870,9 @@
             },
             "type": "library",
             "extra": {
+                "waaseyaa": {
+                    "migrations": "migrations"
+                },
                 "branch-alias": {
                     "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
@@ -4373,7 +4379,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/foundation",
-                "reference": "b3d2ded2835dc6774c82afabcb98116a28ac5d27"
+                "reference": "f91eda7c2aa05f23c66f1f5e6b4740aeec2427a9"
             },
             "require": {
                 "doctrine/dbal": "^4.0",
@@ -4399,6 +4405,7 @@
             "type": "library",
             "extra": {
                 "waaseyaa": {
+                    "migrations": "migrations",
                     "providers": [
                         "Waaseyaa\\Foundation\\FoundationServiceProvider",
                         "Waaseyaa\\Foundation\\MercureMonitorServiceProvider"
@@ -5426,7 +5433,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/publishing",
-                "reference": "99e00b2a9c27ba42bd61811f08cf2bd6f6d05647"
+                "reference": "878e1ae505b08f9ee4b37a06cd7019ddff4ad753"
             },
             "require": {
                 "php": ">=8.5",
@@ -5443,6 +5450,9 @@
             },
             "type": "library",
             "extra": {
+                "waaseyaa": {
+                    "migrations": "migrations"
+                },
                 "branch-alias": {
                     "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"
@@ -5834,7 +5844,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/state",
-                "reference": "e500b492be23f172bac2737374276b34fc98fabc"
+                "reference": "95e4e711f94e68504b75f378d21a78c02b91158f"
             },
             "require": {
                 "php": ">=8.5",
@@ -5845,6 +5855,9 @@
             },
             "type": "library",
             "extra": {
+                "waaseyaa": {
+                    "migrations": "migrations"
+                },
                 "branch-alias": {
                     "dev-main": "0.1.x-dev",
                     "dev-develop/v1.1": "0.1.x-dev"

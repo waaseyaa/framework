@@ -438,15 +438,20 @@ final class HttpKernelTest extends TestCase
     #[Test]
     public function real_kernel_stack_installs_community_resolution_before_principal_construction(): void
     {
+        $databasePath = $this->projectRoot . '/audit-stack.sqlite';
         file_put_contents(
             $this->projectRoot . '/config/waaseyaa.php',
-            "<?php return ['database' => ':memory:', 'environment' => 'testing', 'community_id' => 'configured-community'];",
+            "<?php return ['database' => " . var_export($databasePath, true) . ", 'environment' => 'testing', 'community_id' => 'configured-community'];",
         );
         $this->writeInstalledPackageProviders([
             'waaseyaa/foundation' => ['Waaseyaa\\Foundation\\FoundationServiceProvider'],
             'waaseyaa/user' => ['Waaseyaa\\User\\UserServiceProvider'],
             'waaseyaa/audit' => ['Waaseyaa\\Audit\\AuditServiceProvider'],
         ]);
+
+        $database = DBALDatabase::createSqlite($databasePath, 'testing');
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::audit($database);
+        $database->getConnection()->close();
 
         $kernel = new HttpKernel($this->projectRoot);
         new \ReflectionMethod(AbstractKernel::class, 'boot')->invoke($kernel);

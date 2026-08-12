@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Audit\Tests\Integration;
 
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -31,7 +33,7 @@ final class AuditCheckpointAppendOnlyTest extends TestCase
     protected function setUp(): void
     {
         $this->raw = DBALDatabase::createSqlite();
-        new AuditEventSchemaHandler($this->raw)->ensureSchema();
+        RuntimeSchemaMigrations::audit($this->raw);
         $this->auditDb = new AppendOnlyAuditDatabase($this->raw);
     }
 

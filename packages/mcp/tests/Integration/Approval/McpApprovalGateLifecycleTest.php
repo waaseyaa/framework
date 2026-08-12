@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Mcp\Tests\Integration\Approval;
 
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -74,8 +76,8 @@ final class McpApprovalGateLifecycleTest extends TestCase
         self::$lastArguments = null;
         self::$sequenceLog = null;
         $this->db = DBALDatabase::createSqlite();
-        new StrictAuditLedgerSchema($this->db)->ensure();
-        new ApprovalEventSchema($this->db)->ensure();
+        RuntimeSchemaMigrations::audit($this->db);
+        RuntimeSchemaMigrations::audit($this->db);
         $this->clock = new TestClock(new \DateTimeImmutable('2026-08-03 12:00:00', new \DateTimeZone('UTC')));
         $this->store = new DatabaseOperationApprovalStore($this->db, $this->clock, 900);
     }

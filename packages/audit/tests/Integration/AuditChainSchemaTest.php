@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Audit\Tests\Integration;
 
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -34,6 +36,7 @@ final class AuditChainSchemaTest extends TestCase
     protected function setUp(): void
     {
         $this->raw = DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::audit($this->raw);
         $this->handler = new AuditEventSchemaHandler($this->raw);
     }
 
@@ -109,17 +112,14 @@ final class AuditChainSchemaTest extends TestCase
     }
 
     #[Test]
-    public function fresh_genesis_is_authenticated_when_a_derived_key_is_supplied(): void
+    public function coordinator_seeded_genesis_is_explicitly_unsigned_pending_key_custody_migration(): void
     {
         $key = random_bytes(32);
-        new AuditEventSchemaHandler($this->raw, $key)->ensureSchema();
+        RuntimeSchemaMigrations::audit($this->raw);
 
         $signature = (string) $this->fetchAllCheckpoints()[0]['signature'];
 
-        self::assertSame(
-            'hmac-sha256.hkdf-v1:' . hash_hmac('sha256', (string) $this->fetchAllCheckpoints()[0]['checkpoint_hash'], $key),
-            $signature,
-        );
+        self::assertSame('', $signature);
         self::assertFalse(str_contains($signature, $key));
     }
 
@@ -148,7 +148,7 @@ final class AuditChainSchemaTest extends TestCase
 
         // First call: sets up audit_event and checkpoint table, inserts genesis
         // with no events (segment_end_id = 0).
-        $handler->ensureSchema();
+        RuntimeSchemaMigrations::audit($raw);
 
         // Write two audit events through the append-only decorator.
         $auditDb = new AppendOnlyAuditDatabase($raw);
@@ -198,7 +198,7 @@ final class AuditChainSchemaTest extends TestCase
 
         // ensureSchema() on this DB — first time seeing it — should produce
         // genesis with segment_end_id = 2 (the current MAX(id)).
-        $handler2->ensureSchema();
+        RuntimeSchemaMigrations::audit($raw2);
 
         $checkpoints2 = iterator_to_array(
             $raw2->select('audit_checkpoint')->execute(),
