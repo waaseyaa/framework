@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Database;
 
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Driver\Connection as DriverConnection;
 
 /**
  * Executable S1 SQLite connection and path invariants.
@@ -15,6 +16,9 @@ final class SqliteTopology
     public const string INVALID_PATH = 'S1-DB001';
     public const string PRODUCTION_MEMORY = 'S1-DB002';
     public const string PRAGMA_MISMATCH = 'S1-DB003';
+
+    /** @var list<string> */
+    public const array MEMORY_ENVIRONMENTS = ['local', 'dev', 'development', 'testing'];
 
     public static function assertSupportedPath(string $path): void
     {
@@ -42,12 +46,28 @@ final class SqliteTopology
     {
         self::assertSupportedPath($path);
 
-        if ($path === ':memory:' && strtolower($environment) === 'production') {
+        if ($path === ':memory:' && !in_array(strtolower($environment), self::MEMORY_ENVIRONMENTS, true)) {
             throw new \RuntimeException(sprintf(
-                '%s: The S1 production profile requires one file-backed authoritative SQLite database; :memory: is development/test only.',
+                '%s: The S1 non-development profile requires file-backed SQLite; :memory: is allowed only for local, dev, development, and testing.',
                 self::PRODUCTION_MEMORY,
             ));
         }
+    }
+
+    /** @param array<string, mixed> $config */
+    public static function resolveEnvironment(array $config): string
+    {
+        $configured = $config['environment'] ?? null;
+        if (is_string($configured) && $configured !== '') {
+            return $configured;
+        }
+
+        $environment = getenv('APP_ENV');
+        if (is_string($environment) && $environment !== '') {
+            return $environment;
+        }
+
+        return 'production';
     }
 
     public static function configureAndVerify(Connection $connection, bool $fileBacked): void
@@ -68,6 +88,28 @@ final class SqliteTopology
             'busy_timeout' => (int) $connection->fetchOne('PRAGMA busy_timeout'),
             'journal_mode' => strtolower((string) $connection->fetchOne('PRAGMA journal_mode')),
         ];
+        self::throwForPragmaMismatches($actual, $fileBacked);
+    }
+
+    public static function configureAndVerifyDriverConnection(DriverConnection $connection, bool $fileBacked): void
+    {
+        $connection->exec('PRAGMA foreign_keys = ON');
+        $connection->exec('PRAGMA busy_timeout = ' . self::BUSY_TIMEOUT_MS);
+        if ($fileBacked) {
+            $connection->exec('PRAGMA journal_mode = WAL');
+        }
+
+        $actual = [
+            'foreign_keys' => (int) $connection->query('PRAGMA foreign_keys')->fetchOne(),
+            'busy_timeout' => (int) $connection->query('PRAGMA busy_timeout')->fetchOne(),
+            'journal_mode' => strtolower((string) $connection->query('PRAGMA journal_mode')->fetchOne()),
+        ];
+        self::throwForPragmaMismatches($actual, $fileBacked);
+    }
+
+    /** @param array{foreign_keys: int, busy_timeout: int, journal_mode: string} $actual */
+    private static function throwForPragmaMismatches(array $actual, bool $fileBacked): void
+    {
         $mismatches = [];
 
         if ($actual['foreign_keys'] !== 1) {

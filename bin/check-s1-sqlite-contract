@@ -60,6 +60,60 @@ function s1SqliteRequires(string $path, array $needles, array &$errors): void
 
 try {
     $contract = s1SqliteReadJson($contractPath);
+    $expectedContract = [
+        'schema_version' => 1,
+        'contract_version' => 's1-sqlite-v1',
+        'profile' => 'S1',
+        'authority' => [
+            'application_nodes' => 1,
+            'engine' => 'sqlite',
+            'authoritative_database_files' => 1,
+            'filesystem' => 'local-non-network',
+            'consumer_filesystem' => 'ext4',
+        ],
+        'connection' => [
+            'foreign_keys' => true,
+            'journal_mode' => 'wal',
+            'busy_timeout_ms' => 5000,
+            'verify_effective_pragmas' => true,
+        ],
+        'optional_search_projection' => [
+            'maximum_files' => 1,
+            'engine' => 'sqlite',
+            'authoritative' => false,
+            'must_be_rebuildable' => true,
+            'inherits_connection_contract' => true,
+        ],
+        'environment' => [
+            'in_memory_allowed' => ['local', 'dev', 'development', 'testing'],
+            'in_memory_refused' => ['all-other-environments'],
+        ],
+        'refused' => [
+            'dsn_or_uri_shaped_paths' => true,
+            'unc_or_device_paths' => true,
+            'alternate_databases' => ['mysql', 'mariadb', 'postgresql'],
+            'filesystems' => ['nfs', 'smb', 'object-mounted', 'clustered'],
+            'topologies' => [
+                'horizontal-application-scaling',
+                'replication',
+                'database-failover',
+                'H1',
+            ],
+        ],
+        'diagnostics' => [
+            'invalid_path' => 'S1-DB001',
+            'production_memory' => 'S1-DB002',
+            'pragma_mismatch' => 'S1-DB003',
+        ],
+        'verification' => [
+            'repository_command' => 'php bin/check-s1-sqlite-contract',
+            'ci_command' => 'php bin/check-s1-sqlite-contract --ci',
+            'installed_artifact_command' => 'tests/PackagedForm/check-s1-sqlite-artifact',
+            'artifact_uses_path_repository' => false,
+            'forge_is_authority' => false,
+        ],
+    ];
+    s1SqliteSame($contract, $expectedContract, 'complete contract', $errors);
     s1SqliteSame($contract['schema_version'] ?? null, 1, 'schema_version', $errors);
     s1SqliteSame($contract['contract_version'] ?? null, 's1-sqlite-v1', 'contract_version', $errors);
     s1SqliteSame($contract['profile'] ?? null, 'S1', 'profile', $errors);
@@ -83,7 +137,7 @@ try {
         'must_be_rebuildable' => true,
         'inherits_connection_contract' => true,
     ], 'optional_search_projection', $errors);
-    s1SqliteSame($contract['environment']['in_memory_refused'] ?? null, ['production'], 'environment.in_memory_refused', $errors);
+    s1SqliteSame($contract['environment']['in_memory_refused'] ?? null, ['all-other-environments'], 'environment.in_memory_refused', $errors);
     s1SqliteSame($contract['refused']['alternate_databases'] ?? null, ['mysql', 'mariadb', 'postgresql'], 'refused.alternate_databases', $errors);
     s1SqliteSame($contract['diagnostics'] ?? null, [
         'invalid_path' => 'S1-DB001',
@@ -117,7 +171,12 @@ try {
     ], $errors);
     s1SqliteRequires($root . '/packages/database-legacy/src/DBALDatabase.php', [
         'SqliteTopology::assertSupportedPath',
+        'SqliteDriverMiddleware',
         'SqliteTopology::configureAndVerify',
+    ], $errors);
+    s1SqliteRequires($root . '/packages/database-legacy/src/SqliteDriverMiddleware.php', [
+        'configureAndVerifyDriverConnection',
+        'function connect',
     ], $errors);
     s1SqliteRequires($root . '/packages/foundation/src/Kernel/Bootstrap/DatabaseBootstrapper.php', [
         'SqliteTopology::assertEnvironmentAllowsPath',
@@ -127,6 +186,18 @@ try {
         'rebuildable projection',
         'non-authoritative',
         'S1 SQLite topology',
+    ], $errors);
+    s1SqliteRequires($root . '/packages/search/src/SearchServiceProvider.php', [
+        'assertEnvironmentAllowsPath($searchDb, $environment)',
+        'DatabaseBootstrapper::absolutize($searchDb, $this->projectRoot)',
+        'DBALDatabase::createSqlite($searchDb, $environment)',
+    ], $errors);
+    s1SqliteRequires($root . '/packages/cli/src/Handler/DbInitHandler.php', [
+        'assertEnvironmentAllowsPath($dbPath, $environment)',
+        'DBALDatabase::createSqlite($dbPath, $environment)',
+    ], $errors);
+    s1SqliteRequires($root . '/packages/cli/src/Provider/MigrateServiceProvider.php', [
+        'DBALDatabase::createSqlite($dbPath, SqliteTopology::resolveEnvironment($this->config))',
     ], $errors);
     s1SqliteRequires($root . '/docs/specs/infrastructure.md', [
         '[S1 SQLite topology](s1-sqlite-topology.md)',
@@ -141,6 +212,9 @@ try {
     ], $errors);
     s1SqliteRequires($root . '/tests/PackagedForm/check-s1-sqlite-artifact', [
         'waaseyaa-database-legacy',
+        'status --porcelain=v1 -- packages/database-legacy',
+        'archive --format=tar HEAD packages/database-legacy',
+        'reproduced.tar.gz',
         'tar -xzf',
         'vendor/waaseyaa/database-legacy',
         's1-sqlite-artifact-probe.php',
@@ -155,6 +229,9 @@ try {
     ], $errors);
 
     $charter = (string) file_get_contents($root . '/docs/governance/charter.md');
+    if (!str_contains($charter, 'support/s1-sqlite-v1.json')) {
+        $errors[] = 'docs/governance/charter.md omits the positive S1 machine-authority reference';
+    }
     foreach (['PostgreSQL as mandatory', 'MySQL is optional but encouraged', 'SQLite/Postgres'] as $forbidden) {
         if (str_contains($charter, $forbidden)) {
             $errors[] = "docs/governance/charter.md retains unsupported product claim: {$forbidden}";
@@ -181,6 +258,36 @@ try {
             }
         }
     }
+
+    $sqliteConstruction = [];
+    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root . '/packages'));
+    foreach ($iterator as $file) {
+        if (!$file->isFile() || $file->getExtension() !== 'php'
+            || !str_contains(str_replace('\\', '/', $file->getPathname()), '/src/')) {
+            continue;
+        }
+        $relative = substr(str_replace('\\', '/', $file->getPathname()), strlen(str_replace('\\', '/', $root)) + 1);
+        foreach (file($file->getPathname(), FILE_IGNORE_NEW_LINES) ?: [] as $index => $line) {
+            if (str_contains($line, 'DBALDatabase::createSqlite(')
+                || str_contains($line, 'DriverManager::getConnection(')
+                || str_contains($line, 'new DBALDatabase(')
+            ) {
+                $sqliteConstruction[] = sprintf('%s:%d', $relative, $index + 1);
+            }
+        }
+    }
+    sort($sqliteConstruction);
+    $expectedConstruction = [
+        'packages/cli/src/Handler/DbInitHandler.php:72',
+        'packages/cli/src/Handler/DbInitHandler.php:228',
+        'packages/cli/src/Provider/MigrateServiceProvider.php:99',
+        'packages/database-legacy/src/DBALDatabase.php:135',
+        'packages/foundation/src/Kernel/Bootstrap/DatabaseBootstrapper.php:29',
+        'packages/search/src/SearchServiceProvider.php:164',
+        'packages/testing/src/Database/TemporarySqliteDatabase.php:26',
+    ];
+    sort($expectedConstruction);
+    s1SqliteSame($sqliteConstruction, $expectedConstruction, 'production SQLite construction inventory', $errors);
 } catch (Throwable $exception) {
     $errors[] = $exception->getMessage();
 }

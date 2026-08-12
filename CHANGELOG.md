@@ -13,8 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one-authoritative-file SQLite contract, bounded connection invariants,
   optional rebuildable search projection, stable refusal diagnostics, and
   forge-neutral verification authority; enforce the path and effective-PRAGMA
-  boundary in runtime code and prove it again from a deterministic installed
-  package artifact without a source path repository.
+  boundary in runtime code and on every physical reconnect, fail closed for
+  in-memory databases outside explicitly named development/test environments,
+  cover kernel/search/database CLI entry points, and prove it again from an
+  exact-tree deterministic installed package artifact without a source path
+  repository.
 
 - **deterministic release evidence (#2336):** Generate byte-stable CycloneDX SBOM, release provenance, and checksums from exact lockfiles and every split-package SHA; retain a pull-request dry run, require both automatic and manual release paths to attach a checksum- and identity-verified evidence set, and pin all external workflow actions to immutable commits.
 - **bounded S1 support contract (#2336):** Define the versioned S1 platform and alpha lifecycle boundaries, distinguish framework conformance from pending consumer certification, and reserve unsupported H1 and untested runtime combinations from implied support.

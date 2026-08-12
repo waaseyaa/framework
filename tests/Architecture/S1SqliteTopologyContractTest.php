@@ -68,6 +68,18 @@ final class S1SqliteTopologyContractTest extends TestCase
             'dropped alternate-engine refusal' => static function (array &$contract): void {
                 $contract['refused']['alternate_databases'] = ['mysql', 'postgresql'];
             },
+            'dropped H1 refusal' => static function (array &$contract): void {
+                $contract['refused']['topologies'] = array_values(array_diff(
+                    $contract['refused']['topologies'],
+                    ['H1'],
+                ));
+            },
+            'widened memory environment' => static function (array &$contract): void {
+                $contract['environment']['in_memory_allowed'][] = 'staging';
+            },
+            'unknown contract authority' => static function (array &$contract): void {
+                $contract['authority']['forge'] = 'github';
+            },
             'forge as authority' => static function (array &$contract): void {
                 $contract['verification']['forge_is_authority'] = true;
             },

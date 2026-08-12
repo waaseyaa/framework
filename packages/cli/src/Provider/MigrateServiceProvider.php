@@ -13,6 +13,7 @@ use Waaseyaa\CLI\Handler\MigrateHandler;
 use Waaseyaa\CLI\Handler\MigrateRollbackHandler;
 use Waaseyaa\CLI\Handler\MigrateStatusHandler;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Database\SqliteTopology;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
 use Waaseyaa\Foundation\Kernel\Bootstrap\DatabaseBootstrapper;
 use Waaseyaa\Foundation\Kernel\EnvLoader;
@@ -92,9 +93,10 @@ final class MigrateServiceProvider extends ServiceProvider implements ProvidesCo
         // The kernel loads .env at boot, but load it defensively (idempotent) so
         // WAASEYAA_DB resolution matches db:init exactly.
         EnvLoader::load($projectRoot . '/.env');
+        DatabaseBootstrapper::assertConfiguredPathShape($this->config);
         $dbPath = DatabaseBootstrapper::resolveDatabasePath($projectRoot, $this->config);
 
-        $database = DBALDatabase::createSqlite($dbPath);
+        $database = DBALDatabase::createSqlite($dbPath, SqliteTopology::resolveEnvironment($this->config));
         $connection = $database->getConnection();
 
         $repository = new MigrationRepository($connection);

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 $packageRoot = $argv[1] ?? '';
 $thirdPartyRoot = $argv[2] ?? '';
+$expectedCommit = $argv[3] ?? '';
+$expectedPackageTree = $argv[4] ?? '';
 if (!is_file($packageRoot . '/composer.json') || !is_dir($thirdPartyRoot)) {
     fwrite(STDERR, "Installed-artifact package or dependency root is missing.\n");
     exit(1);
@@ -33,8 +35,10 @@ $manifest = json_decode((string) file_get_contents($packageRoot . '/composer.jso
 if (($manifest['name'] ?? null) !== 'waaseyaa/database-legacy'
     || ($manifest['version'] ?? null) !== '1.0.0-alpha.1'
     || ($manifest['autoload']['psr-4']['Waaseyaa\\Database\\'] ?? null) !== 'src/'
-    || !is_string($manifest['extra']['waaseyaa']['artifact-source']['commit'] ?? null)
-    || preg_match('/^[0-9a-f]{40}$/D', $manifest['extra']['waaseyaa']['artifact-source']['commit']) !== 1
+    || ($manifest['extra']['waaseyaa']['artifact-source']['commit'] ?? null) !== $expectedCommit
+    || ($manifest['extra']['waaseyaa']['artifact-source']['package_tree'] ?? null) !== $expectedPackageTree
+    || preg_match('/^[0-9a-f]{40}$/D', $expectedCommit) !== 1
+    || preg_match('/^[0-9a-f]{40}$/D', $expectedPackageTree) !== 1
 ) {
     fwrite(STDERR, "Installed artifact manifest does not describe the expected package.\n");
     exit(1);
@@ -43,6 +47,11 @@ if (($manifest['name'] ?? null) !== 'waaseyaa/database-legacy'
 $classFile = new ReflectionClass(Waaseyaa\Database\SqliteTopology::class)->getFileName();
 if (!is_string($classFile) || !str_starts_with(realpath($classFile) ?: '', realpath($packageRoot) ?: '/missing')) {
     fwrite(STDERR, "SqliteTopology did not load from the installed package artifact.\n");
+    exit(1);
+}
+$middlewareFile = new ReflectionClass(Waaseyaa\Database\SqliteDriverMiddleware::class)->getFileName();
+if (!is_string($middlewareFile) || !str_starts_with(realpath($middlewareFile) ?: '', realpath($packageRoot) ?: '/missing')) {
+    fwrite(STDERR, "SqliteDriverMiddleware did not load from the installed package artifact.\n");
     exit(1);
 }
 
@@ -63,6 +72,18 @@ try {
     $expected = ['foreign_keys' => 1, 'busy_timeout' => 5000, 'journal_mode' => 'wal'];
     if ($actual !== $expected) {
         throw new RuntimeException('Installed artifact produced unexpected PRAGMAs: ' . json_encode($actual));
+    }
+    $connection->close();
+    $connection->executeQuery('SELECT 1')->fetchOne();
+    Waaseyaa\Database\SqliteTopology::assertEffectivePragmas($connection, fileBacked: true);
+
+    try {
+        Waaseyaa\Database\DBALDatabase::createSqlite(':memory:', 'staging');
+        throw new RuntimeException('Installed artifact accepted staging :memory:.');
+    } catch (RuntimeException $exception) {
+        if (!str_contains($exception->getMessage(), Waaseyaa\Database\SqliteTopology::PRODUCTION_MEMORY)) {
+            throw $exception;
+        }
     }
 
     foreach (['pgsql:host=database', 'file:///network/database.sqlite', '//server/share/database.sqlite'] as $refused) {

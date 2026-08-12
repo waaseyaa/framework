@@ -21,8 +21,9 @@ filesystem, or deployment shape. The machine authority is
 - File-backed connections use WAL, enable foreign-key enforcement, and use a
   bounded `5000` millisecond busy timeout. Startup verifies the effective value
   of every PRAGMA on every new connection and refuses a mismatch.
-- `:memory:` is permitted only in development and test contexts. Production
-  refuses it before a connection is created.
+- `:memory:` is permitted only for the explicit `local`, `dev`, `development`,
+  and `testing` environments. Production, staging, empty, misspelled, and
+  unknown environments refuse it before filesystem, lock, or connection work.
 - At most one additional local SQLite file may hold the search projection. It
   is non-authoritative, has the same connection invariants, and is disposable
   only when a deterministic reindex from the authoritative database succeeds.
@@ -47,8 +48,11 @@ local development. It is not part of the certified Linux consumer point.
 
 `DBALDatabase::createSqlite()` is the common connection boundary for the
 authoritative database and optional search projection. It validates path shape,
-establishes the PRAGMAs, then reads them back. `DatabaseBootstrapper` owns the
-environment-specific production refusal and directory preparation.
+establishes the PRAGMAs, then reads them back. A DBAL driver middleware repeats
+that configuration and verification on every physical reconnect. Kernel,
+search, `db:init`, and migration entry points pass the resolved environment to
+the same fail-closed authority; `DatabaseBootstrapper` owns application-database
+directory preparation and the production missing-file guard.
 
 The repository checker binds the JSON contract to runtime constants,
 documentation, package composition, and reproducible verification commands.

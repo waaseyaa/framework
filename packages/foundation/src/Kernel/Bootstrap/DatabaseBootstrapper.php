@@ -19,13 +19,14 @@ final class DatabaseBootstrapper
      */
     public function boot(string $projectRoot, array $config, ?LoggerInterface $logger = null): DatabaseInterface
     {
-        $this->assertConfiguredPathShape($config);
+        self::assertConfiguredPathShape($config);
         $path = $this->resolvePath($projectRoot, $config, $logger ?? new NullLogger());
         // S1-DB002: production memory databases are refused before connection.
-        SqliteTopology::assertEnvironmentAllowsPath($path, $this->resolveEnvironment($config));
+        $environment = SqliteTopology::resolveEnvironment($config);
+        SqliteTopology::assertEnvironmentAllowsPath($path, $environment);
         $this->guardMissingProductionSqliteDatabase($path, $config);
 
-        return DBALDatabase::createSqlite($path);
+        return DBALDatabase::createSqlite($path, $environment);
     }
 
     /**
@@ -193,7 +194,7 @@ final class DatabaseBootstrapper
     }
 
     /** @param array<string, mixed> $config */
-    private function assertConfiguredPathShape(array $config): void
+    public static function assertConfiguredPathShape(array $config): void
     {
         $configured = $config['database'] ?? null;
         if (is_string($configured) && $configured !== '') {
@@ -228,8 +229,6 @@ final class DatabaseBootstrapper
      */
     private function resolveEnvironment(array $config): string
     {
-        $env = $config['environment'] ?? getenv('APP_ENV') ?: 'production';
-
-        return is_string($env) && $env !== '' ? $env : 'production';
+        return SqliteTopology::resolveEnvironment($config);
     }
 }

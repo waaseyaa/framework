@@ -176,6 +176,46 @@ final class DBALDatabaseTest extends TestCase
         $this->assertSame($before, $connection->getTransactionIsolation());
     }
 
+    public function testPhysicalReconnectReappliesAndVerifiesTheS1Pragmas(): void
+    {
+        $path = sys_get_temp_dir() . '/waaseyaa-reconnect-' . bin2hex(random_bytes(6)) . '.sqlite';
+        $database = DBALDatabase::createSqlite($path);
+        $connection = $database->getConnection();
+
+        try {
+            $connection->close();
+            $connection->executeQuery('SELECT 1')->fetchOne();
+
+            $this->assertSame(1, (int) $connection->fetchOne('PRAGMA foreign_keys'));
+            $this->assertSame(5000, (int) $connection->fetchOne('PRAGMA busy_timeout'));
+            $this->assertSame('wal', strtolower((string) $connection->fetchOne('PRAGMA journal_mode')));
+        } finally {
+            $connection->close();
+            foreach ([$path, $path . '-wal', $path . '-shm'] as $candidate) {
+                if (is_file($candidate)) {
+                    unlink($candidate);
+                }
+            }
+        }
+    }
+
+    public function testMemoryIsAllowedOnlyForExplicitDevelopmentAndTestEnvironments(): void
+    {
+        foreach (['local', 'dev', 'development', 'testing', 'LOCAL', 'Testing'] as $environment) {
+            $database = DBALDatabase::createSqlite(':memory:', $environment);
+            $this->assertSame(1, (int) $database->getConnection()->fetchOne('PRAGMA foreign_keys'));
+        }
+
+        foreach (['production', 'prod', 'staging', 'stage', 'producton', '', 'unknown'] as $environment) {
+            try {
+                DBALDatabase::createSqlite(':memory:', $environment);
+                $this->fail("{$environment} unexpectedly accepted an in-memory database.");
+            } catch (\RuntimeException $exception) {
+                $this->assertStringContainsString('S1-DB002', $exception->getMessage());
+            }
+        }
+    }
+
     public function testQueryExecutesRawSql(): void
     {
         $this->db->query('CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)');

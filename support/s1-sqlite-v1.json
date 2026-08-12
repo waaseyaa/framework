@@ -30,7 +30,7 @@
       "testing"
     ],
     "in_memory_refused": [
-      "production"
+      "all-other-environments"
     ]
   },
   "refused": {
