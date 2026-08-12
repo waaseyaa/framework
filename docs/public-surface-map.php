@@ -44,6 +44,7 @@ return [
     'Waaseyaa\Foundation\Middleware\JobHandlerInterface' => 'public',
     'Waaseyaa\Foundation\Middleware\JobMiddlewareInterface' => 'public',
     'Waaseyaa\Foundation\RateLimit\RateLimiterInterface' => 'public',
+    'Waaseyaa\Foundation\Runtime\RuntimeEpochInterface' => 'public',
     'Waaseyaa\Foundation\Schema\SchemaRegistryInterface' => 'public',
     // Schema-evolution v2 (mission #529): diff algebra, compiler output,
     // platform-neutral validation codes, v2 migration authoring contract.
@@ -403,6 +404,11 @@ return [
     'Waaseyaa\Config\StorageInterface' => 'public',
     'Waaseyaa\Config\Authority\ActiveConfigurationBridgeInterface' => 'public',
     'Waaseyaa\Config\Authority\ConfigurationGenerationResolverInterface' => 'public',
+    'Waaseyaa\Config\Activation\ConfigurationActivationAuthorizerInterface' => 'public',
+    'Waaseyaa\Config\Activation\ConfigurationActivatorInterface' => 'public',
+    'Waaseyaa\Config\Activation\ConfigurationCandidateMaintenanceInterface' => 'public',
+    'Waaseyaa\Config\Activation\ConfigurationCandidateSweepAuthorizerInterface' => 'public',
+    'Waaseyaa\Config\Activation\ConfigurationRollbackValidatorInterface' => 'public',
     'Waaseyaa\Config\TranslatableConfigFactoryInterface' => 'public',
     'Waaseyaa\Config\Event\ConfigEvents' => 'public',
     // M-003 (config-management-v1) — CMI sync substrate. Charter §5.5; spec docs/specs/config-management.md.
