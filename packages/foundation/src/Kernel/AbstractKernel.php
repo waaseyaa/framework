@@ -390,7 +390,6 @@ abstract class AbstractKernel
         $connection = $this->database->getConnection();
 
         $this->migrationRepository = new MigrationRepository($connection);
-        $this->migrationRepository->createTable();
 
         $this->migrationLoader = new MigrationLoader($this->projectRoot, $this->manifest);
         $this->migrator = new Migrator($connection, $this->migrationRepository);

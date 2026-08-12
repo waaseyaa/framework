@@ -79,7 +79,7 @@ final class DbInitHandler
             }
 
             $repository = new MigrationRepository($connection);
-            $repository->createTable();
+            $repository->installOrUpgradeLedger();
 
             $manifest = new PackageManifestCompiler(
                 basePath: $this->projectRoot,
@@ -239,7 +239,7 @@ final class DbInitHandler
         }
 
         $repository = new MigrationRepository($connection);
-        $repository->createTable();
+        $repository->installOrUpgradeLedger();
         $manifest = new PackageManifestCompiler(
             basePath: $this->projectRoot,
             storagePath: $this->projectRoot . '/storage',

@@ -64,6 +64,66 @@ final class SchemaAuthorityRetainedRedTest extends TestCase
     }
 
     #[Test]
+    public function read_only_inspection_refuses_a_stale_ledger_without_upgrading_it(): void
+    {
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        $connection->executeStatement(
+            'CREATE TABLE waaseyaa_migrations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                migration VARCHAR(255) NOT NULL,
+                package VARCHAR(128) NOT NULL,
+                batch INTEGER NOT NULL,
+                ran_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )',
+        );
+        $repository = new MigrationRepository($connection);
+
+        try {
+            $repository->getCompleted();
+            self::fail('Stale ledger inspection did not fail closed.');
+        } catch (\RuntimeException $exception) {
+            self::assertStringContainsString('S1-DB105', $exception->getMessage());
+        }
+
+        $columns = array_column(
+            $connection->executeQuery('PRAGMA table_info(waaseyaa_migrations)')->fetchAllAssociative(),
+            'name',
+        );
+        self::assertNotContains('checksum', $columns);
+        self::assertNotContains('diff_hash', $columns);
+    }
+
+    #[Test]
+    public function read_only_inspection_refuses_a_ledger_without_the_identity_constraint(): void
+    {
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        $connection->executeStatement(
+            'CREATE TABLE waaseyaa_migrations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                migration VARCHAR(255) NOT NULL,
+                package VARCHAR(128) NOT NULL,
+                batch INTEGER NOT NULL,
+                ran_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                checksum VARCHAR(64) NULL,
+                diff_hash VARCHAR(64) NULL
+            )',
+        );
+        $repository = new MigrationRepository($connection);
+
+        try {
+            $repository->getCompleted();
+            self::fail('Ledger inspection accepted a missing identity constraint.');
+        } catch (\RuntimeException $exception) {
+            self::assertStringContainsString('S1-DB105', $exception->getMessage());
+        }
+
+        $indexes = $connection->executeQuery(
+            'PRAGMA index_list(waaseyaa_migrations)',
+        )->fetchAllAssociative();
+        self::assertSame([], $indexes, 'Read-only inspection installed the missing identity constraint.');
+    }
+
+    #[Test]
     public function migration_identity_is_unique_in_the_database_ledger(): void
     {
         $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);

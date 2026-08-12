@@ -75,6 +75,7 @@ final class Migrator
 
         return $this->connection->transactional(function () use ($nodes, $policy): MigrationResult {
             $this->repository->acquireSchemaAuthority();
+            $this->repository->installOrUpgradeLedger();
             $ordered = MigrationGraph::build($nodes)->topologicalOrder();
             $batch = $this->repository->getLastBatchNumber() + 1;
             $ran = [];
@@ -100,33 +101,35 @@ final class Migrator
      */
     public function rollback(array $migrations): MigrationResult
     {
-        $batch = $this->repository->getLastBatchNumber();
-        if ($batch === 0) {
-            return new MigrationResult(0);
-        }
-
-        $records = $this->repository->getByBatch($batch);
-        $flat = $this->flattenMigrations($migrations);
-        foreach ($records as $record) {
-            $name = $record['migration'];
-            if (!isset($flat[$name])) {
-                throw new \RuntimeException(sprintf(
-                    '[S1-DB103] Rollback refused: source migration "%s" is unavailable; schema and ledger remain unchanged.',
-                    $name,
-                ));
-            }
-            $declaringClass = (new \ReflectionMethod($flat[$name], 'down'))->getDeclaringClass()->getName();
-            if ($declaringClass === Migration::class) {
-                throw new \RuntimeException(sprintf(
-                    '[S1-DB104] Rollback refused: migration "%s" has no declared reverse plan.',
-                    $name,
-                ));
-            }
-        }
         $rolledBack = [];
 
-        $this->connection->transactional(function () use ($records, $flat, &$rolledBack): void {
+        $this->connection->transactional(function () use ($migrations, &$rolledBack): void {
             $this->repository->acquireSchemaAuthority();
+            $this->repository->installOrUpgradeLedger();
+            $batch = $this->repository->getLastBatchNumber();
+            if ($batch === 0) {
+                return;
+            }
+
+            $records = $this->repository->getByBatch($batch);
+            $flat = $this->flattenMigrations($migrations);
+            foreach ($records as $record) {
+                $name = $record['migration'];
+                if (!isset($flat[$name])) {
+                    throw new \RuntimeException(sprintf(
+                        '[S1-DB103] Rollback refused: source migration "%s" is unavailable; schema and ledger remain unchanged.',
+                        $name,
+                    ));
+                }
+                $declaringClass = new \ReflectionMethod($flat[$name], 'down')->getDeclaringClass()->getName();
+                if ($declaringClass === Migration::class) {
+                    throw new \RuntimeException(sprintf(
+                        '[S1-DB104] Rollback refused: migration "%s" has no declared reverse plan.',
+                        $name,
+                    ));
+                }
+            }
+
             foreach ($records as $record) {
                 $name = $record['migration'];
                 $this->connection->transactional(function () use ($flat, $name): void {

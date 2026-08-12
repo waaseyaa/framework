@@ -44,11 +44,12 @@ final class MigrationRepository
      * - Adds any missing columns to an existing table (handles upgrade
      *   from pre-WP09 installs).
      *
-     * Bypasses the Migrator entirely — the ledger schema cannot route
-     * through the unified DAG because writing the apply row needs the
-     * new columns to exist first. Bootstrap calls this at startup.
+     * This is a schema mutation and may only be called by an explicit
+     * initialization command or by the Migrator after it has acquired the
+     * schema-mutation authority. Ordinary kernel boot and inspection paths
+     * must use the read methods below, which never install or upgrade schema.
      */
-    public function createTable(): void
+    public function installOrUpgradeLedger(): void
     {
         $this->connection->executeStatement(
             'CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' (
@@ -64,6 +65,29 @@ final class MigrationRepository
 
         $this->ensureCurrentSchema();
         $this->ensureUniqueMigrationIdentity();
+    }
+
+    /**
+     * Backward-compatible test/setup alias.
+     *
+     * Production composition must call {@see installOrUpgradeLedger()} only
+     * from an explicitly mutation-authorized boundary.
+     *
+     * @deprecated Test/setup compatibility only; production code must use the
+     *             named mutation boundary.
+     */
+    public function createTable(): void
+    {
+        $this->installOrUpgradeLedger();
+    }
+
+    /** Whether the ledger exists, without creating or upgrading anything. */
+    public function ledgerExists(): bool
+    {
+        return (int) $this->connection->fetchOne(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?",
+            [self::TABLE],
+        ) === 1;
     }
 
     /**
@@ -138,6 +162,9 @@ final class MigrationRepository
 
     public function hasRun(string $migration): bool
     {
+        if (!$this->assertReadableLedger()) {
+            return false;
+        }
         $result = $this->connection->executeQuery(
             'SELECT COUNT(*) FROM ' . self::TABLE . ' WHERE migration = ?',
             [$migration],
@@ -148,6 +175,9 @@ final class MigrationRepository
 
     public function getLastBatchNumber(): int
     {
+        if (!$this->assertReadableLedger()) {
+            return 0;
+        }
         $result = $this->connection->executeQuery(
             'SELECT MAX(batch) FROM ' . self::TABLE,
         );
@@ -168,6 +198,7 @@ final class MigrationRepository
         ?string $checksum = null,
         ?string $diffHash = null,
     ): void {
+        $this->requireWritableLedger();
         $row = [
             'migration' => $migration,
             'package' => $package,
@@ -185,6 +216,7 @@ final class MigrationRepository
 
     public function remove(string $migration): void
     {
+        $this->requireWritableLedger();
         $this->connection->executeStatement(
             'DELETE FROM ' . self::TABLE . ' WHERE migration = ?',
             [$migration],
@@ -200,6 +232,9 @@ final class MigrationRepository
      */
     public function getStoredChecksum(string $migration): ?string
     {
+        if (!$this->assertReadableLedger()) {
+            return null;
+        }
         $result = $this->connection->executeQuery(
             'SELECT checksum FROM ' . self::TABLE . ' WHERE migration = ?',
             [$migration],
@@ -231,6 +266,9 @@ final class MigrationRepository
     /** @return list<array{migration: string, package: string, batch: int}> */
     public function getByBatch(int $batch): array
     {
+        if (!$this->assertReadableLedger()) {
+            return [];
+        }
         $result = $this->connection->executeQuery(
             'SELECT migration, package, batch FROM ' . self::TABLE . ' WHERE batch = ? ORDER BY id DESC',
             [$batch],
@@ -241,6 +279,9 @@ final class MigrationRepository
     /** @return list<array{migration: string, package: string, batch: int}> */
     public function getCompletedWithDetails(): array
     {
+        if (!$this->assertReadableLedger()) {
+            return [];
+        }
         $result = $this->connection->executeQuery(
             'SELECT migration, package, batch FROM ' . self::TABLE . ' ORDER BY id',
         );
@@ -250,6 +291,9 @@ final class MigrationRepository
     /** @return list<string> */
     public function getCompleted(): array
     {
+        if (!$this->assertReadableLedger()) {
+            return [];
+        }
         $result = $this->connection->executeQuery(
             'SELECT migration FROM ' . self::TABLE . ' ORDER BY id',
         );
@@ -263,6 +307,9 @@ final class MigrationRepository
      */
     public function allWithChecksums(): array
     {
+        if (!$this->assertReadableLedger()) {
+            return [];
+        }
         $rows = $this->connection->executeQuery(
             'SELECT migration, package, batch, checksum, diff_hash FROM ' . self::TABLE . ' ORDER BY id',
         )->fetchAllAssociative();
@@ -279,5 +326,70 @@ final class MigrationRepository
         }
 
         return $ledger;
+    }
+
+    /**
+     * Validate the installed ledger using metadata reads only.
+     *
+     * A missing ledger represents a fresh database and is readable as an
+     * empty ledger. An existing but stale or ambiguous ledger fails closed;
+     * inspection must never silently repair it.
+     */
+    private function assertReadableLedger(): bool
+    {
+        if (!$this->ledgerExists()) {
+            return false;
+        }
+
+        $columns = array_column(
+            $this->connection->executeQuery('PRAGMA table_info(' . self::TABLE . ')')->fetchAllAssociative(),
+            'name',
+        );
+        $required = ['id', 'migration', 'package', 'batch', 'ran_at', 'checksum', 'diff_hash'];
+        $missing = array_values(array_diff($required, $columns));
+        if ($missing !== []) {
+            throw new \RuntimeException(sprintf(
+                '[S1-DB105] Migration ledger inspection refused: schema upgrade required; missing columns: %s.',
+                implode(', ', $missing),
+            ));
+        }
+
+        $indexes = $this->connection->executeQuery(
+            'PRAGMA index_list(' . self::TABLE . ')',
+        )->fetchAllAssociative();
+        $hasUniqueIdentity = false;
+        foreach ($indexes as $index) {
+            if (($index['name'] ?? null) === 'waaseyaa_migrations_migration_unique'
+                && (int) ($index['unique'] ?? 0) === 1) {
+                $hasUniqueIdentity = true;
+                break;
+            }
+        }
+        if (!$hasUniqueIdentity) {
+            throw new \RuntimeException(
+                '[S1-DB105] Migration ledger inspection refused: the canonical migration identity constraint is missing.',
+            );
+        }
+
+        $duplicate = $this->connection->fetchOne(
+            'SELECT migration FROM ' . self::TABLE . ' GROUP BY migration HAVING COUNT(*) > 1 ORDER BY migration LIMIT 1',
+        );
+        if (is_string($duplicate) && $duplicate !== '') {
+            throw new \RuntimeException(sprintf(
+                '[S1-DB102] Duplicate migration identity "%s" requires operator reconciliation.',
+                $duplicate,
+            ));
+        }
+
+        return true;
+    }
+
+    private function requireWritableLedger(): void
+    {
+        if (!$this->assertReadableLedger()) {
+            throw new \RuntimeException(
+                '[S1-DB105] Migration ledger mutation refused: the ledger is not installed. Use the schema coordinator or db:init.',
+            );
+        }
     }
 }
