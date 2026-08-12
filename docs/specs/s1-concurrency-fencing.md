@@ -91,6 +91,10 @@ owner/fence/generation compare-and-swap. The database returns its time and
 expiry; local monotonic elapsed time, measured round-trip, and a safety margin
 schedule heartbeats. Same-tick renewal must extend ownership. Clock rollback,
 invalid TTL/precision, ambiguity, and counter overflow fail readiness.
+When a response is lost after commit, the authority accepts success only when
+read-back proves the exact owner, fence, successor generation, attempt nonce,
+expiry, and a remaining horizon larger than the measured round-trip margin.
+An old but still-live expiry is not evidence that renewal succeeded.
 
 `ScheduleRunner` resolves `LeaseAuthorityInterface`, never the legacy lock
 adapter. A database-less composition receives `UnavailableLeaseAuthority` and

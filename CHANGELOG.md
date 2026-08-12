@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Reconcile ambiguous scheduler lease acquisition and renewal only by exact
+  generation/nonce/expiry read-back with a monotonic round-trip safety margin;
+  database-clock rollback now fails closed before ownership mutation.
 - Require renewable durable database leases for overlap-protected scheduler
   execution. Infrastructure faults are failures rather than false overlap
   skips; overlap tasks require stable names and cooperative lease-aware
