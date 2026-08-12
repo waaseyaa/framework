@@ -7,6 +7,7 @@ namespace Waaseyaa\CLI\Tests\Unit\Provider;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\CLI\Handler\MigrateHandler;
 use Waaseyaa\CLI\Handler\MigrateRollbackHandler;
 use Waaseyaa\CLI\Handler\MigrateStatusHandler;
@@ -27,6 +28,31 @@ use Waaseyaa\CLI\Provider\MigrateServiceProvider;
 #[CoversClass(MigrateServiceProvider::class)]
 final class MigrateServiceProviderTest extends TestCase
 {
+    #[Test]
+    public function resolving_read_only_status_does_not_install_the_migration_ledger(): void
+    {
+        $databasePath = tempnam(sys_get_temp_dir(), 'waaseyaa_zero_ddl_');
+        self::assertIsString($databasePath);
+
+        try {
+            $provider = new MigrateServiceProvider();
+            $provider->setKernelContext((string) getcwd(), [
+                'environment' => 'testing',
+                'database' => $databasePath,
+            ], []);
+            $provider->register();
+            $provider->resolve(MigrateStatusHandler::class);
+
+            $connection = DBALDatabase::createSqlite($databasePath, 'testing')->getConnection();
+            $schemaObjects = $connection->executeQuery(
+                "SELECT name FROM sqlite_master WHERE type IN ('table', 'index') AND name LIKE 'waaseyaa_%' ORDER BY name",
+            )->fetchFirstColumn();
+            self::assertSame([], $schemaObjects, 'Resolving a read-only migration command created schema objects.');
+        } finally {
+            @unlink($databasePath);
+        }
+    }
+
     #[Test]
     public function it_binds_the_migrate_command_handlers_so_they_are_never_auto_wired(): void
     {

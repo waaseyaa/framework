@@ -7,6 +7,8 @@ namespace Waaseyaa\Foundation\Tests\Integration\Migration;
 use Doctrine\DBAL\DriverManager;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Foundation\Kernel\AbstractKernel;
 use Waaseyaa\Foundation\Migration\Migration;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
@@ -23,6 +25,44 @@ use Waaseyaa\Foundation\Migration\TableBuilder;
  */
 final class SchemaAuthorityRetainedRedTest extends TestCase
 {
+    #[Test]
+    public function read_only_ledger_inspection_does_not_install_schema(): void
+    {
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        $repository = new MigrationRepository($connection);
+        $migrator = new Migrator($connection, $repository);
+
+        self::assertSame([], $repository->getCompleted());
+        self::assertSame(['pending' => [], 'completed' => []], $migrator->status([]));
+        self::assertSame([], $repository->allWithChecksums());
+
+        $schemaObjects = $connection->executeQuery(
+            "SELECT name FROM sqlite_master WHERE type IN ('table', 'index') AND name LIKE 'waaseyaa_%' ORDER BY name",
+        )->fetchFirstColumn();
+        self::assertSame([], $schemaObjects, 'Read-only ledger inspection created schema objects.');
+    }
+
+    #[Test]
+    public function ordinary_kernel_migration_boot_does_not_install_or_upgrade_the_ledger(): void
+    {
+        $database = DBALDatabase::createSqlite(':memory:', 'testing');
+        $kernel = new class('/tmp/waaseyaa-zero-ddl-boot') extends AbstractKernel {
+            public function bootMigrationInspection(DBALDatabase $database): void
+            {
+                $this->database = $database;
+                $this->manifest = new \Waaseyaa\Foundation\Discovery\PackageManifest();
+                $this->bootMigrations();
+            }
+        };
+
+        $kernel->bootMigrationInspection($database);
+
+        $schemaObjects = $database->getConnection()->executeQuery(
+            "SELECT name FROM sqlite_master WHERE type IN ('table', 'index') AND name LIKE 'waaseyaa_%' ORDER BY name",
+        )->fetchFirstColumn();
+        self::assertSame([], $schemaObjects, 'Ordinary kernel boot created migration schema objects.');
+    }
+
     #[Test]
     public function migration_identity_is_unique_in_the_database_ledger(): void
     {
