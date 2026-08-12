@@ -2577,6 +2577,15 @@
             "source_sha256": "4e32f585f6d738f70468fdecc1aee36d8aa229d0cd9241ad4a497eb84b185490"
         },
         {
+            "path": "packages/entity-storage/tests/Unit/Config/DatabaseConfigurationActivatorTest.php",
+            "line": 28,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "35cd2b13d7b3b53d94cd598fa231f750e1596227ea4a81c56ed490338c1b297c",
+            "source_sha256": "be0e085e9b4d6821b405a5f3cdb768953d3078a5c668d235546cf728c625c61b"
+        },
+        {
             "path": "packages/entity-storage/tests/Unit/Connection/SingleConnectionResolverTest.php",
             "line": 20,
             "pattern": "dbal_factory",

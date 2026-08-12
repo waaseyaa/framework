@@ -4341,6 +4341,15 @@
             "source_sha256": "4e32f585f6d738f70468fdecc1aee36d8aa229d0cd9241ad4a497eb84b185490"
         },
         {
+            "path": "packages/entity-storage/tests/Unit/Config/DatabaseConfigurationActivatorTest.php",
+            "line": 155,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "8da7ba06b5f582f6ded2f77e1fd50df4a3de90dd741e51d366a2474e697b11a2",
+            "line_sha256": "c59fe73d3bc656c07cba97cb5c43c31997abc035ea66d1966fe4ddc3b3082344",
+            "source_sha256": "be0e085e9b4d6821b405a5f3cdb768953d3078a5c668d235546cf728c625c61b"
+        },
+        {
             "path": "packages/entity-storage/tests/Unit/Driver/EntityStorageDriverV2ContractTest.php",
             "line": 52,
             "pattern": "legacy_schema_method",

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **transactional configuration activation (`S1-FW-CFG-02`):** Add
+  content-bound immutable generations, ordered compare-and-swap activation,
+  idempotent request identities, explicit hash-bound deletion, and fail-closed
+  authorization as the sole production configuration mutation path.
+
 ### Changed
 
 - Reconcile ambiguous scheduler lease acquisition and renewal only by exact
