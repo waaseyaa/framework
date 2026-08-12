@@ -8,6 +8,7 @@ use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Queue\Envelope\QueueEnvelopeFactoryInterface;
 use Waaseyaa\Queue\Envelope\QueueEnvelopeV1;
+use Waaseyaa\Queue\Envelope\QueueOccurrenceV1;
 use Waaseyaa\Queue\Exception\InvalidPersistentPayload;
 use Waaseyaa\Queue\Security\SignedQueuePayload;
 use Waaseyaa\Queue\Transport\TransportInterface;
@@ -29,7 +30,7 @@ use Waaseyaa\Queue\Transport\TransportInterface;
  * is logged once per job class per process so that the no-op is non-silent.
  * The message is still pushed to the transport.
  */
-final class DbalQueue implements QueueInterface, PersistentPayloadReplayInterface
+final class DbalQueue implements OccurrenceQueueInterface, PersistentPayloadReplayInterface
 {
     private readonly LoggerInterface $logger;
 
@@ -81,6 +82,16 @@ final class DbalQueue implements QueueInterface, PersistentPayloadReplayInterfac
 
     public function dispatch(object $message): void
     {
+        $this->dispatchInternal($message, null);
+    }
+
+    public function dispatchOccurrence(object $message, QueueOccurrenceV1 $occurrence): void
+    {
+        $this->dispatchInternal($message, $occurrence);
+    }
+
+    private function dispatchInternal(object $message, ?QueueOccurrenceV1 $occurrence): void
+    {
         if ($message instanceof QueueEnvelopeV1) {
             throw new \InvalidArgumentException(
                 'Queue authority envelopes can only be created by the configured envelope factory.',
@@ -93,7 +104,7 @@ final class DbalQueue implements QueueInterface, PersistentPayloadReplayInterfac
             $this->activationDiagnostic->inspect($message);
         }
 
-        if ($this->boundaryConfig->requireAuthorityEnvelope && $this->envelopeFactory === null) {
+        if (($this->boundaryConfig->requireAuthorityEnvelope || $occurrence !== null) && $this->envelopeFactory === null) {
             throw new InvalidPersistentPayload('Activated persistent queue dispatch requires a reviewed authority envelope factory.');
         }
 
@@ -101,7 +112,11 @@ final class DbalQueue implements QueueInterface, PersistentPayloadReplayInterfac
         $delay = $this->resolveDelay($message);
         $serializedMessage = serialize($message);
         if ($this->envelopeFactory !== null) {
-            $serializedMessage = serialize($this->envelopeFactory->wrap($message, $serializedMessage));
+            $envelope = $this->envelopeFactory->wrap($message, $serializedMessage);
+            if ($occurrence !== null) {
+                $envelope = $envelope->withOccurrence($occurrence);
+            }
+            $serializedMessage = serialize($envelope);
         } elseif (!$this->missingAuthorityDiagnosticEmitted) {
             $this->missingAuthorityDiagnosticEmitted = true;
             $this->logger->notice('entity.deprecation', [

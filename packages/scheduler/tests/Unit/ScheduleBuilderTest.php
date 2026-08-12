@@ -11,6 +11,7 @@ use Waaseyaa\Scheduler\Schedule;
 use Waaseyaa\Scheduler\ScheduleBuilder;
 use Waaseyaa\Scheduler\Execution\LeaseAwareClosureCommand;
 use Waaseyaa\Scheduler\Execution\LeaseExecutionContext;
+use Waaseyaa\Queue\Tests\Unit\Fixtures\OccurrenceAwareJob;
 
 #[CoversClass(ScheduleBuilder::class)]
 #[CoversClass(Schedule::class)]
@@ -51,23 +52,26 @@ final class ScheduleBuilderTest extends TestCase
     public function dailyAtSetsCronExpression(): void
     {
         $schedule = new Schedule();
-        $task = $schedule->job('SomeJob')
+        $task = $schedule->job(OccurrenceAwareJob::class)
             ->dailyAt('03:30')
             ->named('early-morning')
+            ->withoutOverlapping()
             ->register();
 
         self::assertSame('30 03 * * *', $task->expression);
     }
 
     #[Test]
-    public function autoGeneratesNameFromJobClass(): void
+    public function queuedJobUsesExplicitStableName(): void
     {
         $schedule = new Schedule();
-        $task = $schedule->job('App\\Jobs\\SendReport')
+        $task = $schedule->job(OccurrenceAwareJob::class)
             ->weekly()
+            ->named('weekly-report')
+            ->withoutOverlapping()
             ->register();
 
-        self::assertSame('App\\Jobs\\SendReport', $task->name);
+        self::assertSame('weekly-report', $task->name);
     }
 
     #[Test]
@@ -75,12 +79,12 @@ final class ScheduleBuilderTest extends TestCase
     {
         $schedule = new Schedule();
 
-        $schedule->job('A')->everyMinute()->named('a')->register();
-        $schedule->job('B')->everyTenMinutes()->named('b')->register();
-        $schedule->job('C')->everyFifteenMinutes()->named('c')->register();
-        $schedule->job('D')->everyThirtyMinutes()->named('d')->register();
-        $schedule->job('E')->hourly()->named('e')->register();
-        $schedule->job('F')->monthly()->named('f')->register();
+        $schedule->job(OccurrenceAwareJob::class)->everyMinute()->named('a')->withoutOverlapping()->register();
+        $schedule->job(OccurrenceAwareJob::class)->everyTenMinutes()->named('b')->withoutOverlapping()->register();
+        $schedule->job(OccurrenceAwareJob::class)->everyFifteenMinutes()->named('c')->withoutOverlapping()->register();
+        $schedule->job(OccurrenceAwareJob::class)->everyThirtyMinutes()->named('d')->withoutOverlapping()->register();
+        $schedule->job(OccurrenceAwareJob::class)->hourly()->named('e')->withoutOverlapping()->register();
+        $schedule->job(OccurrenceAwareJob::class)->monthly()->named('f')->withoutOverlapping()->register();
 
         $tasks = $schedule->tasks();
         self::assertSame('* * * * *', $tasks[0]->expression);

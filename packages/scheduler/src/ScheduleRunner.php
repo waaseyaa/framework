@@ -13,6 +13,9 @@ use Waaseyaa\Scheduler\Fence\FenceGuardInterface;
 use Waaseyaa\Scheduler\Lease\LeaseAuthorityInterface;
 use Waaseyaa\Scheduler\Occurrence\IdempotencyKeyRequiredException;
 use Waaseyaa\Scheduler\Occurrence\InvalidIdempotencyKeyException;
+use Waaseyaa\Scheduler\Occurrence\OccurrenceDispatchResult;
+use Waaseyaa\Scheduler\Occurrence\OccurrenceOutboxDispatcher;
+use Waaseyaa\Scheduler\Occurrence\OccurrenceOutboxRepository;
 use Waaseyaa\Scheduler\Occurrence\OccurrenceRepositoryInterface;
 use Waaseyaa\Scheduler\Occurrence\ScheduledOccurrence;
 use Waaseyaa\Scheduler\Occurrence\UnsafeManualExecutionException;
@@ -30,17 +33,30 @@ final class ScheduleRunner
         ?LoggerInterface $logger = null,
         private readonly ?FenceGuardInterface $fenceGuard = null,
         private readonly ?OccurrenceRepositoryInterface $occurrenceRepository = null,
+        private readonly ?OccurrenceOutboxRepository $occurrenceOutbox = null,
+        private readonly ?OccurrenceOutboxDispatcher $occurrenceOutboxDispatcher = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
 
     public function run(\DateTimeInterface $now): ScheduleRunResult
     {
+        $this->occurrenceOutboxDispatcher?->dispatchPending();
         $ran = [];
         $failed = [];
 
         foreach ($this->schedule->tasks() as $task) {
             if (!$task->isDue($now)) {
+                continue;
+            }
+
+            if (is_string($task->command)) {
+                $result = $this->enqueueTask($task, $now);
+                if ($result->count === 1) {
+                    $ran[] = $task->name;
+                } else {
+                    $failed[] = $task->name;
+                }
                 continue;
             }
 
@@ -120,9 +136,65 @@ final class ScheduleRunner
         if ($this->occurrenceRepository === null) {
             throw new UnsafeManualExecutionException('Durable occurrence authority is unavailable.');
         }
+        if (is_string($task->command)) {
+            return $this->enqueueTask($task, $now, $idempotencyKey);
+        }
         $occurrence = $this->occurrenceRepository->recordManual($task, $now, $idempotencyKey);
 
         return $this->runTask($task, $now, $occurrence);
+    }
+
+    private function enqueueTask(
+        ScheduledTask $task,
+        \DateTimeInterface $now,
+        ?string $idempotencyKey = null,
+    ): ScheduleRunResult {
+        if ($this->occurrenceOutbox === null || $this->occurrenceOutboxDispatcher === null) {
+            return new ScheduleRunResult(
+                count: 0,
+                taskNames: [],
+                status: ScheduleRunResult::STATUS_FAILED,
+                message: 'Durable occurrence outbox authority is unavailable.',
+                exceptionClass: \LogicException::class,
+            );
+        }
+        try {
+            $occurrence = $idempotencyKey === null
+                ? $this->occurrenceOutbox->recordScheduled($task, $now)
+                : $this->occurrenceOutbox->recordManual($task, $now, $idempotencyKey);
+            $dispatch = $this->occurrenceOutboxDispatcher->dispatchOccurrence($occurrence->id);
+            if ($dispatch === OccurrenceDispatchResult::Failed) {
+                return new ScheduleRunResult(
+                    count: 0,
+                    taskNames: [],
+                    status: ScheduleRunResult::STATUS_FAILED,
+                    message: 'Occurrence is durable but queue dispatch remains pending.',
+                    exceptionClass: \RuntimeException::class,
+                );
+            }
+            $this->stateRepository?->recordRun($task->name, ScheduleRunResult::STATUS_ENQUEUED, $now);
+
+            return new ScheduleRunResult(
+                count: 1,
+                taskNames: [$task->name],
+                status: ScheduleRunResult::STATUS_ENQUEUED,
+                message: sprintf('Task "%s" was durably enqueued.', $task->name),
+            );
+        } catch (\Throwable $error) {
+            $this->stateRepository?->recordRun($task->name, 'failed: enqueue authority unavailable', $now);
+            $this->logger->error('scheduler.occurrence_enqueue_failed', [
+                'task' => $task->name,
+                'exception' => $error,
+            ]);
+
+            return new ScheduleRunResult(
+                count: 0,
+                taskNames: [],
+                status: ScheduleRunResult::STATUS_FAILED,
+                message: 'Durable occurrence enqueue failed.',
+                exceptionClass: $error::class,
+            );
+        }
     }
 
     /**

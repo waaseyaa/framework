@@ -236,15 +236,15 @@ final class SchedulerControllerTest extends TestCase
     }
 
     #[Test]
-    public function triggerRefusesStringCommandUntilQueuedOccurrenceOwnershipExists(): void
+    public function triggerFailsClosedWhenPersistentOccurrenceOutboxIsUnavailable(): void
     {
         $schedule = new Schedule();
         $schedule->add(new ScheduledTask(
             name: 'enqueue-me',
             expression: '0 0 1 1 *',
-            command: \Waaseyaa\Queue\Tests\Unit\Fixtures\SuccessfulJob::class,
+            command: \Waaseyaa\Queue\Tests\Unit\Fixtures\OccurrenceAwareJob::class,
+            preventOverlap: true,
         ));
-        \Waaseyaa\Queue\Tests\Unit\Fixtures\SuccessfulJob::reset();
 
         $controller = new SchedulerController(
             $schedule,
@@ -254,10 +254,10 @@ final class SchedulerControllerTest extends TestCase
 
         $response = $controller->trigger('enqueue-me', 'trigger-enqueue');
 
-        self::assertSame(409, $response->getStatusCode());
+        self::assertSame(200, $response->getStatusCode());
         $body = json_decode((string) $response->getContent(), true, flags: \JSON_THROW_ON_ERROR);
-        self::assertSame('Conflict', $body['errors'][0]['title']);
-        self::assertStringContainsString('occurrence and fence protection', $body['errors'][0]['detail']);
+        self::assertSame('failed', $body['status']);
+        self::assertStringContainsString('outbox authority is unavailable', $body['message']);
     }
 
     private static function makeStateRepository(): ScheduleStateRepository

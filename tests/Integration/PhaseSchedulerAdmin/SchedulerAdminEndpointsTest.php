@@ -133,7 +133,8 @@ final class SchedulerAdminEndpointsTest extends TestCase
             new ScheduledTask(
                 name: 'string-task',
                 expression: '0 2 * * *',
-                command: \Waaseyaa\Queue\Tests\Unit\Fixtures\SuccessfulJob::class,
+                command: \Waaseyaa\Queue\Tests\Unit\Fixtures\OccurrenceAwareJob::class,
+                preventOverlap: true,
                 description: 'Job-class nightly task.',
             ),
         ]);

@@ -15,7 +15,11 @@ interface OccurrenceRepositoryInterface
 
     public function begin(string $occurrenceId, int $fence): bool;
 
+    public function require(string $id): ScheduledOccurrence;
+
     public function complete(string $occurrenceId, int $fence): void;
+
+    public function deadLetter(string $occurrenceId, int $fence, string $failureClass): void;
 
     /** @param class-string<\Throwable> $failureClass */
     public function fail(string $occurrenceId, int $fence, string $failureClass): void;

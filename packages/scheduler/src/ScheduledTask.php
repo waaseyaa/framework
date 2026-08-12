@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Scheduler;
 
 use Cron\CronExpression;
+use Waaseyaa\Queue\Occurrence\OccurrenceAwareMessageInterface;
 use Waaseyaa\Scheduler\Execution\LeaseAwareCommandInterface;
 
 final class ScheduledTask
@@ -31,9 +32,17 @@ final class ScheduledTask
                 sprintf('Invalid cron expression "%s" for scheduled task "%s".', $this->expression, $this->name),
             );
         }
-        if ($this->preventOverlap && !$this->command instanceof LeaseAwareCommandInterface) {
+        $occurrenceAwareQueueCommand = is_string($this->command)
+            && is_a($this->command, OccurrenceAwareMessageInterface::class, true);
+        if ($this->preventOverlap && !$this->command instanceof LeaseAwareCommandInterface && !$occurrenceAwareQueueCommand) {
             throw new \InvalidArgumentException(sprintf(
                 'Overlap-protected task "%s" must use a stable lease-aware command.',
+                $this->name,
+            ));
+        }
+        if (is_string($this->command) && (!$this->preventOverlap || !$occurrenceAwareQueueCommand)) {
+            throw new \InvalidArgumentException(sprintf(
+                'Queued task "%s" must enable overlap protection and implement OccurrenceAwareMessageInterface.',
                 $this->name,
             ));
         }

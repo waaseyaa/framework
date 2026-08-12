@@ -7,6 +7,8 @@ namespace Waaseyaa\Scheduler;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
+use Waaseyaa\Queue\Occurrence\OccurrenceRuntimeInterface;
+use Waaseyaa\Queue\OccurrenceQueueInterface;
 use Waaseyaa\Queue\QueueInterface;
 use Waaseyaa\Scheduler\Fence\DatabaseFenceGuard;
 use Waaseyaa\Scheduler\Fence\FenceGuardInterface;
@@ -17,8 +19,11 @@ use Waaseyaa\Scheduler\Lease\UnavailableLeaseAuthority;
 use Waaseyaa\Scheduler\Lock\DatabaseLock;
 use Waaseyaa\Scheduler\Lock\InMemoryLock;
 use Waaseyaa\Scheduler\Lock\LockInterface;
+use Waaseyaa\Scheduler\Occurrence\OccurrenceOutboxDispatcher;
+use Waaseyaa\Scheduler\Occurrence\OccurrenceOutboxRepository;
 use Waaseyaa\Scheduler\Occurrence\OccurrenceRepository;
 use Waaseyaa\Scheduler\Occurrence\OccurrenceRepositoryInterface;
+use Waaseyaa\Scheduler\Occurrence\SchedulerOccurrenceRuntime;
 use Waaseyaa\Scheduler\Storage\ScheduleStateRepository;
 
 final class SchedulerServiceProvider extends ServiceProvider
@@ -64,6 +69,19 @@ final class SchedulerServiceProvider extends ServiceProvider
 
             return new OccurrenceRepository($database);
         });
+        $this->singleton(OccurrenceOutboxRepository::class, function (): OccurrenceOutboxRepository {
+            $database = $this->resolveOptional(DatabaseInterface::class);
+            if (!$database instanceof DBALDatabase) {
+                throw new \RuntimeException('Scheduled occurrence outbox requires the durable DBAL database authority.');
+            }
+
+            return new OccurrenceOutboxRepository($database, $this->resolve(OccurrenceRepositoryInterface::class));
+        });
+        $this->singleton(OccurrenceRuntimeInterface::class, fn(): SchedulerOccurrenceRuntime => new SchedulerOccurrenceRuntime(
+            $this->resolve(LeaseAuthorityInterface::class),
+            $this->resolve(OccurrenceRepositoryInterface::class),
+            $this->resolve(FenceGuardInterface::class),
+        ));
 
         // Bind ScheduleStateRepository as a first-class container service so
         // the admin scheduler dashboard (M4B WP02 — Layer 4 ApiServiceProvider)
@@ -86,14 +104,23 @@ final class SchedulerServiceProvider extends ServiceProvider
 
         $this->singleton(ScheduleRunner::class, function (): ScheduleRunner {
             $hasDatabase = $this->resolveOptional(DatabaseInterface::class) instanceof DatabaseInterface;
+            $queue = $this->resolve(QueueInterface::class);
+            $outbox = $hasDatabase && $queue instanceof OccurrenceQueueInterface
+                ? $this->resolve(OccurrenceOutboxRepository::class)
+                : null;
+            $dispatcher = $outbox !== null
+                ? new OccurrenceOutboxDispatcher($outbox, $queue)
+                : null;
 
             return new ScheduleRunner(
                 $this->resolve(ScheduleInterface::class),
-                $this->resolve(QueueInterface::class),
+                $queue,
                 $this->resolve(LeaseAuthorityInterface::class),
                 $hasDatabase ? $this->resolve(ScheduleStateRepository::class) : null,
                 fenceGuard: $this->resolve(FenceGuardInterface::class),
                 occurrenceRepository: $hasDatabase ? $this->resolve(OccurrenceRepositoryInterface::class) : null,
+                occurrenceOutbox: $outbox,
+                occurrenceOutboxDispatcher: $dispatcher,
             );
         });
     }

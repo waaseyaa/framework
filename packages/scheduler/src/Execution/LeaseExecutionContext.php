@@ -29,6 +29,11 @@ final class LeaseExecutionContext
         return $this->handle->fence;
     }
 
+    public function occurrenceId(): string
+    {
+        return $this->occurrenceId;
+    }
+
     /** Renew before the next durable effect; failure aborts the command. */
     public function checkpoint(): void
     {

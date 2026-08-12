@@ -14,6 +14,8 @@ use Waaseyaa\Queue\Envelope\QueueEnvelopeFactoryInterface;
 use Waaseyaa\Queue\Exception\InvalidPersistentPayload;
 use Waaseyaa\Queue\Handler\HandlerInterface;
 use Waaseyaa\Queue\Handler\JobHandler;
+use Waaseyaa\Queue\Occurrence\NoOccurrenceRuntime;
+use Waaseyaa\Queue\Occurrence\OccurrenceRuntimeInterface;
 use Waaseyaa\Queue\Security\SignedQueuePayload;
 use Waaseyaa\Queue\Storage\DatabaseFailedJobRepository;
 use Waaseyaa\Queue\Storage\InMemoryFailedJobRepository;
@@ -62,6 +64,14 @@ final class QueueServiceProvider extends ServiceProvider
             },
             default => fn(): SyncQueue => new SyncQueue(),
         });
+        $this->singleton(OccurrenceQueueInterface::class, function (): OccurrenceQueueInterface {
+            $queue = $this->resolve(QueueInterface::class);
+            if (!$queue instanceof OccurrenceQueueInterface) {
+                throw new \RuntimeException('Scheduler occurrence dispatch requires the persistent occurrence queue.');
+            }
+
+            return $queue;
+        });
 
         $this->singleton(FailedJobRepositoryInterface::class, match ($driver) {
             'database' => fn(): DatabaseFailedJobRepository => new DatabaseFailedJobRepository(
@@ -73,6 +83,7 @@ final class QueueServiceProvider extends ServiceProvider
         $this->singleton(Worker::class, function () use ($driver): Worker {
             $logger = $this->resolveOptional(LoggerInterface::class);
             $authorityRuntime = $this->resolveOptional(QueueAuthorityRuntimeInterface::class);
+            $occurrenceRuntime = $this->resolveOptional(OccurrenceRuntimeInterface::class);
             if ($driver === 'database' && !$authorityRuntime instanceof QueueAuthorityRuntimeInterface) {
                 throw new \InvalidArgumentException('Activated queue workers require an authority-restoring runtime.');
             }
@@ -87,6 +98,9 @@ final class QueueServiceProvider extends ServiceProvider
                     ? $authorityRuntime
                     : new NoAuthorityQueueRuntime(),
                 $driver === 'database' ? PersistentQueueBoundaryConfig::enforced() : PersistentQueueBoundaryConfig::dormant(),
+                $occurrenceRuntime instanceof OccurrenceRuntimeInterface
+                    ? $occurrenceRuntime
+                    : new NoOccurrenceRuntime(),
             );
         });
     }

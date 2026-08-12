@@ -28,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   committed effect from that occurrence. Manual triggers require a bounded
   idempotency key; unprotected tasks are refused rather than falsely claiming
   retry safety.
+- Give persistent queued scheduler commands their own crash-safe ownership
+  protocol. Occurrence and enqueue intent commit together, signed deliveries
+  carry the stable occurrence identity, workers acquire a separate renewable
+  execution lease, duplicate deliveries are no-ops, contention defers without
+  consuming attempts, and terminal dispatch/worker failure dead-letters the
+  occurrence.
 
 - Enforce the DB-03 aggregate mutation token across entity saves, deletes,
   batches, revision-pointer moves, rollback, pruning, and translation writes;

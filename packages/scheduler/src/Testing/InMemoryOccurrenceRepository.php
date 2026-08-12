@@ -37,7 +37,11 @@ final class InMemoryOccurrenceRepository implements OccurrenceRepositoryInterfac
     public function begin(string $occurrenceId, int $fence): bool
     {
         $current = $this->occurrences[$occurrenceId] ?? null;
-        if ($current === null || $current->status === 'completed' || $current->executionFence >= $fence) {
+        if (
+            $current === null
+            || in_array($current->status, ['completed', 'dead_letter'], true)
+            || $current->executionFence >= $fence
+        ) {
             return false;
         }
         $this->occurrences[$occurrenceId] = new ScheduledOccurrence($current->id, $current->taskName, $current->scheduleGeneration, $current->dueAtMs, 'running', $fence);
@@ -52,6 +56,27 @@ final class InMemoryOccurrenceRepository implements OccurrenceRepositoryInterfac
             throw new \RuntimeException('Occurrence completion lost its execution fence.');
         }
         $this->occurrences[$occurrenceId] = new ScheduledOccurrence($current->id, $current->taskName, $current->scheduleGeneration, $current->dueAtMs, 'completed', $fence);
+    }
+
+    public function require(string $id): ScheduledOccurrence
+    {
+        return $this->occurrences[$id] ?? throw new \RuntimeException("Scheduled occurrence '{$id}' is missing.");
+    }
+
+    public function deadLetter(string $occurrenceId, int $fence, string $failureClass): void
+    {
+        $current = $this->require($occurrenceId);
+        if ($current->status !== 'running' || $current->executionFence !== $fence) {
+            throw new \RuntimeException('Occurrence dead-lettering lost its execution fence.');
+        }
+        $this->occurrences[$occurrenceId] = new ScheduledOccurrence(
+            $current->id,
+            $current->taskName,
+            $current->scheduleGeneration,
+            $current->dueAtMs,
+            'dead_letter',
+            $fence,
+        );
     }
 
     public function fail(string $occurrenceId, int $fence, string $failureClass): void

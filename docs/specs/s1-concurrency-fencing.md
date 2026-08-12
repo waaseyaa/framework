@@ -146,8 +146,15 @@ confirmation and the HTTP boundary returns 428 when it is absent. A task
 without durable occurrence and fence protection is refused with 409 rather
 than accepting an idempotency key it cannot honor.
 Transactional enqueue outbox, worker-side acquisition, retry, and dead-letter
-state remain part of the next queued-execution tranche and are not implied by
-this direct-path milestone.
+state are now explicit for persistent queued commands. The scheduler records
+the occurrence and outbox in one database transaction, then a dispatcher sends
+a signed `QueueOccurrenceV1` identity. An ambiguous transport result retains
+the outbox row for same-occurrence delivery retry. The worker acquires a new
+execution lease, restores the occurrence context, checkpoints around the body,
+and completes only after its fenced effects finish. Duplicate delivery is
+acknowledged without execution; live contention is deferred without consuming
+the attempt budget. Transport exhaustion or repeated dispatch failure moves
+both the delivery authority and occurrence to a durable dead-letter state.
 
 Queue dispatch means enqueued, not completed. A void dispatch return,
 serialization, and `UniqueJob` marker are not cross-process ownership. Generated

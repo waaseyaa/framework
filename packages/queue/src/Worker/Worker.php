@@ -9,10 +9,15 @@ use Waaseyaa\Foundation\Log\NullLogger;
 use Waaseyaa\Queue\Envelope\NoAuthorityQueueRuntime;
 use Waaseyaa\Queue\Envelope\QueueAuthorityRuntimeInterface;
 use Waaseyaa\Queue\Envelope\QueueEnvelopeV1;
+use Waaseyaa\Queue\Envelope\QueueOccurrenceV1;
 use Waaseyaa\Queue\Exception\InvalidPersistentPayload;
 use Waaseyaa\Queue\FailedJobRepositoryInterface;
 use Waaseyaa\Queue\Handler\HandlerInterface;
 use Waaseyaa\Queue\Job;
+use Waaseyaa\Queue\Occurrence\NoOccurrenceRuntime;
+use Waaseyaa\Queue\Occurrence\OccurrenceAwareMessageInterface;
+use Waaseyaa\Queue\Occurrence\OccurrenceRunResult;
+use Waaseyaa\Queue\Occurrence\OccurrenceRuntimeInterface;
 use Waaseyaa\Queue\PersistentQueueBoundaryConfig;
 use Waaseyaa\Queue\Security\SignedQueuePayload;
 use Waaseyaa\Queue\Transport\TransportInterface;
@@ -31,6 +36,7 @@ final class Worker
     private readonly LoggerInterface $logger;
 
     private readonly QueueAuthorityRuntimeInterface $authorityRuntime;
+    private readonly OccurrenceRuntimeInterface $occurrenceRuntime;
 
     private bool $legacyPayloadDiagnosticEmitted = false;
     private readonly PersistentQueueBoundaryConfig $boundaryConfig;
@@ -46,10 +52,12 @@ final class Worker
         ?LoggerInterface $logger = null,
         ?QueueAuthorityRuntimeInterface $authorityRuntime = null,
         ?PersistentQueueBoundaryConfig $boundaryConfig = null,
+        ?OccurrenceRuntimeInterface $occurrenceRuntime = null,
     ) {
         $this->handlers = $handlers;
         $this->logger = $logger ?? new NullLogger();
         $this->authorityRuntime = $authorityRuntime ?? new NoAuthorityQueueRuntime();
+        $this->occurrenceRuntime = $occurrenceRuntime ?? new NoOccurrenceRuntime();
         $this->boundaryConfig = $boundaryConfig ?? PersistentQueueBoundaryConfig::dormant();
         if ($this->boundaryConfig->requireAuthorityEnvelope && $this->authorityRuntime instanceof NoAuthorityQueueRuntime) {
             throw new \InvalidArgumentException('Activated queue workers require an authority-restoring runtime.');
@@ -188,15 +196,24 @@ final class Worker
         // tries (the in-flight try is added by handleFailure on throw).
         $maxTries = $message instanceof Job ? $message->tries : $options->maxTries;
         if ($maxTries > 0 && $raw['attempts'] >= $maxTries) {
+            $exhausted = new \RuntimeException(sprintf(
+                'Job exceeded its max attempts (%d) without completing — '
+                . 'likely repeated worker crashes / lease expiries (attempts=%d).',
+                $maxTries,
+                $raw['attempts'],
+            ));
+            if (
+                $envelope?->occurrence !== null
+                && !$this->deadLetterOccurrence($envelope->occurrence, $exhausted::class)
+            ) {
+                $this->transport->defer($raw['id'], 1);
+
+                return;
+            }
             $this->failedJobRepository->record(
                 $queue,
                 $raw['payload'],
-                new \RuntimeException(sprintf(
-                    'Job exceeded its max attempts (%d) without completing — '
-                    . 'likely repeated worker crashes / lease expiries (attempts=%d).',
-                    $maxTries,
-                    $raw['attempts'],
-                )),
+                $exhausted,
             );
             $this->transport->reject($raw['id']);
 
@@ -211,11 +228,34 @@ final class Worker
 
         try {
             if ($envelope !== null) {
-                $this->authorityRuntime->run($envelope, function () use ($message): null {
-                    $this->handleMessage($message);
+                if ($envelope->occurrence !== null) {
+                    if (!$message instanceof OccurrenceAwareMessageInterface) {
+                        throw new InvalidPersistentPayload('Queued scheduler occurrences require an occurrence-aware message.');
+                    }
+                    $occurrenceResult = $this->authorityRuntime->run(
+                        $envelope,
+                        fn(): OccurrenceRunResult => $this->occurrenceRuntime->run(
+                            $envelope->occurrence,
+                            static fn($context) => $message->handleOccurrence($context),
+                        ),
+                    );
+                    if ($occurrenceResult === OccurrenceRunResult::Contended) {
+                        $this->transport->defer($raw['id'], 1);
 
-                    return null;
-                });
+                        return;
+                    }
+                    if ($occurrenceResult === OccurrenceRunResult::Duplicate) {
+                        $this->transport->ack($raw['id']);
+
+                        return;
+                    }
+                } else {
+                    $this->authorityRuntime->run($envelope, function () use ($message): null {
+                        $this->handleMessage($message);
+
+                        return null;
+                    });
+                }
             } else {
                 $this->handleMessage($message);
             }
@@ -230,7 +270,7 @@ final class Worker
 
             $this->transport->ack($raw['id']);
         } catch (\Throwable $e) {
-            $this->handleFailure($raw, $queue, $message, $e, $options);
+            $this->handleFailure($raw, $queue, $message, $e, $options, $envelope?->occurrence);
         }
     }
 
@@ -251,6 +291,7 @@ final class Worker
         object $message,
         \Throwable $e,
         WorkerOptions $options,
+        ?QueueOccurrenceV1 $occurrence,
     ): void {
         $maxTries = $message instanceof Job ? $message->tries : $options->maxTries;
         $currentAttempts = $raw['attempts'] + 1; // +1 for the attempt we just made
@@ -259,12 +300,31 @@ final class Worker
             $delay = $this->calculateBackoff($message, $currentAttempts);
             $this->transport->release($raw['id'], $delay);
         } else {
+            if ($occurrence !== null && !$this->deadLetterOccurrence($occurrence, $e::class)) {
+                $this->transport->defer($raw['id'], 1);
+
+                return;
+            }
             $this->failedJobRepository->record($queue, $raw['payload'], $e);
             $this->transport->reject($raw['id']);
 
             if ($message instanceof Job) {
                 $this->invokeFailureHook($message, $e);
             }
+        }
+    }
+
+    private function deadLetterOccurrence(QueueOccurrenceV1 $occurrence, string $failureClass): bool
+    {
+        try {
+            return $this->occurrenceRuntime->deadLetter($occurrence, $failureClass);
+        } catch (\Throwable $error) {
+            $this->logger->error('queue.occurrence_dead_letter_failed', [
+                'task' => $occurrence->taskName,
+                'exception' => $error,
+            ]);
+
+            return false;
         }
     }
 

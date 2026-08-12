@@ -84,6 +84,20 @@ final class OccurrenceRepository implements OccurrenceRepositoryInterface
         }
     }
 
+    public function deadLetter(string $occurrenceId, int $fence, string $failureClass): void
+    {
+        $affected = $this->database->update(self::TABLE)->fields([
+            'status' => 'dead_letter',
+            'failure_class' => $failureClass,
+        ])->condition('occurrence_id', $occurrenceId)
+            ->condition('status', 'running')
+            ->condition('execution_fence', $fence)
+            ->execute();
+        if ($affected !== 1) {
+            throw new \RuntimeException('Occurrence dead-lettering lost its execution fence.');
+        }
+    }
+
     /** @param class-string<\Throwable> $failureClass */
     public function fail(string $occurrenceId, int $fence, string $failureClass): void
     {

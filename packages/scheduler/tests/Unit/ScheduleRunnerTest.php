@@ -9,12 +9,18 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Queue\SyncQueue;
+use Waaseyaa\Queue\OccurrenceQueueInterface;
+use Waaseyaa\Queue\Envelope\QueueOccurrenceV1;
 use Waaseyaa\Scheduler\Execution\LeaseAwareClosureCommand;
 use Waaseyaa\Scheduler\Execution\LeaseExecutionContext;
 use Waaseyaa\Scheduler\Occurrence\UnsafeManualExecutionException;
+use Waaseyaa\Scheduler\Occurrence\OccurrenceOutboxDispatcher;
+use Waaseyaa\Scheduler\Occurrence\OccurrenceOutboxRepository;
+use Waaseyaa\Scheduler\Occurrence\OccurrenceRepository;
 use Waaseyaa\Scheduler\Testing\InMemoryLeaseAuthority;
 use Waaseyaa\Scheduler\Testing\InMemoryFenceGuard;
 use Waaseyaa\Scheduler\Testing\InMemoryOccurrenceRepository;
+use Waaseyaa\Queue\Tests\Unit\Fixtures\OccurrenceAwareJob;
 use Waaseyaa\Scheduler\Lease\UnavailableLeaseAuthority;
 use Waaseyaa\Scheduler\Schedule;
 use Waaseyaa\Scheduler\ScheduledTask;
@@ -177,15 +183,15 @@ final class ScheduleRunnerTest extends TestCase
         $schedule->add(new ScheduledTask(
             name: 'queue-task',
             expression: '* * * * *',
-            command: \Waaseyaa\Queue\Tests\Unit\Fixtures\SuccessfulJob::class,
+            command: OccurrenceAwareJob::class,
+            preventOverlap: true,
         ));
-
-        \Waaseyaa\Queue\Tests\Unit\Fixtures\SuccessfulJob::reset();
-
-        $runner = new ScheduleRunner($schedule, new SyncQueue(), new InMemoryLeaseAuthority());
+        [$runner, $queue] = self::queuedRunner($schedule);
         $result = $runner->run(new \DateTimeImmutable());
 
         self::assertSame(1, $result->count);
+        self::assertSame(ScheduleRunResult::STATUS_ENQUEUED, $queue->lastStatus);
+        self::assertSame(1, $queue->dispatches);
     }
 
     #[Test]
@@ -296,21 +302,20 @@ final class ScheduleRunnerTest extends TestCase
     }
 
     #[Test]
-    public function runOneRefusesStringCommandUntilQueuedOccurrenceOwnershipExists(): void
+    public function runOneQueuesOneOccurrenceForOneIdempotencyKey(): void
     {
         $schedule = new Schedule();
         $schedule->add(new ScheduledTask(
             name: 'queue-manual',
             expression: '0 0 1 1 *',
-            command: \Waaseyaa\Queue\Tests\Unit\Fixtures\SuccessfulJob::class,
+            command: OccurrenceAwareJob::class,
+            preventOverlap: true,
         ));
-        \Waaseyaa\Queue\Tests\Unit\Fixtures\SuccessfulJob::reset();
+        [$runner, $queue] = self::queuedRunner($schedule);
 
-        $stateRepo = self::makeStateRepository();
-        $runner = new ScheduleRunner($schedule, new SyncQueue(), new InMemoryLeaseAuthority(), $stateRepo);
-
-        $this->expectException(UnsafeManualExecutionException::class);
-        $runner->runOne('queue-manual', new \DateTimeImmutable(), 'manual-2');
+        self::assertSame(ScheduleRunResult::STATUS_ENQUEUED, $runner->runOne('queue-manual', new \DateTimeImmutable(), 'manual-2')->status);
+        self::assertSame(ScheduleRunResult::STATUS_ENQUEUED, $runner->runOne('queue-manual', new \DateTimeImmutable(), 'manual-2')->status);
+        self::assertSame(1, $queue->dispatches);
     }
 
     #[Test]
@@ -448,5 +453,37 @@ final class ScheduleRunnerTest extends TestCase
         ');
 
         return new ScheduleStateRepository($db);
+    }
+
+    /** @return array{ScheduleRunner, object&OccurrenceQueueInterface} */
+    private static function queuedRunner(Schedule $schedule): array
+    {
+        $database = DBALDatabase::createSqlite();
+        $database->query('CREATE TABLE waaseyaa_scheduler_occurrences (occurrence_id VARCHAR(64) PRIMARY KEY, task_name VARCHAR(255) NOT NULL, schedule_generation VARCHAR(64) NOT NULL, due_at_ms INTEGER NOT NULL, trigger_key VARCHAR(128) NOT NULL, status VARCHAR(32) NOT NULL, execution_fence INTEGER NOT NULL DEFAULT 0, failure_class VARCHAR(512) NULL, UNIQUE (task_name, schedule_generation, trigger_key))');
+        $database->query('CREATE TABLE waaseyaa_scheduler_occurrence_outbox (occurrence_id VARCHAR(64) PRIMARY KEY, message_class VARCHAR(512) NOT NULL, lease_ttl_ms INTEGER NOT NULL, state VARCHAR(32) NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, last_error_class VARCHAR(512) NULL)');
+        $occurrences = new OccurrenceRepository($database);
+        $outbox = new OccurrenceOutboxRepository($database, $occurrences);
+        $queue = new class implements OccurrenceQueueInterface {
+            public int $dispatches = 0;
+            public ?string $lastStatus = null;
+            public function dispatch(object $message): void {}
+            public function dispatchOccurrence(object $message, QueueOccurrenceV1 $occurrence): void
+            {
+                ++$this->dispatches;
+                $this->lastStatus = ScheduleRunResult::STATUS_ENQUEUED;
+            }
+        };
+        $dispatcher = new OccurrenceOutboxDispatcher($outbox, $queue);
+        $runner = new ScheduleRunner(
+            $schedule,
+            $queue,
+            new InMemoryLeaseAuthority(),
+            fenceGuard: new InMemoryFenceGuard(),
+            occurrenceRepository: $occurrences,
+            occurrenceOutbox: $outbox,
+            occurrenceOutboxDispatcher: $dispatcher,
+        );
+
+        return [$runner, $queue];
     }
 }
