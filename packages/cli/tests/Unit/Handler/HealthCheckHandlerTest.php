@@ -12,6 +12,7 @@ use Waaseyaa\CLI\Handler\HealthCheckHandler;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Foundation\Diagnostic\DiagnosticCode;
 use Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface;
 use Waaseyaa\Foundation\Diagnostic\HealthCheckResult;
@@ -82,13 +83,14 @@ final class HealthCheckHandlerTest extends TestCase
 
         $decoded = json_decode($tester->getStdout(), true);
         $this->assertIsArray($decoded);
-        $this->assertCount(1, $decoded);
+        $this->assertCount(2, $decoded);
         $this->assertSame('Database', $decoded[0]['name']);
+        $this->assertSame('/srv/waaseyaa/config-sync', $decoded[1]['context']['sync_path']);
     }
 
     private function createTester(HealthCheckerInterface $checker): CliTester
     {
-        $handler = new HealthCheckHandler($checker);
+        $handler = new HealthCheckHandler($checker, $this->authorityContext());
         $definition = new HandlerCommand(
             name: 'health:check',
             description: 'Run all diagnostic health checks and report results',
@@ -104,5 +106,17 @@ final class HealthCheckHandlerTest extends TestCase
         };
 
         return CliTester::for($definition, $container);
+    }
+
+    private function authorityContext(): ConfigurationAuthorityContext
+    {
+        return new ConfigurationAuthorityContext(
+            authorityId: str_repeat('a', 64),
+            databaseIdentity: 'database:v1:test',
+            syncPath: '/srv/waaseyaa/config-sync',
+            selectorProvenance: ['config.sync_path'],
+            activeGenerationId: str_repeat('b', 64),
+            activationSequence: 1,
+        );
     }
 }

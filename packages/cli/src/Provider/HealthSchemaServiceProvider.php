@@ -24,11 +24,13 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\Migration\LegacyEntityDataPayloadUpgrader;
 use Waaseyaa\EntityStorage\Tenancy\CommunityTranslationPeerRepairer;
 use Waaseyaa\Field\Preflight\FieldAccessPreflightScanner;
+use Waaseyaa\Foundation\ServiceProvider\Capability\CapabilityRequirement;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\RequiresCapabilitiesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Queue\Security\SignedQueuePayload;
 
-final class HealthSchemaServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface
+final class HealthSchemaServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface, RequiresCapabilitiesInterface
 {
     public function register(): void
     {
@@ -71,6 +73,11 @@ final class HealthSchemaServiceProvider extends ServiceProvider implements Provi
                 new CommunityTranslationPeerRepairer($database),
             );
         });
+    }
+
+    public function capabilityRequirements(): iterable
+    {
+        yield CapabilityRequirement::exact('configuration.authority.v1', 1);
     }
 
     public function consoleCommands(): iterable

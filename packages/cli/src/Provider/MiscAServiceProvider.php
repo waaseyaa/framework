@@ -14,13 +14,25 @@ use Waaseyaa\CLI\Handler\AdminBuildHandler;
 use Waaseyaa\CLI\Handler\AdminDevHandler;
 use Waaseyaa\CLI\Handler\DebugContextHandler;
 use Waaseyaa\CLI\Handler\EventListHandler;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
+use Waaseyaa\Foundation\ServiceProvider\Capability\CapabilityRequirement;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\RequiresCapabilitiesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
-final class MiscAServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface
+final class MiscAServiceProvider extends ServiceProvider implements ProvidesConsoleCommandsInterface, RequiresCapabilitiesInterface
 {
     public function register(): void
     {
+        $this->singleton(AboutHandler::class, function (): AboutHandler {
+            $context = $this->resolve(ConfigurationAuthorityContext::class);
+            assert($context instanceof ConfigurationAuthorityContext);
+
+            return new AboutHandler(
+                configurationAuthority: $context,
+                projectRoot: $this->projectRoot,
+            );
+        });
         $this->singleton(EventListHandler::class, function (): EventListHandler {
             /** @var ContractsEventDispatcherInterface $dispatcher */
             $dispatcher = $this->resolve(ContractsEventDispatcherInterface::class);
@@ -33,12 +45,17 @@ final class MiscAServiceProvider extends ServiceProvider implements ProvidesCons
         });
     }
 
+    public function capabilityRequirements(): iterable
+    {
+        yield CapabilityRequirement::exact('configuration.authority.v1', 1);
+    }
+
     public function consoleCommands(): iterable
     {
         yield new HandlerCommand(
             name: 'about',
             description: 'Display information about the Waaseyaa installation',
-            handler: \Closure::fromCallable([new AboutHandler(), 'execute']),
+            handler: [AboutHandler::class, 'execute'],
         );
 
         $projectRoot = $this->projectRoot !== '' ? $this->projectRoot : (string) getcwd();
