@@ -1227,6 +1227,51 @@
             "source_sha256": "4f200251083a63359232296bb7aa7ea8a3a7a4ded1e3b2e33b128fee94ac567d"
         },
         {
+            "path": "packages/auth/tests/Integration/Schema/AuthRuntimeSchemaAuthorityTest.php",
+            "line": 25,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "38272e77fce2e4614a29d20ad0b892058e56417d01789f61bdacd85e5bff39e9"
+        },
+        {
+            "path": "packages/auth/tests/Integration/Schema/AuthRuntimeSchemaAuthorityTest.php",
+            "line": 37,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "38272e77fce2e4614a29d20ad0b892058e56417d01789f61bdacd85e5bff39e9"
+        },
+        {
+            "path": "packages/auth/tests/Integration/Schema/AuthRuntimeSchemaAuthorityTest.php",
+            "line": 63,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "38272e77fce2e4614a29d20ad0b892058e56417d01789f61bdacd85e5bff39e9"
+        },
+        {
+            "path": "packages/auth/tests/Integration/Schema/AuthRuntimeSchemaAuthorityTest.php",
+            "line": 75,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "38272e77fce2e4614a29d20ad0b892058e56417d01789f61bdacd85e5bff39e9"
+        },
+        {
+            "path": "packages/auth/tests/Integration/Schema/AuthRuntimeSchemaAuthorityTest.php",
+            "line": 87,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "38272e77fce2e4614a29d20ad0b892058e56417d01789f61bdacd85e5bff39e9"
+        },
+        {
             "path": "packages/auth/tests/Unit/AuthServiceProviderTest.php",
             "line": 105,
             "pattern": "dbal_factory",
