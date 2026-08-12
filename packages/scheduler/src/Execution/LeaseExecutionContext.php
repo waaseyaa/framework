@@ -8,7 +8,7 @@ use Waaseyaa\Scheduler\Fence\FenceGuardInterface;
 use Waaseyaa\Scheduler\Lease\LeaseAuthorityInterface;
 use Waaseyaa\Scheduler\Lease\LeaseHandle;
 
-/** Renewable ownership and fencing context for one direct scheduled command. */
+/** Renewable ownership and fencing context for one direct scheduled command. @api */
 final class LeaseExecutionContext
 {
     public function __construct(

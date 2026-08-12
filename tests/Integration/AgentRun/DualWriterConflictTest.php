@@ -130,11 +130,13 @@ final class DualWriterConflictTest extends TestCase
         $read = $this->readTool->execute(['entity_type' => 'test_revisionable', 'id' => '1'], $account);
         self::assertFalse($read->isError, $read->summary ?? '');
         $headR = $read->content[0]['data']['revision_id'] ?? null;
+        $tokenR = $read->content[0]['data']['mutation_token'] ?? null;
         self::assertSame(1, $headR, 'writer A forms its expectation from the read surface');
+        self::assertIsString($tokenR);
 
         // Writer B lands first (no expectation) — head moves to R+1.
         $writeB = $this->updateTool->execute(
-            ['entity_type' => 'test_revisionable', 'id' => '1', 'values' => ['summary' => 'B summary']],
+            ['entity_type' => 'test_revisionable', 'id' => '1', 'values' => ['summary' => 'B summary'], 'mutation_token' => $tokenR],
             $account,
         );
         self::assertFalse($writeB->isError, $writeB->summary ?? '');
@@ -143,17 +145,15 @@ final class DualWriterConflictTest extends TestCase
         // Writer A states the now-stale expectation R — the conflict surfaces
         // as the structured error, never a silent revert of B's write.
         $writeA = $this->updateTool->execute(
-            ['entity_type' => 'test_revisionable', 'id' => '1', 'values' => ['title' => 'A title'], 'expected_revision_id' => $headR],
+            ['entity_type' => 'test_revisionable', 'id' => '1', 'values' => ['title' => 'A title'], 'mutation_token' => $tokenR],
             $account,
         );
         self::assertTrue($writeA->isError, 'the stale write must be refused');
         self::assertSame(
             [
-                'error' => 'revision_conflict',
+                'error' => 'mutation_conflict',
                 'entity_type' => 'test_revisionable',
                 'id' => '1',
-                'expected' => 1,
-                'current' => 2,
             ],
             $writeA->content[1]['data'] ?? null,
         );
@@ -168,10 +168,12 @@ final class DualWriterConflictTest extends TestCase
         $reread = $this->readTool->execute(['entity_type' => 'test_revisionable', 'id' => '1'], $account);
         self::assertFalse($reread->isError);
         $newHead = $reread->content[0]['data']['revision_id'] ?? null;
+        $newToken = $reread->content[0]['data']['mutation_token'] ?? null;
         self::assertSame(2, $newHead);
+        self::assertIsString($newToken);
 
         $retryA = $this->updateTool->execute(
-            ['entity_type' => 'test_revisionable', 'id' => '1', 'values' => ['title' => 'A title'], 'expected_revision_id' => $newHead],
+            ['entity_type' => 'test_revisionable', 'id' => '1', 'values' => ['title' => 'A title'], 'mutation_token' => $newToken],
             $account,
         );
         self::assertFalse($retryA->isError, $retryA->summary ?? '');
@@ -185,7 +187,7 @@ final class DualWriterConflictTest extends TestCase
     }
 
     #[Test]
-    public function withoutExpectationsTheSameInterleaveSilentlyOverwrites(): void
+    public function omissionCannotDegradeTheSameInterleaveToLastWriteWins(): void
     {
         $this->seed('2', 'original');
         $account = $this->account();
@@ -193,25 +195,26 @@ final class DualWriterConflictTest extends TestCase
         // Writer A reads head 1 (and then ignores it — no expectation stated).
         $read = $this->readTool->execute(['entity_type' => 'test_revisionable', 'id' => '2'], $account);
         self::assertSame(1, $read->content[0]['data']['revision_id'] ?? null);
+        $token = $read->content[0]['data']['mutation_token'] ?? null;
+        self::assertIsString($token);
 
         // Writer B updates the same field first.
         $writeB = $this->updateTool->execute(
-            ['entity_type' => 'test_revisionable', 'id' => '2', 'values' => ['title' => 'B title']],
+            ['entity_type' => 'test_revisionable', 'id' => '2', 'values' => ['title' => 'B title'], 'mutation_token' => $token],
             $account,
         );
         self::assertFalse($writeB->isError);
 
-        // Writer A writes the same field with NO expectation: today's
-        // last-write-wins — B's value is silently overwritten. This is the
-        // "before" of the mission, documented for contrast (SC-001).
+        // Writer A omits the token. The boundary refuses the blind write.
         $writeA = $this->updateTool->execute(
             ['entity_type' => 'test_revisionable', 'id' => '2', 'values' => ['title' => 'A title']],
             $account,
         );
-        self::assertFalse($writeA->isError, 'the unguarded write succeeds — and loses data silently');
+        self::assertTrue($writeA->isError, 'an omitted token must never become a blind write');
+        self::assertSame('entity.update: mutation_token is required.', $writeA->summary);
 
         $final = $this->repo->find('2');
         self::assertNotNull($final);
-        self::assertSame('A title', $final->get('title'), "last write wins: B's value is gone without any error");
+        self::assertSame('B title', $final->get('title'), 'the winning write remains intact');
     }
 }

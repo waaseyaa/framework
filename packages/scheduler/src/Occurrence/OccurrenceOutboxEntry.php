@@ -15,7 +15,6 @@ final readonly class OccurrenceOutboxEntry
         public string $scheduleGeneration,
         public string $messageClass,
         public int $leaseTtlMs,
-        public int $attempts,
     ) {}
 
     public function queueOccurrence(): QueueOccurrenceV1

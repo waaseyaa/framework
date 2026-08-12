@@ -135,6 +135,7 @@ final class CutoverFreshInstallSmokeTest extends TestCase
         $this->startServer();
 
         $createdIds = [];
+        $updatedTokens = [];
         foreach ([
             'page' => ['body' => '<p>Page body.</p>'],
             'post' => ['body' => '<p>News body.</p>'],
@@ -162,11 +163,13 @@ final class CutoverFreshInstallSmokeTest extends TestCase
 
             $update = $this->adminAction('update', [
                 'id' => $id,
+                'mutation_token' => $create['json']['data']['mutation_token'] ?? null,
                 'attributes' => ['title' => "Edited {$bundle}"],
             ]);
             self::assertSame(200, $update['status'], "{$bundle} update returned HTTP {$update['status']}: {$update['body']}");
             self::assertTrue($update['json']['ok'] ?? false, "{$bundle} update failed: {$update['body']}");
             self::assertSame("Edited {$bundle}", $update['json']['data']['attributes']['title'] ?? null);
+            $updatedTokens[$bundle] = $update['json']['data']['mutation_token'] ?? null;
         }
 
         $invalidCreate = $this->adminAction('create', [
@@ -183,6 +186,7 @@ final class CutoverFreshInstallSmokeTest extends TestCase
 
         $invalidUpdate = $this->adminAction('update', [
             'id' => $createdIds['page'],
+            'mutation_token' => $updatedTokens['page'] ?? null,
             'attributes' => ['title' => 12345],
         ]);
         self::assertNotSame(500, $invalidUpdate['status'], $invalidUpdate['body']);

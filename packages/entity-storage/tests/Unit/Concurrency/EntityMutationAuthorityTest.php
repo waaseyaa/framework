@@ -83,7 +83,7 @@ final class EntityMutationAuthorityTest extends TestCase
         self::assertSame(2, $tombstone->aggregateVersion);
         self::assertSame('tombstone', $this->authority->state($tombstone));
 
-        $recreated = $this->authority->recreate($tombstone);
+        $recreated = $this->authority->recreate('community-a', 'node', '42', $tombstone);
         self::assertSame(3, $recreated->aggregateVersion);
         self::assertSame('active', $this->authority->state($recreated));
 

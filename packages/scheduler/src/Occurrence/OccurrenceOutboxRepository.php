@@ -72,7 +72,7 @@ final readonly class OccurrenceOutboxRepository
         $parameters[] = max(1, $limit);
         $types[] = \Doctrine\DBAL\ParameterType::INTEGER;
         $rows = $this->database->getConnection()->fetchAllAssociative(
-            'SELECT o.occurrence_id, o.task_name, o.schedule_generation, x.message_class, x.lease_ttl_ms, x.attempts '
+            'SELECT o.occurrence_id, o.task_name, o.schedule_generation, x.message_class, x.lease_ttl_ms '
             . 'FROM ' . self::TABLE . ' x INNER JOIN waaseyaa_scheduler_occurrences o ON o.occurrence_id = x.occurrence_id '
             . $where . ' ORDER BY o.due_at_ms ASC, o.occurrence_id ASC LIMIT ?',
             $parameters,
@@ -86,7 +86,6 @@ final readonly class OccurrenceOutboxRepository
                 (string) $row['schedule_generation'],
                 (string) $row['message_class'],
                 (int) $row['lease_ttl_ms'],
-                (int) $row['attempts'],
             ),
             $rows,
         );

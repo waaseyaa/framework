@@ -16,9 +16,6 @@ use Waaseyaa\Scheduler\Fence\UnavailableFenceGuard;
 use Waaseyaa\Scheduler\Lease\DatabaseLease;
 use Waaseyaa\Scheduler\Lease\LeaseAuthorityInterface;
 use Waaseyaa\Scheduler\Lease\UnavailableLeaseAuthority;
-use Waaseyaa\Scheduler\Lock\DatabaseLock;
-use Waaseyaa\Scheduler\Lock\InMemoryLock;
-use Waaseyaa\Scheduler\Lock\LockInterface;
 use Waaseyaa\Scheduler\Occurrence\OccurrenceOutboxDispatcher;
 use Waaseyaa\Scheduler\Occurrence\OccurrenceOutboxRepository;
 use Waaseyaa\Scheduler\Occurrence\OccurrenceRepository;
@@ -31,21 +28,6 @@ final class SchedulerServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->singleton(ScheduleInterface::class, fn(): Schedule => new Schedule());
-
-        // Cross-host mutual exclusion needs a SHARED store. Use the durable
-        // database lock whenever a DatabaseInterface is available — regardless
-        // of the queue driver, which has nothing to do with scheduler locking.
-        // Only a database-less install falls back to the per-process in-memory
-        // lock (which, by construction, cannot guard against other hosts).
-        // Resolved lazily so the database binding (registered by a lower-layer
-        // provider) is present by the time the lock is first used.
-        $this->singleton(LockInterface::class, function (): LockInterface {
-            $database = $this->resolveOptional(DatabaseInterface::class);
-
-            return $database instanceof DatabaseInterface
-                ? new DatabaseLock($database)
-                : new InMemoryLock();
-        });
 
         $this->singleton(LeaseAuthorityInterface::class, function (): LeaseAuthorityInterface {
             $database = $this->resolveOptional(DatabaseInterface::class);

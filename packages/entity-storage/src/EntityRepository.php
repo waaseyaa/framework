@@ -1345,11 +1345,11 @@ final class EntityRepository implements EntityRepositoryInterface, AggregateMuta
                 if ($authorityId === '') {
                     throw new \LogicException('A created entity must have a canonical id before mutation authority is installed.');
                 }
-                $successorMutationToken = $this->mutationAuthority->create(
-                    $this->tenantIdFromValues($values),
-                    $entityTypeId,
-                    $authorityId,
-                );
+                $tenantId = $this->tenantIdFromValues($values);
+                $tombstoneToken = $entity instanceof EntityBase ? $entity->mutationToken() : null;
+                $successorMutationToken = $tombstoneToken !== null
+                    ? $this->mutationAuthority->recreate($tenantId, $entityTypeId, $authorityId, $tombstoneToken)
+                    : $this->mutationAuthority->create($tenantId, $entityTypeId, $authorityId);
                 $this->installTokenAfterCommit($entity, $successorMutationToken, $unitOfWork);
             }
 

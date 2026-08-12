@@ -10,9 +10,6 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
-use Waaseyaa\Scheduler\Lock\DatabaseLock;
-use Waaseyaa\Scheduler\Lock\InMemoryLock;
-use Waaseyaa\Scheduler\Lock\LockInterface;
 use Waaseyaa\Scheduler\SchedulerServiceProvider;
 use Waaseyaa\Scheduler\Lease\DatabaseLease;
 use Waaseyaa\Scheduler\Lease\LeaseAuthorityInterface;
@@ -27,27 +24,22 @@ use Waaseyaa\Scheduler\Occurrence\OccurrenceRepositoryInterface;
 final class SchedulerServiceProviderTest extends TestCase
 {
     #[Test]
-    public function uses_durable_database_lock_when_a_database_is_available_even_with_non_database_queue(): void
+    public function uses_durable_lease_and_fence_authorities_when_a_database_is_available(): void
     {
-        // queue.driver = 'sync' (the default). A database IS available. The
-        // overlap lock must be the durable, cross-host DatabaseLock — not the
-        // per-process InMemoryLock keyed off the unrelated queue driver.
         $provider = $this->provider(['queue' => ['driver' => 'sync']], DBALDatabase::createSqlite());
         $provider->register();
 
-        self::assertInstanceOf(DatabaseLock::class, $provider->resolve(LockInterface::class));
         self::assertInstanceOf(DatabaseLease::class, $provider->resolve(LeaseAuthorityInterface::class));
         self::assertInstanceOf(DatabaseFenceGuard::class, $provider->resolve(FenceGuardInterface::class));
         self::assertInstanceOf(OccurrenceRepository::class, $provider->resolve(OccurrenceRepositoryInterface::class));
     }
 
     #[Test]
-    public function falls_back_to_in_memory_lock_only_without_a_database(): void
+    public function refuses_lease_and_fence_effects_without_a_database(): void
     {
         $provider = $this->provider(['queue' => ['driver' => 'sync']], null);
         $provider->register();
 
-        self::assertInstanceOf(InMemoryLock::class, $provider->resolve(LockInterface::class));
         self::assertInstanceOf(UnavailableLeaseAuthority::class, $provider->resolve(LeaseAuthorityInterface::class));
         self::assertInstanceOf(UnavailableFenceGuard::class, $provider->resolve(FenceGuardInterface::class));
     }

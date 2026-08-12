@@ -438,6 +438,7 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
                 content: '{"transition":"submit_for_review"}',
             );
             $submitRequest->attributes->set('_account', $editor);
+            $submitRequest->headers->set('If-Match', (string) $discovery->headers->get('ETag'));
             $submitted = $scope->run($principal, fn() => $workflowController->transition($submitRequest, 'node', $draftUuid));
             self::assertSame(200, $submitted->getStatusCode());
 
@@ -454,6 +455,7 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
                 content: '{"transition":"publish"}',
             );
             $publishRequest->attributes->set('_account', $editor);
+            $publishRequest->headers->set('If-Match', (string) $reviewDiscovery->headers->get('ETag'));
             $published = $scope->run($principal, fn() => $workflowController->transition($publishRequest, 'node', $draftUuid));
             self::assertSame(200, $published->getStatusCode());
 

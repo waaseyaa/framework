@@ -96,16 +96,6 @@ final class FieldAutoSaveController
             return $this->error(422, 'malformed_body', 'Body must be {"value": "<string>"}');
         }
 
-        $ifMatch = $request->headers->get('If-Match');
-        if (!is_string($ifMatch) || trim($ifMatch) === '') {
-            return $this->error(428, 'mutation_precondition_required', 'If-Match is required');
-        }
-        try {
-            $expectedMutation = EntityMutationToken::fromHttpIfMatch($ifMatch);
-        } catch (\InvalidArgumentException) {
-            return $this->error(400, 'invalid_mutation_precondition', 'If-Match must contain one strong entity mutation ETag');
-        }
-
         // 4. Load entity type and entity (404 if missing).
         if (!$this->entityTypeManager->hasDefinition($entityType)) {
             return $this->error(404, 'entity_type_not_found', "Unknown entity type '{$entityType}'");
@@ -116,6 +106,16 @@ final class FieldAutoSaveController
         $entity = $repository->find($id);
         if ($entity === null) {
             return $this->error(404, 'entity_not_found', "Entity '{$entityType}/{$id}' not found");
+        }
+
+        $ifMatch = $request->headers->get('If-Match');
+        if (!is_string($ifMatch) || trim($ifMatch) === '') {
+            return $this->error(428, 'mutation_precondition_required', 'If-Match is required');
+        }
+        try {
+            $expectedMutation = EntityMutationToken::fromHttpIfMatch($ifMatch);
+        } catch (\InvalidArgumentException) {
+            return $this->error(400, 'invalid_mutation_precondition', 'If-Match must contain one strong entity mutation ETag');
         }
 
         // 5. Validate field key against bundle fields (404 if not registered).

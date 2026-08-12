@@ -82,8 +82,14 @@ final class EntityMutationAuthority
         return $this->transition($expected, 'active', 'tombstone');
     }
 
-    public function recreate(EntityMutationToken $expectedTombstone): EntityMutationToken
-    {
+    public function recreate(
+        string $tenantId,
+        string $entityTypeId,
+        string $entityId,
+        EntityMutationToken $expectedTombstone,
+    ): EntityMutationToken {
+        $this->assertIdentity($tenantId, $entityTypeId, $entityId, $expectedTombstone);
+
         return $this->transition($expectedTombstone, 'tombstone', 'active');
     }
 
