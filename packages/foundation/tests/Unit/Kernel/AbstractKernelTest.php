@@ -124,9 +124,11 @@ final class AbstractKernelTest extends TestCase
     #[Test]
     public function production_boot_requires_preflight_after_compiling_manifest_inventory(): void
     {
+        $databasePath = $this->projectRoot . '/storage/production.sqlite';
+        touch($databasePath);
         file_put_contents(
             $this->projectRoot . '/config/waaseyaa.php',
-            "<?php return ['database' => ':memory:', 'environment' => 'production'];",
+            "<?php return ['database' => " . var_export($databasePath, true) . ", 'environment' => 'production'];",
         );
         putenv('WAASEYAA_APP_SECRET=base64:' . base64_encode(str_repeat('m', 32)));
         $kernel = new class ($this->projectRoot) extends AbstractKernel {
