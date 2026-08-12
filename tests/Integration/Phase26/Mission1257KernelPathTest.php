@@ -714,11 +714,16 @@ final class Mission1257KernelPathTest extends TestCase
             public function __construct(string $projectRoot, LoggerInterface $logger, string $environment)
             {
                 parent::__construct($projectRoot, $logger);
+                $database = ':memory:';
+                if ($environment === 'production') {
+                    $database = $projectRoot . '/storage/production.sqlite';
+                    touch($database);
+                }
                 // DatabaseBootstrapper reads `config.database` as a path string.
                 // `environment` drives AbstractKernel::isDevelopmentMode(),
                 // which gates the production-strict tenancy guard.
                 $this->config = [
-                    'database' => ':memory:',
+                    'database' => $database,
                     'environment' => $environment,
                 ];
                 // boot() seeds the EventDispatcher before bootDatabase() and
