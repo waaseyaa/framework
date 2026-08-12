@@ -15,7 +15,8 @@ use Waaseyaa\Foundation\Security\SensitiveKey;
  * Cache backend that stores cache items in a database table via PDO.
  *
  * The table schema:
- *   cid    VARCHAR(255) PRIMARY KEY
+ *   bin    VARCHAR(128) COMPOSITE PRIMARY KEY
+ *   cid    VARCHAR(255) COMPOSITE PRIMARY KEY
  *   data   BLOB
  *   expire INTEGER
  *   created INTEGER
@@ -25,6 +26,8 @@ use Waaseyaa\Foundation\Security\SensitiveKey;
  */
 final class DatabaseBackend implements TagAwareCacheInterface
 {
+    private const string TABLE = 'cache_items';
+
     /**
      * Canonical serialized form of boolean false.
      * Used to distinguish a legitimately-cached `false` from an unserialize failure.
@@ -54,10 +57,10 @@ final class DatabaseBackend implements TagAwareCacheInterface
     {
         $this->ensureTable();
 
-        $stmt = $this->pdo->prepare(
-            "SELECT cid, data, expire, created, tags, valid FROM {$this->bin} WHERE cid = :cid",
+        $stmt = $this->prepare(
+            'SELECT cid, data, expire, created, tags, valid FROM ' . self::TABLE . ' WHERE bin = :bin AND cid = :cid',
         );
-        $stmt->execute([':cid' => $cid]);
+        $stmt->execute([':bin' => $this->bin, ':cid' => $cid]);
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
 
         if ($row === false) {
@@ -77,10 +80,10 @@ final class DatabaseBackend implements TagAwareCacheInterface
         }
 
         $placeholders = implode(',', array_fill(0, count($cids), '?'));
-        $stmt = $this->pdo->prepare(
-            "SELECT cid, data, expire, created, tags, valid FROM {$this->bin} WHERE cid IN ({$placeholders})",
+        $stmt = $this->prepare(
+            'SELECT cid, data, expire, created, tags, valid FROM ' . self::TABLE . " WHERE bin = ? AND cid IN ({$placeholders})",
         );
-        $stmt->execute(array_values($cids));
+        $stmt->execute([$this->bin, ...array_values($cids)]);
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
         $items = [];
@@ -105,10 +108,11 @@ final class DatabaseBackend implements TagAwareCacheInterface
         $tagsString = implode(',', $tags);
         $now = time();
 
-        $stmt = $this->pdo->prepare(
-            "INSERT OR REPLACE INTO {$this->bin} (cid, data, expire, created, tags, valid) VALUES (:cid, :data, :expire, :created, :tags, :valid)",
+        $stmt = $this->prepare(
+            'INSERT OR REPLACE INTO ' . self::TABLE . ' (bin, cid, data, expire, created, tags, valid) VALUES (:bin, :cid, :data, :expire, :created, :tags, :valid)',
         );
         $stmt->execute([
+            ':bin' => $this->bin,
             ':cid' => $cid,
             ':data' => $this->encodePayload($serialized),
             ':expire' => $expire,
@@ -122,8 +126,8 @@ final class DatabaseBackend implements TagAwareCacheInterface
     {
         $this->ensureTable();
 
-        $stmt = $this->pdo->prepare("DELETE FROM {$this->bin} WHERE cid = :cid");
-        $stmt->execute([':cid' => $cid]);
+        $stmt = $this->prepare('DELETE FROM ' . self::TABLE . ' WHERE bin = :bin AND cid = :cid');
+        $stmt->execute([':bin' => $this->bin, ':cid' => $cid]);
     }
 
     public function deleteMultiple(array $cids): void
@@ -135,22 +139,22 @@ final class DatabaseBackend implements TagAwareCacheInterface
         $this->ensureTable();
 
         $placeholders = implode(',', array_fill(0, count($cids), '?'));
-        $stmt = $this->pdo->prepare("DELETE FROM {$this->bin} WHERE cid IN ({$placeholders})");
-        $stmt->execute(array_values($cids));
+        $stmt = $this->prepare('DELETE FROM ' . self::TABLE . " WHERE bin = ? AND cid IN ({$placeholders})");
+        $stmt->execute([$this->bin, ...array_values($cids)]);
     }
 
     public function deleteAll(): void
     {
         $this->ensureTable();
-        $this->pdo->prepare("DELETE FROM {$this->bin}")->execute();
+        $this->prepare('DELETE FROM ' . self::TABLE . ' WHERE bin = :bin')->execute([':bin' => $this->bin]);
     }
 
     public function invalidate(string $cid): void
     {
         $this->ensureTable();
 
-        $stmt = $this->pdo->prepare("UPDATE {$this->bin} SET valid = 0 WHERE cid = :cid");
-        $stmt->execute([':cid' => $cid]);
+        $stmt = $this->prepare('UPDATE ' . self::TABLE . ' SET valid = 0 WHERE bin = :bin AND cid = :cid');
+        $stmt->execute([':bin' => $this->bin, ':cid' => $cid]);
     }
 
     public function invalidateMultiple(array $cids): void
@@ -162,20 +166,20 @@ final class DatabaseBackend implements TagAwareCacheInterface
         $this->ensureTable();
 
         $placeholders = implode(',', array_fill(0, count($cids), '?'));
-        $stmt = $this->pdo->prepare("UPDATE {$this->bin} SET valid = 0 WHERE cid IN ({$placeholders})");
-        $stmt->execute(array_values($cids));
+        $stmt = $this->prepare('UPDATE ' . self::TABLE . " SET valid = 0 WHERE bin = ? AND cid IN ({$placeholders})");
+        $stmt->execute([$this->bin, ...array_values($cids)]);
     }
 
     public function invalidateAll(): void
     {
         $this->ensureTable();
-        $this->pdo->prepare("UPDATE {$this->bin} SET valid = 0")->execute();
+        $this->prepare('UPDATE ' . self::TABLE . ' SET valid = 0 WHERE bin = :bin')->execute([':bin' => $this->bin]);
     }
 
     public function removeBin(): void
     {
-        $this->pdo->prepare("DROP TABLE IF EXISTS {$this->bin}")->execute();
-        $this->tableInitialized = false;
+        $this->ensureTable();
+        $this->prepare('DELETE FROM ' . self::TABLE . ' WHERE bin = :bin')->execute([':bin' => $this->bin]);
     }
 
     /** @param string[] $tags */
@@ -214,7 +218,8 @@ final class DatabaseBackend implements TagAwareCacheInterface
         }
 
         $where = implode(' OR ', $conditions);
-        $stmt = $this->pdo->prepare("UPDATE {$this->bin} SET valid = 0 WHERE {$where}");
+        $stmt = $this->prepare('UPDATE ' . self::TABLE . " SET valid = 0 WHERE bin = :bin AND ({$where})");
+        $params[':bin'] = $this->bin;
         $stmt->execute($params);
     }
 
@@ -224,18 +229,39 @@ final class DatabaseBackend implements TagAwareCacheInterface
             return;
         }
 
-        $this->pdo->prepare(
-            "CREATE TABLE IF NOT EXISTS {$this->bin} (
-                cid VARCHAR(255) NOT NULL PRIMARY KEY,
-                data BLOB NOT NULL,
-                expire INTEGER NOT NULL DEFAULT -1,
-                created INTEGER NOT NULL DEFAULT 0,
-                tags TEXT NOT NULL DEFAULT '',
-                valid INTEGER NOT NULL DEFAULT 1
-            )",
-        )->execute();
+        try {
+            $statement = $this->pdo->query("PRAGMA table_info('" . self::TABLE . "')");
+            $columns = $statement === false ? [] : $statement->fetchAll(\PDO::FETCH_COLUMN, 1);
+        } catch (\Throwable $exception) {
+            throw new \RuntimeException(
+                '[S1-DB106] Required runtime cache schema inspection failed. Apply migration "waaseyaa/cache:2026_08_12_000001_cache_items_schema" through the schema coordinator.',
+                previous: $exception,
+            );
+        }
+
+        $missing = array_values(array_diff(
+            ['bin', 'cid', 'data', 'expire', 'created', 'tags', 'valid'],
+            $columns,
+        ));
+        if ($missing !== []) {
+            throw new \RuntimeException(sprintf(
+                '[S1-DB106] Required runtime schema is unavailable for table "%s"; missing: %s. Apply migration "waaseyaa/cache:2026_08_12_000001_cache_items_schema" through the schema coordinator.',
+                self::TABLE,
+                implode(', ', $missing),
+            ));
+        }
 
         $this->tableInitialized = true;
+    }
+
+    private function prepare(string $sql): \PDOStatement
+    {
+        $statement = $this->pdo->prepare($sql);
+        if ($statement === false) {
+            throw new \RuntimeException('Cache database could not prepare the required statement.');
+        }
+
+        return $statement;
     }
 
     /**

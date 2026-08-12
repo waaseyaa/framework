@@ -6,6 +6,7 @@ namespace Waaseyaa\Cache\Tests\Unit;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 use Waaseyaa\Cache\Backend\DatabaseBackend;
 use Waaseyaa\Cache\Backend\MemoryBackend;
 use Waaseyaa\Cache\CacheFactory;
@@ -132,7 +133,9 @@ final class ProjectionDeprecationDiagnosticTest extends TestCase
             },
         );
         $value = new \stdClass();
-        $database = new DatabaseBackend(new \PDO('sqlite::memory:'), 'cache_projection', projectionDiagnostic: $diagnostic);
+        $pdo = new \PDO('sqlite::memory:');
+        RuntimeSchemaMigrations::cachePdo($pdo);
+        $database = new DatabaseBackend($pdo, 'cache_projection', projectionDiagnostic: $diagnostic);
         $database->set('database', $value);
         $factory = new CacheFactory(projectionDiagnostic: $diagnostic);
         $factory->get('memory')->set('factory', $value);

@@ -13,6 +13,7 @@ use Waaseyaa\Cache\CacheFactoryInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 #[CoversClass(CacheFactory::class)]
 final class CacheFactoryTest extends TestCase
@@ -97,6 +98,7 @@ final class CacheFactoryTest extends TestCase
     public function factory_callable_backend_is_functional(): void
     {
         $pdo = new \PDO('sqlite::memory:');
+        RuntimeSchemaMigrations::cachePdo($pdo);
         $config = new CacheConfiguration();
         $config->setFactoryForBin('cache_db', fn() => new DatabaseBackend($pdo, 'cache_db'));
 

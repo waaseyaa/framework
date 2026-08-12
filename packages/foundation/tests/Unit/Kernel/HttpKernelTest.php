@@ -307,12 +307,13 @@ final class HttpKernelTest extends TestCase
         $cacheProperty = new \ReflectionProperty(HttpKernel::class, 'discoveryCache');
         $cache = $cacheProperty->getValue($kernel);
         self::assertInstanceOf(CacheBackendInterface::class, $cache);
-        $cache->set('secret-custody-probe', 'value');
 
         $database = $kernel->getDatabase();
         self::assertInstanceOf(DBALDatabase::class, $database);
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::cache($database);
+        $cache->set('secret-custody-probe', 'value');
         $stored = (string) $database->getConnection()->fetchOne(
-            "SELECT data FROM cache_discovery WHERE cid = 'secret-custody-probe'",
+            "SELECT data FROM cache_items WHERE bin = 'cache_discovery' AND cid = 'secret-custody-probe'",
         );
         $derived = hash_hkdf(
             'sha256',

@@ -16,6 +16,26 @@ final class RuntimeSchemaMigrations
         self::apply($database, 'packages/api/migrations/2026_08_12_000001_broadcast_schema.php');
     }
 
+    public static function cache(DBALDatabase $database): void
+    {
+        self::apply($database, 'packages/cache/migrations/2026_08_12_000001_cache_items_schema.php');
+    }
+
+    /** Test-only PDO fixture for cache consumers that do not compose DBALDatabase. */
+    public static function cachePdo(\PDO $pdo): void
+    {
+        $pdo->exec('CREATE TABLE IF NOT EXISTS cache_items (
+            bin VARCHAR(128) NOT NULL,
+            cid VARCHAR(255) NOT NULL,
+            data BLOB NOT NULL,
+            expire INTEGER NOT NULL DEFAULT -1,
+            created INTEGER NOT NULL DEFAULT 0,
+            tags TEXT NOT NULL DEFAULT \'\',
+            valid INTEGER NOT NULL DEFAULT 1,
+            PRIMARY KEY (bin, cid)
+        )');
+    }
+
     public static function auth(DBALDatabase $database): void
     {
         self::apply($database, 'packages/auth/migrations/2026_08_12_000001_auth_runtime_schema.php');

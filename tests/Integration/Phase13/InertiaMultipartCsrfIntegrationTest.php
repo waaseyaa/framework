@@ -68,6 +68,7 @@ final class InertiaMultipartCsrfIntegrationTest extends TestCase
         $database = \Waaseyaa\Database\DBALDatabase::createSqlite($this->projectRoot . '/storage/waaseyaa.sqlite');
         \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::auth($database);
         \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::broadcast($database);
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::cache($database);
 
         // Root composer.json declaring our fixture provider so the kernel's
         // PackageManifestCompiler picks it up via extra.waaseyaa.providers.
