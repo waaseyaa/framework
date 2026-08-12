@@ -193,30 +193,30 @@
         },
         {
             "path": "packages/ai-agent/tests/Unit/Broadcast/AgentRunBroadcasterServiceProviderTest.php",
+            "line": 24,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "090ef3ac740e01087ef6d6c1332c6cc5843f2159ce8e6564b3e52996bec07eaf",
+            "source_sha256": "47ccd95e8356176dc6b5588949dd3eec19e064b04b93af702e0285773fc0925a"
+        },
+        {
+            "path": "packages/ai-agent/tests/Unit/Broadcast/AgentRunBroadcasterTest.php",
             "line": 23,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "090ef3ac740e01087ef6d6c1332c6cc5843f2159ce8e6564b3e52996bec07eaf",
-            "source_sha256": "14e94b425bd64711acb713f362d67c1fc8497a85df1e3b1b9b238310aca189f5"
+            "source_sha256": "cd922fae75bff6acff01e946c840a5efc7abb647e9b3ce2d09cd0da7bd39776f"
         },
         {
             "path": "packages/ai-agent/tests/Unit/Broadcast/AgentRunBroadcasterTest.php",
-            "line": 22,
+            "line": 49,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "090ef3ac740e01087ef6d6c1332c6cc5843f2159ce8e6564b3e52996bec07eaf",
-            "source_sha256": "c2425df6f7b6e17cf8b1441303d4f365d086f9699c36e5711c760dea2efaedd2"
-        },
-        {
-            "path": "packages/ai-agent/tests/Unit/Broadcast/AgentRunBroadcasterTest.php",
-            "line": 47,
-            "pattern": "dbal_factory",
-            "class": "test",
-            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
-            "line_sha256": "090ef3ac740e01087ef6d6c1332c6cc5843f2159ce8e6564b3e52996bec07eaf",
-            "source_sha256": "c2425df6f7b6e17cf8b1441303d4f365d086f9699c36e5711c760dea2efaedd2"
+            "source_sha256": "cd922fae75bff6acff01e946c840a5efc7abb647e9b3ce2d09cd0da7bd39776f"
         },
         {
             "path": "packages/ai-agent/tests/Unit/Mcp/McpServiceProviderManifestTest.php",
@@ -265,12 +265,12 @@
         },
         {
             "path": "packages/ai-agent/tests/Unit/Tool/Wayfinding/EmitBeaconToolTest.php",
-            "line": 34,
+            "line": 35,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
-            "source_sha256": "6c9cdf7a9b91a8b4b4c03aae3c9bf0f56e8f925bfc5f2c71ce7e3625fe092985"
+            "source_sha256": "a29a953cec259edd656c908a03b3a2a0cb466939fc53c7a4c27b569ee6605bbf"
         },
         {
             "path": "packages/ai-agent/tests/Unit/Tool/Wayfinding/WayfindingTrailToolsTest.php",
@@ -310,12 +310,12 @@
         },
         {
             "path": "packages/ai-tools/tests/Unit/Content/ContentToolSetTest.php",
-            "line": 53,
+            "line": 54,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "d25f3afb11589c985350df620b028ad04b302497e8a43e820b9563c4a537c032",
-            "source_sha256": "4edd1ac4197f31c411f867e8ce8fa280fb51b4374938000550e96a19dba86fe6"
+            "source_sha256": "46fdcea5eadb159e59bef4c62379a4aed5a4efd83a98b5c77fd061d30e4ef3a7"
         },
         {
             "path": "packages/ai-tools/tests/Unit/ContentSearch/ContentSearchToolTest.php",
@@ -454,12 +454,12 @@
         },
         {
             "path": "packages/api/tests/Unit/Controller/BroadcastStorageTest.php",
-            "line": 21,
+            "line": 22,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
-            "source_sha256": "245c59dbaf13aeaa63099a3bf21897a3ff6be7efb6dec948fc04fdf1187defc0"
+            "source_sha256": "0f54b090c84b7560f09409fb2960a0a9d53067c8d97ce046572484094d589893"
         },
         {
             "path": "packages/api/tests/Unit/Controller/SchedulerControllerTest.php",
@@ -490,66 +490,57 @@
         },
         {
             "path": "packages/api/tests/Unit/Http/Router/DiscoveryRouterTest.php",
-            "line": 38,
+            "line": 39,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "5fd42e40a10cc419936051dc15b3c90941cd69222c9ef0f02147e501321f391f"
+            "source_sha256": "e6e58a4275b837e00ef02ecedd80c0bfcae1e0cf693bde2faf4aead5dfec8ff9"
         },
         {
             "path": "packages/api/tests/Unit/Http/Router/DiscoveryRouterTest.php",
-            "line": 424,
+            "line": 425,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "5fd42e40a10cc419936051dc15b3c90941cd69222c9ef0f02147e501321f391f"
+            "source_sha256": "e6e58a4275b837e00ef02ecedd80c0bfcae1e0cf693bde2faf4aead5dfec8ff9"
         },
         {
             "path": "packages/api/tests/Unit/Http/Router/DiscoveryRouterTest.php",
-            "line": 503,
+            "line": 505,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "5fd42e40a10cc419936051dc15b3c90941cd69222c9ef0f02147e501321f391f"
+            "source_sha256": "e6e58a4275b837e00ef02ecedd80c0bfcae1e0cf693bde2faf4aead5dfec8ff9"
         },
         {
             "path": "packages/api/tests/Unit/Http/Router/DiscoveryRouterTest.php",
-            "line": 554,
+            "line": 556,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "5fd42e40a10cc419936051dc15b3c90941cd69222c9ef0f02147e501321f391f"
+            "source_sha256": "e6e58a4275b837e00ef02ecedd80c0bfcae1e0cf693bde2faf4aead5dfec8ff9"
         },
         {
             "path": "packages/api/tests/Unit/Http/Router/DiscoveryRouterTest.php",
-            "line": 649,
+            "line": 652,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "5fd42e40a10cc419936051dc15b3c90941cd69222c9ef0f02147e501321f391f"
+            "source_sha256": "e6e58a4275b837e00ef02ecedd80c0bfcae1e0cf693bde2faf4aead5dfec8ff9"
         },
         {
             "path": "packages/api/tests/Unit/Http/Router/DiscoveryRouterTest.php",
-            "line": 758,
+            "line": 793,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
-            "line_sha256": "0b8b6caaf35c1337f2dd99e3782d514665a2e9e4cd295c31bc216cc989690080",
-            "source_sha256": "5fd42e40a10cc419936051dc15b3c90941cd69222c9ef0f02147e501321f391f"
-        },
-        {
-            "path": "packages/api/tests/Unit/Http/Router/DiscoveryRouterTest.php",
-            "line": 782,
-            "pattern": "dbal_factory",
-            "class": "test",
-            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
-            "line_sha256": "0b8b6caaf35c1337f2dd99e3782d514665a2e9e4cd295c31bc216cc989690080",
-            "source_sha256": "5fd42e40a10cc419936051dc15b3c90941cd69222c9ef0f02147e501321f391f"
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "e6e58a4275b837e00ef02ecedd80c0bfcae1e0cf693bde2faf4aead5dfec8ff9"
         },
         {
             "path": "packages/api/tests/Unit/JsonApiControllerConflictTest.php",
@@ -571,12 +562,12 @@
         },
         {
             "path": "packages/api/tests/Unit/Schedule/BroadcastStorageScheduleEntriesTest.php",
-            "line": 24,
+            "line": 25,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "090ef3ac740e01087ef6d6c1332c6cc5843f2159ce8e6564b3e52996bec07eaf",
-            "source_sha256": "7a4bc77e9fb7e25f4e27b30e096821fba4225778fc174825178601a720a19691"
+            "source_sha256": "c7a7da122008020a2672b473359c3aabc06b091e440c507a34d1d52d218e9cd1"
         },
         {
             "path": "packages/attachment/tests/Integration/GenericEntityApiActiveGuardTest.php",
@@ -3370,111 +3361,111 @@
         },
         {
             "path": "packages/foundation/tests/Unit/Http/Inbound/ChannelInspectorTest.php",
-            "line": 17,
+            "line": 18,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "774939a6b45da48be18e96d593f1702bf0a0a6b4bf390bf56af88ba86664d41c",
-            "source_sha256": "b46b29460f64092c9cbf5ba2fa125a9d80100d7e5963e9206fed0c956b639a5f"
+            "source_sha256": "f530f4e02af77f0206a81de116226bad566df8a4e13aca9f3f2d29f7657770f9"
         },
         {
             "path": "packages/foundation/tests/Unit/Http/Inbound/ChannelInspectorTest.php",
-            "line": 30,
-            "pattern": "dbal_factory",
-            "class": "test",
-            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
-            "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
-            "source_sha256": "b46b29460f64092c9cbf5ba2fa125a9d80100d7e5963e9206fed0c956b639a5f"
-        },
-        {
-            "path": "packages/foundation/tests/Unit/Http/Inbound/EventStreamReadModelTest.php",
             "line": 31,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
-            "source_sha256": "1c363eb3196671f38303611ecc0f879f4ffc03d492be089d6fd9d6f7197ab655"
+            "source_sha256": "f530f4e02af77f0206a81de116226bad566df8a4e13aca9f3f2d29f7657770f9"
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Http/Inbound/EventStreamReadModelTest.php",
+            "line": 32,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
+            "source_sha256": "54340d306022fa8376ff95145e959f81f520a9888cceeedd7e4415a47fbd7513"
         },
         {
             "path": "packages/foundation/tests/Unit/Http/Router/BroadcastRouterTest.php",
+            "line": 68,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
+            "line_sha256": "2a52828997822b33b11c370d2fcf2a81ab1abe737b0326dda8d2e8bc00898635",
+            "source_sha256": "8f1425f4d35e88854788297cc88ea8443557dc654e7d6a4c6e5c1fb90fb62b24"
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Http/Router/BroadcastRouterTest.php",
+            "line": 143,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
+            "line_sha256": "2a52828997822b33b11c370d2fcf2a81ab1abe737b0326dda8d2e8bc00898635",
+            "source_sha256": "8f1425f4d35e88854788297cc88ea8443557dc654e7d6a4c6e5c1fb90fb62b24"
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Http/Router/BroadcastRouterTest.php",
+            "line": 173,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
+            "line_sha256": "2a52828997822b33b11c370d2fcf2a81ab1abe737b0326dda8d2e8bc00898635",
+            "source_sha256": "8f1425f4d35e88854788297cc88ea8443557dc654e7d6a4c6e5c1fb90fb62b24"
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Http/Router/BroadcastRouterTest.php",
+            "line": 198,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
+            "line_sha256": "2a52828997822b33b11c370d2fcf2a81ab1abe737b0326dda8d2e8bc00898635",
+            "source_sha256": "8f1425f4d35e88854788297cc88ea8443557dc654e7d6a4c6e5c1fb90fb62b24"
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Http/Router/BroadcastRouterTest.php",
+            "line": 232,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
+            "line_sha256": "2a52828997822b33b11c370d2fcf2a81ab1abe737b0326dda8d2e8bc00898635",
+            "source_sha256": "8f1425f4d35e88854788297cc88ea8443557dc654e7d6a4c6e5c1fb90fb62b24"
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Http/Router/BroadcastRouterTest.php",
+            "line": 267,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
+            "line_sha256": "2a52828997822b33b11c370d2fcf2a81ab1abe737b0326dda8d2e8bc00898635",
+            "source_sha256": "8f1425f4d35e88854788297cc88ea8443557dc654e7d6a4c6e5c1fb90fb62b24"
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Http/Router/BroadcastRouterTest.php",
+            "line": 305,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
+            "line_sha256": "2a52828997822b33b11c370d2fcf2a81ab1abe737b0326dda8d2e8bc00898635",
+            "source_sha256": "8f1425f4d35e88854788297cc88ea8443557dc654e7d6a4c6e5c1fb90fb62b24"
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Http/Router/BroadcastRouterTest.php",
+            "line": 339,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
+            "line_sha256": "2a52828997822b33b11c370d2fcf2a81ab1abe737b0326dda8d2e8bc00898635",
+            "source_sha256": "8f1425f4d35e88854788297cc88ea8443557dc654e7d6a4c6e5c1fb90fb62b24"
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Http/Router/EntityTypeLifecycleRouterTest.php",
             "line": 67,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
-            "line_sha256": "2a52828997822b33b11c370d2fcf2a81ab1abe737b0326dda8d2e8bc00898635",
-            "source_sha256": "67775a13097f45cb3f6217f1dac9fb515834cb8ff4983a123d896947675e2ee6"
-        },
-        {
-            "path": "packages/foundation/tests/Unit/Http/Router/BroadcastRouterTest.php",
-            "line": 141,
-            "pattern": "dbal_factory",
-            "class": "test",
-            "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
-            "line_sha256": "2a52828997822b33b11c370d2fcf2a81ab1abe737b0326dda8d2e8bc00898635",
-            "source_sha256": "67775a13097f45cb3f6217f1dac9fb515834cb8ff4983a123d896947675e2ee6"
-        },
-        {
-            "path": "packages/foundation/tests/Unit/Http/Router/BroadcastRouterTest.php",
-            "line": 170,
-            "pattern": "dbal_factory",
-            "class": "test",
-            "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
-            "line_sha256": "2a52828997822b33b11c370d2fcf2a81ab1abe737b0326dda8d2e8bc00898635",
-            "source_sha256": "67775a13097f45cb3f6217f1dac9fb515834cb8ff4983a123d896947675e2ee6"
-        },
-        {
-            "path": "packages/foundation/tests/Unit/Http/Router/BroadcastRouterTest.php",
-            "line": 194,
-            "pattern": "dbal_factory",
-            "class": "test",
-            "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
-            "line_sha256": "2a52828997822b33b11c370d2fcf2a81ab1abe737b0326dda8d2e8bc00898635",
-            "source_sha256": "67775a13097f45cb3f6217f1dac9fb515834cb8ff4983a123d896947675e2ee6"
-        },
-        {
-            "path": "packages/foundation/tests/Unit/Http/Router/BroadcastRouterTest.php",
-            "line": 227,
-            "pattern": "dbal_factory",
-            "class": "test",
-            "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
-            "line_sha256": "2a52828997822b33b11c370d2fcf2a81ab1abe737b0326dda8d2e8bc00898635",
-            "source_sha256": "67775a13097f45cb3f6217f1dac9fb515834cb8ff4983a123d896947675e2ee6"
-        },
-        {
-            "path": "packages/foundation/tests/Unit/Http/Router/BroadcastRouterTest.php",
-            "line": 261,
-            "pattern": "dbal_factory",
-            "class": "test",
-            "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
-            "line_sha256": "2a52828997822b33b11c370d2fcf2a81ab1abe737b0326dda8d2e8bc00898635",
-            "source_sha256": "67775a13097f45cb3f6217f1dac9fb515834cb8ff4983a123d896947675e2ee6"
-        },
-        {
-            "path": "packages/foundation/tests/Unit/Http/Router/BroadcastRouterTest.php",
-            "line": 298,
-            "pattern": "dbal_factory",
-            "class": "test",
-            "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
-            "line_sha256": "2a52828997822b33b11c370d2fcf2a81ab1abe737b0326dda8d2e8bc00898635",
-            "source_sha256": "67775a13097f45cb3f6217f1dac9fb515834cb8ff4983a123d896947675e2ee6"
-        },
-        {
-            "path": "packages/foundation/tests/Unit/Http/Router/BroadcastRouterTest.php",
-            "line": 331,
-            "pattern": "dbal_factory",
-            "class": "test",
-            "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
-            "line_sha256": "2a52828997822b33b11c370d2fcf2a81ab1abe737b0326dda8d2e8bc00898635",
-            "source_sha256": "67775a13097f45cb3f6217f1dac9fb515834cb8ff4983a123d896947675e2ee6"
-        },
-        {
-            "path": "packages/foundation/tests/Unit/Http/Router/EntityTypeLifecycleRouterTest.php",
-            "line": 66,
-            "pattern": "dbal_factory",
-            "class": "test",
-            "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
-            "line_sha256": "024a45fc83e524486937f50e9a6e695d56d1cc93585029dbb18bab3b7eb50a4b",
-            "source_sha256": "ece8d7ac5978c4a5da88687fc82dd6ef0979230ed7fe7f045eebd58c9555c9b9"
+            "line_sha256": "a5af8ef60efc2ee3f8add53816d4c16bfa1f52ad4dd61437bae22e1b31502809",
+            "source_sha256": "caee6e42e25f3c3fc437ee3abaaa7f7d3c6cda9db7f76a4426cd88797948e331"
         },
         {
             "path": "packages/foundation/tests/Unit/Http/Router/JsonApiRouterTest.php",
@@ -3487,48 +3478,39 @@
         },
         {
             "path": "packages/foundation/tests/Unit/Http/Router/SearchRouterTest.php",
-            "line": 19,
+            "line": 20,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
             "line_sha256": "603dbc9da37478b7f2963cc90d49f073bfee7a67e882c0eade501c468d5e1b88",
-            "source_sha256": "023aa7e4def84688765eb8b3aeccd3930c55a3aefcc190e16fd2d0f74ac09172"
+            "source_sha256": "52bc3b81bf7bc407e3e5cb41ef08a6dfb069451d4cbe527776045079f0c50dc4"
         },
         {
             "path": "packages/foundation/tests/Unit/Http/Router/SearchRouterTest.php",
-            "line": 28,
+            "line": 29,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
             "line_sha256": "603dbc9da37478b7f2963cc90d49f073bfee7a67e882c0eade501c468d5e1b88",
-            "source_sha256": "023aa7e4def84688765eb8b3aeccd3930c55a3aefcc190e16fd2d0f74ac09172"
+            "source_sha256": "52bc3b81bf7bc407e3e5cb41ef08a6dfb069451d4cbe527776045079f0c50dc4"
         },
         {
             "path": "packages/foundation/tests/Unit/Http/Router/SearchRouterTest.php",
-            "line": 37,
+            "line": 38,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
             "line_sha256": "2a52828997822b33b11c370d2fcf2a81ab1abe737b0326dda8d2e8bc00898635",
-            "source_sha256": "023aa7e4def84688765eb8b3aeccd3930c55a3aefcc190e16fd2d0f74ac09172"
+            "source_sha256": "52bc3b81bf7bc407e3e5cb41ef08a6dfb069451d4cbe527776045079f0c50dc4"
         },
         {
             "path": "packages/foundation/tests/Unit/Http/Router/WaaseyaaContextTest.php",
-            "line": 23,
+            "line": 60,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
-            "line_sha256": "4844ac534ca705ebf21a3548560a1ae844d1b2738a25f56c959fed050cd74231",
-            "source_sha256": "a0e3d8b81b3eef2a31fffe9b69a834c6bd19d84be6fc1b0a424e93ea90d1f08d"
-        },
-        {
-            "path": "packages/foundation/tests/Unit/Http/Router/WaaseyaaContextTest.php",
-            "line": 44,
-            "pattern": "dbal_factory",
-            "class": "test",
-            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
-            "line_sha256": "4844ac534ca705ebf21a3548560a1ae844d1b2738a25f56c959fed050cd74231",
-            "source_sha256": "a0e3d8b81b3eef2a31fffe9b69a834c6bd19d84be6fc1b0a424e93ea90d1f08d"
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "02971a2cc20c44ec4190efd8a3d0b1b14b2a1eb5eb7294e5e23cd99f4aac894b"
         },
         {
             "path": "packages/foundation/tests/Unit/Kernel/Bootstrap/ProviderRegistryKernelServicesTest.php",
@@ -4108,12 +4090,12 @@
         },
         {
             "path": "packages/graphql/tests/Unit/Http/Router/GraphQlRouterTest.php",
-            "line": 52,
+            "line": 53,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
-            "line_sha256": "0b8b6caaf35c1337f2dd99e3782d514665a2e9e4cd295c31bc216cc989690080",
-            "source_sha256": "1f8af706a6eb4fd3494ce9195d85156c392521d4474c169b0ec380325a2241ef"
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "32eec71b06c545347ecc2e7b92382fb3685f4d75a131b32ff2b6be2c65b41549"
         },
         {
             "path": "packages/groups/tests/Integration/AuthorizedMemberDirectoryTest.php",
@@ -4378,12 +4360,12 @@
         },
         {
             "path": "packages/media/tests/Unit/Http/Router/MediaRouterTest.php",
-            "line": 155,
+            "line": 156,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
-            "line_sha256": "0b8b6caaf35c1337f2dd99e3782d514665a2e9e4cd295c31bc216cc989690080",
-            "source_sha256": "5d3988a117517d37436a1403786de14c25ec19ce55b1a740029b9a4158601f31"
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "923607d4b251949f1c3bfa74edd22ad9eb0afebff65bca5f90b9e8392a94a21a"
         },
         {
             "path": "packages/media/tests/Unit/Migration/MediaVersionVidUniqueIndexMigrationTest.php",
@@ -5107,21 +5089,21 @@
         },
         {
             "path": "packages/publishing/tests/Unit/ContentPublisherTest.php",
-            "line": 62,
+            "line": 63,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "edb52a8a635aaee7ff888596e30138e4638c3fe7dffab9d2f6795fd92cef5e2a",
-            "source_sha256": "3c933bb80df881e24c1209817b2038a4bc8c6684f4eb68dbd54a039513c36c21"
+            "source_sha256": "60e55c82bf13222089e8a384faddf22cfe9e0cd5e874a3a97f14eee66bdb4c6c"
         },
         {
             "path": "packages/publishing/tests/Unit/IdempotencyStoreTest.php",
-            "line": 22,
+            "line": 23,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "ca61aee2525e2ffe56ea9e4ec7a9d83056768ddcbc355d840156c65afa4de753",
-            "source_sha256": "0be4398ae2ee4438dd38e7d881b8a523849c2a8ef2afb1f497fb8e01106abb23"
+            "source_sha256": "203843aad3094acb2f8125b8595a5a5b84f8d018cd8ab3c36d0726dc809f7287"
         },
         {
             "path": "packages/queue/tests/Contract/DbalTransportContractTest.php",
@@ -5215,39 +5197,30 @@
         },
         {
             "path": "packages/relationship/tests/Unit/RelationshipSchemaManagerTest.php",
-            "line": 19,
+            "line": 20,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "781212d63c22e418dbcc70411fc453160c31eaa486ddb9d4452bd80989b6c945"
+            "source_sha256": "a86753a1f7767fbd56f45b16d0fa5b775302cc1e568d2ec780f8c6e635ab5326"
         },
         {
             "path": "packages/relationship/tests/Unit/RelationshipSchemaManagerTest.php",
-            "line": 30,
+            "line": 36,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "781212d63c22e418dbcc70411fc453160c31eaa486ddb9d4452bd80989b6c945"
+            "source_sha256": "a86753a1f7767fbd56f45b16d0fa5b775302cc1e568d2ec780f8c6e635ab5326"
         },
         {
             "path": "packages/relationship/tests/Unit/RelationshipSchemaManagerTest.php",
-            "line": 57,
+            "line": 59,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "781212d63c22e418dbcc70411fc453160c31eaa486ddb9d4452bd80989b6c945"
-        },
-        {
-            "path": "packages/relationship/tests/Unit/RelationshipSchemaManagerTest.php",
-            "line": 90,
-            "pattern": "dbal_factory",
-            "class": "test",
-            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
-            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "781212d63c22e418dbcc70411fc453160c31eaa486ddb9d4452bd80989b6c945"
+            "source_sha256": "a86753a1f7767fbd56f45b16d0fa5b775302cc1e568d2ec780f8c6e635ab5326"
         },
         {
             "path": "packages/relationship/tests/Unit/RelationshipServiceProviderTest.php",
@@ -5809,30 +5782,30 @@
         },
         {
             "path": "packages/state/tests/Unit/ProjectionDeprecationDiagnosticTest.php",
-            "line": 123,
+            "line": 124,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
-            "line_sha256": "8e863fe90ae74adf82ffd21855e65a62f9666c811f95c85f90b8705ec5c93021",
-            "source_sha256": "a23c68bf5626788e90c412f702fba6f39f4c0d54efcf7e76221f7ec9cf4417d4"
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "dcf54dd2632fc3e8e0887f2a59516bebe0771bf28635ad85e0e1e8cba34edbdd"
         },
         {
             "path": "packages/state/tests/Unit/SqlStateTest.php",
-            "line": 26,
+            "line": 27,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "392701bbb1bdc62dec0b71fd84dedf547ea8c3a329425d68f983cb22de50584a",
-            "source_sha256": "0806fa57066665d12f220b9222b92a7c3f33b0c60257355677832b99491ba81d"
+            "source_sha256": "2d8b4b2bbd4c25d385aaeb470a5ca61a3f8b71f928031be9bdc15b2f98b51476"
         },
         {
             "path": "packages/state/tests/Unit/SqlStateTest.php",
-            "line": 290,
+            "line": 284,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "be04bfaf40d2356b0c48ee747ab3dc8bed11a352a549fde42f3fd325e0cdbde8",
-            "source_sha256": "0806fa57066665d12f220b9222b92a7c3f33b0c60257355677832b99491ba81d"
+            "source_sha256": "2d8b4b2bbd4c25d385aaeb470a5ca61a3f8b71f928031be9bdc15b2f98b51476"
         },
         {
             "path": "packages/taxonomy/tests/Unit/TermHierarchyGuardTest.php",
@@ -5881,12 +5854,12 @@
         },
         {
             "path": "packages/wayfinding/tests/Integration/EmitBeaconControllerTest.php",
-            "line": 31,
+            "line": 32,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
-            "line_sha256": "6420d3f656cf8f94e3b496a87fad02ba4853ebde0cd3916d0ac3c5fff4dca73e",
-            "source_sha256": "5557fb530becb0f3501386231a8618bff1c170f20d01824a9cb5cac13d72ab90"
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "fdd22be350d31927badad521b88b4aef89aa7457cb87da2235b495d8675a2e34"
         },
         {
             "path": "packages/wayfinding/tests/Unit/Trail/TrailStoreTest.php",
@@ -6330,6 +6303,24 @@
             "source_sha256": "9c69144bacfe14cbbfeedf1a6a31ad3e81e3b18a507e35cc05ed4d37bee36eb9"
         },
         {
+            "path": "tests/Integration/Migration/InfrastructureRuntimeSchemaMigrationTest.php",
+            "line": 43,
+            "pattern": "doctrine_factory",
+            "class": "test",
+            "match_sha256": "65a741e0d55eb2861c610e5e9e76011723217735d85acbcae099c79eb496d73d",
+            "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
+            "source_sha256": "6ee327b788e3c97e84cca6607c93becf6d56b4eb52f24a25a1bef503a2e2200c"
+        },
+        {
+            "path": "tests/Integration/Migration/InfrastructureRuntimeSchemaMigrationTest.php",
+            "line": 43,
+            "pattern": "pdo_sqlite_token",
+            "class": "test",
+            "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
+            "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
+            "source_sha256": "6ee327b788e3c97e84cca6607c93becf6d56b4eb52f24a25a1bef503a2e2200c"
+        },
+        {
             "path": "tests/Integration/Migration/MigrationRoundTripTest.php",
             "line": 61,
             "pattern": "doctrine_factory",
@@ -6346,6 +6337,42 @@
             "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
             "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
             "source_sha256": "057e9c6e0b593c56cc7316392b8f3853f009516361549131c6fbe90146663f50"
+        },
+        {
+            "path": "tests/Integration/Oidc/OidcAuthorizeIntegrationTest.php",
+            "line": 39,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
+            "line_sha256": "93bf8fc5c2e99155180cbd01d7248e3e4c739688a3f9088004c687feaad566b7",
+            "source_sha256": "da0b58f5a9825ce7c67154ee5dfa6398e6f04b822d5790484c50d122b1eaaec7"
+        },
+        {
+            "path": "tests/Integration/Oidc/OidcDiscoveryIntegrationTest.php",
+            "line": 30,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
+            "line_sha256": "93bf8fc5c2e99155180cbd01d7248e3e4c739688a3f9088004c687feaad566b7",
+            "source_sha256": "ecd2f3d2004f35340bfca8c0cf5ec7b36891bf2da580bca59f2b3ab07f9259a0"
+        },
+        {
+            "path": "tests/Integration/Oidc/OidcJwksIntegrationTest.php",
+            "line": 30,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
+            "line_sha256": "93bf8fc5c2e99155180cbd01d7248e3e4c739688a3f9088004c687feaad566b7",
+            "source_sha256": "da4fd84821c1a006a42c1bfd406e856fd57d7d6230d886cd050083e3efa3b334"
+        },
+        {
+            "path": "tests/Integration/Oidc/OidcTokenIntegrationTest.php",
+            "line": 49,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
+            "line_sha256": "93bf8fc5c2e99155180cbd01d7248e3e4c739688a3f9088004c687feaad566b7",
+            "source_sha256": "cab20ac0a3b468c7ca29f2c68a999edc32877cf67676b361997d9da7bb09663e"
         },
         {
             "path": "tests/Integration/Phase11/AuthorizationPipelineTest.php",
@@ -6373,6 +6400,15 @@
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
             "source_sha256": "29c58b022e8d2174e4e10fe9f514cd9fbf7970418573b8b73bb1fcedb680610c"
+        },
+        {
+            "path": "tests/Integration/Phase13/InertiaMultipartCsrfIntegrationTest.php",
+            "line": 68,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "18a5ae45138861cf0098c63247ba8a0591974e6b86f33916156a64e5c2666998",
+            "line_sha256": "93bf8fc5c2e99155180cbd01d7248e3e4c739688a3f9088004c687feaad566b7",
+            "source_sha256": "24ee39f11feca92f95bc4f35a91faa53dab663be33da8c3b651e8494371f8ab2"
         },
         {
             "path": "tests/Integration/Phase13/SsrHttpKernelIntegrationTest.php",
@@ -6435,7 +6471,7 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
-            "source_sha256": "4f64f16d082cdc87614fd884a9aa150eff981bf61734cdbcbd2b2efb95c8dc3f"
+            "source_sha256": "ec8ab28ed59c8285a8dfbb096ab92c3f324c84b15193a5e879a41d7ef548e0ef"
         },
         {
             "path": "tests/Integration/Phase15/AccessVisibilityConsistencyIntegrationTest.php",
@@ -6444,7 +6480,7 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "3ec9af777c09af48b939880e68e091efe2d3008c63529ca25bafc903d70197da"
+            "source_sha256": "b9b4316bc444e9776c57729f29ad089b043aea640b4a04040957e68846980bce"
         },
         {
             "path": "tests/Integration/Phase15/PerformanceFixturePackIntegrationTest.php",
@@ -6453,7 +6489,7 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
-            "source_sha256": "7607ea313c49db0cb73e492147eee3ad6fe43227410eb663028a34780c358b33"
+            "source_sha256": "0a419d228976e5f6a8831b059ac885b1c3cb942290943dcfa519571ed1f37083"
         },
         {
             "path": "tests/Integration/Phase15/SemanticWarmBaselineIntegrationTest.php",
@@ -6462,7 +6498,7 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
-            "source_sha256": "81fd8518d99a43f5cf49389148d44514a624fb742693bb283845bec5a5a49c0e"
+            "source_sha256": "f8d9e1376e18e6700413f1757c5aa299d9a23dce637bb5ab2e5736bc6a850638"
         },
         {
             "path": "tests/Integration/Phase26/Mission1257KernelPathTest.php",
@@ -6606,34 +6642,34 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "f614e9dbd050e5a586115381265a1089ddc0a76b42c4164a14f4b26c1d3d926c"
+            "source_sha256": "07c5865118f9876f3e795d5d35562dda6a73e3249c86e0c872c3b6ddc195c123"
         },
         {
             "path": "tests/Integration/Phase30/ScheduleEntryAutoDiscoveryTest.php",
-            "line": 65,
+            "line": 66,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "f614e9dbd050e5a586115381265a1089ddc0a76b42c4164a14f4b26c1d3d926c"
+            "source_sha256": "07c5865118f9876f3e795d5d35562dda6a73e3249c86e0c872c3b6ddc195c123"
         },
         {
             "path": "tests/Integration/Phase30/ScheduleEntryAutoDiscoveryTest.php",
-            "line": 82,
+            "line": 84,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "f614e9dbd050e5a586115381265a1089ddc0a76b42c4164a14f4b26c1d3d926c"
+            "source_sha256": "07c5865118f9876f3e795d5d35562dda6a73e3249c86e0c872c3b6ddc195c123"
         },
         {
             "path": "tests/Integration/Phase30/ScheduleEntryAutoDiscoveryTest.php",
-            "line": 120,
+            "line": 123,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "f614e9dbd050e5a586115381265a1089ddc0a76b42c4164a14f4b26c1d3d926c"
+            "source_sha256": "07c5865118f9876f3e795d5d35562dda6a73e3249c86e0c872c3b6ddc195c123"
         },
         {
             "path": "tests/Integration/Phase32/PathAliasUniquenessTest.php",
@@ -6687,7 +6723,7 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
-            "source_sha256": "9ce6caaee4379a09de2cb8f0ab1a27a39ed906b513ebfa97b035827b59a3b7eb"
+            "source_sha256": "0c5df5439939899833809eeb1e6c802a4383e08d4b6f31e7e446a6e21272d436"
         },
         {
             "path": "tests/Integration/PhaseMediaVersioning/ForbiddenVersionIntegrationTest.php",
@@ -6759,7 +6795,7 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
-            "source_sha256": "69dbe4b4bdd07da5944e1b3f24a29f7fa9a3502c317e25985652af33f26377a1"
+            "source_sha256": "67b5aa2026852f3463a925bfe5aa51173ef91592ba74484487755efe8d31e2d2"
         },
         {
             "path": "tests/Integration/PhaseN/AgentRuntime/AsyncHttpRunTest.php",
@@ -6768,7 +6804,7 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
-            "source_sha256": "593806a91aeeb147f6ff063ce7f8442f1b64b2f38fab5acaf76481221de9f047"
+            "source_sha256": "8f5e02882bac0450a014080788ea69a5e1ae17745d9813d06a50a94dd62d000d"
         },
         {
             "path": "tests/Integration/PhaseN/AgentRuntime/CancellationTest.php",
@@ -6777,7 +6813,7 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
-            "source_sha256": "6f319de9bfe0237becfef80aba5046728631e30b705e6d8d9e17b463c7db3cae"
+            "source_sha256": "5d21f33a7d6ff6aa13228f25e5af3829a1f7a132189da4c30c591cd6b26df4b7"
         },
         {
             "path": "tests/Integration/PhaseN/AgentRuntime/CliInlineRunTest.php",
@@ -6831,7 +6867,7 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
-            "source_sha256": "694a0d03f16a8d24a70f6b46a612c595faecfe4f4b5920a21458bad858c03ec0"
+            "source_sha256": "221292a71e67301a2d896fe649d70bef53aa22d6748437b57b88873dfd6fcf0a"
         },
         {
             "path": "tests/Integration/PhaseN/AgentRuntime/PurgeJobTest.php",
@@ -6930,7 +6966,7 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "e344112ae0243116dc900142934ec692a792bbd20452366f69caff695e1f6489"
+            "source_sha256": "e2463bd850afca747644222047c89f29c6446a005b3f7bb965b02966c4afe504"
         },
         {
             "path": "tests/Integration/PhaseOcapAudit/AuditRetentionPruneTest.php",
@@ -6988,12 +7024,12 @@
         },
         {
             "path": "tests/Integration/Preflight/LazyTableCreationPreflightStabilityTest.php",
-            "line": 306,
+            "line": 304,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "78eaa9d6c63fdb8ecd6776eff832fc105fca2c0726801e9d1f642a4f53b1c8cb",
-            "source_sha256": "e5fe67a0491395c8f8c71077f14ec0c506c5c48e2cb7d5bf3570822e412e5877"
+            "source_sha256": "fa1c5c2db0406a26268f89c0cb98e61440644fea8073e492712b02255183d927"
         },
         {
             "path": "tests/Integration/Queue/QueueIntegrationTest.php",

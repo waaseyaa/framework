@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\AI\Agent\Broadcast\AgentRunBroadcaster;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\LogLevel;
 
@@ -20,6 +21,7 @@ final class AgentRunBroadcasterTest extends TestCase
     public function pushCallsBroadcastStorageWithCorrectChannel(): void
     {
         $db = DBALDatabase::createSqlite(':memory:');
+        RuntimeSchemaMigrations::broadcast($db);
         $storage = new BroadcastStorage($db);
         $broadcaster = new AgentRunBroadcaster($storage);
 
@@ -45,6 +47,7 @@ final class AgentRunBroadcasterTest extends TestCase
         // Use a broken SQLite path to trigger a push failure.
         // We pass a logger spy to confirm the error is logged, not re-thrown.
         $db = DBALDatabase::createSqlite(':memory:');
+        RuntimeSchemaMigrations::broadcast($db);
         $storage = new BroadcastStorage($db);
 
         $logged = [];

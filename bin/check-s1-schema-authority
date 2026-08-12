@@ -48,6 +48,7 @@ function s1SchemaClass(string $path): string
         'packages/ai-tools/src/Content/MediaAssetStore.php' => 'explicit-exclusion',
         'packages/ai-vector/src/SqliteEmbeddingStorage.php' => 'projection-authority',
         'packages/api/src/Controller/BroadcastStorage.php' => 'authoritative-bypass-remediation-required',
+        'packages/api/migrations/2026_08_12_000001_broadcast_schema.php' => 'coordinator-plan-or-executor',
         'packages/api/src/Http/Router/OidcClientApiRouter.php' => 'explicit-exclusion',
         'packages/api/src/JsonApiController.php' => 'explicit-exclusion',
         'packages/attachment/src/Schema/AttachmentSchema.php' => 'coordinator-plan-or-executor',
@@ -144,6 +145,7 @@ function s1SchemaClass(string $path): string
         'packages/oidc/src/Token/AccessTokenIssuer.php' => 'authoritative-bypass-remediation-required',
         'packages/oidc/src/Token/RefreshTokenIssuer.php' => 'authoritative-bypass-remediation-required',
         'packages/publishing/src/ContentPublisher.php' => 'explicit-exclusion',
+        'packages/publishing/migrations/2026_08_12_000001_idempotency_schema.php' => 'coordinator-plan-or-executor',
         'packages/publishing/src/Idempotency/IdempotencyStore.php' => 'authoritative-bypass-remediation-required',
         'packages/queue/migrations/2026_04_24_000001_create_queue_tables.php' => 'coordinator-plan-or-executor',
         'packages/queue/src/Migration/CreateQueueTables.php' => 'coordinator-plan-or-executor',
@@ -154,6 +156,7 @@ function s1SchemaClass(string $path): string
         'packages/scheduler/migrations/2026_06_27_000001_add_schedule_lock_owner.php' => 'coordinator-plan-or-executor',
         'packages/search/src/Fts5/Fts5SearchIndexer.php' => 'projection-authority',
         'packages/state/src/SqlState.php' => 'authoritative-bypass-remediation-required',
+        'packages/state/migrations/2026_08_12_000001_state_schema.php' => 'coordinator-plan-or-executor',
         'packages/testing/src/Factory/EntityFactory.php' => 'test-tooling',
     ];
 

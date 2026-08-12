@@ -14,6 +14,7 @@ use Waaseyaa\Database\TransactionInterface;
 use Waaseyaa\Database\UpdateInterface;
 use Waaseyaa\State\SqlState;
 use Waaseyaa\State\StateInterface;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 use PHPUnit\Framework\TestCase;
 
 final class SqlStateTest extends TestCase
@@ -24,6 +25,7 @@ final class SqlStateTest extends TestCase
     protected function setUp(): void
     {
         $this->database = DBALDatabase::createSqlite(':memory:');
+        RuntimeSchemaMigrations::state($this->database);
         $this->state = new SqlState($this->database, str_repeat('s', 32));
     }
 
@@ -32,12 +34,9 @@ final class SqlStateTest extends TestCase
         $this->assertInstanceOf(StateInterface::class, $this->state);
     }
 
-    public function testEnsureTableCreatesTable(): void
+    public function testEnsureTableValidatesMigratedTable(): void
     {
-        $this->assertFalse($this->database->schema()->tableExists('state'));
-
         $this->state->ensureTable();
-
         $this->assertTrue($this->database->schema()->tableExists('state'));
     }
 
@@ -216,14 +215,9 @@ final class SqlStateTest extends TestCase
         $this->assertSame(['x' => 11, 'y' => 21], $this->state->getMultiple(['x', 'y']));
     }
 
-    public function testTableAutoCreatedOnFirstOperation(): void
+    public function testOperationUsesMigratedTable(): void
     {
-        $this->assertFalse($this->database->schema()->tableExists('state'));
-
-        // Any operation should auto-create the table.
         $this->state->set('auto', 'created');
-
-        $this->assertTrue($this->database->schema()->tableExists('state'));
         $this->assertSame('created', $this->state->get('auto'));
     }
 
@@ -288,6 +282,7 @@ final class SqlStateTest extends TestCase
     {
         $key = 'concurrent_key';
         $realDb = DBALDatabase::createSqlite(':memory:');
+        RuntimeSchemaMigrations::state($realDb);
         $racingDb = $this->buildRaceSimulatingDatabase($realDb, $key);
 
         $state = new SqlState($racingDb, str_repeat('s', 32));

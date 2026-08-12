@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Api\MercureMonitor\EventStreamFilter;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 use Waaseyaa\Foundation\Http\Inbound\EventStreamReadModel;
 
 /**
@@ -29,6 +30,7 @@ final class EventStreamReadModelTest extends TestCase
     protected function setUp(): void
     {
         $this->database = DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::broadcast($this->database);
         $this->broadcastStorage = new BroadcastStorage($this->database);
         $this->readModel = new EventStreamReadModel($this->database);
     }

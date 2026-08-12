@@ -15,6 +15,7 @@ use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Media\Http\Router\MediaRouter;
 use Waaseyaa\Media\MediaAccessPolicy;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 #[CoversClass(MediaRouter::class)]
 final class MediaRouterTest extends TestCase
@@ -152,7 +153,9 @@ final class MediaRouterTest extends TestCase
         $request = Request::create('/api/media/upload', 'POST', $parameters, server: ['CONTENT_TYPE' => 'multipart/form-data']);
         $request->attributes->set('_controller', 'media.upload');
         $request->attributes->set('_account', $account ?? new AuthorizationPrincipal(1, true, ['administrator'], [], 'test'));
-        $request->attributes->set('_broadcast_storage', new BroadcastStorage(DBALDatabase::createSqlite()));
+        $database = DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::broadcast($database);
+        $request->attributes->set('_broadcast_storage', new BroadcastStorage($database));
         $request->files->set('file', $uploadedFile);
 
         return $request;

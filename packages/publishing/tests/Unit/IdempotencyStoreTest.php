@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Publishing\Exception\IdempotencyConflictException;
 use Waaseyaa\Publishing\Idempotency\IdempotencyStore;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 #[CoversClass(IdempotencyStore::class)]
 final class IdempotencyStoreTest extends TestCase
@@ -20,6 +21,7 @@ final class IdempotencyStoreTest extends TestCase
     protected function setUp(): void
     {
         $this->db = DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::publishing($this->db);
         $this->db->schema()->createTable('idempotency_effects', [
             'fields' => [
                 'effect_key' => ['type' => 'varchar', 'length' => 64, 'not null' => true],

@@ -28,6 +28,7 @@ use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Relationship\Relationship;
 use Waaseyaa\Relationship\RelationshipSchemaManager;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 #[CoversClass(DiscoveryRouter::class)]
 final class DiscoveryRouterTest extends TestCase
@@ -472,6 +473,7 @@ final class DiscoveryRouterTest extends TestCase
         $nodeRepository->save($related, validate: false);
 
         $relationshipRepository = $entityTypeManager->getRepository('relationship');
+        RuntimeSchemaMigrations::relationship($database);
         new RelationshipSchemaManager($database)->ensure();
         $relationship = $relationshipRepository->create([
             'relationship_type' => 'references',
@@ -614,6 +616,7 @@ final class DiscoveryRouterTest extends TestCase
         // would — pre-fix — surface the secret node's identity because
         // unpublished-mode endpoint visibility keeps non-public endpoints.
         $relationshipRepository = $entityTypeManager->getRepository('relationship');
+        RuntimeSchemaMigrations::relationship($database);
         new RelationshipSchemaManager($database)->ensure();
         $relationship = $relationshipRepository->create([
             'relationship_type' => 'references',
@@ -710,6 +713,7 @@ final class DiscoveryRouterTest extends TestCase
         // physical from_entity_type/to_entity_type/status/etc. columns that
         // RelationshipTraversalService queries with raw SQL.
         $relationshipRepository = $entityTypeManager->getRepository('relationship');
+        RuntimeSchemaMigrations::relationship($database);
         new RelationshipSchemaManager($database)->ensure();
         $relationship = $relationshipRepository->create([
             'relationship_type' => 'references',
@@ -755,7 +759,7 @@ final class DiscoveryRouterTest extends TestCase
         $request->attributes->set('entity_type', 'node');
         $request->attributes->set('id', $entityId);
         $request->attributes->set('_account', $account);
-        $request->attributes->set('_broadcast_storage', new BroadcastStorage(DBALDatabase::createSqlite()));
+        $request->attributes->set('_broadcast_storage', $this->createBroadcastStorage());
 
         return $request;
     }
@@ -779,9 +783,17 @@ final class DiscoveryRouterTest extends TestCase
         $request = Request::create('/api');
         $request->attributes->set('_controller', 'Waaseyaa\\Api\\ApiDiscoveryController');
         $request->attributes->set('_account', $account);
-        $request->attributes->set('_broadcast_storage', new BroadcastStorage(DBALDatabase::createSqlite()));
+        $request->attributes->set('_broadcast_storage', $this->createBroadcastStorage());
 
         return $request;
+    }
+
+    private function createBroadcastStorage(): BroadcastStorage
+    {
+        $database = DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::broadcast($database);
+
+        return new BroadcastStorage($database);
     }
 
     /**

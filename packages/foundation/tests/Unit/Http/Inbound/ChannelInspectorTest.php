@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 use Waaseyaa\Foundation\Http\Inbound\ChannelInspector;
 
 /**
@@ -28,6 +29,7 @@ final class ChannelInspectorTest extends TestCase
     protected function setUp(): void
     {
         $this->database = DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::broadcast($this->database);
         $this->broadcastStorage = new BroadcastStorage($this->database);
         $this->inspector = new ChannelInspector($this->database);
     }

@@ -37,6 +37,7 @@ use Waaseyaa\Publishing\Tests\Fixtures\PublisherAccount;
 use Waaseyaa\Publishing\Tests\Fixtures\SpyAuditWriter;
 use Waaseyaa\Publishing\Tests\Fixtures\TestArticleEntity;
 use Waaseyaa\Publishing\ValidationErrors;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 #[CoversClass(ContentPublisher::class)]
 #[CoversClass(ContentMutationSnapshotReader::class)]
@@ -60,6 +61,7 @@ final class ContentPublisherTest extends TestCase
         ));
 
         $db = $this->db = DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::publishing($db);
         $entityType = new EntityType(
             id: 'test_article',
             label: 'Test article',

@@ -81,6 +81,7 @@ final class AsyncHttpRunTest extends TestCase
         // on first write. We avoid that pattern here by relying on BroadcastStorage's
         // own lazy ensureTable inside push() — the first real push from the worker
         // hits the same path.
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::broadcast($this->database);
         $this->broadcastStorage = new BroadcastStorage($this->database);
 
         $this->runRepository = $this->buildRunRepository();

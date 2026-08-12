@@ -29,6 +29,9 @@
         }
     },
     "extra": {
+        "waaseyaa": {
+            "migrations": "migrations"
+        },
         "branch-alias": {
             "dev-main": "0.1.x-dev",
             "dev-develop/v1.1": "0.1.x-dev"

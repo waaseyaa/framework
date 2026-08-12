@@ -12,6 +12,7 @@ use Waaseyaa\AI\Agent\Tests\Support\FakeEntityTypeManager;
 use Waaseyaa\AI\Agent\Tool\Wayfinding\EmitBeaconTool;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Foundation\Http\Router\SessionChannel;
 use Waaseyaa\Wayfinding\Anchor\AnchorRegistry;
@@ -32,6 +33,7 @@ final class EmitBeaconToolTest extends TestCase
     protected function setUp(): void
     {
         $this->database = DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::broadcast($this->database);
         $this->storage = new BroadcastStorage($this->database);
 
         // A single registered type yields structural anchors like `view:widget`

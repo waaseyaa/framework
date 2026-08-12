@@ -6,13 +6,14 @@ namespace Waaseyaa\State;
 
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\Schema\SchemaRequirement;
 
 /**
  * @api
  */
 final class SqlState implements StateInterface
 {
-    /** @var bool Whether the state table has been verified/created. */
+    /** @var bool Whether the migration-owned state table has been verified. */
     private bool $tableEnsured = false;
     private readonly SignedStatePayload $payloadSigner;
     private readonly ProjectionDeprecationDiagnostic $projectionDiagnostic;
@@ -125,32 +126,19 @@ final class SqlState implements StateInterface
         }
     }
 
-    /**
-     * Creates the state table if it does not already exist.
-     */
+    /** Read-only compatibility alias; schema installation belongs to migrations. */
     public function ensureTable(): void
     {
         if ($this->tableEnsured) {
             return;
         }
 
-        $schema = $this->database->schema();
-
-        if (!$schema->tableExists('state')) {
-            $schema->createTable('state', [
-                'fields' => [
-                    'name' => [
-                        'type' => 'varchar',
-                        'not null' => true,
-                    ],
-                    'value' => [
-                        'type' => 'text',
-                        'not null' => false,
-                    ],
-                ],
-                'primary key' => ['name'],
-            ]);
-        }
+        SchemaRequirement::assertAvailable(
+            $this->database,
+            'state',
+            ['name', 'value'],
+            'waaseyaa/state:2026_08_12_000001_state_schema',
+        );
 
         $this->tableEnsured = true;
     }

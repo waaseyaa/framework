@@ -12,6 +12,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Entity\EntityTypeLifecycleManager;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Http\Router\EntityTypeLifecycleRouter;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 #[CoversClass(EntityTypeLifecycleRouter::class)]
 final class EntityTypeLifecycleRouterTest extends TestCase
@@ -63,7 +64,9 @@ final class EntityTypeLifecycleRouterTest extends TestCase
     {
         $router = $this->createRouter();
         $account = $this->createStub(\Waaseyaa\Access\AuthorizationPrincipalInterface::class);
-        $broadcastStorage = new \Waaseyaa\Api\Controller\BroadcastStorage(\Waaseyaa\Database\DBALDatabase::createSqlite());
+        $database = \Waaseyaa\Database\DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::broadcast($database);
+        $broadcastStorage = new \Waaseyaa\Api\Controller\BroadcastStorage($database);
         $request = Request::create('/api/entity-types');
         $request->attributes->set('_controller', 'entity_types');
         $request->attributes->set('_account', $account);

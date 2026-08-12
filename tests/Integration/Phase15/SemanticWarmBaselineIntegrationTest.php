@@ -120,6 +120,7 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
             ],
         ));
 
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::relationship($this->database);
         new RelationshipSchemaManager($this->database)->ensure();
 
         $this->serializer = new ResourceSerializer($this->entityTypeManager);
@@ -274,6 +275,7 @@ final class SemanticWarmBaselineIntegrationTest extends TestCase
         }
 
         $relationshipRepository = $this->entityTypeManager->getRepository('relationship');
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::relationship($this->database);
         new RelationshipSchemaManager($this->database)->ensure();
         foreach (WorkflowFixturePack::discoveryRelationships() as $fixture) {
             $relationship = $relationshipRepository->create([

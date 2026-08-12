@@ -54,6 +54,7 @@ final class ScheduleEntryAutoDiscoveryTest extends TestCase
     public function broadcast_storage_schedule_entries_implements_interface(): void
     {
         $db = DBALDatabase::createSqlite();
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::broadcast($db);
         $storage = new BroadcastStorage($db);
         $entries = new BroadcastStorageScheduleEntries($storage);
         self::assertInstanceOf(ScheduleEntriesInterface::class, $entries);
@@ -63,6 +64,7 @@ final class ScheduleEntryAutoDiscoveryTest extends TestCase
     public function broadcast_storage_schedule_entries_registers_prune_task(): void
     {
         $db = DBALDatabase::createSqlite();
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::broadcast($db);
         $storage = new BroadcastStorage($db);
         $schedule = new Schedule();
         $entries = new BroadcastStorageScheduleEntries($storage);
@@ -80,6 +82,7 @@ final class ScheduleEntryAutoDiscoveryTest extends TestCase
     {
         // FR-013 / #1536: prune closure actually deletes rows older than retention window.
         $db = DBALDatabase::createSqlite();
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::broadcast($db);
         $storage = new BroadcastStorage($db);
 
         // Insert two rows: one stale (15 days ago), one fresh (1 hour ago).
@@ -118,6 +121,7 @@ final class ScheduleEntryAutoDiscoveryTest extends TestCase
         // discovered ScheduleEntriesInterface and confirm both built-in providers
         // contribute their tasks to a single Schedule.
         $db = DBALDatabase::createSqlite();
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::broadcast($db);
         $storage = new BroadcastStorage($db);
         $schedule = new Schedule();
 

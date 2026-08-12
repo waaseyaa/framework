@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 #[CoversClass(BroadcastStorage::class)]
 final class BroadcastStorageTest extends TestCase
@@ -19,6 +20,7 @@ final class BroadcastStorageTest extends TestCase
     protected function setUp(): void
     {
         $this->database = DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::broadcast($this->database);
         $this->storage = new BroadcastStorage($this->database);
     }
 

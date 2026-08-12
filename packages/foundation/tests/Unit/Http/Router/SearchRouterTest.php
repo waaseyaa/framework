@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Foundation\Http\Router\SearchRouter;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 #[CoversClass(SearchRouter::class)]
 final class SearchRouterTest extends TestCase
@@ -35,6 +36,7 @@ final class SearchRouterTest extends TestCase
     public function handle_returns_400_when_missing_query_params(): void
     {
         $db = \Waaseyaa\Database\DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::broadcast($db);
         $router = new SearchRouter([], $db);
 
         $account = $this->createStub(\Waaseyaa\Access\AuthorizationPrincipalInterface::class);

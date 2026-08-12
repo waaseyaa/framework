@@ -13,6 +13,7 @@ use Waaseyaa\AI\Agent\Broadcast\AgentRunBroadcasterServiceProvider;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 #[CoversClass(AgentRunBroadcasterServiceProvider::class)]
 final class AgentRunBroadcasterServiceProviderTest extends TestCase
@@ -21,6 +22,7 @@ final class AgentRunBroadcasterServiceProviderTest extends TestCase
     public function register_binds_AgentRunBroadcasterInterface_to_AgentRunBroadcaster(): void
     {
         $db = DBALDatabase::createSqlite(':memory:');
+        RuntimeSchemaMigrations::broadcast($db);
 
         // Provide DatabaseInterface via KernelServicesInterface (the public injection point).
         $kernelServices = new class ($db) implements KernelServicesInterface {
