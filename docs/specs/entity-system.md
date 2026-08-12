@@ -1549,9 +1549,17 @@ interface ConfigFactoryInterface
 
 `get()` returns cached immutable Config. `getEditable()` always creates a new mutable Config wrapped in EventAwareStorage.
 
-**Production binding:** `Waaseyaa\Config\ConfigServiceProvider` (`packages/config/src/ConfigServiceProvider.php`, declared in `packages/config/composer.json`'s `extra.waaseyaa.providers`) binds `ConfigFactoryInterface` as a container singleton, backed by `FileStorage` pointed at `<projectRoot>/config/active` — the same active store `Waaseyaa\CLI\Provider\OptimizeServiceProvider` compiles for `optimize:config`; there is exactly one active store, not a second instance. Before this provider existed, no production ServiceProvider bound the interface at all, so any consumer resolving it via `resolveOptional(ConfigFactoryInterface::class)` (e.g. `Waaseyaa\SSR\ThemeServiceProvider`) silently received `null` and no-opped in a real boot (#1920 WP-1 follow-up).
+**Production binding:** `Waaseyaa\Config\Authority\ConfigurationAuthorityServiceProvider`
+is the sole configuration composition root. It binds `ConfigFactoryInterface`
+as a storage-blind compatibility adapter over the active-generation bridge
+published by entity-storage. The bridge and factory share one immutable
+`ConfigurationAuthorityContext`; neither can derive `config/active`, read the
+sync bundle as runtime state, or select a second store. `optimize:config`
+consumes that same context and emits generation-bound rebuildable derived state.
+Production-equivalent environments refuse capability publication when the
+active generation is absent.
 
-<!-- Spec reviewed 2026-07-06 - fix(#1920): bind ConfigFactoryInterface in production boot -->
+<!-- Spec reviewed 2026-08-12 - S1-FW-CFG-01 typed authority supersedes the former config/active FileStorage binding. -->
 
 ### ConfigManagerInterface
 

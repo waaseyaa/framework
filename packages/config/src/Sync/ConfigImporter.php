@@ -68,7 +68,7 @@ final class ConfigImporter
      * @param bool          $dryRun             Compute outcomes without writing.
      * @param bool          $deleteOrphans      Delete active-store orphans (default: warn only).
      * @param bool          $haltOnError        Stop after first per-entity failure.
-     * @param bool          $noDependencyCheck  Emergency bypass: skip validation AND DAG.
+     * @param bool          $noDependencyCheck  Emergency bypass: skip dependency DAG checks only.
      * @param list<string>  $activeRefs         Refs present in the active store (for orphan detection
      *                                          and to satisfy cross-store deps in the resolver).
      */
@@ -93,7 +93,7 @@ final class ConfigImporter
         if ($noDependencyCheck) {
             $this->audit(
                 'warning',
-                'config:import bypass: --no-dependency-check used; DAG ordering and validation skipped.',
+                'config:import bypass: --no-dependency-check used; dependency DAG checks skipped.',
                 ['sync_count' => \count($syncFiles)],
             );
             $orderedRefs = array_keys($syncFiles);

@@ -12,6 +12,15 @@ This is the canonical doctrine spec. The original mission spec
 [`config-management-v1.md`](config-management-v1.md) is retained as a historical artifact;
 this file is the single source of truth post-mission.
 
+> **S1 authority amendment (2026-08-12).** The command and YAML surfaces below
+> remain stable, but active production configuration is now one versioned
+> SQLite generation composed through `configuration.authority.v1`. The sync
+> directory is desired-state input/output and is never a runtime fallback.
+> Production mutation remains refused until CFG-02 supplies atomic generation
+> activation and CFG-03 supplies schema, manifest, compatibility, and drift
+> gates. Environment overlays may select bootstrap authorities and opaque
+> secret references only; they cannot override deployable values.
+
 ---
 
 ## 1. What ships
@@ -122,7 +131,8 @@ The table itself is stable; new field types extend additively. Removals / rename
 - Empty arrays/maps serialize as `[]` / `{}` (flow style) to reduce visual noise.
 - The `_meta` block always appears first.
 
-These rules are load-bearing — operator git diffs depend on them. They follow charter §4.
+These rules are load-bearing — operator and automation diffs depend on them,
+independently of the selected VCS or artifact service. They follow charter §4.
 
 ---
 
@@ -158,13 +168,20 @@ Walks the config-entity registry. For each entity, serialises to YAML per §3 an
 
 ### 5.2 `config:import [--dry-run] [--delete-orphans] [--halt-on-error] [--no-dependency-check]`
 
-1. Validates every sync file via `ConfigSyncValidator` (failures block unless `--no-dependency-check`).
+1. Validates every sync file via `ConfigSyncValidator`; schema and manifest
+   failures cannot be bypassed by `--no-dependency-check`.
 2. Builds the DAG (§4).
-3. Applies entities in topological order; each in its own DB transaction.
-4. Per-entity diffs displayed when interactive (TTY); suppressed in CI.
-5. Orphans (active-store entities with no sync file): default = warn-only; `--delete-orphans` opts into deletion.
-6. Per-entity errors are counted and the run continues unless `--halt-on-error`.
-7. Final exit code: 0 only if all entities succeeded.
+3. Executes mandatory schema/manifest/compatibility/drift preflight before any
+   apply or orphan deletion.
+4. In production, CFG-02 stages the complete generation and activates it with
+   compare-and-swap only after CFG-03 authorizes the manifest. Until those
+   bindings exist, import refuses without mutation.
+5. Per-entity diffs are displayed when interactive (TTY); suppressed in CI.
+6. Orphans default to warn-only; `--delete-orphans` makes deletion part of the
+   staged generation.
+7. Explicit testing adapters may retain the original per-entity apply/error
+   semantics to exercise command behavior, but they are not production
+   authority or recovery evidence.
 
 ### 5.3 `config:diff [<entity-type>.<id>]`
 
@@ -180,7 +197,10 @@ Parses every sync file. Instantiates the would-be entity without persisting. Run
 
 ### 5.6 `config:reset <entity-type>.<id> [--yes]`
 
-Loads the sync entity, overwrites the active entity (transactional, lifecycle events fire). Confirmation prompt unless `--yes`. Logs to `config.audit` with actor / before-after diff summary / timestamp.
+Loads and validates the sync entity, then requests a guarded generation change.
+Production refuses until CFG-02/03 provide activation and preflight. Confirmation
+is required unless `--yes`; authorized outcomes log actor, before/after digest,
+authority, and generation identity to `config.audit`.
 
 ---
 
@@ -190,9 +210,9 @@ Channel constant: `Waaseyaa\Config\Audit\ConfigAuditChannel::CHANNEL` = `'config
 
 The channel receives:
 
-- One event per `config:import` apply (per entity, after the per-entity transaction commits).
+- One event per authorized `config:import` outcome, generation-bound in production.
 - One event per `config:export` write (per file created/updated).
-- One event per `config:reset` apply.
+- One event per authorized `config:reset` outcome.
 - A `warning`-level event per `--no-dependency-check` bypass.
 - A `warning`-level event per detected orphan when `config:import` runs without `--delete-orphans`.
 
@@ -226,26 +246,24 @@ Apps and extensions may freely register `config:<custom>` verbs that are NOT in 
 
 ---
 
-## 9. Per-environment override pattern (load-bearing)
+## 9. Environment boundary and secret-reference pattern (load-bearing)
 
-CMI does **not** ship runtime config overrides (Drupal `$config['x']['y']` style). The supported pattern for per-environment values is **env vars consumed inside `config/waaseyaa.php`**.
+CMI does **not** ship runtime deployable-value overrides (Drupal
+`$config['x']['y']` style). Feature flags, endpoints, workflows, and similar
+behavior belong to the active generation and its reviewed sync artifact.
+Bootstrap environment inputs are limited to authority selection—environment
+identity, database location, sync path—and opaque secret references.
 
-Example:
+Credential-bearing configuration uses explicitly typed reference fields such
+as `api_key_env_var` or `client_secret_ref`. `DeployableConfigurationPolicy`
+rejects raw secret-shaped fields and bootstrap-owned names in both sync files
+and database generations. CFG-04 resolves a reference through custody without
+placing secret bytes in active configuration, YAML, manifests, or evidence.
 
-```php
-// config/waaseyaa.php
-return [
-    'feature_x' => [
-        'enabled' => (bool) ($_ENV['FEATURE_X_ENABLED'] ?? false),
-        'budget'  => (int)  ($_ENV['FEATURE_X_BUDGET']  ?? 100),
-    ],
-    // ...
-];
-```
-
-`FEATURE_X_ENABLED=true` in staging's environment file, unset in production, no sync-store overrides involved. See [`docs/cookbook/config-sync.md`](../cookbook/config-sync.md) §6 for the full pattern.
-
-Charter §11 names runtime overrides as a future-ADR door; if and when they ship, they will be a parallel mechanism, not a sync-store extension.
+See [`docs/cookbook/config-sync.md`](../cookbook/config-sync.md) §10 for the
+operator mapping. If two environments intentionally differ in deployable
+behavior, promote two explicit reviewed generations; do not hide the difference
+in an environment overlay.
 
 ---
 
