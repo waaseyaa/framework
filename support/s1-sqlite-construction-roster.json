@@ -2370,6 +2370,33 @@
             "source_sha256": "6faec447456e4c6c4f32a5bf5e9ab2bf9aaa470949073b7de414bb87e69e2b18"
         },
         {
+            "path": "packages/entity-storage/tests/Integration/Config/DatabaseConfigurationActivationConcurrencyTest.php",
+            "line": 43,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "f2fc360e636707fa96a5713bd212f87f999c6aa2a6af10c89ef04f548436ae62",
+            "source_sha256": "a2475b15dfd661bbb1022affb9b86b7125127aaa456adc90ff56c6acac969019"
+        },
+        {
+            "path": "packages/entity-storage/tests/Integration/Config/DatabaseConfigurationActivationConcurrencyTest.php",
+            "line": 104,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "f2fc360e636707fa96a5713bd212f87f999c6aa2a6af10c89ef04f548436ae62",
+            "source_sha256": "a2475b15dfd661bbb1022affb9b86b7125127aaa456adc90ff56c6acac969019"
+        },
+        {
+            "path": "packages/entity-storage/tests/Integration/Config/DatabaseConfigurationActivationConcurrencyTest.php",
+            "line": 112,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "f2fc360e636707fa96a5713bd212f87f999c6aa2a6af10c89ef04f548436ae62",
+            "source_sha256": "a2475b15dfd661bbb1022affb9b86b7125127aaa456adc90ff56c6acac969019"
+        },
+        {
             "path": "packages/entity-storage/tests/Integration/Coordinator/PipelineInvariantTest.php",
             "line": 99,
             "pattern": "dbal_factory",
@@ -2569,21 +2596,39 @@
         },
         {
             "path": "packages/entity-storage/tests/Unit/Config/DatabaseActiveConfigurationBridgeTest.php",
-            "line": 31,
+            "line": 37,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "35cd2b13d7b3b53d94cd598fa231f750e1596227ea4a81c56ed490338c1b297c",
-            "source_sha256": "4e32f585f6d738f70468fdecc1aee36d8aa229d0cd9241ad4a497eb84b185490"
+            "source_sha256": "68c5d6d77f26afcc22faa1ce7c145df569fa9292832fc696214e04e7638a5712"
         },
         {
             "path": "packages/entity-storage/tests/Unit/Config/DatabaseConfigurationActivatorTest.php",
-            "line": 28,
+            "line": 33,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "35cd2b13d7b3b53d94cd598fa231f750e1596227ea4a81c56ed490338c1b297c",
-            "source_sha256": "be0e085e9b4d6821b405a5f3cdb768953d3078a5c668d235546cf728c625c61b"
+            "source_sha256": "2b571e1149073bca3811f44aa524df794b2b7f04d4ceaab2111d67e7371ab3f3"
+        },
+        {
+            "path": "packages/entity-storage/tests/Unit/Config/DatabaseConfigurationActivatorTest.php",
+            "line": 281,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "b07bd6b3bab80576c80b023be95026bc05c1206c263a32272b74fc764623cde2",
+            "source_sha256": "2b571e1149073bca3811f44aa524df794b2b7f04d4ceaab2111d67e7371ab3f3"
+        },
+        {
+            "path": "packages/entity-storage/tests/Unit/Config/DatabaseConfigurationActivatorTest.php",
+            "line": 297,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "55676c92b72b2049b0b68e2ebe4c59135c7566730c4b975f2f250928eee8cb9b",
+            "source_sha256": "2b571e1149073bca3811f44aa524df794b2b7f04d4ceaab2111d67e7371ab3f3"
         },
         {
             "path": "packages/entity-storage/tests/Unit/Connection/SingleConnectionResolverTest.php",

@@ -8,6 +8,11 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Config\Exception\ConfigImportFailedException;
+use Waaseyaa\Config\Activation\ConfigurationActivationRequest;
+use Waaseyaa\Config\Activation\ConfigurationActivationResult;
+use Waaseyaa\Config\Activation\ConfigurationActivatorInterface;
+use Waaseyaa\Config\Activation\ConfigurationRollbackRequest;
+use Waaseyaa\Config\Authority\ConfigurationActiveToken;
 use Waaseyaa\Config\Sync\ConfigImportApplyHookInterface;
 use Waaseyaa\Config\Sync\ConfigImportEntryResult;
 use Waaseyaa\Config\Sync\ConfigImporter;
@@ -318,6 +323,80 @@ final class ConfigImporterTest extends TestCase
         );
     }
 
+    #[Test]
+    public function transactionalImportBuildsOneCompleteReplacementAndNeverCallsLegacyHooks(): void
+    {
+        $repository = $this->seed(['system.site' => []]);
+        $activeSite = $this->file('system.site', [], ['name' => 'Old']);
+        $activeRole = $this->file('role.legacy', [], ['label' => 'Legacy']);
+        $expected = new ConfigurationActiveToken(str_repeat('a', 64), 4);
+        $committed = new ConfigurationActiveToken(str_repeat('b', 64), 5);
+        $activator = new class ($committed) implements ConfigurationActivatorInterface {
+            public ?ConfigurationActivationRequest $request = null;
+            public function __construct(private readonly ConfigurationActiveToken $committed) {}
+            public function activate(ConfigurationActivationRequest $request): ConfigurationActivationResult
+            {
+                $this->request = $request;
+                return new ConfigurationActivationResult('committed', $this->committed, $request->requestId, str_repeat('c', 64));
+            }
+            public function rollback(ConfigurationRollbackRequest $request): ConfigurationActivationResult { throw new \LogicException('not used'); }
+            public function committedResult(string $requestId): ?ConfigurationActivationResult { return null; }
+            public function currentToken(): ?ConfigurationActiveToken { return null; }
+            public function readGeneration(ConfigurationActiveToken $token): iterable { return []; }
+        };
+        $hook = new class implements ConfigImportApplyHookInterface {
+            public function apply(ConfigSyncFile $file): string { throw new \LogicException('legacy apply called'); }
+            public function delete(string $ref): void { throw new \LogicException('legacy delete called'); }
+        };
+        $audit = [];
+        $importer = new ConfigImporter(
+            $repository,
+            $hook,
+            new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight(),
+            auditLogger: static function (string $level, string $message, array $context) use (&$audit): void {
+                $audit[] = [$level, $message, $context];
+            },
+            activator: $activator,
+        );
+
+        $result = $importer->import(
+            deleteOrphans: true,
+            activeRefs: [$activeSite->ref(), $activeRole->ref()],
+            activationRequestId: 'transactional-import-1',
+            expectedToken: $expected,
+            activeFiles: [$activeSite, $activeRole],
+        );
+
+        self::assertSame(0, $result->failureCount());
+        self::assertNotNull($activator->request);
+        self::assertTrue($activator->request->completeReplacement);
+        self::assertEquals($expected, $activator->request->expectedToken);
+        self::assertSame(['role.legacy' => $activeRole->contentHash()], $activator->request->tombstones());
+        self::assertSame(['updated', 'deleted'], array_column($result->entries, 'status'));
+        self::assertCount(1, $audit);
+        self::assertSame($committed->generationId, $audit[0][2]['generation_id']);
+    }
+
+    #[Test]
+    public function transactionalImportWithoutRequestIdentityFailsBeforeActivation(): void
+    {
+        $repository = $this->seed(['system.site' => []]);
+        $activator = $this->createMock(ConfigurationActivatorInterface::class);
+        $activator->expects($this->never())->method('activate');
+        $unused = [];
+        $importer = new ConfigImporter(
+            $repository,
+            $this->makeHook($unused),
+            new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight(),
+            activator: $activator,
+        );
+
+        $result = $importer->import();
+
+        self::assertSame(1, $result->failureCount());
+        self::assertStringContainsString('activation-request-id', (string) $result->entries[0]->reason);
+    }
+
     /**
      * @param array<string, list<string>> $refsWithDeps Map of ref => declared deps.
      */
@@ -325,19 +404,26 @@ final class ConfigImporterTest extends TestCase
     {
         $repository = new ConfigSyncRepository($this->tempDir);
         foreach ($refsWithDeps as $ref => $dependencies) {
-            [$entityType, $entityId] = explode('.', $ref, 2);
-            $file = new ConfigSyncFile(
-                entityType: $entityType,
-                entityId: $entityId,
-                uuid: ConfigSyncFile::deterministicUuid($entityType, $entityId),
-                dependencies: $dependencies,
-                langcode: 'en',
-                fields: [],
-            );
+            $file = $this->file($ref, $dependencies);
             $repository->put($file);
         }
 
         return $repository;
+    }
+
+    /** @param list<string> $dependencies @param array<string, mixed> $fields */
+    private function file(string $ref, array $dependencies = [], array $fields = []): ConfigSyncFile
+    {
+        [$entityType, $entityId] = explode('.', $ref, 2);
+
+        return new ConfigSyncFile(
+            entityType: $entityType,
+            entityId: $entityId,
+            uuid: ConfigSyncFile::deterministicUuid($entityType, $entityId),
+            dependencies: $dependencies,
+            langcode: 'en',
+            fields: $fields,
+        );
     }
 
     /**

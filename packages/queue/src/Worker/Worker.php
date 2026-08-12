@@ -6,6 +6,8 @@ namespace Waaseyaa\Queue\Worker;
 
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Foundation\Runtime\RuntimeEpochInterface;
+use Waaseyaa\Foundation\Runtime\StableRuntimeEpoch;
 use Waaseyaa\Queue\Envelope\NoAuthorityQueueRuntime;
 use Waaseyaa\Queue\Envelope\QueueAuthorityRuntimeInterface;
 use Waaseyaa\Queue\Envelope\QueueEnvelopeV1;
@@ -40,6 +42,7 @@ final class Worker
 
     private bool $legacyPayloadDiagnosticEmitted = false;
     private readonly PersistentQueueBoundaryConfig $boundaryConfig;
+    private readonly RuntimeEpochInterface $runtimeEpoch;
 
     /**
      * @param list<HandlerInterface> $handlers
@@ -53,12 +56,14 @@ final class Worker
         ?QueueAuthorityRuntimeInterface $authorityRuntime = null,
         ?PersistentQueueBoundaryConfig $boundaryConfig = null,
         ?OccurrenceRuntimeInterface $occurrenceRuntime = null,
+        ?RuntimeEpochInterface $runtimeEpoch = null,
     ) {
         $this->handlers = $handlers;
         $this->logger = $logger ?? new NullLogger();
         $this->authorityRuntime = $authorityRuntime ?? new NoAuthorityQueueRuntime();
         $this->occurrenceRuntime = $occurrenceRuntime ?? new NoOccurrenceRuntime();
         $this->boundaryConfig = $boundaryConfig ?? PersistentQueueBoundaryConfig::dormant();
+        $this->runtimeEpoch = $runtimeEpoch ?? new StableRuntimeEpoch();
         if ($this->boundaryConfig->requireAuthorityEnvelope && $this->authorityRuntime instanceof NoAuthorityQueueRuntime) {
             throw new \InvalidArgumentException('Activated queue workers require an authority-restoring runtime.');
         }
@@ -89,6 +94,10 @@ final class Worker
         $memoryBaselineBytes = memory_get_usage(true);
 
         while ($this->shouldContinue($options, $processed, $startTime, $memoryBaselineBytes)) {
+            if ($this->runtimeEpoch->hasChanged()) {
+                $this->logEpochDrain();
+                break;
+            }
             $raw = $this->transport->pop($queue);
 
             if ($raw === null) {
@@ -98,6 +107,10 @@ final class Worker
 
             $this->processJob($raw, $queue, $options);
             $processed++;
+            if ($this->runtimeEpoch->hasChanged()) {
+                $this->logEpochDrain();
+                break;
+            }
         }
 
         return $processed;
@@ -112,14 +125,30 @@ final class Worker
      */
     public function runNextJob(string $queue, WorkerOptions $options): bool
     {
+        if ($this->runtimeEpoch->hasChanged()) {
+            $this->logEpochDrain();
+
+            return false;
+        }
         $raw = $this->transport->pop($queue);
         if ($raw === null) {
             return false;
         }
 
         $this->processJob($raw, $queue, $options);
+        if ($this->runtimeEpoch->hasChanged()) {
+            $this->logEpochDrain();
+        }
 
         return true;
+    }
+
+    private function logEpochDrain(): void
+    {
+        $this->logger->notice('queue.worker_runtime_epoch_changed', [
+            'epoch_fingerprint' => $this->runtimeEpoch->fingerprint(),
+            'action' => 'drain',
+        ]);
     }
 
     /**

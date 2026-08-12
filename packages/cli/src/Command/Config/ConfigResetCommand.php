@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Command\Config;
 
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
+use Waaseyaa\Config\Authority\ConfigurationActiveToken;
 use Waaseyaa\Config\Sync\ConfigImportEntryResult;
 use Waaseyaa\Config\Sync\ConfigResetter;
 
@@ -70,10 +71,34 @@ final class ConfigResetCommand
             }
         }
 
+        $expectedGeneration = $io->option('expected-generation');
+        $expectedSequence = $io->option('expected-sequence');
+        $expectedToken = null;
+        if (($expectedGeneration !== null && $expectedGeneration !== '') || ($expectedSequence !== null && $expectedSequence !== '')) {
+            if (
+                !is_string($expectedGeneration)
+                || !is_string($expectedSequence)
+                || preg_match('/^[1-9][0-9]*$/D', $expectedSequence) !== 1
+            ) {
+                $io->error('--expected-generation and --expected-sequence must be supplied together.');
+
+                return 1;
+            }
+            try {
+                $expectedToken = new ConfigurationActiveToken($expectedGeneration, (int) $expectedSequence);
+            } catch (\InvalidArgumentException $exception) {
+                $io->error($exception->getMessage());
+
+                return 1;
+            }
+        }
+        $requestId = $io->option('activation-request-id');
         $result = $this->resetter->reset(
             ref: $ref,
             actor: $this->resolveActor(),
             skipConfirmation: $skipConfirmation,
+            activationRequestId: is_string($requestId) ? $requestId : null,
+            expectedToken: $expectedToken,
         );
 
         if ($result->isFailure()) {

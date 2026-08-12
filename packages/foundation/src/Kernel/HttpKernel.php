@@ -44,6 +44,9 @@ use Waaseyaa\Foundation\Middleware\HttpHandlerInterface;
 use Waaseyaa\Foundation\Middleware\HttpPipeline;
 use Waaseyaa\Foundation\Middleware\MaintenanceModeMiddleware;
 use Waaseyaa\Foundation\Middleware\SecurityHeadersMiddleware;
+use Waaseyaa\Foundation\Runtime\RuntimeEpochCacheBackend;
+use Waaseyaa\Foundation\Runtime\RuntimeEpochInterface;
+use Waaseyaa\Foundation\Runtime\StableRuntimeEpoch;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ConfiguresHttpKernelInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface;
@@ -189,11 +192,16 @@ final class HttpKernel extends AbstractKernel
             hmacKey: $cacheHmacKey,
             projectionDiagnostic: $projectionDiagnostic,
         ));
-        $cacheConfig->setFactoryForBin('mcp_read', fn(): DatabaseBackend => new DatabaseBackend(
-            $pdo,
-            'cache_mcp_read',
-            hmacKey: $cacheHmacKey,
-            projectionDiagnostic: $projectionDiagnostic,
+        $runtimeEpoch = $this->getHttpServiceResolver()->resolve(RuntimeEpochInterface::class);
+        $runtimeEpoch ??= new StableRuntimeEpoch();
+        $cacheConfig->setFactoryForBin('mcp_read', fn(): RuntimeEpochCacheBackend => new RuntimeEpochCacheBackend(
+            new DatabaseBackend(
+                $pdo,
+                'cache_mcp_read',
+                hmacKey: $cacheHmacKey,
+                projectionDiagnostic: $projectionDiagnostic,
+            ),
+            $runtimeEpoch->fingerprint(),
         ));
         $cacheFactory = new CacheFactory($cacheConfig, $projectionDiagnostic);
         $this->renderCacheBackend = $cacheFactory->get('render');

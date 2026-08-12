@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Config;
 
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
+use Waaseyaa\Config\Exception\ConfigMutationFailedException;
 
 /**
  * @api
@@ -72,7 +73,9 @@ final class ConfigFactory implements ConfigFactoryInterface
 
     public function rename(string $oldName, string $newName): static
     {
-        $this->storage->rename($oldName, $newName);
+        if (!$this->storage->rename($oldName, $newName)) {
+            throw ConfigMutationFailedException::forOperation('rename', $oldName);
+        }
 
         unset($this->cache[$oldName], $this->cache[$newName]);
 

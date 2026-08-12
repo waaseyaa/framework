@@ -6,6 +6,7 @@ namespace Waaseyaa\Config\Tests\Unit;
 
 use Waaseyaa\Config\Config;
 use Waaseyaa\Config\Exception\ImmutableConfigException;
+use Waaseyaa\Config\Exception\ConfigMutationFailedException;
 use Waaseyaa\Config\Storage\MemoryStorage;
 use Waaseyaa\Config\StorageInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -269,6 +270,52 @@ final class ConfigTest extends TestCase
         $result = $config->save();
 
         $this->assertSame($config, $result);
+    }
+
+    public function testFalseSaveDoesNotMarkTheConfigPersisted(): void
+    {
+        $storage = $this->refusingStorage();
+        $config = new Config('system.site', $storage, ['name' => 'Changed'], isNew: true);
+
+        try {
+            $config->save();
+            self::fail('False storage write was reported as success.');
+        } catch (ConfigMutationFailedException $exception) {
+            self::assertStringContainsString('save failed', $exception->getMessage());
+        }
+        self::assertTrue($config->isNew());
+        self::assertSame(['name' => 'Changed'], $config->getRawData());
+    }
+
+    public function testFalseDeletePreservesTheLoadedConfigState(): void
+    {
+        $config = new Config('system.site', $this->refusingStorage(), ['name' => 'Known good'], isNew: false);
+
+        try {
+            $config->delete();
+            self::fail('False storage delete was reported as success.');
+        } catch (ConfigMutationFailedException $exception) {
+            self::assertStringContainsString('delete failed', $exception->getMessage());
+        }
+        self::assertFalse($config->isNew());
+        self::assertSame(['name' => 'Known good'], $config->getRawData());
+    }
+
+    private function refusingStorage(): StorageInterface
+    {
+        return new class implements StorageInterface {
+            public function exists(string $name): bool { return true; }
+            public function read(string $name): array|false { return ['name' => 'Known good']; }
+            public function readMultiple(array $names): array { return []; }
+            public function write(string $name, array $data): bool { return false; }
+            public function delete(string $name): bool { return false; }
+            public function rename(string $name, string $newName): bool { return false; }
+            public function listAll(string $prefix = ''): array { return []; }
+            public function deleteAll(string $prefix = ''): bool { return false; }
+            public function createCollection(string $collection): static { return $this; }
+            public function getCollectionName(): string { return ''; }
+            public function getAllCollectionNames(): array { return []; }
+        };
     }
 
     /**

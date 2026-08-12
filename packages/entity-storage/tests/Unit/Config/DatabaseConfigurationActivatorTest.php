@@ -7,9 +7,14 @@ namespace Waaseyaa\EntityStorage\Tests\Unit\Config;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Config\Activation\ConfigurationActivationAuthorizerInterface;
+use Waaseyaa\Config\Activation\ConfigurationActivationContentionException;
 use Waaseyaa\Config\Activation\ConfigurationActivationConflictException;
 use Waaseyaa\Config\Activation\ConfigurationActivationRequest;
 use Waaseyaa\Config\Activation\ConfigurationActivationRequestReuseException;
+use Waaseyaa\Config\Activation\ConfigurationRollbackRequest;
+use Waaseyaa\Config\Activation\ConfigurationRollbackValidatorInterface;
+use Waaseyaa\Config\Activation\ConfigurationCandidateSweepAuthorizerInterface;
+use Waaseyaa\Config\Activation\ConfigurationCandidateSweepRequest;
 use Waaseyaa\Config\Authority\ConfigurationActiveToken;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
@@ -88,10 +93,52 @@ final class DatabaseConfigurationActivatorTest extends TestCase
 
         self::assertSame('already-committed', $retry->status);
         self::assertEquals($first->token, $retry->token);
+        self::assertSame($request->inputHash(), $retry->inputHash);
+        self::assertSame('request-retry', $retry->candidateId);
+        self::assertSame($first->evidenceHash(), $retry->evidenceHash());
         self::assertSame(1, $this->scalar('SELECT COUNT(*) FROM waaseyaa_config_activation_v2'));
+        self::assertEquals($retry, $activator->committedResult('request-retry'));
+        self::assertNull($activator->committedResult('request-never-committed'));
 
         $this->expectException(ConfigurationActivationRequestReuseException::class);
         $activator->activate($this->request('request-retry', null, [$this->file('system', 'site', ['name' => 'different'])]));
+    }
+
+    #[Test]
+    public function retryingAStagedRequestAfterAnInterveningActivationIsAStaleConflict(): void
+    {
+        $activator = $this->activator();
+        $first = $activator->activate($this->request('staged-retry-base', null, [$this->file('system', 'site', ['name' => 'A'])]));
+        $staged = $this->request('staged-retry-request', $first->token, [$this->file('system', 'site', ['name' => 'B'])]);
+        try {
+            $this->database->query(<<<'SQL'
+                CREATE TRIGGER stage_retry_failure
+                BEFORE INSERT ON waaseyaa_config_activation_v2
+                WHEN NEW.activation_request_id = 'staged-retry-request'
+                BEGIN
+                    SELECT RAISE(ABORT, 'leave candidate staged');
+                END
+                SQL);
+            $activator->activate($staged);
+            self::fail('Injected activation failure was reported as success.');
+        } catch (\Throwable $exception) {
+            self::assertStringContainsString('leave candidate staged', $exception->getMessage());
+        }
+        $this->database->query('DROP TRIGGER stage_retry_failure');
+        $intervening = $activator->activate($this->request(
+            'staged-retry-intervening',
+            $first->token,
+            [$this->file('system', 'site', ['name' => 'C'])],
+        ));
+
+        try {
+            $activator->activate($staged);
+            self::fail('Staged request ignored an intervening activation.');
+        } catch (ConfigurationActivationConflictException $exception) {
+            self::assertStringContainsString('before planning', $exception->getMessage());
+        }
+        self::assertEquals($intervening->token, $activator->currentToken());
+        self::assertSame(2, $this->scalar('SELECT COUNT(*) FROM waaseyaa_config_activation_v2'));
     }
 
     #[Test]
@@ -122,6 +169,65 @@ final class DatabaseConfigurationActivatorTest extends TestCase
             [],
             ['system.site' => str_repeat('0', 64)],
         ));
+    }
+
+    #[Test]
+    public function completeReplacementRequiresExpectedTokenAndEveryOmittedEntryTombstone(): void
+    {
+        $activator = $this->activator();
+        $site = $this->file('system', 'site', ['name' => 'Waaseyaa']);
+        $role = $this->file('role', 'editor', ['label' => 'Editor']);
+        $first = $activator->activate($this->request('request-replacement-base', null, [$site, $role]));
+
+        try {
+            new ConfigurationActivationRequest(
+                'request-replacement-no-token',
+                null,
+                [$site],
+                ['role.editor' => $role->contentHash()],
+                completeReplacement: true,
+            );
+            self::fail('Complete replacement accepted no expected token.');
+        } catch (\InvalidArgumentException $exception) {
+            self::assertStringContainsString('expected active token', $exception->getMessage());
+        }
+
+        try {
+            $activator->activate(new ConfigurationActivationRequest(
+                'request-replacement-incomplete-plan',
+                $first->token,
+                [$site],
+                completeReplacement: true,
+            ));
+            self::fail('Complete replacement accepted an incomplete deletion plan.');
+        } catch (ConfigurationActivationConflictException $exception) {
+            self::assertStringContainsString('every omitted active entry', $exception->getMessage());
+        }
+
+        $replacement = $activator->activate(new ConfigurationActivationRequest(
+            'request-replacement-valid',
+            $first->token,
+            [$site],
+            ['role.editor' => $role->contentHash()],
+            completeReplacement: true,
+        ));
+        self::assertSame(['system.site'], $this->refs($activator, $replacement->token));
+    }
+
+    #[Test]
+    public function completeReplacementModeIsBoundIntoRequestIdentity(): void
+    {
+        $token = new ConfigurationActiveToken(str_repeat('a', 64), 1);
+        $file = $this->file('system', 'site', ['name' => 'Waaseyaa']);
+        $additive = new ConfigurationActivationRequest('request-mode-a', $token, [$file]);
+        $replacement = new ConfigurationActivationRequest(
+            'request-mode-b',
+            $token,
+            [$file],
+            completeReplacement: true,
+        );
+
+        self::assertNotSame($additive->inputHash(), $replacement->inputHash());
     }
 
     #[Test]
@@ -171,6 +277,262 @@ final class DatabaseConfigurationActivatorTest extends TestCase
         self::assertSame(1, $this->scalar('SELECT COUNT(*) FROM waaseyaa_config_activation_v2'));
     }
 
+    #[Test]
+    public function sqliteBusyIsMappedToTypedContentionAndCannotPublish(): void
+    {
+        $path = sys_get_temp_dir() . '/waaseyaa_cfg02_contention_' . bin2hex(random_bytes(8)) . '.sqlite';
+        $firstDatabase = DBALDatabase::createSqlite($path, 'testing');
+        try {
+            foreach ([
+                '2026_08_12_000002_configuration_authority.php',
+                '2026_08_12_000003_configuration_activation.php',
+            ] as $migrationFile) {
+                $migration = require dirname(__DIR__, 3) . '/migrations/' . $migrationFile;
+                $migration->up(new SchemaBuilder($firstDatabase->getConnection()));
+            }
+            $firstActivator = new DatabaseConfigurationActivator($firstDatabase, $this->context, $this->authorizer);
+            $head = $firstActivator->activate($this->request(
+                'request-contention-base',
+                null,
+                [$this->file('system', 'site', ['name' => 'A'])],
+            ));
+
+            $secondDatabase = DBALDatabase::createSqlite($path, 'testing');
+            $secondDatabase->getConnection()->executeStatement('PRAGMA busy_timeout = 1');
+            $firstDatabase->getConnection()->executeStatement('BEGIN IMMEDIATE');
+            try {
+                $secondActivator = new DatabaseConfigurationActivator($secondDatabase, $this->context, $this->authorizer);
+                $secondActivator->activate($this->request(
+                    'request-contention-loser',
+                    $head->token,
+                    [$this->file('system', 'site', ['name' => 'B'])],
+                ));
+                self::fail('A contending activation was reported as success.');
+            } catch (ConfigurationActivationContentionException $exception) {
+                self::assertStringContainsString('writer authority', $exception->getMessage());
+            } finally {
+                $firstDatabase->getConnection()->executeStatement('ROLLBACK');
+            }
+
+            self::assertEquals($head->token, $firstActivator->currentToken());
+            self::assertSame(1, $this->scalarFrom($firstDatabase, 'SELECT COUNT(*) FROM waaseyaa_config_activation_v2'));
+        } finally {
+            @unlink($path);
+            @unlink($path . '-wal');
+            @unlink($path . '-shm');
+        }
+    }
+
+    #[Test]
+    public function firstV2ActivationContinuesTheLegacySequenceAndCopiesTheCompleteGeneration(): void
+    {
+        $legacy = $this->file('system', 'site', ['name' => 'Legacy']);
+        $legacyGeneration = str_repeat('c', 64);
+        $this->database->query(
+            'INSERT INTO waaseyaa_config_generation '
+            . '(authority_id, generation_id, activation_sequence, schema_version, manifest_hash, lifecycle_state, created_at) '
+            . 'VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [$this->context->authorityId, $legacyGeneration, 7, 'config-schema.v1', str_repeat('d', 64), 'active', gmdate('c')],
+        );
+        $this->database->query(
+            'INSERT INTO waaseyaa_config_entry '
+            . '(authority_id, generation_id, config_name, entity_type, entity_id, uuid, dependencies_json, langcode, fields_json, content_hash) '
+            . 'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [
+                $this->context->authorityId,
+                $legacyGeneration,
+                $legacy->ref(),
+                $legacy->entityType,
+                $legacy->entityId,
+                $legacy->uuid,
+                '[]',
+                $legacy->langcode,
+                json_encode($legacy->fields, JSON_THROW_ON_ERROR),
+                $legacy->contentHash(),
+            ],
+        );
+        $this->database->query(
+            'INSERT INTO waaseyaa_config_activation (authority_id, generation_id, activation_sequence, activated_at) '
+            . 'VALUES (?, ?, ?, ?)',
+            [$this->context->authorityId, $legacyGeneration, 7, gmdate('c')],
+        );
+
+        $activator = $this->activator();
+        $legacyToken = new ConfigurationActiveToken($legacyGeneration, 7);
+        self::assertEquals($legacyToken, $activator->currentToken());
+        $result = $activator->activate($this->request(
+            'request-after-legacy',
+            $legacyToken,
+            [$this->file('role', 'editor', ['label' => 'Editor'])],
+        ));
+
+        self::assertSame(8, $result->token->activationSequence);
+        self::assertSame(['role.editor', 'system.site'], $this->refs($activator, $result->token));
+        self::assertSame(8, $this->scalar('SELECT last_sequence FROM waaseyaa_config_activation_counter'));
+    }
+
+    #[Test]
+    public function rollbackReactivatesRetainedContentWithANewSequenceAfterCompatibilityValidation(): void
+    {
+        $validator = new class implements ConfigurationRollbackValidatorInterface {
+            public int $calls = 0;
+
+            public function validate(ConfigurationRollbackRequest $request, array $targetFiles): void
+            {
+                ++$this->calls;
+                TestCase::assertNotEmpty($targetFiles);
+            }
+        };
+        $activator = new DatabaseConfigurationActivator(
+            $this->database,
+            $this->context,
+            $this->authorizer,
+            $validator,
+        );
+        $first = $activator->activate($this->request('rollback-base-a', null, [$this->file('system', 'site', ['name' => 'A'])]));
+        $second = $activator->activate($this->request('rollback-base-b', $first->token, [$this->file('system', 'site', ['name' => 'B'])]));
+
+        $rollback = $activator->rollback(new ConfigurationRollbackRequest(
+            'rollback-to-a',
+            $second->token,
+            $first->token,
+        ));
+
+        self::assertSame(1, $validator->calls);
+        self::assertSame($first->token->generationId, $rollback->token->generationId);
+        self::assertSame(3, $rollback->token->activationSequence);
+        self::assertSame('rollback', $this->stringScalar(
+            'SELECT operation FROM waaseyaa_config_activation_v2 WHERE activation_sequence = 3',
+        ));
+        self::assertSame($first->token->generationId, $this->stringScalar(
+            'SELECT target_generation_id FROM waaseyaa_config_activation_v2 WHERE activation_sequence = 3',
+        ));
+    }
+
+    #[Test]
+    public function staleRollbackChangesNeitherHeadNorLedger(): void
+    {
+        $validator = new class implements ConfigurationRollbackValidatorInterface {
+            public function validate(ConfigurationRollbackRequest $request, array $targetFiles): void {}
+        };
+        $activator = new DatabaseConfigurationActivator(
+            $this->database,
+            $this->context,
+            $this->authorizer,
+            $validator,
+        );
+        $first = $activator->activate($this->request('stale-rollback-a', null, [$this->file('system', 'site', ['name' => 'A'])]));
+        $second = $activator->activate($this->request('stale-rollback-b', $first->token, [$this->file('system', 'site', ['name' => 'B'])]));
+
+        try {
+            $activator->rollback(new ConfigurationRollbackRequest(
+                'stale-rollback-attempt',
+                $first->token,
+                $first->token,
+            ));
+            self::fail('Stale rollback was reported as success.');
+        } catch (ConfigurationActivationConflictException) {
+        }
+
+        self::assertEquals($second->token, $activator->currentToken());
+        self::assertSame(2, $this->scalar('SELECT COUNT(*) FROM waaseyaa_config_activation_v2'));
+        self::assertSame(2, $this->scalar('SELECT last_sequence FROM waaseyaa_config_activation_counter'));
+    }
+
+    #[Test]
+    public function rollbackRefusesBeforeStagingWhenCompatibilityValidatorIsMissing(): void
+    {
+        $activator = $this->activator();
+        $first = $activator->activate($this->request('refused-rollback-a', null, [$this->file('system', 'site', ['name' => 'A'])]));
+        $second = $activator->activate($this->request('refused-rollback-b', $first->token, [$this->file('system', 'site', ['name' => 'B'])]));
+        $candidateCount = $this->scalar('SELECT COUNT(*) FROM waaseyaa_config_candidate');
+
+        try {
+            $activator->rollback(new ConfigurationRollbackRequest('refused-rollback', $second->token, $first->token));
+            self::fail('Rollback bypassed its compatibility validator.');
+        } catch (\DomainException $exception) {
+            self::assertStringContainsString('compatibility validator', $exception->getMessage());
+        }
+
+        self::assertSame($candidateCount, $this->scalar('SELECT COUNT(*) FROM waaseyaa_config_candidate'));
+        self::assertEquals($second->token, $activator->currentToken());
+    }
+
+    #[Test]
+    public function leaseAuthorizedSweepOnlySupersedesOldUncommittedCandidates(): void
+    {
+        $sweepAuthorizer = new class implements ConfigurationCandidateSweepAuthorizerInterface {
+            public int $calls = 0;
+            public function authorize(ConfigurationCandidateSweepRequest $request): void { ++$this->calls; }
+        };
+        $activator = new DatabaseConfigurationActivator(
+            $this->database,
+            $this->context,
+            $this->authorizer,
+            sweepAuthorizer: $sweepAuthorizer,
+        );
+        $head = $activator->activate($this->request('sweep-committed', null, [$this->file('system', 'site', ['name' => 'A'])]));
+        $this->database->query(<<<'SQL'
+            CREATE TRIGGER sweep_stage_failure
+            BEFORE INSERT ON waaseyaa_config_activation_v2
+            WHEN NEW.activation_request_id = 'sweep-staged'
+            BEGIN
+                SELECT RAISE(ABORT, 'leave sweep candidate staged');
+            END
+            SQL);
+        try {
+            $activator->activate($this->request('sweep-staged', $head->token, [$this->file('system', 'site', ['name' => 'B'])]));
+            self::fail('Injected sweep staging failure was reported as success.');
+        } catch (\Throwable $exception) {
+            self::assertStringContainsString('leave sweep candidate staged', $exception->getMessage());
+        }
+        $this->database->query('DROP TRIGGER sweep_stage_failure');
+        $this->database->query(
+            'UPDATE waaseyaa_config_candidate SET created_at = ? WHERE activation_request_id = ?',
+            ['2020-01-01T00:00:00+00:00', 'sweep-staged'],
+        );
+
+        $affected = $activator->supersedeStagedCandidates(new ConfigurationCandidateSweepRequest(
+            'sweep-maintenance-1',
+            'configuration-candidate-maintenance',
+            9,
+            new \DateTimeImmutable('2021-01-01T00:00:00+00:00'),
+        ));
+
+        self::assertSame(1, $affected);
+        self::assertSame(1, $sweepAuthorizer->calls);
+        self::assertSame('committed', $this->stringScalar(
+            "SELECT lifecycle_state FROM waaseyaa_config_candidate WHERE activation_request_id = 'sweep-committed'",
+        ));
+        self::assertSame('superseded', $this->stringScalar(
+            "SELECT lifecycle_state FROM waaseyaa_config_candidate WHERE activation_request_id = 'sweep-staged'",
+        ));
+        self::assertEquals($head->token, $activator->currentToken());
+    }
+
+    #[Test]
+    public function candidateSweepRefusesWithoutLeaseAuthorizationBeforeMutation(): void
+    {
+        $activator = $this->activator();
+        $head = $activator->activate($this->request('sweep-refusal-base', null, [$this->file('system', 'site', ['name' => 'A'])]));
+
+        try {
+            $activator->supersedeStagedCandidates(new ConfigurationCandidateSweepRequest(
+                'sweep-refusal',
+                'configuration-candidate-maintenance',
+                1,
+                new \DateTimeImmutable('tomorrow'),
+            ));
+            self::fail('Candidate sweep bypassed lease authorization.');
+        } catch (\DomainException $exception) {
+            self::assertStringContainsString('lease and fence', $exception->getMessage());
+        }
+        self::assertSame('committed', $this->stringScalar(
+            "SELECT lifecycle_state FROM waaseyaa_config_candidate WHERE activation_request_id = 'sweep-refusal-base'",
+        ));
+        self::assertEquals($head->token, $activator->currentToken());
+    }
+
     private function activator(): DatabaseConfigurationActivator
     {
         return new DatabaseConfigurationActivator($this->database, $this->context, $this->authorizer);
@@ -217,6 +579,24 @@ final class DatabaseConfigurationActivatorTest extends TestCase
     {
         foreach ($this->database->query($sql) as $row) {
             return (int) array_values($row)[0];
+        }
+
+        self::fail('Scalar query returned no row.');
+    }
+
+    private function scalarFrom(DBALDatabase $database, string $sql): int
+    {
+        foreach ($database->query($sql) as $row) {
+            return (int) array_values($row)[0];
+        }
+
+        self::fail('Scalar query returned no row.');
+    }
+
+    private function stringScalar(string $sql): string
+    {
+        foreach ($this->database->query($sql) as $row) {
+            return (string) array_values($row)[0];
         }
 
         self::fail('Scalar query returned no row.');

@@ -18,8 +18,10 @@ use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Handler\AuditLogHandler;
 use Waaseyaa\CLI\Handler\CacheClearHandler;
 use Waaseyaa\CLI\Handler\DbInitHandler;
+use Waaseyaa\Config\Activation\ConfigurationActivatorInterface;
 use Waaseyaa\Config\Authority\ActiveConfigurationBridgeInterface;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityUnavailableException;
 use Waaseyaa\Config\Sync\ConfigDiffer;
 use Waaseyaa\Config\Sync\ConfigExporter;
 use Waaseyaa\Config\Sync\ConfigImporter;
@@ -58,6 +60,13 @@ final class ConfigCacheDbAuditServiceProvider extends ServiceProvider implements
             $preflight = $this->kernelServices?->get(ConfigImportPreflightInterface::class);
             assert($bridge instanceof ActiveConfigurationBridgeInterface);
             assert($repository instanceof ConfigSyncRepository);
+            $testing = strtolower((string) ($this->config['environment'] ?? '')) === 'testing';
+            $activator = $testing ? null : $this->resolveOptional(ConfigurationActivatorInterface::class);
+            if (!$testing && !$activator instanceof ConfigurationActivatorInterface) {
+                throw new ConfigurationAuthorityUnavailableException(
+                    'Production config:import requires the transactional configuration activation authority.',
+                );
+            }
 
             return new ConfigImporter(
                 repository: $repository,
@@ -65,6 +74,7 @@ final class ConfigCacheDbAuditServiceProvider extends ServiceProvider implements
                 preflight: $preflight instanceof ConfigImportPreflightInterface
                     ? $preflight
                     : new RefusingConfigImportPreflight(),
+                activator: $activator,
             );
         });
         $this->singleton(ConfigDiffer::class, function (): ConfigDiffer {
@@ -86,8 +96,20 @@ final class ConfigCacheDbAuditServiceProvider extends ServiceProvider implements
             $repository = $this->resolve(ConfigSyncRepository::class);
             assert($bridge instanceof ActiveConfigurationBridgeInterface);
             assert($repository instanceof ConfigSyncRepository);
+            $testing = strtolower((string) ($this->config['environment'] ?? '')) === 'testing';
+            $activator = $testing ? null : $this->resolveOptional(ConfigurationActivatorInterface::class);
+            if (!$testing && !$activator instanceof ConfigurationActivatorInterface) {
+                throw new ConfigurationAuthorityUnavailableException(
+                    'Production config:reset requires the transactional configuration activation authority.',
+                );
+            }
 
-            return new ConfigResetter($repository, $bridge);
+            return new ConfigResetter(
+                $repository,
+                $bridge,
+                activator: $activator,
+                activeSource: $bridge,
+            );
         });
         $this->singleton(ConfigExportCommand::class, fn(): ConfigExportCommand => new ConfigExportCommand(
             $this->resolve(ConfigExporter::class),
@@ -139,6 +161,9 @@ final class ConfigCacheDbAuditServiceProvider extends ServiceProvider implements
                 new HandlerOption('delete-orphans', mode: HandlerOptionMode::None, description: 'Delete active entries absent from the sync artifact.'),
                 new HandlerOption('halt-on-error', mode: HandlerOptionMode::None, description: 'Stop after the first failed entry.'),
                 new HandlerOption('no-dependency-check', mode: HandlerOptionMode::None, description: 'Emergency bypass for dependency ordering; does not bypass authority preflight.'),
+                new HandlerOption('activation-request-id', mode: HandlerOptionMode::Required, description: 'Unique idempotency identity required for production activation.'),
+                new HandlerOption('expected-generation', mode: HandlerOptionMode::Required, description: 'Expected active generation SHA-256; omit only when asserting no active generation.'),
+                new HandlerOption('expected-sequence', mode: HandlerOptionMode::Required, description: 'Expected active activation sequence; supply with --expected-generation.'),
             ],
             handler: [ConfigImportCommand::class, 'execute'],
         );
@@ -167,7 +192,12 @@ final class ConfigCacheDbAuditServiceProvider extends ServiceProvider implements
             name: 'config:reset',
             description: 'Reset one active entry from the sync artifact through the guarded import path',
             arguments: [new HandlerArgument('ref', HandlerArgumentMode::Required, '<entity-type>.<id> reference.')],
-            options: [new HandlerOption('yes', mode: HandlerOptionMode::None, description: 'Skip interactive confirmation.')],
+            options: [
+                new HandlerOption('yes', mode: HandlerOptionMode::None, description: 'Skip interactive confirmation.'),
+                new HandlerOption('activation-request-id', mode: HandlerOptionMode::Required, description: 'Unique idempotency identity required for production reset.'),
+                new HandlerOption('expected-generation', mode: HandlerOptionMode::Required, description: 'Expected active generation SHA-256.'),
+                new HandlerOption('expected-sequence', mode: HandlerOptionMode::Required, description: 'Expected active activation sequence.'),
+            ],
             handler: [ConfigResetCommand::class, 'execute'],
         );
 

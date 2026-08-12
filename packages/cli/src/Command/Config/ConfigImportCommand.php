@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Command\Config;
 
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
+use Waaseyaa\Config\Authority\ConfigurationActiveToken;
 use Waaseyaa\Config\Sync\ConfigImportEntryResult;
 use Waaseyaa\Config\Sync\ConfigImporter;
 use Waaseyaa\Config\Sync\ConfigImportPreflightException;
@@ -49,8 +50,23 @@ final class ConfigImportCommand
 
         try {
             $activeRefs = [];
-            foreach ($this->activeSource?->iterate() ?? [] as $file) {
+            $activeFiles = iterator_to_array($this->activeSource?->iterate() ?? []);
+            foreach ($activeFiles as $file) {
                 $activeRefs[] = $file->ref();
+            }
+            $expectedGeneration = $io->option('expected-generation');
+            $expectedSequence = $io->option('expected-sequence');
+            $expectedToken = null;
+            if (($expectedGeneration !== null && $expectedGeneration !== '') || ($expectedSequence !== null && $expectedSequence !== '')) {
+                if (
+                    !is_string($expectedGeneration)
+                    || $expectedGeneration === ''
+                    || !is_string($expectedSequence)
+                    || preg_match('/^[1-9][0-9]*$/D', $expectedSequence) !== 1
+                ) {
+                    throw new \InvalidArgumentException('--expected-generation and --expected-sequence must be supplied together.');
+                }
+                $expectedToken = new ConfigurationActiveToken($expectedGeneration, (int) $expectedSequence);
             }
             $result = $this->importer->import(
                 dryRun: $dryRun,
@@ -58,8 +74,11 @@ final class ConfigImportCommand
                 haltOnError: $haltOnError,
                 noDependencyCheck: $noDependencyCheck,
                 activeRefs: $activeRefs,
+                activationRequestId: is_string($io->option('activation-request-id')) ? $io->option('activation-request-id') : null,
+                expectedToken: $expectedToken,
+                activeFiles: $activeFiles,
             );
-        } catch (ConfigImportPreflightException $exception) {
+        } catch (ConfigImportPreflightException|\InvalidArgumentException $exception) {
             $io->error('config:import preflight refused: ' . $exception->getMessage());
 
             return 1;

@@ -132,6 +132,21 @@ final class ConfigImportCommandTest extends TestCase
         self::assertStringContainsString('CFG-02 activation', $tester->getStderr());
     }
 
+    #[Test]
+    public function expectedTokenOptionsRequireOnePositiveIntegerSequence(): void
+    {
+        $this->seed(['role.admin' => []]);
+        $tester = $this->makeTester();
+
+        $tester->execute([
+            '--expected-generation=' . str_repeat('a', 64),
+            '--expected-sequence=1.5',
+        ]);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('must be supplied together', $tester->getStderr());
+    }
+
     /**
      * @param array<string, list<string>> $refsWithDeps
      */
@@ -203,6 +218,21 @@ final class ConfigImportCommandTest extends TestCase
                     name: 'no-dependency-check',
                     mode: HandlerOptionMode::None,
                     description: 'Emergency bypass: skip validation and DAG ordering.',
+                ),
+                new HandlerOption(
+                    name: 'activation-request-id',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Stable idempotency identity.',
+                ),
+                new HandlerOption(
+                    name: 'expected-generation',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Expected active generation.',
+                ),
+                new HandlerOption(
+                    name: 'expected-sequence',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Expected active sequence.',
                 ),
             ],
             handler: [ConfigImportCommand::class, 'execute'],

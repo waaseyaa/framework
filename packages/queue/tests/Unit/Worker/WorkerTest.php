@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Runtime\RuntimeEpochInterface;
 use Waaseyaa\Queue\Envelope\QueueAuthorityRuntimeInterface;
 use Waaseyaa\Queue\Envelope\QueueEnvelopeV1;
 use Waaseyaa\Queue\Envelope\QueueOccurrenceV1;
@@ -121,6 +122,65 @@ final class WorkerTest extends TestCase
         $result = $this->worker->runNextJob('default', new WorkerOptions());
 
         self::assertFalse($result);
+    }
+
+    #[Test]
+    public function changedRuntimeEpochRefusesAJobBeforeItIsClaimed(): void
+    {
+        $epoch = new class implements RuntimeEpochInterface {
+            public function hasChanged(): bool { return true; }
+            public function fingerprint(): string { return 'test:changed'; }
+        };
+        $worker = new Worker(
+            $this->transport,
+            $this->failedRepo,
+            [new JobHandler()],
+            $this->signer,
+            runtimeEpoch: $epoch,
+        );
+        $this->transport->push('default', $this->signer->seal(serialize(new SuccessfulJob())));
+
+        self::assertFalse($worker->runNextJob('default', new WorkerOptions()));
+        self::assertSame(1, $this->transport->size('default'));
+        self::assertSame(0, SuccessfulJob::$handleCount);
+    }
+
+    #[Test]
+    public function epochChangeDuringAJobCompletesThatUnitThenDrainsBeforeTheNext(): void
+    {
+        $epoch = new class implements RuntimeEpochInterface {
+            public bool $changed = false;
+            public function hasChanged(): bool { return $this->changed; }
+            public function fingerprint(): string { return 'test:' . ($this->changed ? 'changed' : 'initial'); }
+        };
+        $handled = 0;
+        $handler = new class ($epoch, $handled) implements HandlerInterface {
+            public function __construct(
+                private readonly object $epoch,
+                private int &$handled,
+            ) {}
+            public function supports(object $message): bool { return true; }
+            public function handle(object $message): void
+            {
+                ++$this->handled;
+                $this->epoch->changed = true;
+            }
+        };
+        $worker = new Worker(
+            $this->transport,
+            $this->failedRepo,
+            [$handler],
+            $this->signer,
+            runtimeEpoch: $epoch,
+        );
+        $this->transport->push('default', $this->signer->seal(serialize(new SuccessfulJob())));
+        $this->transport->push('default', $this->signer->seal(serialize(new SuccessfulJob())));
+
+        $processed = $worker->run('default', new WorkerOptions(sleep: 0, maxJobs: 2));
+
+        self::assertSame(1, $processed);
+        self::assertSame(1, $handled);
+        self::assertSame(1, $this->transport->size('default'));
     }
 
     #[Test]

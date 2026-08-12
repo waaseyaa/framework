@@ -6,6 +6,7 @@ namespace Waaseyaa\Queue;
 
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
+use Waaseyaa\Foundation\Runtime\RuntimeEpochInterface;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Queue\Envelope\NoAuthorityQueueRuntime;
@@ -84,6 +85,7 @@ final class QueueServiceProvider extends ServiceProvider
             $logger = $this->resolveOptional(LoggerInterface::class);
             $authorityRuntime = $this->resolveOptional(QueueAuthorityRuntimeInterface::class);
             $occurrenceRuntime = $this->resolveOptional(OccurrenceRuntimeInterface::class);
+            $runtimeEpoch = $this->resolveOptional(RuntimeEpochInterface::class);
             if ($driver === 'database' && !$authorityRuntime instanceof QueueAuthorityRuntimeInterface) {
                 throw new \InvalidArgumentException('Activated queue workers require an authority-restoring runtime.');
             }
@@ -101,6 +103,7 @@ final class QueueServiceProvider extends ServiceProvider
                 $occurrenceRuntime instanceof OccurrenceRuntimeInterface
                     ? $occurrenceRuntime
                     : new NoOccurrenceRuntime(),
+                $runtimeEpoch instanceof RuntimeEpochInterface ? $runtimeEpoch : null,
             );
         });
     }
