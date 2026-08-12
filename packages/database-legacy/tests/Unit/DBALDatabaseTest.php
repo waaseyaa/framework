@@ -12,6 +12,7 @@ use Waaseyaa\Database\DeleteInterface;
 use Waaseyaa\Database\InsertInterface;
 use Waaseyaa\Database\SchemaInterface;
 use Waaseyaa\Database\SelectInterface;
+use Waaseyaa\Database\SqliteTopology;
 use Waaseyaa\Database\TransactionInterface;
 use Waaseyaa\Database\UpdateInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -85,6 +86,26 @@ final class DBALDatabaseTest extends TestCase
             } finally {
                 if (is_file($path)) {
                     unlink($path);
+                }
+            }
+        }
+    }
+
+    public function testEffectivePragmaDriftFailsWithTheStableS1Diagnostic(): void
+    {
+        $path = sys_get_temp_dir() . '/waaseyaa-s1-drift-' . bin2hex(random_bytes(8)) . '.sqlite';
+
+        try {
+            $connection = DBALDatabase::createSqlite($path)->getConnection();
+            $connection->executeStatement('PRAGMA busy_timeout = 1');
+
+            $this->expectException(\RuntimeException::class);
+            $this->expectExceptionMessage('S1-DB003');
+            SqliteTopology::assertEffectivePragmas($connection, fileBacked: true);
+        } finally {
+            foreach ([$path, $path . '-wal', $path . '-shm'] as $candidate) {
+                if (is_file($candidate)) {
+                    unlink($candidate);
                 }
             }
         }

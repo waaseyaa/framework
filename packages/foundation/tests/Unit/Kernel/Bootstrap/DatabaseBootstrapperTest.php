@@ -167,6 +167,18 @@ final class DatabaseBootstrapperTest extends TestCase
         );
     }
 
+    #[Test]
+    public function bootRefusesADsnBeforeTreatingItAsARelativeFilename(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('S1-DB001');
+
+        new DatabaseBootstrapper()->boot(
+            $this->tempDir,
+            ['database' => 'mysql:host=db;dbname=waaseyaa', 'environment' => 'local'],
+        );
+    }
+
     // ----- Mission request-surface-hardening (#1650) WP02: resolution matrix -----
     // Contract `bearer-and-dbpath.md` §9–13 / data-model.md path resolution
     // matrix. resolveDatabasePath() is a pure function of (configured value,
