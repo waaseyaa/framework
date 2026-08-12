@@ -17,9 +17,50 @@ on:
         type: string
 
 jobs:
+  support-contract:
+    name: support/s1-contract
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.5'
+          extensions: pdo_sqlite, sqlite3
+          coverage: none
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Verify bounded S1 support contract
+        run: php bin/check-support-contract --ci --evidence=support-contract-evidence.json
+
+      - name: Publish exact environment evidence
+        if: always()
+        run: |
+          if test -f support-contract-evidence.json; then
+            cat support-contract-evidence.json
+          else
+            echo "support-contract evidence was not produced"
+          fi
+
+      - name: Upload exact environment evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: support-contract-evidence-${{ inputs.sha || github.sha }}
+          path: support-contract-evidence.json
+          if-no-files-found: warn
+          retention-days: 30
+
   release-pipeline-fixtures:
     name: Release pipeline fixtures
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -60,7 +101,7 @@ jobs:
 
   composer-policy:
     name: composer-policy
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -81,7 +122,7 @@ jobs:
 
   composer-deps-audit:
     name: composer-deps-audit (warn-only)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -112,7 +153,7 @@ jobs:
     # it asks "did this PR update the spec alongside the source?". There is no
     # such question to ask on a post-merge push to main, so skip it there.
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -124,7 +165,7 @@ jobs:
 
   ci-lint:
     name: ci/lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -180,7 +221,7 @@ jobs:
 
   check-dead-code:
     name: check-dead-code
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -226,7 +267,7 @@ jobs:
 
   ci-unit-tests:
     name: ci/unit-tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -276,7 +317,7 @@ jobs:
 
   ci-random-order:
     name: ci/random-order
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -307,7 +348,7 @@ jobs:
 
   ci-package-isolation:
     name: ci/package-isolation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -332,7 +373,7 @@ jobs:
 
   ci-coverage:
     name: ci/coverage
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -387,7 +428,7 @@ jobs:
 
   mutation-pilot:
     name: ci/mutation-pilot
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -426,7 +467,7 @@ jobs:
 
   skeleton-create-project:
     name: ci/skeleton-create-project
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -497,7 +538,7 @@ jobs:
 
   packaged-form:
     name: packaged-form
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -531,7 +572,7 @@ jobs:
     # bug where core omits a fail-closed kernel boot dependency (e.g. waaseyaa/scheduler, fixed
     # in this train) — the gap that source-tree co-resolution masks. See tests/CoreOnlyBoot/boot.php.
     name: ci/core-only-boot
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -580,7 +621,7 @@ jobs:
     # (seo/path/user/groups/field) because its excludes snapshot went stale. It was
     # reclassified out of `composer verify` so verify == this CI gate set; run it on demand via
     # `composer check-external-consumers`. See roadmap triage for the retire/narrow follow-up.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -640,7 +681,7 @@ jobs:
 
   ci-playwright-smoke:
     name: ci/playwright-smoke
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [frontend-build]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -723,7 +764,7 @@ jobs:
 
   frontend-build:
     name: Frontend build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: packages/admin
@@ -778,7 +819,7 @@ jobs:
 
   manifest-conformance:
     name: Manifest conformance
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -827,7 +868,7 @@ jobs:
 
   ingestion-defaults:
     name: Ingestion defaults
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -837,7 +878,7 @@ jobs:
 
   release-publish-shape:
     name: Release publish shape
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -847,7 +888,7 @@ jobs:
 
   security-defaults:
     name: Security defaults
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
