@@ -34,8 +34,6 @@ $context = new ConfigurationAuthorityContext(
     databaseIdentity: $database->databaseIdentity(),
     syncPath: __DIR__ . '/config-sync',
     selectorProvenance: ['packaged-proof'],
-    packageManifestHash: str_repeat('b', 64),
-    schemaVersion: 'packaged-proof-v1',
 );
 $authorizer = new class implements ConfigurationActivationAuthorizerInterface {
     public function authorize(ConfigurationActivationRequest $request, bool $deletes): void {}
