@@ -84,5 +84,54 @@ Verification on PHP 8.5.9:
 - integration: 1,859 tests, 8,236 assertions;
 - focused migration/strict-verification matrix: 94 tests, 267 assertions.
 
-Installed-form proof and independent review remain required before this work
-package can be called closed.
+The following reconciliation closes the installed-form and independent-review
+requirements for this work package.
+
+## Installed-form and independent-review reconciliation
+
+The exact `database-legacy`, `foundation`, and `cli` package trees are archived
+twice with canonical metadata and byte-compared, installed without path
+repositories, and executed with lock-bound Doctrine/PSR dependency bytes. The
+isolated consumer applies a real V2 migration, verifies the complete authority
+tuple, injects an unauthorized `ALTER TABLE`, and proves `schema_drift` refusal.
+The proof uses no monorepo autoloader, network, forge, or hosted artifact.
+
+Claude Code independently challenged the complete parent-to-candidate diff in
+read-only plan mode. It validated the full Unit and Integration suites,
+PHPStan, both occurrence rosters, behavioral installed-form proof,
+concurrency/crash tests, retained-red history, change-record hygiene, and
+forge-neutrality. It found two evidence defects at reviewed commit
+`4fc4d124b`:
+
+1. the new `usleep()` contention barrier was not classified by the repository
+   test-quality inventory, leaving Architecture red;
+2. the installed-artifact script refused dirty package bytes but did not yet
+   refuse dirty lock, dependency-authority, or probe-script bytes.
+
+The first was corrected by `aa42b8f25`; the second was corrected there and its
+semantic structural assertions were sealed in `2d6510f71`. Reconciliation
+then proved:
+
+- Architecture: 146 tests, 18,926 assertions, green;
+- deliberate dirty probe input: artifact proof refused before construction;
+- exact restored input: installed-artifact schema authority proof passed;
+- schema roster: 1,150 occurrences across 359 files, no authoritative bypass;
+- SQLite construction roster: 828 occurrences;
+- no Claude, test, browser, or server process was left running.
+
+Independent verdict after corrections: `sound; no blockers`.
+
+## DB-02 disposition
+
+`S1-FW-DB-02` is implementation-complete and independently reconciled on this
+local review branch. The exit contract is satisfied by executable evidence:
+one database-native authority, whole-plan atomicity, unique migration identity,
+zero-DDL runtime/inspection paths, truthful forward-only rollback, strict
+source/package/plan/ledger/live-schema verification, complete fail-closed DDL
+classification, contention and process-death proof, and deterministic offline
+installed-form reproduction.
+
+This disposition authorizes only progression to the next dependency-ordered
+local remediation work package. It does not authorize integration to shared
+main, split-package fan-out, publication, release, deployment, production
+mutation, backup, restore, or recovery execution.
