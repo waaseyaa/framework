@@ -4908,6 +4908,33 @@
             "source_sha256": "2601d2e43ee645457d0650dd34a785e187121013939fd6127267ac2553c46ed9"
         },
         {
+            "path": "packages/oidc/tests/Integration/Schema/OidcRuntimeSchemaAuthorityTest.php",
+            "line": 20,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "17f5288462dda76357131bed7787aa00aded8976ce7bfbcfc38722127100b304"
+        },
+        {
+            "path": "packages/oidc/tests/Integration/Schema/OidcRuntimeSchemaAuthorityTest.php",
+            "line": 32,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "17f5288462dda76357131bed7787aa00aded8976ce7bfbcfc38722127100b304"
+        },
+        {
+            "path": "packages/oidc/tests/Integration/Schema/OidcRuntimeSchemaAuthorityTest.php",
+            "line": 44,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
+            "source_sha256": "17f5288462dda76357131bed7787aa00aded8976ce7bfbcfc38722127100b304"
+        },
+        {
             "path": "packages/oidc/tests/Integration/Security/OidcSecretStorageTest.php",
             "line": 21,
             "pattern": "dbal_factory",
