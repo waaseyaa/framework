@@ -21,6 +21,9 @@ final class UnitOfWork
     /** @var array<int, array{0: object, 1: string}> Buffered events to dispatch after commit. */
     private array $bufferedEvents = [];
 
+    /** @var list<\Closure(): void> */
+    private array $afterCommit = [];
+
     private bool $inTransaction = false;
 
     public function __construct(
@@ -48,30 +51,40 @@ final class UnitOfWork
 
         $this->inTransaction = true;
         $this->bufferedEvents = [];
+        $this->afterCommit = [];
 
         $transaction = $this->database->transaction();
 
         try {
             $result = $callback();
             $transaction->commit();
-
-            // Dispatch buffered events after successful commit.
-            $eventsToDispatch = $this->bufferedEvents;
-            $this->bufferedEvents = [];
-            $this->inTransaction = false;
-
-            foreach ($eventsToDispatch as [$event, $eventName]) {
-                $this->eventDispatcher->dispatch($event, $eventName);
-            }
-
-            return $result;
         } catch (\Throwable $e) {
             $transaction->rollBack();
             $this->bufferedEvents = [];
+            $this->afterCommit = [];
             $this->inTransaction = false;
 
             throw $e;
         }
+
+        // Post-commit callbacks and events are deliberately outside the
+        // rollback catch: committed data cannot be reinterpreted as rolled
+        // back if an in-memory successor install or listener fails.
+        $eventsToDispatch = $this->bufferedEvents;
+        $afterCommit = $this->afterCommit;
+        $this->bufferedEvents = [];
+        $this->afterCommit = [];
+        $this->inTransaction = false;
+
+        foreach ($afterCommit as $afterCommitCallback) {
+            $afterCommitCallback();
+        }
+
+        foreach ($eventsToDispatch as [$event, $eventName]) {
+            $this->eventDispatcher->dispatch($event, $eventName);
+        }
+
+        return $result;
     }
 
     /**
@@ -102,5 +115,14 @@ final class UnitOfWork
     public function isInTransaction(): bool
     {
         return $this->inTransaction;
+    }
+
+    /** Register an in-memory successor update that is valid only after commit. */
+    public function afterCommit(\Closure $callback): void
+    {
+        if (!$this->inTransaction) {
+            throw new \LogicException('afterCommit() requires an active unit-of-work transaction.');
+        }
+        $this->afterCommit[] = $callback;
     }
 }

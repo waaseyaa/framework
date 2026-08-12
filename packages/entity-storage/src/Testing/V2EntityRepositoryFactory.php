@@ -8,6 +8,7 @@ use Psr\EventDispatcher\EventDispatcherInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\Event\EntityEventFactoryInterface;
 use Waaseyaa\Entity\Field\FieldDefinitionRegistryInterface;
@@ -20,6 +21,7 @@ use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriverV2Interface;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriverV2;
 use Waaseyaa\EntityStorage\Driver\StorageBoundary;
+use Waaseyaa\EntityStorage\Concurrency\EntityMutationAuthority;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\EntityStorageCoordinator;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -103,12 +105,20 @@ final class V2EntityRepositoryFactory
             );
         }
 
+        $mutationAuthority = $database instanceof DBALDatabase
+            ? new EntityMutationAuthority($database, 'primary')
+            : null;
+        if ($database instanceof DBALDatabase) {
+            EntityMutationAuthoritySchema::ensure($database);
+        }
+
         return new EntityRepository(
             $entityType,
             $driver,
             $eventDispatcher,
             $revisionDriver,
             $database,
+            $mutationAuthority,
             $eventFactory,
             $validator,
             $coordinator,

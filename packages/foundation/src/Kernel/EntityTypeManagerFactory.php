@@ -14,6 +14,7 @@ use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Validation\EntityValidator;
 use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Concurrency\EntityMutationAuthority;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriverV2;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
@@ -116,6 +117,7 @@ final class EntityTypeManagerFactory
                     $dispatcher,
                     $revisionDriver,
                     $database,
+                    mutationAuthority: new EntityMutationAuthority($database, 'primary'),
                     // Issue #1643: shared default validator (null when the
                     // WAASEYAA_ENTITY_VALIDATION env switch opts out — passing
                     // null matches the constructor default, so disabled boots

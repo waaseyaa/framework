@@ -126,8 +126,8 @@ final class EntityRepositoryAggregateConcurrencyTest extends TestCase
 
     private function seed(string $id, string $label): void
     {
-        $entity = new TestStorageEntity(['id' => $id, 'uuid' => "uuid-{$id}", 'label' => $label]);
-        $entity->enforceIsNew();
+        $entity = $this->repository->create(['id' => $id, 'uuid' => "uuid-{$id}", 'label' => $label]);
+        self::assertInstanceOf(TestStorageEntity::class, $entity);
         $this->repository->save($entity);
         self::assertNotNull($entity->mutationToken());
     }

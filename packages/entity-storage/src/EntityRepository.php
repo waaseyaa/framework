@@ -9,6 +9,8 @@ use Waaseyaa\Access\Context\AccountContextInterface;
 use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 use Waaseyaa\Entity\ContentEntityInterface;
 use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityConstants;
@@ -29,6 +31,7 @@ use Waaseyaa\Entity\Validation\EntityTypeValidationConstraints;
 use Waaseyaa\Entity\Validation\EntityValidationException;
 use Waaseyaa\Entity\Validation\EntityValidator;
 use Waaseyaa\EntityStorage\Bundle\BundleSubtableGateway;
+use Waaseyaa\EntityStorage\Concurrency\EntityMutationAuthority;
 use Waaseyaa\EntityStorage\Driver\EntityStorageDriverV2Interface;
 use Waaseyaa\EntityStorage\Driver\LangcodePeerStorageDriverV2Interface;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
@@ -44,6 +47,7 @@ use Waaseyaa\EntityStorage\Event\BeforeRevisionPointerMoveEvent;
 use Waaseyaa\EntityStorage\Event\BeforeSaveEvent;
 use Waaseyaa\EntityStorage\Event\RevisionPointerMovedEvent;
 use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
+use Waaseyaa\EntityStorage\Exception\MissingEntityMutationTokenException;
 use Waaseyaa\EntityStorage\Revision\RevisionPruningPolicy;
 use Waaseyaa\I18n\LanguageManagerInterface;
 
@@ -96,6 +100,7 @@ final class EntityRepository implements EntityRepositoryInterface
         private readonly EventDispatcherInterface $eventDispatcher,
         RevisionableStorageDriver|RevisionableStorageDriverV2Interface|null $revisionDriver = null,
         private readonly ?DatabaseInterface $database = null,
+        private readonly ?EntityMutationAuthority $mutationAuthority = null,
         ?EntityEventFactoryInterface $eventFactory = null,
         private readonly ?EntityValidator $validator = null,
         // WP02 coordinator slot — reserved for field-level multi-backend fan-out.
@@ -129,6 +134,9 @@ final class EntityRepository implements EntityRepositoryInterface
         ?StorageBoundary $storageBoundary = null,
         private readonly ?AccountFieldReadScopeInterface $fieldReadScope = null,
     ) {
+        if ($this->database instanceof DBALDatabase && $this->mutationAuthority === null) {
+            throw new \LogicException('A DBAL-backed EntityRepository requires the universal entity mutation authority.');
+        }
         $this->eventFactory = $eventFactory ?? new DefaultEntityEventFactory();
         $this->logger = $logger ?? new \Waaseyaa\Foundation\Log\NullLogger();
         $storageBoundary ??= new StorageBoundary();
@@ -621,11 +629,28 @@ final class EntityRepository implements EntityRepositoryInterface
      */
     public function save(EntityInterface $entity, bool $validate = true, ?SaveContext $context = null): int
     {
+        if ($this->mutationAuthority !== null && $this->database !== null) {
+            $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher);
+
+            return $unitOfWork->transaction(
+                fn(): int => $this->doSave($entity, $unitOfWork, $validate, $context),
+            );
+        }
+
         return $this->doSave($entity, validate: $validate, saveContext: $context);
     }
 
     public function delete(EntityInterface $entity): void
     {
+        if ($this->mutationAuthority !== null && $this->database !== null) {
+            $unitOfWork = new UnitOfWork($this->database, $this->eventDispatcher);
+            $unitOfWork->transaction(function () use ($entity, $unitOfWork): void {
+                $this->doDelete($entity, $unitOfWork);
+            });
+
+            return;
+        }
+
         $this->doDelete($entity);
     }
 
@@ -861,6 +886,13 @@ final class EntityRepository implements EntityRepositoryInterface
                     throw new EntityValidationException($violations);
                 }
             }
+        }
+
+        $successorMutationToken = null;
+        if (!$isNew && $this->mutationAuthority !== null) {
+            $expectedMutationToken = $this->requireMutationToken($entity);
+            $successorMutationToken = $this->mutationAuthority->claim($expectedMutationToken);
+            $this->installTokenAfterCommit($entity, $successorMutationToken, $unitOfWork);
         }
 
         $originalEntity = null;
@@ -1240,6 +1272,19 @@ final class EntityRepository implements EntityRepositoryInterface
                 }
             }
 
+            if ($isNew && $this->mutationAuthority !== null) {
+                $authorityId = $writtenId !== '' ? $writtenId : $id;
+                if ($authorityId === '') {
+                    throw new \LogicException('A created entity must have a canonical id before mutation authority is installed.');
+                }
+                $successorMutationToken = $this->mutationAuthority->create(
+                    $this->tenantIdFromValues($values),
+                    $entityTypeId,
+                    $authorityId,
+                );
+                $this->installTokenAfterCommit($entity, $successorMutationToken, $unitOfWork);
+            }
+
             $transaction?->commit();
         } catch (\Throwable $e) {
             $transaction?->rollBack();
@@ -1300,6 +1345,10 @@ final class EntityRepository implements EntityRepositoryInterface
 
         $entityTypeId = $this->entityType->id();
         $id = (string) $entity->id();
+
+        if ($this->mutationAuthority !== null) {
+            $this->mutationAuthority->tombstone($this->requireMutationToken($entity));
+        }
 
         if ($entity instanceof EntityBase) {
             $entity->preDelete();
@@ -2616,7 +2665,62 @@ final class EntityRepository implements EntityRepositoryInterface
             $entity->enforceIsNew(false);
         }
 
+        if ($this->mutationAuthority !== null) {
+            if (!$entity instanceof EntityBase) {
+                throw new \LogicException('Persisted entity snapshots must extend EntityBase to carry mutation authority.');
+            }
+            $entityId = $entity->id();
+            if ($entityId === null) {
+                throw new \UnexpectedValueException('Persisted entity row has no canonical id.');
+            }
+            $token = $this->mutationAuthority->load(
+                $this->tenantIdFromValues($row),
+                $this->entityType->id(),
+                (string) $entityId,
+            );
+            if ($token === null) {
+                throw new \UnexpectedValueException(
+                    "Persisted entity {$this->entityType->id()} '{$entityId}' has no aggregate mutation authority.",
+                );
+            }
+            $entity->_hydrateMutationToken($token);
+        }
+
         return $entity;
+    }
+
+    private function requireMutationToken(EntityInterface $entity): EntityMutationToken
+    {
+        $id = (string) ($entity->id() ?? '');
+        if (!$entity instanceof EntityBase || $entity->mutationToken() === null) {
+            throw new MissingEntityMutationTokenException($this->entityType->id(), $id);
+        }
+
+        return $entity->mutationToken();
+    }
+
+    private function installTokenAfterCommit(
+        EntityInterface $entity,
+        EntityMutationToken $token,
+        ?UnitOfWork $unitOfWork,
+    ): void {
+        if (!$entity instanceof EntityBase) {
+            throw new \LogicException('Persisted entity snapshots must extend EntityBase to carry mutation authority.');
+        }
+        if ($unitOfWork !== null) {
+            $unitOfWork->afterCommit(static fn() => $entity->_hydrateMutationToken($token));
+
+            return;
+        }
+        $entity->_hydrateMutationToken($token);
+    }
+
+    /** @param array<string, mixed> $values */
+    private function tenantIdFromValues(array $values): string
+    {
+        $tenant = $values['community_id'] ?? null;
+
+        return is_string($tenant) && $tenant !== '' ? $tenant : '_global';
     }
 
     /**

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\EntityStorage\Concurrency;
 
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
-use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 use Waaseyaa\EntityStorage\Exception\EntityMutationConflictException;
 
@@ -21,7 +21,7 @@ final class EntityMutationAuthority
     private const string TABLE = 'waaseyaa_entity_mutation_authority';
 
     public function __construct(
-        private readonly DBALDatabase $database,
+        private readonly DatabaseInterface $dbalDatabase,
         private readonly string $storageAuthority,
     ) {
         if ($storageAuthority === '') {
@@ -33,7 +33,7 @@ final class EntityMutationAuthority
     {
         $token = EntityMutationToken::issue($this->storageAuthority, $tenantId, $entityTypeId, $entityId, 1);
         try {
-            $this->database->insert(self::TABLE)->values([
+            $this->dbalDatabase->insert(self::TABLE)->values([
                 'storage_authority' => $this->storageAuthority,
                 'tenant_id' => $tenantId,
                 'entity_type' => $entityTypeId,
@@ -109,7 +109,7 @@ final class EntityMutationAuthority
             $expected->entityId,
             $expected->aggregateVersion + 1,
         );
-        $affected = $this->database->update(self::TABLE)
+        $affected = $this->dbalDatabase->update(self::TABLE)
             ->fields([
                 'aggregate_version' => $next->aggregateVersion,
                 'mutation_tag' => $next->tagHex(),
@@ -148,13 +148,15 @@ final class EntityMutationAuthority
     /** @return array<string, mixed>|null */
     private function row(string $tenantId, string $entityTypeId, string $entityId): ?array
     {
-        $row = $this->database->getConnection()->fetchAssociative(
+        foreach ($this->dbalDatabase->query(
             'SELECT tenant_id, entity_type, entity_id, aggregate_version, mutation_tag, lifecycle_state FROM ' . self::TABLE
             . ' WHERE storage_authority = ? AND tenant_id = ? AND entity_type = ? AND entity_id = ?',
             [$this->storageAuthority, $tenantId, $entityTypeId, $entityId],
-        );
+        ) as $row) {
+            return $row;
+        }
 
-        return $row === false ? null : $row;
+        return null;
     }
 
     /** @param array<string, mixed> $row */
