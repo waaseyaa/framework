@@ -9,6 +9,7 @@ use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Foundation\Kernel\Bootstrap\DatabaseBootstrapper;
 use Waaseyaa\Foundation\Kernel\ConfigLoader;
 
+/** CLI command handler resolved through the provider command registry. @api */
 final class AboutHandler
 {
     /**

@@ -7,7 +7,7 @@ namespace Waaseyaa\Config\Authority;
 use Waaseyaa\Config\Storage\FileStorage;
 use Waaseyaa\Config\StorageInterface;
 
-/** Legacy StorageInterface view of the resolver-selected sync artifact. */
+/** Legacy StorageInterface view of the resolver-selected sync artifact. @api */
 final class SyncArtifactStorageAdapter implements StorageInterface
 {
     private FileStorage $storage;

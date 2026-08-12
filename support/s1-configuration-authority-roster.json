@@ -115,16 +115,16 @@
             "class": "diagnostic-consumer",
             "match_sha256": "0f68001dd6cc71ef6c3ffe1fb5bd8d20106c17b9375efbf4f1ff53c28cfdb125",
             "line_sha256": "29811b57cc415313bf2929436613dc4173a0078fd06f54791e566f2c6c68e30c",
-            "source_sha256": "333c17ae53d4c0d83c90a6f6d4c6e33f223440410cf837d1973d7b618c994a2f"
+            "source_sha256": "c5c8f3ce70b9cb186eb2be4388629d91796961524aac797afb7cb2d3522d601a"
         },
         {
             "path": "packages/cli/src/Handler/AboutHandler.php",
-            "line": 23,
+            "line": 24,
             "pattern": "authority_context",
             "class": "diagnostic-consumer",
             "match_sha256": "0f68001dd6cc71ef6c3ffe1fb5bd8d20106c17b9375efbf4f1ff53c28cfdb125",
             "line_sha256": "0aa0322ec3a1ff6d8f1f79345643b378ee63332847fd09266469612cd4de16d4",
-            "source_sha256": "333c17ae53d4c0d83c90a6f6d4c6e33f223440410cf837d1973d7b618c994a2f"
+            "source_sha256": "c5c8f3ce70b9cb186eb2be4388629d91796961524aac797afb7cb2d3522d601a"
         },
         {
             "path": "packages/cli/src/Handler/ConfigExportHandler.php",
@@ -1024,7 +1024,7 @@
             "class": "sync-adapter",
             "match_sha256": "70c81cda5aa15ce41b42caa477e7d7782da5c044ccb3c7f14104e2e920556c31",
             "line_sha256": "3adf0c73869ccffbb601424283e5932f6567f9b73d308f9a98016a8b8a515037",
-            "source_sha256": "ae4bc3d6cb9baa9bf9a1c08b93e05b23913eb45fccbefaf67fb050c6a07c0b14"
+            "source_sha256": "468a29274be1ef2bac261815d69a294723e2d560ac788eab95cb2c6ed0d15ba9"
         },
         {
             "path": "packages/config/src/Authority/SyncArtifactStorageAdapter.php",
@@ -1033,7 +1033,7 @@
             "class": "sync-adapter",
             "match_sha256": "0f68001dd6cc71ef6c3ffe1fb5bd8d20106c17b9375efbf4f1ff53c28cfdb125",
             "line_sha256": "fddb8a5bff85b5c612d7c0913aaff30368bbc3fe334b8ba21151a0d3f706c6b5",
-            "source_sha256": "ae4bc3d6cb9baa9bf9a1c08b93e05b23913eb45fccbefaf67fb050c6a07c0b14"
+            "source_sha256": "468a29274be1ef2bac261815d69a294723e2d560ac788eab95cb2c6ed0d15ba9"
         },
         {
             "path": "packages/config/src/Authority/SyncArtifactStorageAdapter.php",
@@ -1042,7 +1042,7 @@
             "class": "sync-adapter",
             "match_sha256": "ae70fe5034133bae51a38602758ce6bf9c9aa0bef343e1cae01ecaa31f371875",
             "line_sha256": "53b4926b8a94348037f589a886edc21f0745a9a083fb8e4e0b6a77429abc0597",
-            "source_sha256": "ae4bc3d6cb9baa9bf9a1c08b93e05b23913eb45fccbefaf67fb050c6a07c0b14"
+            "source_sha256": "468a29274be1ef2bac261815d69a294723e2d560ac788eab95cb2c6ed0d15ba9"
         },
         {
             "path": "packages/config/src/Authority/SyncArtifactStorageAdapter.php",
@@ -1051,7 +1051,7 @@
             "class": "sync-adapter",
             "match_sha256": "69a313d0759c4e0f450e9323fb0e68a60c9f9ddf303a703094407d6bbb52cd7f",
             "line_sha256": "6fcf5fba6365c7e47aea924b292d9be427355c1acd19e8460f30511763ad8c51",
-            "source_sha256": "ae4bc3d6cb9baa9bf9a1c08b93e05b23913eb45fccbefaf67fb050c6a07c0b14"
+            "source_sha256": "468a29274be1ef2bac261815d69a294723e2d560ac788eab95cb2c6ed0d15ba9"
         },
         {
             "path": "packages/config/src/Authority/SyncArtifactStorageAdapter.php",
@@ -1060,7 +1060,7 @@
             "class": "sync-adapter",
             "match_sha256": "70c81cda5aa15ce41b42caa477e7d7782da5c044ccb3c7f14104e2e920556c31",
             "line_sha256": "7aef0866a7e7df312cd70cd3261c9133eeb634f883b7e83eb510c808d80a0cc1",
-            "source_sha256": "ae4bc3d6cb9baa9bf9a1c08b93e05b23913eb45fccbefaf67fb050c6a07c0b14"
+            "source_sha256": "468a29274be1ef2bac261815d69a294723e2d560ac788eab95cb2c6ed0d15ba9"
         },
         {
             "path": "packages/config/src/Authority/SyncArtifactStorageAdapter.php",
@@ -1069,7 +1069,7 @@
             "class": "sync-adapter",
             "match_sha256": "70c81cda5aa15ce41b42caa477e7d7782da5c044ccb3c7f14104e2e920556c31",
             "line_sha256": "a115e7667f36a4b922df38b309ddb8f88d1b256e41894a1fa2dff2ddef3c82ee",
-            "source_sha256": "ae4bc3d6cb9baa9bf9a1c08b93e05b23913eb45fccbefaf67fb050c6a07c0b14"
+            "source_sha256": "468a29274be1ef2bac261815d69a294723e2d560ac788eab95cb2c6ed0d15ba9"
         },
         {
             "path": "packages/config/src/Authority/SyncArtifactStorageAdapter.php",
@@ -1078,7 +1078,7 @@
             "class": "sync-adapter",
             "match_sha256": "70c81cda5aa15ce41b42caa477e7d7782da5c044ccb3c7f14104e2e920556c31",
             "line_sha256": "ce48af5b520ef7f785be82e076a15b40f548fce3b0371db3330bf55820dd3693",
-            "source_sha256": "ae4bc3d6cb9baa9bf9a1c08b93e05b23913eb45fccbefaf67fb050c6a07c0b14"
+            "source_sha256": "468a29274be1ef2bac261815d69a294723e2d560ac788eab95cb2c6ed0d15ba9"
         },
         {
             "path": "packages/config/src/Authority/SyncArtifactStorageAdapter.php",
@@ -1087,7 +1087,7 @@
             "class": "sync-adapter",
             "match_sha256": "69a313d0759c4e0f450e9323fb0e68a60c9f9ddf303a703094407d6bbb52cd7f",
             "line_sha256": "6fcf5fba6365c7e47aea924b292d9be427355c1acd19e8460f30511763ad8c51",
-            "source_sha256": "ae4bc3d6cb9baa9bf9a1c08b93e05b23913eb45fccbefaf67fb050c6a07c0b14"
+            "source_sha256": "468a29274be1ef2bac261815d69a294723e2d560ac788eab95cb2c6ed0d15ba9"
         },
         {
             "path": "packages/config/src/Cache/CachedConfigFactory.php",
@@ -1474,7 +1474,7 @@
             "class": "explicit-testing-profile",
             "match_sha256": "5a38bf6e6006d4836faf2d54c37d7e16c0c301deb335392c000b25c064201032",
             "line_sha256": "e9015e8800ddd0637fc7f756548397a89c1fa6268d520ec1d66ef6fcabbc8c19",
-            "source_sha256": "120ce389c38ff58dfd16c07fe8303714c07455c3234df2ced511b7b483678a7e"
+            "source_sha256": "682d7bdc7530dcb272562527071ce92ce3dd1ecce0b187f98d661bf49390b09e"
         },
         {
             "path": "packages/config/src/Testing/AllowingConfigImportPreflight.php",
@@ -1483,7 +1483,7 @@
             "class": "explicit-testing-profile",
             "match_sha256": "5a38bf6e6006d4836faf2d54c37d7e16c0c301deb335392c000b25c064201032",
             "line_sha256": "a3d8581417b8f689642dcbb727e2a822ece42da2a31df2f0e5675b2163134159",
-            "source_sha256": "120ce389c38ff58dfd16c07fe8303714c07455c3234df2ced511b7b483678a7e"
+            "source_sha256": "682d7bdc7530dcb272562527071ce92ce3dd1ecce0b187f98d661bf49390b09e"
         },
         {
             "path": "packages/config/src/TranslatableConfigFactory.php",
