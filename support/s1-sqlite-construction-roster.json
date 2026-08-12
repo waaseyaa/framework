@@ -7590,6 +7590,15 @@
             "source_sha256": "799b273bf20e03db1ac1f46f35f61017863a43a220909c9e76bfb23111027c26"
         },
         {
+            "path": "tests/PackagedForm/s1-configuration-activation-probe.php",
+            "line": 24,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "4f9a41f46e80173ade18d6096d50ab3e286cfbfbaf0853c779ba6409aacaf73f",
+            "source_sha256": "70493c4a052660d4c0d7485c1471e648cf716f560d670027ad2760aed1acbcd0"
+        },
+        {
             "path": "tests/PackagedForm/s1-schema-authority-artifact-probe.php",
             "line": 76,
             "pattern": "doctrine_factory",

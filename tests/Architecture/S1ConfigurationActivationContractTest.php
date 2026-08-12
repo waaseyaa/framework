@@ -99,4 +99,14 @@ final class S1ConfigurationActivationContractTest extends TestCase
         $checker = (string) file_get_contents($this->root . '/bin/check-s1-configuration-activation');
         self::assertStringContainsString("return \$classes[\$path] ?? 'unclassified';", $checker);
     }
+
+    #[Test]
+    public function exact_head_archives_prove_cas_rollback_and_worker_epoch_reconciliation(): void
+    {
+        $script = $this->root . '/tests/PackagedForm/check-s1-configuration-archives';
+        exec(escapeshellarg($script) . ' 2>&1', $output, $exitCode);
+
+        self::assertSame(0, $exitCode, implode("\n", $output));
+        self::assertStringContainsString('exact-head archive proof passed', implode("\n", $output));
+    }
 }

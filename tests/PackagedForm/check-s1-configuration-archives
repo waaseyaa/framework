@@ -30,6 +30,7 @@ consumed_paths=(
     tests/CoreOnlyBoot/boot.php
     tests/CoreOnlyBoot/prepare-runtime-schema.php
     tests/PackagedForm/check-s1-configuration-archives
+    tests/PackagedForm/s1-configuration-activation-probe.php
 )
 if [[ -n "$($root/bin/git -C "$root" status --porcelain=v1 -- "${consumed_paths[@]}")" ]]; then
     echo 'S1 configuration archive evidence refuses dirty package or probe bytes.' >&2
@@ -38,7 +39,7 @@ fi
 
 mkdir -p "$source_root" "$staging" "$artifacts" "$archive_packages" "$consumer"
 $root/bin/git -C "$root" archive --format=tar HEAD \
-    packages skeleton/config/waaseyaa.php tests/CoreOnlyBoot \
+    packages skeleton/config/waaseyaa.php tests/CoreOnlyBoot tests/PackagedForm/s1-configuration-activation-probe.php \
     | tar --no-same-owner --no-same-permissions -xf - -C "$source_root"
 
 artifact_rows="$work/artifacts.tsv"
@@ -123,6 +124,8 @@ cp "$source_root/tests/CoreOnlyBoot/boot.php" "$consumer/boot.php"
 cp "$source_root/tests/CoreOnlyBoot/prepare-runtime-schema.php" "$consumer/prepare-runtime-schema.php"
 php "$consumer/prepare-runtime-schema.php"
 php "$consumer/boot.php" | grep -Fq 'core-only kernel boot OK'
+cp "$source_root/tests/PackagedForm/s1-configuration-activation-probe.php" "$consumer/activation-probe.php"
+php "$consumer/activation-probe.php" | grep -Fq 'configuration activation packaged proof passed'
 if ! (cd "$consumer" && php vendor/waaseyaa/cli/bin/waaseyaa list --raw) >"$work/commands.out" 2>&1; then
     cat "$work/commands.out" >&2
     exit 1
