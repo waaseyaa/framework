@@ -29,6 +29,7 @@ function s1ConfigPatterns(): array
         'active_source' => '/\bConfigSyncFileSourceInterface\b/',
         'apply_hook' => '/\bConfigImportApplyHookInterface\b/',
         'import_preflight' => '/\bConfigImportPreflightInterface\b/',
+        'testing_import_preflight' => '/\bAllowingConfigImportPreflight\b/',
         'authority_context' => '/\bConfigurationAuthorityContext\b/',
         'deployable_policy' => '/\bDeployableConfigurationPolicy\b/',
         'factory_compatibility' => '/\bConfigFactoryInterface\b/',
@@ -242,6 +243,15 @@ try {
     foreach ($live['candidates'] as $candidate) {
         if ($candidate['class'] === 'unclassified' || !in_array($candidate['class'], $live['allowed_classes'], true)) {
             throw new RuntimeException(sprintf('Unclassified configuration boundary: %s:%d', $candidate['path'], $candidate['line']));
+        }
+        if ($candidate['pattern'] === 'testing_import_preflight'
+            && $candidate['path'] !== 'packages/config/src/Testing/AllowingConfigImportPreflight.php'
+        ) {
+            throw new RuntimeException(sprintf(
+                'AllowingConfigImportPreflight is a testing fixture and cannot be referenced by production source: %s:%d',
+                $candidate['path'],
+                $candidate['line'],
+            ));
         }
     }
     if ($writeRoster) {

@@ -6,6 +6,7 @@
         "active_source": "/\\bConfigSyncFileSourceInterface\\b/",
         "apply_hook": "/\\bConfigImportApplyHookInterface\\b/",
         "import_preflight": "/\\bConfigImportPreflightInterface\\b/",
+        "testing_import_preflight": "/\\bAllowingConfigImportPreflight\\b/",
         "authority_context": "/\\bConfigurationAuthorityContext\\b/",
         "deployable_policy": "/\\bDeployableConfigurationPolicy\\b/",
         "factory_compatibility": "/\\bConfigFactoryInterface\\b/",
@@ -1482,6 +1483,15 @@
             "pattern": "import_preflight",
             "class": "explicit-testing-profile",
             "match_sha256": "5a38bf6e6006d4836faf2d54c37d7e16c0c301deb335392c000b25c064201032",
+            "line_sha256": "a3d8581417b8f689642dcbb727e2a822ece42da2a31df2f0e5675b2163134159",
+            "source_sha256": "682d7bdc7530dcb272562527071ce92ce3dd1ecce0b187f98d661bf49390b09e"
+        },
+        {
+            "path": "packages/config/src/Testing/AllowingConfigImportPreflight.php",
+            "line": 10,
+            "pattern": "testing_import_preflight",
+            "class": "explicit-testing-profile",
+            "match_sha256": "b74bc8ef287d70f9affa5643d56d740bce752040cb0b522dc5cee3e7f58971ca",
             "line_sha256": "a3d8581417b8f689642dcbb727e2a822ece42da2a31df2f0e5675b2163134159",
             "source_sha256": "682d7bdc7530dcb272562527071ce92ce3dd1ecce0b187f98d661bf49390b09e"
         },

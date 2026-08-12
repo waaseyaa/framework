@@ -86,6 +86,24 @@ final class S1ConfigurationAuthorityContractTest extends TestCase
     }
 
     #[Test]
+    public function permissive_import_preflight_is_confined_to_its_testing_fixture(): void
+    {
+        $roster = json_decode(
+            (string) file_get_contents($this->root . '/support/s1-configuration-authority-roster.json'),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
+        $candidates = array_values(array_filter(
+            $roster['candidates'],
+            static fn(array $candidate): bool => $candidate['pattern'] === 'testing_import_preflight',
+        ));
+
+        self::assertCount(1, $candidates);
+        self::assertSame('packages/config/src/Testing/AllowingConfigImportPreflight.php', $candidates[0]['path']);
+        self::assertSame('explicit-testing-profile', $candidates[0]['class']);
+    }
+
+    #[Test]
     public function checker_rejects_unknown_or_substituted_machine_contract_fields(): void
     {
         $canonical = json_decode(
