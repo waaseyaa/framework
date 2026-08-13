@@ -6,6 +6,7 @@ import type {
   PageBuilderSection,
 } from '~/contracts/pageBuilder'
 import { usePageBuilder } from '~/composables/usePageBuilder'
+import type { SchemaProperty } from '~/composables/useSchema'
 
 const props = defineProps<{
   surface: string
@@ -13,13 +14,9 @@ const props = defineProps<{
 }>()
 
 type PreviewSize = 'desktop' | 'tablet' | 'mobile'
-type JsonSchemaProperty = {
-  type?: string
-  format?: string
+type JsonSchemaProperty = Omit<SchemaProperty, 'enum'> & {
   title?: string
-  description?: string
-  enum?: unknown[]
-  default?: unknown
+  enum?: Array<string | number | boolean>
 }
 
 const { t } = useLanguage()
@@ -87,6 +84,24 @@ function setFieldValue(key: string, schema: JsonSchemaProperty, event: Event) {
   if (schema.type === 'boolean' && input instanceof HTMLInputElement) editableConfig.value[key] = input.checked
   else if (schema.type === 'number' || schema.type === 'integer') editableConfig.value[key] = Number(input.value)
   else editableConfig.value[key] = input.value
+}
+
+function setConfigValue(key: string, value: unknown) {
+  editableConfig.value[key] = value
+}
+
+function configFieldId(key: string): string {
+  const token = [...key].map(character => character.codePointAt(0)!.toString(16)).join('-')
+  return `page-builder-config-${token}`
+}
+
+function configFieldRequired(key: string): boolean {
+  const required = selectedDefinition.value?.config_schema?.required
+  return Array.isArray(required) && required.includes(key)
+}
+
+function entityReferenceSchema(schema: JsonSchemaProperty): SchemaProperty {
+  return schema as SchemaProperty
 }
 
 async function run(command: PageBuilderCommand, message: string): Promise<boolean> {
@@ -293,35 +308,67 @@ onBeforeUnmount(() => window.removeEventListener('message', onPreviewMessage))
         </div>
 
         <form v-if="selectedEntry" class="page-builder__form" @submit.prevent="saveSelectedBlock">
-          <label v-for="(schema, key) in configProperties" :key="key" class="page-builder__field">
-            <span>{{ schema.title ?? key }}</span>
-            <small v-if="schema.description">{{ schema.description }}</small>
-            <select
-              v-if="schema.enum"
-              :value="selectValue(key)"
-              @change="setFieldValue(key, schema, $event)"
-            >
-              <option v-for="option in schema.enum" :key="String(option)" :value="String(option)">{{ option }}</option>
-            </select>
-            <input
-              v-else-if="schema.type === 'boolean'"
-              type="checkbox"
-              :checked="fieldValue(key) === true"
-              @change="setFieldValue(key, schema, $event)"
-            >
-            <input
-              v-else-if="schema.type === 'number' || schema.type === 'integer'"
-              type="number"
-              :value="selectValue(key)"
-              @input="setFieldValue(key, schema, $event)"
-            >
-            <textarea
-              v-else
-              :rows="schema.format === 'textarea' ? 7 : 3"
-              :value="selectValue(key)"
-              @input="setFieldValue(key, schema, $event)"
+          <div v-for="(schema, key) in configProperties" :key="key" class="page-builder__field">
+            <WidgetsRichText
+              v-if="schema['x-widget'] === 'richtext'"
+              :id="configFieldId(key)"
+              :model-value="String(fieldValue(key))"
+              :label="schema.title ?? key"
+              :description="schema.description"
+              :required="configFieldRequired(key)"
+              :disabled="saving"
+              :schema="entityReferenceSchema(schema)"
+              @update:model-value="setConfigValue(key, $event)"
             />
-          </label>
+            <WidgetsEntityAutocomplete
+              v-else-if="schema['x-widget'] === 'entity_autocomplete'"
+              :input-id="configFieldId(key)"
+              :model-value="String(fieldValue(key))"
+              :label="schema.title ?? key"
+              :description="schema.description"
+              :required="configFieldRequired(key)"
+              :disabled="saving"
+              :schema="entityReferenceSchema(schema)"
+              @update:model-value="setConfigValue(key, $event)"
+            />
+            <template v-else>
+              <label :for="configFieldId(key)">{{ schema.title ?? key }}</label>
+              <small v-if="schema.description">{{ schema.description }}</small>
+              <select
+                v-if="schema.enum"
+                :id="configFieldId(key)"
+                :value="selectValue(key)"
+                :required="configFieldRequired(key)"
+                @change="setFieldValue(key, schema, $event)"
+              >
+                <option v-for="option in schema.enum" :key="String(option)" :value="String(option)">{{ option }}</option>
+              </select>
+              <input
+                v-else-if="schema.type === 'boolean'"
+                :id="configFieldId(key)"
+                type="checkbox"
+                :checked="fieldValue(key) === true"
+                :required="configFieldRequired(key)"
+                @change="setFieldValue(key, schema, $event)"
+              >
+              <input
+                v-else-if="schema.type === 'number' || schema.type === 'integer'"
+                :id="configFieldId(key)"
+                type="number"
+                :value="selectValue(key)"
+                :required="configFieldRequired(key)"
+                @input="setFieldValue(key, schema, $event)"
+              >
+              <textarea
+                v-else
+                :id="configFieldId(key)"
+                :rows="schema.format === 'textarea' ? 7 : 3"
+                :value="selectValue(key)"
+                :required="configFieldRequired(key)"
+                @input="setFieldValue(key, schema, $event)"
+              />
+            </template>
+          </div>
           <p v-if="Object.keys(configProperties).length === 0" class="page-builder__hint">
             {{ t('page_builder_no_editable_settings') }}
           </p>
@@ -409,6 +456,7 @@ onBeforeUnmount(() => window.removeEventListener('message', onPreviewMessage))
 .page-builder__form { display: grid; gap: 13px; }
 .page-builder__block-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .page-builder__field { display: grid; gap: 6px; font-size: 13px; font-weight: 700; }
+.page-builder__field > label { font-weight: 700; }
 .page-builder__field small { color: #6a746f; font-weight: 400; }
 .page-builder__field input:not([type='checkbox']), .page-builder__field textarea, .page-builder__field select { width: 100%; padding: 9px 10px; border: 1px solid #cbd2cd; border-radius: 7px; background: #fff; color: inherit; font: inherit; font-weight: 400; }
 .page-builder__field textarea { resize: vertical; }

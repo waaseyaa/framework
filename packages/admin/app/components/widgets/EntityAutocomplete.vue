@@ -21,7 +21,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ 'update:modelValue': [value: string | string[]] }>()
 
-const { search } = useEntity()
+const { list, search } = useEntity()
 const { getEntity } = useAdmin()
 const { t } = useLanguage()
 
@@ -41,6 +41,17 @@ const targetType = computed(() => props.schema?.['x-target-type'] ?? '')
 const multiple = computed(() => {
   const cardinality = props.schema?.['x-cardinality']
   return typeof cardinality === 'number' && cardinality !== 1
+})
+const targetFilter = computed<Record<string, string>>(() => {
+  const raw = props.schema?.['x-target-filter']
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return {}
+  const filters: Record<string, string> = {}
+  for (const [field, value] of Object.entries(raw)) {
+    if (/^[a-z][a-z0-9_]*$/.test(field) && typeof value === 'string' && value.trim() !== '') {
+      filters[field] = value
+    }
+  }
+  return filters
 })
 
 type ReferenceMetadata = {
@@ -165,14 +176,26 @@ function onInput(event: Event) {
   debounceTimer = setTimeout(async () => {
     debounceTimer = null
     try {
-      const response = await search(
-        targetType.value,
-        metadata.search.field,
-        value,
-        10,
-        metadata.search.operator,
-        metadata.sort,
-      )
+      const response = Object.keys(targetFilter.value).length === 0
+        ? await search(
+            targetType.value,
+            metadata.search.field,
+            value,
+            10,
+            metadata.search.operator,
+            metadata.sort,
+          )
+        : (await list(targetType.value, {
+            filter: {
+              [metadata.search.field]: { operator: metadata.search.operator, value },
+              ...Object.fromEntries(Object.entries(targetFilter.value).map(([field, filterValue]) => [
+                field,
+                { operator: 'EQUALS', value: filterValue },
+              ])),
+            },
+            ...(metadata.sort === null ? {} : { sort: metadata.sort.field }),
+            page: { offset: 0, limit: 10 },
+          })).data
       if (sequence !== requestSequence) return
       const validated = validatedResults(response, metadata.labelField)
       if (validated === null) {
