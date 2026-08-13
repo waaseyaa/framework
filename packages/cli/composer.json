@@ -102,6 +102,10 @@
         },
         {
             "type": "path",
+            "url": "../ssr"
+        },
+        {
+            "type": "path",
             "url": "../workflows"
         }
     ],
@@ -132,6 +136,7 @@
         "waaseyaa/routing": "^0.1.0-alpha.293",
         "waaseyaa/search": "^0.1.0-alpha.293",
         "waaseyaa/seo": "^0.1.0-alpha.293",
+        "waaseyaa/ssr": "^0.1.0-alpha.293",
         "waaseyaa/workflows": "^0.1.0-alpha.293"
     },
     "suggest": {
