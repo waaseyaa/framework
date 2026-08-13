@@ -41,6 +41,16 @@ only from principal-safe canonical projections (see the README's
 indexing still requires a production queue consumer before a job is
 introduced.
 
+## S1 projection storage topology
+
+The optional SQLite search projection is rebuildable, but its connection still
+uses the canonical environment-aware S1 topology authority. Its configured
+path is validated before connection and relative paths resolve against the
+application project root, never process CWD. Production, staging, and unknown
+environments reject in-memory projection databases; only the explicit
+local/development/testing allowlist may use them. Search may not open SQLite
+through an environment-blind DBAL, PDO, or SQLite3 construction path.
+
 ## Index contract
 
 SQLite FTS5 uses Unicode word boundaries without English stemming or diacritic

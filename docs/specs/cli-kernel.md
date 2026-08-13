@@ -62,6 +62,13 @@ Command presentation belongs to this Layer-6 package even when the domain operat
 
 `HealthSchemaServiceProvider` registers `tenancy:repair-translation-peers <entity_type> [--dry-run] [--json]`. `CommunityTranslationPeerRepairHandler` resolves the entity type, delegates to the entity-storage repairer, and renders either a stable JSON report or concise operator output. This command follows ordinary full console boot because it requires entity metadata and a database connection. It is not part of the restricted pre-boot command set. Applying repairs is an explicit operator action and requires the quiesce procedure in `docs/specs/operations-playbooks.md`.
 
+`db:init` and `migrate` resolve SQLite paths through the same environment-aware
+S1 topology authority used by HTTP boot. In-memory databases are permitted only
+in the explicit local/development/testing allowlist; production, staging, and
+unknown environment names fail closed before filesystem, lock, migration, or
+connection work. Relative paths resolve against the injected project root, not
+the caller's current working directory.
+
 ## Configuration authority commands and diagnostics
 
 The reserved `config:*` namespace is owned by the framework CLI. Provider
