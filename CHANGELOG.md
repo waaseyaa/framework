@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **page-builder edit commands (#2344):** Add fingerprint-guarded, stable-ID commands for adding, duplicating, configuring, moving, and removing blocks and sections, including content-preserving layout changes and typed invalid/stale failures.
 
+- **page-builder draft persistence (#2344):** Route validated page-layout edits through a client-neutral draft gateway and the existing revision-guarded publishing service, carrying entity revision, document fingerprint, and idempotency guards without giving Admin SPA or Anokii a private save path.
+
 ### Fixed
 
 - **random-order fixture cleanup (#2334):** Make disposable drift-detector Git fixture cleanup idempotent when Git object paths disappear during teardown, preventing harmless filesystem races from failing the architecture random-order gate.
