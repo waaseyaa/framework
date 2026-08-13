@@ -108,6 +108,7 @@ final class SiteReferenceConsumerContractTest extends TestCase
         );
 
         self::assertStringContainsString('COMPOSER_DISABLE_NETWORK=1', $gate);
+        self::assertStringContainsString('(cd "$consumer_root" && php vendor/bin/waaseyaa', $gate);
         self::assertStringContainsString('site:init', $gate);
         self::assertStringContainsString('site:doctor --strict', $gate);
         self::assertStringContainsString('bin/maintenance/site-verify', $gate);

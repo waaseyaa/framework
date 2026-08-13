@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Make the #2343 reference-consumer proof resolve exact local candidate
   packages from detached and provider-neutral source checkouts instead of
-  inferring Composer versions from a forge-specific branch name.
+  inferring Composer versions from a forge-specific branch name, and make the
+  generated verifier establish its own consumer-project working directory.
 
 ### Added
 

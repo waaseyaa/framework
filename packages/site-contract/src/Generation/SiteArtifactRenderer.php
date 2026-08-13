@@ -182,6 +182,10 @@ final class SiteArtifactRenderer
             declare(strict_types=1);
 
             $root = dirname(__DIR__, 2);
+            if (!chdir($root)) {
+                fwrite(STDERR, "site-verify: cannot enter the generated project root\n");
+                exit(2);
+            }
             $runner = $root . '/vendor/bin/phpunit';
             $waaseyaa = $root . '/vendor/bin/waaseyaa';
             if (!is_file($runner)) {
