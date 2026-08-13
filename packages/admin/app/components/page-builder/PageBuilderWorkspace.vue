@@ -148,6 +148,35 @@ async function removeSelectedBlock() {
   }
 }
 
+async function moveSelectedBlock(offset: -1 | 1) {
+  const entry = selectedEntry.value
+  /* v8 ignore next -- the controls only render while selectedEntry exists */
+  if (!entry) return
+  const destination = entry.position + offset
+  const regionBlocks = entry.section.regions[entry.regionId] ?? []
+  if (destination < 0 || destination >= regionBlocks.length) return
+  await run({
+    type: 'move_block',
+    block_id: entry.block.id,
+    destination_section_id: entry.section.id,
+    destination_region_id: entry.regionId,
+    position: destination,
+  }, t('page_builder_block_moved'))
+}
+
+async function duplicateSelectedBlock() {
+  const entry = selectedEntry.value
+  if (!entry) return
+  const duplicateId = secureId('blk')
+  if (await run({
+    type: 'duplicate_block',
+    source_block_id: entry.block.id,
+    duplicate_block_id: duplicateId,
+  }, t('page_builder_block_duplicated'))) {
+    selectedBlockId.value = duplicateId
+  }
+}
+
 function onPreviewMessage(event: MessageEvent) {
   if (event.origin !== window.location.origin || event.source !== (document.querySelector('[data-page-builder-preview]') as HTMLIFrameElement | null)?.contentWindow) return
   const payload = event.data
@@ -299,6 +328,22 @@ onBeforeUnmount(() => window.removeEventListener('message', onPreviewMessage))
           <button type="submit" class="btn btn-primary" :disabled="saving">
             {{ saving ? t('page_builder_saving') : t('page_builder_apply_change') }}
           </button>
+          <div class="page-builder__block-actions" role="group" :aria-label="t('page_builder_reorder_block')">
+            <button type="button" class="btn" :disabled="saving || selectedEntry.position === 0" @click="moveSelectedBlock(-1)">
+              {{ t('page_builder_move_up') }}
+            </button>
+            <button
+              type="button"
+              class="btn"
+              :disabled="saving || selectedEntry.position >= (selectedEntry.section.regions[selectedEntry.regionId]?.length ?? 0) - 1"
+              @click="moveSelectedBlock(1)"
+            >
+              {{ t('page_builder_move_down') }}
+            </button>
+          </div>
+          <button type="button" class="btn" :disabled="saving" @click="duplicateSelectedBlock">
+            {{ t('page_builder_duplicate_block') }}
+          </button>
           <button type="button" class="btn btn-danger" :disabled="saving" @click="removeSelectedBlock">
             {{ t('page_builder_remove_block') }}
           </button>
@@ -362,6 +407,7 @@ onBeforeUnmount(() => window.removeEventListener('message', onPreviewMessage))
 .page-builder__preview-empty { display: grid; place-content: center; justify-items: center; width: min(100%, 680px); padding: 40px; border: 1px dashed #a8b0aa; border-radius: 8px; background: #f7f7f3; text-align: center; }
 .page-builder__preview-empty p { max-width: 38ch; margin: 8px 0 18px; color: #6a746f; }
 .page-builder__form { display: grid; gap: 13px; }
+.page-builder__block-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .page-builder__field { display: grid; gap: 6px; font-size: 13px; font-weight: 700; }
 .page-builder__field small { color: #6a746f; font-weight: 400; }
 .page-builder__field input:not([type='checkbox']), .page-builder__field textarea, .page-builder__field select { width: 100%; padding: 9px 10px; border: 1px solid #cbd2cd; border-radius: 7px; background: #fff; color: inherit; font: inherit; font-weight: 400; }

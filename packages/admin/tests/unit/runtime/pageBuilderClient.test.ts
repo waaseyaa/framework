@@ -23,7 +23,9 @@ describe('PageBuilderClient', () => {
     await client.draft('page', '42')
 
     expect(fetch).toHaveBeenNthCalledWith(1, '/admin/_surface/page-builder/page/definitions')
-    expect(fetch).toHaveBeenNthCalledWith(2, '/admin/_surface/page-builder/page/42')
+    expect(fetch).toHaveBeenNthCalledWith(2, '/admin/_surface/page-builder/page/42', {
+      cache: 'no-store',
+    })
   })
 
   it('binds every edit to the observed revision, document, and idempotency key', async () => {
