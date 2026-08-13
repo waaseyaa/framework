@@ -1194,6 +1194,14 @@ Admin surface for the MCP endpoint. Four pages under `/mcp/`, accessible via the
 
 The Admin SPA exposes registered page-builder surfaces at `/page-builder/{surface}/{id}`. The workspace combines Drupal-style governed structure with a direct visual editing interaction: the left library contains only backend-registered block definitions, the centre iframe renders a signed preview of the exact persisted revision, and the right inspector edits only schema-declared configuration. The outline remains a keyboard-accessible selection path when preview selection is unavailable.
 
+The same workspace is also exposed without the Admin SPA navigation shell at
+`/page-builder-embed/{surface}/{id}`. This route is authenticated by the same
+global middleware, uses the exact `PageBuilderWorkspace` component, and exists
+for same-origin application shells such as Anokii. It is not a second editor
+and has no separate persistence or transport path. The ordinary
+`X-Frame-Options: SAMEORIGIN` response default remains in force, so a remote
+site cannot frame an authenticated editor.
+
 The inspector reuses the Admin SPA's governed field widgets rather than maintaining page-builder-only controls. A block configuration property with `x-widget: richtext` renders `WidgetsRichText`; a property with `x-widget: entity_autocomplete` renders `WidgetsEntityAutocomplete`. Entity-autocomplete properties may declare an `x-target-filter` object whose exact field/value pairs are added as server-side equality filters. This lets a media block, for example, expose only `media` entities with `bundle: image` while preserving the common accessible combobox, validation, and entity-reference behaviour. Properties without a registered widget continue to use the schema-driven native boolean, numeric, select, text, or multiline fallback. Required state and stable control IDs come from the block configuration schema in every case.
 
 These widgets are a shared presentation seam: Waaseyaa's default Admin SPA and downstream shells such as Anokii embed the same page-builder workspace and backend contract. A downstream shell may brand and navigate the workspace, but it must not fork block semantics, validation, revision handling, media filtering, or mutation behaviour.
@@ -1219,3 +1227,4 @@ Block configuration is also recovered server-side after a short idle delay. The 
 <!-- Spec reviewed 2026-05-25 - inertia-demotion-nuxt-standardisation-01KSEFTS - WP03 - SPA bet section added per DIR-007 -->
 <!-- Spec reviewed 2026-05-25 - media version browser page /media/{uuid}/versions (DIR-005 versioned-blob-media-abstraction-01KSEFTJ WP04) -->
 <!-- Spec reviewed 2026-07-10 - CW-v1 WP-4 (#1920): workflow transition UI. New useWorkflowTransitions composable (apiFetch over GET /api/{type}/{id}/workflow/transitions + POST .../workflow/transition; a GET 404 is absorbed into an empty list per the R8 oracle contract — missing/unviewable renders no buttons, not an error). New components/workflow/TransitionControls.vue (<WorkflowTransitionControls>, nested-dir prefix) mounted in pages/[entityType]/[id].vue page-header-actions: one button per available transition, pending-disable, inline errors[0].detail on denial, emits `transitioned` (page re-fetches SchemaView via a refresh key + success message). SchemaList renders workflow_state as a status-pill badge (inside the schema column, or a synthetic trailing column when entities carry the attribute but the schema column set omits it). i18n keys workflow_transitioned / workflow_transition_error_generic / workflow_state_column_label in en+fr. -->
+<!-- Spec reviewed 2026-08-13 - #2344 shared client adapter: authenticated shell-free /page-builder-embed route mounts the exact PageBuilderWorkspace for same-origin Anokii integration while SAMEORIGIN framing protection remains active. -->

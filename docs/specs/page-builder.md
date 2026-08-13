@@ -20,6 +20,22 @@ changes. Lovable is an interaction reference: select against the real preview,
 edit directly, receive immediate feedback, and remain constrained by a design
 system. Waaseyaa does not depend on either product.
 
+The references have deliberately different authority. Drupal defines the
+content-governance model; Lovable contributes interaction patterns only.
+Waaseyaa does not generate application code from editorial actions and does
+not make an AI agent, hosted forge, or third-party design service part of the
+authoring path.
+
+| Concern | Waaseyaa decision | Reference |
+|---|---|---|
+| Content model | Typed entities and typed reference fields remain authoritative | Drupal |
+| Page composition | Versioned sections, regions, governed blocks, defaults, and allowed overrides | Drupal |
+| Publishing | Draft revisions, moderation, preview, compare, restore-as-new, and permission separation | Drupal |
+| Direct editing | Select a rendered block in the exact-theme preview and edit it without navigating away | Lovable |
+| Visual controls | Responsive preview and bounded design-token choices with immediate feedback | Lovable |
+| Extensibility | Registered definitions and semantic renderers; no arbitrary HTML, CSS, JavaScript, or generated code | Waaseyaa |
+| Portability | One client and wire contract embedded by both Admin SPA and Anokii; no forge or hosted-builder dependency | Waaseyaa |
+
 ## 2. Scope
 
 Version 1 provides:
@@ -269,6 +285,44 @@ Both clients must pass one shared contract fixture suite. Client-only behavior
 cannot broaden server capability or bypass access, validation, workflow,
 concurrency, or audit checks.
 
+### 10.1 Shared editor distribution
+
+The visual editor is a framework-owned Vue client with no Nuxt routing,
+application navigation, Nation branding, or role-name assumptions. It exposes
+one workspace component and a small host adapter contract for:
+
+- authenticated page-builder transport;
+- translation and operator-facing labels;
+- schema widget registration;
+- design tokens and shell chrome;
+- navigation callbacks and preview origin policy;
+- server-projected capabilities.
+
+Waaseyaa Admin SPA and Anokii mount that same workspace build. Admin SPA does
+not remain the source that Anokii copies, and Anokii does not reimplement the
+editor. The build identity and shared fixture-suite identity are visible in
+local acceptance evidence so two superficially similar but behaviorally
+different clients cannot pass the parity gate.
+
+The reusable editor is distributed as an ordinary framework artifact. A live
+GitHub, GitLab, npm, or other forge/registry connection is not required to
+install, build, run, recover, or verify it.
+
+### 10.2 Content-type authoring modes
+
+The full layout canvas is the primary editor for Pages and landing pages.
+Updates, Events, Jobs, and Announcements use a high-throughput structured
+workspace because their dates, expiry, location, audience, employment,
+workflow, and listing fields must remain queryable and consistent. Their body
+field may use the shared rich-text editor and an authorized item may opt into a
+governed visual-body region, but routine records do not become arbitrary page
+layouts.
+
+The shell presents these as one coherent Content area: shared search, saved
+views, state/date/expiry filters, duplicate-as-new, scheduling, exact-theme
+preview, revision history, and authorized bulk actions. The distinction is an
+editing mode, not a separate storage or publishing system.
+
 ## 11. Accessibility and safety
 
 - Every operation is keyboard complete.
@@ -338,3 +392,5 @@ are available and bind every style choice to its design system.
 
 Framework issue #2343 consumes the completed capability through fresh-site
 recipes after Sheguiandah acceptance. It is not a predecessor of this work.
+
+<!-- Spec reviewed 2026-08-13 - #2344 shared client adapter: Drupal governance / Lovable interaction benchmark, provider-neutral editor distribution, shell-free same-origin host route, and structured-vs-visual content authoring modes. -->
