@@ -113,4 +113,17 @@ describe('PageBuilderWorkspace block controls', () => {
       duplicate_block_id: 'blk_11111111222243338444555555555555',
     })
   })
+
+  it('does not refresh or select a duplicate when the governed save is refused', async () => {
+    applyMock.mockResolvedValue(false)
+    const wrapper = await mountWorkspace()
+    refreshPreviewMock.mockClear()
+
+    await button(wrapper, 'page_builder_duplicate_block').trigger('click')
+    await flushPromises()
+
+    expect(applyMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'duplicate_block', source_block_id: 'first' }))
+    expect(refreshPreviewMock).not.toHaveBeenCalled()
+    expect(wrapper.find('.page-builder__outline-block.is-selected').text()).toContain('Copy')
+  })
 })
