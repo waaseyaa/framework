@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\SiteContract\Generation\GeneratedArtifact;
 use Waaseyaa\SiteContract\Generation\GeneratedSite;
+use Waaseyaa\SiteContract\Generation\PublishedContentRecipe;
 use Waaseyaa\SiteContract\Generation\SiteArtifactRenderer;
 use Waaseyaa\SiteContract\SiteManifestParser;
 use Waaseyaa\SiteContract\SiteManifestSchema;
@@ -91,6 +92,84 @@ final class SiteArtifactRendererTest extends TestCase
             $roundTrip = $parser->parse($rendered->artifacts['.waaseyaa/site.yaml']->content);
             self::assertSame($manifest->digest, $roundTrip->digest, $name);
         }
+    }
+
+    #[Test]
+    public function itRendersTheCompletePublishedContentRecipe(): void
+    {
+        $manifest = str_replace(
+            "            recipes: []",
+            sprintf(
+                "            recipes:\n              - id: published_content\n                version: 1\n                capability: published_content\n                artifact_digest: %s",
+                PublishedContentRecipe::digest(),
+            ),
+            str_replace(
+                'id: governed_authoring',
+                'id: published_content',
+                $this->manifest(),
+            ),
+        );
+        $site = new SiteArtifactRenderer()->render(new SiteManifestParser()->parse($manifest));
+
+        foreach ([
+            'composer.site-recipes.json',
+            'config/waaseyaa-recipes/published-content.php',
+            'src/Content/CanonicalContentRouteResolver.php',
+            'src/Controller/PublishedContentController.php',
+            'src/Provider/PublishedContentServiceProvider.php',
+            'templates/content/detail.html.twig',
+            'templates/content/index.html.twig',
+            'tests/Acceptance/PublishedContentRecipeTest.php',
+        ] as $path) {
+            self::assertArrayHasKey($path, $site->artifacts);
+        }
+
+        $config = $site->artifacts['config/waaseyaa-recipes/published-content.php']->content;
+        self::assertStringContainsString("'bundle' => 'page'", $config);
+        self::assertStringContainsString("'fields' => ['title', 'slug', 'summary', 'body', 'status', 'changed']", $config);
+        self::assertStringContainsString("'listing_id' => 'page_index'", $config);
+        self::assertStringContainsString("'page_size' => 24", $config);
+        self::assertStringContainsString("'access_ops' => ['view']", $config);
+        self::assertStringContainsString("'detail_route' => '/{slug}'", $config);
+        self::assertStringContainsString("'index_route' => '/'", $config);
+
+        $provider = $site->artifacts['src/Provider/PublishedContentServiceProvider.php']->content;
+        self::assertStringContainsString('implements HasListingsInterface', $provider);
+        self::assertStringContainsString('new ListingDefinition(', $provider);
+        self::assertStringContainsString('pageSize: 24', $provider);
+        self::assertStringContainsString("accessOps: ['view']", $provider);
+        self::assertStringContainsString('RouteBuilder::create(', $provider);
+        self::assertStringContainsString('PathAliasResolver::class', $provider);
+        self::assertStringContainsString('SitemapGenerator::class', $provider);
+        self::assertStringContainsString('MetaTagBuilder::class', $provider);
+        self::assertStringContainsString('EntitySchemaOrgMapper::class', $provider);
+        self::assertStringContainsString('$this->singleton(', $provider);
+
+        $resolver = $site->artifacts['src/Content/CanonicalContentRouteResolver.php']->content;
+        self::assertStringContainsString('canonicalDetailUrl', $resolver);
+        self::assertStringContainsString('sitemapUrl', $resolver);
+        self::assertStringNotContainsString('/node/', implode("\n", $site->contents()));
+
+        $acceptance = $site->artifacts['tests/Acceptance/PublishedContentRecipeTest.php']->content;
+        foreach (['listingIsAccessAwareAndPageable', 'canonicalRoutesDriveSitemapUrls', 'metadataAndJsonLdUseTheCanonicalUrl', 'internalEntityPathsNeverEnterTheSitemap'] as $method) {
+            self::assertStringContainsString($method, $acceptance);
+        }
+        self::assertStringContainsString('tests/Acceptance/PublishedContentRecipeTest.php', $site->artifacts['bin/maintenance/site-verify']->content);
+    }
+
+    #[Test]
+    public function itRefusesAnUnknownOrSubstitutedPublishedContentRecipe(): void
+    {
+        $manifest = str_replace(
+            "            recipes: []",
+            "            recipes:\n              - id: published_content\n                version: 1\n                capability: published_content\n                artifact_digest: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            str_replace('id: governed_authoring', 'id: published_content', $this->manifest()),
+        );
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('published_content recipe digest');
+
+        new SiteArtifactRenderer()->render(new SiteManifestParser()->parse($manifest));
     }
 
     private function manifest(): string
