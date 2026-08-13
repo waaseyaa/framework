@@ -27,6 +27,10 @@ Every initialized application owns these files:
 - `.waaseyaa/site.yaml`: canonical capability manifest;
 - `.waaseyaa/site.schema.json`: the exact framework schema version understood
   when the manifest was last migrated;
+- `.waaseyaa/generated.json`: generator version, manifest identity, managed
+  artifact modes and digests, and declared extension-region identity;
+- `.waaseyaa/.gitignore`: provider-neutral exclusion of the runtime lock,
+  transaction journal, and recoverable staging residue;
 - `AGENTS.md`: generated agent and maintainer instructions that point back to
   the manifest and executable gates;
 - `tests/Architecture/SiteContractTest.php`: application contract and bypass
@@ -37,9 +41,9 @@ Every initialized application owns these files:
   architecture, strict-doctor, and generated acceptance gates in canonical
   order.
 
-Generated files carry a generator version and content digest. User-owned
-extension regions are explicit; regeneration refuses an unrecognized edit
-instead of overwriting it.
+`.waaseyaa/generated.json` binds every managed artifact to the generator
+version and content digest that produced it. User-owned extension regions are
+explicit; regeneration refuses an unrecognized edit instead of overwriting it.
 
 ## Capability manifest
 
@@ -92,10 +96,22 @@ Initialization is transactional:
 3. render all generated artifacts into a temporary directory;
 4. run syntax, schema, and collision checks there;
 5. show or emit the proposed changes; and
-6. atomically publish only when every artifact is valid.
+6. acquire the project initialization lock and publish through a durable
+   transaction journal, installing `.waaseyaa/generated.json` last and marking
+   the journal committed only after every target is durable.
 
 Existing unrecognized files are never overwritten. Re-running the same inputs
-is byte-identical.
+is byte-identical. An ordinary publication failure rolls back every governed
+target before returning. If the process or host stops mid-publication, the
+next initializer run recovers the journal to the exact prior generation before
+starting new work. A cleanup failure after the durable commit cannot
+reinterpret the new generation as failed or roll it back.
+
+Generator evolution is explicit. Existing files are validated against the
+digests recorded by the generator that created them; a changed artifact set or
+managed byte sequence requires a declared generator-version migration. The
+current renderer is never used to pretend that historical output was produced
+by a newer version.
 
 ## Recipe contract
 

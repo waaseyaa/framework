@@ -4087,7 +4087,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/cli",
-                "reference": "6d6f35a3a384b0ac937d4802ca8d6161c3c4f5d5"
+                "reference": "e3799ade6872f774df34aa71e3b6b33d1002ee57"
             },
             "require": {
                 "php": ">=8.5",
@@ -4111,6 +4111,7 @@
                 "waaseyaa/routing": "^0.1.0-alpha.293",
                 "waaseyaa/scheduler": "^0.1.0-alpha.293",
                 "waaseyaa/search": "^0.1.0-alpha.293",
+                "waaseyaa/site-contract": "^0.1.0-alpha.293",
                 "waaseyaa/user": "^0.1.0-alpha.293",
                 "waaseyaa/workflows": "^0.1.0-alpha.293"
             },
@@ -4152,6 +4153,7 @@
                         "Waaseyaa\\CLI\\Provider\\OptimizeServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\QueueServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\SchedulePerfServiceProvider",
+                        "Waaseyaa\\CLI\\Provider\\SiteServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\IngestSearchSemanticServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\UserPermissionServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\ConfigCacheDbAuditServiceProvider",
