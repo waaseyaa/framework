@@ -166,7 +166,7 @@ return [
     'Waaseyaa\HttpClient\SseLineStreamInterface' => 'public',
     'Waaseyaa\Scheduler\ScheduleInterface' => 'internal',
     'Waaseyaa\State\StateInterface' => 'internal',
-    'Waaseyaa\Mail\MailerInterface' => 'internal',
+    'Waaseyaa\Mail\MailerInterface' => 'public',
     'Waaseyaa\Mail\Transport\TransportInterface' => 'internal',
     'Waaseyaa\HttpClient\HttpClientInterface' => 'internal',
     'Waaseyaa\Ingestion\PayloadValidatorInterface' => 'internal',
