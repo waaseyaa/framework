@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Let application schemas organize the shared Admin SPA and Anokii entity
+  editor into accessible task-oriented sections, including collapsible
+  secondary details that reopen for validation errors, while always rendering
+  declared writable fields that were not assigned to a section (#2375).
+
 - Load the shared Admin SPA design-system stylesheet on shell-free entity-editor
   and page-builder routes so same-origin clients such as Anokii receive the
   canonical controls, typography, spacing, focus treatment, and target-size

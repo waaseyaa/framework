@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useSchema } from '~/composables/useSchema'
 import type { SchemaProperty } from '~/composables/useSchema'
+import type { FormSection } from '~/contracts/schema'
 import { useEntity } from '~/composables/useEntity'
 import { useLanguage } from '~/composables/useLanguage'
 import { schemaFormContextKey } from './schemaFormContext'
@@ -112,6 +113,58 @@ onMounted(async () => {
 })
 
 const editableFields = computed(() => sortedProperties(true))
+type EditableField = [string, SchemaProperty]
+type RenderedSection = Omit<FormSection, 'fields'> & { fields: EditableField[] }
+
+const fieldSections = computed<RenderedSection[]>(() => {
+  const fields = editableFields.value as EditableField[]
+  const declared = schema.value?.['x-form-sections']
+  if (!Array.isArray(declared) || declared.length === 0) {
+    return [{ id: 'all', label: '', fields }]
+  }
+
+  const byName = new Map(fields)
+  const assigned = new Set<string>()
+  const sections: RenderedSection[] = []
+  for (const candidate of declared) {
+    if (!candidate || typeof candidate !== 'object') continue
+    if (typeof candidate.id !== 'string' || candidate.id.trim() === '') continue
+    if (typeof candidate.label !== 'string' || candidate.label.trim() === '') continue
+    if (!Array.isArray(candidate.fields)) continue
+
+    const sectionFields: EditableField[] = []
+    for (const fieldName of candidate.fields) {
+      if (typeof fieldName !== 'string' || assigned.has(fieldName)) continue
+      const fieldSchema = byName.get(fieldName)
+      if (!fieldSchema) continue
+      assigned.add(fieldName)
+      sectionFields.push([fieldName, fieldSchema])
+    }
+    if (sectionFields.length === 0) continue
+
+    sections.push({
+      id: candidate.id,
+      label: candidate.label,
+      description: typeof candidate.description === 'string' ? candidate.description : undefined,
+      collapsible: candidate.collapsible === true,
+      collapsed: candidate.collapsible === true && candidate.collapsed === true,
+      fields: sectionFields,
+    })
+  }
+
+  const unassigned = fields.filter(([fieldName]) => !assigned.has(fieldName))
+  if (unassigned.length > 0) {
+    sections.push({ id: 'other', label: 'Other details', fields: unassigned })
+  }
+
+  return sections.length > 0 ? sections : [{ id: 'all', label: '', fields }]
+})
+
+function sectionIsOpen(section: RenderedSection): boolean {
+  if (!section.collapsible || !section.collapsed) return true
+  return section.fields.some(([fieldName]) => fieldErrors.value[fieldName] !== undefined)
+}
+
 const validationMessages = computed(() => [
   ...Object.entries(fieldErrors.value).map(([fieldName, message]) => ({ fieldName, message })),
   ...globalErrors.value.map(message => ({ fieldName: null, message })),
@@ -280,23 +333,43 @@ async function onSubmit() {
           </li>
         </ul>
       </div>
-      <div
-        v-for="[fieldName, fieldSchema] in editableFields"
-        :key="fieldName"
-        class="field-anchor"
-        :data-anchor="`field:${entityType}:${fieldName}`"
+      <section
+        v-for="section in fieldSections"
+        :key="section.id"
+        class="form-section"
+        data-testid="form-section"
+        :data-section-id="section.id"
       >
-        <SchemaField
-          :name="fieldName"
-          :schema="fieldSchema"
-          :input-id="fieldInputId(fieldName)"
-          :required="fieldIsRequired(fieldName, fieldSchema)"
-          :error="fieldErrors[fieldName]"
-          :disabled="!!fieldSchema['x-access-restricted']"
-          :model-value="formData[fieldName] ?? ''"
-          @update:model-value="(val: any) => onFieldUpdate(fieldName, val, !!fieldSchema['x-access-restricted'])"
-        />
-      </div>
+        <component :is="section.collapsible ? 'details' : 'div'" class="form-section__panel" :open="section.collapsible ? sectionIsOpen(section) : undefined">
+          <summary v-if="section.collapsible" class="form-section__summary">
+            <span>{{ section.label }}</span>
+            <small v-if="section.description">{{ section.description }}</small>
+          </summary>
+          <template v-else>
+            <h2 v-if="section.label">{{ section.label }}</h2>
+            <p v-if="section.description" class="form-section__description">{{ section.description }}</p>
+          </template>
+          <div class="form-section__fields">
+            <div
+              v-for="[fieldName, fieldSchema] in section.fields"
+              :key="fieldName"
+              class="field-anchor"
+              :data-anchor="`field:${entityType}:${fieldName}`"
+            >
+              <SchemaField
+                :name="fieldName"
+                :schema="fieldSchema"
+                :input-id="fieldInputId(fieldName)"
+                :required="fieldIsRequired(fieldName, fieldSchema)"
+                :error="fieldErrors[fieldName]"
+                :disabled="!!fieldSchema['x-access-restricted']"
+                :model-value="formData[fieldName] ?? ''"
+                @update:model-value="(val: any) => onFieldUpdate(fieldName, val, !!fieldSchema['x-access-restricted'])"
+              />
+            </div>
+          </div>
+        </component>
+      </section>
 
       <div class="form-actions">
         <button
@@ -314,6 +387,50 @@ async function onSubmit() {
 </template>
 
 <style scoped>
+.schema-form form {
+  display: grid;
+  gap: 1rem;
+}
+.form-section {
+  min-width: 0;
+}
+.form-section__panel {
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid var(--color-border, #d8ddd9);
+  border-radius: 0.625rem;
+  background: var(--color-surface, #fff);
+}
+.form-section__panel > h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.125rem;
+}
+.form-section__description {
+  margin: 0 0 1rem;
+  color: var(--color-text-muted, #5d6670);
+  font-size: 0.875rem;
+}
+.form-section__summary {
+  display: grid;
+  gap: 0.25rem;
+  min-height: var(--admin-target-size, 44px);
+  align-content: center;
+  cursor: pointer;
+  font-weight: 700;
+}
+.form-section__summary small {
+  color: var(--color-text-muted, #5d6670);
+  font-size: 0.8125rem;
+  font-weight: 400;
+}
+.form-section__panel[open] > .form-section__summary {
+  margin-bottom: 1rem;
+}
+.form-section__fields {
+  display: grid;
+  gap: 0.875rem;
+}
+.form-actions { margin-top: 0.25rem; }
 .validation-summary {
   margin-bottom: 1rem;
   padding: 0.875rem 1rem;

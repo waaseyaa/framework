@@ -27,6 +27,15 @@ export interface SchemaProperty {
   'x-max'?: string
 }
 
+export interface FormSection {
+  id: string
+  label: string
+  description?: string
+  fields: string[]
+  collapsible?: boolean
+  collapsed?: boolean
+}
+
 export interface EntitySchema {
   $schema: string
   title: string
@@ -51,6 +60,8 @@ export interface EntitySchema {
   }
   /** Optional validated host-declared list presentation/query contract. */
   'x-list'?: unknown
+  /** Optional presentation-only grouping for task-oriented authoring forms. */
+  'x-form-sections'?: FormSection[]
   properties: Record<string, SchemaProperty>
   required?: string[]
 }
