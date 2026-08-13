@@ -78,7 +78,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **bounded S1 support contract (#2336):** Define the versioned S1 platform and alpha lifecycle boundaries, distinguish framework conformance from pending consumer certification, and reserve unsupported H1 and untested runtime combinations from implied support.
 - **fail-closed S1 upgrade compatibility (#2336):** Define the named alpha.293-to-S1 transition, ordered read-only preflight decisions, mixed/unknown-state refusal, and forward-only failure containment without claiming consumer recovery. Ship the versioned machine contract and loader inside the Foundation split package so installed consumers use the reviewed artifact rather than a copied contract.
 
+- Allow the non-release, exact-main split workflow to mirror the API and audit
+  packages alongside admin-surface for downstream integration verification.
+
+- Surface successful editorial transitions from the canonical append-only
+  audit log in the shared Admin SPA and Anokii entity editor, replacing the
+  obsolete inline history field while keeping denied attempts confined to the
+  privileged audit surface.
+
+- Expose the schema-driven entity editor as an authenticated, shell-free,
+  same-origin client so Anokii and other role-focused shells can reuse the exact
+  Admin SPA rich-text, reference, date, validation, workflow, and deletion
+  controls instead of maintaining weaker parallel forms.
+
+- Add a shell-free, same-origin page-builder client route for Anokii and other
+  application shells. It mounts the exact Admin SPA governed workspace under
+  the existing authentication, surface, preview, revision, and concurrency
+  contracts instead of creating a second editor implementation.
+
+- Add the #2343 WP2 provider-neutral `waaseyaa site:init` workflow with an
+  interactive product wizard, complete non-interactive answer documents,
+  read-only dry runs, deterministic generated repository artifacts, explicit
+  extension regions, collision and substitution refusal, project locking, and
+  journaled crash recovery with metadata-last publication and durable commit
+  semantics.
+
+- Add the #2343 WP1 `waaseyaa/site-contract` Layer 0 package with the strict
+  versioned site schema, typed manifest model, deterministic YAML parser and
+  canonical digest, fail-closed capability/privacy/recipe validation, and an
+  explicit no-implicit-migration version policy. Register both this package
+  and the previously merged page-builder package in the current split-release
+  adapter so first-party release parity remains closed.
+
+- Extend the #2343 fresh-site design with a governed-authoring recipe that
+  exposes one revisioned page builder through Waaseyaa Admin SPA and optional
+  Anokii clients, using Drupal as the governance benchmark and Lovable as the
+  interaction benchmark without depending on either product.
+
+- Design the provider-neutral fresh-site capability manifest, generated
+  recipes, strict diagnostics, and reference-consumer gates for #2343.
+
+- **page-builder history and recovery:** Add shared, permission-checked revision history and comparison endpoints, restore-as-new-draft semantics, and server-side idle recovery for block configuration in both the Waaseyaa Admin SPA and downstream Anokii shells. Historical restore is conflict-bound to the observed current revision and never deletes history or changes the published pointer.
+
 - **guarded selected-package main split (#2315):** Add a manual, allowlisted workflow that projects selected packages from the exact current green framework `main` SHA to split repository `main` branches with force-with-lease and provenance artifacts. It creates no tags, versions, releases, or Packagist updates.
+
+- **governed page builder (#2344):** Add the first client-neutral page-builder package with strict versioned layout documents, deterministic serialization, exact-version block/layout/template definitions, and fail-closed JSON Schema validation as the shared substrate for Admin SPA and Anokii authoring.
+
+- **page-builder edit commands (#2344):** Add fingerprint-guarded, stable-ID commands for adding, duplicating, configuring, moving, and removing blocks and sections, including content-preserving layout changes and typed invalid/stale failures.
+
+- **page-builder draft persistence (#2344):** Route validated page-layout edits through a client-neutral draft gateway and the existing revision-guarded publishing service, carrying entity revision, document fingerprint, and idempotency guards without giving Admin SPA or Anokii a private save path.
+
+- **page-builder authenticated surface (#2344):** Add one permission-scoped Admin Surface contract for deterministic definitions, draft reads, strict edit commands, and exact-revision preview grants shared by Waaseyaa Admin SPA and Anokii.
 
 ### Fixed
 

@@ -7,10 +7,17 @@ import { registerEndpoint } from '@nuxt/test-utils/runtime'
 
 const publishTransition = { id: 'publish', label: 'Publish', to: 'published' }
 const archiveTransition = { id: 'archive', label: 'Archive', to: 'archived' }
+const publishHistory = {
+  transition: 'submit_for_review',
+  from: 'draft',
+  to: 'review',
+  uid: '9',
+  at: '2026-08-13 14:00:00',
+}
 
 registerEndpoint('/api/node/5/workflow/transitions', () => ({
   data: [publishTransition, archiveTransition],
-  meta: { workflow_state: 'review' },
+  meta: { workflow_state: 'review', workflow_history: [publishHistory] },
 }))
 
 registerEndpoint('/api/node/6/workflow/transitions', () => ({
@@ -61,9 +68,10 @@ beforeEach(() => {
 describe('useWorkflowTransitions', () => {
   it('starts empty with no error and not loading', async () => {
     const { useWorkflowTransitions } = await import('~/composables/useWorkflowTransitions')
-    const { transitions, state, loading, error } = useWorkflowTransitions()
+    const { transitions, state, history, loading, error } = useWorkflowTransitions()
     expect(transitions.value).toEqual([])
     expect(state.value).toBeNull()
+    expect(history.value).toEqual([])
     expect(loading.value).toBe(false)
     expect(error.value).toBeNull()
   })
@@ -78,6 +86,7 @@ describe('useWorkflowTransitions', () => {
     expect(result.transitions[0].id).toBe('publish')
     expect(result.transitions[0].to).toBe('published')
     expect(result.state).toBe('review')
+    expect(result.history).toEqual([publishHistory])
   })
 
   it('returns an empty transitions list when the endpoint has no available transitions', async () => {

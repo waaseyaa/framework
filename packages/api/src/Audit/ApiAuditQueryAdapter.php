@@ -66,6 +66,7 @@ final class ApiAuditQueryAdapter implements AuditQueryReadModelInterface
             accountUid: $dto->accountUid,
             entityType: $dto->entityType,
             entityUuid: $dto->entityUuid,
+            subjectUri: $dto->subjectUri,
             kinds: $kinds,
             from: $dto->from,
             to: $dto->to,

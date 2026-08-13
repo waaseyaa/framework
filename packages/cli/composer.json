@@ -54,6 +54,10 @@
         },
         {
             "type": "path",
+            "url": "../site-contract"
+        },
+        {
+            "type": "path",
             "url": "../user"
         },
         {
@@ -104,6 +108,7 @@
         "waaseyaa/migration": "^0.1.0-alpha.293",
         "waaseyaa/queue": "^0.1.0-alpha.293",
         "waaseyaa/scheduler": "^0.1.0-alpha.293",
+        "waaseyaa/site-contract": "^0.1.0-alpha.293",
         "waaseyaa/user": "^0.1.0-alpha.293",
         "waaseyaa/ai-vector": "^0.1.0-alpha.293",
         "waaseyaa/database-legacy": "^0.1.0-alpha.293",
@@ -163,6 +168,7 @@
                 "Waaseyaa\\CLI\\Provider\\OptimizeServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\QueueServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\SchedulePerfServiceProvider",
+                "Waaseyaa\\CLI\\Provider\\SiteServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\IngestSearchSemanticServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\UserPermissionServiceProvider",
                 "Waaseyaa\\CLI\\Provider\\ConfigCacheDbAuditServiceProvider",

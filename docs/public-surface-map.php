@@ -192,6 +192,10 @@ return [
     'Waaseyaa\HttpClient\HttpClientInterface' => 'internal',
     'Waaseyaa\Ingestion\PayloadValidatorInterface' => 'internal',
     'Waaseyaa\Ingestion\EnvelopeValidator' => 'internal',
+    // Fresh-site manifest contract (#2343 WP1). These closed vocabularies are
+    // serialized in the public provider-neutral manifest/report API.
+    'Waaseyaa\SiteContract\Capability\CapabilityState' => 'public',
+    'Waaseyaa\SiteContract\Version\ManifestVersionDisposition' => 'public',
 
     // Layer 1: Core Data — public
     // Deprecated compatibility helpers. New tests use the typed fixtures below.
@@ -556,6 +560,15 @@ return [
     'Waaseyaa\Publishing\ContentHtmlSanitizerInterface' => 'public',
     'Waaseyaa\Publishing\ContentPublicationTransitionerInterface' => 'public',
     'Waaseyaa\Publishing\Exception\ContentPublishingException' => 'public',
+    // Governed page-builder command vocabulary (#2344 WP02).
+    'Waaseyaa\PageBuilder\Command\EditCommand' => 'public',
+    'Waaseyaa\PageBuilder\Draft\LayoutDraftGatewayInterface' => 'public',
+    'Waaseyaa\PageBuilder\Revision\PageBuilderRevisionGatewayInterface' => 'public',
+    'Waaseyaa\Publishing\ContentDraftMutationInterface' => 'internal',
+    'Waaseyaa\AdminSurface\PageBuilder\PageBuilderSurfaceHostInterface' => 'public',
+    'Waaseyaa\PageBuilder\Preview\RevisionPreviewGatewayInterface' => 'public',
+    'Waaseyaa\PageBuilder\Preview\RevisionPreviewUrlGeneratorInterface' => 'public',
+    'Waaseyaa\Publishing\ContentRevisionPreviewInterface' => 'internal',
     'Waaseyaa\AI\Tools\Content\AssetStoreInterface' => 'public',
 
     // Listing pipeline value objects (mission listing-pipeline-v1-01KRMN0B WP01; charter §5.6).
