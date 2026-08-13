@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add the #2343 WP2 provider-neutral `waaseyaa site:init` workflow with an
+  interactive product wizard, complete non-interactive answer documents,
+  read-only dry runs, deterministic generated repository artifacts, explicit
+  extension regions, collision and substitution refusal, project locking, and
+  journaled crash recovery with metadata-last publication and durable commit
+  semantics.
+
 - Add the #2343 WP1 `waaseyaa/site-contract` Layer 0 package with the strict
   versioned site schema, typed manifest model, deterministic YAML parser and
   canonical digest, fail-closed capability/privacy/recipe validation, and an

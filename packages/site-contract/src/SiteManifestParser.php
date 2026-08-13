@@ -16,6 +16,18 @@ use Waaseyaa\SiteContract\Version\SiteManifestVersionPolicy;
 /** @api */
 final class SiteManifestParser
 {
+    public function render(SiteManifest $manifest): string
+    {
+        $normalized = json_decode($manifest->canonicalJson, true, 512, JSON_THROW_ON_ERROR);
+
+        return Yaml::dump(
+            $normalized,
+            20,
+            2,
+            Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK | Yaml::DUMP_NUMERIC_KEY_AS_STRING | Yaml::DUMP_FORCE_DOUBLE_QUOTES_ON_VALUES,
+        );
+    }
+
     public function parse(string $yaml, string $source = '<memory>'): SiteManifest
     {
         try {
