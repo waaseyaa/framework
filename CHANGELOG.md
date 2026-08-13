@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Generate the first-party governed-authoring golden-path recipe with one
+  revisioned page-layout authority shared by Admin SPA and Anokii, governed
+  block/layout definitions, exact-revision preview, history and guarded
+  restore, a shared renderer, design tokens, and role-oriented acceptance
+  tests (#2343).
+
 - Generate the first-party subscription golden-path recipe with tracked private
   storage, normalized and validated identifiers, durable consent evidence,
   hashed unsubscribe tokens, export/deletion/retention operations, and Mail /

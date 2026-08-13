@@ -1,5 +1,7 @@
 # Governed Page Builder
 
+<!-- Spec reviewed 2026-08-13 - #2343 WP6: the fresh-site governed-authoring recipe now composes one page surface for Admin SPA and Anokii, registers the revisioned page_layout field and governed definitions, and bridges ContentPublisher to exact revision reads, history, preview, concurrency-checked draft saves, and restore-as-new-draft. -->
+
 Status: active design for framework issue #2344
 
 Stability: pre-stable until the first downstream acceptance consumer passes

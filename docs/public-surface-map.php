@@ -540,6 +540,7 @@ return [
     'Waaseyaa\PageBuilder\Draft\LayoutDraftGatewayInterface' => 'public',
     'Waaseyaa\PageBuilder\Revision\PageBuilderRevisionGatewayInterface' => 'public',
     'Waaseyaa\Publishing\ContentDraftMutationInterface' => 'internal',
+    'Waaseyaa\Publishing\ContentRevisionHistoryInterface' => 'internal',
     'Waaseyaa\AdminSurface\PageBuilder\PageBuilderSurfaceHostInterface' => 'public',
     'Waaseyaa\PageBuilder\Preview\RevisionPreviewGatewayInterface' => 'public',
     'Waaseyaa\PageBuilder\Preview\RevisionPreviewUrlGeneratorInterface' => 'public',
