@@ -70,6 +70,10 @@ final class AuditEventQuery implements AuditQueryInterface
             $select = $select->condition('ae.entity_uuid', $query->entityUuid);
         }
 
+        if ($query->subjectUri !== null) {
+            $select = $select->condition('ae.subject_uri', $query->subjectUri);
+        }
+
         if ($query->kinds !== null && count($query->kinds) > 0) {
             $kindValues = array_map(fn($k) => $k->value, $query->kinds);
             $select = $select->condition('ae.event_kind', $kindValues, 'IN');

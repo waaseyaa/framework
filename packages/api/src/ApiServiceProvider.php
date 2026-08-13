@@ -331,10 +331,12 @@ final class ApiServiceProvider extends ServiceProvider implements HasHttpDomainR
         $transitionService = $this->resolveOptional(TransitionService::class);
         if ($transitionService instanceof TransitionService) {
             $accessHandler = $this->resolveOptional(EntityAccessHandler::class);
+            $auditQuery = $this->resolveOptional(AuditQueryReadModelInterface::class);
             $routers[] = new WorkflowTransitionApiRouter(new WorkflowTransitionController(
                 $httpKernel->getEntityTypeManager(),
                 $accessHandler instanceof EntityAccessHandler ? $accessHandler : null,
                 $transitionService,
+                auditQuery: $auditQuery instanceof AuditQueryReadModelInterface ? $auditQuery : null,
             ));
         }
 
