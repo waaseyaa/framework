@@ -8,6 +8,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\CLI\Site\Recipe\PublishedContentRecipe;
+use Waaseyaa\CLI\Site\SiteDoctorService;
+use Waaseyaa\CLI\Site\SiteInitializationService;
 use Waaseyaa\SiteContract\Generation\SiteArtifactRenderer;
 use Waaseyaa\SiteContract\SiteManifestParser;
 
@@ -88,6 +90,33 @@ final class PublishedContentRecipeTest extends TestCase
         $this->expectExceptionMessage('terminal {slug}');
 
         $this->renderer()->render(new SiteManifestParser()->parse(str_replace('/{slug}', '/news/{id}', $this->manifest())));
+    }
+
+    #[Test]
+    public function aPublishedRecipePassesTheStrictGeneratedArtifactDoctor(): void
+    {
+        $root = sys_get_temp_dir() . '/waaseyaa_published_recipe_' . bin2hex(random_bytes(8));
+        mkdir($root, 0777, true);
+        try {
+            file_put_contents($root . '/composer.lock', "{}\n");
+            $manifest = str_replace(str_repeat('a', 64), hash_file('sha256', $root . '/composer.lock'), $this->manifest());
+            new SiteInitializationService($root)->initialize($this->renderer()->render(new SiteManifestParser()->parse($manifest)));
+
+            $report = new SiteDoctorService()->inspect($root);
+
+            self::assertTrue($report->passed, $report->canonicalJson());
+        } finally {
+            if (is_dir($root)) {
+                $iterator = new \RecursiveIteratorIterator(
+                    new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
+                    \RecursiveIteratorIterator::CHILD_FIRST,
+                );
+                foreach ($iterator as $item) {
+                    $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
+                }
+                rmdir($root);
+            }
+        }
     }
 
     private function renderer(): SiteArtifactRenderer
