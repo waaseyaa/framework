@@ -218,6 +218,16 @@ The Admin SPA client added by the subsequent work package consumes this same
 contract as Anokii. It must not use generic entity PATCH, a direct repository
 save, or a client-private command vocabulary for layout edits.
 
+An application may also declare `x-preview: { action: string }` on an
+ID-scoped editable entity schema. The detail page then exposes a draft-preview
+action and calls that exact host-declared Admin Surface action with the entity
+ID. A successful response must contain a same-origin absolute-path
+`preview_url`; the SPA rejects other URL shapes and renders the accepted URL in
+an application dialog. The host remains authoritative for bundle eligibility,
+access, revision selection, signature lifetime, non-indexing, and cache policy.
+Absence of `x-preview` means the client exposes no preview control. This is a
+capability extension, not a hard-coded content-type list.
+
 ### Cast-aware entity attributes (#1181)
 
 Entity CRUD and catalog responses under `/api/*` use **`ResourceSerializer`**, which builds `attributes` from **`EntityValues::toCastAwareMap()`** (see `docs/specs/jsonapi.md` and `docs/specs/entity-system.md`). Implications for the SPA:

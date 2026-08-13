@@ -3,13 +3,14 @@ import { flushPromises } from '@vue/test-utils'
 import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { schemaRef, fetchSchemaMock, getMock, removeMock, navigateMock } = vi.hoisted(() => {
+const { schemaRef, fetchSchemaMock, getMock, removeMock, runActionMock, navigateMock } = vi.hoisted(() => {
   const { ref } = require('vue') as typeof import('vue')
   return {
     schemaRef: ref<EntitySchema | null>(null),
     fetchSchemaMock: vi.fn(),
     getMock: vi.fn(),
     removeMock: vi.fn(),
+    runActionMock: vi.fn(),
     navigateMock: vi.fn(),
   }
 })
@@ -37,7 +38,7 @@ vi.mock('~/composables/useAdmin', () => ({
 }))
 
 vi.mock('~/composables/useEntity', () => ({
-  useEntity: () => ({ get: getMock, remove: removeMock }),
+  useEntity: () => ({ get: getMock, remove: removeMock, runAction: runActionMock }),
 }))
 
 const baseSchema = {
@@ -76,6 +77,7 @@ describe('entity detail workflow binding', () => {
     getMock.mockReset().mockResolvedValue({ id: '5', attributes: { type: 'post' } })
     removeMock.mockReset()
     removeMock.mockResolvedValue(undefined)
+    runActionMock.mockReset()
     navigateMock.mockReset()
   })
 
@@ -103,6 +105,21 @@ describe('entity detail workflow binding', () => {
     const wrapper = await mountPage()
 
     expect(wrapper.get('[data-testid="detail-page-builder"]').attributes('href')).toBe('/page-builder/page/5')
+  })
+
+  it('offers a host-declared exact draft preview without hard-coding the bundle', async () => {
+    schemaRef.value = { ...baseSchema, 'x-preview': { action: 'preview' } }
+    runActionMock.mockResolvedValue({ preview_url: '/preview/node/5?token=test' })
+    const wrapper = await mountPage()
+    const dialog = wrapper.get('dialog').element as HTMLDialogElement
+    dialog.showModal = vi.fn()
+
+    await wrapper.get('[data-testid="detail-preview"]').trigger('click')
+    await flushPromises()
+
+    expect(runActionMock).toHaveBeenCalledWith('node', 'preview', { id: '5' })
+    expect(wrapper.get('iframe').attributes('src')).toBe('/preview/node/5?token=test')
+    expect(dialog.showModal).toHaveBeenCalledOnce()
   })
 
   it('deletes from the detail page through the standard confirmation modal', async () => {
