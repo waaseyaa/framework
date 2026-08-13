@@ -40,7 +40,7 @@ final class GovernedAuthoringRecipeTest extends TestCase
         self::assertStringContainsString("'layout_field' => 'page_layout'", $config);
 
         $provider = $site->artifacts['src/Provider/GovernedAuthoringServiceProvider.php']->content;
-        foreach (['DefinitionRegistry', 'PublishingLayoutDraftGateway', 'PublishingRevisionPreviewGateway', 'PublishingPageBuilderRevisionGateway', 'PageBuilderRevisionHistory', 'PageBuilderSurfaceRegistry', "register('page'"] as $required) {
+        foreach (['DefinitionRegistry', 'PublishingLayoutDraftGateway', 'PublishingRevisionPreviewGateway', 'PublishingPageBuilderRevisionGateway', 'PageBuilderRevisionHistory', 'PageBuilderSurfaceRegistry', 'PageBuilderSurfaceHostInterface', "name: 'page_layout'", "register('page'"] as $required) {
             self::assertStringContainsString($required, $provider);
         }
 
@@ -51,6 +51,15 @@ final class GovernedAuthoringRecipeTest extends TestCase
         self::assertStringNotContainsString('raw_html', $config . $provider);
         self::assertStringNotContainsString('custom_css', $config . $provider);
         self::assertStringNotContainsString('custom_javascript', $config . $provider);
+        $previewUrl = $site->artifacts['src/Authoring/GovernedPagePreviewUrlGenerator.php']->content;
+        self::assertStringContainsString("return '/page-builder-preview/'", $previewUrl);
+        self::assertStringNotContainsString('APP_ORIGIN', $previewUrl . $provider);
+
+        foreach ($site->artifacts as $artifact) {
+            if (str_ends_with($artifact->path, '.php')) {
+                self::assertNotEmpty(token_get_all($artifact->content, TOKEN_PARSE), "Generated PHP must parse: {$artifact->path}");
+            }
+        }
     }
 
     #[Test]
