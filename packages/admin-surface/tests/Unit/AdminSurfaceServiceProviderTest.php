@@ -118,6 +118,8 @@ final class AdminSurfaceServiceProviderTest extends TestCase
         self::assertSame(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_DRAFT, $routes->get('admin_surface.page_builder.draft')?->getPath());
         self::assertSame(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_COMMAND, $routes->get('admin_surface.page_builder.command')?->getPath());
         self::assertSame(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_PREVIEW, $routes->get('admin_surface.page_builder.preview')?->getPath());
+        self::assertTrue($routes->get('admin_surface.page_builder.command')?->getOption('_csrf'));
+        self::assertTrue($routes->get('admin_surface.page_builder.preview')?->getOption('_csrf'));
     }
 
     #[Test]

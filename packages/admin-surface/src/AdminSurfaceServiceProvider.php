@@ -287,12 +287,14 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
         $router->addRoute('admin_surface.page_builder.command', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_COMMAND)
             ->methods('POST')
             ->requireAuthentication()
+            ->requireCsrf()
             ->controller(fn($request, $surface, $id) => $host->handleCommand(self::pageBuilderRequest($request), $surface, $id))
             ->build());
 
         $router->addRoute('admin_surface.page_builder.preview', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_PREVIEW)
             ->methods('POST')
             ->requireAuthentication()
+            ->requireCsrf()
             ->controller(fn($request, $surface, $id) => $host->handlePreview(self::pageBuilderRequest($request), $surface, $id))
             ->build());
 
