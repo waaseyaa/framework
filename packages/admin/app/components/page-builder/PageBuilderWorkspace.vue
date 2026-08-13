@@ -150,6 +150,7 @@ async function removeSelectedBlock() {
 
 async function moveSelectedBlock(offset: -1 | 1) {
   const entry = selectedEntry.value
+  /* v8 ignore next -- the controls only render while selectedEntry exists */
   if (!entry) return
   const destination = entry.position + offset
   const regionBlocks = entry.section.regions[entry.regionId] ?? []
