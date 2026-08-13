@@ -1,4 +1,4 @@
-import type { PageBuilderCommand, PageBuilderDefinitions, PageBuilderDraft } from '../contracts/pageBuilder'
+import type { PageBuilderCommand, PageBuilderDefinitions, PageBuilderDraft, PageBuilderRevision } from '../contracts/pageBuilder'
 import { PageBuilderClient } from '../runtime/pageBuilderClient'
 import { normalizeAppBaseURL } from '../runtime/normalizeAppBaseURL'
 
@@ -13,6 +13,8 @@ export function usePageBuilder(surface: string, entityId: string) {
   const definitions = ref<PageBuilderDefinitions | null>(null)
   const draft = ref<PageBuilderDraft | null>(null)
   const previewUrl = ref<string | null>(null)
+  const revisions = ref<PageBuilderRevision[]>([])
+  const comparedRevision = ref<PageBuilderDraft | null>(null)
   const loading = ref(false)
   const saving = ref(false)
   const error = ref<string | null>(null)
@@ -78,5 +80,51 @@ export function usePageBuilder(surface: string, entityId: string) {
     }
   }
 
-  return { definitions, draft, previewUrl, loading, saving, error, load, apply, refreshPreview }
+  async function loadHistory(): Promise<boolean> {
+    error.value = null
+    try {
+      const result = await client.history(surface, entityId)
+      if (!result.ok || !result.data) throw new Error(result.error?.detail || result.error?.title || 'Unable to load revision history.')
+      revisions.value = result.data.revisions
+      return true
+    } catch (reason) {
+      error.value = reason instanceof Error ? reason.message : 'Unable to load revision history.'
+      return false
+    }
+  }
+
+  async function compareRevision(revisionId: number): Promise<boolean> {
+    error.value = null
+    try {
+      const result = await client.revision(surface, entityId, revisionId)
+      if (!result.ok || !result.data) throw new Error(result.error?.detail || result.error?.title || 'Unable to load that revision.')
+      comparedRevision.value = result.data
+      return true
+    } catch (reason) {
+      error.value = reason instanceof Error ? reason.message : 'Unable to load that revision.'
+      return false
+    }
+  }
+
+  async function restoreRevision(revisionId: number): Promise<boolean> {
+    if (!draft.value || saving.value) return false
+    saving.value = true
+    error.value = null
+    try {
+      const result = await client.restore(surface, entityId, revisionId, draft.value.entity_revision_id, idempotencyKey())
+      if (!result.ok || !result.data) throw new Error(result.error?.detail || result.error?.title || 'Unable to restore that revision.')
+      draft.value = result.data
+      comparedRevision.value = null
+      previewUrl.value = null
+      await loadHistory()
+      return true
+    } catch (reason) {
+      error.value = reason instanceof Error ? reason.message : 'Unable to restore that revision.'
+      return false
+    } finally {
+      saving.value = false
+    }
+  }
+
+  return { definitions, draft, previewUrl, revisions, comparedRevision, loading, saving, error, load, apply, refreshPreview, loadHistory, compareRevision, restoreRevision }
 }

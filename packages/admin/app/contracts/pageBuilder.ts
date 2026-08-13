@@ -62,6 +62,17 @@ export type PageBuilderPreview = {
   preview_url: string
 }
 
+export type PageBuilderRevision = {
+  revision_id: number
+  created_at: string | null
+  author_id: number | null
+  log: string | null
+  is_current: boolean
+  is_latest: boolean
+  document_fingerprint: string
+  block_count: number
+}
+
 export type PageBuilderCommand =
   | { type: 'add_block', section_id: string, region_id: string, position: number, block: PageBuilderBlock }
   | { type: 'duplicate_block', source_block_id: string, duplicate_block_id: string }

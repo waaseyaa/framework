@@ -11,6 +11,8 @@ use Waaseyaa\PageBuilder\Draft\LayoutDraft;
 use Waaseyaa\PageBuilder\Draft\LayoutDraftManager;
 use Waaseyaa\PageBuilder\Preview\RevisionPreviewGatewayInterface;
 use Waaseyaa\PageBuilder\Preview\RevisionPreviewGrant;
+use Waaseyaa\PageBuilder\Revision\Exception\PageBuilderHistoryUnavailableException;
+use Waaseyaa\PageBuilder\Revision\PageBuilderRevisionHistory;
 use Waaseyaa\PageBuilder\Surface\Exception\PageBuilderAccessDeniedException;
 
 /** @api */
@@ -21,6 +23,7 @@ final readonly class PageBuilderSurface
         private DefinitionRegistry $definitions,
         private LayoutDraftManager $drafts,
         private RevisionPreviewGatewayInterface $previews,
+        private ?PageBuilderRevisionHistory $history = null,
     ) {
         if ('' === $permission) {
             throw new \InvalidArgumentException('A page-builder permission is required.');
@@ -70,6 +73,48 @@ final readonly class PageBuilderSurface
         $this->assertAllowed($actor);
 
         return $this->previews->issue($actor, $entityId, $expectedRevisionId);
+    }
+
+    /** @return list<array<string, mixed>> */
+    public function history(AuthorizationPrincipalInterface $actor, string $entityId): array
+    {
+        $this->assertAllowed($actor);
+
+        return $this->history?->list($actor, $entityId) ?? [];
+    }
+
+    public function revision(AuthorizationPrincipalInterface $actor, string $entityId, int $revisionId): LayoutDraft
+    {
+        $this->assertAllowed($actor);
+
+        return $this->requireHistory()->read($actor, $entityId, $revisionId);
+    }
+
+    public function restore(
+        AuthorizationPrincipalInterface $actor,
+        string $entityId,
+        int $targetRevisionId,
+        int $expectedCurrentRevisionId,
+        string $idempotencyKey,
+    ): LayoutDraft {
+        $this->assertAllowed($actor);
+
+        return $this->requireHistory()->restore(
+            $actor,
+            $entityId,
+            $targetRevisionId,
+            $expectedCurrentRevisionId,
+            $idempotencyKey,
+        );
+    }
+
+    private function requireHistory(): PageBuilderRevisionHistory
+    {
+        if ($this->history === null) {
+            throw new PageBuilderHistoryUnavailableException('Revision history is not configured for this page-builder surface.');
+        }
+
+        return $this->history;
     }
 
     private function assertAllowed(AuthorizationPrincipalInterface $actor): void

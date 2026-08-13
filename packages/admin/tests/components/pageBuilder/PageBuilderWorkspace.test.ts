@@ -5,7 +5,7 @@ import { mountSuspended } from '@nuxt/test-utils/runtime'
 const { ref } = require('vue') as typeof import('vue')
 
 const definitions = ref({
-  blocks: [{ id: 'copy', version: 1, label: 'Copy', renderer: 'copy', config_schema: { type: 'object', properties: {} } }],
+  blocks: [{ id: 'copy', version: 1, label: 'Copy', renderer: 'copy', config_schema: { type: 'object', properties: { html: { type: 'string', title: 'Body' } } } }],
   layouts: [{ id: 'one', version: 1, regions: ['main'], required_regions: ['main'], allowed_blocks: ['copy'] }],
   templates: [{ id: 'standard', version: 1, allowed_layouts: ['one'], allowed_blocks: ['copy'] }],
 })
@@ -22,18 +22,21 @@ const draft = ref({
       layout: { id: 'one', version: 1 },
       regions: {
         main: [
-          { id: 'first', type: 'copy', version: 1, config: {} },
-          { id: 'second', type: 'copy', version: 1, config: {} },
+          { id: 'first', type: 'copy', version: 1, config: { html: 'Before' } },
+          { id: 'second', type: 'copy', version: 1, config: { html: 'Second' } },
         ],
       },
     }],
   },
 })
 
-const { applyMock, loadMock, refreshPreviewMock } = vi.hoisted(() => ({
+const { applyMock, loadMock, refreshPreviewMock, loadHistoryMock, compareRevisionMock, restoreRevisionMock } = vi.hoisted(() => ({
   applyMock: vi.fn(),
   loadMock: vi.fn(),
   refreshPreviewMock: vi.fn(),
+  loadHistoryMock: vi.fn(),
+  compareRevisionMock: vi.fn(),
+  restoreRevisionMock: vi.fn(),
 }))
 
 vi.mock('~/composables/useLanguage', () => ({
@@ -45,12 +48,17 @@ vi.mock('~/composables/usePageBuilder', () => ({
     definitions,
     draft,
     previewUrl: ref('/preview'),
+    revisions: ref([]),
+    comparedRevision: ref(null),
     loading: ref(false),
     saving: ref(false),
     error: ref(null),
     load: loadMock,
     apply: applyMock,
     refreshPreview: refreshPreviewMock,
+    loadHistory: loadHistoryMock,
+    compareRevision: compareRevisionMock,
+    restoreRevision: restoreRevisionMock,
   }),
 }))
 
@@ -58,6 +66,9 @@ beforeEach(() => {
   applyMock.mockReset().mockResolvedValue(true)
   loadMock.mockReset().mockResolvedValue(undefined)
   refreshPreviewMock.mockReset().mockResolvedValue(undefined)
+  loadHistoryMock.mockReset().mockResolvedValue(true)
+  compareRevisionMock.mockReset().mockResolvedValue(true)
+  restoreRevisionMock.mockReset().mockResolvedValue(true)
   vi.stubGlobal('crypto', { randomUUID: () => '11111111-2222-4333-8444-555555555555' })
 })
 
@@ -125,5 +136,26 @@ describe('PageBuilderWorkspace block controls', () => {
     expect(applyMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'duplicate_block', source_block_id: 'first' }))
     expect(refreshPreviewMock).not.toHaveBeenCalled()
     expect(wrapper.find('.page-builder__outline-block.is-selected').text()).toContain('Copy')
+  })
+
+  it('recovers an idle configuration change through the governed server command', async () => {
+    const wrapper = await mountWorkspace()
+    vi.useFakeTimers()
+    try {
+      await wrapper.find('textarea').setValue('Recovered copy')
+      expect(wrapper.text()).toContain('page_builder_unsaved')
+
+      await vi.advanceTimersByTimeAsync(1500)
+      await flushPromises()
+
+      expect(applyMock).toHaveBeenCalledWith({
+        type: 'configure_block',
+        block_id: 'first',
+        config: { html: 'Recovered copy' },
+      })
+      expect(loadHistoryMock).toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

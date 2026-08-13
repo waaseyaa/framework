@@ -20,7 +20,10 @@ type JsonSchemaProperty = Omit<SchemaProperty, 'enum'> & {
 }
 
 const { t } = useLanguage()
-const { definitions, draft, previewUrl, loading, saving, error, load, apply, refreshPreview } = usePageBuilder(
+const {
+  definitions, draft, previewUrl, revisions, comparedRevision, loading, saving, error,
+  load, apply, refreshPreview, loadHistory, compareRevision, restoreRevision,
+} = usePageBuilder(
   props.surface,
   props.entityId,
 )
@@ -28,6 +31,9 @@ const selectedBlockId = ref<string | null>(null)
 const previewSize = ref<PreviewSize>('desktop')
 const editableConfig = ref<Record<string, unknown>>({})
 const announcement = ref('')
+const configDirty = ref(false)
+const historyOpen = ref(false)
+let autosaveTimer: ReturnType<typeof setTimeout> | null = null
 
 function cloneConfig(config: Record<string, unknown>): Record<string, unknown> {
   return JSON.parse(JSON.stringify(config)) as Record<string, unknown>
@@ -53,6 +59,34 @@ const configProperties = computed<Record<string, JsonSchemaProperty>>(() => {
     : {}
 })
 const previewWidth = computed(() => ({ desktop: '100%', tablet: '768px', mobile: '390px' })[previewSize.value])
+const comparisonChanges = computed(() => {
+  if (!draft.value || !comparedRevision.value) return []
+  const flatten = (document: typeof draft.value.document) => {
+    const result: Record<string, { block: PageBuilderBlock, location: string }> = {}
+    document.sections.forEach((section, sectionIndex) => Object.entries(section.regions).forEach(([regionId, regionBlocks]) => regionBlocks.forEach((block, position) => {
+      result[block.id] = { block, location: `${sectionIndex}:${section.layout.id}:${regionId}:${position}` }
+    })))
+    return result
+  }
+  const current = flatten(draft.value.document)
+  const prior = flatten(comparedRevision.value.document)
+  const ids = [...new Set([...Object.keys(current), ...Object.keys(prior)])]
+  const changes = ids.flatMap((id) => {
+    if (!prior[id]) return [{ id, kind: 'added', label: current[id]!.block.type }]
+    if (!current[id]) return [{ id, kind: 'removed', label: prior[id]!.block.type }]
+    if (JSON.stringify(current[id]) !== JSON.stringify(prior[id])) return [{ id, kind: 'changed', label: current[id]!.block.type }]
+    return []
+  })
+  const structure = (document: typeof draft.value.document) => document.sections.map(section => ({
+    id: section.id,
+    layout: section.layout,
+    regions: Object.keys(section.regions),
+  }))
+  if (JSON.stringify(structure(draft.value.document)) !== JSON.stringify(structure(comparedRevision.value.document))) {
+    changes.unshift({ id: 'page-structure', kind: 'changed', label: t('page_builder_page_structure') })
+  }
+  return changes
+})
 
 watch(selectedEntry, (entry) => {
   editableConfig.value = entry ? cloneConfig(entry.block.config) : {}
@@ -65,7 +99,8 @@ function secureId(prefix: 'blk' | 'sec'): string {
   return `${prefix}_${crypto.randomUUID().replaceAll('-', '')}`
 }
 
-function selectBlock(blockId: string) {
+async function selectBlock(blockId: string) {
+  if (configDirty.value && !await saveSelectedBlock(true)) return
   selectedBlockId.value = blockId
 }
 
@@ -84,10 +119,18 @@ function setFieldValue(key: string, schema: JsonSchemaProperty, event: Event) {
   if (schema.type === 'boolean' && input instanceof HTMLInputElement) editableConfig.value[key] = input.checked
   else if (schema.type === 'number' || schema.type === 'integer') editableConfig.value[key] = Number(input.value)
   else editableConfig.value[key] = input.value
+  scheduleAutosave()
 }
 
 function setConfigValue(key: string, value: unknown) {
   editableConfig.value[key] = value
+  scheduleAutosave()
+}
+
+function scheduleAutosave() {
+  configDirty.value = true
+  if (autosaveTimer) clearTimeout(autosaveTimer)
+  autosaveTimer = setTimeout(() => void saveSelectedBlock(true), 1500)
 }
 
 function configFieldId(key: string): string {
@@ -112,13 +155,35 @@ async function run(command: PageBuilderCommand, message: string): Promise<boolea
   return true
 }
 
-async function saveSelectedBlock() {
-  if (!selectedEntry.value) return
-  await run({
+async function saveSelectedBlock(automatic = false): Promise<boolean> {
+  if (!selectedEntry.value || (!configDirty.value && automatic)) return true
+  if (autosaveTimer) clearTimeout(autosaveTimer)
+  autosaveTimer = null
+  const saved = await run({
     type: 'configure_block',
     block_id: selectedEntry.value.block.id,
     config: cloneConfig(editableConfig.value),
-  }, t('page_builder_change_saved'))
+  }, automatic ? t('page_builder_autosaved') : t('page_builder_change_saved'))
+  if (saved) {
+    configDirty.value = false
+    await loadHistory()
+  }
+  return saved
+}
+
+async function toggleHistory() {
+  historyOpen.value = !historyOpen.value
+  if (historyOpen.value) await loadHistory()
+}
+
+async function restoreComparedRevision() {
+  const revisionId = comparedRevision.value?.entity_revision_id
+  if (!revisionId) return
+  if (!window.confirm(t('page_builder_restore_confirm', { revision: String(revisionId) }))) return
+  if (await restoreRevision(revisionId)) {
+    announcement.value = t('page_builder_revision_restored', { revision: String(revisionId) })
+    await refreshPreview()
+  }
 }
 
 async function addBlock(definition: PageBuilderBlockDefinition) {
@@ -202,10 +267,14 @@ function onPreviewMessage(event: MessageEvent) {
 onMounted(async () => {
   window.addEventListener('message', onPreviewMessage)
   await load()
+  await loadHistory()
   if (blocks.value[0]) selectedBlockId.value = blocks.value[0].block.id
   await refreshPreview()
 })
-onBeforeUnmount(() => window.removeEventListener('message', onPreviewMessage))
+onBeforeUnmount(() => {
+  window.removeEventListener('message', onPreviewMessage)
+  if (autosaveTimer) clearTimeout(autosaveTimer)
+})
 </script>
 
 <template>
@@ -234,6 +303,9 @@ onBeforeUnmount(() => window.removeEventListener('message', onPreviewMessage))
         </div>
         <button type="button" class="btn" :disabled="saving || !draft" @click="refreshPreview">
           {{ t('page_builder_refresh_preview') }}
+        </button>
+        <button type="button" class="btn" :aria-expanded="historyOpen" :disabled="saving || !draft" @click="toggleHistory">
+          {{ t('page_builder_history') }}
         </button>
       </div>
     </header>
@@ -277,7 +349,7 @@ onBeforeUnmount(() => window.removeEventListener('message', onPreviewMessage))
 
       <main class="page-builder__canvas" :aria-label="t('page_builder_preview')">
         <div class="page-builder__canvas-meta">
-          <span><i class="page-builder__status-dot" />{{ saving ? t('page_builder_saving') : t('page_builder_saved') }}</span>
+          <span><i class="page-builder__status-dot" :class="{ 'is-dirty': configDirty }" />{{ saving ? t('page_builder_saving') : configDirty ? t('page_builder_unsaved') : t('page_builder_saved') }}</span>
           <span>{{ t('page_builder_exact_revision_preview') }}</span>
         </div>
         <div class="page-builder__preview-stage">
@@ -300,6 +372,38 @@ onBeforeUnmount(() => window.removeEventListener('message', onPreviewMessage))
       </main>
 
       <aside class="page-builder__inspector" :aria-label="t('page_builder_inspector')">
+        <section v-if="historyOpen" class="page-builder__history" :aria-label="t('page_builder_history')">
+          <div class="page-builder__panel-heading">
+            <div><span>{{ t('page_builder_compare') }}</span><h2>{{ t('page_builder_revision_history') }}</h2></div>
+            <button type="button" class="page-builder__close" :aria-label="t('page_builder_close_history')" @click="historyOpen = false">×</button>
+          </div>
+          <p class="page-builder__hint">{{ t('page_builder_history_help') }}</p>
+          <div class="page-builder__revision-list">
+            <button
+              v-for="revision in revisions"
+              :key="revision.revision_id"
+              type="button"
+              class="page-builder__revision-card"
+              :class="{ 'is-selected': comparedRevision?.entity_revision_id === revision.revision_id }"
+              @click="compareRevision(revision.revision_id)"
+            >
+              <strong>{{ t('page_builder_revision', { revision: String(revision.revision_id) }) }}</strong>
+              <span>{{ revision.created_at ? new Date(revision.created_at).toLocaleString() : t('page_builder_time_unknown') }}</span>
+              <small>{{ revision.block_count }} {{ t('page_builder_blocks').toLowerCase() }}<template v-if="revision.is_latest"> · {{ t('page_builder_latest') }}</template></small>
+            </button>
+          </div>
+          <div v-if="comparedRevision" class="page-builder__comparison">
+            <h3>{{ t('page_builder_compare_with_current') }}</h3>
+            <p v-if="comparisonChanges.length === 0" class="page-builder__hint">{{ t('page_builder_no_layout_changes') }}</p>
+            <ul v-else>
+              <li v-for="change in comparisonChanges" :key="change.id"><strong>{{ t(`page_builder_${change.kind}`) }}:</strong> {{ change.label }}</li>
+            </ul>
+            <button type="button" class="btn btn-primary" :disabled="saving || comparedRevision.entity_revision_id === draft.entity_revision_id" @click="restoreComparedRevision">
+              {{ t('page_builder_restore_as_draft') }}
+            </button>
+          </div>
+        </section>
+        <template v-else>
         <div class="page-builder__panel-heading">
           <div>
             <span>{{ t('page_builder_edit') }}</span>
@@ -307,7 +411,7 @@ onBeforeUnmount(() => window.removeEventListener('message', onPreviewMessage))
           </div>
         </div>
 
-        <form v-if="selectedEntry" class="page-builder__form" @submit.prevent="saveSelectedBlock">
+        <form v-if="selectedEntry" class="page-builder__form" @submit.prevent="saveSelectedBlock(false)">
           <div v-for="(schema, key) in configProperties" :key="key" class="page-builder__field">
             <WidgetsRichText
               v-if="schema['x-widget'] === 'richtext'"
@@ -339,6 +443,7 @@ onBeforeUnmount(() => window.removeEventListener('message', onPreviewMessage))
                 :id="configFieldId(key)"
                 :value="selectValue(key)"
                 :required="configFieldRequired(key)"
+                :disabled="saving"
                 @change="setFieldValue(key, schema, $event)"
               >
                 <option v-for="option in schema.enum" :key="String(option)" :value="String(option)">{{ option }}</option>
@@ -349,6 +454,7 @@ onBeforeUnmount(() => window.removeEventListener('message', onPreviewMessage))
                 type="checkbox"
                 :checked="fieldValue(key) === true"
                 :required="configFieldRequired(key)"
+                :disabled="saving"
                 @change="setFieldValue(key, schema, $event)"
               >
               <input
@@ -357,6 +463,7 @@ onBeforeUnmount(() => window.removeEventListener('message', onPreviewMessage))
                 type="number"
                 :value="selectValue(key)"
                 :required="configFieldRequired(key)"
+                :disabled="saving"
                 @input="setFieldValue(key, schema, $event)"
               >
               <textarea
@@ -365,6 +472,7 @@ onBeforeUnmount(() => window.removeEventListener('message', onPreviewMessage))
                 :rows="schema.format === 'textarea' ? 7 : 3"
                 :value="selectValue(key)"
                 :required="configFieldRequired(key)"
+                :disabled="saving"
                 @input="setFieldValue(key, schema, $event)"
               />
             </template>
@@ -417,6 +525,7 @@ onBeforeUnmount(() => window.removeEventListener('message', onPreviewMessage))
             </template>
           </div>
         </div>
+        </template>
       </aside>
     </div>
   </section>
@@ -449,6 +558,7 @@ onBeforeUnmount(() => window.removeEventListener('message', onPreviewMessage))
 .page-builder__canvas-meta { display: flex; justify-content: space-between; margin-bottom: 10px; color: #5f6964; font-size: 12px; }
 .page-builder__canvas-meta span { display: flex; align-items: center; gap: 7px; }
 .page-builder__status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--color-success, #1f8a63); }
+.page-builder__status-dot.is-dirty { background: #c97916; }
 .page-builder__preview-stage { display: flex; justify-content: center; height: calc(100vh - var(--topbar-height) - 150px); min-height: 520px; overflow: auto; }
 .page-builder__preview-frame { max-width: 100%; height: 100%; border: 0; border-radius: 5px; background: #fff; box-shadow: 0 10px 40px #1b2b2426; transition: width .2s ease; }
 .page-builder__preview-empty { display: grid; place-content: center; justify-items: center; width: min(100%, 680px); padding: 40px; border: 1px dashed #a8b0aa; border-radius: 8px; background: #f7f7f3; text-align: center; }
@@ -467,6 +577,13 @@ onBeforeUnmount(() => window.removeEventListener('message', onPreviewMessage))
 .page-builder__region { color: #75807b; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .page-builder__outline-block { padding: 7px 8px; border: 1px solid transparent; border-radius: 6px; background: #f1f3ef; text-align: left; cursor: pointer; }
 .page-builder__outline-block.is-selected { border-color: var(--color-primary, #2f8068); background: var(--color-primary-light, #e5f2ed); color: var(--color-primary, #125441); font-weight: 700; }
+.page-builder__close { border: 0; background: transparent; font-size: 24px; cursor: pointer; }
+.page-builder__revision-list { display: grid; gap: 7px; max-height: 320px; overflow: auto; }
+.page-builder__revision-card { display: grid; gap: 3px; width: 100%; padding: 10px; border: 1px solid #dfe2dd; border-radius: 8px; background: #fff; color: inherit; text-align: left; cursor: pointer; }
+.page-builder__revision-card span, .page-builder__revision-card small { color: #6a746f; font-size: 11px; }
+.page-builder__revision-card.is-selected { border-color: var(--color-primary, #2f8068); background: var(--color-primary-light, #e5f2ed); }
+.page-builder__comparison { display: grid; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #dfe2dd; }
+.page-builder__comparison ul { display: grid; gap: 5px; margin: 0; padding-left: 18px; font-size: 12px; }
 .page-builder__error, .page-builder__loading { margin: 18px 24px; padding: 14px 16px; border-radius: 8px; }
 .page-builder__error { display: flex; align-items: center; gap: 10px; background: #fff0ed; color: #8f251a; }
 .page-builder__error span { flex: 1; }

@@ -298,6 +298,26 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
             ->controller(fn($request, $surface, $id) => $host->handlePreview(self::pageBuilderRequest($request), $surface, $id))
             ->build());
 
+        $router->addRoute('admin_surface.page_builder.history', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_HISTORY)
+            ->methods('GET')
+            ->requireAuthentication()
+            ->controller(fn($request, $surface, $id) => $host->handleHistory(self::pageBuilderRequest($request), $surface, $id))
+            ->build());
+
+        $router->addRoute('admin_surface.page_builder.revision', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_REVISION)
+            ->methods('GET')
+            ->requireAuthentication()
+            ->controller(fn($request, $surface, $id, $revision) => $host->handleRevision(self::pageBuilderRequest($request), $surface, $id, $revision))
+            ->requirement('revision', '[1-9][0-9]*')
+            ->build());
+
+        $router->addRoute('admin_surface.page_builder.restore', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_RESTORE)
+            ->methods('POST')
+            ->requireAuthentication()
+            ->requireCsrf()
+            ->controller(fn($request, $surface, $id) => $host->handleRestore(self::pageBuilderRequest($request), $surface, $id))
+            ->build());
+
         $router->addRoute('admin_surface.page_builder.draft', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_DRAFT)
             ->methods('GET')
             ->requireAuthentication()

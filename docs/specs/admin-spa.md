@@ -1200,6 +1200,8 @@ These widgets are a shared presentation seam: Waaseyaa's default Admin SPA and d
 
 Every explicit change is sent through `PageBuilderClient` with the observed entity revision, document fingerprint, and a cryptographically generated idempotency key. The server remains authoritative for access, validation, revision creation, and conflict handling. Neither the Admin SPA nor downstream shells can submit arbitrary renderer names, free-form executable markup, or bypass the common page-builder surface.
 
+Block configuration is also recovered server-side after a short idle delay. The browser does not store page content in local storage or IndexedDB; the same revision-guarded command creates a recoverable draft revision and reports whether the editor is saving, saved, or waiting to save. Revision history is exposed by the shared surface when the application supplies a history gateway. Editors can compare a historical layout with the current draft and restore it only by creating a new conflict-checked draft revision. Restore never deletes history, moves the published pointer, or bypasses the application's normal review and publication workflow.
+
 ## Implementation gotchas
 
 - **Browser `fetch` loses binding when stored**: Passing `fetch` as a default parameter (`private fetchFn = fetch`) detaches it from `window`, causing "illegal invocation" at call time. Wrap in an arrow function: `(...args) => fetch(...args)`.

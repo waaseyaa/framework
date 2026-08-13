@@ -532,6 +532,7 @@ return [
     // Governed page-builder command vocabulary (#2344 WP02).
     'Waaseyaa\PageBuilder\Command\EditCommand' => 'public',
     'Waaseyaa\PageBuilder\Draft\LayoutDraftGatewayInterface' => 'public',
+    'Waaseyaa\PageBuilder\Revision\PageBuilderRevisionGatewayInterface' => 'public',
     'Waaseyaa\Publishing\ContentDraftMutationInterface' => 'internal',
     'Waaseyaa\AdminSurface\PageBuilder\PageBuilderSurfaceHostInterface' => 'public',
     'Waaseyaa\PageBuilder\Preview\RevisionPreviewGatewayInterface' => 'public',

@@ -279,10 +279,19 @@ concurrency, or audit checks.
 - Phone, tablet, and desktop previews use the actual responsive components.
 - Required alt text, headings, link meaning, contrast-compatible variants, and
   semantic landmarks are enforced by block schemas and renderers.
-- Autosave is local recovery only. Server persistence is an explicit revision-
-  creating save.
+- Autosave uses the same server-authoritative, revision-creating command after
+  a short idle delay. Page content is never persisted in browser local storage
+  or IndexedDB. The editor visibly distinguishes waiting-to-save, saving, and
+  saved states, and explicit saves remain available.
 - Concurrent edits fail honestly and offer compare/reapply; last-write-wins is
   not an accepted conflict strategy.
+
+Revision history is optional at the framework composition boundary and common
+to every client shell when configured. It exposes validated historical layout
+documents and bounded metadata, supports structural/block comparison, and
+restores only by copying the historical layout into a new draft revision using
+the observed current revision as the write-time conflict claim. Restore never
+deletes history, changes a published pointer, or bypasses normal workflow.
 
 ## 12. Initial Sheguiandah definitions
 
@@ -308,6 +317,10 @@ are available and bind every style choice to its design system.
    scenarios locally without raw HTML or developer intervention.
 10. All scenarios are keyboard complete and pass automated accessibility
     checks at phone, tablet, and desktop widths.
+11. Idle edits recover through a server-side revision without browser storage;
+    a stale autosave cannot overwrite a newer draft.
+12. Historical compare is exact, and restore creates a new draft revision while
+    preserving both the prior current draft and the selected historical row.
 
 ## 14. Work packages
 
