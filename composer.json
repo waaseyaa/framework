@@ -303,6 +303,10 @@
         {
             "type": "path",
             "url": "packages/page-builder"
+        },
+        {
+            "type": "path",
+            "url": "packages/site-contract"
         }
     ],
     "require": {
@@ -366,6 +370,7 @@
         "waaseyaa/scheduler": "self.version",
         "waaseyaa/search": "self.version",
         "waaseyaa/seo": "self.version",
+        "waaseyaa/site-contract": "self.version",
         "waaseyaa/ssr": "self.version",
         "waaseyaa/state": "self.version",
         "waaseyaa/structured-import": "self.version",
@@ -452,6 +457,7 @@
             "Waaseyaa\\Routing\\Tests\\": "packages/routing/tests/",
             "Waaseyaa\\Search\\Tests\\": "packages/search/tests/",
             "Waaseyaa\\Seo\\Tests\\": "packages/seo/tests/",
+            "Waaseyaa\\SiteContract\\Tests\\": "packages/site-contract/tests/",
             "Waaseyaa\\SSR\\Tests\\": "packages/ssr/tests/",
             "Waaseyaa\\Taxonomy\\Tests\\": "packages/taxonomy/tests/",
             "Waaseyaa\\User\\Tests\\": "packages/user/tests/",

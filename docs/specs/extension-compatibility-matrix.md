@@ -104,7 +104,7 @@ This is the canonical, package-level mirror of the seven-layer architecture enfo
 | telescope | 6 | |
 | workspace | 6 | |
 
-**Total: 72 PHP packages** across 7 layers (18 / 10 / 10 / 12 / 4 / 6 / 12).
+**Total: 73 PHP packages** across 7 layers (19 / 10 / 10 / 12 / 4 / 6 / 12).
 
 ### Footnotes
 
