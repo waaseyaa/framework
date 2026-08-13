@@ -16,7 +16,10 @@ the planned delivery sequence and review boundaries.
    dependency injection, and generated acceptance tests.
 6. WP5 adds the subscription recipe through framework database/migrations,
    privacy lifecycle, Mail, Queue, and generated acceptance tests.
-7. WP6 proves a clean packaged consumer, offline reruns, framework upgrade
+7. WP6 composes the governed page builder through one revisionable page
+   authority, the Waaseyaa Admin SPA, and an optional Anokii adapter, with
+   shared parity and Communications Officer acceptance tests.
+8. WP7 proves a clean packaged consumer, offline reruns, framework upgrade
    continuity, and both local and hosted CI adapters.
 
 ## Cross-package boundaries
@@ -27,6 +30,9 @@ the planned delivery sequence and review boundaries.
 - Recipe implementations may depend downward on the capabilities they compose;
   they must not be placed in a low layer that imports Listing, SEO, Mail, or
   Queue upward.
+- The governed-authoring recipe composes `waaseyaa/page-builder`; neither Admin
+  SPA nor Anokii may own a second layout document, validator, save path, or
+  publication workflow.
 - Skeleton owns generated consumer files and adapter examples.
 - Existing `waaseyaa-audit-site` remains available during migration but strict
   convergence moves to the typed `site:doctor --strict` plus portable

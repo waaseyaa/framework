@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Extend the #2343 fresh-site design with a governed-authoring recipe that
+  exposes one revisioned page builder through Waaseyaa Admin SPA and optional
+  Anokii clients, using Drupal as the governance benchmark and Lovable as the
+  interaction benchmark without depending on either product.
+
 - Design the provider-neutral fresh-site capability manifest, generated
   recipes, strict diagnostics, and reference-consumer gates for #2343.
 
