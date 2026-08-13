@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "2e141f965934d784c0fbaff477544cc5",
+    "content-hash": "2605d524b081851801c6621b0ee2852f",
     "packages": [
         {
             "name": "deployer/deployer",
@@ -5995,6 +5995,45 @@
                 "GPL-2.0-or-later"
             ],
             "description": "SEO building blocks for Waaseyaa (sitemap, robots.txt, meta tags, JSON-LD, Twig helpers)",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/site-contract",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/site-contract",
+                "reference": "ecabc23cdbe9a9cfbeaf92295b9d8e7957d5819a"
+            },
+            "require": {
+                "php": ">=8.5",
+                "symfony/yaml": "^7.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^13.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\SiteContract\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\SiteContract\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Provider-neutral fresh-site manifest contract for Waaseyaa applications",
             "transport-options": {
                 "relative": true
             }
@@ -12996,6 +13035,7 @@
         "waaseyaa/scheduler": 20,
         "waaseyaa/search": 20,
         "waaseyaa/seo": 20,
+        "waaseyaa/site-contract": 20,
         "waaseyaa/ssr": 20,
         "waaseyaa/state": 20,
         "waaseyaa/structured-import": 20,

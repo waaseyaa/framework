@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add the #2343 WP1 `waaseyaa/site-contract` Layer 0 package with the strict
+  versioned site schema, typed manifest model, deterministic YAML parser and
+  canonical digest, fail-closed capability/privacy/recipe validation, and an
+  explicit no-implicit-migration version policy. Register both this package
+  and the previously merged page-builder package in the current split-release
+  adapter so first-party release parity remains closed.
+
 - Extend the #2343 fresh-site design with a governed-authoring recipe that
   exposes one revisioned page builder through Waaseyaa Admin SPA and optional
   Anokii clients, using Drupal as the governance benchmark and Lovable as the

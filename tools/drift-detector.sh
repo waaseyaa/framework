@@ -113,6 +113,7 @@ declare -A PATTERN_TO_SPEC=(
   ["packages/genealogy/"]="docs/specs/genealogy.md"
   ["packages/listing/"]="docs/specs/listing-pipeline-v1.md"
   ["packages/page-builder/"]="docs/specs/page-builder.md"
+  ["packages/site-contract/"]="docs/specs/site-golden-path.md"
   ["packages/media/"]="docs/specs/entity-storage-two-axis.md"
   ["packages/messaging/"]="docs/specs/messaging.md"
   ["packages/migration/"]="docs/specs/migration-platform.md"

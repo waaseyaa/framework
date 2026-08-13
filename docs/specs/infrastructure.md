@@ -182,7 +182,7 @@ The monorepo enforces the seven-layer rule from `CLAUDE.md` on **runtime** Compo
 
 PHPStan analyses the roster-wide `packages` root while excluding non-source test support, migrations/scripts/config, the Nuxt-only admin tree, and Deployer's recipe DSL. It does not enumerate individual `packages/*/src` paths, so a new PHP package enters static analysis automatically; `bin/check-phpstan-paths` asserts that single-root shape.
 
-The PHP layer graph covers the **72 PHP packages** under `packages/` plus the three metapackages (`cms`, `core`, `full`, all skipped). `packages/admin/` is a Nuxt SPA (no `composer.json`, zero PHP source) and is not part of the PHP layer hierarchy; its PHP host extension is `waaseyaa/admin-surface`, which is what L6 actually means here.
+The PHP layer graph covers the **73 PHP packages** under `packages/` plus the three metapackages (`cms`, `core`, `full`, all skipped). `packages/admin/` is a Nuxt SPA (no `composer.json`, zero PHP source) and is not part of the PHP layer hierarchy; its PHP host extension is `waaseyaa/admin-surface`, which is what L6 actually means here.
 
 The same script also scans every package's `src/**/*.php` for `use Waaseyaa\X\…` imports and fails on any import whose target package sits **above** the importing package's layer. This catches cross-layer leaks that don't show up in `composer.json` (e.g. a Foundation listener referencing an L1 entity event class without declaring an upward `require`). Diagnostics are emitted as `FAIL [PL005]` and name the offending file, the importing package's layer, and the imported package's layer.
 

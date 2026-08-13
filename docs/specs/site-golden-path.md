@@ -17,6 +17,11 @@ adapter, never part of the application contract.
 
 ## Authoritative artifacts
 
+The Layer 0 `waaseyaa/site-contract` package owns the schema, typed values,
+deterministic parser, canonical manifest identity, and version-disposition
+policy. It has no dependency on a forge, CI provider, CLI, generator, runtime
+container, recipe package, or application.
+
 Every initialized application owns these files:
 
 - `.waaseyaa/site.yaml`: canonical capability manifest;
