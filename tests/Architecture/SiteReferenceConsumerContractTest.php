@@ -12,6 +12,55 @@ use Waaseyaa\SiteContract\SiteManifestParser;
 final class SiteReferenceConsumerContractTest extends TestCase
 {
     #[Test]
+    public function theCandidatePathRepositoriesHaveExplicitBranchIndependentVersions(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $fixture = sys_get_temp_dir() . '/waaseyaa-reference-versions-' . bin2hex(random_bytes(8));
+        $framework = $fixture . '/framework';
+        $consumer = $fixture . '/consumer';
+
+        mkdir($framework . '/packages/example', 0o777, true);
+        mkdir($consumer, 0o777, true);
+        file_put_contents($framework . '/composer.json', json_encode(['name' => 'waaseyaa/framework'], JSON_THROW_ON_ERROR));
+        file_put_contents($framework . '/packages/example/composer.json', json_encode(['name' => 'waaseyaa/example'], JSON_THROW_ON_ERROR));
+        file_put_contents($consumer . '/composer.json', json_encode([
+            'name' => 'waaseyaa/consumer',
+            'require' => [],
+        ], JSON_THROW_ON_ERROR));
+
+        try {
+            $command = sprintf(
+                '%s %s configure %s %s',
+                escapeshellarg(PHP_BINARY),
+                escapeshellarg($root . '/tests/ReferenceConsumer/prepare.php'),
+                escapeshellarg($framework),
+                escapeshellarg($consumer),
+            );
+            exec($command, $output, $exitCode);
+            self::assertSame(0, $exitCode, implode("\n", $output));
+
+            $composer = json_decode((string) file_get_contents($consumer . '/composer.json'), true, 512, JSON_THROW_ON_ERROR);
+            self::assertSame(
+                ['waaseyaa/framework' => 'dev-main'],
+                $composer['repositories'][0]['options']['versions'],
+            );
+            self::assertSame(
+                ['waaseyaa/example' => 'dev-main'],
+                $composer['repositories'][1]['options']['versions'],
+            );
+        } finally {
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($fixture, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::CHILD_FIRST,
+            );
+            foreach ($iterator as $entry) {
+                $entry->isDir() ? rmdir($entry->getPathname()) : unlink($entry->getPathname());
+            }
+            rmdir($fixture);
+        }
+    }
+
+    #[Test]
     public function theSkeletonAndReferenceConsumerUseOneProviderNeutralVerificationBoundary(): void
     {
         $root = dirname(__DIR__, 2);
@@ -59,6 +108,7 @@ final class SiteReferenceConsumerContractTest extends TestCase
         );
 
         self::assertStringContainsString('COMPOSER_DISABLE_NETWORK=1', $gate);
+        self::assertStringContainsString('(cd "$consumer_root" && php vendor/bin/waaseyaa', $gate);
         self::assertStringContainsString('site:init', $gate);
         self::assertStringContainsString('site:doctor --strict', $gate);
         self::assertStringContainsString('bin/maintenance/site-verify', $gate);
