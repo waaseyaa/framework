@@ -9,6 +9,8 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\CLI\Site\Recipe\GovernedAuthoringRecipe;
 use Waaseyaa\SiteContract\Generation\SiteArtifactRenderer;
+use Waaseyaa\SiteContract\RecipeSelection;
+use Waaseyaa\SiteContract\SiteManifest;
 use Waaseyaa\SiteContract\SiteManifestParser;
 
 #[CoversClass(GovernedAuthoringRecipe::class)]
@@ -70,6 +72,68 @@ final class GovernedAuthoringRecipeTest extends TestCase
 
         new SiteArtifactRenderer([new GovernedAuthoringRecipe()])
             ->render(new SiteManifestParser()->parse(str_replace(GovernedAuthoringRecipe::digest(), str_repeat('b', 64), $this->manifest())));
+    }
+
+    #[Test]
+    public function itRendersNothingWhenTheRecipeIsNotSelected(): void
+    {
+        $manifest = new SiteManifestParser()->parse($this->manifest());
+
+        self::assertSame([], new GovernedAuthoringRecipe()->render($this->with($manifest, recipes: [])));
+    }
+
+    #[Test]
+    public function itRefusesAnUnsupportedRecipeVersion(): void
+    {
+        $manifest = new SiteManifestParser()->parse($this->manifest());
+        $this->expectExceptionMessage('Unsupported governed_authoring recipe version');
+
+        new GovernedAuthoringRecipe()->render($this->with($manifest, recipes: [
+            'governed_authoring' => new RecipeSelection('governed_authoring', 2, 'governed_authoring', GovernedAuthoringRecipe::digest()),
+        ]));
+    }
+
+    #[Test]
+    public function itRefusesARecipeBoundToAnotherCapability(): void
+    {
+        $manifest = new SiteManifestParser()->parse($this->manifest());
+        $this->expectExceptionMessage('must bind the governed_authoring capability');
+
+        new GovernedAuthoringRecipe()->render($this->with($manifest, recipes: [
+            'governed_authoring' => new RecipeSelection('governed_authoring', 1, 'published_content', GovernedAuthoringRecipe::digest()),
+        ]));
+    }
+
+    #[Test]
+    public function itRefusesACompositionWithoutThePageContentType(): void
+    {
+        $manifest = new SiteManifestParser()->parse($this->manifest());
+        $contentTypes = $manifest->contentTypes;
+        unset($contentTypes['page']);
+        $this->expectExceptionMessage('requires the revisionable page content type');
+
+        new GovernedAuthoringRecipe()->render($this->with($manifest, contentTypes: $contentTypes));
+    }
+
+    /**
+     * @param array<string, \Waaseyaa\SiteContract\ContentTypeDeclaration>|null $contentTypes
+     * @param array<string, RecipeSelection>|null $recipes
+     */
+    private function with(SiteManifest $manifest, ?array $contentTypes = null, ?array $recipes = null): SiteManifest
+    {
+        return new SiteManifest(
+            $manifest->schemaVersion,
+            $manifest->generatorVersion,
+            $manifest->application,
+            $manifest->framework,
+            $contentTypes ?? $manifest->contentTypes,
+            $manifest->capabilities,
+            $manifest->personalDataStores,
+            $recipes ?? $manifest->recipes,
+            $manifest->verificationCommand,
+            $manifest->canonicalJson,
+            $manifest->digest,
+        );
     }
 
     private function manifest(): string
