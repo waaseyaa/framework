@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\PageBuilder\Command\AddBlock;
 use Waaseyaa\PageBuilder\Command\ConfigureBlock;
+use Waaseyaa\PageBuilder\Command\DuplicateSection;
 use Waaseyaa\PageBuilder\Wire\EditCommandDecoder;
 use Waaseyaa\PageBuilder\Wire\Exception\InvalidWireCommandException;
 
@@ -34,6 +35,15 @@ final class EditCommandDecoderTest extends TestCase
                 'region_id' => 'main',
                 'position' => 1,
                 'block' => ['id' => 'blk_new', 'type' => 'rich_text'],
+            ]),
+        );
+        self::assertEquals(
+            new DuplicateSection('sec_main', 'sec_copy', ['blk_body' => 'blk_copy']),
+            $decoder->decode([
+                'type' => 'duplicate_section',
+                'source_section_id' => 'sec_main',
+                'duplicate_section_id' => 'sec_copy',
+                'duplicate_block_ids' => ['blk_body' => 'blk_copy'],
             ]),
         );
     }
