@@ -16,6 +16,48 @@ use Waaseyaa\PageBuilder\Definition\TemplateDefinition;
 final class DefinitionRegistryTest extends TestCase
 {
     #[Test]
+    public function exportsAStableClientSafeManifestInIdentityOrder(): void
+    {
+        $registry = new DefinitionRegistry();
+        $registry->registerBlock(new BlockDefinition('z_block', 1, 'Zed', 'content.zed', ['type' => 'object']));
+        $registry->registerBlock(new BlockDefinition('a_block', 2, 'Alpha', 'content.alpha', ['type' => 'object']));
+        $registry->registerLayout(new LayoutDefinition('two_column', 1, ['main', 'aside'], ['main'], ['a_block']));
+        $registry->registerTemplate(new TemplateDefinition('standard', 1, ['two_column'], ['a_block']));
+
+        self::assertSame([
+            'blocks' => [
+                [
+                    'id' => 'a_block',
+                    'version' => 2,
+                    'label' => 'Alpha',
+                    'renderer' => 'content.alpha',
+                    'config_schema' => ['type' => 'object'],
+                ],
+                [
+                    'id' => 'z_block',
+                    'version' => 1,
+                    'label' => 'Zed',
+                    'renderer' => 'content.zed',
+                    'config_schema' => ['type' => 'object'],
+                ],
+            ],
+            'layouts' => [[
+                'id' => 'two_column',
+                'version' => 1,
+                'regions' => ['main', 'aside'],
+                'required_regions' => ['main'],
+                'allowed_blocks' => ['a_block'],
+            ]],
+            'templates' => [[
+                'id' => 'standard',
+                'version' => 1,
+                'allowed_layouts' => ['two_column'],
+                'allowed_blocks' => ['a_block'],
+            ]],
+        ], $registry->manifest());
+    }
+
+    #[Test]
     public function lookupRequiresTheExactDefinitionVersion(): void
     {
         $registry = new DefinitionRegistry();

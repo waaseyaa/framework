@@ -25,6 +25,14 @@ final class AdminSurfaceRoutePaths
 
     public const PATH_ACTION = '/admin/_surface/{type}/action/{action}';
 
+    public const PATH_PAGE_BUILDER_DEFINITIONS = '/admin/_surface/page-builder/{surface}/definitions';
+
+    public const PATH_PAGE_BUILDER_DRAFT = '/admin/_surface/page-builder/{surface}/{id}';
+
+    public const PATH_PAGE_BUILDER_COMMAND = '/admin/_surface/page-builder/{surface}/{id}/commands';
+
+    public const PATH_PAGE_BUILDER_PREVIEW = '/admin/_surface/page-builder/{surface}/{id}/preview';
+
     /**
      * Build a concrete URL path for a named admin surface route (path only, no scheme or host).
      *
@@ -44,6 +52,21 @@ final class AdminSurfaceRoutePaths
                 self::requireString($parameters, 'type', $name),
                 self::requireString($parameters, 'action', $name),
             ),
+            'admin_surface.page_builder.definitions' => self::pathPageBuilderDefinitions(
+                self::requireString($parameters, 'surface', $name),
+            ),
+            'admin_surface.page_builder.draft' => self::pathPageBuilderDraft(
+                self::requireString($parameters, 'surface', $name),
+                self::requireString($parameters, 'id', $name),
+            ),
+            'admin_surface.page_builder.command' => self::pathPageBuilderDraft(
+                self::requireString($parameters, 'surface', $name),
+                self::requireString($parameters, 'id', $name),
+            ) . '/commands',
+            'admin_surface.page_builder.preview' => self::pathPageBuilderDraft(
+                self::requireString($parameters, 'surface', $name),
+                self::requireString($parameters, 'id', $name),
+            ) . '/preview',
             default => throw new InvalidArgumentException(
                 sprintf('Unknown admin surface route name: %s', $name),
             ),
@@ -79,5 +102,15 @@ final class AdminSurfaceRoutePaths
     private static function pathAction(string $type, string $action): string
     {
         return '/admin/_surface/' . rawurlencode($type) . '/action/' . rawurlencode($action);
+    }
+
+    private static function pathPageBuilderDefinitions(string $surface): string
+    {
+        return '/admin/_surface/page-builder/' . rawurlencode($surface) . '/definitions';
+    }
+
+    private static function pathPageBuilderDraft(string $surface, string $id): string
+    {
+        return '/admin/_surface/page-builder/' . rawurlencode($surface) . '/' . rawurlencode($id);
     }
 }

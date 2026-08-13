@@ -3427,7 +3427,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/admin-surface",
-                "reference": "340907d12961c69c235bb27d7cfd711225075f6e"
+                "reference": "ddb7fe0242702bf39e72f859dfc4c1921f3eb5fb"
             },
             "require": {
                 "php": ">=8.5",
@@ -3437,6 +3437,7 @@
                 "waaseyaa/audit": "^0.1.0-alpha.293",
                 "waaseyaa/entity": "^0.1.0-alpha.293",
                 "waaseyaa/foundation": "^0.1.0-alpha.293",
+                "waaseyaa/page-builder": "^0.1.0-alpha.293",
                 "waaseyaa/routing": "^0.1.0-alpha.293",
                 "waaseyaa/workflows": "^0.1.0-alpha.293"
             },
@@ -5525,11 +5526,12 @@
             "dist": {
                 "type": "path",
                 "url": "packages/page-builder",
-                "reference": "289691e6ce433e2d1f9a7c83a31c524b2a413c1e"
+                "reference": "3f6b1b59a0bb6cdf30444680516c236a545bcf9c"
             },
             "require": {
                 "opis/json-schema": "^2.6",
-                "php": ">=8.5"
+                "php": ">=8.5",
+                "waaseyaa/access": "^0.1.0-alpha.293"
             },
             "require-dev": {
                 "phpunit/phpunit": "^13.0"
@@ -5656,7 +5658,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/publishing",
-                "reference": "99e00b2a9c27ba42bd61811f08cf2bd6f6d05647"
+                "reference": "ef29de351075ceaf420699bf7162e4297f91ddb1"
             },
             "require": {
                 "php": ">=8.5",
@@ -5665,7 +5667,8 @@
                 "waaseyaa/database-legacy": "^0.1.0-alpha.293",
                 "waaseyaa/entity": "^0.1.0-alpha.293",
                 "waaseyaa/entity-storage": "^0.1.0-alpha.293",
-                "waaseyaa/foundation": "^0.1.0-alpha.293"
+                "waaseyaa/foundation": "^0.1.0-alpha.293",
+                "waaseyaa/page-builder": "^0.1.0-alpha.293"
             },
             "require-dev": {
                 "phpunit/phpunit": "^13.0",

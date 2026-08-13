@@ -205,6 +205,31 @@ universal mutation-token contract. A future opaque aggregate token may replace
 the current revision identifier behind the same gateway without giving either
 editor client a private persistence path.
 
+### 7.2 Shared authenticated wire surface
+
+The Admin Surface exposes one optional, application-registered page-builder
+surface under `/admin/_surface/page-builder/{surface}`. It has four operations:
+
+- `GET /definitions` returns the deterministic block, layout, and template
+  manifest;
+- `GET /{id}` returns the canonical document, document fingerprint, and entity
+  revision;
+- `POST /{id}/commands` accepts exactly one closed-vocabulary edit command plus
+  the observed fingerprint, entity revision, and idempotency key;
+- `POST /{id}/preview` issues a short-lived grant for exactly the submitted
+  entity revision and returns an application-generated same-origin preview URL.
+
+Every route requires an authenticated principal and the application-configured
+surface permission. Unknown surfaces and extra, missing, malformed, oversized,
+or unsupported fields fail closed. Wire commands are decoded by `page-builder`,
+not by either JavaScript client. Admin SPA and Anokii use these same routes and
+response shapes.
+
+The framework never guesses an application's preview route. Applications
+implement the preview URL generator, which receives only the exact entity,
+revision, expiry, and signature. The resulting URL must be an absolute
+same-origin path; schemes, hosts, and protocol-relative URLs are rejected.
+
 ## 8. Preview and rendering
 
 Published and preview rendering use the same semantic renderer bindings and
