@@ -142,9 +142,20 @@ final class SiteArtifactRenderer
 
             $root = dirname(__DIR__, 2);
             $runner = $root . '/vendor/bin/phpunit';
+            $waaseyaa = $root . '/vendor/bin/waaseyaa';
             if (!is_file($runner)) {
                 fwrite(STDERR, "site-verify: dependencies are not installed\n");
                 exit(2);
+            }
+            if (!is_file($waaseyaa)) {
+                fwrite(STDERR, "site-verify: Waaseyaa CLI is not installed\n");
+                exit(2);
+            }
+            $doctor = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($waaseyaa)
+                . ' site:doctor --strict --format=json --project-root=' . escapeshellarg($root);
+            passthru($doctor, $exitCode);
+            if ($exitCode !== 0) {
+                exit($exitCode);
             }
             $tests = [
                 'tests/Architecture/SiteContractTest.php',

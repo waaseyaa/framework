@@ -60,6 +60,37 @@ final class DoctorSuppressionSetTest extends TestCase
         self::assertContains('SITE900_INVALID_SUPPRESSION', array_column($wrongSource->findings, 'id'));
     }
 
+    public function test_provenance_and_generated_integrity_findings_cannot_be_suppressed(): void
+    {
+        $sourceDigest = str_repeat('b', 64);
+        $finding = new SiteDoctorFinding(
+            'SITE010_GENERATED_ARTIFACT_DRIFT',
+            FindingSeverity::Error,
+            '.waaseyaa/generated.json',
+            1,
+            'Generated metadata drifted.',
+            'Regenerate it.',
+            str_repeat('c', 64),
+        );
+        $yaml = sprintf(<<<'YAML'
+            schema: waaseyaa.site-doctor-suppressions
+            version: 1
+            suppressions:
+              - finding_id: SITE010_GENERATED_ARTIFACT_DRIFT
+                path: .waaseyaa/generated.json
+                line: 1
+                evidence_sha256: %s
+                source_sha256: %s
+                reason: Attempt to waive provenance.
+                expires: '2026-09-01'
+            YAML, $finding->evidenceDigest, $sourceDigest);
+
+        $result = new DoctorSuppressionSet()->apply($yaml, [$finding], $sourceDigest, new \DateTimeImmutable('2026-08-13'));
+
+        self::assertContains('SITE900_INVALID_SUPPRESSION', array_column($result->findings, 'id'));
+        self::assertContains('SITE010_GENERATED_ARTIFACT_DRIFT', array_column($result->findings, 'id'));
+    }
+
     private function finding(): SiteDoctorFinding
     {
         return new SiteDoctorFinding(

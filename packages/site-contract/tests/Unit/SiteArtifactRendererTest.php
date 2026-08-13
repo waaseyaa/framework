@@ -46,7 +46,8 @@ final class SiteArtifactRendererTest extends TestCase
         self::assertStringContainsString('waaseyaa:extension:start local-guidance', $first->artifacts['AGENTS.md']->content);
         self::assertStringContainsString('bin/maintenance/site-verify', $first->artifacts['AGENTS.md']->content);
         self::assertStringNotContainsString('github', strtolower(implode("\n", $first->contents())));
-        self::assertSame(0755, $first->artifacts['bin/maintenance/site-verify']->mode);
+        self::assertSame(0o755, $first->artifacts['bin/maintenance/site-verify']->mode);
+        self::assertStringContainsString('site:doctor --strict --format=json', $first->artifacts['bin/maintenance/site-verify']->content);
 
         $metadata = json_decode($first->artifacts['.waaseyaa/generated.json']->content, true, 512, JSON_THROW_ON_ERROR);
         self::assertSame('waaseyaa.generated', $metadata['schema']);

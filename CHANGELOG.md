@@ -9,8 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add the first provider-neutral strict site-doctor report and token-based
-  architecture boundary scanner for fresh-site convergence work in #2343.
+- Add the provider-neutral strict `site:doctor` command, deterministic repo-wide
+  application-source discovery, generated-artifact and Composer provenance
+  checks, exact expiring suppressions, canonical evidence reports, and strict
+  `site-verify` integration for fresh-site convergence work in #2343.
 
 - Allow the non-release, exact-main split workflow to mirror the API and audit
   packages alongside admin-surface for downstream integration verification.
