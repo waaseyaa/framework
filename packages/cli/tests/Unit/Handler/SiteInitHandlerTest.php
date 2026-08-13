@@ -134,6 +134,9 @@ final class SiteInitHandlerTest extends TestCase
         $manifest = new SiteManifestParser()->parse((string) file_get_contents($root . '/.waaseyaa/site.yaml'));
         self::assertSame('example-nation', $manifest->application->id);
         self::assertArrayHasKey('governed_authoring', $manifest->capabilities);
+        self::assertArrayHasKey('published_content', $manifest->recipes);
+        self::assertFileExists($root . '/src/Provider/PublishedContentServiceProvider.php');
+        self::assertFileExists($root . '/tests/Acceptance/PublishedContentRecipeTest.php');
         self::assertSame(hash_file('sha256', $root . '/composer.lock'), $manifest->framework->observedLockSha256);
     }
 

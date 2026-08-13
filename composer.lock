@@ -4087,7 +4087,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/cli",
-                "reference": "e3799ade6872f774df34aa71e3b6b33d1002ee57"
+                "reference": "728688cfc61e485a52dc0b53099624da06d53eef"
             },
             "require": {
                 "php": ">=8.5",
@@ -4105,13 +4105,17 @@
                 "waaseyaa/foundation": "^0.1.0-alpha.293",
                 "waaseyaa/groups": "^0.1.0-alpha.293",
                 "waaseyaa/http-client": "^0.1.0-alpha.293",
+                "waaseyaa/listing": "^0.1.0-alpha.293",
                 "waaseyaa/migration": "^0.1.0-alpha.293",
+                "waaseyaa/path": "^0.1.0-alpha.293",
                 "waaseyaa/plugin": "^0.1.0-alpha.293",
                 "waaseyaa/queue": "^0.1.0-alpha.293",
                 "waaseyaa/routing": "^0.1.0-alpha.293",
                 "waaseyaa/scheduler": "^0.1.0-alpha.293",
                 "waaseyaa/search": "^0.1.0-alpha.293",
+                "waaseyaa/seo": "^0.1.0-alpha.293",
                 "waaseyaa/site-contract": "^0.1.0-alpha.293",
+                "waaseyaa/ssr": "^0.1.0-alpha.293",
                 "waaseyaa/user": "^0.1.0-alpha.293",
                 "waaseyaa/workflows": "^0.1.0-alpha.293"
             },

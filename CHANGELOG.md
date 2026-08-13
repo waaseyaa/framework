@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Generate the first-party published-content golden-path recipe with typed bundle fields, access-aware Listings, canonical Path routes, sitemap and SEO integration, container wiring, Twig templates, and provider-neutral acceptance tests (#2343).
+
 - Add the provider-neutral strict `site:doctor` command, deterministic repo-wide
   application-source discovery, generated-artifact and Composer provenance
   checks, exact expiring suppressions, canonical evidence reports, and strict

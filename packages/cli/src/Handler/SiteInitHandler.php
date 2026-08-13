@@ -7,10 +7,10 @@ namespace Waaseyaa\CLI\Handler;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationCollisionException;
 use Waaseyaa\CLI\Site\Exception\SiteInitializationLockedException;
+use Waaseyaa\CLI\Site\SiteArtifactRendererFactory;
 use Waaseyaa\CLI\Site\SiteInitializationService;
 use Waaseyaa\CLI\Site\SiteManifestWizard;
 use Waaseyaa\SiteContract\Exception\SiteManifestValidationException;
-use Waaseyaa\SiteContract\Generation\SiteArtifactRenderer;
 use Waaseyaa\SiteContract\SiteManifestParser;
 
 /** @api */
@@ -44,7 +44,7 @@ final readonly class SiteInitHandler
             }
 
             $manifest = new SiteManifestParser()->parse($yaml, $answers !== '' ? $answers : '<interactive>');
-            $site = new SiteArtifactRenderer()->render($manifest);
+            $site = SiteArtifactRendererFactory::create()->render($manifest);
             $service = new SiteInitializationService($projectRoot);
             if ($dryRun) {
                 $plan = $service->initialize($site, true);

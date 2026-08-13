@@ -93,6 +93,21 @@ final class SiteArtifactRendererTest extends TestCase
         }
     }
 
+    #[Test]
+    public function itRefusesAnUninstalledRecipeInsteadOfSilentlyIgnoringIt(): void
+    {
+        $manifest = str_replace(
+            "recipes: []",
+            "recipes:\n  - id: private_fork\n    version: 1\n    capability: published_content\n    artifact_digest: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            str_replace('id: governed_authoring', 'id: published_content', $this->manifest()),
+        );
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Unsupported first-party recipe: private_fork');
+
+        new SiteArtifactRenderer()->render(new SiteManifestParser()->parse($manifest));
+    }
+
     private function manifest(): string
     {
         return <<<'YAML'
