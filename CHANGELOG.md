@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **governed page builder (#2344):** Add the first client-neutral page-builder package with strict versioned layout documents, deterministic serialization, exact-version block/layout/template definitions, and fail-closed JSON Schema validation as the shared substrate for Admin SPA and Anokii authoring.
 
+- **page-builder edit commands (#2344):** Add fingerprint-guarded, stable-ID commands for adding, duplicating, configuring, moving, and removing blocks and sections, including content-preserving layout changes and typed invalid/stale failures.
+
 ### Fixed
 
 - **random-order fixture cleanup (#2334):** Make disposable drift-detector Git fixture cleanup idempotent when Git object paths disappear during teardown, preventing harmless filesystem races from failing the architecture random-order gate.
