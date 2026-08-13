@@ -125,6 +125,29 @@ describe('PageBuilderWorkspace', () => {
     expect(refreshPreviewMock).toHaveBeenCalledOnce()
   })
 
+  it('uses the governed rich-text widget when the block schema requests it', async () => {
+    const richTextDefinitions = structuredClone(definitions)
+    richTextDefinitions.blocks[0]!.config_schema.properties = {
+      body: { type: 'string', title: 'Body', 'x-widget': 'richtext' },
+    }
+    definitionsRef.value = richTextDefinitions
+    const wrapper = await mountWorkspace()
+    refreshPreviewMock.mockClear()
+
+    const editor = wrapper.get('[contenteditable="true"]')
+    editor.element.innerHTML = '<p>Boozhoo</p>'
+    await editor.trigger('input')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(applyMock).toHaveBeenCalledWith({
+      type: 'configure_block',
+      block_id: 'blk_intro',
+      config: { body: '<p>Boozhoo</p>' },
+    })
+    expect(refreshPreviewMock).toHaveBeenCalledOnce()
+  })
+
   it('adds a registered block without allowing free-form markup or renderer names', async () => {
     const wrapper = await mountWorkspace()
     refreshPreviewMock.mockClear()
