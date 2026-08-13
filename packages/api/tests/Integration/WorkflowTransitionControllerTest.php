@@ -14,6 +14,9 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Controller\WorkflowTransitionController;
+use Waaseyaa\Api\Audit\AuditEventResource;
+use Waaseyaa\Api\Audit\AuditQueryDto;
+use Waaseyaa\Api\Audit\AuditQueryReadModelInterface;
 use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\ConfigInterface;
 use Waaseyaa\Entity\Concurrency\EntityMutationToken;
@@ -138,6 +141,74 @@ final class WorkflowTransitionControllerTest extends TestCase
         $this->assertSame('draft', $body['meta']['workflow_state']);
         $this->assertSame($entity->mutationToken()?->toOpaqueString(), $body['meta']['mutation_token']);
         $this->assertSame($entity->mutationToken()?->toStrongEtag(), $response->headers->get('ETag'));
+        $this->assertSame([], $body['meta']['workflow_history']);
+    }
+
+    #[Test]
+    public function getTransitionsReturnsCanonicalAllowedAuditHistoryForTheExactEntity(): void
+    {
+        $auditQuery = new class () implements AuditQueryReadModelInterface {
+            public ?AuditQueryDto $received = null;
+
+            public function findBy(AuditQueryDto $query): iterable
+            {
+                $this->received = $query;
+
+                yield new AuditEventResource(
+                    id: 3,
+                    uuid: 'event-3',
+                    eventKind: 'workflow.transition',
+                    accountUid: 9,
+                    entityType: 'wf_article',
+                    entityUuid: null,
+                    subjectUri: 'entity:wf_article/7',
+                    outcome: 'allowed',
+                    severity: 'notice',
+                    attributes: ['transition' => 'submit_for_review', 'from' => 'draft', 'to' => 'review'],
+                    createdAt: '2026-08-13 14:00:00',
+                );
+                // Denials remain visible only on the privileged audit surface.
+                yield new AuditEventResource(
+                    id: 2,
+                    uuid: 'event-2',
+                    eventKind: 'workflow.transition',
+                    accountUid: 8,
+                    entityType: 'wf_article',
+                    entityUuid: null,
+                    subjectUri: 'entity:wf_article/7',
+                    outcome: 'denied',
+                    severity: 'warning',
+                    attributes: ['transition' => 'publish', 'from' => 'review', 'to' => 'published'],
+                    createdAt: '2026-08-13 13:00:00',
+                );
+            }
+
+            public function count(AuditQueryDto $query): int
+            {
+                return 2;
+            }
+        };
+
+        [$controller, $repository, , $account] = $this->boundWorld(
+            denyView: false,
+            permissions: ['use editorial transition submit_for_review'],
+            auditQuery: $auditQuery,
+        );
+        $repository->addEntity(new FixtureWorkflowEntity('7', 'draft'));
+        $request = $this->requestWithAccount('GET', '/api/wf_article/7/workflow/transitions', $account);
+
+        $body = $this->decode($controller->transitions($request, self::ENTITY_TYPE_ID, '7'));
+
+        $this->assertSame('entity:wf_article/7', $auditQuery->received?->subjectUri);
+        $this->assertSame(['workflow.transition'], $auditQuery->received?->kinds);
+        $this->assertSame(50, $auditQuery->received?->limit);
+        $this->assertSame([[
+            'transition' => 'submit_for_review',
+            'from' => 'draft',
+            'to' => 'review',
+            'uid' => '9',
+            'at' => '2026-08-13 14:00:00',
+        ]], $body['meta']['workflow_history']);
     }
 
     #[Test]
@@ -396,7 +467,11 @@ final class WorkflowTransitionControllerTest extends TestCase
     /**
      * @return array{0: WorkflowTransitionController, 1: FixtureWorkflowEntityRepository, 2: TransitionService, 3: AccountInterface}
      */
-    private function boundWorld(bool $denyView, array $permissions = []): array
+    private function boundWorld(
+        bool $denyView,
+        array $permissions = [],
+        ?AuditQueryReadModelInterface $auditQuery = null,
+    ): array
     {
         $entityType = $this->entityType();
         $repository = new FixtureWorkflowEntityRepository();
@@ -410,7 +485,12 @@ final class WorkflowTransitionControllerTest extends TestCase
 
         $accessHandler = new EntityAccessHandler([$this->accessPolicy($denyView)]);
         $account = $this->account(1, $permissions);
-        $controller = new WorkflowTransitionController($entityTypeManager, $accessHandler, $transitionService);
+        $controller = new WorkflowTransitionController(
+            $entityTypeManager,
+            $accessHandler,
+            $transitionService,
+            auditQuery: $auditQuery,
+        );
 
         return [$controller, $repository, $transitionService, $account];
     }

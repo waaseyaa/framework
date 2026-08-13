@@ -50,6 +50,20 @@ final readonly class ContentTypeDescriptor {
 
 ### ContentPublisher (the service — the only mutation door)
 
+`ContentPublisher` also implements the internal composite-authoring mutation
+seam used by the page-builder publishing adapter. The adapter may project only
+its configured canonical layout field, and it must forward the caller's
+observed entity revision and idempotency key unchanged. Admin SPA and Anokii
+therefore share the same publication authority; neither client receives a
+direct repository save path.
+
+Editor preview uses the additive exact-revision grant. Its HMAC input is
+domain-separated from legacy working-copy grants and binds entity type, entity
+identity, positive revision identity, and expiry. `ContentPublisher` verifies
+that the requested revision is still the working copy before issuing and
+auditing the grant. The application preview route must load that exact revision;
+loading whichever working copy happens to be current is not compliant.
+
 All mutations require: (1) the descriptor's `publishCapability` on the acting principal (`AccountInterface::hasPermission`), (2) the entity-level gate (`EntityAccessHandler` create/update) — defense in depth, (3) a non-empty **idempotency key**, (4) validation + sanitization pass. Every mutation stamps `revision_log` and cuts a revision (repository semantics); actor comes from the ambient `AccountContextInterface` (already scoped by the MCP endpoint).
 
 Publisher reads and mutation responses expose only a closed projection fixed by the descriptor: structural identity, publication status, slug, and the declared writable fields. First-party entities are projected through an internal reader after the publish capability and applicable entity gate have succeeded, so publishing does not require an unrelated broad ambient field-read permission such as `administer nodes`. Callers cannot choose additional fields. Third-party entity implementations retain the canonical guarded-accessor fallback.

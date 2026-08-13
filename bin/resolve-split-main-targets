@@ -17,6 +17,11 @@ $allowlist = [
     'entity' => ['local' => 'packages/entity', 'remote' => 'entity'],
     'entity-storage' => ['local' => 'packages/entity-storage', 'remote' => 'entity-storage'],
     'routing' => ['local' => 'packages/routing', 'remote' => 'routing'],
+    'api' => ['local' => 'packages/api', 'remote' => 'api'],
+    'audit' => ['local' => 'packages/audit', 'remote' => 'audit'],
+    'page-builder' => ['local' => 'packages/page-builder', 'remote' => 'page-builder'],
+    'publishing' => ['local' => 'packages/publishing', 'remote' => 'publishing'],
+    'admin-surface' => ['local' => 'packages/admin-surface', 'remote' => 'admin-surface'],
 ];
 
 $selection = $argv[1] ?? '';

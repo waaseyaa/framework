@@ -7,14 +7,25 @@ import { useEntity } from '~/composables/useEntity'
 const route = useRoute()
 const { t, entityLabel: translateEntityLabel } = useLanguage()
 const { hasCapability } = useAdmin()
-const { remove } = useEntity()
+const { get, remove } = useEntity()
 
 const entityType = computed(() => route.params.entityType as string)
 const entityId = computed(() => route.params.id as string)
 const { schema, fetch: fetchSchema } = useSchema(entityType.value)
-onMounted(() => fetchSchema({ id: entityId.value }))
+const entityBundle = ref<string | null>(null)
+onMounted(async () => {
+  const [, entityResult] = await Promise.allSettled([
+    fetchSchema({ id: entityId.value }),
+    get(entityType.value, entityId.value),
+  ])
+  if (entityResult.status === 'fulfilled') {
+    const bundle = entityResult.value.attributes?.type
+    entityBundle.value = typeof bundle === 'string' ? bundle : null
+  }
+})
 const entityLabel = computed(() => translateEntityLabel(entityType.value, schema.value?.title ?? entityType.value))
 const workflowBound = computed(() => schema.value?.['x-workflow']?.bound === true)
+const pageBuilderAvailable = computed(() => entityType.value === 'node' && entityBundle.value === 'page')
 const { appName } = useAdminConfig()
 
 const mode = ref<'view' | 'edit'>('view')
@@ -77,6 +88,14 @@ async function confirmDelete() {
           :entity-id="entityId"
           @transitioned="onTransitioned"
         />
+        <NuxtLink
+          v-if="pageBuilderAvailable"
+          :to="`/page-builder/page/${encodeURIComponent(entityId)}`"
+          class="btn btn-primary"
+          data-testid="detail-page-builder"
+        >
+          {{ t('page_builder_open') }}
+        </NuxtLink>
         <button
           v-if="mode === 'view'"
           class="btn btn-primary"

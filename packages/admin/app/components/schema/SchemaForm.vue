@@ -9,6 +9,8 @@ import { normalizeValidationFailure } from './validationErrors'
 const props = defineProps<{
   entityType: string
   entityId?: string
+  initialBundle?: string
+  initialValues?: Record<string, any>
 }>()
 
 const emit = defineEmits<{
@@ -85,10 +87,25 @@ onMounted(async () => {
       loadError.value = e?.data?.errors?.[0]?.detail ?? e?.message ?? t('error_loading_entity')
     }
   } else {
-    // Create mode: only the schema is needed; seed defaults from it.
+    // Create mode: load the generic schema first so its bundle key remains the
+    // authority, then resolve an explicitly requested bundle before rendering.
+    // This lets role-focused shells open the exact shared editor for a known
+    // content type without duplicating any field/widget implementation.
     await fetchSchema()
+    const requestedBundleKey = schema.value?.['x-bundle-key']
+    const requestedBundle = props.initialBundle ?? (requestedBundleKey
+      ? props.initialValues?.[requestedBundleKey]
+      : undefined)
+    if (typeof requestedBundle === 'string' && requestedBundle !== '') {
+      await fetchSchema({ bundle: requestedBundle })
+    }
     if (schema.value) {
-      formData.value = valuesForSchema(schema.value)
+      formData.value = valuesForSchema(schema.value, {
+        ...(props.initialValues ?? {}),
+        ...(requestedBundleKey && requestedBundle
+          ? { [requestedBundleKey]: requestedBundle }
+          : {}),
+      })
     }
   }
   loading.value = false

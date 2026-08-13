@@ -7,11 +7,13 @@ namespace Waaseyaa\Publishing\Preview;
 /**
  * Short-lived signed preview grants for unpublished content.
  *
- * The signature is HMAC-SHA256 over `type|id|expiresAt` with a
+ * Legacy signatures are HMAC-SHA256 over `type|id|expiresAt`. Governed editor
+ * previews use a domain-separated signature over type, id, exact revision, and
+ * expiry. Both use a
  * purpose-derived secret (pass `ApplicationSecret::derive('publishing.preview')`
  * or an app-owned secret — never a raw shared credential). The package ships
  * no HTTP route: the app wires a preview route, verifies the grant, renders
- * the WORKING COPY through its real layout, and MUST mark the response
+ * the selected revision through its real layout, and MUST mark the response
  * `noindex, nofollow` (header and meta). Verification is constant-time and
  * an expired grant never verifies.
  *
@@ -60,8 +62,57 @@ final readonly class PreviewLinkService
         return hash_equals($this->sign($entityTypeId, $entityId, $expiresAt), $signature);
     }
 
+    public function issueRevision(
+        string $entityTypeId,
+        string $entityId,
+        int $revisionId,
+        int $ttlSeconds = self::DEFAULT_TTL_SECONDS,
+    ): RevisionPreviewToken {
+        if ($revisionId < 1) {
+            throw new \InvalidArgumentException('Preview revision must be positive.');
+        }
+        if ($ttlSeconds < 1) {
+            throw new \InvalidArgumentException('Preview TTL must be positive.');
+        }
+        $expiresAt = ($this->clock)() + $ttlSeconds;
+
+        return new RevisionPreviewToken(
+            $entityTypeId,
+            $entityId,
+            $revisionId,
+            $expiresAt,
+            $this->signRevision($entityTypeId, $entityId, $revisionId, $expiresAt),
+        );
+    }
+
+    public function verifyRevision(
+        string $entityTypeId,
+        string $entityId,
+        int $revisionId,
+        int $expiresAt,
+        string $signature,
+    ): bool {
+        if ($revisionId < 1 || $expiresAt <= ($this->clock)()) {
+            return false;
+        }
+
+        return hash_equals(
+            $this->signRevision($entityTypeId, $entityId, $revisionId, $expiresAt),
+            $signature,
+        );
+    }
+
     private function sign(string $entityTypeId, string $entityId, int $expiresAt): string
     {
         return hash_hmac('sha256', $entityTypeId . '|' . $entityId . '|' . $expiresAt, $this->secret);
+    }
+
+    private function signRevision(string $entityTypeId, string $entityId, int $revisionId, int $expiresAt): string
+    {
+        return hash_hmac(
+            'sha256',
+            'revision-v1|' . $entityTypeId . '|' . $entityId . '|' . $revisionId . '|' . $expiresAt,
+            $this->secret,
+        );
     }
 }
