@@ -60,6 +60,21 @@ final class ResolveSplitMainTargetsTest extends TestCase
     }
 
     #[Test]
+    public function resolves_the_shared_workflow_history_delivery_set(): void
+    {
+        [$exit, $stdout] = $this->runScript('api,audit,admin-surface');
+
+        self::assertSame(0, $exit, $stdout);
+        self::assertSame([
+            'include' => [
+                ['local' => 'packages/api', 'remote' => 'api'],
+                ['local' => 'packages/audit', 'remote' => 'audit'],
+                ['local' => 'packages/admin-surface', 'remote' => 'admin-surface'],
+            ],
+        ], json_decode($stdout, true, flags: JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
     public function rejects_an_empty_selection(): void
     {
         [$exit, , $stderr] = $this->runScript(' , ');
