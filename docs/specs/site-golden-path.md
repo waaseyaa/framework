@@ -64,6 +64,13 @@ The top-level manifest binds:
 - selected generated recipes and their artifact digests; and
 - the provider-neutral verification command.
 
+When governed visual authoring is active, the manifest also declares the
+authoritative revisionable page bundle, layout field, block/layout/template
+registry, preview route owner, editorial permissions, and every enabled client
+surface. `admin_spa` and `anokii` are clients of one page-builder service and
+wire contract; they can never select different page stores, validators, or
+publication paths.
+
 Manifest migration is explicit and produces a reviewable diff. Runtime boot
 never silently rewrites it.
 
@@ -128,6 +135,33 @@ The first subscription recipe generates:
 
 The recipe never constructs raw PDO, performs runtime DDL, or sends mail merely
 because the package is installed.
+
+### Governed visual authoring
+
+The governed-authoring recipe composes the existing `waaseyaa/page-builder`
+capability rather than generating a site-specific builder. It generates:
+
+- the layout field on the declared revisionable page bundle;
+- an application-owned, versioned block/layout/template registry;
+- semantic public renderers bound to application design tokens;
+- one authenticated page-builder surface, exact-revision preview route, and
+  ordinary revision/workflow persistence path;
+- the generic Waaseyaa Admin SPA client and, when selected, an Anokii module
+  adapter that opens the same drafts and builder workspace;
+- role-scoped content inventory actions for pages and typed high-volume
+  Updates, Events, Jobs, and Announcements; and
+- parity, keyboard, accessibility, concurrency, preview, history, and
+  restore-as-new-draft acceptance tests.
+
+Drupal Canvas and Drupal core are the architecture benchmark for typed
+content, governed components, media, revisions, moderation, and permissions.
+Lovable is the interaction benchmark for direct selection against the real
+preview, immediate feedback, responsive previews, and design-system
+constraints. Neither product is a dependency or runtime authority.
+
+Free-form HTML, CSS, JavaScript, arbitrary class names, and client-owned save
+paths are not generated. A draft saved from Admin SPA must open byte-identically
+from Anokii and vice versa.
 
 ## Strict diagnostics
 
@@ -214,7 +248,9 @@ portable report.
    acceptance tests.
 5. **WP5, subscription:** private storage/migration/privacy/Mail/Queue recipe
    and generated acceptance tests.
-6. **WP6, reference consumer:** clean create-project fixture, offline
+6. **WP6, governed authoring:** page-builder composition, Admin SPA and optional
+   Anokii client parity, exact-theme preview, and generated role-based tests.
+7. **WP7, reference consumer:** clean create-project fixture, offline
    regeneration, strict verification, upgrade continuity, and CI adapters.
 
 Each work package is one issue-traceable PR with a red boundary test before
@@ -228,6 +264,12 @@ implementation. No work package may weaken strict mode to make a fixture pass.
   unchanged.
 - Published-content and subscription recipes generate complete supported
   integrations and their acceptance suites.
+- Governed authoring generates one shared page authority. Admin SPA and an
+  enabled Anokii adapter open the same draft, preview revision, history, and
+  workflow path; removing either client leaves the content model unchanged.
+- A communications role can create, find, duplicate, edit, preview, revise,
+  and publish pages, updates, events, jobs, and announcements without raw HTML
+  or developer intervention.
 - An agent following only generated `AGENTS.md` uses Listings for a pageable
   index and cannot pass strict verification after substituting raw PDO/runtime
   DDL or an internal sitemap route.
