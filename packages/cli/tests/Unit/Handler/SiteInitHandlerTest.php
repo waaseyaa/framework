@@ -114,7 +114,7 @@ final class SiteInitHandlerTest extends TestCase
         $root = $this->root();
         file_put_contents($root . '/composer.lock', "{}\n");
         $lines = ['Example Nation', 'example-nation', 'APP_ORIGIN', 'page', '/{slug}', 'yes', 'no'];
-        $stdin = new class($lines) {
+        $stdin = new class ($lines) {
             /** @param list<string> $lines */
             public function __construct(private array $lines) {}
             public function readLine(): ?string
@@ -146,7 +146,7 @@ final class SiteInitHandlerTest extends TestCase
         $root = $this->root();
         file_put_contents($root . '/composer.lock', "{}\n");
         $lines = ['Example Nation', 'example-nation', 'APP_ORIGIN', 'page', '/{slug}', 'yes', 'yes', 'P1Y'];
-        $stdin = new class($lines) {
+        $stdin = new class ($lines) {
             /** @param list<string> $lines */
             public function __construct(private array $lines) {}
             public function readLine(): ?string
@@ -166,6 +166,10 @@ final class SiteInitHandlerTest extends TestCase
         $manifest = new SiteManifestParser()->parse((string) file_get_contents($root . '/.waaseyaa/site.yaml'));
         self::assertArrayHasKey('subscription', $manifest->capabilities);
         self::assertSame('P1Y', $manifest->personalDataStores['subscriber']->retention);
+        self::assertArrayHasKey('subscription', $manifest->recipes);
+        self::assertFileExists($root . '/migrations/2026_08_13_000001_create_subscriber_table.php');
+        self::assertFileExists($root . '/src/Provider/SubscriptionServiceProvider.php');
+        self::assertFileExists($root . '/tests/Acceptance/SubscriptionRecipeTest.php');
     }
 
     private function tester(string $root, ?object $stdin = null): CliTester
@@ -173,7 +177,7 @@ final class SiteInitHandlerTest extends TestCase
         $provider = new SiteServiceProvider(projectRoot: $root);
         $command = iterator_to_array($provider->consoleCommands())[0];
         $handler = new SiteInitHandler($root);
-        $container = new class($handler) implements ContainerInterface {
+        $container = new class ($handler) implements ContainerInterface {
             public function __construct(private readonly SiteInitHandler $handler) {}
             public function get(string $id): mixed
             {
@@ -191,7 +195,7 @@ final class SiteInitHandlerTest extends TestCase
     private function root(): string
     {
         $root = sys_get_temp_dir() . '/waaseyaa_site_init_handler_' . bin2hex(random_bytes(8));
-        mkdir($root, 0777, true);
+        mkdir($root, 0o777, true);
         $this->roots[] = $root;
 
         return $root;

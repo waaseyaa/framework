@@ -4087,7 +4087,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/cli",
-                "reference": "728688cfc61e485a52dc0b53099624da06d53eef"
+                "reference": "8d84112bb85f1780ab6d9fcdb893a32977e70c74"
             },
             "require": {
                 "php": ">=8.5",
@@ -4106,6 +4106,7 @@
                 "waaseyaa/groups": "^0.1.0-alpha.293",
                 "waaseyaa/http-client": "^0.1.0-alpha.293",
                 "waaseyaa/listing": "^0.1.0-alpha.293",
+                "waaseyaa/mail": "^0.1.0-alpha.293",
                 "waaseyaa/migration": "^0.1.0-alpha.293",
                 "waaseyaa/path": "^0.1.0-alpha.293",
                 "waaseyaa/plugin": "^0.1.0-alpha.293",

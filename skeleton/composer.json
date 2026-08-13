@@ -47,6 +47,7 @@
         "merge-plugin": {
             "include": [
                 "composer.site-recipes.json",
+                "composer.subscription-recipe.json",
                 "composer.local.json"
             ],
             "prepend-repositories": true

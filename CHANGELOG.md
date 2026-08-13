@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Generate the first-party subscription golden-path recipe with tracked private
+  storage, normalized and validated identifiers, durable consent evidence,
+  hashed unsubscribe tokens, export/deletion/retention operations, and Mail /
+  Queue delivery that remains disabled until unsubscribe is proven (#2343).
+
 - Generate the first-party published-content golden-path recipe with typed bundle fields, access-aware Listings, canonical Path routes, sitemap and SEO integration, container wiring, Twig templates, and provider-neutral acceptance tests (#2343).
 
 - Add the provider-neutral strict `site:doctor` command, deterministic repo-wide
