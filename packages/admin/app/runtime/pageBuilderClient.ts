@@ -20,7 +20,9 @@ export class PageBuilderClient {
   }
 
   draft(surface: string, id: string): Promise<PageBuilderSurfaceResult<PageBuilderDraft>> {
-    return this.fetch(adminSurfaceFetchUrl(this.appBase, 'admin_surface.page_builder.draft', { surface, id }))
+    return this.fetch(adminSurfaceFetchUrl(this.appBase, 'admin_surface.page_builder.draft', { surface, id }), {
+      cache: 'no-store',
+    })
   }
 
   command(
