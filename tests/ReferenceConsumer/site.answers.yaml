@@ -1,0 +1,67 @@
+schema: waaseyaa.site
+version: 1
+generator_version: 1
+application:
+  id: sheguiandah-reference
+  name: Sheguiandah First Nation
+  canonical_origin:
+    config_key: APP_ORIGIN
+framework:
+  revision_policy: exact-lock
+  observed_lock_sha256: 0000000000000000000000000000000000000000000000000000000000000000
+content_types:
+  - {id: page, canonical_route: '/{slug}'}
+  - {id: update, canonical_route: '/updates/{slug}'}
+  - {id: event, canonical_route: '/events/{slug}'}
+  - {id: job, canonical_route: '/jobs/{slug}'}
+  - {id: announcement, canonical_route: '/announcements/{slug}'}
+capabilities:
+  - id: published_content
+    state: active
+    package: waaseyaa/listing
+    provider: site.published_content
+    configuration_authority: .waaseyaa/site.yaml#/capabilities/published_content
+    public_routes: ['/{slug}', '/updates/{slug}', '/events/{slug}', '/jobs/{slug}', '/announcements/{slug}']
+    data_classification: public
+    lifecycle: [create, revise, publish, unpublish, archive]
+    verification: [tests/Acceptance/PublishedContentRecipeTest.php]
+  - id: governed_authoring
+    state: active
+    package: waaseyaa/page-builder
+    provider: site.page_builder
+    configuration_authority: .waaseyaa/site.yaml#/capabilities/governed_authoring
+    public_routes: []
+    data_classification: public
+    lifecycle: [create, revise, preview, publish, restore]
+    verification: [tests/Acceptance/GovernedAuthoringRecipeTest.php]
+  - id: subscription
+    state: active
+    package: waaseyaa/database-legacy
+    provider: site.subscription
+    configuration_authority: .waaseyaa/site.yaml#/capabilities/subscription
+    public_routes: ['/subscribe', '/unsubscribe']
+    data_classification: personal
+    lifecycle: [consent, export, unsubscribe, delete, retain]
+    verification: [tests/Acceptance/SubscriptionRecipeTest.php]
+personal_data_stores:
+  - id: subscriber
+    classification: personal
+    consent_operation: subscriber:consent
+    retention: P2Y
+    export_operation: subscriber:export
+    deletion_operation: subscriber:delete
+recipes:
+  - id: published_content
+    version: 1
+    capability: published_content
+    artifact_digest: 602bdef1b7d4cf71b7ce11d3d3f1c0c13af016fd89f02d49a32f78f55cdef93d
+  - id: governed_authoring
+    version: 1
+    capability: governed_authoring
+    artifact_digest: e0fdb0f43eeb654b790ae4965e7fdb1719abf4c0c510fc8a2f20df7e11565eaa
+  - id: subscription
+    version: 1
+    capability: subscription
+    artifact_digest: acd227cf817934592f8d2ee7a06ce0b201ea470fa5706f156af0c46fb2ae0257
+verification:
+  command: bin/maintenance/site-verify

@@ -6,6 +6,7 @@ namespace Waaseyaa\CLI\Site;
 
 use Symfony\Component\Yaml\Yaml;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
+use Waaseyaa\CLI\Site\Recipe\GovernedAuthoringRecipe;
 use Waaseyaa\CLI\Site\Recipe\PublishedContentRecipe;
 use Waaseyaa\CLI\Site\Recipe\SubscriptionRecipe;
 
@@ -44,7 +45,8 @@ final class SiteManifestWizard
             'lifecycle' => ['create', 'revise', 'publish', 'unpublish', 'archive'],
             'verification' => ['tests/Acceptance/SiteGoldenPathTest.php'],
         ]];
-        $capabilities[] = $io->confirm('Will editors visually compose governed page layouts?', true)
+        $governedAuthoring = $io->confirm('Will editors visually compose governed page layouts?', true);
+        $capabilities[] = $governedAuthoring
             ? [
                 'id' => 'governed_authoring',
                 'state' => 'active',
@@ -89,6 +91,14 @@ final class SiteManifestWizard
             'capability' => 'published_content',
             'artifact_digest' => PublishedContentRecipe::digest(),
         ]];
+        if ($governedAuthoring) {
+            $recipes[] = [
+                'id' => 'governed_authoring',
+                'version' => GovernedAuthoringRecipe::VERSION,
+                'capability' => 'governed_authoring',
+                'artifact_digest' => GovernedAuthoringRecipe::digest(),
+            ];
+        }
         if ($personalDataStores !== []) {
             $recipes[] = [
                 'id' => 'subscription',

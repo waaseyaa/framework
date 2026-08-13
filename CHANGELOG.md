@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Prove the #2343 golden path from a clean `composer create-project` consumer,
+  including the complete governed authoring, published-content, and
+  subscription recipes; byte-identical offline regeneration; strict
+  diagnostics; framework-lock update continuity; and local plus hosted CI
+  adapters that share one provider-neutral verification command.
+
 - Generate the first-party governed-authoring golden-path recipe with one
   revisioned page-layout authority shared by Admin SPA and Anokii, governed
   block/layout definitions, exact-revision preview, history and guarded

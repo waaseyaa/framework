@@ -34,6 +34,7 @@
     },
     "scripts": {
         "audit-site": "./bin/maintenance/waaseyaa-audit-site",
+        "site-verify": ".ci/site-verify",
         "dev": [
             "Composer\\Config::disableProcessTimeout",
             "@php vendor/bin/waaseyaa dev"

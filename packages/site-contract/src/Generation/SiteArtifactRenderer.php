@@ -159,7 +159,8 @@ final class SiteArtifactRenderer
                     $root = dirname(__DIR__, 2);
                     $manifest = new SiteManifestParser()->parse((string) file_get_contents($root . '/.waaseyaa/site.yaml'));
                     self::assertSame('bin/maintenance/site-verify', $manifest->verificationCommand);
-                    self::assertFileIsExecutable($root . '/' . $manifest->verificationCommand);
+                    self::assertFileExists($root . '/' . $manifest->verificationCommand);
+                    self::assertTrue(is_executable($root . '/' . $manifest->verificationCommand));
                 }
             }
             PHP;
