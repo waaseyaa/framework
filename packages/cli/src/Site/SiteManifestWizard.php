@@ -7,6 +7,7 @@ namespace Waaseyaa\CLI\Site;
 use Symfony\Component\Yaml\Yaml;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\CLI\Site\Recipe\PublishedContentRecipe;
+use Waaseyaa\CLI\Site\Recipe\SubscriptionRecipe;
 
 /** @api */
 final class SiteManifestWizard
@@ -61,8 +62,14 @@ final class SiteManifestWizard
         if ($io->confirm('Will this application collect personal information?', false)) {
             $capabilities[] = [
                 'id' => 'subscription',
-                'state' => 'planned',
-                'note' => 'Generate and review the private subscription recipe before activation.',
+                'state' => 'active',
+                'package' => 'waaseyaa/database-legacy',
+                'provider' => 'site.subscription',
+                'configuration_authority' => '.waaseyaa/site.yaml#/capabilities/subscription',
+                'public_routes' => ['/subscribe', '/unsubscribe'],
+                'data_classification' => 'personal',
+                'lifecycle' => ['consent', 'export', 'unsubscribe', 'delete', 'retain'],
+                'verification' => ['tests/Acceptance/SubscriptionRecipeTest.php'],
             ];
             $personalDataStores[] = [
                 'id' => 'subscriber',
@@ -74,6 +81,21 @@ final class SiteManifestWizard
             ];
         } else {
             $capabilities[] = ['id' => 'subscription', 'state' => 'not_needed', 'reason' => 'No personal-information subscription is required.'];
+        }
+
+        $recipes = [[
+            'id' => 'published_content',
+            'version' => PublishedContentRecipe::VERSION,
+            'capability' => 'published_content',
+            'artifact_digest' => PublishedContentRecipe::digest(),
+        ]];
+        if ($personalDataStores !== []) {
+            $recipes[] = [
+                'id' => 'subscription',
+                'version' => SubscriptionRecipe::VERSION,
+                'capability' => 'subscription',
+                'artifact_digest' => SubscriptionRecipe::digest(),
+            ];
         }
 
         return Yaml::dump([
@@ -92,12 +114,7 @@ final class SiteManifestWizard
             'content_types' => $contentTypes,
             'capabilities' => $capabilities,
             'personal_data_stores' => $personalDataStores,
-            'recipes' => [[
-                'id' => 'published_content',
-                'version' => PublishedContentRecipe::VERSION,
-                'capability' => 'published_content',
-                'artifact_digest' => PublishedContentRecipe::digest(),
-            ]],
+            'recipes' => $recipes,
             'verification' => ['command' => 'bin/maintenance/site-verify'],
         ], 20, 2, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK);
     }
