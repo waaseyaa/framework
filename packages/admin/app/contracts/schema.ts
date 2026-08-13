@@ -15,6 +15,8 @@ export interface SchemaProperty {
   'x-required'?: boolean
   'x-enum-labels'?: Record<string, string>
   'x-target-type'?: string
+  /** Additional exact-match filters applied by governed entity pickers. */
+  'x-target-filter'?: Record<string, string>
   'x-access-restricted'?: boolean
   'x-source-field'?: string
   'x-list-display'?: boolean

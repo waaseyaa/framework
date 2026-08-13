@@ -1,6 +1,7 @@
 # CLI Console
 
 <!-- Spec reviewed 2026-08-09 - issue #2322: HealthSchemaServiceProvider registers tenancy:repair-translation-peers <entity_type> with --dry-run and --json through CommunityTranslationPeerRepairHandler. It is a normal fully booted operator command, never a pre-boot exception, and performs no mutation unless invoked without --dry-run. -->
+<!-- Spec reviewed 2026-08-13 - issue #2343 WP2: SiteServiceProvider registers the ordinary fully booted `site:init` command. Interactive mode asks plain-language product questions; automation supplies a complete `--answers` document. `--dry-run` is read-only and `--yes` is required for non-interactive publication. The handler delegates deterministic rendering and lock/journal/recovery authority to SiteInitializationService; it does not bypass the provider-neutral contract or create a pre-boot command. -->
 <!-- Spec reviewed 2026-08-08 - Pre-boot maintenance commands: `ConsoleKernel` recognizes exactly `maintenance:on`, `maintenance:off`, and `maintenance:status` before framework or application boot. It loads environment settings, constructs the canonical maintenance commands directly from `MaintenanceSettings` and `MaintenanceState`, and performs only maintenance-flag I/O. These commands must not open a database, run migrations or entity-schema reconciliation, boot providers, or activate field access. They therefore remain available while the application database is missing, stale, or intentionally transitioning during a deployment. All other commands retain normal provider discovery and full console boot. Acceptance: ConsoleKernelTest. -->
 <!-- Spec reviewed 2026-08-08 - Anokii boundary remediation: the canonical `db:init` command factory is reusable by the restricted console bootstrap, allowing schema initialization without booting application providers. Command options and normal provider discovery remain unchanged. -->
 
@@ -80,6 +81,18 @@ not bypass authority or deployment preflight.
 active generation, sync path, and selector provenance. They do not print secret
 values. An unavailable or divergent authority is a boot/composition failure,
 not a diagnostic warning.
+
+## Site initialization
+
+`SiteServiceProvider` registers `site:init [--answers=PATH] [--project-root=PATH]
+[--dry-run] [--yes]`. It follows ordinary full console boot and composes the
+Layer-0 site-contract package. Interactive mode asks product questions in
+plain language. Non-interactive mode requires a complete answer document and
+explicit `--yes`; `--dry-run` performs no writes. Publication is serialized by
+the project initialization lock and delegates collision refusal, durable
+journaling, rollback, crash recovery, generated ownership, and explicit
+generator-version migration to `SiteInitializationService`. Forge, release,
+and deployment behavior are outside this command.
 
 ## Input And Output
 

@@ -6,6 +6,7 @@
     "require": {
         "waaseyaa/core": "^0.1.0-alpha.293",
         "waaseyaa/node": "^0.1.0-alpha.293",
+        "waaseyaa/page-builder": "^0.1.0-alpha.293",
         "waaseyaa/taxonomy": "^0.1.0-alpha.293",
         "waaseyaa/media": "^0.1.0-alpha.293",
         "waaseyaa/path": "^0.1.0-alpha.293",
@@ -34,6 +35,10 @@
         {
             "type": "path",
             "url": "../node"
+        },
+        {
+            "type": "path",
+            "url": "../page-builder"
         },
         {
             "type": "path",

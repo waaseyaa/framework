@@ -39,7 +39,7 @@ use Waaseyaa\Publishing\Idempotency\IdempotencyStore;
  *
  * @api
  */
-final class ContentPublisher
+final class ContentPublisher implements ContentDraftMutationInterface, ContentRevisionPreviewInterface
 {
     private readonly ContentMutationSnapshotReader $snapshotReader;
 
@@ -121,6 +121,42 @@ final class ContentPublisher
         return [
             'id' => $entity->id(),
             'entity_type' => $this->descriptor->entityTypeId,
+            'expires_at' => $token->expiresAt,
+            'signature' => $token->signature,
+        ];
+    }
+
+    /**
+     * Issue a preview grant bound to the exact observed working-copy revision.
+     *
+     * @return array{id: int|string|null, entity_type: string, revision_id: int, expires_at: int, signature: string}
+     */
+    public function previewRevision(
+        AuthorizationPrincipalInterface $actor,
+        string $idOrSlug,
+        int $expectedRevisionId,
+        Preview\PreviewLinkService $links,
+        int $ttlSeconds = 1800,
+    ): array {
+        $this->requireCapability($actor);
+        $entity = $this->load($idOrSlug);
+        $this->assertExpectedRevision($entity, $expectedRevisionId);
+
+        $token = $links->issueRevision(
+            $this->descriptor->entityTypeId,
+            (string) $entity->id(),
+            $expectedRevisionId,
+            $ttlSeconds,
+        );
+        $this->auditRecord(AuditEventKind::ContentPreviewIssued, $actor, $entity, [
+            'revision_id' => $expectedRevisionId,
+            'expires_at' => $token->expiresAt,
+        ]);
+
+        return [
+            'id' => $entity->id(),
+            'entity_type' => $this->descriptor->entityTypeId,
+            'revision_id' => $expectedRevisionId,
             'expires_at' => $token->expiresAt,
             'signature' => $token->signature,
         ];

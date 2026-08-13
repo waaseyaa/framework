@@ -1,14 +1,6 @@
 <script setup lang="ts">
-import { useEntity } from '~/composables/useEntity'
 import { useLanguage } from '~/composables/useLanguage'
-
-export interface TransitionAuditEntry {
-  transition: string
-  from: string
-  to: string
-  uid: string
-  at: string
-}
+import { useWorkflowTransitions } from '~/composables/useWorkflowTransitions'
 
 const props = defineProps<{
   entityType: string
@@ -16,17 +8,14 @@ const props = defineProps<{
 }>()
 
 const { t } = useLanguage()
-const { get } = useEntity()
+const { history, fetchTransitions } = useWorkflowTransitions()
 
-const audit = ref<TransitionAuditEntry[]>([])
 const loaded = ref(false)
 const fetchError = ref<string | null>(null)
 
 async function loadAudit() {
   try {
-    const entity = await get(props.entityType, props.entityId)
-    const raw = entity.attributes.workflow_audit
-    audit.value = Array.isArray(raw) ? (raw as TransitionAuditEntry[]) : []
+    await fetchTransitions(props.entityType, props.entityId)
   } catch (e: unknown) {
     // Sidecar widget — surface the failure without breaking the entity page.
     const err = e as { message?: string }
@@ -45,16 +34,16 @@ function formatTimestamp(at: string): string {
 }
 
 // Reverse-chronological order — most recent transition at top.
-const ordered = computed(() => [...audit.value].reverse())
+const ordered = computed(() => history.value)
 </script>
 
 <template>
-  <section v-if="loaded && (audit.length > 0 || fetchError)" class="transition-history" data-testid="transition-history">
+  <section v-if="loaded && (history.length > 0 || fetchError)" class="transition-history" data-testid="transition-history">
     <h2 class="transition-history-title">{{ t('workflow_history_title') }}</h2>
 
     <p v-if="fetchError" class="error">{{ fetchError }}</p>
 
-    <p v-else-if="audit.length === 0" class="empty-state">{{ t('workflow_history_empty') }}</p>
+    <p v-else-if="history.length === 0" class="empty-state">{{ t('workflow_history_empty') }}</p>
 
     <ol v-else class="timeline">
       <li v-for="(entry, idx) in ordered" :key="`${entry.at}-${idx}`" class="timeline-entry">
