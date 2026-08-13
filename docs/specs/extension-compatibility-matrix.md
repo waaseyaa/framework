@@ -50,6 +50,7 @@ This is the canonical, package-level mirror of the seven-layer architecture enfo
 | typed-data | 0 | |
 | validation | 0 | |
 | access | 1 | |
+| audit | 1 | |
 | auth | 1 | |
 | config | 1 | |
 | entity | 1 | |
@@ -59,10 +60,10 @@ This is the canonical, package-level mirror of the seven-layer architecture enfo
 | testing | 1 | Ships entity fixtures; runtime `require waaseyaa/entity` is intentional |
 | user | 1 | |
 | engagement | 2 | |
+| attachment | 2 | |
 | groups | 2 | |
 | media | 2 | |
 | menu | 2 | |
-| messaging | 2 | |
 | node | 2 | |
 | note | 2 | |
 | path | 2 | |
@@ -70,30 +71,40 @@ This is the canonical, package-level mirror of the seven-layer architecture enfo
 | taxonomy | 2 | |
 | billing | 3 | |
 | github | 3 | |
+| listing | 3 | Declarative, access-aware dynamic collections |
+| messaging | 3 | |
+| migration | 3 | |
 | notification | 3 | |
+| page-builder | 3 | Governed client-neutral layout documents; see `page-builder.md` |
+| publishing | 3 | |
 | search | 3 | |
 | seo | 3 | |
+| structured-import | 3 | |
 | workflows | 3 | |
 | api | 4 | |
 | bimaaji | 4 | |
 | routing | 4 | |
+| wayfinding | 4 | |
 | ai-agent | 5 | |
 | ai-observability | 5 | |
 | ai-pipeline | 5 | |
 | ai-schema | 5 | |
+| ai-tools | 5 | |
 | ai-vector | 5 | |
 | admin-surface | 6 | PHP host extension for the admin SPA (`packages/admin/`); see footnote 1 |
 | cli | 6 | |
 | debug | 6 | |
 | deployer | 6 | |
+| frankenphp | 6 | |
 | genealogy | 6 | |
 | graphql | 6 | |
 | inertia | 6 | |
 | mcp | 6 | |
 | ssr | 6 | |
 | telescope | 6 | |
+| workspace | 6 | |
 
-**Total: 62 PHP packages** across 7 layers (18 / 9 / 10 / 7 / 3 / 5 / 10).
+**Total: 72 PHP packages** across 7 layers (18 / 10 / 10 / 12 / 4 / 6 / 12).
 
 ### Footnotes
 

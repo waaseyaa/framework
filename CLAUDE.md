@@ -1,7 +1,7 @@
 # Waaseyaa
 
 ## Project Structure
-- Monorepo: 62 PHP packages in `packages/`, 3 consumer-facing meta-packages (`core` = engine; `cms` = `core` + content types; `full` = expanded reusable tooling without opt-in domains), 1 JS admin SPA (`packages/admin/`, no composer.json)
+- Monorepo: 72 PHP packages in `packages/`, 3 consumer-facing meta-packages (`core` = engine; `cms` = `core` + content types; `full` = expanded reusable tooling without opt-in domains), 1 JS admin SPA (`packages/admin/`, no composer.json)
 - **Metapackage menu vs. `waaseyaa/framework`:** downstream consumers `composer require` one curated metapackage (`waaseyaa/core`/`cms`/`full`) — see `docs/roadmap/packagist-publishing-plan.md` and ADR-004 §8. The dev `skeleton/` requires `waaseyaa/framework`, whose default dependency graph follows the same opt-in-domain boundary even though the monorepo contains every package. The metapackage require-graphs are version-swept by `bin/sync-internal-versions`, split-mirrored by `split.yml`, and guarded by CI: `ci/core-only-boot` boots the kernel on `waaseyaa/core` alone (`tests/CoreOnlyBoot/boot.php`), `ci/packaged-form` runs a consumer that requires `waaseyaa/core` (`tests/PackagedForm/`), and `MetapackageSmokeTest` checks autoloadability of all three.
 - 7-layer architecture (Foundation → Core Data → Content Types → Services → API → AI → Interfaces)
 - Each package has its own `composer.json` with path repository references
@@ -76,6 +76,7 @@ When working on files matching these patterns, retrieve the spec for deep contex
 | `packages/notification/*` | `waaseyaa:infrastructure` | `docs/specs/infrastructure.md` |
 | `packages/migration/*` | — | `docs/specs/migration-platform.md` |
 | `packages/listing/*` | — | `docs/specs/listing-pipeline-v1.md`, `docs/conventions/cache-tags-and-contexts.md`, `docs/cookbook/listing-first-cut.md` |
+| `packages/page-builder/*` | — | `docs/specs/page-builder.md` |
 | `packages/publishing/*` (agent-operable editorial CRUD: ContentPublisher, idempotency, signed preview links) | — | `docs/specs/content-publishing.md` |
 | `packages/cms/*`, `packages/core/*`, `packages/full/*` | — (consumer metapackages) | `docs/roadmap/packagist-publishing-plan.md`, `docs/adr/004-framework-package-collapse.md`, `tests/PackagedForm/README.md` |
 
@@ -94,7 +95,7 @@ When the mapping is not obvious, search under `docs/specs/` (e.g. `rg -n "TopicO
 | 0 | Foundation | analytics, cache, database-legacy, error-handler, foundation, geo, http-client, i18n, ingestion, mail, mercure, oauth-provider, plugin, queue, scheduler, state, typed-data, validation |
 | 1 | Core Data | entity, entity-storage, access, audit, user, config, field, auth, oidc, testing |
 | 2 | Content Types | node, taxonomy, media, path, menu, note, relationship, groups, engagement |
-| 3 | Services | workflows, search, seo, notification, billing, github, migration, listing, messaging, publishing |
+| 3 | Services | workflows, search, seo, notification, billing, github, migration, listing, page-builder, messaging, publishing |
 | 4 | API | api, bimaaji, routing, wayfinding |
 | 5 | AI | ai-agent, ai-observability, ai-pipeline, ai-schema, ai-tools, ai-vector |
 | 6 | Interfaces | cli, frankenphp, admin-surface, genealogy, graphql, mcp, ssr, telescope, deployer, inertia, debug, workspace |
