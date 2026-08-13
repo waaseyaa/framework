@@ -52,6 +52,7 @@ jobs:
           - { local: 'packages/github', remote: 'github' }
           - { local: 'packages/ingestion', remote: 'ingestion' }
           - { local: 'packages/deployer', remote: 'deployer' }
+          - { local: 'packages/site-contract', remote: 'site-contract' }
           # Layer 1: Core Data
           - { local: 'packages/entity', remote: 'entity' }
           - { local: 'packages/entity-storage', remote: 'entity-storage' }
@@ -77,6 +78,7 @@ jobs:
           - { local: 'packages/bimaaji', remote: 'bimaaji' }
           # Layer 3: Services
           - { local: 'packages/listing', remote: 'listing' }
+          - { local: 'packages/page-builder', remote: 'page-builder' }
           - { local: 'packages/publishing', remote: 'publishing' }
           - { local: 'packages/migration', remote: 'migration' }
           - { local: 'packages/search', remote: 'search' }

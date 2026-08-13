@@ -112,6 +112,13 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `QueuePayloadDeprecationDiagnostic` | final class | Bounded nested entity-payload diagnostic for persistent dispatch |
 | `Exception\InvalidPersistentPayload` | exception | Exact replay payload failed authentication |
 
+### site-contract
+
+| Element | Type | Purpose |
+|---------|------|---------|
+| `Capability\CapabilityState` | enum | Closed active, planned, and not-needed vocabulary serialized by the provider-neutral site manifest |
+| `Version\ManifestVersionDisposition` | enum | Closed current, migration-required, and unsupported-future schema-version decision |
+
 ### state
 
 | Element | Type | Purpose |

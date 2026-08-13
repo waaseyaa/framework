@@ -9,3 +9,16 @@ export type {
   AdminSurfaceSidebarItem,
   AdminSurfaceUiCustomization,
 } from './surface-ui'
+export type {
+  PageBuilderBlock,
+  PageBuilderBlockDefinition,
+  PageBuilderCommand,
+  PageBuilderDefinitions,
+  PageBuilderDocument,
+  PageBuilderDraft,
+  PageBuilderLayoutDefinition,
+  PageBuilderPreview,
+  PageBuilderSection,
+  PageBuilderSurfaceResult,
+  PageBuilderTemplateDefinition,
+} from './pageBuilder'

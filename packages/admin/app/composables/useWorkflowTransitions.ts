@@ -11,9 +11,20 @@ export interface WorkflowTransitionItem {
   to: string
 }
 
+export interface WorkflowTransitionHistoryItem {
+  transition: string
+  from: string
+  to: string
+  uid: string
+  at: string
+}
+
 interface WorkflowTransitionsResponse {
   data: WorkflowTransitionItem[]
-  meta?: { workflow_state?: string | null }
+  meta?: {
+    workflow_state?: string | null
+    workflow_history?: WorkflowTransitionHistoryItem[]
+  }
 }
 
 export interface WorkflowTransitionApplyResult {
@@ -38,6 +49,7 @@ export function useWorkflowTransitions() {
 
   const transitions = ref<WorkflowTransitionItem[]>([])
   const state = ref<string | null>(null)
+  const history = ref<WorkflowTransitionHistoryItem[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
   const errorKind = ref<WorkflowTransitionErrorKind | null>(null)
@@ -45,7 +57,7 @@ export function useWorkflowTransitions() {
   async function fetchTransitions(
     entityType: string,
     id: string,
-  ): Promise<{ transitions: WorkflowTransitionItem[]; state: string | null }> {
+  ): Promise<{ transitions: WorkflowTransitionItem[]; state: string | null; history: WorkflowTransitionHistoryItem[] }> {
     loading.value = true
     error.value = null
     errorKind.value = null
@@ -60,14 +72,16 @@ export function useWorkflowTransitions() {
 
       transitions.value = response.data
       state.value = response.meta?.workflow_state ?? null
+      history.value = response.meta?.workflow_history ?? []
     } catch (e: unknown) {
       transitions.value = []
       state.value = null
+      history.value = []
 
       if (e instanceof WorkflowTransitionResponseError) {
         errorKind.value = 'malformed_response'
         error.value = 'Workflow discovery returned an invalid response.'
-        return { transitions: transitions.value, state: state.value }
+        return { transitions: transitions.value, state: state.value, history: history.value }
       }
 
       const err = e as { data?: unknown; message?: string; response?: { status?: number }; statusCode?: number; cause?: unknown }
@@ -83,7 +97,7 @@ export function useWorkflowTransitions() {
     } finally {
       loading.value = false
     }
-    return { transitions: transitions.value, state: state.value }
+    return { transitions: transitions.value, state: state.value, history: history.value }
   }
 
   async function applyTransition(
@@ -98,7 +112,7 @@ export function useWorkflowTransitions() {
     return response.data
   }
 
-  return { transitions, state, loading, error, errorKind, fetchTransitions, applyTransition }
+  return { transitions, state, history, loading, error, errorKind, fetchTransitions, applyTransition }
 }
 
 class WorkflowTransitionResponseError extends Error {}
@@ -108,13 +122,26 @@ function isWorkflowTransitionsResponse(value: unknown): value is WorkflowTransit
     return false
   }
 
-  return (value as WorkflowTransitionsResponse).data.every((transition) =>
+  const response = value as WorkflowTransitionsResponse
+  const validTransitions = response.data.every((transition) =>
     typeof transition === 'object'
     && transition !== null
     && typeof transition.id === 'string'
     && typeof transition.label === 'string'
     && typeof transition.to === 'string',
   )
+  const history = response.meta?.workflow_history
+  const validHistory = history === undefined || (Array.isArray(history) && history.every((entry) =>
+    typeof entry === 'object'
+    && entry !== null
+    && typeof entry.transition === 'string'
+    && typeof entry.from === 'string'
+    && typeof entry.to === 'string'
+    && typeof entry.uid === 'string'
+    && typeof entry.at === 'string'
+  ))
+
+  return validTransitions && validHistory
 }
 
 function jsonApiErrorDetail(value: unknown): string | null {
