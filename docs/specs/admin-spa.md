@@ -517,8 +517,26 @@ The form rendering pipeline:
 
 1. `SchemaForm` calls `useSchema(entityType).fetch()` to get the JSON Schema
 2. `sortedProperties(true)` returns editable fields sorted by `x-weight`
-3. For each field, `SchemaField` resolves the widget component from `x-widget`
-4. Each widget receives `modelValue`, `label`, `description`, `required`, `disabled`, `schema`
+3. Optional `x-form-sections` presentation metadata groups those fields into
+   operator tasks without changing their schema, access, validation, or write
+   authority
+4. For each field, `SchemaField` resolves the widget component from `x-widget`
+5. Each widget receives `modelValue`, `label`, `description`, `required`, `disabled`, `schema`
+
+`x-form-sections` is an ordered list of `{id, label, description?, fields,
+collapsible?, collapsed?}` objects. IDs and labels are non-empty strings and
+`fields` contains schema property names. The client ignores malformed sections,
+duplicate assignments, and unavailable/read-only fields. Every remaining
+editable field is rendered once in an `Other details` section, so incomplete
+presentation metadata can never hide writable data. A collapsed section opens
+when one of its fields has a validation error. Section metadata is inert
+presentation: it cannot add fields, bypass field access, change submission
+payloads, inject templates, or execute callbacks.
+
+Task-oriented shells such as Anokii and the full Admin SPA receive exactly the
+same sections because both mount the shared `SchemaForm`. Applications own the
+operator-facing labels and assignments for their content bundles; they do not
+fork the Vue editor.
 
 ### List-View Column Policy (`packages/admin/app/components/schema/SchemaList.vue`)
 
