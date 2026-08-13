@@ -1155,6 +1155,10 @@ Real-time SSE monitor for the Mercure broadcasting layer (gap-matrix C-L0-04, mi
 | `packages/admin/app/middleware/auth.global.ts` | Global auth + ensureVerifiedEmail middleware |
 | `packages/admin/app/plugins/admin.ts` | Admin plugin with publicAuthPaths auth skip |
 | `packages/admin/app/runtime/adminSurfaceRoutes.ts` | Named `admin_surface.*` fetch URL builders (mirror PHP paths) |
+| `packages/admin/app/runtime/pageBuilderClient.ts` | Typed page-builder transport shared by the Admin SPA and downstream shells |
+| `packages/admin/app/composables/usePageBuilder.ts` | Revision-guarded page-builder state and command lifecycle |
+| `packages/admin/app/components/page-builder/PageBuilderWorkspace.vue` | Governed visual editor with block library, exact-revision preview, inspector, and outline |
+| `packages/admin/app/pages/page-builder/[surface]/[id].vue` | Generic registered-surface page-builder route |
 | `packages/admin-surface/src/AdminSurfaceRoutePaths.php` | Canonical `/admin/_surface/*` patterns and `generate()` for PHP |
 | `packages/admin/app/i18n/en.json` | English translation strings |
 | `packages/admin/app/i18n/fr.json` | French translation strings |
@@ -1185,6 +1189,12 @@ Admin surface for the MCP endpoint. Four pages under `/mcp/`, accessible via the
 **URL encoding:** `useMcpTool.fetchTool(name)` runs `encodeURIComponent(name)` once before the request so tool names containing dots (e.g. `bimaaji.search_specs`) are safe in path segments.
 
 **M5B interop:** `RecentInvocationsTable.vue` renders `traceUuid` cells as router-links to `/ai/observability/runs/{uuid}` when the M5B route exists; falls back to plain text UUID when it does not (no broken links).
+
+## Governed page builder
+
+The Admin SPA exposes registered page-builder surfaces at `/page-builder/{surface}/{id}`. The workspace combines Drupal-style governed structure with a direct visual editing interaction: the left library contains only backend-registered block definitions, the centre iframe renders a signed preview of the exact persisted revision, and the right inspector edits only schema-declared configuration. The outline remains a keyboard-accessible selection path when preview selection is unavailable.
+
+Every explicit change is sent through `PageBuilderClient` with the observed entity revision, document fingerprint, and a cryptographically generated idempotency key. The server remains authoritative for access, validation, revision creation, and conflict handling. Neither the Admin SPA nor downstream shells can submit arbitrary renderer names, free-form executable markup, or bypass the common page-builder surface.
 
 ## Implementation gotchas
 
