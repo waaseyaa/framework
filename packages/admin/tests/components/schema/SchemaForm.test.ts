@@ -176,6 +176,69 @@ describe('SchemaForm loading and error states', () => {
 })
 
 describe('SchemaForm submit — create mode (no entityId)', () => {
+  it('opens directly in a requested bundle without duplicating its widgets in the host shell', async () => {
+    const schemaPayloads: Array<Record<string, unknown>> = []
+    registerEndpoint('/admin/_surface/node_prefilled_bundle/action/schema', {
+      method: 'POST',
+      handler: async (event) => {
+        const payload = await readBody<Record<string, unknown>>(event)
+        schemaPayloads.push(payload)
+        return { ok: true, data: payload.bundle === 'page' ? pageNodeSchema : bundledNodeDiscoverySchema }
+      },
+    })
+
+    const { default: SchemaFormFresh } = await import('~/components/schema/SchemaForm.vue')
+    const wrapper = await mountSuspended(SchemaFormFresh, {
+      props: { entityType: 'node_prefilled_bundle', initialBundle: 'page' },
+    })
+    await flushPromises()
+    await vi.waitFor(() => expect(wrapper.find('.loading').exists()).toBe(false))
+
+    expect(schemaPayloads).toEqual([{}, { bundle: 'page' }])
+    expect((wrapper.get('select').element as HTMLSelectElement).value).toBe('page')
+    expect(wrapper.text()).toContain('Page summary')
+  })
+
+  it('uses the schema-declared bundle key when a host requests a bundle', async () => {
+    const discoverySchema = {
+      ...bundledNodeDiscoverySchema,
+      'x-bundle-key': 'kind',
+      properties: {
+        kind: {
+          type: 'string',
+          enum: ['page'],
+          'x-widget': 'select',
+          'x-label': 'Kind',
+        },
+      },
+      required: ['kind'],
+    }
+    const scopedSchema = {
+      ...discoverySchema,
+      properties: {
+        ...discoverySchema.properties,
+        summary: { type: 'string', 'x-widget': 'textarea', 'x-label': 'Summary' },
+      },
+    }
+    registerEndpoint('/admin/_surface/node_schema_bundle_key/action/schema', {
+      method: 'POST',
+      handler: async (event) => {
+        const payload = await readBody<Record<string, unknown>>(event)
+        return { ok: true, data: payload.bundle === 'page' ? scopedSchema : discoverySchema }
+      },
+    })
+
+    const { default: SchemaFormFresh } = await import('~/components/schema/SchemaForm.vue')
+    const wrapper = await mountSuspended(SchemaFormFresh, {
+      props: { entityType: 'node_schema_bundle_key', initialBundle: 'page' },
+    })
+    await flushPromises()
+    await vi.waitFor(() => expect(wrapper.find('.loading').exists()).toBe(false))
+
+    expect((wrapper.get('select').element as HTMLSelectElement).value).toBe('page')
+    expect(wrapper.text()).toContain('Summary')
+  })
+
   it('generates an editable Unicode slug and stops regenerating after manual edits', async () => {
     const schema = {
       ...bundledNodeDiscoverySchema,

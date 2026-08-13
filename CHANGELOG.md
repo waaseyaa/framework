@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Expose the schema-driven entity editor as an authenticated, shell-free,
+  same-origin client so Anokii and other role-focused shells can reuse the exact
+  Admin SPA rich-text, reference, date, validation, workflow, and deletion
+  controls instead of maintaining weaker parallel forms.
+
 - Add a shell-free, same-origin page-builder client route for Anokii and other
   application shells. It mounts the exact Admin SPA governed workspace under
   the existing authentication, surface, preview, revision, and concurrency
