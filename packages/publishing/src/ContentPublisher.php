@@ -38,7 +38,7 @@ use Waaseyaa\Publishing\Idempotency\IdempotencyStore;
  *
  * @api
  */
-final class ContentPublisher
+final class ContentPublisher implements ContentDraftMutationInterface
 {
     private readonly ContentMutationSnapshotReader $snapshotReader;
 

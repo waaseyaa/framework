@@ -187,6 +187,24 @@ Unknown targets, stale fingerprints, invalid destinations, inaccessible
 references, and definition-version mismatches are typed failures. No command
 silently drops content or coerces an unknown block.
 
+### 7.1 Persistence boundary
+
+`page-builder` defines a client-neutral draft gateway. Its application service
+reads the current entity revision and layout document, checks both the observed
+entity revision and document fingerprint, applies one pure edit command,
+validates the complete result, and submits one canonical layout value with an
+idempotency key. It never calls an entity repository directly.
+
+`publishing` supplies the first gateway adapter through `ContentPublisher`.
+The adapter updates only the configured layout field and carries the observed
+entity revision into the existing write-time optimistic-locking path. A
+successful edit therefore creates one ordinary content revision and returns a
+fresh revision identifier; a stale edit cannot silently overwrite a newer
+draft. This seam deliberately does not claim to complete the wider DB-03
+universal mutation-token contract. A future opaque aggregate token may replace
+the current revision identifier behind the same gateway without giving either
+editor client a private persistence path.
+
 ## 8. Preview and rendering
 
 Published and preview rendering use the same semantic renderer bindings and

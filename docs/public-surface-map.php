@@ -531,6 +531,8 @@ return [
     'Waaseyaa\Publishing\Exception\ContentPublishingException' => 'public',
     // Governed page-builder command vocabulary (#2344 WP02).
     'Waaseyaa\PageBuilder\Command\EditCommand' => 'public',
+    'Waaseyaa\PageBuilder\Draft\LayoutDraftGatewayInterface' => 'public',
+    'Waaseyaa\Publishing\ContentDraftMutationInterface' => 'internal',
     'Waaseyaa\AI\Tools\Content\AssetStoreInterface' => 'public',
 
     // Listing pipeline value objects (mission listing-pipeline-v1-01KRMN0B WP01; charter §5.6).
