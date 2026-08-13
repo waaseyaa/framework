@@ -19,6 +19,12 @@ final class PathServiceProvider extends ServiceProvider
             PathAlias::class,
             group: 'structure',
         ));
+        $this->singleton(
+            PathAliasResolver::class,
+            fn(): PathAliasResolver => new PathAliasResolver(
+                $this->resolve(EntityTypeManagerInterface::class)->getRepository('path_alias'),
+            ),
+        );
     }
 
     public function boot(): void

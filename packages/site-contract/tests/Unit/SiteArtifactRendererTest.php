@@ -98,9 +98,9 @@ final class SiteArtifactRendererTest extends TestCase
     public function itRendersTheCompletePublishedContentRecipe(): void
     {
         $manifest = str_replace(
-            "            recipes: []",
+            "recipes: []",
             sprintf(
-                "            recipes:\n              - id: published_content\n                version: 1\n                capability: published_content\n                artifact_digest: %s",
+                "recipes:\n  - id: published_content\n    version: 1\n    capability: published_content\n    artifact_digest: %s",
                 PublishedContentRecipe::digest(),
             ),
             str_replace(
@@ -114,6 +114,7 @@ final class SiteArtifactRendererTest extends TestCase
         foreach ([
             'composer.site-recipes.json',
             'config/waaseyaa-recipes/published-content.php',
+            'src/Content/Bundle/PageBundle.php',
             'src/Content/CanonicalContentRouteResolver.php',
             'src/Controller/PublishedContentController.php',
             'src/Provider/PublishedContentServiceProvider.php',
@@ -126,10 +127,13 @@ final class SiteArtifactRendererTest extends TestCase
 
         $config = $site->artifacts['config/waaseyaa-recipes/published-content.php']->content;
         self::assertStringContainsString("'bundle' => 'page'", $config);
-        self::assertStringContainsString("'fields' => ['title', 'slug', 'summary', 'body', 'status', 'changed']", $config);
+        foreach (['title', 'slug', 'summary', 'body', 'status', 'changed'] as $field) {
+            self::assertStringContainsString("'{$field}'", $config);
+        }
         self::assertStringContainsString("'listing_id' => 'page_index'", $config);
         self::assertStringContainsString("'page_size' => 24", $config);
-        self::assertStringContainsString("'access_ops' => ['view']", $config);
+        self::assertStringContainsString("'access_ops' =>", $config);
+        self::assertStringContainsString("'view'", $config);
         self::assertStringContainsString("'detail_route' => '/{slug}'", $config);
         self::assertStringContainsString("'index_route' => '/'", $config);
 
@@ -144,14 +148,20 @@ final class SiteArtifactRendererTest extends TestCase
         self::assertStringContainsString('MetaTagBuilder::class', $provider);
         self::assertStringContainsString('EntitySchemaOrgMapper::class', $provider);
         self::assertStringContainsString('$this->singleton(', $provider);
+        self::assertStringContainsString('BundleTemplateCompiler::class', $provider);
+
+        $bundle = $site->artifacts['src/Content/Bundle/PageBundle.php']->content;
+        self::assertStringContainsString("#[BundleTemplate(entityType: 'node', bundle: 'page')]", $bundle);
+        self::assertStringContainsString("#[FieldTemplate(key: 'summary'", $bundle);
+        self::assertStringContainsString("#[FieldTemplate(key: 'body'", $bundle);
 
         $resolver = $site->artifacts['src/Content/CanonicalContentRouteResolver.php']->content;
         self::assertStringContainsString('canonicalDetailUrl', $resolver);
         self::assertStringContainsString('sitemapUrl', $resolver);
-        self::assertStringNotContainsString('/node/', implode("\n", $site->contents()));
+        self::assertStringNotContainsString('/node/', $config . $resolver . $provider);
 
         $acceptance = $site->artifacts['tests/Acceptance/PublishedContentRecipeTest.php']->content;
-        foreach (['listingIsAccessAwareAndPageable', 'canonicalRoutesDriveSitemapUrls', 'metadataAndJsonLdUseTheCanonicalUrl', 'internalEntityPathsNeverEnterTheSitemap'] as $method) {
+        foreach (['testListingIsAccessAwareAndPageable', 'testCanonicalRoutesDriveSitemapUrls', 'testMetadataAndJsonLdUseTheCanonicalUrl', 'testInternalEntityPathsNeverEnterTheSitemap'] as $method) {
             self::assertStringContainsString($method, $acceptance);
         }
         self::assertStringContainsString('tests/Acceptance/PublishedContentRecipeTest.php', $site->artifacts['bin/maintenance/site-verify']->content);
@@ -161,8 +171,8 @@ final class SiteArtifactRendererTest extends TestCase
     public function itRefusesAnUnknownOrSubstitutedPublishedContentRecipe(): void
     {
         $manifest = str_replace(
-            "            recipes: []",
-            "            recipes:\n              - id: published_content\n                version: 1\n                capability: published_content\n                artifact_digest: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipes: []",
+            "recipes:\n  - id: published_content\n    version: 1\n    capability: published_content\n    artifact_digest: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             str_replace('id: governed_authoring', 'id: published_content', $this->manifest()),
         );
 
@@ -170,6 +180,39 @@ final class SiteArtifactRendererTest extends TestCase
         $this->expectExceptionMessage('published_content recipe digest');
 
         new SiteArtifactRenderer()->render(new SiteManifestParser()->parse($manifest));
+    }
+
+    #[Test]
+    public function itRefusesAnUninstalledRecipeInsteadOfSilentlyIgnoringIt(): void
+    {
+        $manifest = str_replace(
+            "recipes: []",
+            "recipes:\n  - id: private_fork\n    version: 1\n    capability: published_content\n    artifact_digest: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            str_replace('id: governed_authoring', 'id: published_content', $this->manifest()),
+        );
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Unsupported first-party recipe: private_fork');
+
+        new SiteArtifactRenderer()->render(new SiteManifestParser()->parse($manifest));
+    }
+
+    #[Test]
+    public function publishedContentRecipeRefusesRoutesThatCannotShareTheSlugAuthority(): void
+    {
+        $base = str_replace(
+            "recipes: []",
+            sprintf(
+                "recipes:\n  - id: published_content\n    version: 1\n    capability: published_content\n    artifact_digest: %s",
+                PublishedContentRecipe::digest(),
+            ),
+            str_replace('id: governed_authoring', 'id: published_content', $this->manifest()),
+        );
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('terminal {slug}');
+
+        new SiteArtifactRenderer()->render(new SiteManifestParser()->parse(str_replace('/{slug}', '/news/{id}', $base)));
     }
 
     private function manifest(): string

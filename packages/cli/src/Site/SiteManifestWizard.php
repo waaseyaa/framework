@@ -6,6 +6,7 @@ namespace Waaseyaa\CLI\Site;
 
 use Symfony\Component\Yaml\Yaml;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
+use Waaseyaa\SiteContract\Generation\PublishedContentRecipe;
 
 /** @api */
 final class SiteManifestWizard
@@ -91,7 +92,12 @@ final class SiteManifestWizard
             'content_types' => $contentTypes,
             'capabilities' => $capabilities,
             'personal_data_stores' => $personalDataStores,
-            'recipes' => [],
+            'recipes' => [[
+                'id' => 'published_content',
+                'version' => PublishedContentRecipe::VERSION,
+                'capability' => 'published_content',
+                'artifact_digest' => PublishedContentRecipe::digest(),
+            ]],
             'verification' => ['command' => 'bin/maintenance/site-verify'],
         ], 20, 2, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK);
     }

@@ -14,7 +14,17 @@ final class SiteArtifactRenderer
 {
     public function render(SiteManifest $manifest): GeneratedSite
     {
+        foreach (array_keys($manifest->recipes) as $recipeId) {
+            if ($recipeId !== 'published_content') {
+                throw new \InvalidArgumentException("Unsupported first-party recipe: {$recipeId}");
+            }
+        }
         $manifestYaml = new SiteManifestParser()->render($manifest);
+        $publishedContentArtifacts = new PublishedContentRecipe()->render($manifest);
+        $recipeTests = [];
+        if ($publishedContentArtifacts !== []) {
+            $recipeTests[] = 'tests/Acceptance/PublishedContentRecipeTest.php';
+        }
 
         $artifacts = [
             new GeneratedArtifact('.waaseyaa/site.yaml', $manifestYaml),
@@ -23,8 +33,11 @@ final class SiteArtifactRenderer
             new GeneratedArtifact('AGENTS.md', $this->agents(), extensionRegion: 'local-guidance'),
             new GeneratedArtifact('tests/Architecture/SiteContractTest.php', $this->architectureTest()),
             new GeneratedArtifact('tests/Acceptance/SiteGoldenPathTest.php', $this->acceptanceTest()),
-            new GeneratedArtifact('bin/maintenance/site-verify', $this->verificationScript(), 0o755),
+            new GeneratedArtifact('bin/maintenance/site-verify', $this->verificationScript($recipeTests), 0o755),
         ];
+        foreach ($publishedContentArtifacts as $artifact) {
+            $artifacts[] = $artifact;
+        }
 
         $metadataRows = [];
         foreach ($artifacts as $artifact) {
@@ -132,9 +145,16 @@ final class SiteArtifactRenderer
             PHP;
     }
 
-    private function verificationScript(): string
+    /** @param list<string> $recipeTests */
+    private function verificationScript(array $recipeTests): string
     {
-        return <<<'PHP'
+        $tests = var_export([
+            'tests/Architecture/SiteContractTest.php',
+            'tests/Acceptance/SiteGoldenPathTest.php',
+            ...$recipeTests,
+        ], true);
+
+        return str_replace('__TESTS__', $tests, <<<'PHP'
             #!/usr/bin/env php
             <?php
 
@@ -157,10 +177,7 @@ final class SiteArtifactRenderer
             if ($exitCode !== 0) {
                 exit($exitCode);
             }
-            $tests = [
-                'tests/Architecture/SiteContractTest.php',
-                'tests/Acceptance/SiteGoldenPathTest.php',
-            ];
+            $tests = __TESTS__;
             foreach ($tests as $test) {
                 $command = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($runner) . ' ' . escapeshellarg($root . '/' . $test) . ' --no-coverage';
                 passthru($command, $exitCode);
@@ -169,6 +186,6 @@ final class SiteArtifactRenderer
                 }
             }
             exit(0);
-            PHP;
+            PHP);
     }
 }
