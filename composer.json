@@ -299,6 +299,10 @@
         {
             "type": "path",
             "url": "packages/listing"
+        },
+        {
+            "type": "path",
+            "url": "packages/page-builder"
         }
     ],
     "require": {
@@ -352,6 +356,7 @@
         "waaseyaa/note": "self.version",
         "waaseyaa/notification": "self.version",
         "waaseyaa/oauth-provider": "self.version",
+        "waaseyaa/page-builder": "self.version",
         "waaseyaa/path": "self.version",
         "waaseyaa/plugin": "self.version",
         "waaseyaa/publishing": "self.version",
@@ -464,6 +469,7 @@
             "Waaseyaa\\Bimaaji\\Tests\\": "packages/bimaaji/tests/",
             "Waaseyaa\\HttpClient\\Tests\\": "packages/http-client/tests/",
             "Waaseyaa\\OAuthProvider\\Tests\\": "packages/oauth-provider/tests/",
+            "Waaseyaa\\PageBuilder\\Tests\\": "packages/page-builder/tests/",
             "Waaseyaa\\Oidc\\Tests\\": "packages/oidc/tests/",
             "Waaseyaa\\Engagement\\Tests\\": "packages/engagement/tests/",
             "Waaseyaa\\Deployer\\Tests\\": "packages/deployer/tests/",
