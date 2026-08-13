@@ -84,6 +84,23 @@ final class AdminDistContentTest extends TestCase
     }
 
     #[Test]
+    public function shipped_bundle_contains_the_shell_free_page_builder_client(): void
+    {
+        $js = $this->concatenatedBundleJs();
+
+        self::assertStringContainsString(
+            'page-builder-embed',
+            $js,
+            'The served admin bundle is missing the shell-free page-builder route — rebuild with bin/build-admin-dist.',
+        );
+        self::assertStringContainsString(
+            'data-page-builder-client',
+            $js,
+            'The served admin bundle is missing the shared page-builder client identity.',
+        );
+    }
+
+    #[Test]
     public function admin_source_and_shipped_bundle_do_not_depend_on_external_icon_infrastructure(): void
     {
         $adminDir = dirname(__DIR__, 3) . '/admin';
