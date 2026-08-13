@@ -1,5 +1,13 @@
 # Admin SPA
 
+<!-- Spec reviewed 2026-08-13 - shared workflow history: the entity editor's
+TransitionHistoryTimeline reads `meta.workflow_history` from the sanctioned
+workflow-discovery endpoint, not the obsolete inline `workflow_audit` field.
+The response is shape-validated, limited to successful transitions, ordered
+newest first, and refreshed with the shared editor workspace after saves and
+transitions. The same component is served in the Admin SPA and embedded Anokii
+client. -->
+
 <!-- Spec reviewed 2026-08-06 - #2271 publication-list projection: authenticated admin node lists may expose only workflow_state and status through AdminPublicationFieldReaderInterface after the row passes entity-view authorization. AuditedAdminPublicationFieldReader issues an account-bound StrictAuditProjection capability for exactly those two node fields and revokes its execution boundary after each projection scope. GenericAdminSurfaceHost uses that same projection in memory for display, filters, and sorting instead of SQL-pushing protected fields; boolean query values normalize to the projection's 1/0 representation. Ordinary ResourceSerializer output and NodeProtectedReadPolicy remain unchanged. AdminSurfaceServiceProvider registers the reader for both stock and application-owned host wiring. -->
 
 <!-- Spec reviewed 2026-08-06 - #2275 concurrent publication projection: GenericAdminSurfaceHost primes a cardinality-preserving BatchAdminPublicationFieldReaderInterface for the authorized page or projected filter/sort scope. AuditedAdminPublicationFieldReader keeps one descriptor and receipt per entity but reserves and finalizes the related receipts in two all-or-nothing transactions. No value enters audit storage, no value is returned before all reservations commit, and any failed finalization still fails the list closed. Readers without the optional batch extension retain the strict per-entity path. -->

@@ -25,5 +25,6 @@ final readonly class AuditQuery
         public readonly ?\DateTimeImmutable $to = null,
         public readonly int $limit = 50,
         public readonly int $offset = 0,
+        public readonly ?string $subjectUri = null,
     ) {}
 }

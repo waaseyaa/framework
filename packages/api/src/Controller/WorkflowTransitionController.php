@@ -10,6 +10,8 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\DecisionAccountResolver;
 use Waaseyaa\Access\EntityAccessHandler;
+use Waaseyaa\Api\Audit\AuditQueryDto;
+use Waaseyaa\Api\Audit\AuditQueryReadModelInterface;
 use Waaseyaa\Api\Http\JsonApiResponse;
 use Waaseyaa\Api\JsonApiError;
 use Waaseyaa\Entity\EntityInterface;
@@ -43,6 +45,7 @@ final class WorkflowTransitionController
         private readonly ?EntityAccessHandler $accessHandler,
         private readonly TransitionService $transitionService,
         ?WorkflowEntitySnapshotReader $workflowSubjectReader = null,
+        private readonly ?AuditQueryReadModelInterface $auditQuery = null,
     ) {
         $this->workflowSubjectReader = $workflowSubjectReader ?? new WorkflowEntitySnapshotReader();
     }
@@ -107,8 +110,56 @@ final class WorkflowTransitionController
 
         return new JsonApiResponse([
             'data' => $data,
-            'meta' => ['workflow_state' => $state],
+            'meta' => [
+                'workflow_state' => $state,
+                'workflow_history' => $this->workflowHistory($entityType, (string) $entity->id()),
+            ],
         ]);
+    }
+
+    /**
+     * Return the canonical, append-only transition history for the editor.
+     *
+     * The legacy UI read an inline `workflow_audit` entity attribute. Modern
+     * transitions are recorded in the audit log, so that field silently hid
+     * real history. Only successful transitions for this exact subject are
+     * surfaced; denied attempts remain in the privileged audit endpoint.
+     *
+     * @return list<array{transition: string, from: string, to: string, uid: string, at: string}>
+     */
+    private function workflowHistory(string $entityType, string $entityId): array
+    {
+        if ($this->auditQuery === null) {
+            return [];
+        }
+
+        $history = [];
+        foreach ($this->auditQuery->findBy(new AuditQueryDto(
+            subjectUri: \sprintf('entity:%s/%s', $entityType, $entityId),
+            kinds: ['workflow.transition'],
+            limit: 50,
+        )) as $event) {
+            if ($event->outcome !== 'allowed') {
+                continue;
+            }
+
+            $transition = $event->attributes['transition'] ?? null;
+            $from = $event->attributes['from'] ?? null;
+            $to = $event->attributes['to'] ?? null;
+            if (!\is_string($transition) || !\is_string($from) || !\is_string($to)) {
+                continue;
+            }
+
+            $history[] = [
+                'transition' => $transition,
+                'from' => $from,
+                'to' => $to,
+                'uid' => (string) $event->accountUid,
+                'at' => $event->createdAt,
+            ];
+        }
+
+        return $history;
     }
 
     /**

@@ -1,5 +1,13 @@
 # API Layer
 
+<!-- Spec reviewed 2026-08-13 - workflow discovery now includes a bounded
+`meta.workflow_history` projection from the API-local audit read model after
+the existing authenticated, entity-view and workflow-state field gates pass.
+It contains only successful `workflow.transition` records for the exact
+`entity:<type>/<id>` subject; denied attempts remain on the admin-only audit
+surface. Installs without the optional audit read model return an empty
+history without weakening transition authorization. -->
+
 <!-- Spec reviewed 2026-08-06 - #2268: the existing scalar public-content-search availability gate now owns discovery as well as routing. When GET|HEAD /api/content/search is enabled and its optional packages are installed, ApiServiceProvider contributes exactly one same-origin RFC 9727 entry and one ARD/AI Catalog entry with the stable key api:content-search. Disabled or unavailable search withdraws the route and both entries. Catalog construction remains metadata-only and must not resolve database-backed SearchProviderInterface or AtomicRateLimiterInterface services. Applications may attach 2-5 public representative queries to api:content-search. -->
 
 <!-- Spec reviewed 2026-08-05 - #2196: ApiServiceProvider owns an experimental, default-off ARD v0.9 extension of AI Catalog 1.0 at GET/HEAD /.well-known/ai-catalog.json. A separate Foundation capability seam contributes immutable same-origin public artifacts; it is not an overload of RFC 9727 endpoint-link semantics. The byte-pinned ARD schema at commit 4a8a6b8fdd3ac4a50dcb63213573159c1eed7856 is a dev-only validation dependency, while runtime invariants are local and network-free. Application config owns representative queries. Canonical URLs come only from ai_catalog.base_url or APP_URL, never request authority. The surface, Link response, and every entry withdraw when disabled or empty; malformed config fails boot without echoing values. -->

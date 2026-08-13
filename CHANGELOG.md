@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Surface successful editorial transitions from the canonical append-only
+  audit log in the shared Admin SPA and Anokii entity editor, replacing the
+  obsolete inline history field while keeping denied attempts confined to the
+  privileged audit surface.
+
 - Expose the schema-driven entity editor as an authenticated, shell-free,
   same-origin client so Anokii and other role-focused shells can reuse the exact
   Admin SPA rich-text, reference, date, validation, workflow, and deletion
