@@ -49,6 +49,41 @@ final class DefinitionRegistry
         return $this->get($this->templates, $id, $version, 'template');
     }
 
+    /**
+     * Deterministic, client-safe definition catalogue.
+     *
+     * @return array{
+     *   blocks: list<array{id: string, version: int, label: string, renderer: string, config_schema: array<string, mixed>}>,
+     *   layouts: list<array{id: string, version: int, regions: list<string>, required_regions: list<string>, allowed_blocks: list<string>}>,
+     *   templates: list<array{id: string, version: int, allowed_layouts: list<string>, allowed_blocks: list<string>}>
+     * }
+     */
+    public function manifest(): array
+    {
+        return [
+            'blocks' => array_values(array_map(static fn(BlockDefinition $definition): array => [
+                'id' => $definition->id,
+                'version' => $definition->version,
+                'label' => $definition->label,
+                'renderer' => $definition->renderer,
+                'config_schema' => $definition->configSchema,
+            ], $this->blocks)),
+            'layouts' => array_values(array_map(static fn(LayoutDefinition $definition): array => [
+                'id' => $definition->id,
+                'version' => $definition->version,
+                'regions' => $definition->regions,
+                'required_regions' => $definition->requiredRegions,
+                'allowed_blocks' => $definition->allowedBlocks,
+            ], $this->layouts)),
+            'templates' => array_values(array_map(static fn(TemplateDefinition $definition): array => [
+                'id' => $definition->id,
+                'version' => $definition->version,
+                'allowed_layouts' => $definition->allowedLayouts,
+                'allowed_blocks' => $definition->allowedBlocks,
+            ], $this->templates)),
+        ];
+    }
+
     /** @param array<string, object> $definitions */
     private function register(array &$definitions, string $id, int $version, object $definition, string $kind): void
     {

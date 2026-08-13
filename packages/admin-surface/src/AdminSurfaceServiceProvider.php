@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AdminSurface;
 
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Waaseyaa\Access\Capability\CapabilityRegistryInterface;
 use Waaseyaa\Access\Capability\McpApprovalCapabilities;
+use Waaseyaa\Access\DecisionAccountResolver;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AdminSurface\Host\AbstractAdminSurfaceHost;
 use Waaseyaa\AdminSurface\Host\AdminPublicationFieldReaderInterface;
 use Waaseyaa\AdminSurface\Host\AuditedAdminPublicationFieldReader;
 use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
+use Waaseyaa\AdminSurface\PageBuilder\PageBuilderSurfaceHostInterface;
+use Waaseyaa\AdminSurface\PageBuilder\PageBuilderSurfaceRequest;
 use Waaseyaa\Api\Schema\SchemaPresenter;
 use Waaseyaa\Audit\AuditedFieldRead;
 use Waaseyaa\Audit\Contract\StrictPrivilegedReadLedgerInterface;
@@ -139,6 +143,11 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
             ),
         );
 
+        $pageBuilderHost = $this->resolveOptional(PageBuilderSurfaceHostInterface::class);
+        if ($pageBuilderHost instanceof PageBuilderSurfaceHostInterface) {
+            self::registerPageBuilderRoutes($router, $pageBuilderHost);
+        }
+
         self::registerRoutes($router, $host);
 
         // Admin SPA catch-all — registered after _surface API routes so those
@@ -263,6 +272,46 @@ final class AdminSurfaceServiceProvider extends ServiceProvider
             ->requireAuthentication()
             ->controller(fn($request, $type, $action) => $host->handleAction($request, $type, $action))
             ->build());
+    }
+
+    public static function registerPageBuilderRoutes(
+        WaaseyaaRouter $router,
+        PageBuilderSurfaceHostInterface $host,
+    ): void {
+        $router->addRoute('admin_surface.page_builder.definitions', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_DEFINITIONS)
+            ->methods('GET')
+            ->requireAuthentication()
+            ->controller(fn($request, $surface) => $host->handleDefinitions(self::pageBuilderRequest($request), $surface))
+            ->build());
+
+        $router->addRoute('admin_surface.page_builder.command', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_COMMAND)
+            ->methods('POST')
+            ->requireAuthentication()
+            ->controller(fn($request, $surface, $id) => $host->handleCommand(self::pageBuilderRequest($request), $surface, $id))
+            ->build());
+
+        $router->addRoute('admin_surface.page_builder.preview', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_PREVIEW)
+            ->methods('POST')
+            ->requireAuthentication()
+            ->controller(fn($request, $surface, $id) => $host->handlePreview(self::pageBuilderRequest($request), $surface, $id))
+            ->build());
+
+        $router->addRoute('admin_surface.page_builder.draft', RouteBuilder::create(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_DRAFT)
+            ->methods('GET')
+            ->requireAuthentication()
+            ->controller(fn($request, $surface, $id) => $host->handleDraft(self::pageBuilderRequest($request), $surface, $id))
+            ->build());
+    }
+
+    private static function pageBuilderRequest(Request $request): PageBuilderSurfaceRequest
+    {
+        return new PageBuilderSurfaceRequest(
+            DecisionAccountResolver::resolve(
+                $request->attributes->get('_authorization_principal'),
+                $request->attributes->get('_account'),
+            ),
+            $request->getContent(),
+        );
     }
 
     /**

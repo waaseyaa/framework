@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **page-builder draft persistence (#2344):** Route validated page-layout edits through a client-neutral draft gateway and the existing revision-guarded publishing service, carrying entity revision, document fingerprint, and idempotency guards without giving Admin SPA or Anokii a private save path.
 
+- **page-builder authenticated surface (#2344):** Add one permission-scoped Admin Surface contract for deterministic definitions, draft reads, strict edit commands, and exact-revision preview grants shared by Waaseyaa Admin SPA and Anokii.
+
 ### Fixed
 
 - **random-order fixture cleanup (#2334):** Make disposable drift-detector Git fixture cleanup idempotent when Git object paths disappear during teardown, preventing harmless filesystem races from failing the architecture random-order gate.

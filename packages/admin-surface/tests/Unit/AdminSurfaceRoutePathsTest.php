@@ -32,6 +32,22 @@ final class AdminSurfaceRoutePathsTest extends TestCase
             'type' => 'article',
             'action' => 'create',
         ]));
+        static::assertSame('/admin/_surface/page-builder/pages/definitions', AdminSurfaceRoutePaths::generate(
+            'admin_surface.page_builder.definitions',
+            ['surface' => 'pages'],
+        ));
+        static::assertSame('/admin/_surface/page-builder/pages/42', AdminSurfaceRoutePaths::generate(
+            'admin_surface.page_builder.draft',
+            ['surface' => 'pages', 'id' => '42'],
+        ));
+        static::assertSame('/admin/_surface/page-builder/pages/42/commands', AdminSurfaceRoutePaths::generate(
+            'admin_surface.page_builder.command',
+            ['surface' => 'pages', 'id' => '42'],
+        ));
+        static::assertSame('/admin/_surface/page-builder/pages/42/preview', AdminSurfaceRoutePaths::generate(
+            'admin_surface.page_builder.preview',
+            ['surface' => 'pages', 'id' => '42'],
+        ));
     }
 
     #[Test]

@@ -195,6 +195,21 @@ routeRules: {
 
 All `/api/*` requests and `/admin/_surface/*` requests proxy directly to the PHP backend defined by `NUXT_BACKEND_URL`. The admin runtime no longer bootstraps through a bare `/_surface/` alias. The default backend is `http://127.0.0.1:8080`, matching the repo's PHP dev server and CI workflows.
 
+### Optional page-builder surface (#2344)
+
+Applications may register one or more named page-builder surfaces. The PHP
+Admin Surface then exposes authenticated definitions, draft, command, and
+exact-revision preview routes below
+`/admin/_surface/page-builder/{surface}`. The transport converts the framework
+HTTP request into `PageBuilderSurfaceRequest`; the page-builder host itself has
+no direct Symfony request dependency. The configured surface permission is
+checked server-side for every operation. Unknown surfaces and malformed,
+oversized, extra, or missing command fields fail closed.
+
+The Admin SPA client added by the subsequent work package consumes this same
+contract as Anokii. It must not use generic entity PATCH, a direct repository
+save, or a client-private command vocabulary for layout edits.
+
 ### Cast-aware entity attributes (#1181)
 
 Entity CRUD and catalog responses under `/api/*` use **`ResourceSerializer`**, which builds `attributes` from **`EntityValues::toCastAwareMap()`** (see `docs/specs/jsonapi.md` and `docs/specs/entity-system.md`). Implications for the SPA:

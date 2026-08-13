@@ -38,6 +38,10 @@
         },
         {
             "type": "path",
+            "url": "../page-builder"
+        },
+        {
+            "type": "path",
             "url": "../config"
         },
         {
@@ -56,6 +60,7 @@
         "waaseyaa/access": "^0.1.0-alpha.293",
         "waaseyaa/routing": "^0.1.0-alpha.293",
         "waaseyaa/foundation": "^0.1.0-alpha.293",
+        "waaseyaa/page-builder": "^0.1.0-alpha.293",
         "waaseyaa/api": "^0.1.0-alpha.293",
         "waaseyaa/audit": "^0.1.0-alpha.293",
         "waaseyaa/workflows": "^0.1.0-alpha.293"

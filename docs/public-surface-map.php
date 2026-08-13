@@ -533,6 +533,10 @@ return [
     'Waaseyaa\PageBuilder\Command\EditCommand' => 'public',
     'Waaseyaa\PageBuilder\Draft\LayoutDraftGatewayInterface' => 'public',
     'Waaseyaa\Publishing\ContentDraftMutationInterface' => 'internal',
+    'Waaseyaa\AdminSurface\PageBuilder\PageBuilderSurfaceHostInterface' => 'public',
+    'Waaseyaa\PageBuilder\Preview\RevisionPreviewGatewayInterface' => 'public',
+    'Waaseyaa\PageBuilder\Preview\RevisionPreviewUrlGeneratorInterface' => 'public',
+    'Waaseyaa\Publishing\ContentRevisionPreviewInterface' => 'internal',
     'Waaseyaa\AI\Tools\Content\AssetStoreInterface' => 'public',
 
     // Listing pipeline value objects (mission listing-pipeline-v1-01KRMN0B WP01; charter §5.6).

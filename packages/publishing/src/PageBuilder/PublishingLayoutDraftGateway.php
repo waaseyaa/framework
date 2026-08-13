@@ -5,9 +5,15 @@ declare(strict_types=1);
 namespace Waaseyaa\Publishing\PageBuilder;
 
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
+use Waaseyaa\EntityStorage\Exception\RevisionConflictException;
+use Waaseyaa\PageBuilder\Draft\Exception\PageBuilderDraftNotFoundException;
+use Waaseyaa\PageBuilder\Draft\Exception\StaleEntityRevisionException;
 use Waaseyaa\PageBuilder\Draft\LayoutDraftGatewayInterface;
 use Waaseyaa\PageBuilder\Draft\LayoutDraftSnapshot;
+use Waaseyaa\PageBuilder\Surface\Exception\PageBuilderAccessDeniedException;
 use Waaseyaa\Publishing\ContentDraftMutationInterface;
+use Waaseyaa\Publishing\Exception\ContentAuthorizationException;
+use Waaseyaa\Publishing\Exception\ContentNotFoundException;
 
 /** @api */
 final readonly class PublishingLayoutDraftGateway implements LayoutDraftGatewayInterface
@@ -23,7 +29,13 @@ final readonly class PublishingLayoutDraftGateway implements LayoutDraftGatewayI
 
     public function read(AuthorizationPrincipalInterface $actor, string $entityId): LayoutDraftSnapshot
     {
-        return $this->snapshot($this->publisher->get($actor, $entityId));
+        try {
+            return $this->snapshot($this->publisher->get($actor, $entityId));
+        } catch (ContentAuthorizationException $exception) {
+            throw new PageBuilderAccessDeniedException('The page draft is not accessible.', previous: $exception);
+        } catch (ContentNotFoundException $exception) {
+            throw new PageBuilderDraftNotFoundException('The page draft was not found.', previous: $exception);
+        }
     }
 
     public function update(
@@ -33,13 +45,24 @@ final readonly class PublishingLayoutDraftGateway implements LayoutDraftGatewayI
         int $expectedRevisionId,
         string $idempotencyKey,
     ): LayoutDraftSnapshot {
-        return $this->snapshot($this->publisher->updateDraft(
-            $actor,
-            $entityId,
-            [$this->layoutField => $encodedLayout],
-            $expectedRevisionId,
-            $idempotencyKey,
-        ));
+        try {
+            return $this->snapshot($this->publisher->updateDraft(
+                $actor,
+                $entityId,
+                [$this->layoutField => $encodedLayout],
+                $expectedRevisionId,
+                $idempotencyKey,
+            ));
+        } catch (ContentAuthorizationException $exception) {
+            throw new PageBuilderAccessDeniedException('The page draft is not accessible.', previous: $exception);
+        } catch (ContentNotFoundException $exception) {
+            throw new PageBuilderDraftNotFoundException('The page draft was not found.', previous: $exception);
+        } catch (RevisionConflictException $exception) {
+            throw new StaleEntityRevisionException(
+                $exception->expectedRevisionId,
+                $exception->currentRevisionId,
+            );
+        }
     }
 
     /** @param array<string, mixed> $value */
