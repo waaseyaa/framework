@@ -6,7 +6,7 @@ namespace Waaseyaa\CLI\Site;
 
 use Symfony\Component\Yaml\Yaml;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
-use Waaseyaa\SiteContract\Generation\PublishedContentRecipe;
+use Waaseyaa\CLI\Site\Recipe\PublishedContentRecipe;
 
 /** @api */
 final class SiteManifestWizard

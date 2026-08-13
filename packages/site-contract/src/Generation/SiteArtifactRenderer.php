@@ -12,18 +12,38 @@ use Waaseyaa\SiteContract\SiteManifestSchema;
 /** @api */
 final class SiteArtifactRenderer
 {
+    /** @var array<string, SiteRecipeRendererInterface> */
+    private array $recipeRenderers = [];
+
+    /** @param iterable<SiteRecipeRendererInterface> $recipeRenderers */
+    public function __construct(iterable $recipeRenderers = [])
+    {
+        foreach ($recipeRenderers as $renderer) {
+            $id = $renderer->id();
+            if ($id === '' || isset($this->recipeRenderers[$id])) {
+                throw new \InvalidArgumentException("Duplicate or empty site recipe renderer identity: {$id}");
+            }
+            $this->recipeRenderers[$id] = $renderer;
+        }
+    }
+
     public function render(SiteManifest $manifest): GeneratedSite
     {
         foreach (array_keys($manifest->recipes) as $recipeId) {
-            if ($recipeId !== 'published_content') {
+            if (!isset($this->recipeRenderers[$recipeId])) {
                 throw new \InvalidArgumentException("Unsupported first-party recipe: {$recipeId}");
             }
         }
         $manifestYaml = new SiteManifestParser()->render($manifest);
-        $publishedContentArtifacts = new PublishedContentRecipe()->render($manifest);
         $recipeTests = [];
-        if ($publishedContentArtifacts !== []) {
-            $recipeTests[] = 'tests/Acceptance/PublishedContentRecipeTest.php';
+        $recipeArtifacts = [];
+        foreach ($manifest->recipes as $recipeId => $_selection) {
+            foreach ($this->recipeRenderers[$recipeId]->render($manifest) as $artifact) {
+                $recipeArtifacts[] = $artifact;
+                if (str_starts_with($artifact->path, 'tests/Acceptance/') && str_ends_with($artifact->path, 'Test.php')) {
+                    $recipeTests[] = $artifact->path;
+                }
+            }
         }
 
         $artifacts = [
@@ -35,7 +55,7 @@ final class SiteArtifactRenderer
             new GeneratedArtifact('tests/Acceptance/SiteGoldenPathTest.php', $this->acceptanceTest()),
             new GeneratedArtifact('bin/maintenance/site-verify', $this->verificationScript($recipeTests), 0o755),
         ];
-        foreach ($publishedContentArtifacts as $artifact) {
+        foreach ($recipeArtifacts as $artifact) {
             $artifacts[] = $artifact;
         }
 

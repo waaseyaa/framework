@@ -175,7 +175,7 @@ return [
     // serialized in the public provider-neutral manifest/report API.
     'Waaseyaa\SiteContract\Capability\CapabilityState' => 'public',
     'Waaseyaa\SiteContract\Doctor\FindingSeverity' => 'public',
-    'Waaseyaa\SiteContract\Generation\PublishedContentRecipe' => 'public',
+    'Waaseyaa\SiteContract\Generation\SiteRecipeRendererInterface' => 'public',
     'Waaseyaa\SiteContract\Version\ManifestVersionDisposition' => 'public',
 
     // Layer 1: Core Data — public

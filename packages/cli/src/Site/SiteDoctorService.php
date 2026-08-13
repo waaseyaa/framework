@@ -10,7 +10,6 @@ use Waaseyaa\SiteContract\Doctor\FindingSeverity;
 use Waaseyaa\SiteContract\Doctor\SiteDoctorFinding;
 use Waaseyaa\SiteContract\Doctor\SiteDoctorReport;
 use Waaseyaa\SiteContract\Generation\GeneratedArtifact;
-use Waaseyaa\SiteContract\Generation\SiteArtifactRenderer;
 use Waaseyaa\SiteContract\SiteManifestParser;
 
 /** @api */
@@ -77,7 +76,7 @@ final class SiteDoctorService
         if (!is_array($metadata) || ($metadata['schema'] ?? null) !== 'waaseyaa.generated' || ($metadata['version'] ?? null) !== 1 || ($metadata['manifest_digest'] ?? null) !== $manifest->digest || !is_array($metadata['artifacts'] ?? null)) {
             return [$this->finding('SITE010_GENERATED_ARTIFACT_DRIFT', '.waaseyaa/generated.json', 1, 'Generated ownership metadata does not bind this manifest.', 'Run site:init to restore the governed artifact set.', $metadataBytes)];
         }
-        $expectedMetadata = new SiteArtifactRenderer()->render($manifest)->artifacts['.waaseyaa/generated.json']->content;
+        $expectedMetadata = SiteArtifactRendererFactory::create()->render($manifest)->artifacts['.waaseyaa/generated.json']->content;
         if (!hash_equals($expectedMetadata, $metadataBytes)) {
             return [$this->finding('SITE010_GENERATED_ARTIFACT_DRIFT', '.waaseyaa/generated.json', 1, 'Generated ownership metadata was substituted or does not match the declared generator version.', 'Run the declared generator migration or restore this generator version through site:init.', $metadataBytes)];
         }

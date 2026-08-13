@@ -2,13 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Waaseyaa\SiteContract\Generation;
+namespace Waaseyaa\CLI\Site\Recipe;
 
 use Waaseyaa\SiteContract\CanonicalJson;
+use Waaseyaa\SiteContract\Generation\GeneratedArtifact;
+use Waaseyaa\SiteContract\Generation\SiteRecipeRendererInterface;
 use Waaseyaa\SiteContract\SiteManifest;
 
-/** @api */
-final class PublishedContentRecipe
+final class PublishedContentRecipe implements SiteRecipeRendererInterface
 {
     public const int VERSION = 1;
 
@@ -68,6 +69,11 @@ final class PublishedContentRecipe
         }
 
         return $artifacts;
+    }
+
+    public function id(): string
+    {
+        return 'published_content';
     }
 
     public static function digest(): string
@@ -230,6 +236,9 @@ final class PublishedContentRecipe
 
                 public function register(): void
                 {
+                    $this->singleton(PathAliasResolver::class, fn(): PathAliasResolver => new PathAliasResolver(
+                        $this->resolve(EntityTypeManagerInterface::class)->getRepository('path_alias'),
+                    ));
                     $this->singleton(CanonicalContentRouteResolver::class, fn(): CanonicalContentRouteResolver => new CanonicalContentRouteResolver(
                         (string) ($this->config[__ORIGIN_CONFIG_KEY__] ?? ''),
                         $this->definitions(),
@@ -306,13 +315,12 @@ final class PublishedContentRecipe
             namespace App\Controller;
 
             use App\Content\CanonicalContentRouteResolver;
-            use Symfony\Component\HttpFoundation\Request;
-            use Symfony\Component\HttpFoundation\Response;
             use Twig\Environment;
             use Waaseyaa\Access\AccountInterface;
             use Waaseyaa\Access\EntityAccessHandler;
             use Waaseyaa\Entity\EntityInterface;
             use Waaseyaa\Entity\EntityTypeManagerInterface;
+            use Waaseyaa\Foundation\Http\Request;
             use Waaseyaa\Listing\ExposedFilterParser;
             use Waaseyaa\Listing\ListingDefinitionRegistry;
             use Waaseyaa\Listing\ListingResolver;
@@ -335,7 +343,7 @@ final class PublishedContentRecipe
                     private Environment $twig,
                 ) {}
 
-                public function index(Request $request, string $bundle): Response
+                public function index(Request $request, string $bundle): \Symfony\Component\HttpFoundation\Response
                 {
                     $definition = $this->definitions->get($bundle . '_index');
                     $filters = ExposedFilterParser::create()->parse($request->query->all(), $definition);
@@ -353,27 +361,27 @@ final class PublishedContentRecipe
                         ];
                     }
 
-                    return new Response($this->twig->render('content/index.html.twig', [
+                    return new \Symfony\Component\HttpFoundation\Response($this->twig->render('content/index.html.twig', [
                         'bundle' => $bundle,
                         'rows' => $rows,
                         'pagination' => $result->pagination,
                     ]));
                 }
 
-                public function detail(Request $request, string $bundle): Response
+                public function detail(Request $request, string $bundle): \Symfony\Component\HttpFoundation\Response
                 {
                     $resolved = $this->canonicalRoutes->resolveInboundAlias($request->getPathInfo());
                     if ($resolved === null || $resolved->entityTypeId !== 'node') {
-                        return new Response('Not found', 404);
+                        return new \Symfony\Component\HttpFoundation\Response('Not found', 404);
                     }
                     $entity = $this->entityTypes->getRepository('node')->find($resolved->entityId);
                     $account = $this->account($request);
                     if (!$entity instanceof EntityInterface || !$this->access->check($entity, 'view', $account)->isAllowed()) {
-                        return new Response('Not found', 404);
+                        return new \Symfony\Component\HttpFoundation\Response('Not found', 404);
                     }
                     $label = $this->access->viewableLabel($entity, $account, $this->entityTypes);
                     if ($label === null) {
-                        return new Response('Not found', 404);
+                        return new \Symfony\Component\HttpFoundation\Response('Not found', 404);
                     }
                     $canonical = $this->canonicalRoutes->canonicalDetailUrl($bundle, (string) $entity->get('slug'));
                     $description = $this->access->checkFieldAccess($entity, 'summary', 'view', $account)->isForbidden()
@@ -387,7 +395,7 @@ final class PublishedContentRecipe
                         labelOverride: $label,
                     ));
 
-                    return new Response($this->twig->render('content/detail.html.twig', [
+                    return new \Symfony\Component\HttpFoundation\Response($this->twig->render('content/detail.html.twig', [
                         'bundle' => $bundle,
                         'title' => $label,
                         'body' => (string) $entity->get('body'),
@@ -396,7 +404,7 @@ final class PublishedContentRecipe
                     ]));
                 }
 
-                public function sitemap(): Response
+                public function sitemap(): \Symfony\Component\HttpFoundation\Response
                 {
                     $anonymous = new AnonymousUser(['access content']);
                     $urls = $this->sitemap->collectFromEntityTypes(
@@ -413,7 +421,7 @@ final class PublishedContentRecipe
                         account: $anonymous,
                     );
 
-                    return new Response($this->sitemap->toXml($urls), 200, ['Content-Type' => 'application/xml; charset=UTF-8']);
+                    return new \Symfony\Component\HttpFoundation\Response($this->sitemap->toXml($urls), 200, ['Content-Type' => 'application/xml; charset=UTF-8']);
                 }
 
                 private function account(Request $request): AccountInterface

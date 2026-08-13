@@ -8,7 +8,6 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Path\PathAlias;
-use Waaseyaa\Path\PathAliasResolver;
 use Waaseyaa\Path\PathServiceProvider;
 
 #[CoversClass(PathServiceProvider::class)]
@@ -25,6 +24,5 @@ final class PathServiceProviderTest extends TestCase
         $this->assertCount(1, $entityTypes);
         $this->assertSame('path_alias', $entityTypes[0]->id());
         $this->assertSame(PathAlias::class, $entityTypes[0]->getClass());
-        $this->assertArrayHasKey(PathAliasResolver::class, $provider->getBindings());
     }
 }
