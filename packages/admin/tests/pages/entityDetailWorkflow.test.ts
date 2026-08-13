@@ -122,6 +122,45 @@ describe('entity detail workflow binding', () => {
     expect(dialog.showModal).toHaveBeenCalledOnce()
   })
 
+  it('rejects a preview URL that is not a same-origin absolute path', async () => {
+    schemaRef.value = { ...baseSchema, 'x-preview': { action: 'preview' } }
+    runActionMock.mockResolvedValue({ preview_url: 'https://external.example/preview' })
+    const wrapper = await mountPage()
+
+    await wrapper.get('[data-testid="detail-preview"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('preview_invalid_response')
+    expect(wrapper.find('iframe').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="detail-preview"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('closes a preview and removes its signed URL from the document', async () => {
+    schemaRef.value = { ...baseSchema, 'x-preview': { action: 'preview' } }
+    runActionMock.mockResolvedValue({ preview_url: '/preview/node/5?token=test' })
+    const wrapper = await mountPage()
+    const dialog = wrapper.get('dialog').element as HTMLDialogElement
+    dialog.showModal = vi.fn()
+    dialog.close = vi.fn()
+
+    await wrapper.get('[data-testid="detail-preview"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('button[aria-label="preview_close"]').trigger('click')
+
+    expect(dialog.close).toHaveBeenCalledOnce()
+    expect(wrapper.find('iframe').exists()).toBe(false)
+  })
+
+  it('switches between view and edit without changing workflow state', async () => {
+    schemaRef.value = { ...baseSchema, 'x-workflow': { bound: false, id: null } }
+    const wrapper = await mountPage()
+
+    await wrapper.get('button.btn-primary').trigger('click')
+    expect(wrapper.text()).toContain('cancel')
+    await wrapper.get('button.btn').trigger('click')
+    expect(wrapper.text()).toContain('edit')
+  })
+
   it('deletes from the detail page through the standard confirmation modal', async () => {
     schemaRef.value = { ...baseSchema, 'x-workflow': { bound: false, id: null } }
     const wrapper = await mountPage()
