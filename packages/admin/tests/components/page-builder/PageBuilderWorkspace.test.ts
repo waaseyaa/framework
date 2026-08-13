@@ -253,6 +253,115 @@ describe('PageBuilderWorkspace', () => {
     randomUUID.mockRestore()
   })
 
+  it('moves a selected block into another allowed section region', async () => {
+    const multiDefinitions = structuredClone(definitions)
+    multiDefinitions.layouts.push({
+      id: 'two_column',
+      version: 1,
+      regions: ['main', 'sidebar'],
+      required_regions: ['main', 'sidebar'],
+      allowed_blocks: ['rich_text'],
+    })
+    definitionsRef.value = multiDefinitions
+    const multiSectionDraft = structuredClone(draft)
+    multiSectionDraft.document.sections.push({
+      id: 'sec_secondary',
+      layout: { id: 'two_column', version: 1 },
+      regions: { main: [], sidebar: [] },
+    })
+    draftRef.value = multiSectionDraft
+    const wrapper = await mountWorkspace()
+    applyMock.mockClear()
+
+    await wrapper.get('[data-block-destination]').setValue('sec_secondary::sidebar')
+    await wrapper.get('[data-move-block-to-region]').trigger('click')
+    await flushPromises()
+
+    expect(applyMock).toHaveBeenCalledWith({
+      type: 'move_block',
+      block_id: 'blk_intro',
+      destination_section_id: 'sec_secondary',
+      destination_region_id: 'sidebar',
+      position: 0,
+    })
+    expect(wrapper.text()).toContain('page_builder_block_moved_to_region')
+  })
+
+  it('offers complete guarded section manipulation from the shared outline', async () => {
+    const multiDefinitions = structuredClone(definitions)
+    multiDefinitions.layouts.push({
+      id: 'two_column',
+      version: 1,
+      regions: ['main', 'sidebar'],
+      required_regions: ['main', 'sidebar'],
+      allowed_blocks: ['rich_text'],
+    })
+    definitionsRef.value = multiDefinitions
+    const multiSectionDraft = structuredClone(draft)
+    multiSectionDraft.document.sections.push({
+      id: 'sec_secondary',
+      layout: { id: 'one_column', version: 1 },
+      regions: { main: [] },
+    })
+    draftRef.value = multiSectionDraft
+    const confirm = vi.fn().mockReturnValue(true)
+    Object.defineProperty(window, 'confirm', { configurable: true, value: confirm })
+    const uuid = vi.spyOn(crypto, 'randomUUID')
+      .mockReturnValueOnce('aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee')
+      .mockReturnValueOnce('11111111-2222-4333-8444-555555555555')
+      .mockReturnValueOnce('99999999-2222-4333-8444-555555555555')
+    const wrapper = await mountWorkspace()
+
+    await wrapper.get('[data-section-select="sec_secondary"]').trigger('click')
+    applyMock.mockClear()
+    await wrapper.get('[data-move-section-up]').trigger('click')
+    expect(applyMock).toHaveBeenLastCalledWith({ type: 'move_section', section_id: 'sec_secondary', position: 0 })
+
+    await wrapper.get('[data-section-layout]').setValue('two_column::1')
+    await wrapper.get('[data-change-section-layout]').trigger('click')
+    expect(applyMock).toHaveBeenLastCalledWith({
+      type: 'change_section_layout',
+      section_id: 'sec_secondary',
+      layout_id: 'two_column',
+      layout_version: 1,
+    })
+
+    await wrapper.get('[data-duplicate-section]').trigger('click')
+    expect(applyMock).toHaveBeenLastCalledWith({
+      type: 'add_section',
+      position: 2,
+      section: {
+        id: 'sec_aaaaaaaabbbb4ccc8dddeeeeeeeeeeee',
+        layout: { id: 'one_column', version: 1 },
+        regions: { main: [] },
+      },
+    })
+
+    await wrapper.get('[data-section-select="sec_main"]').trigger('click')
+    await wrapper.get('[data-duplicate-section]').trigger('click')
+    expect(applyMock).toHaveBeenLastCalledWith({
+      type: 'add_section',
+      position: 1,
+      section: {
+        id: 'sec_11111111222243338444555555555555',
+        layout: { id: 'one_column', version: 1 },
+        regions: {
+          main: [{
+            id: 'blk_99999999222243338444555555555555',
+            type: 'rich_text',
+            version: 1,
+            config: { body: 'Welcome' },
+          }],
+        },
+      },
+    })
+
+    await wrapper.get('[data-remove-section]').trigger('click')
+    expect(confirm).toHaveBeenCalled()
+    expect(applyMock).toHaveBeenLastCalledWith({ type: 'remove_section', section_id: 'sec_main' })
+    uuid.mockRestore()
+  })
+
   it('accepts block selection only from its same-origin exact-preview frame', async () => {
     const wrapper = await mountWorkspace()
     const iframe = wrapper.get('[data-page-builder-preview]').element as HTMLIFrameElement
