@@ -65,6 +65,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Allow governed entity-reference pickers to use catalog-declared `CONTAINS`
+  search, so large media libraries remain searchable by remembered words while
+  preserving the same allowlisted query contract in Admin SPA and Anokii.
+
 - **random-order fixture cleanup (#2334):** Make disposable drift-detector Git fixture cleanup idempotent when Git object paths disappear during teardown, preventing harmless filesystem races from failing the architecture random-order gate.
 
 - **explicit deployment promotion (#2332):** Stop treating every main-branch merge as a staging and production deployment. Environment promotion now requires a manual exact-main-SHA request, production intent is explicit and protected separately, and untagged production is refused unless an audited emergency override is supplied.

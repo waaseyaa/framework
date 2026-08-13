@@ -3,6 +3,7 @@ import type {
   PageBuilderBlock,
   PageBuilderBlockDefinition,
   PageBuilderCommand,
+  PageBuilderLayoutDefinition,
   PageBuilderSection,
 } from '~/contracts/pageBuilder'
 import { usePageBuilder } from '~/composables/usePageBuilder'
@@ -34,6 +35,22 @@ const announcement = ref('')
 const configDirty = ref(false)
 const historyOpen = ref(false)
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null
+
+const commonLayoutPrefix = computed(() => {
+  const layouts = definitions.value?.layouts ?? []
+  if (layouts.length < 2) return ''
+  const prefix = layouts[0]?.id.split(/[_-]/, 1)[0] ?? ''
+  return prefix && layouts.every(layout => layout.id.startsWith(`${prefix}_`) || layout.id.startsWith(`${prefix}-`))
+    ? prefix
+    : ''
+})
+
+function layoutLabel(id: string): string {
+  const prefix = commonLayoutPrefix.value
+  const readable = prefix ? id.replace(new RegExp(`^${prefix}[_-]`), '') : id
+  const words = readable.replaceAll('_', ' ').replaceAll('-', ' ')
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
 
 function cloneConfig(config: Record<string, unknown>): Record<string, unknown> {
   return JSON.parse(JSON.stringify(config)) as Record<string, unknown>
@@ -187,9 +204,10 @@ async function restoreComparedRevision() {
 }
 
 async function addBlock(definition: PageBuilderBlockDefinition) {
-  const section = draft.value?.document.sections[0]
+  const selected = selectedEntry.value
+  const section = selected?.section ?? draft.value?.document.sections[0]
   if (!section) return
-  const regionId = Object.keys(section.regions)[0]
+  const regionId = selected?.regionId ?? Object.keys(section.regions)[0]
   if (!regionId) return
   const blockId = secureId('blk')
   const config: Record<string, unknown> = {}
@@ -203,15 +221,14 @@ async function addBlock(definition: PageBuilderBlockDefinition) {
     type: 'add_block',
     section_id: section.id,
     region_id: regionId,
-    position: section.regions[regionId]?.length ?? 0,
+    position: selected ? selected.position + 1 : section.regions[regionId]?.length ?? 0,
     block: { id: blockId, type: definition.id, version: definition.version, config },
   }, t('page_builder_block_added', { block: definition.label }))
   if (saved) selectedBlockId.value = blockId
 }
 
-async function addSection() {
-  const layout = definitions.value?.layouts[0]
-  if (!layout || !draft.value) return
+async function addSection(layout: PageBuilderLayoutDefinition) {
+  if (!draft.value) return
   const regions = Object.fromEntries(layout.regions.map(region => [region, []]))
   await run({
     type: 'add_section',
@@ -338,13 +355,27 @@ onBeforeUnmount(() => {
             <span class="page-builder__block-icon" aria-hidden="true">+</span>
             <span>
               <strong>{{ definition.label }}</strong>
-              <small>{{ definition.id }}</small>
             </span>
           </button>
         </div>
-        <button type="button" class="page-builder__add-section" :disabled="saving" @click="addSection">
-          + {{ t('page_builder_add_section') }}
-        </button>
+        <div class="page-builder__panel-heading page-builder__layout-heading">
+          <div>
+            <span>{{ t('page_builder_add') }}</span>
+            <h2>{{ t('page_builder_add_section') }}</h2>
+          </div>
+        </div>
+        <div class="page-builder__layout-list">
+          <button
+            v-for="layout in definitions.layouts"
+            :key="`${layout.id}:${layout.version}`"
+            type="button"
+            class="page-builder__add-section"
+            :disabled="saving"
+            @click="addSection(layout)"
+          >
+            + {{ layoutLabel(layout.id) }}
+          </button>
+        </div>
       </aside>
 
       <main class="page-builder__canvas" :aria-label="t('page_builder_preview')">
@@ -508,7 +539,7 @@ onBeforeUnmount(() => {
         <div class="page-builder__outline">
           <h3>{{ t('page_builder_outline') }}</h3>
           <div v-for="section in draft.document.sections" :key="section.id" class="page-builder__section">
-            <strong>{{ section.layout.id }}</strong>
+            <strong>{{ layoutLabel(section.layout.id) }}</strong>
             <template v-for="(regionBlocks, regionId) in section.regions" :key="regionId">
               <span class="page-builder__region">{{ regionId }}</span>
               <button
@@ -553,7 +584,9 @@ onBeforeUnmount(() => {
 .page-builder__block-card span:last-child { display: grid; gap: 2px; }
 .page-builder__block-card small { color: #75807b; }
 .page-builder__block-icon { display: grid; flex: 0 0 30px; width: 30px; height: 30px; place-items: center; border-radius: 7px; background: var(--color-primary-light, #e2f1eb); color: var(--color-primary, #12624d); font-size: 20px; }
-.page-builder__add-section { width: 100%; margin-top: 12px; padding: 11px; border: 1px dashed #8fa49b; border-radius: 8px; background: transparent; color: var(--color-primary, #245c4b); cursor: pointer; }
+.page-builder__layout-heading { margin-top: 24px; }
+.page-builder__layout-list { display: grid; gap: 8px; }
+.page-builder__add-section { width: 100%; padding: 11px; border: 1px dashed #8fa49b; border-radius: 8px; background: transparent; color: var(--color-primary, #245c4b); cursor: pointer; }
 .page-builder__canvas { min-width: 0; padding: 18px 20px; background: #e8e6df; }
 .page-builder__canvas-meta { display: flex; justify-content: space-between; margin-bottom: 10px; color: #5f6964; font-size: 12px; }
 .page-builder__canvas-meta span { display: flex; align-items: center; gap: 7px; }
