@@ -13,19 +13,14 @@ use Waaseyaa\Routing\WaaseyaaRouter;
 
 final class AppServiceProvider extends ServiceProvider
 {
-    public function register(): void
-    {
-        $this->singleton(HomeController::class, static fn (): HomeController => new HomeController());
-    }
+    public function register(): void {}
 
     public function routes(WaaseyaaRouter $router, ?\Waaseyaa\Entity\EntityTypeManager $entityTypeManager = null): void
     {
-        $controller = $this->resolve(HomeController::class);
-
         $router->addRoute(
             'home',
             RouteBuilder::create('/')
-                ->controller(fn () => $controller->index())
+                ->controller([HomeController::class, 'index'])
                 ->allowAll()
                 ->methods('GET')
                 ->build(),
