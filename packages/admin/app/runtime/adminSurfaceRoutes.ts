@@ -9,11 +9,16 @@ export type AdminSurfaceRouteName =
   | 'admin_surface.list'
   | 'admin_surface.get'
   | 'admin_surface.action'
+  | 'admin_surface.page_builder.definitions'
+  | 'admin_surface.page_builder.draft'
+  | 'admin_surface.page_builder.command'
+  | 'admin_surface.page_builder.preview'
 
 export type AdminSurfaceRouteParams = {
   type?: string
   id?: string
   action?: string
+  surface?: string
 }
 
 function requireParam(key: keyof AdminSurfaceRouteParams, value: string | undefined): string {
@@ -49,6 +54,25 @@ export function adminSurfacePathRelativeToAppBase(
       const type = requireParam('type', params.type)
       const action = requireParam('action', params.action)
       return `_surface/${encodeURIComponent(type)}/action/${encodeURIComponent(action)}`
+    }
+    case 'admin_surface.page_builder.definitions': {
+      const surface = requireParam('surface', params.surface)
+      return `_surface/page-builder/${encodeURIComponent(surface)}/definitions`
+    }
+    case 'admin_surface.page_builder.draft': {
+      const surface = requireParam('surface', params.surface)
+      const id = requireParam('id', params.id)
+      return `_surface/page-builder/${encodeURIComponent(surface)}/${encodeURIComponent(id)}`
+    }
+    case 'admin_surface.page_builder.command': {
+      const surface = requireParam('surface', params.surface)
+      const id = requireParam('id', params.id)
+      return `_surface/page-builder/${encodeURIComponent(surface)}/${encodeURIComponent(id)}/commands`
+    }
+    case 'admin_surface.page_builder.preview': {
+      const surface = requireParam('surface', params.surface)
+      const id = requireParam('id', params.id)
+      return `_surface/page-builder/${encodeURIComponent(surface)}/${encodeURIComponent(id)}/preview`
     }
   }
 }

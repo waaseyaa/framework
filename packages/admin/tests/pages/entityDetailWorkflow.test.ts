@@ -3,11 +3,12 @@ import { flushPromises } from '@vue/test-utils'
 import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { schemaRef, fetchSchemaMock, removeMock, navigateMock } = vi.hoisted(() => {
+const { schemaRef, fetchSchemaMock, getMock, removeMock, navigateMock } = vi.hoisted(() => {
   const { ref } = require('vue') as typeof import('vue')
   return {
     schemaRef: ref<EntitySchema | null>(null),
     fetchSchemaMock: vi.fn(),
+    getMock: vi.fn(),
     removeMock: vi.fn(),
     navigateMock: vi.fn(),
   }
@@ -36,7 +37,7 @@ vi.mock('~/composables/useAdmin', () => ({
 }))
 
 vi.mock('~/composables/useEntity', () => ({
-  useEntity: () => ({ remove: removeMock }),
+  useEntity: () => ({ get: getMock, remove: removeMock }),
 }))
 
 const baseSchema = {
@@ -59,7 +60,7 @@ async function mountPage() {
         WorkflowTransitionHistoryTimeline: { template: '<div data-testid="workflow-history" />' },
         SchemaView: { template: '<div />' },
         SchemaForm: { template: '<div />' },
-        NuxtLink: { template: '<a><slot /></a>' },
+        NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
         teleport: true,
       },
     },
@@ -72,6 +73,7 @@ describe('entity detail workflow binding', () => {
   beforeEach(() => {
     schemaRef.value = null
     fetchSchemaMock.mockReset()
+    getMock.mockReset().mockResolvedValue({ id: '5', attributes: { type: 'post' } })
     removeMock.mockReset()
     removeMock.mockResolvedValue(undefined)
     navigateMock.mockReset()
@@ -93,6 +95,14 @@ describe('entity detail workflow binding', () => {
     expect(wrapper.find('[data-testid="workflow-controls"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="workflow-history"]').exists()).toBe(false)
     expect(wrapper.find('button.btn-primary').exists()).toBe(true)
+  })
+
+  it('offers the governed page builder from an eligible page detail', async () => {
+    schemaRef.value = { ...baseSchema, 'x-workflow': { bound: true, id: 'editorial' } }
+    getMock.mockResolvedValue({ id: '5', attributes: { type: 'page' } })
+    const wrapper = await mountPage()
+
+    expect(wrapper.get('[data-testid="detail-page-builder"]').attributes('href')).toBe('/page-builder/page/5')
   })
 
   it('deletes from the detail page through the standard confirmation modal', async () => {

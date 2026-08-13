@@ -27,7 +27,28 @@ describe('adminSurfaceRoutes', () => {
     ).toBe('_surface/article/action/create')
   })
 
+  it('builds the shared page-builder paths for either client shell', () => {
+    expect(adminSurfacePathRelativeToAppBase('admin_surface.page_builder.definitions', {
+      surface: 'page',
+    })).toBe('_surface/page-builder/page/definitions')
+    expect(adminSurfacePathRelativeToAppBase('admin_surface.page_builder.draft', {
+      surface: 'page',
+      id: 'about-us',
+    })).toBe('_surface/page-builder/page/about-us')
+    expect(adminSurfacePathRelativeToAppBase('admin_surface.page_builder.command', {
+      surface: 'landing page',
+      id: '42/preview',
+    })).toBe('_surface/page-builder/landing%20page/42%2Fpreview/commands')
+    expect(adminSurfacePathRelativeToAppBase('admin_surface.page_builder.preview', {
+      surface: 'page',
+      id: '42',
+    })).toBe('_surface/page-builder/page/42/preview')
+  })
+
   it('throws on missing required params', () => {
     expect(() => adminSurfacePathRelativeToAppBase('admin_surface.list', {})).toThrow(/type/)
+    expect(() => adminSurfacePathRelativeToAppBase('admin_surface.page_builder.draft', {
+      surface: 'page',
+    })).toThrow(/id/)
   })
 })

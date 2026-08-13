@@ -1,0 +1,58 @@
+import { describe, expect, it, vi } from 'vitest'
+import type { PageBuilderDraft } from '~/contracts/pageBuilder'
+import { PageBuilderClient } from '~/runtime/pageBuilderClient'
+
+const draft: PageBuilderDraft = {
+  entity_id: '42',
+  entity_revision_id: 7,
+  document_fingerprint: 'a'.repeat(64),
+  document: {
+    schema: 'waaseyaa.layout',
+    version: 1,
+    template: { id: 'standard', version: 1 },
+    sections: [],
+  },
+}
+
+describe('PageBuilderClient', () => {
+  it('loads definitions and the current draft from the common admin surface', async () => {
+    const fetch = vi.fn().mockResolvedValue({ ok: true, data: {} })
+    const client = new PageBuilderClient('/admin/', fetch)
+
+    await client.definitions('page')
+    await client.draft('page', '42')
+
+    expect(fetch).toHaveBeenNthCalledWith(1, '/admin/_surface/page-builder/page/definitions')
+    expect(fetch).toHaveBeenNthCalledWith(2, '/admin/_surface/page-builder/page/42')
+  })
+
+  it('binds every edit to the observed revision, document, and idempotency key', async () => {
+    const fetch = vi.fn().mockResolvedValue({ ok: true, data: draft })
+    const client = new PageBuilderClient('/admin/', fetch)
+    const command = { type: 'remove_block', block_id: 'blk_intro' } as const
+
+    await client.command('page', '42', draft, command, 'operation-123')
+
+    expect(fetch).toHaveBeenCalledWith('/admin/_surface/page-builder/page/42/commands', {
+      method: 'POST',
+      body: {
+        expected_entity_revision_id: 7,
+        expected_document_fingerprint: 'a'.repeat(64),
+        idempotency_key: 'operation-123',
+        command,
+      },
+    })
+  })
+
+  it('requests preview for an exact persisted revision', async () => {
+    const fetch = vi.fn().mockResolvedValue({ ok: true, data: {} })
+    const client = new PageBuilderClient('/admin/', fetch)
+
+    await client.preview('page', '42', 7)
+
+    expect(fetch).toHaveBeenCalledWith('/admin/_surface/page-builder/page/42/preview', {
+      method: 'POST',
+      body: { expected_entity_revision_id: 7 },
+    })
+  })
+})
