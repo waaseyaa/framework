@@ -79,4 +79,17 @@ final class SiteDoctorReportTest extends TestCase
             self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/D', $finding->evidenceDigest);
         }
     }
+
+    public function test_scanner_does_not_misclassify_unrelated_urls_or_server_metadata(): void
+    {
+        $findings = new ArchitectureScanner()->scan([
+            'src/Telemetry.php' => <<<'PHP'
+                <?php
+                $documentation = 'https://docs.example.org/operator-guide';
+                $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+                PHP,
+        ]);
+
+        self::assertSame([], $findings);
+    }
 }

@@ -32,10 +32,14 @@ final class ArchitectureScanner
                 if ($kind === T_CONSTANT_ENCAPSED_STRING && preg_match('/\b(?:CREATE|ALTER|DROP)\s+TABLE\b/i', $text) === 1) {
                     $findings[] = $this->finding('SITE101_RUNTIME_DDL', $path, $line, $text);
                 }
-                if ($kind === T_VARIABLE && $text === '$_SERVER') {
+                if ($kind === T_VARIABLE && $text === '$_SERVER' && $this->isAuthorityServerRead($tokens, $index)) {
                     $findings[] = $this->finding('SITE102_SERVER_CANONICAL_ORIGIN', $path, $line, $text);
                 }
-                if ($kind === T_CONSTANT_ENCAPSED_STRING && preg_match('#https?://[a-z0-9.-]+#i', $text) === 1) {
+                if (
+                    $kind === T_CONSTANT_ENCAPSED_STRING
+                    && preg_match('#https?://[a-z0-9.-]+#i', $text) === 1
+                    && $this->isOriginAssignment($tokens, $index)
+                ) {
                     $findings[] = $this->finding('SITE103_HARDCODED_PRODUCTION_ORIGIN', $path, $line, $text);
                 }
             }
@@ -69,6 +73,46 @@ final class ArchitectureScanner
         }
 
         return null;
+    }
+
+    /** @param list<array{int,string,int}|string> $tokens */
+    private function isAuthorityServerRead(array $tokens, int $index): bool
+    {
+        $text = '';
+        $count = count($tokens);
+        for (++$index; $index < $count && strlen($text) < 80; ++$index) {
+            $token = $tokens[$index];
+            $text .= is_array($token) ? $token[1] : $token;
+            if (str_contains($text, ']')) {
+                break;
+            }
+        }
+
+        return preg_match('/[\'\"](?:HTTP_HOST|SERVER_NAME|SERVER_PORT|HTTPS)[\'\"]/', $text) === 1;
+    }
+
+    /** @param list<array{int,string,int}|string> $tokens */
+    private function isOriginAssignment(array $tokens, int $index): bool
+    {
+        $significant = [];
+        for (--$index; $index >= 0 && count($significant) < 3; --$index) {
+            $token = $tokens[$index];
+            if (is_array($token) && in_array($token[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)) {
+                continue;
+            }
+            if (is_string($token) && trim($token) === '') {
+                continue;
+            }
+            $significant[] = $token;
+        }
+        if (($significant[0] ?? null) !== '=') {
+            return false;
+        }
+        $variable = $significant[1] ?? null;
+
+        return is_array($variable)
+            && $variable[0] === T_VARIABLE
+            && preg_match('/(?:origin|canonical|base_?url|site_?url)/i', $variable[1]) === 1;
     }
 
     private function assertSource(string $path, mixed $source): void
