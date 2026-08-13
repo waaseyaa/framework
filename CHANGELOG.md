@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Allow the non-release, exact-main split workflow to mirror the API and audit
+  packages alongside admin-surface for downstream integration verification.
+
 - Surface successful editorial transitions from the canonical append-only
   audit log in the shared Admin SPA and Anokii entity editor, replacing the
   obsolete inline history field while keeping denied attempts confined to the
