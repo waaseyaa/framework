@@ -46,6 +46,17 @@ final class PreviewLinkServiceTest extends TestCase
     }
 
     #[Test]
+    public function revision_tokens_are_bound_to_the_exact_revision(): void
+    {
+        $service = new PreviewLinkService('secret-a', fn(): int => 1_000_000);
+        $token = $service->issueRevision('node', '42', 17, 600);
+
+        self::assertTrue($service->verifyRevision('node', '42', 17, $token->expiresAt, $token->signature));
+        self::assertFalse($service->verifyRevision('node', '42', 18, $token->expiresAt, $token->signature));
+        self::assertFalse($service->verify('node', '42', $token->expiresAt, $token->signature));
+    }
+
+    #[Test]
     public function forged_or_foreign_secret_signatures_fail(): void
     {
         $issuer = new PreviewLinkService('secret-a', fn(): int => 1_000_000);

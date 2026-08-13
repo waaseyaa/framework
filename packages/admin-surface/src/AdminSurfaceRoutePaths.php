@@ -25,6 +25,20 @@ final class AdminSurfaceRoutePaths
 
     public const PATH_ACTION = '/admin/_surface/{type}/action/{action}';
 
+    public const PATH_PAGE_BUILDER_DEFINITIONS = '/admin/_surface/page-builder/{surface}/definitions';
+
+    public const PATH_PAGE_BUILDER_DRAFT = '/admin/_surface/page-builder/{surface}/{id}';
+
+    public const PATH_PAGE_BUILDER_COMMAND = '/admin/_surface/page-builder/{surface}/{id}/commands';
+
+    public const PATH_PAGE_BUILDER_PREVIEW = '/admin/_surface/page-builder/{surface}/{id}/preview';
+
+    public const PATH_PAGE_BUILDER_HISTORY = '/admin/_surface/page-builder/{surface}/{id}/revisions';
+
+    public const PATH_PAGE_BUILDER_REVISION = '/admin/_surface/page-builder/{surface}/{id}/revisions/{revision}';
+
+    public const PATH_PAGE_BUILDER_RESTORE = '/admin/_surface/page-builder/{surface}/{id}/restore';
+
     /**
      * Build a concrete URL path for a named admin surface route (path only, no scheme or host).
      *
@@ -44,6 +58,33 @@ final class AdminSurfaceRoutePaths
                 self::requireString($parameters, 'type', $name),
                 self::requireString($parameters, 'action', $name),
             ),
+            'admin_surface.page_builder.definitions' => self::pathPageBuilderDefinitions(
+                self::requireString($parameters, 'surface', $name),
+            ),
+            'admin_surface.page_builder.draft' => self::pathPageBuilderDraft(
+                self::requireString($parameters, 'surface', $name),
+                self::requireString($parameters, 'id', $name),
+            ),
+            'admin_surface.page_builder.command' => self::pathPageBuilderDraft(
+                self::requireString($parameters, 'surface', $name),
+                self::requireString($parameters, 'id', $name),
+            ) . '/commands',
+            'admin_surface.page_builder.preview' => self::pathPageBuilderDraft(
+                self::requireString($parameters, 'surface', $name),
+                self::requireString($parameters, 'id', $name),
+            ) . '/preview',
+            'admin_surface.page_builder.history' => self::pathPageBuilderDraft(
+                self::requireString($parameters, 'surface', $name),
+                self::requireString($parameters, 'id', $name),
+            ) . '/revisions',
+            'admin_surface.page_builder.revision' => self::pathPageBuilderDraft(
+                self::requireString($parameters, 'surface', $name),
+                self::requireString($parameters, 'id', $name),
+            ) . '/revisions/' . rawurlencode(self::requireString($parameters, 'revision', $name)),
+            'admin_surface.page_builder.restore' => self::pathPageBuilderDraft(
+                self::requireString($parameters, 'surface', $name),
+                self::requireString($parameters, 'id', $name),
+            ) . '/restore',
             default => throw new InvalidArgumentException(
                 sprintf('Unknown admin surface route name: %s', $name),
             ),
@@ -79,5 +120,15 @@ final class AdminSurfaceRoutePaths
     private static function pathAction(string $type, string $action): string
     {
         return '/admin/_surface/' . rawurlencode($type) . '/action/' . rawurlencode($action);
+    }
+
+    private static function pathPageBuilderDefinitions(string $surface): string
+    {
+        return '/admin/_surface/page-builder/' . rawurlencode($surface) . '/definitions';
+    }
+
+    private static function pathPageBuilderDraft(string $surface, string $id): string
+    {
+        return '/admin/_surface/page-builder/' . rawurlencode($surface) . '/' . rawurlencode($id);
     }
 }

@@ -33,6 +33,7 @@ use Waaseyaa\Publishing\Exception\IdempotencyConflictException;
 use Waaseyaa\Publishing\Exception\SlugConflictException;
 use Waaseyaa\Publishing\FieldSpec;
 use Waaseyaa\Publishing\Idempotency\IdempotencyStore;
+use Waaseyaa\Publishing\Preview\PreviewLinkService;
 use Waaseyaa\Publishing\Tests\Fixtures\PublisherAccount;
 use Waaseyaa\Publishing\Tests\Fixtures\SpyAuditWriter;
 use Waaseyaa\Publishing\Tests\Fixtures\TestArticleEntity;
@@ -363,6 +364,35 @@ final class ContentPublisherTest extends TestCase
 
         self::assertGreaterThan($draft['revision_id'], $updated['revision_id']);
         self::assertSame('v2', $updated['summary']);
+    }
+
+    #[Test]
+    public function preview_revision_issues_a_grant_for_only_the_observed_working_copy(): void
+    {
+        $draft = $this->publisher->createDraft($this->actor, $this->draftValues(), 'k1');
+        $links = new PreviewLinkService('preview-secret', fn(): int => 1_000_000);
+
+        $grant = $this->publisher->previewRevision(
+            $this->actor,
+            (string) $draft['id'],
+            $draft['revision_id'],
+            $links,
+            600,
+        );
+
+        self::assertSame($draft['revision_id'], $grant['revision_id']);
+        self::assertTrue($links->verifyRevision(
+            'test_article',
+            (string) $draft['id'],
+            $draft['revision_id'],
+            $grant['expires_at'],
+            $grant['signature'],
+        ));
+
+        $this->publisher->updateDraft($this->actor, (string) $draft['id'], ['summary' => 'newer'], $draft['revision_id'], 'k2');
+
+        $this->expectException(RevisionConflictException::class);
+        $this->publisher->previewRevision($this->actor, (string) $draft['id'], $draft['revision_id'], $links, 600);
     }
 
     // --- publish / unpublish ---

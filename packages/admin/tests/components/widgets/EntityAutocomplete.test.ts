@@ -5,10 +5,11 @@ import type { EntityResource } from '~/contracts/transport'
 import EntityAutocomplete from '~/components/widgets/EntityAutocomplete.vue'
 
 const search = vi.fn()
+const list = vi.fn()
 const getEntity = vi.fn()
 
 vi.mock('~/composables/useEntity', () => ({
-  useEntity: () => ({ search }),
+  useEntity: () => ({ list, search }),
 }))
 
 vi.mock('~/composables/useAdmin', () => ({
@@ -49,6 +50,7 @@ describe('EntityAutocomplete authoritative reference search', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     search.mockReset()
+    list.mockReset()
     getEntity.mockReset()
     getEntity.mockReturnValue({ id: 'media', reference: mediaReference })
   })
@@ -64,6 +66,27 @@ describe('EntityAutocomplete authoritative reference search', () => {
     await enterQuery(wrapper, 'Ann')
 
     expect(search).toHaveBeenCalledWith('media', 'name', 'Ann', 10, 'STARTS_WITH', mediaReference.sort)
+    expect(wrapper.get('[role="option"]').text()).toBe('Annual report')
+  })
+
+  it('applies schema-owned exact filters for a governed media picker', async () => {
+    list.mockResolvedValue({ data: [mediaResult()], meta: { total: 1, offset: 0, limit: 10 } })
+    const wrapper = await mountWidget({
+      'x-target-type': 'media',
+      'x-target-filter': { type: 'image' },
+    })
+
+    await enterQuery(wrapper, 'Ann')
+
+    expect(search).not.toHaveBeenCalled()
+    expect(list).toHaveBeenCalledWith('media', {
+      filter: {
+        name: { operator: 'STARTS_WITH', value: 'Ann' },
+        type: { operator: 'EQUALS', value: 'image' },
+      },
+      sort: 'name',
+      page: { offset: 0, limit: 10 },
+    })
     expect(wrapper.get('[role="option"]').text()).toBe('Annual report')
   })
 

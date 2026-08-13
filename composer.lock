@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "5be274126d1c9995493f0ae069727609",
+    "content-hash": "e5eafb8eb551d3777436f500ce939d54",
     "packages": [
         {
             "name": "deployer/deployer",
@@ -516,6 +516,196 @@
                 "source": "https://github.com/nikic/PHP-Parser/tree/v5.8.0"
             },
             "time": "2026-07-04T14:30:18+00:00"
+        },
+        {
+            "name": "opis/json-schema",
+            "version": "2.6.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/opis/json-schema.git",
+                "reference": "8458763e0dd0b6baa310e04f1829fc73da4e8c8a"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/opis/json-schema/zipball/8458763e0dd0b6baa310e04f1829fc73da4e8c8a",
+                "reference": "8458763e0dd0b6baa310e04f1829fc73da4e8c8a",
+                "shasum": ""
+            },
+            "require": {
+                "ext-json": "*",
+                "opis/string": "^2.1",
+                "opis/uri": "^1.0",
+                "php": "^7.4 || ^8.0"
+            },
+            "require-dev": {
+                "ext-bcmath": "*",
+                "ext-intl": "*",
+                "phpunit/phpunit": "^9.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "2.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Opis\\JsonSchema\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "Apache-2.0"
+            ],
+            "authors": [
+                {
+                    "name": "Sorin Sarca",
+                    "email": "sarca_sorin@hotmail.com"
+                },
+                {
+                    "name": "Marius Sarca",
+                    "email": "marius.sarca@gmail.com"
+                }
+            ],
+            "description": "Json Schema Validator for PHP",
+            "homepage": "https://opis.io/json-schema",
+            "keywords": [
+                "json",
+                "json-schema",
+                "schema",
+                "validation",
+                "validator"
+            ],
+            "support": {
+                "issues": "https://github.com/opis/json-schema/issues",
+                "source": "https://github.com/opis/json-schema/tree/2.6.0"
+            },
+            "time": "2025-10-17T12:46:48+00:00"
+        },
+        {
+            "name": "opis/string",
+            "version": "2.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/opis/string.git",
+                "reference": "3e4d2aaff518ac518530b89bb26ed40f4503635e"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/opis/string/zipball/3e4d2aaff518ac518530b89bb26ed40f4503635e",
+                "reference": "3e4d2aaff518ac518530b89bb26ed40f4503635e",
+                "shasum": ""
+            },
+            "require": {
+                "ext-iconv": "*",
+                "ext-json": "*",
+                "php": "^7.4 || ^8.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^9.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "2.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Opis\\String\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "Apache-2.0"
+            ],
+            "authors": [
+                {
+                    "name": "Marius Sarca",
+                    "email": "marius.sarca@gmail.com"
+                },
+                {
+                    "name": "Sorin Sarca",
+                    "email": "sarca_sorin@hotmail.com"
+                }
+            ],
+            "description": "Multibyte strings as objects",
+            "homepage": "https://opis.io/string",
+            "keywords": [
+                "multi-byte",
+                "opis",
+                "string",
+                "string manipulation",
+                "utf-8"
+            ],
+            "support": {
+                "issues": "https://github.com/opis/string/issues",
+                "source": "https://github.com/opis/string/tree/2.1.0"
+            },
+            "time": "2025-10-17T12:38:41+00:00"
+        },
+        {
+            "name": "opis/uri",
+            "version": "1.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/opis/uri.git",
+                "reference": "0f3ca49ab1a5e4a6681c286e0b2cc081b93a7d5a"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/opis/uri/zipball/0f3ca49ab1a5e4a6681c286e0b2cc081b93a7d5a",
+                "reference": "0f3ca49ab1a5e4a6681c286e0b2cc081b93a7d5a",
+                "shasum": ""
+            },
+            "require": {
+                "opis/string": "^2.0",
+                "php": "^7.4 || ^8.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^9"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Opis\\Uri\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "Apache-2.0"
+            ],
+            "authors": [
+                {
+                    "name": "Marius Sarca",
+                    "email": "marius.sarca@gmail.com"
+                },
+                {
+                    "name": "Sorin Sarca",
+                    "email": "sarca_sorin@hotmail.com"
+                }
+            ],
+            "description": "Build, parse and validate URIs and URI-templates",
+            "homepage": "https://opis.io",
+            "keywords": [
+                "URI Template",
+                "parse url",
+                "punycode",
+                "uri",
+                "uri components",
+                "url",
+                "validate uri"
+            ],
+            "support": {
+                "issues": "https://github.com/opis/uri/issues",
+                "source": "https://github.com/opis/uri/tree/1.1.0"
+            },
+            "time": "2021-05-22T15:57:08+00:00"
         },
         {
             "name": "psr/cache",
@@ -3237,7 +3427,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/admin-surface",
-                "reference": "340907d12961c69c235bb27d7cfd711225075f6e"
+                "reference": "ddb7fe0242702bf39e72f859dfc4c1921f3eb5fb"
             },
             "require": {
                 "php": ">=8.5",
@@ -3247,6 +3437,7 @@
                 "waaseyaa/audit": "^0.1.0-alpha.293",
                 "waaseyaa/entity": "^0.1.0-alpha.293",
                 "waaseyaa/foundation": "^0.1.0-alpha.293",
+                "waaseyaa/page-builder": "^0.1.0-alpha.293",
                 "waaseyaa/routing": "^0.1.0-alpha.293",
                 "waaseyaa/workflows": "^0.1.0-alpha.293"
             },
@@ -3896,7 +4087,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/cli",
-                "reference": "6d6f35a3a384b0ac937d4802ca8d6161c3c4f5d5"
+                "reference": "e3799ade6872f774df34aa71e3b6b33d1002ee57"
             },
             "require": {
                 "php": ">=8.5",
@@ -3920,6 +4111,7 @@
                 "waaseyaa/routing": "^0.1.0-alpha.293",
                 "waaseyaa/scheduler": "^0.1.0-alpha.293",
                 "waaseyaa/search": "^0.1.0-alpha.293",
+                "waaseyaa/site-contract": "^0.1.0-alpha.293",
                 "waaseyaa/user": "^0.1.0-alpha.293",
                 "waaseyaa/workflows": "^0.1.0-alpha.293"
             },
@@ -3961,6 +4153,7 @@
                         "Waaseyaa\\CLI\\Provider\\OptimizeServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\QueueServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\SchedulePerfServiceProvider",
+                        "Waaseyaa\\CLI\\Provider\\SiteServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\IngestSearchSemanticServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\UserPermissionServiceProvider",
                         "Waaseyaa\\CLI\\Provider\\ConfigCacheDbAuditServiceProvider",
@@ -5330,6 +5523,47 @@
             }
         },
         {
+            "name": "waaseyaa/page-builder",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/page-builder",
+                "reference": "3f6b1b59a0bb6cdf30444680516c236a545bcf9c"
+            },
+            "require": {
+                "opis/json-schema": "^2.6",
+                "php": ">=8.5",
+                "waaseyaa/access": "^0.1.0-alpha.293"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^13.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev",
+                    "dev-develop/v1.1": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\PageBuilder\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\PageBuilder\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Governed, client-neutral page layout documents and validation for Waaseyaa.",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
             "name": "waaseyaa/path",
             "version": "dev-main",
             "dist": {
@@ -5426,7 +5660,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/publishing",
-                "reference": "99e00b2a9c27ba42bd61811f08cf2bd6f6d05647"
+                "reference": "ef29de351075ceaf420699bf7162e4297f91ddb1"
             },
             "require": {
                 "php": ">=8.5",
@@ -5435,7 +5669,8 @@
                 "waaseyaa/database-legacy": "^0.1.0-alpha.293",
                 "waaseyaa/entity": "^0.1.0-alpha.293",
                 "waaseyaa/entity-storage": "^0.1.0-alpha.293",
-                "waaseyaa/foundation": "^0.1.0-alpha.293"
+                "waaseyaa/foundation": "^0.1.0-alpha.293",
+                "waaseyaa/page-builder": "^0.1.0-alpha.293"
             },
             "require-dev": {
                 "phpunit/phpunit": "^13.0",
@@ -5762,6 +5997,45 @@
                 "GPL-2.0-or-later"
             ],
             "description": "SEO building blocks for Waaseyaa (sitemap, robots.txt, meta tags, JSON-LD, Twig helpers)",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "waaseyaa/site-contract",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "packages/site-contract",
+                "reference": "ecabc23cdbe9a9cfbeaf92295b9d8e7957d5819a"
+            },
+            "require": {
+                "php": ">=8.5",
+                "symfony/yaml": "^7.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^13.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\SiteContract\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Waaseyaa\\SiteContract\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Provider-neutral fresh-site manifest contract for Waaseyaa applications",
             "transport-options": {
                 "relative": true
             }
@@ -8112,196 +8386,6 @@
                 "source": "https://github.com/OndraM/ci-detector/tree/4.2.0"
             },
             "time": "2024-03-12T13:22:30+00:00"
-        },
-        {
-            "name": "opis/json-schema",
-            "version": "2.6.0",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/opis/json-schema.git",
-                "reference": "8458763e0dd0b6baa310e04f1829fc73da4e8c8a"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/opis/json-schema/zipball/8458763e0dd0b6baa310e04f1829fc73da4e8c8a",
-                "reference": "8458763e0dd0b6baa310e04f1829fc73da4e8c8a",
-                "shasum": ""
-            },
-            "require": {
-                "ext-json": "*",
-                "opis/string": "^2.1",
-                "opis/uri": "^1.0",
-                "php": "^7.4 || ^8.0"
-            },
-            "require-dev": {
-                "ext-bcmath": "*",
-                "ext-intl": "*",
-                "phpunit/phpunit": "^9.0"
-            },
-            "type": "library",
-            "extra": {
-                "branch-alias": {
-                    "dev-master": "2.x-dev"
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Opis\\JsonSchema\\": "src/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "Apache-2.0"
-            ],
-            "authors": [
-                {
-                    "name": "Sorin Sarca",
-                    "email": "sarca_sorin@hotmail.com"
-                },
-                {
-                    "name": "Marius Sarca",
-                    "email": "marius.sarca@gmail.com"
-                }
-            ],
-            "description": "Json Schema Validator for PHP",
-            "homepage": "https://opis.io/json-schema",
-            "keywords": [
-                "json",
-                "json-schema",
-                "schema",
-                "validation",
-                "validator"
-            ],
-            "support": {
-                "issues": "https://github.com/opis/json-schema/issues",
-                "source": "https://github.com/opis/json-schema/tree/2.6.0"
-            },
-            "time": "2025-10-17T12:46:48+00:00"
-        },
-        {
-            "name": "opis/string",
-            "version": "2.1.0",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/opis/string.git",
-                "reference": "3e4d2aaff518ac518530b89bb26ed40f4503635e"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/opis/string/zipball/3e4d2aaff518ac518530b89bb26ed40f4503635e",
-                "reference": "3e4d2aaff518ac518530b89bb26ed40f4503635e",
-                "shasum": ""
-            },
-            "require": {
-                "ext-iconv": "*",
-                "ext-json": "*",
-                "php": "^7.4 || ^8.0"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^9.0"
-            },
-            "type": "library",
-            "extra": {
-                "branch-alias": {
-                    "dev-master": "2.x-dev"
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Opis\\String\\": "src/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "Apache-2.0"
-            ],
-            "authors": [
-                {
-                    "name": "Marius Sarca",
-                    "email": "marius.sarca@gmail.com"
-                },
-                {
-                    "name": "Sorin Sarca",
-                    "email": "sarca_sorin@hotmail.com"
-                }
-            ],
-            "description": "Multibyte strings as objects",
-            "homepage": "https://opis.io/string",
-            "keywords": [
-                "multi-byte",
-                "opis",
-                "string",
-                "string manipulation",
-                "utf-8"
-            ],
-            "support": {
-                "issues": "https://github.com/opis/string/issues",
-                "source": "https://github.com/opis/string/tree/2.1.0"
-            },
-            "time": "2025-10-17T12:38:41+00:00"
-        },
-        {
-            "name": "opis/uri",
-            "version": "1.1.0",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/opis/uri.git",
-                "reference": "0f3ca49ab1a5e4a6681c286e0b2cc081b93a7d5a"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/opis/uri/zipball/0f3ca49ab1a5e4a6681c286e0b2cc081b93a7d5a",
-                "reference": "0f3ca49ab1a5e4a6681c286e0b2cc081b93a7d5a",
-                "shasum": ""
-            },
-            "require": {
-                "opis/string": "^2.0",
-                "php": "^7.4 || ^8.0"
-            },
-            "require-dev": {
-                "phpunit/phpunit": "^9"
-            },
-            "type": "library",
-            "extra": {
-                "branch-alias": {
-                    "dev-master": "1.x-dev"
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Opis\\Uri\\": "src/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "Apache-2.0"
-            ],
-            "authors": [
-                {
-                    "name": "Marius Sarca",
-                    "email": "marius.sarca@gmail.com"
-                },
-                {
-                    "name": "Sorin Sarca",
-                    "email": "sarca_sorin@hotmail.com"
-                }
-            ],
-            "description": "Build, parse and validate URIs and URI-templates",
-            "homepage": "https://opis.io",
-            "keywords": [
-                "URI Template",
-                "parse url",
-                "punycode",
-                "uri",
-                "uri components",
-                "url",
-                "validate uri"
-            ],
-            "support": {
-                "issues": "https://github.com/opis/uri/issues",
-                "source": "https://github.com/opis/uri/tree/1.1.0"
-            },
-            "time": "2021-05-22T15:57:08+00:00"
         },
         {
             "name": "paragonie/random_compat",
@@ -12893,7 +12977,79 @@
     ],
     "aliases": [],
     "minimum-stability": "dev",
-    "stability-flags": {},
+    "stability-flags": {
+        "waaseyaa/access": 20,
+        "waaseyaa/admin-surface": 20,
+        "waaseyaa/ai-agent": 20,
+        "waaseyaa/ai-observability": 20,
+        "waaseyaa/ai-pipeline": 20,
+        "waaseyaa/ai-schema": 20,
+        "waaseyaa/ai-tools": 20,
+        "waaseyaa/ai-vector": 20,
+        "waaseyaa/analytics": 20,
+        "waaseyaa/api": 20,
+        "waaseyaa/attachment": 20,
+        "waaseyaa/auth": 20,
+        "waaseyaa/billing": 20,
+        "waaseyaa/bimaaji": 20,
+        "waaseyaa/cache": 20,
+        "waaseyaa/cli": 20,
+        "waaseyaa/config": 20,
+        "waaseyaa/database-legacy": 20,
+        "waaseyaa/debug": 20,
+        "waaseyaa/deployer": 20,
+        "waaseyaa/engagement": 20,
+        "waaseyaa/entity": 20,
+        "waaseyaa/entity-storage": 20,
+        "waaseyaa/error-handler": 20,
+        "waaseyaa/field": 20,
+        "waaseyaa/foundation": 20,
+        "waaseyaa/frankenphp": 20,
+        "waaseyaa/genealogy": 20,
+        "waaseyaa/geo": 20,
+        "waaseyaa/github": 20,
+        "waaseyaa/graphql": 20,
+        "waaseyaa/groups": 20,
+        "waaseyaa/http-client": 20,
+        "waaseyaa/i18n": 20,
+        "waaseyaa/inertia": 20,
+        "waaseyaa/ingestion": 20,
+        "waaseyaa/listing": 20,
+        "waaseyaa/mail": 20,
+        "waaseyaa/mcp": 20,
+        "waaseyaa/media": 20,
+        "waaseyaa/menu": 20,
+        "waaseyaa/mercure": 20,
+        "waaseyaa/messaging": 20,
+        "waaseyaa/migration": 20,
+        "waaseyaa/node": 20,
+        "waaseyaa/note": 20,
+        "waaseyaa/notification": 20,
+        "waaseyaa/oauth-provider": 20,
+        "waaseyaa/oidc": 20,
+        "waaseyaa/page-builder": 20,
+        "waaseyaa/path": 20,
+        "waaseyaa/plugin": 20,
+        "waaseyaa/publishing": 20,
+        "waaseyaa/queue": 20,
+        "waaseyaa/relationship": 20,
+        "waaseyaa/routing": 20,
+        "waaseyaa/scheduler": 20,
+        "waaseyaa/search": 20,
+        "waaseyaa/seo": 20,
+        "waaseyaa/site-contract": 20,
+        "waaseyaa/ssr": 20,
+        "waaseyaa/state": 20,
+        "waaseyaa/structured-import": 20,
+        "waaseyaa/taxonomy": 20,
+        "waaseyaa/telescope": 20,
+        "waaseyaa/testing": 20,
+        "waaseyaa/typed-data": 20,
+        "waaseyaa/user": 20,
+        "waaseyaa/validation": 20,
+        "waaseyaa/wayfinding": 20,
+        "waaseyaa/workflows": 20
+    },
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
@@ -12903,5 +13059,5 @@
         "ext-sqlite3": "*"
     },
     "platform-dev": {},
-    "plugin-api-version": "2.9.0"
+    "plugin-api-version": "2.6.0"
 }

@@ -38,6 +38,7 @@ final class MetapackageSmokeTest extends TestCase
             'node'                => [\Waaseyaa\Node\Node::class],
             'taxonomy term'       => [\Waaseyaa\Taxonomy\Term::class],
             'media'               => [\Waaseyaa\Media\Media::class],
+            'page builder'        => [\Waaseyaa\PageBuilder\Document\LayoutDocument::class],
             'json api controller' => [\Waaseyaa\Api\JsonApiController::class],
         ];
     }
