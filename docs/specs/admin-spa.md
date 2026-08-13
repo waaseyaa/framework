@@ -1212,6 +1212,15 @@ Admin surface for the MCP endpoint. Four pages under `/mcp/`, accessible via the
 
 The Admin SPA exposes registered page-builder surfaces at `/page-builder/{surface}/{id}`. The workspace combines Drupal-style governed structure with a direct visual editing interaction: the left library contains only backend-registered block definitions, the centre iframe renders a signed preview of the exact persisted revision, and the right inspector edits only schema-declared configuration. The outline remains a keyboard-accessible selection path when preview selection is unavailable.
 
+Library insertion follows the editor's current context: when a block is
+selected in the exact preview or outline, a newly chosen block is inserted
+immediately after it in the same section and region. Without a selection the
+document's initial region remains the deterministic fallback. Section creation
+shows every backend-registered layout as an explicit choice and creates the
+declared regions for that layout. Internal block and layout identifiers are not
+shown as ordinary editor labels; registered block labels and readable layout
+names keep application namespaces out of the Communications Officer workflow.
+
 The same workspace is also exposed without the Admin SPA navigation shell at
 `/page-builder-embed/{surface}/{id}`. This route is authenticated by the same
 global middleware, uses the exact `PageBuilderWorkspace` component, and exists
