@@ -15,11 +15,34 @@ if ($frameworkRoot === '' || $consumerRoot === '') {
 }
 
 if ($operation === 'configure') {
+    $packageVersions = [];
+    $packageComposers = glob($frameworkRoot . '/packages/*/composer.json');
+    if ($packageComposers === false) {
+        throw new RuntimeException('Unable to enumerate candidate package manifests.');
+    }
+    foreach ($packageComposers as $packageComposer) {
+        $package = json_decode((string) file_get_contents($packageComposer), true, 512, JSON_THROW_ON_ERROR);
+        $name = $package['name'] ?? null;
+        if (!is_string($name) || $name === '') {
+            throw new RuntimeException("Candidate package has no Composer name: {$packageComposer}");
+        }
+        $packageVersions[$name] = 'dev-main';
+    }
+    ksort($packageVersions, SORT_STRING);
+
     $path = $consumerRoot . '/composer.json';
     $composer = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
     $composer['repositories'] = [
-        ['type' => 'path', 'url' => $frameworkRoot, 'options' => ['symlink' => false]],
-        ['type' => 'path', 'url' => $frameworkRoot . '/packages/*', 'options' => ['symlink' => false]],
+        [
+            'type' => 'path',
+            'url' => $frameworkRoot,
+            'options' => ['symlink' => false, 'versions' => ['waaseyaa/framework' => 'dev-main']],
+        ],
+        [
+            'type' => 'path',
+            'url' => $frameworkRoot . '/packages/*',
+            'options' => ['symlink' => false, 'versions' => $packageVersions],
+        ],
     ];
     $composer['require']['waaseyaa/framework'] = 'dev-main';
     file_put_contents($path, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
