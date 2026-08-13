@@ -48,6 +48,18 @@ final class AdminSurfaceRoutePathsTest extends TestCase
             'admin_surface.page_builder.preview',
             ['surface' => 'pages', 'id' => '42'],
         ));
+        static::assertSame('/admin/_surface/page-builder/pages/42/revisions', AdminSurfaceRoutePaths::generate(
+            'admin_surface.page_builder.history',
+            ['surface' => 'pages', 'id' => '42'],
+        ));
+        static::assertSame('/admin/_surface/page-builder/pages/42/revisions/7', AdminSurfaceRoutePaths::generate(
+            'admin_surface.page_builder.revision',
+            ['surface' => 'pages', 'id' => '42', 'revision' => '7'],
+        ));
+        static::assertSame('/admin/_surface/page-builder/pages/42/restore', AdminSurfaceRoutePaths::generate(
+            'admin_surface.page_builder.restore',
+            ['surface' => 'pages', 'id' => '42'],
+        ));
     }
 
     #[Test]

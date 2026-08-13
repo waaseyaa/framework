@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mockNuxtImport } from '@nuxt/test-utils/runtime'
-import type { PageBuilderCommand, PageBuilderDraft } from '~/contracts/pageBuilder'
+import type { PageBuilderCommand, PageBuilderDraft, PageBuilderRevision } from '~/contracts/pageBuilder'
 
 const mocks = vi.hoisted(() => ({
   definitions: vi.fn(),
   draft: vi.fn(),
   command: vi.fn(),
   preview: vi.fn(),
+  history: vi.fn(),
+  revision: vi.fn(),
+  restore: vi.fn(),
 }))
 
 vi.mock('~/runtime/pageBuilderClient', () => ({
@@ -15,6 +18,9 @@ vi.mock('~/runtime/pageBuilderClient', () => ({
     draft = mocks.draft
     command = mocks.command
     preview = mocks.preview
+    history = mocks.history
+    revision = mocks.revision
+    restore = mocks.restore
   },
 }))
 
@@ -35,6 +41,16 @@ const draft: PageBuilderDraft = {
 
 const definitions = { blocks: [], layouts: [], templates: [] }
 const removeCommand: PageBuilderCommand = { type: 'remove_block', block_id: 'blk_intro' }
+const history: PageBuilderRevision[] = [{
+  revision_id: 7,
+  created_at: '2026-08-13T10:00:00Z',
+  author_id: 12,
+  log: 'Updated landing page',
+  is_current: true,
+  is_latest: true,
+  document_fingerprint: 'a'.repeat(64),
+  block_count: 0,
+}]
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -42,6 +58,9 @@ beforeEach(() => {
   mocks.draft.mockResolvedValue({ ok: true, data: draft })
   mocks.command.mockResolvedValue({ ok: true, data: { ...draft, entity_revision_id: 8 } })
   mocks.preview.mockResolvedValue({ ok: true, data: { preview_url: '/preview/42' } })
+  mocks.history.mockResolvedValue({ ok: true, data: { revisions: history } })
+  mocks.revision.mockResolvedValue({ ok: true, data: { ...draft, entity_revision_id: 5 } })
+  mocks.restore.mockResolvedValue({ ok: true, data: { ...draft, entity_revision_id: 8 } })
   vi.spyOn(crypto, 'randomUUID').mockReturnValue('11111111-1111-4111-8111-111111111111')
 })
 
@@ -125,6 +144,69 @@ describe('usePageBuilder', () => {
     mocks.preview.mockResolvedValue({ ok: false, error: { title: 'Preview unavailable' } })
     await expect(state.refreshPreview()).resolves.toBe(false)
     expect(state.error.value).toBe('Preview unavailable')
+    expect(state.saving.value).toBe(false)
+  })
+
+  it('loads revision history and exposes a server refusal', async () => {
+    const { usePageBuilder } = await import('~/composables/usePageBuilder')
+    const state = usePageBuilder('page', '42')
+
+    await expect(state.loadHistory()).resolves.toBe(true)
+    expect(mocks.history).toHaveBeenCalledWith('page', '42')
+    expect(state.revisions.value).toEqual(history)
+
+    mocks.history.mockResolvedValue({ ok: false, error: { detail: 'History is unavailable.' } })
+    await expect(state.loadHistory()).resolves.toBe(false)
+    expect(state.error.value).toBe('History is unavailable.')
+  })
+
+  it('loads an exact historical revision for comparison and reports failure', async () => {
+    const { usePageBuilder } = await import('~/composables/usePageBuilder')
+    const state = usePageBuilder('page', '42')
+
+    await expect(state.compareRevision(5)).resolves.toBe(true)
+    expect(mocks.revision).toHaveBeenCalledWith('page', '42', 5)
+    expect(state.comparedRevision.value?.entity_revision_id).toBe(5)
+
+    mocks.revision.mockResolvedValue({ ok: false, error: { title: 'Revision not found' } })
+    await expect(state.compareRevision(4)).resolves.toBe(false)
+    expect(state.error.value).toBe('Revision not found')
+  })
+
+  it('restores history as a new conflict-guarded draft and refreshes the timeline', async () => {
+    const { usePageBuilder } = await import('~/composables/usePageBuilder')
+    const state = usePageBuilder('page', '42')
+    await state.load()
+    await state.compareRevision(5)
+    await state.refreshPreview()
+
+    await expect(state.restoreRevision(5)).resolves.toBe(true)
+    expect(mocks.restore).toHaveBeenCalledWith(
+      'page',
+      '42',
+      5,
+      7,
+      '11111111-1111-4111-8111-111111111111',
+    )
+    expect(state.draft.value?.entity_revision_id).toBe(8)
+    expect(state.comparedRevision.value).toBeNull()
+    expect(state.previewUrl.value).toBeNull()
+    expect(mocks.history).toHaveBeenCalledWith('page', '42')
+    expect(state.saving.value).toBe(false)
+  })
+
+  it('refuses restore without a loaded draft and preserves the observed draft on failure', async () => {
+    const { usePageBuilder } = await import('~/composables/usePageBuilder')
+    const state = usePageBuilder('page', '42')
+
+    await expect(state.restoreRevision(5)).resolves.toBe(false)
+    expect(mocks.restore).not.toHaveBeenCalled()
+
+    await state.load()
+    mocks.restore.mockResolvedValue({ ok: false, error: { detail: 'The page changed before restore.' } })
+    await expect(state.restoreRevision(5)).resolves.toBe(false)
+    expect(state.draft.value).toEqual(draft)
+    expect(state.error.value).toBe('The page changed before restore.')
     expect(state.saving.value).toBe(false)
   })
 })

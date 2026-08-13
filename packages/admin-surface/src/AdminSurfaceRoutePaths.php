@@ -33,6 +33,12 @@ final class AdminSurfaceRoutePaths
 
     public const PATH_PAGE_BUILDER_PREVIEW = '/admin/_surface/page-builder/{surface}/{id}/preview';
 
+    public const PATH_PAGE_BUILDER_HISTORY = '/admin/_surface/page-builder/{surface}/{id}/revisions';
+
+    public const PATH_PAGE_BUILDER_REVISION = '/admin/_surface/page-builder/{surface}/{id}/revisions/{revision}';
+
+    public const PATH_PAGE_BUILDER_RESTORE = '/admin/_surface/page-builder/{surface}/{id}/restore';
+
     /**
      * Build a concrete URL path for a named admin surface route (path only, no scheme or host).
      *
@@ -67,6 +73,18 @@ final class AdminSurfaceRoutePaths
                 self::requireString($parameters, 'surface', $name),
                 self::requireString($parameters, 'id', $name),
             ) . '/preview',
+            'admin_surface.page_builder.history' => self::pathPageBuilderDraft(
+                self::requireString($parameters, 'surface', $name),
+                self::requireString($parameters, 'id', $name),
+            ) . '/revisions',
+            'admin_surface.page_builder.revision' => self::pathPageBuilderDraft(
+                self::requireString($parameters, 'surface', $name),
+                self::requireString($parameters, 'id', $name),
+            ) . '/revisions/' . rawurlencode(self::requireString($parameters, 'revision', $name)),
+            'admin_surface.page_builder.restore' => self::pathPageBuilderDraft(
+                self::requireString($parameters, 'surface', $name),
+                self::requireString($parameters, 'id', $name),
+            ) . '/restore',
             default => throw new InvalidArgumentException(
                 sprintf('Unknown admin surface route name: %s', $name),
             ),

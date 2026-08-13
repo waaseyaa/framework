@@ -57,4 +57,24 @@ describe('PageBuilderClient', () => {
       body: { expected_entity_revision_id: 7 },
     })
   })
+
+  it('loads exact history and restores through a conflict-bound draft command', async () => {
+    const fetch = vi.fn().mockResolvedValue({ ok: true, data: {} })
+    const client = new PageBuilderClient('/admin/', fetch)
+
+    await client.history('page', '42')
+    await client.revision('page', '42', 5)
+    await client.restore('page', '42', 5, 7, 'restore-123')
+
+    expect(fetch).toHaveBeenNthCalledWith(1, '/admin/_surface/page-builder/page/42/revisions', { cache: 'no-store' })
+    expect(fetch).toHaveBeenNthCalledWith(2, '/admin/_surface/page-builder/page/42/revisions/5', { cache: 'no-store' })
+    expect(fetch).toHaveBeenNthCalledWith(3, '/admin/_surface/page-builder/page/42/restore', {
+      method: 'POST',
+      body: {
+        target_revision_id: 5,
+        expected_current_revision_id: 7,
+        idempotency_key: 'restore-123',
+      },
+    })
+  })
 })

@@ -13,6 +13,7 @@ use Waaseyaa\PageBuilder\Draft\LayoutDraft;
 use Waaseyaa\PageBuilder\Editor\Exception\InvalidEditCommandException;
 use Waaseyaa\PageBuilder\Editor\Exception\StaleDocumentFingerprintException;
 use Waaseyaa\PageBuilder\Preview\RevisionPreviewGrant;
+use Waaseyaa\PageBuilder\Revision\Exception\PageBuilderHistoryUnavailableException;
 use Waaseyaa\PageBuilder\Surface\Exception\PageBuilderAccessDeniedException;
 use Waaseyaa\PageBuilder\Surface\Exception\UnknownPageBuilderSurfaceException;
 use Waaseyaa\PageBuilder\Surface\PageBuilderSurfaceRegistry;
@@ -86,6 +87,39 @@ final readonly class GenericPageBuilderSurfaceHost implements PageBuilderSurface
         });
     }
 
+    public function handleHistory(PageBuilderSurfaceRequest $request, string $surface, string $id): array
+    {
+        return $this->execute($request, fn(AuthorizationPrincipalInterface $actor): array => [
+            'revisions' => $this->surfaces->get($surface)->history($actor, $id),
+        ]);
+    }
+
+    public function handleRevision(PageBuilderSurfaceRequest $request, string $surface, string $id, string $revision): array
+    {
+        return $this->execute($request, fn(AuthorizationPrincipalInterface $actor): array => $this->draft(
+            $this->surfaces->get($surface)->revision($actor, $id, $this->pathPositiveInt($revision)),
+        ));
+    }
+
+    public function handleRestore(PageBuilderSurfaceRequest $request, string $surface, string $id): array
+    {
+        return $this->execute($request, function (AuthorizationPrincipalInterface $actor) use ($request, $surface, $id): array {
+            $payload = $this->body($request, [
+                'target_revision_id',
+                'expected_current_revision_id',
+                'idempotency_key',
+            ]);
+
+            return $this->draft($this->surfaces->get($surface)->restore(
+                $actor,
+                $id,
+                $this->positiveInt($payload, 'target_revision_id'),
+                $this->positiveInt($payload, 'expected_current_revision_id'),
+                $this->string($payload, 'idempotency_key'),
+            ));
+        });
+    }
+
     /** @param \Closure(AuthorizationPrincipalInterface): array<string, mixed> $operation @return array<string, mixed> */
     private function execute(PageBuilderSurfaceRequest $request, \Closure $operation): array
     {
@@ -100,6 +134,8 @@ final readonly class GenericPageBuilderSurfaceHost implements PageBuilderSurface
             return AdminSurfaceResultData::error(404, 'Page builder not found')->toArray();
         } catch (PageBuilderDraftNotFoundException) {
             return AdminSurfaceResultData::error(404, 'Page draft not found')->toArray();
+        } catch (PageBuilderHistoryUnavailableException) {
+            return AdminSurfaceResultData::error(404, 'Page history not available')->toArray();
         } catch (PageBuilderAccessDeniedException) {
             return AdminSurfaceResultData::error(403, 'Page builder access denied')->toArray();
         } catch (StaleEntityRevisionException|StaleDocumentFingerprintException) {
@@ -152,6 +188,15 @@ final readonly class GenericPageBuilderSurfaceHost implements PageBuilderSurface
         }
 
         return $value;
+    }
+
+    private function pathPositiveInt(string $value): int
+    {
+        if (preg_match('/^[1-9][0-9]*$/D', $value) !== 1) {
+            throw new InvalidWireCommandException('Revision id must be a positive integer.');
+        }
+
+        return (int) $value;
     }
 
     /** @return array<string, mixed> */

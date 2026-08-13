@@ -22,6 +22,9 @@ use Waaseyaa\PageBuilder\Draft\LayoutDraftSnapshot;
 use Waaseyaa\PageBuilder\Editor\LayoutEditor;
 use Waaseyaa\PageBuilder\Preview\RevisionPreviewGatewayInterface;
 use Waaseyaa\PageBuilder\Preview\RevisionPreviewGrant;
+use Waaseyaa\PageBuilder\Revision\PageBuilderRevisionGatewayInterface;
+use Waaseyaa\PageBuilder\Revision\PageBuilderRevisionHistory;
+use Waaseyaa\PageBuilder\Revision\PageBuilderRevisionSnapshot;
 use Waaseyaa\PageBuilder\Surface\PageBuilderSurface;
 use Waaseyaa\PageBuilder\Surface\PageBuilderSurfaceRegistry;
 use Waaseyaa\PageBuilder\Validation\LayoutValidator;
@@ -61,6 +64,22 @@ final class GenericPageBuilderSurfaceHostTest extends TestCase
         self::assertTrue($preview['ok']);
         self::assertSame(8, $preview['data']['revision_id']);
         self::assertSame('/preview/42?revision=8', $preview['data']['preview_url']);
+
+        $history = $host->handleHistory($this->request('GET', '', $actor), 'pages', '42');
+        self::assertTrue($history['ok']);
+        self::assertSame([8, 7], array_column($history['data']['revisions'], 'revision_id'));
+
+        $revision = $host->handleRevision($this->request('GET', '', $actor), 'pages', '42', '7');
+        self::assertSame('<p>Before</p>', $revision['data']['document']['sections'][0]['regions']['main'][0]['config']['html']);
+
+        $restored = $host->handleRestore($this->request('POST', json_encode([
+            'target_revision_id' => 7,
+            'expected_current_revision_id' => 8,
+            'idempotency_key' => 'restore-7',
+        ], JSON_THROW_ON_ERROR), $actor), 'pages', '42');
+        self::assertTrue($restored['ok']);
+        self::assertSame(9, $restored['data']['entity_revision_id']);
+        self::assertSame('<p>Before</p>', $restored['data']['document']['sections'][0]['regions']['main'][0]['config']['html']);
     }
 
     #[Test]
@@ -119,6 +138,7 @@ final class GenericPageBuilderSurfaceHostTest extends TestCase
             $definitions,
             new LayoutDraftManager($gateway, $codec, $validator, new LayoutEditor($codec, $validator, $definitions)),
             new SurfacePreviewGateway(),
+            new PageBuilderRevisionHistory($gateway, $codec, $validator, new LayoutEditor($codec, $validator, $definitions)),
         );
         $surfaces = new PageBuilderSurfaceRegistry();
         $surfaces->register('pages', $surface);
@@ -137,11 +157,17 @@ final class GenericPageBuilderSurfaceHostTest extends TestCase
     }
 }
 
-final class SurfaceGateway implements LayoutDraftGatewayInterface
+final class SurfaceGateway implements LayoutDraftGatewayInterface, PageBuilderRevisionGatewayInterface
 {
     public int $updates = 0;
 
-    public function __construct(private LayoutDraftSnapshot $snapshot) {}
+    /** @var array<int, LayoutDraftSnapshot> */
+    private array $snapshots;
+
+    public function __construct(private LayoutDraftSnapshot $snapshot)
+    {
+        $this->snapshots = [$snapshot->entityRevisionId => $snapshot];
+    }
 
     public function read(AuthorizationPrincipalInterface $actor, string $entityId): LayoutDraftSnapshot
     {
@@ -157,7 +183,40 @@ final class SurfaceGateway implements LayoutDraftGatewayInterface
     ): LayoutDraftSnapshot {
         ++$this->updates;
 
-        return $this->snapshot = new LayoutDraftSnapshot($entityId, $expectedRevisionId + 1, $encodedLayout);
+        $this->snapshot = new LayoutDraftSnapshot($entityId, $expectedRevisionId + 1, $encodedLayout);
+        $this->snapshots[$this->snapshot->entityRevisionId] = $this->snapshot;
+
+        return $this->snapshot;
+    }
+
+    public function list(AuthorizationPrincipalInterface $actor, string $entityId): array
+    {
+        return array_map(
+            fn(LayoutDraftSnapshot $snapshot): PageBuilderRevisionSnapshot => new PageBuilderRevisionSnapshot(
+                $entityId,
+                $snapshot->entityRevisionId,
+                $snapshot->encodedLayout,
+                isLatest: $snapshot->entityRevisionId === $this->snapshot->entityRevisionId,
+            ),
+            array_reverse(array_values($this->snapshots)),
+        );
+    }
+
+    public function readRevision(AuthorizationPrincipalInterface $actor, string $entityId, int $revisionId): PageBuilderRevisionSnapshot
+    {
+        $snapshot = $this->snapshots[$revisionId] ?? throw new \InvalidArgumentException('Unknown revision.');
+
+        return new PageBuilderRevisionSnapshot($entityId, $revisionId, $snapshot->encodedLayout);
+    }
+
+    public function restore(
+        AuthorizationPrincipalInterface $actor,
+        string $entityId,
+        int $targetRevisionId,
+        int $expectedCurrentRevisionId,
+        string $idempotencyKey,
+    ): LayoutDraftSnapshot {
+        return $this->update($actor, $entityId, $this->readRevision($actor, $entityId, $targetRevisionId)->encodedLayout, $expectedCurrentRevisionId, $idempotencyKey);
     }
 }
 

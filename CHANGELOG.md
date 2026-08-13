@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **page-builder history and recovery:** Add shared, permission-checked revision history and comparison endpoints, restore-as-new-draft semantics, and server-side idle recovery for block configuration in both the Waaseyaa Admin SPA and downstream Anokii shells. Historical restore is conflict-bound to the observed current revision and never deletes history or changes the published pointer.
+
 ### Added
 
 - **guarded selected-package main split (#2315):** Add a manual, allowlisted workflow that projects selected packages from the exact current green framework `main` SHA to split repository `main` branches with force-with-lease and provenance artifacts. It creates no tags, versions, releases, or Packagist updates.

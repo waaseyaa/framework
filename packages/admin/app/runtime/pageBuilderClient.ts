@@ -3,6 +3,7 @@ import type {
   PageBuilderDefinitions,
   PageBuilderDraft,
   PageBuilderPreview,
+  PageBuilderRevision,
   PageBuilderSurfaceResult,
 } from '../contracts/pageBuilder'
 import { adminSurfaceFetchUrl } from './adminSurfaceRoutes'
@@ -47,6 +48,31 @@ export class PageBuilderClient {
     return this.fetch(adminSurfaceFetchUrl(this.appBase, 'admin_surface.page_builder.preview', { surface, id }), {
       method: 'POST',
       body: { expected_entity_revision_id: revisionId },
+    })
+  }
+
+  history(surface: string, id: string): Promise<PageBuilderSurfaceResult<{ revisions: PageBuilderRevision[] }>> {
+    return this.fetch(adminSurfaceFetchUrl(this.appBase, 'admin_surface.page_builder.history', { surface, id }), {
+      cache: 'no-store',
+    })
+  }
+
+  revision(surface: string, id: string, revisionId: number): Promise<PageBuilderSurfaceResult<PageBuilderDraft>> {
+    return this.fetch(adminSurfaceFetchUrl(this.appBase, 'admin_surface.page_builder.revision', {
+      surface,
+      id,
+      revision: String(revisionId),
+    }), { cache: 'no-store' })
+  }
+
+  restore(surface: string, id: string, targetRevisionId: number, expectedCurrentRevisionId: number, idempotencyKey: string): Promise<PageBuilderSurfaceResult<PageBuilderDraft>> {
+    return this.fetch(adminSurfaceFetchUrl(this.appBase, 'admin_surface.page_builder.restore', { surface, id }), {
+      method: 'POST',
+      body: {
+        target_revision_id: targetRevisionId,
+        expected_current_revision_id: expectedCurrentRevisionId,
+        idempotency_key: idempotencyKey,
+      },
     })
   }
 }

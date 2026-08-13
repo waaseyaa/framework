@@ -106,7 +106,7 @@ final class AdminSurfaceServiceProviderTest extends TestCase
     }
 
     #[Test]
-    public function registerPageBuilderRoutesAddsTheFourAuthenticatedEditorEndpoints(): void
+    public function registerPageBuilderRoutesAddsTheAuthenticatedEditorEndpoints(): void
     {
         $router = new WaaseyaaRouter();
         $host = $this->createStub(PageBuilderSurfaceHostInterface::class);
@@ -118,8 +118,12 @@ final class AdminSurfaceServiceProviderTest extends TestCase
         self::assertSame(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_DRAFT, $routes->get('admin_surface.page_builder.draft')?->getPath());
         self::assertSame(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_COMMAND, $routes->get('admin_surface.page_builder.command')?->getPath());
         self::assertSame(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_PREVIEW, $routes->get('admin_surface.page_builder.preview')?->getPath());
+        self::assertSame(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_HISTORY, $routes->get('admin_surface.page_builder.history')?->getPath());
+        self::assertSame(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_REVISION, $routes->get('admin_surface.page_builder.revision')?->getPath());
+        self::assertSame(AdminSurfaceRoutePaths::PATH_PAGE_BUILDER_RESTORE, $routes->get('admin_surface.page_builder.restore')?->getPath());
         self::assertTrue($routes->get('admin_surface.page_builder.command')?->getOption('_csrf'));
         self::assertTrue($routes->get('admin_surface.page_builder.preview')?->getOption('_csrf'));
+        self::assertTrue($routes->get('admin_surface.page_builder.restore')?->getOption('_csrf'));
     }
 
     #[Test]

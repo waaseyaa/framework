@@ -43,6 +43,15 @@ describe('adminSurfaceRoutes', () => {
       surface: 'page',
       id: '42',
     })).toBe('_surface/page-builder/page/42/preview')
+    expect(adminSurfacePathRelativeToAppBase('admin_surface.page_builder.history', {
+      surface: 'page', id: '42',
+    })).toBe('_surface/page-builder/page/42/revisions')
+    expect(adminSurfacePathRelativeToAppBase('admin_surface.page_builder.revision', {
+      surface: 'page', id: '42', revision: '7',
+    })).toBe('_surface/page-builder/page/42/revisions/7')
+    expect(adminSurfacePathRelativeToAppBase('admin_surface.page_builder.restore', {
+      surface: 'page', id: '42',
+    })).toBe('_surface/page-builder/page/42/restore')
   })
 
   it('throws on missing required params', () => {
