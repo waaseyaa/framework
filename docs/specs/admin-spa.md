@@ -186,7 +186,10 @@ The skeleton's `.env.example` sets `WAASEYAA_DEV_FALLBACK_ACCOUNT=true` by defau
 | @types/node    | ^25.6.2   | Node type definitions           |
 | @playwright/test | ^1.59.1 | E2E browser testing in CI and local `test:e2e` runs |
 
-No CSS framework. Styles are defined in `packages/admin/app/components/layout/AdminShell.vue` as global CSS using CSS custom properties (`--color-primary`, `--color-surface`, etc.).
+No CSS framework. The application-level stylesheet at
+`packages/admin/app/assets/admin.css` defines the global controls and CSS
+custom properties (`--color-primary`, `--color-surface`, etc.) for every route,
+including shell-free entity-editor and page-builder embeds.
 
 ## API Proxy
 

@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Load the shared Admin SPA design-system stylesheet on shell-free entity-editor
+  and page-builder routes so same-origin clients such as Anokii receive the
+  canonical controls, typography, spacing, focus treatment, and target-size
+  tokens without mounting or copying the default navigation shell (#2373).
+
 - Make the #2343 reference-consumer proof resolve exact local candidate
   packages from detached and provider-neutral source checkouts instead of
   inferring Composer versions from a forge-specific branch name, and make the
