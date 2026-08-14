@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "transition_id": "alpha293-to-s1-v1",
+  "source": {
+    "framework_tag": "v0.1.0-alpha.293",
+    "framework_commit": "74fa67d94e1b523a26252c0642fd8f4f87c7841f",
+    "framework_package_cohort": "v0.1.0-alpha.293",
+    "framework_package_count": 59,
+    "framework_dev_packages": [],
+    "framework_package_set_digest": "sha256:d44b9145d62b05cf447432585e019e01570895bd44884644e98794a45f14bb37",
+    "extension_package_count": 2,
+    "extension_package_set_digest": "sha256:1c1eb5734843ac9423de87e8b5280fb17106cdce5196a555d95aa1ede850e916",
+    "extension_compatibility": "verified",
+    "inventory_complete": true
+  },
+  "target": {
+    "framework_commit": "85b5e1b5b80f9f8dc347c1e3286cd42d989bf47f",
+    "provenance_status": "verified",
+    "package_set_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "platform": {
+    "profile": "s1-v1",
+    "consumer_certification": "verified"
+  },
+  "configuration": {
+    "format_version": 1,
+    "manifest_authority": "canonical-v1",
+    "drift": "none",
+    "dependencies": "verified",
+    "deletion_intent": "explicit-none"
+  },
+  "schema": {
+    "ledger": "verified",
+    "unknown_rows": 0,
+    "live_schema": "verified",
+    "pending_plan": "verified",
+    "destructive_operations": "none"
+  },
+  "operations": {
+    "maintenance": "on",
+    "backup_evidence": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "restore_evidence": null,
+    "dry_run_evidence": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  }
+}

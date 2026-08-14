@@ -99,6 +99,11 @@ return [
     'Waaseyaa\Foundation\Migration\Migration' => 'public',
     // Schema-evolution v2 ledger verify surface (mission #529 / WP09).
     'Waaseyaa\Foundation\Migration\VerifyResult' => 'public',
+    // Pure, versioned S1 upgrade-compatibility decision surface (#2336).
+    'Waaseyaa\Foundation\Upgrade\UpgradePreflightContract' => 'public',
+    'Waaseyaa\Foundation\Upgrade\UpgradePreflightDecision' => 'public',
+    'Waaseyaa\Foundation\Upgrade\UpgradePreflightEvaluator' => 'public',
+    'Waaseyaa\Foundation\Upgrade\UpgradePreflightResult' => 'public',
     'Waaseyaa\Foundation\Community\CommunityContextInterface' => 'public',
     'Waaseyaa\Foundation\Sovereignty\SovereigntyConfigInterface' => 'public',
     'Waaseyaa\Foundation\Sovereignty\SovereigntyProfile' => 'public',

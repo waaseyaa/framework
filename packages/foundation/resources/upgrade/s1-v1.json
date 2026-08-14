@@ -1,0 +1,314 @@
+{
+  "schema_version": 1,
+  "contract_id": "s1-upgrade-v1",
+  "transition_id": "alpha293-to-s1-v1",
+  "evaluation_order": [
+    "observation",
+    "source",
+    "target",
+    "platform",
+    "configuration",
+    "schema",
+    "operations"
+  ],
+  "observation_schema": {
+    "root_keys": [
+      "schema_version",
+      "transition_id",
+      "source",
+      "target",
+      "platform",
+      "configuration",
+      "schema",
+      "operations"
+    ],
+    "gate_keys": {
+      "source": [
+        "framework_tag",
+        "framework_commit",
+        "framework_package_cohort",
+        "framework_package_count",
+        "framework_dev_packages",
+        "framework_package_set_digest",
+        "extension_package_count",
+        "extension_package_set_digest",
+        "extension_compatibility",
+        "inventory_complete"
+      ],
+      "target": [
+        "framework_commit",
+        "provenance_status",
+        "package_set_digest"
+      ],
+      "platform": [
+        "profile",
+        "consumer_certification"
+      ],
+      "configuration": [
+        "format_version",
+        "manifest_authority",
+        "drift",
+        "dependencies",
+        "deletion_intent"
+      ],
+      "schema": [
+        "ledger",
+        "unknown_rows",
+        "live_schema",
+        "pending_plan",
+        "destructive_operations"
+      ],
+      "operations": [
+        "maintenance",
+        "backup_evidence",
+        "restore_evidence",
+        "dry_run_evidence"
+      ]
+    }
+  },
+  "rules": [
+    {
+      "gate": "source",
+      "path": "source.framework_tag",
+      "operator": "equals",
+      "expected": "v0.1.0-alpha.293",
+      "decision": "unsupported",
+      "reason": "SOURCE_TAG_UNSUPPORTED"
+    },
+    {
+      "gate": "source",
+      "path": "source.framework_commit",
+      "operator": "equals",
+      "expected": "74fa67d94e1b523a26252c0642fd8f4f87c7841f",
+      "decision": "unsupported",
+      "reason": "SOURCE_COMMIT_UNSUPPORTED"
+    },
+    {
+      "gate": "source",
+      "path": "source.framework_package_cohort",
+      "operator": "equals",
+      "expected": "v0.1.0-alpha.293",
+      "decision": "unsupported",
+      "reason": "SOURCE_PACKAGE_COHORT_UNSUPPORTED"
+    },
+    {
+      "gate": "source",
+      "path": "source.framework_package_count",
+      "operator": "equals",
+      "expected": 59,
+      "decision": "unsupported",
+      "reason": "SOURCE_PACKAGE_INVENTORY_INCOMPLETE"
+    },
+    {
+      "gate": "source",
+      "path": "source.framework_dev_packages",
+      "operator": "empty",
+      "expected": [],
+      "decision": "unsupported",
+      "reason": "SOURCE_PACKAGE_SET_MIXED"
+    },
+    {
+      "gate": "source",
+      "path": "source.framework_package_set_digest",
+      "operator": "equals",
+      "expected": "sha256:d44b9145d62b05cf447432585e019e01570895bd44884644e98794a45f14bb37",
+      "decision": "unsupported",
+      "reason": "SOURCE_PACKAGE_DIGEST_UNSUPPORTED"
+    },
+    {
+      "gate": "source",
+      "path": "source.extension_package_count",
+      "operator": "equals",
+      "expected": 2,
+      "decision": "unsupported",
+      "reason": "SOURCE_EXTENSION_INVENTORY_UNSUPPORTED"
+    },
+    {
+      "gate": "source",
+      "path": "source.extension_package_set_digest",
+      "operator": "equals",
+      "expected": "sha256:1c1eb5734843ac9423de87e8b5280fb17106cdce5196a555d95aa1ede850e916",
+      "decision": "unsupported",
+      "reason": "SOURCE_EXTENSION_DIGEST_UNSUPPORTED"
+    },
+    {
+      "gate": "source",
+      "path": "source.extension_compatibility",
+      "operator": "equals",
+      "expected": "verified",
+      "decision": "blocked",
+      "reason": "SOURCE_EXTENSION_COMPATIBILITY_UNVERIFIED"
+    },
+    {
+      "gate": "source",
+      "path": "source.inventory_complete",
+      "operator": "equals",
+      "expected": true,
+      "decision": "unsupported",
+      "reason": "SOURCE_PACKAGE_INVENTORY_INCOMPLETE"
+    },
+    {
+      "gate": "target",
+      "path": "target.framework_commit",
+      "operator": "equals",
+      "expected": "85b5e1b5b80f9f8dc347c1e3286cd42d989bf47f",
+      "decision": "unsupported",
+      "reason": "TARGET_COMMIT_UNSUPPORTED"
+    },
+    {
+      "gate": "target",
+      "path": "target.provenance_status",
+      "operator": "equals",
+      "expected": "verified",
+      "decision": "blocked",
+      "reason": "TARGET_PROVENANCE_UNVERIFIED"
+    },
+    {
+      "gate": "target",
+      "path": "target.package_set_digest",
+      "operator": "sha256",
+      "expected": "sha256",
+      "decision": "blocked",
+      "reason": "TARGET_PACKAGE_DIGEST_MISSING"
+    },
+    {
+      "gate": "platform",
+      "path": "platform.profile",
+      "operator": "equals",
+      "expected": "s1-v1",
+      "decision": "blocked",
+      "reason": "PLATFORM_PROFILE_UNVERIFIED"
+    },
+    {
+      "gate": "platform",
+      "path": "platform.consumer_certification",
+      "operator": "equals",
+      "expected": "verified",
+      "decision": "blocked",
+      "reason": "CONSUMER_PROFILE_UNCERTIFIED"
+    },
+    {
+      "gate": "configuration",
+      "path": "configuration.format_version",
+      "operator": "equals",
+      "expected": 1,
+      "decision": "blocked",
+      "reason": "CONFIG_FORMAT_UNVERSIONED"
+    },
+    {
+      "gate": "configuration",
+      "path": "configuration.manifest_authority",
+      "operator": "equals",
+      "expected": "canonical-v1",
+      "decision": "blocked",
+      "reason": "CONFIG_MANIFEST_UNVERIFIED"
+    },
+    {
+      "gate": "configuration",
+      "path": "configuration.drift",
+      "operator": "equals",
+      "expected": "none",
+      "decision": "blocked",
+      "reason": "CONFIG_DRIFT_PRESENT"
+    },
+    {
+      "gate": "configuration",
+      "path": "configuration.dependencies",
+      "operator": "equals",
+      "expected": "verified",
+      "decision": "blocked",
+      "reason": "CONFIG_DEPENDENCIES_UNVERIFIED"
+    },
+    {
+      "gate": "configuration",
+      "path": "configuration.deletion_intent",
+      "operator": "equals",
+      "expected": "explicit-none",
+      "decision": "blocked",
+      "reason": "CONFIG_DELETION_AMBIGUOUS"
+    },
+    {
+      "gate": "schema",
+      "path": "schema.ledger",
+      "operator": "equals",
+      "expected": "verified",
+      "decision": "blocked",
+      "reason": "SCHEMA_LEDGER_UNKNOWN"
+    },
+    {
+      "gate": "schema",
+      "path": "schema.unknown_rows",
+      "operator": "equals",
+      "expected": 0,
+      "decision": "blocked",
+      "reason": "SCHEMA_LEDGER_UNKNOWN"
+    },
+    {
+      "gate": "schema",
+      "path": "schema.live_schema",
+      "operator": "equals",
+      "expected": "verified",
+      "decision": "blocked",
+      "reason": "LIVE_SCHEMA_UNVERIFIED"
+    },
+    {
+      "gate": "schema",
+      "path": "schema.pending_plan",
+      "operator": "equals",
+      "expected": "verified",
+      "decision": "blocked",
+      "reason": "SCHEMA_PLAN_UNVERIFIED"
+    },
+    {
+      "gate": "schema",
+      "path": "schema.destructive_operations",
+      "operator": "equals",
+      "expected": "none",
+      "decision": "blocked",
+      "reason": "SCHEMA_DESTRUCTIVE_PLAN"
+    },
+    {
+      "gate": "operations",
+      "path": "operations.maintenance",
+      "operator": "equals",
+      "expected": "on",
+      "decision": "blocked",
+      "reason": "MAINTENANCE_NOT_ACTIVE"
+    },
+    {
+      "gate": "operations",
+      "path": "operations.backup_evidence",
+      "operator": "sha256",
+      "expected": "sha256",
+      "decision": "blocked",
+      "reason": "BACKUP_PROOF_MISSING"
+    },
+    {
+      "gate": "operations",
+      "path": "operations.restore_evidence",
+      "operator": "sha256",
+      "expected": "sha256",
+      "decision": "blocked",
+      "reason": "RESTORE_PROOF_MISSING"
+    },
+    {
+      "gate": "operations",
+      "path": "operations.dry_run_evidence",
+      "operator": "sha256",
+      "expected": "sha256",
+      "decision": "blocked",
+      "reason": "DRY_RUN_PROOF_MISSING"
+    }
+  ],
+  "failure_policy": {
+    "preflight_writes": false,
+    "on_apply_failure": [
+      "stop-before-next-phase",
+      "keep-maintenance-active",
+      "retain-before-and-after-evidence",
+      "refuse-generic-rollback",
+      "require-new-preflight-before-forward-resume-or-authorized-restore"
+    ],
+    "destructive_restore_authority": "separate-recovery-gate"
+  }
+}
