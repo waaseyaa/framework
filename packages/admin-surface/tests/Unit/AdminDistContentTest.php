@@ -101,6 +101,67 @@ final class AdminDistContentTest extends TestCase
     }
 
     #[Test]
+    public function shipped_bundle_contains_the_shared_admin_design_system(): void
+    {
+        $entryStylesheets = glob($this->distDir() . '/_nuxt/entry.*.css') ?: [];
+        $layoutStylesheets = glob($this->distDir() . '/_nuxt/default.*.css') ?: [];
+        self::assertCount(1, $entryStylesheets, 'The shipped bundle must have exactly one global entry stylesheet.');
+        self::assertCount(1, $layoutStylesheets, 'The shipped bundle must have exactly one default-layout stylesheet.');
+        $globalCss = (string) file_get_contents($entryStylesheets[0]);
+        $layoutCss = (string) file_get_contents($layoutStylesheets[0]);
+
+        self::assertStringContainsString(
+            '--admin-target-size:44px',
+            $globalCss,
+            'The served admin bundle is missing the global design-system tokens.',
+        );
+        self::assertStringContainsString(
+            '.field-input',
+            $globalCss,
+            'The served admin bundle is missing global structured-editor field styling.',
+        );
+        self::assertStringNotContainsString(
+            '--admin-target-size:44px',
+            $layoutCss,
+            'The shared design-system token regressed into the default-shell-only stylesheet.',
+        );
+    }
+
+    #[Test]
+    public function shipped_bundle_contains_task_oriented_form_sections(): void
+    {
+        $js = $this->concatenatedBundleJs();
+
+        self::assertStringContainsString('x-form-sections', $js);
+        self::assertStringContainsString('data-section-id', $js);
+        self::assertStringContainsString('form_other_details', $js);
+    }
+
+    #[Test]
+    public function shipped_bundle_build_identity_matches_its_source_signature(): void
+    {
+        $signature = trim((string) file_get_contents(dirname(__DIR__, 2) . '/dist.signature'));
+        self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/D', $signature);
+        $buildId = 'waaseyaa-' . substr($signature, 0, 32);
+
+        $latest = json_decode(
+            (string) file_get_contents($this->distDir() . '/_nuxt/builds/latest.json'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
+        self::assertSame($buildId, $latest['id'] ?? null);
+
+        $metaFiles = glob($this->distDir() . '/_nuxt/builds/meta/*.json') ?: [];
+        self::assertCount(1, $metaFiles, 'Exactly one normalized Nuxt build-meta file must ship.');
+        self::assertSame($buildId . '.json', basename($metaFiles[0]));
+        self::assertStringContainsString(
+            'buildId:"' . $buildId . '"',
+            (string) file_get_contents($this->distDir() . '/index.html'),
+        );
+    }
+
+    #[Test]
     public function shipped_bundle_contains_the_shell_free_structured_entity_editor(): void
     {
         $js = $this->concatenatedBundleJs();
@@ -174,4 +235,5 @@ final class AdminDistContentTest extends TestCase
 
         return $js;
     }
+
 }

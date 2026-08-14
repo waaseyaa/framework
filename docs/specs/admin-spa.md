@@ -73,7 +73,7 @@ client. -->
 <!-- Spec reviewed 2026-05-11 - M4A-3 (#1432 / umbrella #1414) per-entity transition-history widget on entity detail pages: new <WorkflowTransitionHistoryTimeline /> component reads `workflow_audit` from the entity's attributes (already surfaced by ResourceSerializer via _data JSON blob round-trip — no backend change), renders reverse-chronological timeline with transition chip / from→to states / uid / timestamp. Wired into pages/[entityType]/[id].vue below SchemaView/SchemaForm. Renders nothing when audit empty. 4 new i18n strings; M4A-4/5 deferred -->
 <!-- Spec reviewed 2026-05-11 - M4A-2 (#1430 / umbrella #1414) workflow detail page at /admin/workflows/[id]: states grid (id/label/weight/metadata) + transitions matrix (from×to grid with cell-level transition listing); new findById helper on useWorkflowDefinitions; WorkflowState TS interface gains `metadata: Record<string, unknown>`; backend serializer extended to include `metadata` per state (3-line additive change in WorkflowDefinitionsController); 10 new i18n strings; closes C-L3-01 detail-view portion; M4A-3/4/5 still deferred -->
 <!-- Spec reviewed 2026-05-11 - M4A-1 (#1428 / umbrella #1414) workflows list page: new GET /api/workflow-definitions endpoint (admin-role-gated, returns `{data: WorkflowDefinition[]}` shape) wired via WorkflowDefinitionsController (packages/api/src/Workflow/) + WorkflowDefinitionsApiRouter (kernel-adjacent, exempted in bin/check-package-layers); new useWorkflowDefinitions composable + /admin/workflows page list editorial workflow with state/transition counts; api/composer.json now requires waaseyaa/workflows; 7 new i18n strings; closes C-L3-01 list-view portion; detail page / history / dry-run / guard editing deferred to M4A-2..M4A-5 -->
-<!-- Spec reviewed 2026-05-11 - M1B-image/fonts (#1411) deferred indefinitely: admin SPA has zero <img>, zero background-image, zero static image assets (only public/favicon.ico), and uses system font stack in AdminShell.vue:109; adopting @nuxt/image and @nuxt/fonts now would add infrastructure for nothing; audit E-Mod-01 updated; M1B umbrella sub-set closed (eslint + icon adopted, image + fonts consciously deferred until SPA grows images or web fonts) -->
+<!-- Spec reviewed 2026-05-11 - M1B-image/fonts (#1411) deferred indefinitely: admin SPA has zero <img>, zero background-image, zero static image assets (only public/favicon.ico), and uses the system font stack declared in app/assets/admin.css; adopting @nuxt/image and @nuxt/fonts now would add infrastructure for nothing; audit E-Mod-01 updated; M1B umbrella sub-set closed (eslint + icon adopted, image + fonts consciously deferred until SPA grows images or web fonts) -->
 <!-- Spec reviewed 2026-05-11 - M2B-build-pipeline (#1412) E-Pkg-05 closed as stale: admin/contracts CI job at .github/workflows/admin.yml:22 already runs nuxi typecheck + npm run build:contracts (with dist/ artifact upload, 14-day retention) + ajv-cli bootstrap schema validation + vitest on every PR; dist/ correctly gitignored; build:contracts retained because it verifies emittability beyond what nuxi typecheck catches; documentation-only correction to audit and README -->
 <!-- Spec reviewed 2026-05-10 - M1B-icon (#1411) @nuxt/icon adoption: module registered in nuxt.config.ts with mode=css and cssLayer=base; AdminShell mobile sidebar toggle's `&#9776;` HTML entity replaced with `<Icon name="heroicons:bars-3" />`; other unicode glyphs in SchemaList/pages and styled SVGs in auth flows kept as-is (out of XS scope) -->
 <!-- Spec reviewed 2026-05-10 - M3B (#1413) SchemaForm bundle picker: when SchemaPresenter has a FieldDefinitionRegistry and the entity type has declared bundles, the bundle property now also carries x-widget=select, x-required=true, x-label='Bundle', x-weight=-100; SchemaForm renders it automatically as a top-of-form required select on create. Bundle stays hidden when no enum (pre-M3B behavior preserved). No SPA code change. -->
@@ -186,7 +186,10 @@ The skeleton's `.env.example` sets `WAASEYAA_DEV_FALLBACK_ACCOUNT=true` by defau
 | @types/node    | ^25.6.2   | Node type definitions           |
 | @playwright/test | ^1.59.1 | E2E browser testing in CI and local `test:e2e` runs |
 
-No CSS framework. Styles are defined in `packages/admin/app/components/layout/AdminShell.vue` as global CSS using CSS custom properties (`--color-primary`, `--color-surface`, etc.).
+No CSS framework. The application-level stylesheet at
+`packages/admin/app/assets/admin.css` defines the global controls and CSS
+custom properties (`--color-primary`, `--color-surface`, etc.) for every route,
+including shell-free entity-editor and page-builder embeds.
 
 ## API Proxy
 
@@ -514,8 +517,26 @@ The form rendering pipeline:
 
 1. `SchemaForm` calls `useSchema(entityType).fetch()` to get the JSON Schema
 2. `sortedProperties(true)` returns editable fields sorted by `x-weight`
-3. For each field, `SchemaField` resolves the widget component from `x-widget`
-4. Each widget receives `modelValue`, `label`, `description`, `required`, `disabled`, `schema`
+3. Optional `x-form-sections` presentation metadata groups those fields into
+   operator tasks without changing their schema, access, validation, or write
+   authority
+4. For each field, `SchemaField` resolves the widget component from `x-widget`
+5. Each widget receives `modelValue`, `label`, `description`, `required`, `disabled`, `schema`
+
+`x-form-sections` is an ordered list of `{id, label, description?, fields,
+collapsible?, collapsed?}` objects. IDs and labels are non-empty strings and
+`fields` contains schema property names. The client ignores malformed sections,
+duplicate assignments, and unavailable/read-only fields. Every remaining
+editable field is rendered once in an `Other details` section, so incomplete
+presentation metadata can never hide writable data. A collapsed section opens
+when one of its fields has a validation error. Section metadata is inert
+presentation: it cannot add fields, bypass field access, change submission
+payloads, inject templates, or execute callbacks.
+
+Task-oriented shells such as Anokii and the full Admin SPA receive exactly the
+same sections because both mount the shared `SchemaForm`. Applications own the
+operator-facing labels and assignments for their content bundles; they do not
+fork the Vue editor.
 
 ### List-View Column Policy (`packages/admin/app/components/schema/SchemaList.vue`)
 
@@ -765,7 +786,7 @@ packages/admin/app/
     default.vue                    # Wraps content in <LayoutAdminShell>
   components/
     layout/
-      AdminShell.vue               # Top bar + sidebar + content area + global styles
+      AdminShell.vue               # Top bar + sidebar + content area
       NavBuilder.vue               # Dynamic sidebar nav from /api/entity-types
     schema/
       SchemaForm.vue               # Entity create/edit form driven by JSON Schema
@@ -1140,7 +1161,8 @@ Real-time SSE monitor for the Mercure broadcasting layer (gap-matrix C-L0-04, mi
 | `packages/admin/app/adapters/AdminSurfaceTransportAdapter.ts` | AdminSurface API transport |
 | `packages/admin/app/adapters/JsonApiTransportAdapter.ts` | JSON:API protocol transport |
 | `packages/admin/app/adapters/BootstrapAuthAdapter.ts` | Bootstrap auth during init |
-| `packages/admin/app/components/layout/AdminShell.vue` | Shell layout + global CSS |
+| `packages/admin/app/assets/admin.css` | Global admin tokens, controls, and shell-independent editor styles |
+| `packages/admin/app/components/layout/AdminShell.vue` | Shell layout and navigation frame |
 | `packages/admin/app/components/layout/NavBuilder.vue` | Dynamic sidebar navigation |
 | `packages/admin/app/components/schema/SchemaForm.vue` | Schema-driven entity form |
 | `packages/admin/app/components/schema/SchemaField.vue` | Widget resolver for a single field |

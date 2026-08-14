@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Let application schemas organize the shared Admin SPA and Anokii entity
+  editor into accessible task-oriented sections, including collapsible
+  secondary details that reopen for validation errors without stealing focus
+  when an error clears, while always rendering declared writable fields that
+  were not assigned to a section (#2375).
+
+- Accept empty configuration objects at the page-builder wire boundary so an
+  editor can duplicate a blockless section, and enforce the documented
+  one-section minimum at the server boundary (#2344).
+
+- Ship the #2344 confirmation-dialog keyboard focus trap in the rebuilt Admin
+  SPA distribution alongside the page-builder workspace.
+
+- Keep the responsive sidebar close control hidden on desktop by preserving
+  its intended cascade order after extracting the shared admin stylesheet.
+
+- Load the shared Admin SPA design-system stylesheet on shell-free entity-editor
+  and page-builder routes so same-origin clients such as Anokii receive the
+  canonical controls, typography, spacing, focus treatment, and target-size
+  tokens without mounting or copying the default navigation shell (#2373).
+
 - Make the #2343 reference-consumer proof resolve exact local candidate
   packages from detached and provider-neutral source checkouts instead of
   inferring Composer versions from a forge-specific branch name, and make the

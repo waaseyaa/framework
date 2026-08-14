@@ -271,5 +271,6 @@
   "page_builder_section_layout_changed": "La mise en page de la section a été modifiée dans une nouvelle révision.",
   "page_builder_section_duplicated": "La section a été dupliquée dans une nouvelle révision.",
   "page_builder_section_removed": "La section a été supprimée dans une nouvelle révision.",
-  "page_builder_secure_id_unavailable": "Ce navigateur ne peut pas créer un identifiant de contenu sécurisé."
+  "page_builder_secure_id_unavailable": "Ce navigateur ne peut pas créer un identifiant de contenu sécurisé.",
+  "form_other_details": "Autres détails"
 }

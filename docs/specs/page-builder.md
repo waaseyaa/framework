@@ -192,7 +192,7 @@ Clients submit commands against an observed entity revision token and document
 fingerprint. Initial commands are:
 
 - add, duplicate, move, configure, and remove block;
-- add, move, configure, and remove section;
+- add, duplicate, move, and remove section;
 - change an allowed section layout;
 - restore a prior entity revision as a new revision.
 

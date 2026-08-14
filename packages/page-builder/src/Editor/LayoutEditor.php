@@ -213,6 +213,12 @@ final readonly class LayoutEditor
      */
     private function removeSection(array &$payload, RemoveSection $command): array
     {
+        if (count($payload['sections']) <= 1) {
+            throw new InvalidEditCommandException(
+                'command.section.last_required',
+                'A layout document must retain at least one section',
+            );
+        }
         $sectionIndex = $this->sectionIndex($payload, $command->sectionId);
         array_splice($payload['sections'], $sectionIndex, 1);
 

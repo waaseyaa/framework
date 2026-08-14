@@ -46,6 +46,23 @@ final class EditCommandDecoderTest extends TestCase
                 'duplicate_block_ids' => ['blk_body' => 'blk_copy'],
             ]),
         );
+        self::assertEquals(
+            new DuplicateSection('sec_empty', 'sec_empty_copy', []),
+            $decoder->decode([
+                'type' => 'duplicate_section',
+                'source_section_id' => 'sec_empty',
+                'duplicate_section_id' => 'sec_empty_copy',
+                'duplicate_block_ids' => [],
+            ]),
+        );
+        self::assertEquals(
+            new ConfigureBlock('blk_empty', []),
+            $decoder->decode([
+                'type' => 'configure_block',
+                'block_id' => 'blk_empty',
+                'config' => [],
+            ]),
+        );
     }
 
     #[Test]

@@ -10,7 +10,7 @@ export default defineNuxtConfig({
 
   modules: ['@nuxt/eslint'],
 
-  css: ['~/assets/css/admin-primitives.css'],
+  css: ['~/assets/admin.css'],
 
   eslint: {
     config: {

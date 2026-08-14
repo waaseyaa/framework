@@ -147,7 +147,7 @@ final class LayoutEditorTest extends TestCase
     }
 
     #[Test]
-    public function duplicateSectionMintsEveryInstanceIdAtTheServerBoundary(): void
+    public function duplicateSectionRequiresFreshValidatedInstanceIds(): void
     {
         $editor = $this->editor();
         $document = $this->document();
@@ -165,6 +165,24 @@ final class LayoutEditorTest extends TestCase
             $result->document()->sections()[1]['regions']['main'][0]['config'],
         );
         self::assertSame(['code' => 'section.duplicated', 'target' => 'sec_copy'], $result->summary());
+    }
+
+    #[Test]
+    public function removingTheLastSectionFailsClosed(): void
+    {
+        $editor = $this->editor();
+        $document = $this->document();
+
+        try {
+            $editor->apply(
+                $document,
+                $editor->fingerprint($document),
+                new RemoveSection('sec_content'),
+            );
+            self::fail('The final page-builder section was removed.');
+        } catch (InvalidEditCommandException $exception) {
+            self::assertSame('command.section.last_required', $exception->machineCode);
+        }
     }
 
     #[Test]

@@ -467,5 +467,6 @@
   "page_builder_section_layout_changed": "The section layout was changed in a new revision.",
   "page_builder_section_duplicated": "The section was duplicated in a new revision.",
   "page_builder_section_removed": "The section was removed in a new revision.",
-  "page_builder_secure_id_unavailable": "This browser cannot create a secure content identifier."
+  "page_builder_secure_id_unavailable": "This browser cannot create a secure content identifier.",
+  "form_other_details": "Other details"
 }

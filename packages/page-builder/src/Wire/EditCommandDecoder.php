@@ -109,7 +109,7 @@ final readonly class EditCommandDecoder
             }
         }
 
-        /** @var array<string, string> $ids */
+        /** @var array<non-empty-string, non-empty-string> $ids */
         return new DuplicateSection(
             $this->string($payload, 'source_section_id'),
             $this->string($payload, 'duplicate_section_id'),
@@ -193,7 +193,7 @@ final readonly class EditCommandDecoder
     private function map(array $payload, string $key): array
     {
         $value = $payload[$key] ?? null;
-        if (!is_array($value) || array_is_list($value)) {
+        if (!is_array($value) || ([] !== $value && array_is_list($value))) {
             throw new InvalidWireCommandException("Page-builder command field {$key} must be an object.");
         }
 
