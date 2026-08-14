@@ -31,12 +31,6 @@ parameters:
 			path: packages/config/src/EventAwareStorage.php
 
 		-
-			message: '#^Unused Waaseyaa\\Config\\EventAwareStorage\:\:readMultiple$#'
-			identifier: shipmonk.deadMethod
-			count: 1
-			path: packages/config/src/EventAwareStorage.php
-
-		-
 			message: '#^Unused Waaseyaa\\EntityStorage\\Hydration\\SqlColumnTranslationHydrator\:\:load$#'
 			identifier: shipmonk.deadMethod
 			count: 1

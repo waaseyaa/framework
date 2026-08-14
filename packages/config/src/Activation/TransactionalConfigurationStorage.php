@@ -9,7 +9,11 @@ use Waaseyaa\Config\Authority\ConfigurationAuthorityUnavailableException;
 use Waaseyaa\Config\StorageInterface;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
 
-/** Legacy StorageInterface mutation adapter over one immutable successor-generation CAS. */
+/**
+ * Legacy StorageInterface mutation adapter over one immutable successor-generation CAS.
+ *
+ * @api
+ */
 final class TransactionalConfigurationStorage implements StorageInterface
 {
     /** @var array<string, self> */
