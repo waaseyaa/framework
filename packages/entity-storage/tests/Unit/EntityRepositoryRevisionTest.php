@@ -170,7 +170,7 @@ final class EntityRepositoryRevisionTest extends TestCase
         $this->dispatchedEvents = [];
 
         try {
-            $this->repo->rollback('1', 1, 1);
+            $this->repo->rollback('1', 1, $this->mutationToken('1'), 1);
             self::fail('A stale guarded rollback was accepted.');
         } catch (RevisionConflictException $exception) {
             self::assertSame(1, $exception->expectedRevisionId);
