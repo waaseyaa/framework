@@ -339,25 +339,25 @@
             "class": "result-contract",
             "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
             "line_sha256": "78d0567f7e4c974efe35866aaa6207caf4e7a55040548aa4f693f4caf7304d7f",
-            "source_sha256": "dda088faa714f76b143845783c04a33551cf2b91a7fad3969b513ffa5ea015e5"
+            "source_sha256": "fb798e69601a99b6381d242b07b170ea272b33162e7d0d59d6ff432ea585fba7"
         },
         {
             "path": "packages/config/src/Activation/ConfigurationActivationResult.php",
-            "line": 13,
+            "line": 18,
             "pattern": "active_token",
             "class": "result-contract",
             "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
             "line_sha256": "983598a1298f2ea5fc1af3d85fe78e63b0e0c2f609d87e00e0d78554dcfd0084",
-            "source_sha256": "dda088faa714f76b143845783c04a33551cf2b91a7fad3969b513ffa5ea015e5"
+            "source_sha256": "fb798e69601a99b6381d242b07b170ea272b33162e7d0d59d6ff432ea585fba7"
         },
         {
             "path": "packages/config/src/Activation/ConfigurationActivationResult.php",
-            "line": 17,
+            "line": 22,
             "pattern": "active_token",
             "class": "result-contract",
             "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
             "line_sha256": "e2dd0c85fea1568175aa8e64c013f2ed0ef3ef260f4bf4f24362f5c455a2a44f",
-            "source_sha256": "dda088faa714f76b143845783c04a33551cf2b91a7fad3969b513ffa5ea015e5"
+            "source_sha256": "fb798e69601a99b6381d242b07b170ea272b33162e7d0d59d6ff432ea585fba7"
         },
         {
             "path": "packages/config/src/Activation/ConfigurationActivatorInterface.php",
@@ -609,79 +609,79 @@
             "class": "legacy-mutation-adapter",
             "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
             "line_sha256": "78d0567f7e4c974efe35866aaa6207caf4e7a55040548aa4f693f4caf7304d7f",
-            "source_sha256": "20537ae7aacac59f50ec05ae96615c5d357da196e48af0c1d3ada3181e330881"
+            "source_sha256": "9fb121ae647b3cf1f6b75e5753e454fb8f92b96fa3f3201995167899ddbb3256"
         },
         {
             "path": "packages/config/src/Activation/TransactionalConfigurationStorage.php",
-            "line": 13,
+            "line": 17,
             "pattern": "transactional_storage",
             "class": "legacy-mutation-adapter",
             "match_sha256": "436a3eb5361867f1801a631a488560cd080ef0532bdb442dcec2736c6dba26c5",
             "line_sha256": "9d66d80b48b66f1abd4582271a269bf5086d73be708b897afb593528612b9559",
-            "source_sha256": "20537ae7aacac59f50ec05ae96615c5d357da196e48af0c1d3ada3181e330881"
+            "source_sha256": "9fb121ae647b3cf1f6b75e5753e454fb8f92b96fa3f3201995167899ddbb3256"
         },
         {
             "path": "packages/config/src/Activation/TransactionalConfigurationStorage.php",
-            "line": 22,
+            "line": 26,
             "pattern": "activator_contract",
             "class": "legacy-mutation-adapter",
             "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
             "line_sha256": "980b1468bcfedca39209342261ad01f8a37fd41e06e55373004fe4f44d9aca56",
-            "source_sha256": "20537ae7aacac59f50ec05ae96615c5d357da196e48af0c1d3ada3181e330881"
+            "source_sha256": "9fb121ae647b3cf1f6b75e5753e454fb8f92b96fa3f3201995167899ddbb3256"
         },
         {
             "path": "packages/config/src/Activation/TransactionalConfigurationStorage.php",
-            "line": 23,
+            "line": 27,
             "pattern": "active_token",
             "class": "legacy-mutation-adapter",
             "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
             "line_sha256": "067439dc9538defd292af0f9ae231131ed0c21ab4d905f9e2ab7f1e2f0e47d6c",
-            "source_sha256": "20537ae7aacac59f50ec05ae96615c5d357da196e48af0c1d3ada3181e330881"
+            "source_sha256": "9fb121ae647b3cf1f6b75e5753e454fb8f92b96fa3f3201995167899ddbb3256"
         },
         {
             "path": "packages/config/src/Activation/TransactionalConfigurationStorage.php",
-            "line": 66,
+            "line": 70,
             "pattern": "activation_request",
             "class": "legacy-mutation-adapter",
             "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
             "line_sha256": "adc60cabcb042c2be479ef88c011a409796d8be478b721f8a57e34032586bc7f",
-            "source_sha256": "20537ae7aacac59f50ec05ae96615c5d357da196e48af0c1d3ada3181e330881"
+            "source_sha256": "9fb121ae647b3cf1f6b75e5753e454fb8f92b96fa3f3201995167899ddbb3256"
         },
         {
             "path": "packages/config/src/Activation/TransactionalConfigurationStorage.php",
-            "line": 83,
+            "line": 87,
             "pattern": "activation_request",
             "class": "legacy-mutation-adapter",
             "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
             "line_sha256": "adc60cabcb042c2be479ef88c011a409796d8be478b721f8a57e34032586bc7f",
-            "source_sha256": "20537ae7aacac59f50ec05ae96615c5d357da196e48af0c1d3ada3181e330881"
+            "source_sha256": "9fb121ae647b3cf1f6b75e5753e454fb8f92b96fa3f3201995167899ddbb3256"
         },
         {
             "path": "packages/config/src/Activation/TransactionalConfigurationStorage.php",
-            "line": 110,
+            "line": 114,
             "pattern": "activation_request",
             "class": "legacy-mutation-adapter",
             "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
             "line_sha256": "adc60cabcb042c2be479ef88c011a409796d8be478b721f8a57e34032586bc7f",
-            "source_sha256": "20537ae7aacac59f50ec05ae96615c5d357da196e48af0c1d3ada3181e330881"
+            "source_sha256": "9fb121ae647b3cf1f6b75e5753e454fb8f92b96fa3f3201995167899ddbb3256"
         },
         {
             "path": "packages/config/src/Activation/TransactionalConfigurationStorage.php",
-            "line": 139,
+            "line": 143,
             "pattern": "activation_request",
             "class": "legacy-mutation-adapter",
             "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
             "line_sha256": "adc60cabcb042c2be479ef88c011a409796d8be478b721f8a57e34032586bc7f",
-            "source_sha256": "20537ae7aacac59f50ec05ae96615c5d357da196e48af0c1d3ada3181e330881"
+            "source_sha256": "9fb121ae647b3cf1f6b75e5753e454fb8f92b96fa3f3201995167899ddbb3256"
         },
         {
             "path": "packages/config/src/Activation/TransactionalConfigurationStorage.php",
-            "line": 185,
+            "line": 189,
             "pattern": "activation_request",
             "class": "legacy-mutation-adapter",
             "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
             "line_sha256": "45b9b294e5d3c71982b2eac613e9869052ee1ccad9f54c9a95910d013faded37",
-            "source_sha256": "20537ae7aacac59f50ec05ae96615c5d357da196e48af0c1d3ada3181e330881"
+            "source_sha256": "9fb121ae647b3cf1f6b75e5753e454fb8f92b96fa3f3201995167899ddbb3256"
         },
         {
             "path": "packages/config/src/Authority/ConfigurationActiveToken.php",
