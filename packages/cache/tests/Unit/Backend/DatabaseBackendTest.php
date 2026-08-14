@@ -11,6 +11,7 @@ use Waaseyaa\Cache\TagAwareCacheInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 #[CoversClass(DatabaseBackend::class)]
 final class DatabaseBackendTest extends TestCase
@@ -22,6 +23,7 @@ final class DatabaseBackendTest extends TestCase
     {
         $this->pdo = new \PDO('sqlite::memory:');
         $this->pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+        RuntimeSchemaMigrations::cachePdo($this->pdo);
         $this->backend = new DatabaseBackend($this->pdo, 'cache_test');
     }
 
@@ -290,7 +292,7 @@ final class DatabaseBackendTest extends TestCase
         $this->backend->get('nonexistent');
 
         $stmt = $this->pdo->prepare(
-            "INSERT INTO cache_test (cid, data, expire, created, tags, valid) VALUES (:cid, :data, :expire, :created, :tags, :valid)",
+            "INSERT INTO cache_items (bin, cid, data, expire, created, tags, valid) VALUES ('cache_test', :cid, :data, :expire, :created, :tags, :valid)",
         );
         $stmt->execute([
             ':cid' => 'corrupt',
@@ -373,7 +375,7 @@ final class DatabaseBackendTest extends TestCase
         $signed->set('tampered', 'original');
 
         // Overwrite the data column with attacker-controlled content that has no valid HMAC.
-        $stmt = $this->pdo->prepare("UPDATE cache_signed SET data = :data WHERE cid = :cid");
+        $stmt = $this->pdo->prepare("UPDATE cache_items SET data = :data WHERE bin = 'cache_signed' AND cid = :cid");
         $stmt->execute([
             ':data' => serialize('attacker'),
             ':cid' => 'tampered',
@@ -395,7 +397,7 @@ final class DatabaseBackendTest extends TestCase
         // INSERT a row with a plain serialized value (no HMAC prefix) — simulates
         // a legacy row written before the HMAC key was configured.
         $stmt = $this->pdo->prepare(
-            "INSERT INTO cache_signed (cid, data, expire, created, tags, valid) VALUES (:cid, :data, :expire, :created, :tags, :valid)",
+            "INSERT INTO cache_items (bin, cid, data, expire, created, tags, valid) VALUES ('cache_signed', :cid, :data, :expire, :created, :tags, :valid)",
         );
         $stmt->execute([
             ':cid' => 'unsigned_key',
@@ -418,7 +420,7 @@ final class DatabaseBackendTest extends TestCase
 
         $this->backend->removeBin();
 
-        // After removeBin, the table is dropped. Subsequent get should recreate it and return false.
+        // Removing a bin clears only its rows; migration-owned schema remains.
         $this->assertFalse($this->backend->get('a'));
     }
 

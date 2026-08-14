@@ -197,7 +197,7 @@ final class KernelRevisionAuthorTest extends TestCase
             {
                 parent::__construct($projectRoot, $logger);
                 // DatabaseBootstrapper reads `config.database` as a path string.
-                $this->config = ['database' => ':memory:'];
+                $this->config = ['database' => ':memory:', 'environment' => 'testing'];
                 // boot() seeds the dispatcher before bootDatabase() /
                 // bootEntityTypeManager() consume it.
                 $this->dispatcher = new SymfonyEventDispatcherAdapter();
@@ -241,6 +241,11 @@ final class KernelRevisionAuthorTest extends TestCase
             revisionDefault: true,
         );
         $kernel->publicEntityTypeManager()->registerEntityType($type, registrant: self::class);
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::entities(
+            $kernel->publicDatabase(),
+            $kernel->publicEntityTypeManager(),
+            [$type],
+        );
 
         return $kernel->publicEntityTypeManager()->getRepository(self::ENTITY_TYPE_ID);
     }

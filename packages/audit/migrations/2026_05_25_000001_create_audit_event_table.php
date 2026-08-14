@@ -2,40 +2,21 @@
 
 declare(strict_types=1);
 
-use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
-use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\Migration\Migration;
 use Waaseyaa\Foundation\Migration\SchemaBuilder;
 
 /**
- * Materialises the audit schema by delegating to AuditEventSchemaHandler
- * (the single source of truth — L1-audit.md m1).
+ * Preserved historical migration identity.
  *
- * AuditEventSchemaHandler::ensureSchema() is the authoritative definition
- * of the audit_event table (including actor_uid, row_hash, prev_hash),
- * the audit_retention_policy table, the audit_checkpoint table, and the
- * genesis anchor. Delegating here ensures that a standalone `migrate` run
- * produces byte-identical schema to the AuditServiceProvider::boot() path,
- * eliminating the stale hand-maintained CREATE TABLE that previously lacked
- * actor_uid and the tamper-evidence chain columns the AuditEventWriter needs.
- *
- * Single-table — NOT two-axis. Audit events are immutable historical facts
- * and are never revised or translated (C-001).
- *
- * Idempotent: AuditEventSchemaHandler uses CREATE TABLE IF NOT EXISTS and
- * CREATE INDEX IF NOT EXISTS throughout.
+ * Installations may already have recorded this version, so it cannot be
+ * removed or repurposed. The complete migration-owned audit schema is defined
+ * by 2026_08_12_000003_audit_runtime_schema and the two migrations that follow
+ * it. Runtime services validate that schema and never create or alter it.
  */
 return new class extends Migration {
     public function up(SchemaBuilder $schema): void
     {
-        // Single source of truth for the audit schema (L1-audit.md m1): delegate
-        // to the runtime AuditEventSchemaHandler that AuditServiceProvider::boot()
-        // uses, so a standalone `migrate` produces byte-identical schema to the
-        // boot path — including actor_uid / row_hash / prev_hash, which the
-        // AuditEventWriter always inserts. A hand-maintained CREATE TABLE here was
-        // a stale second definition that drifted from the writer's expectations.
-        $database = new DBALDatabase($schema->getConnection());
-        (new AuditEventSchemaHandler($database))->ensureSchema();
+        // Intentionally empty; see the class-level migration-identity note.
     }
 
     public function down(SchemaBuilder $schema): void

@@ -20,9 +20,9 @@ use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriverV2;
 use Waaseyaa\EntityStorage\Driver\StorageBoundary;
 use Waaseyaa\EntityStorage\EntityRepository;
-use Waaseyaa\EntityStorage\Schema\TranslationSchemaHandler;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Validation\DatabaseValidationReadLedger;
+use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 
@@ -74,7 +74,6 @@ final class EntityTypeManagerFactory
             ? EntityValidator::createDefault(new DatabaseValidationReadLedger($database))
             : null;
 
-        $manager = null;
         $manager = new EntityTypeManager(
             $dispatcher,
             // C-22 WP4: the legacy SqlEntityStorage engine is removed. getStorage()
@@ -82,39 +81,9 @@ final class EntityTypeManagerFactory
             // it remains a "bring your own EntityStorageInterface" extension seam
             // for entity types that explicitly declare a storageClass.
             null,
-            function (string $_entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry, $logger, $validator, $communityScoreResolver, $accountContextAttacher, $accessHandlerResolver, $fieldReadScope, &$manager): EntityRepositoryInterface {
-                $schemaHandler = new SqlSchemaHandler($definition, $database, $fieldRegistry, null, $logger);
-                $schemaHandler->ensureTable();
-                // Creating a referenced table can make an earlier dependant's
-                // deferred FK declaration installable. Retry every registered
-                // definition so lazy materialization reaches the same shape as
-                // schema:sync regardless of repository access order.
-                if ($manager instanceof EntityTypeManager) {
-                    foreach ($manager->getDefinitions() as $registeredDefinition) {
-                        new SqlSchemaHandler($registeredDefinition, $database, $fieldRegistry, null, $logger)
-                            ->ensureDeclaredForeignKeys();
-                    }
-                }
-                if ($definition->isRevisionable()) {
-                    $schemaHandler->ensureRevisionTable();
-                }
-                if ($definition->isTranslatable()) {
-                    // Gate translation-table creation on the storage backend model,
-                    // mirroring EntitySchemaSync::syncAll (the CLI db:init path).
-                    // sql-blob translatable types keep per-langcode rows IN the base
-                    // table (FR-020) and must NOT get a `<entity>_translations`
-                    // sibling: materialising an empty one is exactly what forced the
-                    // alpha.199 peer-first read fallback to exist. (b2)
-                    $backend = $definition->getPrimaryStorageBackend();
-                    $backend = (\is_string($backend) && $backend !== '')
-                        ? $backend
-                        : ReservedBackendIds::SQL_BLOB;
-                    if ($backend === ReservedBackendIds::SQL_COLUMN) {
-                        new TranslationSchemaHandler($database)->sync($definition);
-                    } elseif ($backend !== ReservedBackendIds::SQL_BLOB) {
-                        $schemaHandler->ensureTranslationTable();
-                    }
-                }
+            function (string $_entityTypeId, EntityTypeInterface $definition) use ($database, $dispatcher, $fieldRegistry, $logger, $validator, $communityScoreResolver, $accountContextAttacher, $accessHandlerResolver, $fieldReadScope): EntityRepositoryInterface {
+                $schemaHandler = $this->schemaHandlerFor($definition, $database, $fieldRegistry, $logger);
+                $schemaHandler->assertRuntimeSchema();
 
                 $keys = $definition->getKeys();
                 $idKey = $keys['id'] ?? 'id';
@@ -180,18 +149,46 @@ final class EntityTypeManagerFactory
                     SqlSchemaHandler::resolveSubtableName($entityTypeId, $bundle),
                 );
             },
-            // Materializer used by EntityTypeManager::addBundleFields() to
-            // auto-create/migrate the per-bundle subtable (e.g. node__page) with
-            // real typed columns when bundle fields are registered. ensureTable()
-            // is idempotent: it creates the base table if missing and the
-            // subtable(s) for every registered bundle, so it is safe under the
-            // zero-and-re-migrate loop and on re-runs against an existing DB.
-            function (EntityTypeInterface $type) use ($database, $fieldRegistry, $logger): void {
-                $handler = new SqlSchemaHandler($type, $database, $fieldRegistry, null, $logger);
-                $handler->ensureTable();
-            },
+            // Bundle registration is definition-only. Repository resolution
+            // validates the complete registered shape; schema:sync is the sole
+            // materializer. This permits a deployment kernel to load new
+            // definitions before its explicit schema transition runs.
+            static function (EntityTypeInterface $type): void {},
         );
 
         return $manager;
+    }
+
+    private function schemaHandlerFor(
+        EntityTypeInterface $definition,
+        DatabaseInterface $database,
+        FieldDefinitionRegistryInterface $fieldRegistry,
+        LoggerInterface $logger,
+    ): SqlSchemaHandler {
+        $backend = $definition->getPrimaryStorageBackend();
+        $backend = (\is_string($backend) && $backend !== '')
+            ? $backend
+            : ReservedBackendIds::SQL_BLOB;
+        $entityLevelFields = [];
+        if ($backend === ReservedBackendIds::SQL_COLUMN) {
+            foreach ($definition->getFieldDefinitions() as $name => $fieldDefinition) {
+                if (!$fieldDefinition instanceof FieldDefinition) {
+                    continue;
+                }
+                if ($definition->isTranslatable() && $fieldDefinition->isTranslatable()) {
+                    continue;
+                }
+                $entityLevelFields[$name] = $fieldDefinition;
+            }
+        }
+
+        return new SqlSchemaHandler(
+            entityType: $definition,
+            database: $database,
+            fieldRegistry: $fieldRegistry,
+            logger: $logger,
+            primaryBackendId: $backend,
+            entityLevelFields: $entityLevelFields,
+        );
     }
 }

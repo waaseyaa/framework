@@ -85,6 +85,7 @@ final class AccessVisibilityConsistencyIntegrationTest extends TestCase
             ],
         ));
         $manager->getRepository('relationship');
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::relationship($database);
         new RelationshipSchemaManager($database)->ensure();
 
         $nodeRepository = $manager->getRepository('node');

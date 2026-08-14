@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Audit\Tests\Integration;
 
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -33,7 +35,7 @@ final class AuditChainVerifierTest extends TestCase
     protected function setUp(): void
     {
         $this->db = DBALDatabase::createSqlite();
-        new AuditEventSchemaHandler($this->db)->ensureSchema();
+        RuntimeSchemaMigrations::audit($this->db);
 
         $this->nullSink = new class implements CheckpointSink {
             public function export(AuditCheckpoint $checkpoint): void {}
@@ -250,7 +252,7 @@ final class AuditChainVerifierTest extends TestCase
     public function configured_key_requires_authenticated_verification_when_checkpoint_fields_change(): void
     {
         $key = random_bytes(32);
-        new AuditEventSchemaHandler($this->db, $key)->ensureSchema();
+        RuntimeSchemaMigrations::audit($this->db);
         $this->insertEvent('authenticated-checkpoint');
         $this->seal($key);
 

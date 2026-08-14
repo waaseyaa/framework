@@ -37,9 +37,6 @@ use Waaseyaa\Audit\Bootstrap\SessionBootstrapReader;
 use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Listener\McpApprovalDecisionAuditListener;
-use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
-use Waaseyaa\Audit\Storage\ApprovalEventSchema;
-use Waaseyaa\Audit\Storage\StrictAuditLedgerSchema;
 use Waaseyaa\Audit\Writer\DatabaseOperationApprovalStore;
 use Waaseyaa\Audit\Writer\DatabaseStrictAuditLedger;
 use Waaseyaa\Audit\Writer\DatabaseStrictPrivilegedReadLedger;
@@ -64,6 +61,7 @@ use Waaseyaa\Mcp\Auth\BearerTokenAuth;
 use Waaseyaa\Mcp\CapabilityScopedToolRegistry;
 use Waaseyaa\Mcp\McpEndpoint;
 use Waaseyaa\Routing\WaaseyaaRouter;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 use Waaseyaa\User\Middleware\CsrfMiddleware;
 use Waaseyaa\User\Middleware\SessionMiddleware;
 use Waaseyaa\User\User;
@@ -139,9 +137,9 @@ final class McpApprovalDecisionSurfaceTest extends TestCase
         $this->saveUser(self::NO_CAPS_UID, 'approval-bystander', []);
         $this->saveUser(self::SECOND_OPERATOR_UID, 'approval-second-operator', ['mcp.approval.view', 'mcp.approval.decide']);
 
-        new AuditEventSchemaHandler($this->database)->ensureSchema();
-        new ApprovalEventSchema($this->database)->ensure();
-        new StrictAuditLedgerSchema($this->database)->ensure();
+        RuntimeSchemaMigrations::audit($this->database);
+        RuntimeSchemaMigrations::audit($this->database);
+        RuntimeSchemaMigrations::audit($this->database);
         $this->clock = new class implements EntityClockInterface {
             public \DateTimeImmutable $now;
 

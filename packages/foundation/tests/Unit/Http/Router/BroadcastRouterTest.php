@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Waaseyaa\Foundation\Http\Router\BroadcastRouter;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 #[CoversClass(BroadcastRouter::class)]
 final class BroadcastRouterTest extends TestCase
@@ -65,6 +66,7 @@ final class BroadcastRouterTest extends TestCase
         $router = new BroadcastRouter();
 
         $db = \Waaseyaa\Database\DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::broadcast($db);
         $broadcastStorage = new \Waaseyaa\Api\Controller\BroadcastStorage($db);
 
         $account = $this->createStub(\Waaseyaa\Access\AuthorizationPrincipalInterface::class);
@@ -139,6 +141,7 @@ final class BroadcastRouterTest extends TestCase
     public function stream_loop_exits_when_time_budget_elapses(): void
     {
         $db = \Waaseyaa\Database\DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::broadcast($db);
         $storage = new \Waaseyaa\Api\Controller\BroadcastStorage($db);
 
         // Monotonic fake clock so the per-connection budget is reached
@@ -168,6 +171,7 @@ final class BroadcastRouterTest extends TestCase
     public function stream_loop_exits_promptly_on_client_disconnect(): void
     {
         $db = \Waaseyaa\Database\DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::broadcast($db);
         $storage = new \Waaseyaa\Api\Controller\BroadcastStorage($db);
 
         // abort returns 0 once, then 1 — simulating the client navigating away.
@@ -192,6 +196,7 @@ final class BroadcastRouterTest extends TestCase
     public function stream_delivers_pushed_events_so_realtime_still_works(): void
     {
         $db = \Waaseyaa\Database\DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::broadcast($db);
         $storage = new \Waaseyaa\Api\Controller\BroadcastStorage($db);
 
         $now = 0;
@@ -225,6 +230,7 @@ final class BroadcastRouterTest extends TestCase
         }
 
         $db = \Waaseyaa\Database\DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::broadcast($db);
         $storage = new \Waaseyaa\Api\Controller\BroadcastStorage($db);
 
         // Simulate SessionMiddleware having opened the native session. Its file
@@ -259,6 +265,7 @@ final class BroadcastRouterTest extends TestCase
     public function stream_clears_ignore_user_abort_so_disconnects_surface(): void
     {
         $db = \Waaseyaa\Database\DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::broadcast($db);
         $storage = new \Waaseyaa\Api\Controller\BroadcastStorage($db);
 
         // Simulate the FrankenPHP / php-fpm request bootstrap, which enables
@@ -296,6 +303,7 @@ final class BroadcastRouterTest extends TestCase
     public function handle_refuses_with_503_and_retry_after_when_account_at_concurrent_cap(): void
     {
         $db = \Waaseyaa\Database\DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::broadcast($db);
         $storage = new \Waaseyaa\Api\Controller\BroadcastStorage($db);
 
         // Pre-populate subscribers.json with `cap` active streams for account 0
@@ -329,6 +337,7 @@ final class BroadcastRouterTest extends TestCase
     public function handle_streams_when_below_concurrent_cap(): void
     {
         $db = \Waaseyaa\Database\DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::broadcast($db);
         $storage = new \Waaseyaa\Api\Controller\BroadcastStorage($db);
 
         $now = microtime(true);

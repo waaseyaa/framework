@@ -108,6 +108,11 @@ final class ClassificationRetentionIntegrationTest extends TestCase
         $this->auditWriter = $this->recordingAuditWriter();
         $this->kernel = $this->bootKernel($this->projectRoot, $this->auditWriter);
         $this->entityTypeManager = $this->kernel->getEntityTypeManager();
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::entities(
+            $this->kernel->getDatabase(),
+            $this->entityTypeManager,
+            $this->entityTypeManager->getDefinitions(),
+        );
 
         $this->seedLabels();
     }

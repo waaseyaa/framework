@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Audit\Tests\Integration;
 
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -37,7 +39,7 @@ final class AuditImmutabilityTest extends TestCase
     protected function setUp(): void
     {
         $this->raw = DBALDatabase::createSqlite();
-        new AuditEventSchemaHandler($this->raw)->ensureSchema();
+        RuntimeSchemaMigrations::audit($this->raw);
         $this->auditDb = new AppendOnlyAuditDatabase($this->raw);
     }
 
@@ -205,10 +207,11 @@ final class AuditImmutabilityTest extends TestCase
     }
 
     #[Test]
-    public function schema_drop_table_on_non_append_only_table_passes_through(): void
+    public function runtime_schema_create_is_refused_even_for_a_non_audit_table(): void
     {
-        // Create a throwaway table then immediately drop it — verifies the guard
-        // does not interfere with non-audit-event tables.
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('coordinator-only');
+
         $this->auditDb->schema()->createTable('w2_2_tmp', [
             'fields' => [
                 'id' => ['type' => 'serial', 'not null' => true],
@@ -216,28 +219,18 @@ final class AuditImmutabilityTest extends TestCase
             'primary key' => ['id'],
         ]);
 
-        $this->assertTrue($this->auditDb->schema()->tableExists('w2_2_tmp'));
-
-        // Must not throw — guard only applies to append-only tables.
-        $this->auditDb->schema()->dropTable('w2_2_tmp');
-
-        $this->assertFalse($this->auditDb->schema()->tableExists('w2_2_tmp'));
     }
 
     #[Test]
-    public function schema_add_field_on_audit_event_is_not_blocked(): void
+    public function runtime_schema_add_field_on_audit_event_is_refused(): void
     {
-        // Additive DDL on audit_event must not be blocked — legitimate
-        // migrations extend the table while the append-only guard only
-        // refuses destructive operations.
-        $this->assertFalse($this->auditDb->schema()->fieldExists('audit_event', 'w2_2_extra'));
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('coordinator-only');
 
-        // Must not throw a LogicException — additive DDL passes through.
         $this->auditDb->schema()->addField('audit_event', 'w2_2_extra', [
             'type' => 'text',
             'not null' => false,
         ]);
 
-        $this->assertTrue($this->auditDb->schema()->fieldExists('audit_event', 'w2_2_extra'));
     }
 }

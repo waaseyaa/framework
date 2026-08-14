@@ -23,6 +23,7 @@ use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Oidc\Token\AccessTokenIssuer;
 use Waaseyaa\Oidc\Token\AccessTokenPair;
+use Waaseyaa\Oidc\Tests\Support\OidcSchema;
 use Waaseyaa\Oidc\Userinfo\UserinfoClaimResolver;
 use Waaseyaa\Oidc\Userinfo\UserinfoController;
 use Waaseyaa\Tests\Support\UserInternalFieldReaderFixture;
@@ -51,6 +52,7 @@ final class UserinfoControllerTest extends TestCase
         // Shared in-memory connection for the oidc_access_token table so the
         // issuer and the controller see the same rows.
         $this->tokenDb = DBALDatabase::createSqlite();
+        OidcSchema::installTokenStorage($this->tokenDb);
         $this->accessTokenIssuer = new AccessTokenIssuer($this->tokenDb, str_repeat('a', 32), str_repeat('b', 32));
 
         // User entity storage (separate in-memory DB is fine; the controller

@@ -16,6 +16,7 @@ use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
+use Waaseyaa\Foundation\Migration\SchemaBuilder;
 use Waaseyaa\Oidc\Authorize\AuthorizationRequestValidator;
 use Waaseyaa\Oidc\Authorize\AuthorizeController;
 use Waaseyaa\Oidc\ClientRegistry\OidcClientLookup;
@@ -71,7 +72,10 @@ final class AuthorizeControllerTest extends TestCase
 
         $this->codeRepository = new FakeCodeRepository();
 
-        $this->consentRepository = new ConsentRepository(DBALDatabase::createSqlite());
+        $consentDatabase = DBALDatabase::createSqlite();
+        $consentMigration = require dirname(__DIR__, 3) . '/migrations/2026_05_25_000004_oidc_user_consent_schema.php';
+        $consentMigration->up(new SchemaBuilder($consentDatabase->getConnection()));
+        $this->consentRepository = new ConsentRepository($consentDatabase);
         // Pre-seed consent so authenticated tests reach the code-issue path.
         $this->consentRepository->record('42', 'minoo-web', ['openid', 'profile']);
 

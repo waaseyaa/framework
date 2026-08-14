@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Waaseyaa\EntityStorage\EntitySchemaSyncRunner;
 use Waaseyaa\Foundation\Http\RequestContext;
 use Waaseyaa\Foundation\Kernel\ConsoleKernel;
 use Waaseyaa\Foundation\Kernel\HttpKernel;
@@ -19,6 +20,16 @@ $query = json_decode($argv[2] ?? '{}', true, 512, JSON_THROW_ON_ERROR);
 $kind = $argv[3] ?? 'http';
 
 require $projectRoot . '/vendor/autoload.php';
+
+$schemaKernel = new ConsoleKernel($projectRoot);
+$schemaKernel->bootForSchemaSync();
+$schemaManager = $schemaKernel->getEntityTypeManager();
+$schemaDatabase = $schemaKernel->getDatabase();
+new EntitySchemaSyncRunner($schemaDatabase, $schemaManager->getFieldRegistry())
+    ->run($schemaManager->getDefinitions());
+if ($schemaDatabase instanceof \Waaseyaa\Database\DBALDatabase) {
+    $schemaDatabase->getConnection()->close();
+}
 
 $_GET = is_array($query) ? $query : [];
 $_SERVER = [

@@ -285,7 +285,7 @@ final class KernelValidationWiringTest extends TestCase
             {
                 parent::__construct($projectRoot, $logger);
                 // DatabaseBootstrapper reads `config.database` as a path string.
-                $this->config = ['database' => ':memory:'];
+                $this->config = ['database' => ':memory:', 'environment' => 'testing'];
                 // boot() seeds the dispatcher before bootDatabase() /
                 // bootEntityTypeManager() consume it; reproduce the bare
                 // minimum (mirrors Mission1257KernelPathTest).
@@ -366,6 +366,11 @@ final class KernelValidationWiringTest extends TestCase
                 constraints: [new GreaterThan(0)],
             ),
         ]);
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::entities(
+            $kernel->publicDatabase(),
+            $kernel->publicEntityTypeManager(),
+            [$type],
+        );
 
         return $kernel->publicEntityTypeManager()->getRepository(self::ENTITY_TYPE_ID);
     }

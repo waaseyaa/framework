@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Foundation\RateLimit;
 
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\Schema\SchemaRequirement;
 
 /**
  * Persistent, cross-request {@see RateLimiterInterface} backed by a database
@@ -114,13 +115,12 @@ final class DatabaseRateLimiter implements RateLimiterInterface
             return;
         }
 
-        $this->database->query(<<<'SQL'
-                CREATE TABLE IF NOT EXISTS rate_limit_windows (
-                    key TEXT PRIMARY KEY,
-                    count INTEGER NOT NULL DEFAULT 0,
-                    window_start INTEGER NOT NULL
-                )
-            SQL);
+        SchemaRequirement::assertAvailable(
+            $this->database,
+            self::TABLE,
+            ['key', 'count', 'window_start'],
+            'waaseyaa/foundation:2026_08_12_000001_rate_limit_window_schema',
+        );
 
         $this->tableEnsured = true;
     }

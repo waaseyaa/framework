@@ -28,8 +28,8 @@ namespace Waaseyaa\CLI\Command\Migrate;
  * ```
  *
  * `stored_checksum` and `computed_checksum` are JSON nulls when absent.
- * The CLI exit code is non-zero when `summary.mismatch + summary.orphan
- * > 0`; consumers parsing this JSON may use the same rule.
+ * The CLI exit code is non-zero when any mismatch, unknown, orphan, or
+ * authority mismatch is present; consumers parsing JSON use the same rule.
  */
 final readonly class VerifyFormatter
 {
@@ -37,7 +37,7 @@ final readonly class VerifyFormatter
 
     public function toText(VerifyOutcome $outcome): string
     {
-        $lines = ['Verify report (checksum-vs-source comparison):', ''];
+        $lines = ['Verify report (ledger, source, plan, and live-schema comparison):', ''];
 
         if ($outcome->rows === []) {
             $lines[] = '  (ledger empty)';
@@ -55,13 +55,25 @@ final readonly class VerifyFormatter
             );
         }
 
+        $lines[] = sprintf(
+            '  [authority:%s] schema=%s/%s ledger=%s/%s catalogue=%s/%s',
+            $outcome->authority->status,
+            $this->shorten($outcome->authority->storedSchemaFingerprint ?? '—'),
+            $this->shorten($outcome->authority->computedSchemaFingerprint),
+            $this->shorten($outcome->authority->storedLedgerFingerprint ?? '—'),
+            $this->shorten($outcome->authority->computedLedgerFingerprint),
+            $this->shorten($outcome->authority->storedSourceCatalogFingerprint ?? '—'),
+            $this->shorten($outcome->authority->computedSourceCatalogFingerprint),
+        );
+
         $lines[] = '';
         $lines[] = sprintf(
-            'Summary: match=%d mismatch=%d unknown=%d orphan=%d',
+            'Summary: match=%d mismatch=%d unknown=%d orphan=%d authority_mismatch=%d',
             $outcome->summary->match,
             $outcome->summary->mismatch,
             $outcome->summary->unknown,
             $outcome->summary->orphan,
+            $outcome->summary->authorityMismatch,
         );
 
         if ($outcome->summary->hasFailure()) {
@@ -88,11 +100,21 @@ final readonly class VerifyFormatter
         $payload = [
             'kind' => 'verify',
             'results' => $results,
+            'authority' => [
+                'status' => $outcome->authority->status,
+                'stored_schema_fingerprint' => $outcome->authority->storedSchemaFingerprint,
+                'computed_schema_fingerprint' => $outcome->authority->computedSchemaFingerprint,
+                'stored_ledger_fingerprint' => $outcome->authority->storedLedgerFingerprint,
+                'computed_ledger_fingerprint' => $outcome->authority->computedLedgerFingerprint,
+                'stored_source_catalog_fingerprint' => $outcome->authority->storedSourceCatalogFingerprint,
+                'computed_source_catalog_fingerprint' => $outcome->authority->computedSourceCatalogFingerprint,
+            ],
             'summary' => [
                 'match' => $outcome->summary->match,
                 'mismatch' => $outcome->summary->mismatch,
                 'unknown' => $outcome->summary->unknown,
                 'orphan' => $outcome->summary->orphan,
+                'authority_mismatch' => $outcome->summary->authorityMismatch,
             ],
         ];
 

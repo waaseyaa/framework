@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Mcp\Tests\Integration\Audit;
 
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -52,7 +54,7 @@ final class McpDurableWriteAuditTest extends TestCase
     {
         self::$mutations = 0;
         $this->db = DBALDatabase::createSqlite();
-        new StrictAuditLedgerSchema($this->db)->ensure();
+        RuntimeSchemaMigrations::audit($this->db);
     }
 
     /** @return list<array<string, mixed>> */

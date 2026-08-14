@@ -66,6 +66,9 @@ final class KernelBoundRequestContextTest extends TestCase
                 'app' => ['url' => 'http://localhost', 'name' => 'RequestContext regression'],
             ];
             PHP);
+        $database = \Waaseyaa\Database\DBALDatabase::createSqlite($databasePath, 'local');
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::audit($database);
+        $database->getConnection()->close();
     }
 
     protected function tearDown(): void

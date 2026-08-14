@@ -12,12 +12,12 @@ use Waaseyaa\Audit\Contract\AuditQueryInterface;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
 use Waaseyaa\Audit\Query\AuditEventQuery;
-use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
 use Waaseyaa\Audit\Storage\AppendOnlyAuditDatabase;
 use Waaseyaa\Audit\Writer\AuditEventWriter;
 use Waaseyaa\CLI\Command\Audit\PruneCommand;
 use Waaseyaa\CLI\Testing\CapturingSymfonyCommandIO;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 /**
  * Integration test for the `audit:prune` CLI command (T-O §2).
@@ -40,7 +40,7 @@ final class AuditRetentionPruneTest extends TestCase
     {
         $this->database = DBALDatabase::createSqlite();
 
-        new AuditEventSchemaHandler($this->database)->ensureSchema();
+        RuntimeSchemaMigrations::audit($this->database);
 
         // Production wiring: the writer appends through the append-only decorator;
         // the prune command and reads use the raw database directly. audit_event is

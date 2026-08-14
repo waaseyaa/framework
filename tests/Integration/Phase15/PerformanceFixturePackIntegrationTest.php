@@ -116,6 +116,7 @@ final class PerformanceFixturePackIntegrationTest extends TestCase
                 'end_date' => ['type' => 'integer', 'read' => FieldReadLevel::Protected],
             ],
         ));
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::relationship($database);
         new RelationshipSchemaManager($database)->ensure();
 
         $nodeRepository = $entityTypeManager->getRepository('node');
@@ -127,6 +128,7 @@ final class PerformanceFixturePackIntegrationTest extends TestCase
         }
 
         $relationshipRepository = $entityTypeManager->getRepository('relationship');
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::relationship($database);
         new RelationshipSchemaManager($database)->ensure();
         foreach (WorkflowFixturePack::performanceRelationshipsLargeGraph() as $fixture) {
             $relationship = $relationshipRepository->create([

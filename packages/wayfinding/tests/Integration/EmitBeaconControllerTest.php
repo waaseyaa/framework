@@ -12,6 +12,7 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Api\Controller\BroadcastStorage;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Foundation\Http\Router\SessionChannel;
@@ -28,7 +29,9 @@ final class EmitBeaconControllerTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->storage = new BroadcastStorage(DBALDatabase::createSqlite());
+        $database = DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::broadcast($database);
+        $this->storage = new BroadcastStorage($database);
     }
 
     #[Test]

@@ -11,9 +11,9 @@ namespace Waaseyaa\Foundation\Migration;
  * verify CLI (WP10) and any other consumer that wants structured access
  * instead of the raw associative array.
  *
- * Pre-WP09 rows have `checksum === null` and `diffHash === null`. Post-
- * WP09 v2 rows have both populated. Post-WP09 legacy rows still have
- * both null — legacy migrations do not produce a canonical form.
+ * Pre-WP09 rows can have `checksum === null` and `diffHash === null`; strict
+ * S1 verification refuses them. New v2 and legacy-procedural applies populate
+ * both fields with their respective canonical identities.
  * @api
  */
 final readonly class LedgerRow

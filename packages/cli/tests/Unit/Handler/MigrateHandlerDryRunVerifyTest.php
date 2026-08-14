@@ -14,8 +14,10 @@ use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Foundation\Migration\Executor\V2PlanExecutor;
+use Waaseyaa\Foundation\Migration\Migration;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
+use Waaseyaa\Foundation\Migration\SchemaBuilder;
 use Waaseyaa\Foundation\Schema\Compiler\Sqlite\SqliteCompiler;
 use Waaseyaa\Foundation\Schema\Diff\AddColumn;
 use Waaseyaa\Foundation\Schema\Diff\ColumnSpec;
@@ -132,6 +134,100 @@ final class MigrateHandlerDryRunVerifyTest extends TestCase
     }
 
     #[Test]
+    public function verifyRejectsAnUnverifiableLegacyLedgerRow(): void
+    {
+        [$connection, $repo] = self::makeConnectionAndRepo();
+        $repo->record('waaseyaa/test:legacy', 'waaseyaa/test', 1);
+        $legacy = new class extends Migration {
+            public function up(SchemaBuilder $schema): void {}
+        };
+        $migrator = new Migrator($connection, $repo);
+        $tester = self::buildTesterFromHandler(new MigrateHandler(
+            migrator: $migrator,
+            migrationsProvider: static fn(): array => [
+                'waaseyaa/test' => ['waaseyaa/test:legacy' => $legacy],
+            ],
+            repository: $repo,
+            compiler: SqliteCompiler::forVersion('3.40.0'),
+            isProduction: true,
+        ));
+
+        $tester->execute(['--verify']);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('unknown=1', $tester->getStdout());
+        self::assertStringContainsString('STATUS: FAIL', $tester->getStdout());
+    }
+
+    #[Test]
+    public function verifyRejectsALedgerPackageMismatch(): void
+    {
+        [$connection, $repo] = self::makeConnectionAndRepo();
+        $migration = self::v2Adding('widgets', 'archived_at');
+        $plan = $migration->plan();
+        $compiled = SqliteCompiler::forVersion('3.40.0')->compile($plan->root);
+        $repo->record($migration->migrationId(), 'waaseyaa/wrong-package', 1, $plan->checksum(), $compiled->diffHash());
+        $tester = self::verifyTester($connection, $repo, [$migration]);
+
+        $tester->execute(['--verify']);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('package_mismatch', $tester->getStdout());
+    }
+
+    #[Test]
+    public function verifyRejectsACompiledPlanHashMismatch(): void
+    {
+        [$connection, $repo] = self::makeConnectionAndRepo();
+        $migration = self::v2Adding('widgets', 'archived_at');
+        $plan = $migration->plan();
+        $repo->record($migration->migrationId(), $migration->package(), 1, $plan->checksum(), str_repeat('0', 64));
+        $tester = self::verifyTester($connection, $repo, [$migration]);
+
+        $tester->execute(['--verify']);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('plan_mismatch', $tester->getStdout());
+    }
+
+    #[Test]
+    public function verifyRejectsLiveSchemaDriftAfterASuccessfulApply(): void
+    {
+        [$connection, $repo] = self::makeConnectionAndRepo();
+        $connection->executeStatement('CREATE TABLE widgets (id INTEGER PRIMARY KEY)');
+        $migration = self::v2Adding('widgets', 'archived_at');
+        $migrator = new Migrator(
+            $connection,
+            $repo,
+            new V2PlanExecutor($connection, SqliteCompiler::forVersion('3.40.0')),
+        );
+        $migrator->run([], [$migration]);
+        $connection->executeStatement('ALTER TABLE widgets ADD COLUMN rogue_runtime_column TEXT');
+        $tester = self::verifyTester($connection, $repo, [$migration], $migrator);
+
+        $tester->execute(['--verify']);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('schema_drift', $tester->getStdout());
+    }
+
+    #[Test]
+    public function verifyMissingAuthorityFailsWithoutInstallingSchema(): void
+    {
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        $repo = new MigrationRepository($connection);
+        $tester = self::verifyTester($connection, $repo, []);
+
+        $tester->execute(['--verify']);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('authority_missing', $tester->getStdout());
+        self::assertSame([], $connection->fetchFirstColumn(
+            "SELECT name FROM sqlite_schema WHERE name LIKE 'waaseyaa_%' ORDER BY name",
+        ));
+    }
+
+    #[Test]
     public function dryRunAndVerifyTogetherFailWithIncompatibleFlags(): void
     {
         [, , $tester] = self::buildHarness([]);
@@ -204,6 +300,31 @@ final class MigrateHandlerDryRunVerifyTest extends TestCase
         };
 
         return CliTester::for($definition, $container);
+    }
+
+    /**
+     * @param list<MigrationInterfaceV2> $v2
+     */
+    private static function verifyTester(
+        \Doctrine\DBAL\Connection $connection,
+        MigrationRepository $repo,
+        array $v2,
+        ?Migrator $migrator = null,
+    ): CliTester {
+        $migrator ??= new Migrator(
+            $connection,
+            $repo,
+            new V2PlanExecutor($connection, SqliteCompiler::forVersion('3.40.0')),
+        );
+
+        return self::buildTesterFromHandler(new MigrateHandler(
+            migrator: $migrator,
+            migrationsProvider: static fn(): array => [],
+            v2MigrationsProvider: static fn(): array => $v2,
+            repository: $repo,
+            compiler: SqliteCompiler::forVersion('3.40.0'),
+            isProduction: true,
+        ));
     }
 
     /**

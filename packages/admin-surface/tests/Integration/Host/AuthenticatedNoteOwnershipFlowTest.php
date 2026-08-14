@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AdminSurface\Tests\Integration\Host;
 
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -109,7 +111,7 @@ final class AuthenticatedNoteOwnershipFlowTest extends TestCase
             $this->scope,
             $this->accessHandler->checkProtectedFieldRead(...),
         ));
-        new AuditEventSchemaHandler($this->database)->ensureSchema();
+        RuntimeSchemaMigrations::audit($this->database);
     }
 
     protected function tearDown(): void

@@ -101,6 +101,7 @@ final class McpToolsCallSchemaEnforcementTest extends TestCase
             validators: [],
             publishCapability: self::CAPABILITY,
         );
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::publishing($db);
         $this->publisher = new ContentPublisher($descriptor, $repo, new IdempotencyStore($db));
         $this->actor = new PublisherAccount(permissions: [self::CAPABILITY]);
 

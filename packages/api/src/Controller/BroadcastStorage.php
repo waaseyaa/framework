@@ -6,6 +6,7 @@ namespace Waaseyaa\Api\Controller;
 
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Database\Schema\SchemaRequirement;
 
 /**
  * PDO-backed message queue for SSE broadcasting.
@@ -23,52 +24,22 @@ final class BroadcastStorage
 
     public function __construct(DatabaseInterface $database)
     {
+        SchemaRequirement::assertAvailable(
+            $database,
+            '_broadcast_log',
+            ['id', 'channel', 'event', 'data', 'created_at'],
+            'waaseyaa/api:2026_08_12_000001_broadcast_schema',
+        );
+        SchemaRequirement::assertAvailable(
+            $database,
+            '_broadcast_retained',
+            ['channel', 'retain_key', 'msg_id', 'event', 'data', 'created_at', 'expires_at'],
+            'waaseyaa/api:2026_08_12_000001_broadcast_schema',
+        );
         assert($database instanceof DBALDatabase);
         $nativeConn = $database->getConnection()->getNativeConnection();
         assert($nativeConn instanceof \PDO);
         $this->pdo = $nativeConn;
-        $this->ensureTable();
-        $this->ensureRetainedTable();
-    }
-
-    private function ensureTable(): void
-    {
-        $this->pdo->exec(
-            'CREATE TABLE IF NOT EXISTS _broadcast_log ('
-            . 'id INTEGER PRIMARY KEY AUTOINCREMENT,'
-            . 'channel TEXT NOT NULL,'
-            . 'event TEXT NOT NULL,'
-            . 'data TEXT NOT NULL DEFAULT \'{}\','
-            . 'created_at REAL NOT NULL'
-            . ')',
-        );
-    }
-
-    /**
-     * Retained-message table: the still-active state for a (channel, retain_key)
-     * pair, last-write-wins, replayed to every NEW subscriber on connect.
-     *
-     * The plain `_broadcast_log` is a fire-and-forget cursor stream — a new
-     * connection starts at "now" and never sees history, so an event pushed
-     * before the connection existed is lost (the Wayfinding beacon-reconnect
-     * race: a beacon emitted during the hydration reconnect window vanished).
-     * A retained message is the durable counterpart: it survives reconnects and
-     * fresh page loads until it is superseded, dropped, or its TTL expires.
-     */
-    private function ensureRetainedTable(): void
-    {
-        $this->pdo->exec(
-            'CREATE TABLE IF NOT EXISTS _broadcast_retained ('
-            . 'channel TEXT NOT NULL,'
-            . 'retain_key TEXT NOT NULL,'
-            . 'msg_id INTEGER NOT NULL,'
-            . 'event TEXT NOT NULL,'
-            . 'data TEXT NOT NULL DEFAULT \'{}\','
-            . 'created_at REAL NOT NULL,'
-            . 'expires_at REAL,'
-            . 'PRIMARY KEY (channel, retain_key)'
-            . ')',
-        );
     }
 
     /**

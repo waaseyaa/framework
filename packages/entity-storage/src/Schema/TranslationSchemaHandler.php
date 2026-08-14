@@ -9,6 +9,7 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\EntityStorage\Backend\ReservedBackendIds;
 use Waaseyaa\EntityStorage\Backend\SqlColumnSchemaBuilder;
+use Waaseyaa\EntityStorage\CoordinatedEntitySchemaExecutor;
 use Waaseyaa\Field\FieldDefinition;
 use Waaseyaa\Field\FieldDefinitionInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
@@ -80,6 +81,10 @@ final class TranslationSchemaHandler
      */
     public function sync(EntityTypeInterface $entityType): void
     {
+        if ($this->coordinateIfNeeded(fn() => $this->sync($entityType))) {
+            return;
+        }
+
         if (!$entityType->isTranslatable()) {
             return;
         }
@@ -150,6 +155,10 @@ final class TranslationSchemaHandler
      */
     public function syncTwoAxis(EntityTypeInterface $entityType, ?array $fields = null): void
     {
+        if ($this->coordinateIfNeeded(fn() => $this->syncTwoAxis($entityType, $fields))) {
+            return;
+        }
+
         if (!$entityType->isTranslatable() || !$entityType->isRevisionable()) {
             // Single-axis paths are owned by {@see self::sync()} (translatable
             // sql-column primary table) and {@see RevisionTableBuilder::build()}
@@ -210,6 +219,12 @@ final class TranslationSchemaHandler
         string $idKey,
         FieldDefinitionInterface $field,
     ): void {
+        if ($this->coordinateIfNeeded(
+            fn() => $this->ensureMultiCardinalityTable($entityTable, $idKey, $field),
+        )) {
+            return;
+        }
+
         $schema = $this->database->schema();
         $tableName = $this->multiCardinalityTableName($entityTable, $field->getName());
 
@@ -266,6 +281,19 @@ final class TranslationSchemaHandler
         }
 
         $schema->createTable($tableName, $spec);
+    }
+
+    /** Execute one top-level translation-schema transition under the coordinator. */
+    private function coordinateIfNeeded(callable $transition): bool
+    {
+        $executor = new CoordinatedEntitySchemaExecutor($this->database);
+        if ($executor->isActive()) {
+            return false;
+        }
+
+        $executor->execute($transition);
+
+        return true;
     }
 
     /**

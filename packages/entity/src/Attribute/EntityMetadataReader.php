@@ -34,6 +34,11 @@ final class EntityMetadataReader
         $keys = self::resolveKeys($class);
         $labelDescription = self::resolveLabelAndDescription($class);
         $fields = self::resolveFields($class, $typeId);
+        $storageUniqueKeys = self::resolveStorageUniqueKeys($class);
+        $storageSchemaTransitions = array_map(
+            static fn(\ReflectionAttribute $attribute): string => $attribute->newInstance()->class,
+            new \ReflectionClass($class)->getAttributes(StorageSchemaTransition::class),
+        );
 
         return self::$cache[$class] = new EntityClassMetadata(
             typeId: $typeId,
@@ -43,7 +48,24 @@ final class EntityMetadataReader
             api: $labelDescription['api'],
             storageBackend: $labelDescription['storageBackend'],
             fields: $fields,
+            storageUniqueKeys: $storageUniqueKeys,
+            storageSchemaTransitions: $storageSchemaTransitions,
         );
+    }
+
+    /**
+     * @param class-string $class
+     * @return list<array{name: string, fields: non-empty-list<string>}>
+     */
+    private static function resolveStorageUniqueKeys(string $class): array
+    {
+        $resolved = [];
+        foreach (new \ReflectionClass($class)->getAttributes(StorageUniqueKey::class) as $attribute) {
+            $key = $attribute->newInstance();
+            $resolved[] = ['name' => $key->name, 'fields' => $key->fields];
+        }
+
+        return $resolved;
     }
 
     /**

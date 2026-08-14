@@ -15,6 +15,7 @@ use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\GraphQL\Http\Router\GraphQlRouter;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 #[CoversClass(GraphQlRouter::class)]
 final class GraphQlRouterTest extends TestCase
@@ -49,7 +50,9 @@ final class GraphQlRouterTest extends TestCase
         $account->method('isAuthenticated')->willReturn(false);
         $account->method('id')->willReturn(0);
         $request->attributes->set('_account', $account);
-        $request->attributes->set('_broadcast_storage', new BroadcastStorage(DBALDatabase::createSqlite()));
+        $database = DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::broadcast($database);
+        $request->attributes->set('_broadcast_storage', new BroadcastStorage($database));
 
         $response = $router->handle($request);
 

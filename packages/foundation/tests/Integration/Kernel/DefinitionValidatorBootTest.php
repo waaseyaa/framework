@@ -165,10 +165,14 @@ final class DefinitionValidatorBootTest extends TestCase
         mkdir($projectRoot . '/config', 0o755, true);
         mkdir($projectRoot . '/storage', 0o755, true);
 
+        $databasePath = $projectRoot . '/storage/waaseyaa.sqlite';
         file_put_contents(
             $projectRoot . '/config/waaseyaa.php',
-            "<?php return ['database' => ':memory:', 'environment' => 'testing'];",
+            "<?php return ['database' => " . var_export($databasePath, true) . ", 'environment' => 'testing'];",
         );
+        $database = \Waaseyaa\Database\DBALDatabase::createSqlite($databasePath, 'testing');
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::audit($database);
+        $database->getConnection()->close();
 
         // entity-types.php is written per test via buildKernel().
         file_put_contents(

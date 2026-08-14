@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Publishing\Idempotency;
 
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\Schema\SchemaRequirement;
 use Waaseyaa\Publishing\Exception\IdempotencyConflictException;
 
 /**
@@ -16,8 +17,7 @@ use Waaseyaa\Publishing\Exception\IdempotencyConflictException;
  * operation and stores its response. Entries expire after the TTL and are
  * swept opportunistically.
  *
- * Table is self-creating with portable, non-reserved column names (the
- * `rate_limits` pattern). Responses are stored as JSON and must never contain
+ * Schema is migration-owned. Responses are stored as JSON and must never contain
  * credentials or personal data — callers store the same payload they return
  * to the agent.
  *
@@ -141,19 +141,12 @@ final class IdempotencyStore
         if ($this->tableEnsured) {
             return;
         }
-        $schema = $this->database->schema();
-        if (!$schema->tableExists(self::TABLE)) {
-            $schema->createTable(self::TABLE, [
-                'fields' => [
-                    'idem_key' => ['type' => 'varchar', 'length' => 191, 'not null' => true],
-                    'operation' => ['type' => 'varchar', 'length' => 128, 'not null' => true],
-                    'request_hash' => ['type' => 'varchar', 'length' => 64, 'not null' => true],
-                    'response_json' => ['type' => 'text', 'not null' => true],
-                    'created_at' => ['type' => 'int', 'not null' => true],
-                ],
-                'primary key' => ['idem_key'],
-            ]);
-        }
+        SchemaRequirement::assertAvailable(
+            $this->database,
+            self::TABLE,
+            ['idem_key', 'operation', 'request_hash', 'response_json', 'created_at'],
+            'waaseyaa/publishing:2026_08_12_000001_idempotency_schema',
+        );
         $this->tableEnsured = true;
     }
 

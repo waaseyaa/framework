@@ -1,0 +1,319 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Exact, forge-neutral inventory gate for executable schema boundaries.
+ *
+ * The roster is descriptive while DB-02 is active: a reviewed
+ * `authoritative-bypass-remediation-required` classification is allowed, but
+ * an unclassified production occurrence is not. The DB-02 exit gate later
+ * removes every remediation-required class before certification.
+ */
+
+$root = dirname(__DIR__);
+$rosterPath = $root . '/support/s1-schema-authority-roster.json';
+$arguments = array_values(array_filter($_SERVER['argv'] ?? [], 'is_string'));
+$writeRoster = in_array('--write-roster', $arguments, true);
+foreach ($arguments as $argument) {
+    if (str_starts_with($argument, '--roster=')) {
+        $candidate = substr($argument, strlen('--roster='));
+        $rosterPath = str_starts_with($candidate, '/') ? $candidate : $root . '/' . $candidate;
+    }
+}
+
+/** @return array<string, string> */
+function s1SchemaPatterns(): array
+{
+    return [
+        'ddl_sql' => '/\b(?:CREATE\s+(?:VIRTUAL\s+)?TABLE|CREATE\s+(?:UNIQUE\s+)?INDEX|CREATE\s+(?:TRIGGER|VIEW)|ALTER\s+TABLE|DROP\s+(?:TABLE|INDEX|TRIGGER|VIEW))\b/i',
+        'schema_method' => '/->\s*(?:createTable|dropTable|renameTable|addColumn|dropColumn|renameColumn|addIndex|dropIndex|addField)\s*\(/',
+        'legacy_schema_method' => '/->\s*(?:create|drop|rename)\s*\(/',
+    ];
+}
+
+function s1SchemaClass(string $path): string
+{
+    if (str_starts_with($path, 'tests/') || str_contains($path, '/tests/')) {
+        return 'test-only';
+    }
+
+    $reviewed = [
+        'bin/check-s1-schema-authority' => 'tooling-query',
+        'packages/ai-agent/migrations/2026_05_18_000001_create_agent_run.php' => 'coordinator-plan-or-executor',
+        'packages/ai-agent/migrations/2026_07_14_000001_add_approval_expires_at.php' => 'coordinator-plan-or-executor',
+        'packages/ai-agent/src/Routing/AgentRouteServiceProvider.php' => 'explicit-exclusion',
+        'packages/ai-observability/migrations/2026_04_14_000001_create_trace_span_table.php' => 'coordinator-plan-or-executor',
+        'packages/ai-tools/src/Content/MediaAssetStore.php' => 'explicit-exclusion',
+        'packages/ai-vector/src/SqliteEmbeddingStorage.php' => 'projection-authority',
+        'packages/api/src/Controller/BroadcastStorage.php' => 'authoritative-bypass-remediation-required',
+        'packages/api/migrations/2026_08_12_000001_broadcast_schema.php' => 'coordinator-plan-or-executor',
+        'packages/api/src/Http/Router/OidcClientApiRouter.php' => 'explicit-exclusion',
+        'packages/api/src/JsonApiController.php' => 'explicit-exclusion',
+        'packages/attachment/src/Schema/AttachmentSchema.php' => 'coordinator-plan-or-executor',
+        'packages/audit/migrations/2026_05_25_000001_create_audit_event_table.php' => 'coordinator-plan-or-executor',
+        'packages/audit/migrations/2026_05_25_000002_create_audit_retention_policy_table.php' => 'coordinator-plan-or-executor',
+        'packages/audit/migrations/2026_08_12_000003_audit_runtime_schema.php' => 'coordinator-plan-or-executor',
+        'packages/audit/migrations/2026_08_12_000004_strict_audit_ledger_schema.php' => 'coordinator-plan-or-executor',
+        'packages/audit/migrations/2026_08_12_000005_approval_event_schema.php' => 'coordinator-plan-or-executor',
+        'packages/audit/src/Schema/AuditEventSchemaHandler.php' => 'read-only-or-declaration',
+        'packages/audit/src/Storage/AppendOnlyAuditDatabase.php' => 'read-only-or-declaration',
+        'packages/audit/src/Storage/AppendOnlySchema.php' => 'read-only-or-declaration',
+        'packages/audit/src/Storage/ApprovalEventSchema.php' => 'read-only-or-declaration',
+        'packages/audit/src/Storage/StrictAuditLedgerSchema.php' => 'read-only-or-declaration',
+        'packages/auth/src/DatabaseRateLimiter.php' => 'authoritative-bypass-remediation-required',
+        'packages/auth/migrations/2026_08_12_000001_auth_runtime_schema.php' => 'coordinator-plan-or-executor',
+        'packages/cache/migrations/2026_08_12_000001_cache_items_schema.php' => 'coordinator-plan-or-executor',
+        'packages/auth/src/Token/AuthTokenRepository.php' => 'authoritative-bypass-remediation-required',
+        'packages/auth/src/Token/Bearer/DatabaseBearerTokenStore.php' => 'authoritative-bypass-remediation-required',
+        'packages/cache/src/Backend/DatabaseBackend.php' => 'authoritative-bypass-remediation-required',
+        'packages/cli/src/Command/Migration/StorageMigrationTemplate.php' => 'tooling-generator',
+        'packages/cli/src/Handler/AddRevisionsMigrationGenerator.php' => 'tooling-generator',
+        'packages/cli/src/Handler/AddTranslationsMigrationGenerator.php' => 'tooling-generator',
+        'packages/cli/src/Handler/EntityCreateHandler.php' => 'explicit-exclusion',
+        'packages/cli/src/Handler/GroupsCreateHandler.php' => 'explicit-exclusion',
+        'packages/cli/src/Handler/InstallHandler.php' => 'explicit-exclusion',
+        'packages/cli/src/Handler/MakeMigrationHandler.php' => 'tooling-generator',
+        'packages/cli/src/Handler/UserCreateHandler.php' => 'explicit-exclusion',
+        'packages/config/src/Cache/CachedConfigFactory.php' => 'explicit-exclusion',
+        'packages/config/src/ConfigFactory.php' => 'explicit-exclusion',
+        'packages/config/src/EnvironmentConfigFactory.php' => 'explicit-exclusion',
+        'packages/config/src/EventAwareStorage.php' => 'explicit-exclusion',
+        'packages/config/src/TranslatableConfigFactory.php' => 'explicit-exclusion',
+        'packages/database-legacy/src/Schema/DBALSchema.php' => 'coordinator-plan-or-executor',
+        'packages/entity-storage/src/Backend/SqlColumnSchemaBuilder.php' => 'coordinator-plan-or-executor',
+        'packages/entity-storage/src/Backend/StrictLedgerSchema.php' => 'read-only-or-declaration',
+        'packages/entity-storage/src/Backend/TypeMapping.php' => 'read-only-or-declaration',
+        'packages/entity-storage/src/Driver/InMemoryStorageDriverV2.php' => 'explicit-exclusion',
+        'packages/entity-storage/src/Driver/RevisionableStorageDriverV2.php' => 'explicit-exclusion',
+        'packages/entity-storage/src/Driver/SqlStorageDriverV2.php' => 'explicit-exclusion',
+        'packages/entity-storage/src/EntityRepository.php' => 'explicit-exclusion',
+        'packages/entity-storage/src/EntitySchemaSync.php' => 'coordinator-plan-or-executor',
+        'packages/entity-storage/src/Schema/RevisionTableBuilder.php' => 'coordinator-plan-or-executor',
+        'packages/entity-storage/src/Schema/TranslationSchemaHandler.php' => 'coordinator-plan-or-executor',
+        'packages/entity-storage/src/SqlEntityQuery.php' => 'explicit-exclusion',
+        'packages/entity-storage/src/SqlSchemaHandler.php' => 'coordinator-plan-or-executor',
+        'packages/entity/src/Attribute/Field.php' => 'read-only-or-declaration',
+        'packages/entity/testing/StorageBackedStubRepository.php' => 'test-tooling',
+        'packages/entity/testing/Translation/TranslatableEntityContractTest.php' => 'test-only',
+        'packages/field/migrations/2026_05_25_000003_create_classification_label_definition_table.php' => 'coordinator-plan-or-executor',
+        'packages/field/migrations/2026_05_25_000004_create_retention_policy_table.php' => 'coordinator-plan-or-executor',
+        'packages/field/migrations/2026_05_25_000005_index_classification_label.php' => 'coordinator-plan-or-executor',
+        'packages/field/src/BundleTemplateCompiler.php' => 'read-only-or-declaration',
+        'packages/foundation/src/Diagnostic/DiagnosticCode.php' => 'read-only-or-declaration',
+        'packages/foundation/src/Kernel/AbstractKernel.php' => 'explicit-exclusion',
+        'packages/foundation/src/Kernel/ConsoleKernel.php' => 'explicit-exclusion',
+        'packages/foundation/src/Migration/MigrationRepository.php' => 'coordinator-authority',
+        'packages/foundation/src/Migration/SchemaBuilder.php' => 'coordinator-plan-or-executor',
+        'packages/foundation/src/RateLimit/DatabaseRateLimiter.php' => 'authoritative-bypass-remediation-required',
+        'packages/foundation/migrations/2026_08_12_000001_rate_limit_window_schema.php' => 'coordinator-plan-or-executor',
+        'packages/foundation/src/Schema/Compiler/Sqlite/SqliteCapabilities.php' => 'read-only-or-declaration',
+        'packages/foundation/src/Schema/Compiler/Sqlite/SqliteCompiler.php' => 'coordinator-plan-or-executor',
+        'packages/foundation/src/Schema/Compiler/Sqlite/SqliteDiagnosticCode.php' => 'read-only-or-declaration',
+        'packages/foundation/src/Schema/Compiler/Sqlite/Translator/AddColumnTranslator.php' => 'coordinator-plan-or-executor',
+        'packages/foundation/src/Schema/Compiler/Sqlite/Translator/AddIndexTranslator.php' => 'coordinator-plan-or-executor',
+        'packages/foundation/src/Schema/Compiler/Sqlite/Translator/DropColumnTranslator.php' => 'coordinator-plan-or-executor',
+        'packages/foundation/src/Schema/Compiler/Sqlite/Translator/DropIndexTranslator.php' => 'coordinator-plan-or-executor',
+        'packages/foundation/src/Schema/Compiler/Sqlite/Translator/RenameColumnTranslator.php' => 'coordinator-plan-or-executor',
+        'packages/foundation/src/Schema/Compiler/Sqlite/Translator/RenameTableTranslator.php' => 'coordinator-plan-or-executor',
+        'packages/foundation/src/Schema/Compiler/Step/CreateIndex.php' => 'read-only-or-declaration',
+        'packages/foundation/src/Schema/Compiler/Validation/AlterColumnUnsupportedException.php' => 'read-only-or-declaration',
+        'packages/foundation/src/Schema/Compiler/Validation/ForeignKeyUnsupportedException.php' => 'read-only-or-declaration',
+        'packages/graphql/src/Resolver/EntityResolver.php' => 'explicit-exclusion',
+        'packages/groups/src/Membership/GroupMembershipService.php' => 'explicit-exclusion',
+        'packages/groups/src/StaffDirectory/CapabilityScopedStaffDirectoryReadPolicy.php' => 'explicit-exclusion',
+        'packages/messaging/src/EventSubscriber/ThreadParticipantBootstrapSubscriber.php' => 'explicit-exclusion',
+        'packages/messaging/src/Schema/ThreadParticipantSchema.php' => 'coordinator-plan-or-executor',
+        'packages/media/migrations/2026_05_25_000005_create_media_version_table.php' => 'coordinator-plan-or-executor',
+        'packages/media/migrations/2026_07_01_000001_add_media_version_vid_unique_index.php' => 'coordinator-plan-or-executor',
+        'packages/media/migrations/2026_07_13_000001_reconcile_media_version_entity_schema.php' => 'coordinator-plan-or-executor',
+        'packages/migration/src/Plugin/Destination/EntityDestinationFactory.php' => 'explicit-exclusion',
+        'packages/migration/src/Schema/MigrationIdMapSchema.php' => 'etl-boundary',
+        'packages/migration/src/Schema/MigrationRunStateSchema.php' => 'etl-boundary',
+        'packages/migration/src/ServiceProvider.php' => 'etl-boundary',
+        'packages/note/src/Ingestion/NoteIngester.php' => 'explicit-exclusion',
+        'packages/node/migrations/2026_07_06_000001_node_revision_schema.php' => 'coordinator-plan-or-executor',
+        'packages/notification/migrations/2026_04_24_000001_create_notification_tables.php' => 'coordinator-plan-or-executor',
+        'packages/oidc/migrations/2026_04_26_000001_oidc_client_schema.php' => 'coordinator-plan-or-executor',
+        'packages/oidc/migrations/2026_05_25_000002_oidc_token_schema.php' => 'coordinator-plan-or-executor',
+        'packages/oidc/migrations/2026_05_25_000003_oidc_signing_key_schema.php' => 'coordinator-plan-or-executor',
+        'packages/oidc/migrations/2026_05_25_000004_oidc_user_consent_schema.php' => 'coordinator-plan-or-executor',
+        'packages/oidc/migrations/2026_07_15_000005_oidc_secret_storage.php' => 'coordinator-plan-or-executor',
+        'packages/oidc/migrations/2026_08_12_000006_oidc_authorization_code_schema.php' => 'coordinator-plan-or-executor',
+        'packages/oidc/src/ClientRegistry/OidcClientSeeder.php' => 'explicit-exclusion',
+        'packages/oidc/src/Consent/ConsentRepository.php' => 'authoritative-bypass-remediation-required',
+        'packages/oidc/src/Key/SigningKeyRepository.php' => 'authoritative-bypass-remediation-required',
+        'packages/oidc/src/Repository/DatabaseAuthorizationCodeRepository.php' => 'authoritative-bypass-remediation-required',
+        'packages/oidc/src/Security/LegacyOidcSecretMigrator.php' => 'explicit-exclusion',
+        'packages/oidc/src/Token/AccessTokenIssuer.php' => 'authoritative-bypass-remediation-required',
+        'packages/oidc/src/Token/RefreshTokenIssuer.php' => 'authoritative-bypass-remediation-required',
+        'packages/publishing/src/ContentPublisher.php' => 'explicit-exclusion',
+        'packages/publishing/migrations/2026_08_12_000001_idempotency_schema.php' => 'coordinator-plan-or-executor',
+        'packages/publishing/src/Idempotency/IdempotencyStore.php' => 'authoritative-bypass-remediation-required',
+        'packages/queue/migrations/2026_04_24_000001_create_queue_tables.php' => 'coordinator-plan-or-executor',
+        'packages/queue/src/Migration/CreateQueueTables.php' => 'coordinator-plan-or-executor',
+        'packages/relationship/src/AuthorizedRelationshipTraversal.php' => 'explicit-exclusion',
+        'packages/relationship/src/RelationshipSchemaManager.php' => 'authoritative-bypass-remediation-required',
+        'packages/scheduler/src/Migration/CreateSchedulerTables.php' => 'coordinator-plan-or-executor',
+        'packages/scheduler/migrations/2026_04_24_000001_create_scheduler_tables.php' => 'coordinator-plan-or-executor',
+        'packages/scheduler/migrations/2026_06_27_000001_add_schedule_lock_owner.php' => 'coordinator-plan-or-executor',
+        'packages/search/src/Fts5/Fts5SearchIndexer.php' => 'projection-authority',
+        'packages/state/src/SqlState.php' => 'authoritative-bypass-remediation-required',
+        'packages/state/migrations/2026_08_12_000001_state_schema.php' => 'coordinator-plan-or-executor',
+        'packages/testing/src/Factory/EntityFactory.php' => 'test-tooling',
+    ];
+
+    return $reviewed[$path] ?? 'unclassified';
+}
+
+/** @return array{schema_version: int, query_version: string, patterns: array<string, string>, allowed_classes: list<string>, candidates: list<array<string, int|string>>} */
+function s1SchemaBuildRoster(string $root): array
+{
+    $patterns = s1SchemaPatterns();
+    $allowedClasses = [
+        'coordinator-authority',
+        'coordinator-plan-or-executor',
+        'authoritative-bypass-remediation-required',
+        'projection-authority',
+        'etl-boundary',
+        'tooling-generator',
+        'tooling-query',
+        'test-tooling',
+        'test-only',
+        'read-only-or-declaration',
+        'explicit-exclusion',
+    ];
+    $candidates = [];
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS),
+    );
+    foreach ($iterator as $file) {
+        if (!$file instanceof SplFileInfo || !$file->isFile()) {
+            continue;
+        }
+        $path = str_replace('\\', '/', $file->getPathname());
+        $relative = substr($path, strlen(str_replace('\\', '/', $root)) + 1);
+        if (str_starts_with($relative, 'vendor/')
+            || str_starts_with($relative, '.git/')
+            || str_starts_with($relative, 'tmp/')
+        ) {
+            continue;
+        }
+
+        $contents = (string) file_get_contents($path);
+        $firstLine = strtok($contents, "\n");
+        $phpShebang = is_string($firstLine) && preg_match('/^#!.*\bphp(?:\s|$)/', $firstLine) === 1;
+        if (!str_ends_with($relative, '.php') && !$phpShebang) {
+            continue;
+        }
+        $lines = explode("\n", $contents);
+        foreach ($patterns as $patternId => $pattern) {
+            preg_match_all($pattern, $contents, $matches, PREG_OFFSET_CAPTURE);
+            foreach ($matches[0] as [$matched, $offset]) {
+                $line = substr_count(substr($contents, 0, $offset), "\n") + 1;
+                $candidates[] = [
+                    'path' => $relative,
+                    'line' => $line,
+                    'pattern' => $patternId,
+                    'class' => s1SchemaClass($relative),
+                    'match_sha256' => hash('sha256', $matched),
+                    'line_sha256' => hash('sha256', trim($lines[$line - 1] ?? '')),
+                    'source_sha256' => hash('sha256', $contents),
+                ];
+            }
+        }
+    }
+    usort($candidates, static fn(array $left, array $right): int => [
+        $left['path'], $left['line'], $left['pattern'], $left['match_sha256'],
+    ] <=> [$right['path'], $right['line'], $right['pattern'], $right['match_sha256']]);
+
+    return [
+        'schema_version' => 1,
+        'query_version' => 's1-schema-boundaries-v1',
+        'patterns' => $patterns,
+        'allowed_classes' => $allowedClasses,
+        'candidates' => $candidates,
+    ];
+}
+
+if ($writeRoster) {
+    $roster = s1SchemaBuildRoster($root);
+    file_put_contents(
+        $root . '/support/s1-schema-authority-roster.json',
+        json_encode($roster, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n",
+    );
+    fwrite(STDOUT, sprintf("Wrote %d schema-boundary candidates.\n", count($roster['candidates'])));
+    exit(0);
+}
+
+$errors = [];
+try {
+    if (!is_file($rosterPath)) {
+        throw new RuntimeException("Required schema-authority roster is missing: {$rosterPath}");
+    }
+    $recorded = json_decode((string) file_get_contents($rosterPath), true, flags: JSON_THROW_ON_ERROR);
+    if (!is_array($recorded) || array_is_list($recorded)) {
+        throw new RuntimeException('Schema-authority roster must be a JSON object.');
+    }
+    $live = s1SchemaBuildRoster($root);
+    if ($recorded !== $live) {
+        $errors[] = 'Recorded schema-authority roster differs from the live verifier-owned occurrence universe.';
+    }
+    foreach ($live['candidates'] as $candidate) {
+        if ($candidate['class'] === 'unclassified') {
+            $errors[] = sprintf('Unclassified production schema boundary: %s:%d (%s).', $candidate['path'], $candidate['line'], $candidate['pattern']);
+        }
+        if (!in_array($candidate['class'], $live['allowed_classes'], true)) {
+            $errors[] = sprintf('Invalid schema-boundary class %s at %s:%d.', $candidate['class'], $candidate['path'], $candidate['line']);
+        }
+    }
+
+    foreach ([
+        'packages/entity-storage/src/EntitySchemaSync.php',
+        'packages/entity-storage/src/Schema/TranslationSchemaHandler.php',
+        'packages/entity-storage/src/SqlSchemaHandler.php',
+    ] as $executorPath) {
+        $executorSource = (string) file_get_contents($root . '/' . $executorPath);
+        if (!str_contains($executorSource, 'CoordinatedEntitySchemaExecutor')) {
+            $errors[] = sprintf('Entity schema executor is not coordinator-bound: %s.', $executorPath);
+        }
+    }
+
+    $coordinatorAdapter = (string) file_get_contents(
+        $root . '/packages/entity-storage/src/CoordinatedEntitySchemaExecutor.php',
+    );
+    foreach (['SchemaMutationCoordinator', 'MigrationRepository', 'S1-DB107'] as $requiredToken) {
+        if (!str_contains($coordinatorAdapter, $requiredToken)) {
+            $errors[] = sprintf('Entity schema coordinator adapter is missing %s.', $requiredToken);
+        }
+    }
+
+    $kernelFactory = (string) file_get_contents($root . '/packages/foundation/src/Kernel/EntityTypeManagerFactory.php');
+    if (!str_contains($kernelFactory, 'assertRuntimeSchema()')) {
+        $errors[] = 'Kernel repository composition does not validate entity schema read-only.';
+    }
+    foreach (['->ensureTable()', '->ensureRevisionTable()', '->ensureTranslationTable()', '->sync($definition)'] as $runtimeMutation) {
+        if (str_contains($kernelFactory, $runtimeMutation)) {
+            $errors[] = sprintf('Kernel repository composition still contains runtime entity DDL: %s.', $runtimeMutation);
+        }
+    }
+} catch (Throwable $exception) {
+    $errors[] = $exception->getMessage();
+}
+
+if ($errors !== []) {
+    foreach (array_values(array_unique($errors)) as $error) {
+        fwrite(STDERR, "ERROR: {$error}\n");
+    }
+    exit(1);
+}
+
+$counts = array_count_values(array_column($live['candidates'], 'class'));
+ksort($counts);
+fwrite(STDOUT, sprintf(
+    "S1 schema authority roster passed: %d occurrences across %d files; %s\n",
+    count($live['candidates']),
+    count(array_unique(array_column($live['candidates'], 'path'))),
+    json_encode($counts, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+));

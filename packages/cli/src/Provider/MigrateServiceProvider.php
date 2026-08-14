@@ -100,7 +100,6 @@ final class MigrateServiceProvider extends ServiceProvider implements ProvidesCo
         $connection = $database->getConnection();
 
         $repository = new MigrationRepository($connection);
-        $repository->createTable();
 
         $manifest = new PackageManifestCompiler(
             basePath: $projectRoot,

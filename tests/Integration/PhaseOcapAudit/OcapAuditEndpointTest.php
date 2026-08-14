@@ -30,6 +30,7 @@ use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Kernel\BuiltinRouteRegistrar;
 use Waaseyaa\Routing\WaaseyaaRouter;
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 /**
  * End-to-end wiring for the OCAP audit events query endpoint (T-O).
@@ -75,7 +76,7 @@ final class OcapAuditEndpointTest extends TestCase
 
         // Ensure schema exists.
         $schemaHandler = new AuditEventSchemaHandler($this->database);
-        $schemaHandler->ensureSchema();
+        RuntimeSchemaMigrations::audit($this->database);
 
         $dispatcher = new EventDispatcher();
         $this->entityTypeManager = new EntityTypeManager($dispatcher);

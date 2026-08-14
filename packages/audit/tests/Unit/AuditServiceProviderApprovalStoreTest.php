@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Audit\Tests\Unit;
 
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -29,6 +31,7 @@ final class AuditServiceProviderApprovalStoreTest extends TestCase
     protected function setUp(): void
     {
         $this->database = DBALDatabase::createSqlite();
+        RuntimeSchemaMigrations::audit($this->database);
     }
 
     /** @param array<string, mixed> $config */
@@ -58,17 +61,10 @@ final class AuditServiceProviderApprovalStoreTest extends TestCase
     }
 
     #[Test]
-    public function the_schema_is_ensured_lazily_so_the_store_is_usable_on_first_resolution(): void
+    public function the_coordinator_installed_schema_makes_the_store_usable_on_resolution(): void
     {
-        // register() must NOT have created the table; only resolution may.
         $provider = $this->provider();
-        self::assertSame(
-            [],
-            iterator_to_array($this->database->query(
-                "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'mcp_approval_event'",
-            )),
-            'The approval schema must not be created at register() time.',
-        );
+        self::assertTrue($this->database->schema()->tableExists('mcp_approval_event'));
 
         $store = $provider->resolve(OperationApprovalStoreInterface::class);
         assert($store instanceof OperationApprovalStoreInterface);

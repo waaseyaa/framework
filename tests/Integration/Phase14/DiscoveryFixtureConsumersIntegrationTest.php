@@ -109,6 +109,7 @@ final class DiscoveryFixtureConsumersIntegrationTest extends TestCase
                 'end_date' => ['type' => 'integer', 'read' => FieldReadLevel::Protected],
             ],
         ));
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::relationship($this->database);
         new RelationshipSchemaManager($this->database)->ensure();
 
         $this->serializer = new ResourceSerializer($this->entityTypeManager);
@@ -182,6 +183,7 @@ final class DiscoveryFixtureConsumersIntegrationTest extends TestCase
         }
 
         $relationshipRepository = $this->entityTypeManager->getRepository('relationship');
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::relationship($this->database);
         new RelationshipSchemaManager($this->database)->ensure();
         foreach (WorkflowFixturePack::discoveryRelationships() as $fixture) {
             $relationship = $relationshipRepository->create([

@@ -17,6 +17,8 @@ final readonly class EntityClassMetadata
     /**
      * @param EntityKeyMap                       $keys
      * @param array<string, FieldDefinition>     $fields field-name → definition
+     * @param list<array{name: string, fields: non-empty-list<string>}> $storageUniqueKeys
+     * @param list<class-string> $storageSchemaTransitions
      */
     public function __construct(
         public ?string $typeId,
@@ -27,5 +29,7 @@ final readonly class EntityClassMetadata
         /** Primary storage backend id, or '' when the type declares none (#2157). */
         public string $storageBackend = '',
         public array $fields = [],
+        public array $storageUniqueKeys = [],
+        public array $storageSchemaTransitions = [],
     ) {}
 }

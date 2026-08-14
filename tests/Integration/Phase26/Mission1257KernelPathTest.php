@@ -569,6 +569,11 @@ final class Mission1257KernelPathTest extends TestCase
             tenancy: ['scope' => 'community'],
         );
         $kernel->publicEntityTypeManager()->registerEntityType($tenantType, registrant: self::class);
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::entities(
+            $kernel->getDatabase(),
+            $kernel->publicEntityTypeManager(),
+            [$tenantType],
+        );
 
         $repository = $kernel->publicEntityTypeManager()->getRepository('mission1257_kernel_tenant');
 
@@ -603,6 +608,11 @@ final class Mission1257KernelPathTest extends TestCase
             tenancy: ['scope' => 'community'],
         );
         $kernel->publicEntityTypeManager()->registerEntityType($tenantType, registrant: self::class);
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::entities(
+            $kernel->getDatabase(),
+            $kernel->publicEntityTypeManager(),
+            [$tenantType],
+        );
 
         // Trigger the factory twice to prove memoization (one warning, not two).
         $repositoryA = $kernel->publicEntityTypeManager()->getRepository('mission1257_unbound_tenant');
@@ -648,6 +658,11 @@ final class Mission1257KernelPathTest extends TestCase
             tenancy: ['scope' => 'community'],
         );
         $kernel->publicEntityTypeManager()->registerEntityType($tenantType, registrant: self::class);
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::entities(
+            $kernel->getDatabase(),
+            $kernel->publicEntityTypeManager(),
+            [$tenantType],
+        );
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessageMatches('/TENANCY_MISCONFIGURED/');

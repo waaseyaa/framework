@@ -6,6 +6,7 @@ namespace Waaseyaa\Oidc\Token;
 
 use DateTimeImmutable;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\Schema\SchemaRequirement;
 use Waaseyaa\Oidc\Security\OpaqueTokenProtector;
 
 /**
@@ -26,7 +27,7 @@ final class AccessTokenIssuer
     private const TABLE = 'oidc_access_token';
     private const EXPIRY_SECONDS = 3600;
 
-    private bool $tableEnsured = false;
+    private bool $schemaVerified = false;
     private readonly OpaqueTokenProtector $protector;
 
     public function __construct(
@@ -50,7 +51,7 @@ final class AccessTokenIssuer
         array $scopes,
         DateTimeImmutable $now,
     ): AccessTokenPair {
-        $this->ensureTable();
+        $this->assertSchemaAvailable();
 
         $jti = $this->uuid();
         $token = $this->opaqueToken();
@@ -83,7 +84,7 @@ final class AccessTokenIssuer
      */
     public function findByJti(string $jti): ?array
     {
-        $this->ensureTable();
+        $this->assertSchemaAvailable();
 
         foreach ($this->database->select(self::TABLE)->condition('jti', $jti)->execute() as $row) {
             $row['token'] = $this->protector->open((string) $row['token']);
@@ -101,7 +102,7 @@ final class AccessTokenIssuer
      */
     public function findByOpaqueToken(string $token): ?array
     {
-        $this->ensureTable();
+        $this->assertSchemaAvailable();
 
         foreach ($this->database->select(self::TABLE)->condition('token_lookup', $this->protector->lookup($token))->execute() as $row) {
             $storedToken = $this->protector->open((string) $row['token']);
@@ -117,7 +118,7 @@ final class AccessTokenIssuer
 
     public function revoke(string $jti, DateTimeImmutable $now): void
     {
-        $this->ensureTable();
+        $this->assertSchemaAvailable();
 
         $this->database->query(
             'UPDATE ' . self::TABLE . ' SET revoked_at = ? WHERE jti = ?',
@@ -127,7 +128,7 @@ final class AccessTokenIssuer
 
     public function revokeByAccountAndClient(string $accountId, string $clientId, DateTimeImmutable $now): void
     {
-        $this->ensureTable();
+        $this->assertSchemaAvailable();
 
         $this->database->query(
             'UPDATE ' . self::TABLE . ' SET revoked_at = ? WHERE account_id = ? AND client_id = ? AND revoked_at IS NULL',
@@ -146,7 +147,7 @@ final class AccessTokenIssuer
             return;
         }
 
-        $this->ensureTable();
+        $this->assertSchemaAvailable();
 
         $placeholders = implode(', ', array_fill(0, count($jtis), '?'));
         $params = array_merge([$now->getTimestamp()], $jtis);
@@ -157,36 +158,20 @@ final class AccessTokenIssuer
         );
     }
 
-    private function ensureTable(): void
+    private function assertSchemaAvailable(): void
     {
-        if ($this->tableEnsured) {
+        if ($this->schemaVerified) {
             return;
         }
 
-        $this->database->query(<<<'SQL'
-                CREATE TABLE IF NOT EXISTS oidc_access_token (
-                    jti VARCHAR(128) PRIMARY KEY NOT NULL,
-                    token TEXT NOT NULL UNIQUE,
-                    token_lookup CHAR(64) NOT NULL UNIQUE,
-                    client_id VARCHAR(255) NOT NULL,
-                    account_id VARCHAR(255) NOT NULL,
-                    scope TEXT NOT NULL,
-                    issued_at INTEGER NOT NULL,
-                    expires_at INTEGER NOT NULL,
-                    revoked_at INTEGER
-                )
-            SQL);
+        SchemaRequirement::assertAvailable(
+            $this->database,
+            self::TABLE,
+            ['jti', 'token', 'token_lookup', 'client_id', 'account_id', 'scope', 'issued_at', 'expires_at', 'revoked_at'],
+            'waaseyaa/oidc:2026_07_15_000005_oidc_secret_storage',
+        );
 
-        $schema = $this->database->schema();
-        if (!$schema->tableExists(self::TABLE)) {
-            throw new \RuntimeException('OIDC access-token schema is unavailable.');
-        }
-        if (!$schema->fieldExists(self::TABLE, 'token_lookup')) {
-            $schema->addField(self::TABLE, 'token_lookup', ['type' => 'varchar', 'length' => 64]);
-            $schema->addUniqueKey(self::TABLE, 'idx_oidc_access_token_lookup', ['token_lookup']);
-        }
-
-        $this->tableEnsured = true;
+        $this->schemaVerified = true;
     }
 
     private function uuid(): string

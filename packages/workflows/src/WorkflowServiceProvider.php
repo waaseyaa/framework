@@ -282,7 +282,17 @@ final class WorkflowServiceProvider extends ServiceProvider
         $logger = $this->resolveOptional(LoggerInterface::class);
         $resolvedLogger = $logger instanceof LoggerInterface ? $logger : new NullLogger();
 
-        $repository = $entityTypeManager->getRepository('workflow');
+        try {
+            $repository = $entityTypeManager->getRepository('workflow');
+        } catch (\RuntimeException $exception) {
+            if (str_contains($exception->getMessage(), '[S1-DB106]')) {
+                // Runtime boot is never a schema installer. The explicit
+                // db:init/schema:sync transition must run before defaults can
+                // be seeded or upgraded.
+                return;
+            }
+            throw $exception;
+        }
         $existing = $repository->find('editorial');
 
         if ($existing instanceof Workflow) {

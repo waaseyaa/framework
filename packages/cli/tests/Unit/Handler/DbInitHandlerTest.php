@@ -177,6 +177,39 @@ final class DbInitHandlerTest extends TestCase
     }
 
     #[Test]
+    public function dryRunRefusesAStaleLedgerWithoutUpgradingIt(): void
+    {
+        $dbPath = $this->projectRoot . '/storage/waaseyaa.sqlite';
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $dbPath]);
+        $connection->executeStatement(
+            'CREATE TABLE waaseyaa_migrations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                migration VARCHAR(255) NOT NULL,
+                package VARCHAR(128) NOT NULL,
+                batch INTEGER NOT NULL,
+                ran_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )',
+        );
+        $connection->close();
+
+        try {
+            $this->createTester()->executeMap(['--dry-run' => true]);
+            self::fail('db:init --dry-run silently upgraded a stale ledger.');
+        } catch (\RuntimeException $exception) {
+            self::assertStringContainsString('S1-DB105', $exception->getMessage());
+        }
+
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $dbPath]);
+        $columns = array_column(
+            $connection->executeQuery('PRAGMA table_info(waaseyaa_migrations)')->fetchAllAssociative(),
+            'name',
+        );
+        self::assertNotContains('checksum', $columns);
+        self::assertNotContains('diff_hash', $columns);
+        $connection->close();
+    }
+
+    #[Test]
     public function parentDirectoryNotWritableFailsWithClearMessage(): void
     {
         if (function_exists('posix_geteuid') && posix_geteuid() === 0) {

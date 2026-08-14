@@ -27,6 +27,13 @@ final class OidcJwksIntegrationTest extends TestCase
 
         file_put_contents($this->projectRoot . '/config/entity-types.php', "<?php\n\nreturn [];\n");
         file_put_contents($this->projectRoot . '/config/waaseyaa.php', $this->buildConfigFile());
+        $database = \Waaseyaa\Database\DBALDatabase::createSqlite($this->projectRoot . '/storage/waaseyaa.sqlite');
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::auth($database);
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::audit($database);
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::broadcast($database);
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::cache($database);
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::oidc($database);
+        \Waaseyaa\Tests\Support\RuntimeSchemaMigrations::entitiesForProject($this->projectRoot);
     }
 
     protected function tearDown(): void

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Tests\Unit\Command\Audit;
 
+use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
+
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -51,7 +53,7 @@ final class MigrateCheckpointSignaturesCommandTest extends TestCase
     private function tester(): array
     {
         $db = DBALDatabase::createSqlite();
-        new AuditEventSchemaHandler($db)->ensureSchema();
+        RuntimeSchemaMigrations::audit($db);
         $command = new MigrateCheckpointSignaturesCommand(
             new LegacyCheckpointSignatureMigrator($db, random_bytes(32)),
         );
