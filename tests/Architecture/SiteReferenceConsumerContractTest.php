@@ -108,6 +108,12 @@ final class SiteReferenceConsumerContractTest extends TestCase
         );
 
         self::assertStringContainsString('COMPOSER_DISABLE_NETWORK=1', $gate);
+        self::assertStringContainsString('framework_source="$work_root/framework-source"', $gate);
+        self::assertStringContainsString('candidate_revision=$(git -C "$framework_root" rev-parse HEAD)', $gate);
+        self::assertStringContainsString('git -C "$framework_root" archive --format=tar "$candidate_revision"', $gate);
+        self::assertStringContainsString('tar -xf - -C "$framework_source"', $gate);
+        self::assertStringContainsString('configure "$framework_source" "$consumer_root"', $gate);
+        self::assertStringContainsString('find "$framework_source" -type l -print -quit', $gate);
         self::assertStringContainsString('(cd "$consumer_root" && php vendor/bin/waaseyaa', $gate);
         self::assertStringContainsString('site:init', $gate);
         self::assertStringContainsString('site:doctor --strict', $gate);

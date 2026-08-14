@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Build the #2343 reference consumer from an exact tracked Git archive before
+  Composer mirrors framework packages, preventing untracked workspace files or
+  nested dependency symlinks from entering provider-neutral acceptance proof.
+
 - Let application schemas organize the shared Admin SPA and Anokii entity
   editor into accessible task-oriented sections, including collapsible
   secondary details that reopen for validation errors without stealing focus
