@@ -50,4 +50,34 @@ final class JsonApiRouterTest extends TestCase
         $request->attributes->set('_controller', 'mcp.endpoint');
         self::assertFalse($router->supports($request));
     }
+
+    #[Test]
+    public function patch_without_if_match_is_rejected_before_dispatch(): void
+    {
+        $router = $this->createRouter();
+        $request = Request::create('/api/node/1', 'PATCH', content: '{}');
+        $request->attributes->set('_controller', 'Waaseyaa\\Api\\JsonApiController::update');
+        $request->attributes->set('_entity_type', 'node');
+        $request->attributes->set('id', '1');
+
+        $response = $router->handle($request);
+
+        self::assertSame(428, $response->getStatusCode());
+        self::assertSame('MUTATION_PRECONDITION_REQUIRED', json_decode((string) $response->getContent(), true)['errors'][0]['code']);
+    }
+
+    #[Test]
+    public function weak_or_wildcard_if_match_is_rejected_before_dispatch(): void
+    {
+        $router = $this->createRouter();
+        foreach (['W/"anything"', '*', '"one", "two"'] as $ifMatch) {
+            $request = Request::create('/api/node/1', 'DELETE');
+            $request->attributes->set('_controller', 'Waaseyaa\\Api\\JsonApiController::destroy');
+            $request->attributes->set('_entity_type', 'node');
+            $request->attributes->set('id', '1');
+            $request->headers->set('If-Match', $ifMatch);
+
+            self::assertSame(400, $router->handle($request)->getStatusCode(), $ifMatch);
+        }
+    }
 }

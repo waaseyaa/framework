@@ -14,6 +14,7 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\EntityStorage\EntitySchemaSync;
 use Waaseyaa\EntityStorage\Tenancy\CommunityScope;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestRevisionableEntity;
+use Waaseyaa\EntityStorage\Testing\EntityMutationAuthoritySchema;
 use Waaseyaa\Field\FieldDefinitionRegistry;
 use Waaseyaa\Foundation\Community\CommunityContext;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
@@ -33,6 +34,7 @@ final class EntityTypeManagerFactoryTest extends TestCase
     protected function setUp(): void
     {
         $this->database     = DBALDatabase::createSqlite(':memory:');
+        EntityMutationAuthoritySchema::ensure($this->database);
         $this->dispatcher   = new SymfonyEventDispatcherAdapter();
         $this->fieldRegistry = new FieldDefinitionRegistry();
         $this->logger       = new LogManager(new ErrorLogHandler());
@@ -181,6 +183,11 @@ final class EntityTypeManagerFactoryTest extends TestCase
             'uuid' => 'kernel-scoped-a',
             'title' => 'Community A',
             'community_id' => 'community-a',
+        ], entityTypeId: 'kernel_scoped_revisionable', entityKeys: [
+            'id' => 'id',
+            'uuid' => 'uuid',
+            'label' => 'title',
+            'revision' => 'revision_id',
         ]);
         $entity->enforceIsNew();
         $repository->save($entity, validate: false);

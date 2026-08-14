@@ -49,13 +49,14 @@ final class GraphQlCrudTest extends GraphQlIntegrationTestBase
 
     public function testUpdateMutationModifiesEntity(): void
     {
-        $response = $this->query('
-            mutation {
-                updateArticle(id: "1", input: { title: "Updated" }) {
-                    title
+        $token = $this->mutationToken('article', 1);
+        $response = $this->query(<<<GRAPHQL
+                mutation {
+                    updateArticle(id: "1", input: { title: "Updated", mutationToken: "{$token}" }) {
+                        title
+                    }
                 }
-            }
-        ');
+            GRAPHQL);
 
         $this->assertNoErrors($response);
         $this->assertSame('Updated', $response['data']['updateArticle']['title']);
@@ -71,14 +72,15 @@ final class GraphQlCrudTest extends GraphQlIntegrationTestBase
         // Create a temporary entity to delete (don't delete seeded data).
         $create = $this->query('
             mutation {
-                createArticle(input: { title: "Temp" }) { id }
+                createArticle(input: { title: "Temp" }) { id mutationToken }
             }
         ');
         $id = $create['data']['createArticle']['id'];
+        $token = $create['data']['createArticle']['mutationToken'];
 
         $response = $this->query("
             mutation {
-                deleteArticle(id: \"{$id}\") {
+                deleteArticle(id: \"{$id}\", mutationToken: \"{$token}\") {
                     deleted
                 }
             }

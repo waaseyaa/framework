@@ -38,15 +38,17 @@ final class TranslationAccessControlTest extends TestCase
 {
     private EntityTypeManager $entityTypeManager;
     private InMemoryEntityStorage $storage;
+    private InMemoryEntityRepository $repository;
 
     protected function setUp(): void
     {
         $this->storage = new InMemoryEntityStorage('article');
+        $this->repository = new InMemoryEntityRepository($this->storage);
 
         $this->entityTypeManager = new EntityTypeManager(
             new EventDispatcher(),
             fn(\Waaseyaa\Entity\EntityTypeInterface $definition) => $this->storage,
-            fn() => new InMemoryEntityRepository($this->storage),
+            fn() => $this->repository,
         );
 
         $this->entityTypeManager->registerEntityType(new EntityType(
@@ -132,6 +134,7 @@ final class TranslationAccessControlTest extends TestCase
 
         $data = ['data' => ['attributes' => ['title' => 'Au revoir']]];
         $request = $this->makeRequest($editorAccount);
+        $request->headers->set('If-Match', $entity->mutationToken()?->toStrongEtag() ?? '');
 
         $doc = $controller->update($request, 'article', $entityId, 'fr', $data);
         $array = $doc->toArray();
@@ -157,7 +160,7 @@ final class TranslationAccessControlTest extends TestCase
         );
         $fr = $entity->addTranslation('fr');
         $fr->set('title', $frTitle);
-        $this->storage->save($entity);
+        $this->repository->save($entity);
 
         return $entity;
     }

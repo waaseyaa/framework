@@ -21,11 +21,15 @@ use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Kernel\BuiltinRouteRegistrar;
 use Waaseyaa\Queue\SyncQueue;
 use Waaseyaa\Routing\WaaseyaaRouter;
-use Waaseyaa\Scheduler\Lock\InMemoryLock;
+use Waaseyaa\Scheduler\Execution\LeaseAwareClosureCommand;
+use Waaseyaa\Scheduler\Execution\LeaseExecutionContext;
 use Waaseyaa\Scheduler\Schedule;
 use Waaseyaa\Scheduler\ScheduledTask;
 use Waaseyaa\Scheduler\ScheduleRunner;
 use Waaseyaa\Scheduler\Storage\ScheduleStateRepository;
+use Waaseyaa\Scheduler\Testing\InMemoryFenceGuard;
+use Waaseyaa\Scheduler\Testing\InMemoryLeaseAuthority;
+use Waaseyaa\Scheduler\Testing\InMemoryOccurrenceRepository;
 
 /**
  * End-to-end wiring for the M4B WP02 admin scheduler dashboard.
@@ -129,7 +133,8 @@ final class SchedulerAdminEndpointsTest extends TestCase
             new ScheduledTask(
                 name: 'string-task',
                 expression: '0 2 * * *',
-                command: \Waaseyaa\Queue\Tests\Unit\Fixtures\SuccessfulJob::class,
+                command: \Waaseyaa\Queue\Tests\Unit\Fixtures\OccurrenceAwareJob::class,
+                preventOverlap: true,
                 description: 'Job-class nightly task.',
             ),
         ]);
@@ -164,14 +169,16 @@ final class SchedulerAdminEndpointsTest extends TestCase
             new ScheduledTask(
                 name: 'closure-task',
                 expression: '0 0 1 1 *', // Never due — runOne() bypasses cron.
-                command: function () use (&$invoked) {
+                command: self::safeCommand(function () use (&$invoked): void {
                     $invoked = true;
-                },
+                }),
+                preventOverlap: true,
             ),
         ]);
 
         $router = new SchedulerAdminApiRouter($controller);
         $request = Request::create('/api/scheduler/tasks/closure-task/trigger', 'POST');
+        $request->headers->set('Idempotency-Key', 'integration-closure-task');
         $request->attributes->set('_controller', 'Waaseyaa\\Api\\Controller\\SchedulerController::trigger');
         $request->attributes->set('name', 'closure-task');
 
@@ -196,6 +203,7 @@ final class SchedulerAdminEndpointsTest extends TestCase
 
         $router = new SchedulerAdminApiRouter($controller);
         $request = Request::create('/api/scheduler/tasks/does-not-exist/trigger', 'POST');
+        $request->headers->set('Idempotency-Key', 'integration-missing-task');
         $request->attributes->set('_controller', 'Waaseyaa\\Api\\Controller\\SchedulerController::trigger');
         $request->attributes->set('name', 'does-not-exist');
 
@@ -213,12 +221,16 @@ final class SchedulerAdminEndpointsTest extends TestCase
             new ScheduledTask(
                 name: 'angry-task',
                 expression: '* * * * *',
-                command: fn() => throw new \DomainException('intentional failure'),
+                command: self::safeCommand(
+                    static fn() => throw new \DomainException('intentional failure'),
+                ),
+                preventOverlap: true,
             ),
         ]);
 
         $router = new SchedulerAdminApiRouter($controller);
         $request = Request::create('/api/scheduler/tasks/angry-task/trigger', 'POST');
+        $request->headers->set('Idempotency-Key', 'integration-angry-task');
         $request->attributes->set('_controller', 'Waaseyaa\\Api\\Controller\\SchedulerController::trigger');
         $request->attributes->set('name', 'angry-task');
 
@@ -259,10 +271,26 @@ final class SchedulerAdminEndpointsTest extends TestCase
             $schedule->add($task);
         }
 
-        $runner = new ScheduleRunner($schedule, new SyncQueue(), new InMemoryLock(), $stateRepo);
+        $runner = new ScheduleRunner(
+            $schedule,
+            new SyncQueue(),
+            new InMemoryLeaseAuthority(),
+            $stateRepo,
+            fenceGuard: new InMemoryFenceGuard(),
+            occurrenceRepository: new InMemoryOccurrenceRepository(),
+        );
         $controller = new SchedulerController($schedule, $stateRepo, $runner);
 
         return [$controller, $schedule, $stateRepo, $db];
+    }
+
+    private static function safeCommand(\Closure $effect): LeaseAwareClosureCommand
+    {
+        return new LeaseAwareClosureCommand(
+            static function (LeaseExecutionContext $context) use ($effect): void {
+                $context->effect('scheduler-admin-integration', 'manual-effect', $effect);
+            },
+        );
     }
 
     /**

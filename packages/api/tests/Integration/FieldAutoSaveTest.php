@@ -15,6 +15,7 @@ use Waaseyaa\Api\Controller\FieldAutoSaveController;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityRepository;
 use Waaseyaa\Api\Tests\Fixtures\InMemoryEntityStorage;
 use Waaseyaa\Api\Tests\Fixtures\TestEntity;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -136,6 +137,36 @@ final class FieldAutoSaveTest extends TestCase
         // Verify persistence.
         $reloaded = $this->storage->load($entity->id());
         $this->assertSame('Updated Title', $reloaded->get('title'));
+    }
+
+    #[Test]
+    public function missingMutationPreconditionReturns428WithoutWriting(): void
+    {
+        $entity = $this->createSavedEntity(['title' => 'Original', 'type' => 'article']);
+        $entityId = (string) $entity->id();
+        $request = $this->makePutRequest($entityId, 'title', 'Blind write', $this->account);
+        $request->headers->remove('If-Match');
+
+        $response = $this->makeController($this->allowAllHandler)->update($request, 'article', $entityId, 'title');
+
+        $this->assertSame(428, $response->getStatusCode());
+        $this->assertSame('Original', $this->storage->load($entity->id())?->get('title'));
+    }
+
+    #[Test]
+    public function staleMutationPreconditionReturns412AndPreservesTheWinner(): void
+    {
+        $entity = $this->createSavedEntity(['title' => 'Original', 'type' => 'article']);
+        $entityId = (string) $entity->id();
+        $controller = $this->makeController($this->allowAllHandler);
+        $winner = $this->makePutRequest($entityId, 'title', 'Winner', $this->account);
+        $loser = $this->makePutRequest($entityId, 'title', 'Stale loser', $this->account);
+
+        $this->assertSame(200, $controller->update($winner, 'article', $entityId, 'title')->getStatusCode());
+        $response = $controller->update($loser, 'article', $entityId, 'title');
+
+        $this->assertSame(412, $response->getStatusCode());
+        $this->assertSame('Winner', $this->storage->load($entity->id())?->get('title'));
     }
 
     #[Test]
@@ -450,7 +481,7 @@ final class FieldAutoSaveTest extends TestCase
 
     private function makeRawPutRequest(string $entityId, string $key, string $body): Request
     {
-        return Request::create(
+        $request = Request::create(
             "/api/article/{$entityId}/field/{$key}",
             'PUT',
             [],
@@ -459,13 +490,22 @@ final class FieldAutoSaveTest extends TestCase
             ['CONTENT_TYPE' => 'application/json'],
             $body,
         );
+        $entity = $this->entityTypeManager->getRepository('article')->find($entityId);
+        $token = $entity instanceof TestEntity && $entity->mutationToken() !== null
+            ? $entity->mutationToken()
+            : EntityMutationToken::issue('in-memory-test', 'default', 'article', $entityId, 1);
+        $request->headers->set('If-Match', $token->toStrongEtag());
+
+        return $request;
     }
 
     private function createSavedEntity(array $values): TestEntity
     {
         /** @var TestEntity $entity */
-        $entity = $this->storage->create($values);
-        $this->storage->save($entity);
+        $repository = $this->entityTypeManager->getRepository('article');
+        $entity = $repository->create($values);
+        $entity->enforceIsNew();
+        $repository->save($entity);
 
         return $entity;
     }

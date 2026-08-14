@@ -6,6 +6,9 @@ namespace Waaseyaa\Api\Controller;
 
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
+use Waaseyaa\Scheduler\Occurrence\IdempotencyKeyRequiredException;
+use Waaseyaa\Scheduler\Occurrence\InvalidIdempotencyKeyException;
+use Waaseyaa\Scheduler\Occurrence\UnsafeManualExecutionException;
 use Waaseyaa\Scheduler\ScheduleInterface;
 use Waaseyaa\Scheduler\ScheduleRunner;
 use Waaseyaa\Scheduler\Storage\ScheduleStateRepository;
@@ -87,14 +90,21 @@ final class SchedulerController
     /**
      * `POST /api/scheduler/tasks/{name}/trigger` — fire one task immediately.
      *
-     * Returns 200 with a structured outcome envelope, or 404 if no task with
+     * Requires a caller-stable Idempotency-Key. Returns 200 with a structured
+     * outcome envelope, 428 when the key is absent, or 404 if no task with
      * `$name` is registered. The envelope never contains a `\Throwable` — on
      * failure we surface `{status, message, exception_class}` only.
      */
-    public function trigger(string $name): Response
+    public function trigger(string $name, ?string $idempotencyKey = null): Response
     {
         try {
-            $result = $this->runner->runOne($name, new \DateTimeImmutable());
+            $result = $this->runner->runOne($name, new \DateTimeImmutable(), $idempotencyKey);
+        } catch (IdempotencyKeyRequiredException $e) {
+            return self::errorResponse(428, 'Precondition Required', $e->getMessage());
+        } catch (InvalidIdempotencyKeyException $e) {
+            return self::errorResponse(400, 'Bad Request', $e->getMessage());
+        } catch (UnsafeManualExecutionException $e) {
+            return self::errorResponse(409, 'Conflict', $e->getMessage());
         } catch (\InvalidArgumentException $e) {
             return self::errorResponse(404, 'Not Found', $e->getMessage());
         }

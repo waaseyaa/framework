@@ -15,6 +15,7 @@ use Waaseyaa\Access\FieldAccessPolicyInterface;
 use Waaseyaa\AI\Tools\Entity\EntityCreateTool;
 use Waaseyaa\AI\Tools\Entity\EntityUpdateTool;
 use Waaseyaa\AI\Tools\Tests\Fixtures\InMemoryToolRepository;
+use Waaseyaa\AI\Tools\Tests\Fixtures\MutationTokenFixture;
 use Waaseyaa\AI\Tools\Tests\Fixtures\SingleTypeEntityTypeManager;
 use Waaseyaa\AI\Tools\Tests\Fixtures\ToolTestEntity;
 use Waaseyaa\Entity\EntityInterface;
@@ -142,7 +143,7 @@ final class EntityWriteFieldAccessTest extends TestCase
         $tool->setAccessHandler($this->handler(forbiddenEditField: 'status'));
 
         $result = $tool->execute(
-            ['entity_type' => 'tool_test', 'id' => '1', 'values' => ['title' => 'New']],
+            ['entity_type' => 'tool_test', 'id' => '1', 'values' => ['title' => 'New'], 'mutation_token' => MutationTokenFixture::for($this->repo, 'tool_test', '1')],
             $this->account(['tool.entity.update']),
         );
 
@@ -158,7 +159,7 @@ final class EntityWriteFieldAccessTest extends TestCase
         $tool = new EntityUpdateTool($this->etm);
 
         $result = $tool->execute(
-            ['entity_type' => 'tool_test', 'id' => '1', 'values' => ['title' => 'New', 'status' => 1]],
+            ['entity_type' => 'tool_test', 'id' => '1', 'values' => ['title' => 'New', 'status' => 1], 'mutation_token' => MutationTokenFixture::for($this->repo, 'tool_test', '1')],
             $this->account(['tool.entity.update']),
         );
 

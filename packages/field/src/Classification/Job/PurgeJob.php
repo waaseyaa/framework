@@ -15,6 +15,8 @@ use Waaseyaa\Field\Entity\RetentionPolicyMaintenanceReader;
 use Waaseyaa\Field\Entity\RetentionPolicyMaintenanceView;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Scheduler\Execution\LeaseExecutionContext;
+use Waaseyaa\Scheduler\Lease\LeaseLostException;
 
 /**
  * Scheduled job that purges age-eligible entities matched by `action=purge`,
@@ -64,17 +66,21 @@ final class PurgeJob
         $this->subjectReader = $subjectReader ?? new ClassificationSubjectReader();
     }
 
-    public function run(): void
+    public function run(?LeaseExecutionContext $lease = null): void
     {
         foreach ($this->loadPurgePolicies() as $policy) {
+            $lease?->checkpoint();
             try {
                 $view = $this->policyReader->read($policy);
-                $purged = $this->applyPolicy($policy, $view);
+                $purged = $this->applyPolicy($policy, $view, $lease);
                 $this->logger->info('classification.retention.purge_complete', $view->auditContext() + [
                     'policy_id' => $policy->id(),
                     'purged' => $purged,
                 ]);
             } catch (\Throwable $e) {
+                if ($e instanceof LeaseLostException) {
+                    throw $e;
+                }
                 // NFR-004: one bad policy must not abort the whole sweep.
                 $this->logger->warning('classification.retention.purge_failed', [
                     'policy_id' => $policy->id(),
@@ -112,7 +118,7 @@ final class PurgeJob
     /**
      * Apply a single purge policy. Returns the number of entities deleted.
      */
-    private function applyPolicy(RetentionPolicy $policy, RetentionPolicyMaintenanceView $view): int
+    private function applyPolicy(RetentionPolicy $policy, RetentionPolicyMaintenanceView $view, ?LeaseExecutionContext $lease): int
     {
         $cutoff = $this->computeCutoff($view->triggerValue);
         if ($cutoff === null) {
@@ -133,6 +139,7 @@ final class PurgeJob
             }
 
             foreach ($this->scanner->scan($entityTypeId, $cutoffString, RetentionScanner::labelCondition($view)) as $entity) {
+                $lease?->checkpoint();
                 $labelId = $this->subjectReader->read($entity)->label ?? '';
                 if ($labelId === '' || !$view->matchesLabel($labelId)) {
                     continue;
@@ -154,11 +161,23 @@ final class PurgeJob
                     continue;
                 }
 
-                // repository->delete() dispatches POST_DELETE, which the audit
-                // substrate's EntityLifecycleAuditListener records as entity.delete.
-                $this->entityTypeManager->getRepository($entityTypeId)->delete($entity);
-                $this->recordPurge($policy, $entityTypeId, $uuid, $labelId);
-                ++$deleted;
+                $effect = function () use ($entityTypeId, $entity, $policy, $uuid, $labelId): void {
+                    // The repository delete and retention audit share the fence
+                    // transaction when composed over the application database.
+                    $this->entityTypeManager->getRepository($entityTypeId)->delete($entity);
+                    $this->recordPurge($policy, $entityTypeId, $uuid, $labelId);
+                };
+                $executed = $lease?->effect(
+                    sprintf('entity:%s:%s', $entityTypeId, (string) $entity->id()),
+                    sprintf('purge:%s:%s', (string) $policy->id(), (string) $entity->id()),
+                    $effect,
+                ) ?? (function () use ($effect): bool {
+                    $effect();
+                    return true;
+                })();
+                if ($executed) {
+                    ++$deleted;
+                }
             }
         }
 

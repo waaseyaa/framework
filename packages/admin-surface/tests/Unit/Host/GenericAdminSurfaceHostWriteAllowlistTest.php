@@ -157,6 +157,7 @@ final class GenericAdminSurfaceHostWriteAllowlistTest extends TestCase
         $result = $host->action('article', 'update', [
             'id' => $id,
             'attributes' => ['revision_id' => 99],
+            'mutation_token' => $created->data['mutation_token'] ?? null,
         ]);
 
         $this->assertFalse($result->ok);

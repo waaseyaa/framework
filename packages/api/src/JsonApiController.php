@@ -11,7 +11,10 @@ use Waaseyaa\Api\Query\PaginationLinks;
 use Waaseyaa\Api\Query\ParsedQuery;
 use Waaseyaa\Api\Query\QueryApplier;
 use Waaseyaa\Api\Query\QueryParser;
+use Waaseyaa\Entity\Concurrency\EntityMutationConflictException;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 use Waaseyaa\Entity\ConfigEntityInterface;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\FieldableInterface;
@@ -156,7 +159,15 @@ final class JsonApiController
             $total = $this->accessFilteredTotal($repository, $parsedQuery, $gatedQueryFields);
         }
 
-        $resources = $this->serializer->serializeCollection($entities, $this->accessHandler, $this->account);
+        $resources = [];
+        foreach ($entities as $entity) {
+            $resources[] = $this->serializer->serialize(
+                $entity,
+                $this->accessHandler,
+                $this->account,
+                includeMutationToken: $this->canMutate($entity),
+            );
+        }
 
         // Apply sparse fieldsets if requested (attributes and relationships per JSON:API).
         if (isset($parsedQuery->sparseFieldsets[$entityTypeId])) {
@@ -407,7 +418,13 @@ final class JsonApiController
             $entity = $repository->loadWorkingCopy((string) $entity->id()) ?? $entity;
         }
 
-        $resource = $this->serializer->serialize($entity, $this->accessHandler, $this->account);
+        $canMutate = $this->canMutate($entity);
+        $resource = $this->serializer->serialize(
+            $entity,
+            $this->accessHandler,
+            $this->account,
+            includeMutationToken: $canMutate,
+        );
 
         // Apply sparse fieldsets per JSON:API spec (attributes and relationships).
         if (isset($parsedQuery->sparseFieldsets[$entityTypeId])) {
@@ -418,6 +435,7 @@ final class JsonApiController
         return JsonApiDocument::fromResource(
             $resource,
             links: ['self' => "/api/{$entityTypeId}/{$resource->id}"],
+            headers: $canMutate ? $this->mutationHeaders($entity) : [],
         );
     }
 
@@ -644,7 +662,12 @@ final class JsonApiController
             return $this->errorDocument($this->workflowTransitionDeniedError($e));
         }
 
-        $resource = $this->serializer->serialize($entity, $this->accessHandler, $this->account);
+        $resource = $this->serializer->serialize(
+            $entity,
+            $this->accessHandler,
+            $this->account,
+            includeMutationToken: true,
+        );
 
         return new JsonApiDocument(
             data: $resource,
@@ -661,8 +684,12 @@ final class JsonApiController
      * @param int|string           $id           The entity ID.
      * @param array<string, mixed> $data         The full JSON:API request body (expects 'data.type' and optionally 'data.attributes').
      */
-    public function update(string $entityTypeId, int|string $id, array $data): JsonApiDocument
-    {
+    public function update(
+        string $entityTypeId,
+        int|string $id,
+        array $data,
+        ?EntityMutationToken $expectedMutation = null,
+    ): JsonApiDocument {
         $exposureError = $this->entityTypeExposureError($entityTypeId);
         if ($exposureError !== null) {
             return $exposureError;
@@ -752,6 +779,14 @@ final class JsonApiController
         // and what gets saved/serialized. `$repository` was already resolved
         // above (C-22 WP3).
         $target = $repository->loadWorkingCopy((string) $entity->id()) ?? $entity;
+        if ($expectedMutation !== null) {
+            if (!$target instanceof EntityBase) {
+                return $this->errorDocument(JsonApiError::unprocessable(
+                    "Entity type '{$entityTypeId}' cannot carry a mutation precondition.",
+                ));
+            }
+            $target->_hydrateMutationToken($expectedMutation);
+        }
 
         // CW-v1 option-1 design §5 (findings #1/#2), rework: echo-tolerant
         // rejection (Drupal JSON:API parity). A payload key that is neither a
@@ -835,6 +870,8 @@ final class JsonApiController
         } else {
             try {
                 $repository->save($target);
+            } catch (EntityMutationConflictException) {
+                return $this->mutationConflictDocument();
             } catch (UniqueConstraintViolationException) {
                 // Mirrors create()'s 409 mapping (WP2 review): a PATCH that
                 // trips a uniqueness constraint (e.g. the attachment
@@ -852,11 +889,17 @@ final class JsonApiController
             }
         }
 
-        $resource = $this->serializer->serialize($target, $this->accessHandler, $this->account);
+        $resource = $this->serializer->serialize(
+            $target,
+            $this->accessHandler,
+            $this->account,
+            includeMutationToken: true,
+        );
 
         return JsonApiDocument::fromResource(
             $resource,
             links: ['self' => "/api/{$entityTypeId}/{$resource->id}"],
+            headers: $this->mutationHeaders($target),
         );
     }
 
@@ -1006,8 +1049,11 @@ final class JsonApiController
      * @param string     $entityTypeId The entity type.
      * @param int|string $id           The entity ID.
      */
-    public function destroy(string $entityTypeId, int|string $id): JsonApiDocument
-    {
+    public function destroy(
+        string $entityTypeId,
+        int|string $id,
+        ?EntityMutationToken $expectedMutation = null,
+    ): JsonApiDocument {
         $exposureError = $this->entityTypeExposureError($entityTypeId);
         if ($exposureError !== null) {
             return $exposureError;
@@ -1031,10 +1077,55 @@ final class JsonApiController
             }
         }
 
+        if ($expectedMutation !== null) {
+            if (!$entity instanceof EntityBase) {
+                return $this->errorDocument(JsonApiError::unprocessable(
+                    "Entity type '{$entityTypeId}' cannot carry a mutation precondition.",
+                ));
+            }
+            $entity->_hydrateMutationToken($expectedMutation);
+        }
+
         // C-22 WP3: delete path now goes through the canonical repository.
-        $this->entityTypeManager->getRepository($entityTypeId)->delete($entity);
+        try {
+            $this->entityTypeManager->getRepository($entityTypeId)->delete($entity);
+        } catch (EntityMutationConflictException) {
+            return $this->mutationConflictDocument();
+        }
 
         return JsonApiDocument::empty(meta: ['deleted' => true], statusCode: 204);
+    }
+
+    private function mutationConflictDocument(): JsonApiDocument
+    {
+        return JsonApiDocument::fromErrors([
+            new JsonApiError(
+                status: '412',
+                title: 'Precondition Failed',
+                detail: 'The resource changed after the supplied mutation precondition was observed.',
+                code: 'MUTATION_PRECONDITION_FAILED',
+            ),
+        ], statusCode: 412);
+    }
+
+    /** @return array<string, string> */
+    private function mutationHeaders(EntityInterface $entity): array
+    {
+        if (!$entity instanceof EntityBase || $entity->mutationToken() === null) {
+            return [];
+        }
+
+        return ['ETag' => $entity->mutationToken()->toStrongEtag()];
+    }
+
+    private function canMutate(EntityInterface $entity): bool
+    {
+        if ($this->accessHandler === null || $this->account === null) {
+            return true;
+        }
+
+        return $this->accessHandler->check($entity, 'update', $this->account)->isAllowed()
+            || $this->accessHandler->check($entity, 'delete', $this->account)->isAllowed();
     }
 
     /**

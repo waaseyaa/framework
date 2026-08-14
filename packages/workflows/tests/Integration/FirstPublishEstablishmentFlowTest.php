@@ -25,6 +25,7 @@ use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
 use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriver;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\EntityRepository;
+use Waaseyaa\EntityStorage\Event\BeforeRevisionPointerMoveEvent;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\Foundation\Event\SymfonyEventDispatcherAdapter;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
@@ -65,6 +66,96 @@ use Waaseyaa\Workflows\WorkflowTransition;
 final class FirstPublishEstablishmentFlowTest extends TestCase
 {
     #[Test]
+    public function a_failed_promotion_rolls_back_the_entire_transition_aggregate(): void
+    {
+        [$entityTypeManager, $provider, $accountContext, $auditWriter, $dispatcher] = $this->bootWiredProviders();
+        $repository = $entityTypeManager->getRepository('node');
+        $transitions = $provider->resolve(TransitionService::class);
+        $author = $this->account(70, ['use review_required transition submit']);
+        $approver = $this->account(71, ['use review_required transition approve']);
+
+        $accountContext->set($author);
+        $node = new Node(['title' => 'Atomic promotion', 'type' => 'article', 'slug' => 'atomic-promotion']);
+        $node->enforceIsNew();
+        $repository->save($node);
+        $entityId = (string) $node->id();
+        $transitions->transition($repository->find($entityId), 'submit', $author);
+
+        $before = $repository->loadWorkingCopy($entityId);
+        $this->assertNotNull($before);
+        $beforeToken = $before->mutationToken()?->toOpaqueString();
+        $beforeRevisionIds = array_map(
+            static fn(\Waaseyaa\Entity\EntityInterface $revision): mixed => $revision->get('revision_id'),
+            $repository->listRevisions($entityId),
+        );
+        $beforeAuditCount = count($auditWriter->recorded);
+
+        $dispatcher->addListener(
+            BeforeRevisionPointerMoveEvent::class,
+            static function (): never {
+                throw new \RuntimeException('injected pointer failure');
+            },
+            -1000,
+        );
+
+        $accountContext->set($approver);
+        try {
+            $transitions->transition($before, 'approve', $approver);
+            $this->fail('The injected pointer failure must abort promotion.');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame('injected pointer failure', $exception->getMessage());
+        }
+
+        $after = $repository->loadWorkingCopy($entityId);
+        $this->assertNotNull($after);
+        $this->assertSame('review', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($after));
+        $this->assertNull($repository->loadPublishedRevision($entityId));
+        $this->assertSame($beforeToken, $after->mutationToken()?->toOpaqueString());
+        $this->assertSame($beforeRevisionIds, array_map(
+            static fn(\Waaseyaa\Entity\EntityInterface $revision): mixed => $revision->get('revision_id'),
+            $repository->listRevisions($entityId),
+        ));
+        $this->assertSame($beforeAuditCount, count($auditWriter->recorded));
+    }
+
+    #[Test]
+    public function a_failed_required_transition_audit_rolls_back_the_aggregate(): void
+    {
+        [$entityTypeManager, $provider, $accountContext, $auditWriter] = $this->bootWiredProviders();
+        $repository = $entityTypeManager->getRepository('node');
+        $transitions = $provider->resolve(TransitionService::class);
+        $author = $this->account(72, ['use review_required transition submit']);
+        $approver = $this->account(73, ['use review_required transition approve']);
+
+        $accountContext->set($author);
+        $node = new Node(['title' => 'Audited promotion', 'type' => 'article', 'slug' => 'audited-promotion']);
+        $node->enforceIsNew();
+        $repository->save($node);
+        $entityId = (string) $node->id();
+        $transitions->transition($repository->find($entityId), 'submit', $author);
+        $before = $repository->loadWorkingCopy($entityId);
+        $this->assertNotNull($before);
+        $beforeToken = $before->mutationToken()?->toOpaqueString();
+        $beforeRevisionCount = count($repository->listRevisions($entityId));
+
+        $auditWriter->fail = true;
+        $accountContext->set($approver);
+        try {
+            $transitions->transition($before, 'approve', $approver);
+            $this->fail('A required audit failure must abort the transition.');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame('injected audit failure', $exception->getMessage());
+        }
+
+        $after = $repository->loadWorkingCopy($entityId);
+        $this->assertNotNull($after);
+        $this->assertSame('review', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($after));
+        $this->assertNull($repository->loadPublishedRevision($entityId));
+        $this->assertSame($beforeToken, $after->mutationToken()?->toOpaqueString());
+        $this->assertCount($beforeRevisionCount, $repository->listRevisions($entityId));
+    }
+
+    #[Test]
     public function first_publish_on_a_strict_review_required_workflow_succeeds_end_to_end(): void
     {
         [$entityTypeManager, $provider, $accountContext, $auditWriter] = $this->bootWiredProviders();
@@ -97,6 +188,10 @@ final class FirstPublishEstablishmentFlowTest extends TestCase
         $inReview = $nodeRepository->find($entityId);
         $this->assertNotNull($inReview);
         $this->assertSame('review', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($inReview));
+        $beforeApproveVersion = $inReview instanceof \Waaseyaa\Entity\EntityBase
+            ? $inReview->mutationToken()?->aggregateVersion
+            : null;
+        $this->assertIsInt($beforeApproveVersion);
 
         // --- 3. Approve: review -> published. This is the FIRST publish ---
         // of a never-published entity — the pointer-move guard sees
@@ -112,6 +207,8 @@ final class FirstPublishEstablishmentFlowTest extends TestCase
         // --- 4. Pointer established: status=1, find() serves it. ---
         $published = $nodeRepository->loadPublishedRevision($entityId);
         $this->assertNotNull($published, 'The published pointer must be established.');
+        $this->assertInstanceOf(\Waaseyaa\Entity\EntityBase::class, $published);
+        $this->assertSame($beforeApproveVersion + 1, $published->mutationToken()?->aggregateVersion, 'One workflow command must advance aggregate authority exactly once.');
         $this->assertSame('Quarterly report', $published->get('title'));
         $this->assertSame(1, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($published));
 
@@ -242,7 +339,7 @@ final class FirstPublishEstablishmentFlowTest extends TestCase
         $accountContext->set($attacker);
         $denied = null;
         try {
-            $nodeRepository->setPublishedRevision($entityId, $orphanRevisionId);
+            $nodeRepository->setPublishedRevision($entityId, $orphanRevisionId, $orphanTip->mutationToken());
         } catch (TransitionDeniedException $e) {
             $denied = $e;
         }
@@ -271,7 +368,9 @@ final class FirstPublishEstablishmentFlowTest extends TestCase
         // Null ambient context (CLI/queue/bootstrap): edge-legality only,
         // and establishment has no edge to check.
         $accountContext->set(null);
-        $entity = $nodeRepository->setPublishedRevision($entityId, $revisionId);
+        $observed = $nodeRepository->find($entityId);
+        $this->assertNotNull($observed);
+        $entity = $nodeRepository->setPublishedRevision($entityId, $revisionId, $observed->mutationToken());
 
         $this->assertSame((string) $revisionId, (string) $entity->get('revision_id'));
         $published = $nodeRepository->loadPublishedRevision($entityId);
@@ -304,7 +403,9 @@ final class FirstPublishEstablishmentFlowTest extends TestCase
         $draftRevisionId = (int) $draftRevision->get('revision_id');
 
         $accountContext->set($this->account(53, ['use review_required transition reject']));
-        $established = $nodeRepository->setPublishedRevision($entityId, $draftRevisionId);
+        $observed = $nodeRepository->find($entityId);
+        $this->assertNotNull($observed);
+        $established = $nodeRepository->setPublishedRevision($entityId, $draftRevisionId, $observed->mutationToken());
 
         $this->assertSame('draft', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($established));
         $this->assertSame(0, (int) \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::status($established), 'A draft-stamped pointer must derive status=0 — nothing is publicly served.');
@@ -447,7 +548,7 @@ final class FirstPublishEstablishmentFlowTest extends TestCase
      * node_type, workflow), boots the REAL {@see NodeServiceProvider} and
      * {@see WorkflowServiceProvider} — same shape as {@see ForwardDraftFlowTest}.
      *
-     * @return array{0: EntityTypeManager, 1: WorkflowServiceProvider, 2: RequestAccountContext, 3: FirstPublishEstablishmentFlowSpyAuditWriter}
+     * @return array{0: EntityTypeManager, 1: WorkflowServiceProvider, 2: RequestAccountContext, 3: FirstPublishEstablishmentFlowSpyAuditWriter, 4: SymfonyEventDispatcherAdapter}
      */
     private function bootWiredProviders(): array
     {
@@ -508,7 +609,7 @@ final class FirstPublishEstablishmentFlowTest extends TestCase
 
         $entityTypeManager->getRepository('node_type')->save(new NodeType(['type' => 'article', 'name' => 'Article']));
 
-        return [$entityTypeManager, $workflowProvider, $accountContext, $auditWriter];
+        return [$entityTypeManager, $workflowProvider, $accountContext, $auditWriter, $dispatcher];
     }
 
     /**
@@ -632,8 +733,13 @@ final class FirstPublishEstablishmentFlowSpyAuditWriter implements AuditWriterIn
     /** @var list<AuditEventDescriptor> */
     public array $recorded = [];
 
+    public bool $fail = false;
+
     public function record(AuditEventDescriptor $descriptor): void
     {
+        if ($this->fail) {
+            throw new \RuntimeException('injected audit failure');
+        }
         $this->recorded[] = $descriptor;
     }
 }

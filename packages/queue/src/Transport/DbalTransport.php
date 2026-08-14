@@ -203,6 +203,15 @@ final class DbalTransport implements TransportInterface
         );
     }
 
+    public function defer(int|string $jobId, int $delay = 0): void
+    {
+        $quotedTable = $this->database->quoteIdentifier(self::TABLE);
+        $this->database->query(
+            "UPDATE {$quotedTable} SET reserved_at = NULL, available_at = ? WHERE id = ?",
+            [time() + $delay, $jobId],
+        );
+    }
+
     public function size(string $queue): int
     {
         $rows = $this->database->select(self::TABLE, 'qj')

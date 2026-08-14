@@ -137,16 +137,17 @@ final class GraphQlMutationOracleTest extends GraphQlIntegrationTestBase
 
     public function testAuthenticatedLowPrivilegeUpdateOracleIsClosed(): void
     {
+        $token = $this->mutationToken('article', 1);
         // The 'member' account is authenticated but not an admin -- MutationOraclePolicy
         // forbids it from updating. Authenticated mutations are NOT blocked by the
         // endpoint-level gate (that only rejects anonymous), so this exercises the
         // resolver-level collapse (STEP 2b) in isolation.
-        $absent = $this->requestAs($this->memberEndpoint, '
-            mutation { updateArticle(id: "999", input: { title: "X" }) { title } }
-        ');
-        $forbidden = $this->requestAs($this->memberEndpoint, '
-            mutation { updateArticle(id: "1", input: { title: "X" }) { title } }
-        ');
+        $absent = $this->requestAs($this->memberEndpoint, "
+            mutation { updateArticle(id: \"999\", input: { title: \"X\", mutationToken: \"{$token}\" }) { title } }
+        ");
+        $forbidden = $this->requestAs($this->memberEndpoint, "
+            mutation { updateArticle(id: \"1\", input: { title: \"X\", mutationToken: \"{$token}\" }) { title } }
+        ");
 
         $this->assertArrayHasKey('errors', $absent);
         $this->assertArrayHasKey('errors', $forbidden);
@@ -171,12 +172,13 @@ final class GraphQlMutationOracleTest extends GraphQlIntegrationTestBase
 
     public function testAuthenticatedLowPrivilegeDeleteOracleIsClosed(): void
     {
-        $absent = $this->requestAs($this->memberEndpoint, '
-            mutation { deleteArticle(id: "999") { deleted } }
-        ');
-        $forbidden = $this->requestAs($this->memberEndpoint, '
-            mutation { deleteArticle(id: "1") { deleted } }
-        ');
+        $token = $this->mutationToken('article', 1);
+        $absent = $this->requestAs($this->memberEndpoint, "
+            mutation { deleteArticle(id: \"999\", mutationToken: \"{$token}\") { deleted } }
+        ");
+        $forbidden = $this->requestAs($this->memberEndpoint, "
+            mutation { deleteArticle(id: \"1\", mutationToken: \"{$token}\") { deleted } }
+        ");
 
         $this->assertArrayHasKey('errors', $absent);
         $this->assertArrayHasKey('errors', $forbidden);
@@ -205,13 +207,14 @@ final class GraphQlMutationOracleTest extends GraphQlIntegrationTestBase
         // real for any editor, over every id. This is the residual the field-edit
         // loop moving inside the not-found collapse must close.
         $endpoint = $this->fieldOracleEndpoint();
+        $token = $this->mutationToken('author', 1);
 
-        $absent = $this->requestAs($endpoint, '
-            mutation { updateAuthor(id: "999", input: { secret: "X" }) { name } }
-        ');
-        $forbidden = $this->requestAs($endpoint, '
-            mutation { updateAuthor(id: "1", input: { secret: "X" }) { name } }
-        ');
+        $absent = $this->requestAs($endpoint, "
+            mutation { updateAuthor(id: \"999\", input: { secret: \"X\", mutationToken: \"{$token}\" }) { name } }
+        ");
+        $forbidden = $this->requestAs($endpoint, "
+            mutation { updateAuthor(id: \"1\", input: { secret: \"X\", mutationToken: \"{$token}\" }) { name } }
+        ");
 
         $this->assertArrayHasKey('errors', $absent);
         $this->assertArrayHasKey('errors', $forbidden, 'The editor cannot edit secret -- a real id must also error.');
@@ -237,10 +240,11 @@ final class GraphQlMutationOracleTest extends GraphQlIntegrationTestBase
         // not-found collapse only fires on an actual denial and does not
         // over-block legitimate edits.
         $endpoint = $this->fieldOracleEndpoint();
+        $token = $this->mutationToken('author', 1);
 
-        $result = $this->requestAs($endpoint, '
-            mutation { updateAuthor(id: "1", input: { name: "Renamed" }) { name } }
-        ');
+        $result = $this->requestAs($endpoint, "
+            mutation { updateAuthor(id: \"1\", input: { name: \"Renamed\", mutationToken: \"{$token}\" }) { name } }
+        ");
 
         $this->assertArrayNotHasKey('errors', $result);
         $this->assertSame('Renamed', $result['data']['updateAuthor']['name']);

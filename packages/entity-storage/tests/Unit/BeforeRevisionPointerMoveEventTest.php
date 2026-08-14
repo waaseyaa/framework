@@ -154,7 +154,7 @@ final class BeforeRevisionPointerMoveEventTest extends TestCase
         $entity->set('title', 'v2');
         $repo->save($entity);
 
-        $repo->rollback('1', 1);
+        $repo->rollback('1', 1, $this->mutationToken($repo, '1'));
 
         $this->assertCount(1, $captured);
         $event = $captured[0];
@@ -186,7 +186,7 @@ final class BeforeRevisionPointerMoveEventTest extends TestCase
         );
 
         try {
-            $repo->rollback('1', 1);
+            $repo->rollback('1', 1, $this->mutationToken($repo, '1'));
             $this->fail('AbortOperationException should have propagated out of rollback().');
         } catch (AbortOperationException $e) {
             $this->assertSame('rollback refused', $e->reason);
@@ -219,7 +219,7 @@ final class BeforeRevisionPointerMoveEventTest extends TestCase
         $entity->set('title', 'v2');
         $repo->save($entity);
 
-        $repo->setCurrentRevision('1', 1);
+        $repo->setCurrentRevision('1', 1, $this->mutationToken($repo, '1'));
 
         $this->assertCount(1, $captured);
         $event = $captured[0];
@@ -249,7 +249,7 @@ final class BeforeRevisionPointerMoveEventTest extends TestCase
         );
 
         try {
-            $repo->setCurrentRevision('1', 1);
+            $repo->setCurrentRevision('1', 1, $this->mutationToken($repo, '1'));
             $this->fail('AbortOperationException should have propagated out of setCurrentRevision().');
         } catch (AbortOperationException $e) {
             $this->assertSame('revert refused', $e->reason);
@@ -281,7 +281,7 @@ final class BeforeRevisionPointerMoveEventTest extends TestCase
         $entity->set('title', 'v2');
         $repo->save($entity);
 
-        $repo->setPublishedRevision('1', 1);
+        $repo->setPublishedRevision('1', 1, $this->mutationToken($repo, '1'));
 
         $this->assertCount(1, $captured);
         $event = $captured[0];
@@ -300,7 +300,7 @@ final class BeforeRevisionPointerMoveEventTest extends TestCase
                 $captured[] = $event;
             },
         );
-        $repo->setPublishedRevision('1', 2);
+        $repo->setPublishedRevision('1', 2, $this->mutationToken($repo, '1'));
         $this->assertSame(1, $captured[0]->fromRevisionId);
         $this->assertSame(2, $captured[0]->toRevisionId);
     }
@@ -321,7 +321,7 @@ final class BeforeRevisionPointerMoveEventTest extends TestCase
         );
 
         try {
-            $repo->setPublishedRevision('1', 1);
+            $repo->setPublishedRevision('1', 1, $this->mutationToken($repo, '1'));
             $this->fail('AbortOperationException should have propagated out of setPublishedRevision().');
         } catch (AbortOperationException $e) {
             $this->assertSame('publish refused', $e->reason);
@@ -338,6 +338,7 @@ final class BeforeRevisionPointerMoveEventTest extends TestCase
     public function save_translation_revision_dispatches_before_event_with_translation_save_operation(): void
     {
         $repo = $this->buildTwoAxisRepo();
+        $this->seedTwoAxisAggregate($repo);
         $captured = [];
         $this->dispatcher->addListener(
             BeforeRevisionPointerMoveEvent::class,
@@ -346,7 +347,7 @@ final class BeforeRevisionPointerMoveEventTest extends TestCase
             },
         );
 
-        $repo->saveTranslationRevision('1', 'fr', ['title' => 'Bonjour']);
+        $repo->saveTranslationRevision('1', 'fr', ['title' => 'Bonjour'], expected: $this->mutationToken($repo, '1'));
 
         $this->assertCount(1, $captured);
         $event = $captured[0];
@@ -365,7 +366,7 @@ final class BeforeRevisionPointerMoveEventTest extends TestCase
                 $captured[] = $event;
             },
         );
-        $repo->saveTranslationRevision('1', 'fr', ['title' => 'Bonjour v2']);
+        $repo->saveTranslationRevision('1', 'fr', ['title' => 'Bonjour v2'], expected: $this->mutationToken($repo, '1'));
         $this->assertSame(1, $captured[0]->fromRevisionId);
     }
 
@@ -373,6 +374,7 @@ final class BeforeRevisionPointerMoveEventTest extends TestCase
     public function save_translation_revision_abort_prevents_the_write(): void
     {
         $repo = $this->buildTwoAxisRepo();
+        $this->seedTwoAxisAggregate($repo);
 
         $this->dispatcher->addListener(
             BeforeRevisionPointerMoveEvent::class,
@@ -382,7 +384,7 @@ final class BeforeRevisionPointerMoveEventTest extends TestCase
         );
 
         try {
-            $repo->saveTranslationRevision('1', 'fr', ['title' => 'Bonjour']);
+            $repo->saveTranslationRevision('1', 'fr', ['title' => 'Bonjour'], expected: $this->mutationToken($repo, '1'));
             $this->fail('AbortOperationException should have propagated out of saveTranslationRevision().');
         } catch (AbortOperationException $e) {
             $this->assertSame('translation save refused', $e->reason);
@@ -399,6 +401,7 @@ final class BeforeRevisionPointerMoveEventTest extends TestCase
     public function save_translation_revisions_dispatches_one_before_event_per_langcode(): void
     {
         $repo = $this->buildTwoAxisRepo();
+        $this->seedTwoAxisAggregate($repo);
         $captured = [];
         $this->dispatcher->addListener(
             BeforeRevisionPointerMoveEvent::class,
@@ -410,7 +413,7 @@ final class BeforeRevisionPointerMoveEventTest extends TestCase
         $repo->saveTranslationRevisions('1', [
             'en' => ['title' => 'Hello'],
             'fr' => ['title' => 'Bonjour'],
-        ]);
+        ], expected: $this->mutationToken($repo, '1'));
 
         $this->assertCount(2, $captured);
         $this->assertSame('translation_save', $captured[0]->operation);
@@ -424,6 +427,7 @@ final class BeforeRevisionPointerMoveEventTest extends TestCase
     public function save_translation_revisions_abort_on_second_langcode_rolls_back_whole_batch(): void
     {
         $repo = $this->buildTwoAxisRepo();
+        $this->seedTwoAxisAggregate($repo);
 
         $this->dispatcher->addListener(
             BeforeRevisionPointerMoveEvent::class,
@@ -438,7 +442,7 @@ final class BeforeRevisionPointerMoveEventTest extends TestCase
             $repo->saveTranslationRevisions('1', [
                 'en' => ['title' => 'Hello'],
                 'fr' => ['title' => 'Bonjour'],
-            ]);
+            ], expected: $this->mutationToken($repo, '1'));
             $this->fail('AbortOperationException should have propagated out of saveTranslationRevisions().');
         } catch (AbortOperationException $e) {
             $this->assertSame('fr refused', $e->reason);
@@ -471,7 +475,7 @@ final class BeforeRevisionPointerMoveEventTest extends TestCase
             },
         );
 
-        $repo->saveTranslation('1', 'fr', ['title' => 'Bonjour']);
+        $repo->saveTranslation('1', 'fr', ['title' => 'Bonjour'], expected: $this->mutationToken($repo, '1'));
 
         $this->assertCount(1, $captured);
         $event = $captured[0];
@@ -501,12 +505,33 @@ final class BeforeRevisionPointerMoveEventTest extends TestCase
         );
 
         try {
-            $repo->saveTranslation('1', 'fr', ['title' => 'Bonjour']);
+            $repo->saveTranslation('1', 'fr', ['title' => 'Bonjour'], expected: $this->mutationToken($repo, '1'));
             $this->fail('AbortOperationException should have propagated out of saveTranslation().');
         } catch (AbortOperationException $e) {
             $this->assertSame('translation save refused', $e->reason);
         }
 
         $this->assertNull($repo->loadTranslation('1', 'fr'), 'no peer row was created');
+    }
+
+    private function mutationToken(EntityRepository $repository, string $entityId): \Waaseyaa\Entity\Concurrency\EntityMutationToken
+    {
+        $token = $repository->find($entityId)?->mutationToken();
+        self::assertNotNull($token);
+
+        return $token;
+    }
+
+    private function seedTwoAxisAggregate(EntityRepository $repository): void
+    {
+        $entity = new TestRevisionableEntity(values: [
+            'id' => '1',
+            'uuid' => 'translation-authority',
+            'title' => 'Hello',
+            'langcode' => 'en',
+            'default_langcode' => 'en',
+        ]);
+        $entity->enforceIsNew();
+        $repository->save($entity);
     }
 }

@@ -75,6 +75,7 @@ export interface AdminSurfaceEntity {
   type: string
   id: string
   attributes: Record<string, unknown>
+  mutation_token?: string
   capabilities?: {
     view?: boolean
     edit?: boolean

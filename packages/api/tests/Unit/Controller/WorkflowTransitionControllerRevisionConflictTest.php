@@ -16,6 +16,8 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Controller\WorkflowTransitionController;
 use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\ConfigInterface;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
@@ -95,6 +97,7 @@ final class WorkflowTransitionControllerRevisionConflictTest extends TestCase
 
         $request = Request::create('/api/' . self::ENTITY_TYPE_ID . '/1/workflow/transition', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], json_encode(['transition' => 'submit_for_review'], JSON_THROW_ON_ERROR));
         $request->attributes->set('_account', $account);
+        $request->headers->set('If-Match', $controllerFetchedCopy->mutationToken()?->toStrongEtag());
 
         $response = $controller->transition($request, self::ENTITY_TYPE_ID, '1');
 
@@ -125,36 +128,39 @@ final class WorkflowTransitionControllerRevisionConflictTest extends TestCase
     }
 }
 
-final class ConflictFixtureEntity implements EntityInterface, RevisionableInterface
+final class ConflictFixtureEntity extends EntityBase implements RevisionableInterface
 {
     private ?bool $newRevisionOverride = null;
     private ?string $revisionLog = null;
 
-    /** @var array<string, mixed> */
-    private array $values;
-
     public function __construct(string $id, private int $revisionId, string $state)
     {
-        $this->values = ['id' => $id, 'workflow_state' => $state, 'status' => 0, 'type' => WorkflowTransitionControllerRevisionConflictTest::class];
+        parent::__construct(
+            [
+                'id' => $id,
+                'title' => 'Fixture',
+                'type' => 'wf_conflict_article',
+                'vid' => $revisionId,
+                'workflow_state' => $state,
+                'status' => 0,
+            ],
+            'wf_conflict_article',
+            ['id' => 'id', 'label' => 'title', 'bundle' => 'type', 'revision' => 'vid'],
+        );
+        $this->_hydrateMutationToken(self::tokenFor($id, $revisionId));
     }
 
-    public function id(): int|string|null { return $this->values['id']; }
-    public function uuid(): string { return 'u-' . (string) $this->values['id']; }
-    public function label(): string { return 'Fixture'; }
-    public function getEntityTypeId(): string { return 'wf_conflict_article'; }
-    public function bundle(): string { return 'wf_conflict_article'; }
-    public function isNew(): bool { return false; }
-    public function get(string $name): mixed { return $this->values[$name] ?? null; }
-
-    public function set(string $name, mixed $value): static
+    public static function tokenFor(string $id, int $version): EntityMutationToken
     {
-        $this->values[$name] = $value;
-
-        return $this;
+        return EntityMutationToken::issue(
+            'workflow-conflict-fixture',
+            '_global',
+            'wf_conflict_article',
+            $id,
+            $version,
+            hash('sha256', 'workflow-conflict-fixture:' . $id . ':' . $version, true),
+        );
     }
-
-    public function toArray(): array { return $this->values; }
-    public function language(): string { return 'en'; }
 
     public function getRevisionId(): ?int { return $this->revisionId; }
     public function isDefaultRevision(): bool { return true; }
@@ -203,15 +209,15 @@ final class ConflictFixtureRepository implements EntityRepositoryInterface
     public function exists(string $id): bool { return true; }
     public function count(array $criteria = []): int { return 0; }
     public function loadRevision(string $entityId, int $revisionId): ?EntityInterface { return null; }
-    public function rollback(string $entityId, int $targetRevisionId): EntityInterface { throw new \LogicException('not needed'); }
+    public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
     public function listRevisions(string $entityId): array { return []; }
-    public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface { throw new \LogicException('not needed'); }
+    public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
     public function loadPublishedRevision(string $entityId): ?EntityInterface { return null; }
-    public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface { throw new \LogicException('not needed'); }
+    public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
     public function saveMany(array $entities, bool $validate = true): array { return []; }
     public function deleteMany(array $entities): int { return 0; }
     public function findTranslations(EntityInterface $entity): array { return []; }
-    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int { return 0; }
+    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int { return 0; }
     public function loadTranslation(string $entityId, string $langcode): ?EntityInterface { return null; }
     public function listTranslationRevisions(string $entityId, string $langcode): array { return []; }
 }
@@ -231,15 +237,15 @@ final class ConflictFixtureWorkflowLookupRepository implements EntityRepositoryI
     public function exists(string $id): bool { return $this->workflow !== null; }
     public function count(array $criteria = []): int { return 0; }
     public function loadRevision(string $entityId, int $revisionId): ?EntityInterface { return null; }
-    public function rollback(string $entityId, int $targetRevisionId): EntityInterface { throw new \LogicException('not needed'); }
+    public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
     public function listRevisions(string $entityId): array { return []; }
-    public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface { throw new \LogicException('not needed'); }
+    public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
     public function loadPublishedRevision(string $entityId): ?EntityInterface { return null; }
-    public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface { throw new \LogicException('not needed'); }
+    public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
     public function saveMany(array $entities, bool $validate = true): array { return []; }
     public function deleteMany(array $entities): int { return 0; }
     public function findTranslations(EntityInterface $entity): array { return []; }
-    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int { return 0; }
+    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int { return 0; }
     public function loadTranslation(string $entityId, string $langcode): ?EntityInterface { return null; }
     public function listTranslationRevisions(string $entityId, string $langcode): array { return []; }
 }

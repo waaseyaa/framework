@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Waaseyaa\AI\Tools\Tests\Fixtures;
 
 use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityBase;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
+use Waaseyaa\Entity\Concurrency\EntityMutationConflictException;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 
 /**
@@ -30,8 +33,12 @@ final class InMemoryToolRepository implements EntityRepositoryInterface
     /** @var array<string, EntityInterface> */
     private array $workingCopies = [];
 
+    /** @var array<string, EntityMutationToken> */
+    private array $mutationAuthorities = [];
+
     public function seed(EntityInterface $entity): void
     {
+        $this->attachMutationAuthority($entity);
         $this->store[(string) $entity->id()] = $entity;
     }
 
@@ -42,6 +49,7 @@ final class InMemoryToolRepository implements EntityRepositoryInterface
      */
     public function seedWorkingCopy(EntityInterface $entity): void
     {
+        $this->attachMutationAuthority($entity);
         $this->workingCopies[(string) $entity->id()] = $entity;
     }
 
@@ -62,6 +70,23 @@ final class InMemoryToolRepository implements EntityRepositoryInterface
 
     public function save(EntityInterface $entity, bool $validate = true): int
     {
+        if ($entity instanceof EntityBase && $entity->id() !== null) {
+            $id = (string) $entity->id();
+            $expected = $entity->mutationToken();
+            $current = $this->mutationAuthorities[$id] ?? null;
+            if ($expected === null || $current === null || !hash_equals($current->toOpaqueString(), $expected->toOpaqueString())) {
+                throw new EntityMutationConflictException('default', $entity->getEntityTypeId(), $id);
+            }
+            $successor = EntityMutationToken::issue(
+                'ai-tool-test',
+                'default',
+                $entity->getEntityTypeId(),
+                $id,
+                $current->aggregateVersion + 1,
+            );
+            $this->mutationAuthorities[$id] = $successor;
+            $entity->_hydrateMutationToken($successor);
+        }
         $this->saved[] = $entity;
         $this->store[(string) $entity->id()] = $entity;
 
@@ -70,18 +95,26 @@ final class InMemoryToolRepository implements EntityRepositoryInterface
 
     public function delete(EntityInterface $entity): void
     {
-        $this->deleted[] = (string) $entity->id();
-        unset($this->store[(string) $entity->id()]);
+        $id = (string) $entity->id();
+        if ($entity instanceof EntityBase) {
+            $expected = $entity->mutationToken();
+            $current = $this->mutationAuthorities[$id] ?? null;
+            if ($expected === null || $current === null || !hash_equals($current->toOpaqueString(), $expected->toOpaqueString())) {
+                throw new EntityMutationConflictException('default', $entity->getEntityTypeId(), $id);
+            }
+        }
+        $this->deleted[] = $id;
+        unset($this->store[$id], $this->workingCopies[$id], $this->mutationAuthorities[$id]);
     }
 
-    public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface
+    public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         $this->setCurrentCalls[] = [$entityId, $revisionId];
 
         return $this->store[$entityId] ?? new ToolTestEntity(['id' => $entityId]);
     }
 
-    public function rollback(string $entityId, int $targetRevisionId): EntityInterface
+    public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         $this->rollbackCalls[] = [$entityId, $targetRevisionId];
 
@@ -130,7 +163,7 @@ final class InMemoryToolRepository implements EntityRepositoryInterface
         return null;
     }
 
-    public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface
+    public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         return $this->store[$entityId] ?? new ToolTestEntity(['id' => $entityId]);
     }
@@ -153,7 +186,7 @@ final class InMemoryToolRepository implements EntityRepositoryInterface
     // Two-axis translation surface (EntityRepositoryInterface, b1) — this fixture
     // is single-axis only and never exercises it.
 
-    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int
+    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int
     {
         throw new \BadMethodCallException('two-axis translation is not supported by ' . self::class);
     }
@@ -166,5 +199,22 @@ final class InMemoryToolRepository implements EntityRepositoryInterface
     public function listTranslationRevisions(string $entityId, string $langcode): array
     {
         throw new \BadMethodCallException('two-axis translation is not supported by ' . self::class);
+    }
+
+    private function attachMutationAuthority(EntityInterface $entity): void
+    {
+        if (!$entity instanceof EntityBase || $entity->id() === null) {
+            return;
+        }
+        $id = (string) $entity->id();
+        $authority = $this->mutationAuthorities[$id] ?? $entity->mutationToken() ?? EntityMutationToken::issue(
+            'ai-tool-test',
+            'default',
+            $entity->getEntityTypeId(),
+            $id,
+            1,
+        );
+        $this->mutationAuthorities[$id] = $authority;
+        $entity->_hydrateMutationToken($authority);
     }
 }

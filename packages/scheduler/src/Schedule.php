@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Scheduler;
 
+use Waaseyaa\Scheduler\Execution\LeaseAwareCommandInterface;
+
 /**
  * @api
  */
@@ -38,5 +40,11 @@ final class Schedule implements ScheduleInterface
     public function call(\Closure $callback): ScheduleBuilder
     {
         return new ScheduleBuilder($this, $callback);
+    }
+
+    /** Fluent helper for a stable cooperative command. */
+    public function command(LeaseAwareCommandInterface $command): ScheduleBuilder
+    {
+        return new ScheduleBuilder($this, $command);
     }
 }

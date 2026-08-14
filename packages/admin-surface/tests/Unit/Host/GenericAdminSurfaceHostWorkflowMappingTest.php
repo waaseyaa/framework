@@ -13,6 +13,8 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AuthorizationPrincipalInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
+use Waaseyaa\Api\Tests\Fixtures\TestEntity;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
@@ -63,14 +65,16 @@ final class GenericAdminSurfaceHostWorkflowMappingTest extends TestCase
 
     private function runActionWithDeniedSave(string $action, TransitionDeniedException $denial): \Waaseyaa\AdminSurface\Host\AdminSurfaceResultData
     {
-        $entity = $this->createStub(EntityInterface::class);
-        $entity->method('id')->willReturn(1);
-        $entity->method('uuid')->willReturn('u-1');
-        $entity->method('getEntityTypeId')->willReturn('article');
-        $entity->method('bundle')->willReturn('article');
+        $entity = new TestEntity(['id' => 1, 'uuid' => 'u-1', 'title' => 'Original'], 'article');
+        $entity->enforceIsNew($action === 'create');
+        $token = EntityMutationToken::issue('admin-test', 'default', 'article', '1', 1);
+        if ($action === 'update') {
+            $entity->_hydrateMutationToken($token);
+        }
 
         $repository = $this->createStub(EntityRepositoryInterface::class);
         $repository->method('find')->willReturn($entity);
+        $repository->method('loadWorkingCopy')->willReturn($entity);
         $repository->method('create')->willReturn($entity);
         $repository->method('save')->willThrowException($denial);
 
@@ -99,6 +103,10 @@ final class GenericAdminSurfaceHostWorkflowMappingTest extends TestCase
         $request->attributes->set('_account', $account);
         $host->resolveSession($request);
 
-        return $host->action('article', $action, ['id' => '1', 'attributes' => ['title' => 'New value']]);
+        return $host->action('article', $action, [
+            'id' => '1',
+            'attributes' => ['title' => 'New value'],
+            ...($action === 'update' ? ['mutation_token' => $token->toOpaqueString()] : []),
+        ]);
     }
 }

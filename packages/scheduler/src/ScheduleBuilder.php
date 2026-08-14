@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Scheduler;
 
+use Waaseyaa\Scheduler\Execution\LeaseAwareCommandInterface;
+
 /**
  * Fluent API for defining scheduled tasks.
  * @api
@@ -18,7 +20,7 @@ final class ScheduleBuilder
 
     public function __construct(
         private readonly Schedule $schedule,
-        private readonly string|\Closure $command,
+        private readonly string|\Closure|LeaseAwareCommandInterface $command,
     ) {}
 
     public function cron(string $expression): self
@@ -114,6 +116,9 @@ final class ScheduleBuilder
     public function register(): ScheduledTask
     {
         $name = $this->name;
+        if ($this->preventOverlap && $name === '') {
+            throw new \InvalidArgumentException('Overlap-protected tasks require an explicit stable name.');
+        }
         if ($name === '') {
             $name = is_string($this->command) ? $this->command : 'closure-' . spl_object_id($this);
         }

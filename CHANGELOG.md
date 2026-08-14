@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Reconcile ambiguous scheduler lease acquisition and renewal only by exact
+  generation/nonce/expiry read-back with a monotonic round-trip safety margin;
+  database-clock rollback now fails closed before ownership mutation.
+- Require renewable durable database leases for overlap-protected scheduler
+  execution, with stable task names, cooperative lease-aware commands, fenced
+  effects, deterministic cron-slot occurrences, and crash-safe queued command
+  ownership.
+- Enforce the DB-03 aggregate mutation token across entity and revision writes
+  while retaining the page-builder's explicit expected-revision guard at the
+  same transactional rollback boundary.
+
 ### Fixed
 
 - Build the #2343 reference consumer from an exact tracked Git archive before

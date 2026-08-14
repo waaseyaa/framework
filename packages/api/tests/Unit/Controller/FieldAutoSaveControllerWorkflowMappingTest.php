@@ -14,6 +14,8 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\Access\AuthorizationPrincipal;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Api\Controller\FieldAutoSaveController;
+use Waaseyaa\Api\Tests\Fixtures\TestEntity;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
@@ -80,15 +82,15 @@ final class FieldAutoSaveControllerWorkflowMappingTest extends TestCase
             public function exists(string $id): bool { return true; }
             public function count(array $criteria = []): int { return 0; }
             public function loadRevision(string $entityId, int $revisionId): ?EntityInterface { return null; }
-            public function rollback(string $entityId, int $targetRevisionId): EntityInterface { throw new \LogicException('not needed'); }
+            public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
             public function listRevisions(string $entityId): array { return []; }
-            public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface { throw new \LogicException('not needed'); }
+            public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
             public function loadPublishedRevision(string $entityId): ?EntityInterface { return null; }
-            public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface { throw new \LogicException('not needed'); }
+            public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
             public function saveMany(array $entities, bool $validate = true): array { return []; }
             public function deleteMany(array $entities): int { return 0; }
             public function findTranslations(EntityInterface $entity): array { return []; }
-            public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int { return 0; }
+            public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int { return 0; }
             public function loadTranslation(string $entityId, string $langcode): ?EntityInterface { return null; }
             public function listTranslationRevisions(string $entityId, string $langcode): array { return []; }
         };
@@ -131,24 +133,17 @@ final class FieldAutoSaveControllerWorkflowMappingTest extends TestCase
             json_encode(['value' => 'New title'], JSON_THROW_ON_ERROR),
         );
         $request->attributes->set('_account', $account);
+        $request->headers->set('If-Match', $entity->mutationToken()?->toStrongEtag() ?? '');
 
         return $controller->update($request, 'article', '1', 'title');
     }
 
     private function entity(): EntityInterface
     {
-        return new class implements EntityInterface {
-            private array $values = ['id' => 1, 'title' => 'Original'];
-            public function id(): int|string|null { return $this->values['id']; }
-            public function uuid(): string { return 'u-1'; }
-            public function label(): string { return 'Fixture'; }
-            public function getEntityTypeId(): string { return 'article'; }
-            public function bundle(): string { return 'article'; }
-            public function isNew(): bool { return false; }
-            public function get(string $name): mixed { return $this->values[$name] ?? null; }
-            public function set(string $name, mixed $value): static { $this->values[$name] = $value; return $this; }
-            public function toArray(): array { return $this->values; }
-            public function language(): string { return 'en'; }
-        };
+        $entity = new TestEntity(['id' => 1, 'uuid' => 'u-1', 'title' => 'Original'], 'article');
+        $entity->enforceIsNew(false);
+        $entity->_hydrateMutationToken(EntityMutationToken::issue('autosave-test', 'default', 'article', '1', 1));
+
+        return $entity;
     }
 }

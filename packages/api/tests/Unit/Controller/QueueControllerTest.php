@@ -505,6 +505,7 @@ final class QueueControllerTest extends TestCase
             public function reject(int|string $jobId): void {}
 
             public function release(int|string $jobId, int $delay = 0): void {}
+            public function defer(int|string $jobId, int $delay = 0): void {}
 
             public function size(string $queue): int
             {

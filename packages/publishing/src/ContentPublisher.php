@@ -9,6 +9,7 @@ use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Audit\Contract\AuditEventDescriptor;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\RevisionableEntityInterface;
 use Waaseyaa\Entity\RevisionableInterface;
@@ -38,7 +39,7 @@ use Waaseyaa\Publishing\Idempotency\IdempotencyStore;
  *
  * @api
  */
-final class ContentPublisher implements ContentDraftMutationInterface, ContentRevisionHistoryInterface, ContentRevisionPreviewInterface
+final class ContentPublisher implements ContentDraftMutationInterface, ContentRevisionPreviewInterface
 {
     private readonly ContentMutationSnapshotReader $snapshotReader;
 
@@ -88,54 +89,18 @@ final class ContentPublisher implements ContentDraftMutationInterface, ContentRe
         $this->load($id); // NOT_FOUND if absent
 
         $out = [];
-        $workingCopy = $this->repository->loadWorkingCopy($id);
-        $currentRevisionId = $workingCopy instanceof RevisionableEntityInterface ? $workingCopy->revisionId() : null;
-        $currentRevisionId = is_int($currentRevisionId) || (is_string($currentRevisionId) && ctype_digit($currentRevisionId))
-            ? (int) $currentRevisionId
-            : null;
         foreach ($this->repository->listRevisions($id) as $revision) {
             $meta = $revision instanceof RevisionableEntityInterface ? $revision->revisionMetadata() : null;
-            $revisionId = (int) ($revision instanceof RevisionableEntityInterface ? $revision->revisionId() : 0);
             $out[] = [
-                ...$this->snapshot($revision),
-                'revision_id' => $revisionId,
+                'revision_id' => (int) ($revision instanceof RevisionableEntityInterface ? $revision->revisionId() : 0),
                 'created_at' => $meta?->revisionCreatedAt->format(\DateTimeInterface::ATOM),
                 'author_uid' => $meta?->revisionAuthor,
                 'log' => $meta?->revisionLog,
                 'status' => (bool) (int) $this->snapshotReader->field($revision, $this->descriptor->statusField),
-                'is_current' => $revision instanceof RevisionableEntityInterface && $revision->isCurrentRevision(),
-                'is_latest' => $revisionId === $currentRevisionId,
             ];
         }
 
         return $out;
-    }
-
-    /** @return array<string, mixed> */
-    public function revision(AuthorizationPrincipalInterface $actor, string $id, int $revisionId): array
-    {
-        $this->requireCapability($actor);
-        $this->load($id);
-        $revision = $this->repository->loadRevision($id, $revisionId);
-        if ($revision === null || !$this->matchesBundle($revision)) {
-            throw new ContentNotFoundException("Content revision {$revisionId} was not found.");
-        }
-
-        $meta = $revision instanceof RevisionableEntityInterface ? $revision->revisionMetadata() : null;
-        $workingCopy = $this->repository->loadWorkingCopy($id);
-        $latestRevisionId = $workingCopy instanceof RevisionableEntityInterface ? $workingCopy->revisionId() : null;
-        $latestRevisionId = is_int($latestRevisionId) || (is_string($latestRevisionId) && ctype_digit($latestRevisionId))
-            ? (int) $latestRevisionId
-            : null;
-
-        return [
-            ...$this->snapshot($revision),
-            'created_at' => $meta?->revisionCreatedAt->format(\DateTimeInterface::ATOM),
-            'author_uid' => $meta?->revisionAuthor,
-            'log' => $meta?->revisionLog,
-            'is_current' => $revision instanceof RevisionableEntityInterface && $revision->isCurrentRevision(),
-            'is_latest' => $revisionId === $latestRevisionId,
-        ];
     }
 
     /**
@@ -288,7 +253,7 @@ final class ContentPublisher implements ContentDraftMutationInterface, ContentRe
      *
      * @return array<string, mixed>
      */
-    public function rollback(AuthorizationPrincipalInterface $actor, string $id, int $targetRevisionId, string $idempotencyKey, string $note = '', ?int $expectedCurrentRevisionId = null): array
+    public function rollback(AuthorizationPrincipalInterface $actor, string $id, int $targetRevisionId, string $idempotencyKey, string $note = ''): array
     {
         $this->requireCapability($actor);
 
@@ -297,18 +262,23 @@ final class ContentPublisher implements ContentDraftMutationInterface, ContentRe
             'target_revision_id' => $targetRevisionId,
             'note' => $note,
         ];
-        if ($expectedCurrentRevisionId !== null) {
-            $request['expected_current_revision_id'] = $expectedCurrentRevisionId;
-        }
 
-        return $this->idempotency->execute($idempotencyKey, 'rollback', $request, function () use ($actor, $id, $targetRevisionId, $note, $expectedCurrentRevisionId): array {
+        return $this->idempotency->execute($idempotencyKey, 'rollback', $request, function () use ($actor, $id, $targetRevisionId, $note): array {
             $entity = $this->load($id);
             $this->requireEntityUpdateAccess($actor, $entity);
 
             // rollback() itself cuts exactly ONE new revision (with the
             // framework's revert events/audit); the operator note travels on
             // our audit record rather than a second revision.
-            $restored = $this->repository->rollback($id, $targetRevisionId, $expectedCurrentRevisionId);
+            if (!$entity instanceof EntityBase || $entity->mutationToken() === null) {
+                throw new \UnexpectedValueException("Content {$id} has no aggregate mutation token.");
+            }
+            $restored = $this->repository->rollback(
+                $id,
+                $targetRevisionId,
+                $entity->mutationToken(),
+                $expectedCurrentRevisionId,
+            );
 
             $saved = $this->reload($restored);
             $this->auditRecord(AuditEventKind::ContentRolledBack, $actor, $saved, [

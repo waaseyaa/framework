@@ -8,6 +8,7 @@ use Waaseyaa\Access\AccountInterface;
 use Waaseyaa\AI\Tools\AbstractAgentTool;
 use Waaseyaa\AI\Tools\AgentToolResult;
 use Waaseyaa\AI\Tools\Attribute\AsAgentTool;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 
 /**
@@ -97,7 +98,8 @@ final class EntitySetCurrentRevisionTool extends AbstractAgentTool
                     return $fieldDenied;
                 }
             }
-            $current = $repository->setCurrentRevision((string) $id, $revisionId);
+            $expected = $entity instanceof EntityBase ? $entity->mutationToken() : null;
+            $current = $repository->setCurrentRevision((string) $id, $revisionId, $expected);
             unset($current);
         } catch (\LogicException $e) {
             return AgentToolResult::error(sprintf('entity.set_current_revision: %s is not revisionable (%s)', $entityType, $e->getMessage()));

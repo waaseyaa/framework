@@ -79,6 +79,7 @@ final class WorkflowTransitionControllerWorkingCopyTest extends TestCase
             json_encode(['transition' => 'publish'], JSON_THROW_ON_ERROR),
         );
         $postRequest->attributes->set('_account', $this->account(['use editorial transition publish']));
+        $postRequest->headers->set('If-Match', $workingCopy->mutationToken()?->toStrongEtag());
 
         $response = $controller->transition($postRequest, self::ENTITY_TYPE_ID, '1');
 
@@ -155,7 +156,7 @@ final class WorkflowTransitionControllerWorkingCopyTest extends TestCase
  * actually records what it was called with (needed to prove the POST
  * transition's save lands on the WORKING COPY object, not the gate entity).
  */
-final class WorkingCopyDivergentRepository implements \Waaseyaa\Entity\Repository\EntityRepositoryInterface
+final class WorkingCopyDivergentRepository implements \Waaseyaa\Entity\Repository\EntityRepositoryInterface, \Waaseyaa\EntityStorage\AggregateMutationRepositoryInterface
 {
     public ?EntityInterface $savedEntity = null;
 
@@ -178,16 +179,26 @@ final class WorkingCopyDivergentRepository implements \Waaseyaa\Entity\Repositor
         return 1;
     }
 
+    public function saveAggregateMutation(EntityInterface $entity, \Closure $mutation, bool $publishRevision = false, bool $validate = true, ?\Closure $publicationFinalizer = null, ?\Closure $beforeCommit = null): EntityInterface
+    {
+        $mutation($entity);
+        $publicationFinalizer?->__invoke($entity);
+        $this->save($entity, $validate);
+        $beforeCommit?->__invoke($entity);
+
+        return $entity;
+    }
+
     public function delete(EntityInterface $entity): void {}
     public function exists(string $id): bool { return true; }
     public function count(array $criteria = []): int { return 0; }
     public function loadRevision(string $entityId, int $revisionId): ?EntityInterface { return null; }
-    public function rollback(string $entityId, int $targetRevisionId): EntityInterface { throw new \LogicException('not needed'); }
+    public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
     public function listRevisions(string $entityId): array { return []; }
-    public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface { throw new \LogicException('not needed'); }
+    public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
     public function loadPublishedRevision(string $entityId): ?EntityInterface { return null; }
 
-    public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface
+    public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         // TransitionService's promote branch calls this after the
         // revision-creating save when the target state is default_revision.
@@ -199,7 +210,7 @@ final class WorkingCopyDivergentRepository implements \Waaseyaa\Entity\Repositor
     public function saveMany(array $entities, bool $validate = true): array { return []; }
     public function deleteMany(array $entities): int { return 0; }
     public function findTranslations(EntityInterface $entity): array { return []; }
-    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int { return 0; }
+    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int { return 0; }
     public function loadTranslation(string $entityId, string $langcode): ?EntityInterface { return null; }
     public function listTranslationRevisions(string $entityId, string $langcode): array { return []; }
 }

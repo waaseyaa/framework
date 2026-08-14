@@ -14,6 +14,7 @@ use Waaseyaa\Queue\DbalQueue;
 use Waaseyaa\Queue\PersistentQueueBoundaryConfig;
 use Waaseyaa\Queue\Exception\InvalidPersistentPayload;
 use Waaseyaa\Queue\Envelope\QueueEnvelopeV1;
+use Waaseyaa\Queue\Envelope\QueueOccurrenceV1;
 use Waaseyaa\Queue\Envelope\QueueSystemReason;
 use Waaseyaa\Queue\Envelope\SystemQueueEnvelopeFactory;
 use Waaseyaa\Queue\Message\GenericMessage;
@@ -122,6 +123,27 @@ final class DbalQueueEnvelopeTest extends TestCase
         self::assertInstanceOf(QueueEnvelopeV1::class, $envelope);
         self::assertInstanceOf(GenericMessage::class, unserialize($envelope->serializedMessage));
         self::assertSame('search-indexer', $envelope->serviceIdentity);
+    }
+
+    #[Test]
+    public function occurrenceDispatchStoresReviewedAuthorityAndOccurrenceIdentity(): void
+    {
+        $transport = new InMemoryTransport();
+        $signer = new SignedQueuePayload(str_repeat('q', 32));
+        $queue = new DbalQueue(
+            $transport,
+            $signer,
+            envelopeFactory: new SystemQueueEnvelopeFactory(QueueSystemReason::Scheduler, 'scheduler'),
+        );
+        $occurrence = new QueueOccurrenceV1(str_repeat('a', 64), 'retention', str_repeat('b', 64), 300_000);
+
+        $queue->dispatchOccurrence(new GenericMessage('retention'), $occurrence);
+
+        $row = $transport->pop('default');
+        self::assertNotNull($row);
+        $envelope = unserialize($signer->open($row['payload']));
+        self::assertInstanceOf(QueueEnvelopeV1::class, $envelope);
+        self::assertEquals($occurrence, $envelope->occurrence);
     }
 
     #[Test]

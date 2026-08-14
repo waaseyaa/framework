@@ -17,6 +17,9 @@ final class RuntimeSchemaMigrations
         \Waaseyaa\Entity\EntityTypeManager $manager,
         iterable $definitions,
     ): void {
+        if ($database instanceof DBALDatabase) {
+            self::entityMutationAuthority($database);
+        }
         new \Waaseyaa\EntityStorage\EntitySchemaSyncRunner(
             $database,
             $manager->getFieldRegistry(),
@@ -30,6 +33,9 @@ final class RuntimeSchemaMigrations
         $kernel->bootForSchemaSync();
         $manager = $kernel->getEntityTypeManager();
         $database = $kernel->getDatabase();
+        if ($database instanceof DBALDatabase) {
+            self::entityMutationAuthority($database);
+        }
         new \Waaseyaa\EntityStorage\EntitySchemaSyncRunner(
             $database,
             $manager->getFieldRegistry(),
@@ -102,6 +108,11 @@ final class RuntimeSchemaMigrations
     public static function state(DBALDatabase $database): void
     {
         self::apply($database, 'packages/state/migrations/2026_08_12_000001_state_schema.php');
+    }
+
+    public static function entityMutationAuthority(DBALDatabase $database): void
+    {
+        self::apply($database, 'packages/entity-storage/migrations/2026_08_12_000001_entity_mutation_authority.php');
     }
 
     /**

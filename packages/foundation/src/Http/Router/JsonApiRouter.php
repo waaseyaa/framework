@@ -13,6 +13,7 @@ use Waaseyaa\Api\JsonApiDocument;
 use Waaseyaa\Api\JsonApiError;
 use Waaseyaa\Api\ResourceSerializer;
 use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Http\JsonApiResponseTrait;
 
@@ -48,6 +49,33 @@ final class JsonApiRouter implements DomainRouterInterface
 
     public function handle(Request $request): Response
     {
+        $expectation = null;
+        if (in_array($request->getMethod(), ['PATCH', 'DELETE'], true)) {
+            $ifMatch = $request->headers->get('If-Match');
+            if ($ifMatch === null || trim($ifMatch) === '') {
+                return $this->jsonApiResponse(428, JsonApiDocument::fromErrors([
+                    new JsonApiError(
+                        status: '428',
+                        title: 'Precondition Required',
+                        detail: 'Existing-entity mutation requires exactly one strong If-Match value from the loaded resource.',
+                        code: 'MUTATION_PRECONDITION_REQUIRED',
+                    ),
+                ], statusCode: 428)->toArray());
+            }
+            try {
+                $expectation = EntityMutationToken::fromHttpIfMatch(trim($ifMatch));
+            } catch (\InvalidArgumentException $exception) {
+                return $this->jsonApiResponse(400, JsonApiDocument::fromErrors([
+                    new JsonApiError(
+                        status: '400',
+                        title: 'Bad Request',
+                        detail: $exception->getMessage(),
+                        code: 'INVALID_MUTATION_PRECONDITION',
+                    ),
+                ], statusCode: 400)->toArray());
+            }
+        }
+
         $ctx = WaaseyaaContext::fromRequest($request);
         $params = $request->attributes->all();
         $serializer = new ResourceSerializer($this->entityTypeManager, exposurePolicy: $this->exposurePolicy);
@@ -71,14 +99,14 @@ final class JsonApiRouter implements DomainRouterInterface
             // silently never reached a single-resource GET over HTTP.
             $ctx->method === 'GET' && $id !== null => $jsonApiController->show($entityTypeId, $id, $ctx->query),
             $ctx->method === 'POST' => $jsonApiController->store($entityTypeId, $ctx->parsedBody ?? []),
-            $ctx->method === 'PATCH' && $id !== null => $jsonApiController->update($entityTypeId, $id, $ctx->parsedBody ?? []),
-            $ctx->method === 'DELETE' && $id !== null => $jsonApiController->destroy($entityTypeId, $id),
+            $ctx->method === 'PATCH' && $id !== null => $jsonApiController->update($entityTypeId, $id, $ctx->parsedBody ?? [], $expectation),
+            $ctx->method === 'DELETE' && $id !== null => $jsonApiController->destroy($entityTypeId, $id, $expectation),
             default => JsonApiDocument::fromErrors(
                 [new JsonApiError('400', 'Bad Request', 'Unhandled method/resource combination.')],
                 statusCode: 400,
             ),
         };
 
-        return $this->jsonApiResponse($document->statusCode, $document->toArray());
+        return $this->jsonApiResponse($document->statusCode, $document->toArray(), $document->headers);
     }
 }

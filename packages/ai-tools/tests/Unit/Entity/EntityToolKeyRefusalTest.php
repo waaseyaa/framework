@@ -14,6 +14,7 @@ use Waaseyaa\AI\Tools\Entity\EntityCreateTool;
 use Waaseyaa\AI\Tools\Entity\EntityKeyGuard;
 use Waaseyaa\AI\Tools\Entity\EntityUpdateTool;
 use Waaseyaa\AI\Tools\Tests\Fixtures\InMemoryToolRepository;
+use Waaseyaa\AI\Tools\Tests\Fixtures\MutationTokenFixture;
 use Waaseyaa\AI\Tools\Tests\Fixtures\SingleTypeEntityTypeManager;
 use Waaseyaa\AI\Tools\Tests\Fixtures\ToolTestEntity;
 use Waaseyaa\Entity\EntityInterface;
@@ -188,7 +189,7 @@ final class EntityToolKeyRefusalTest extends TestCase
         $tool = new EntityUpdateTool($this->etm);
 
         $result = $tool->execute(
-            ['entity_type' => 'tool_test', 'id' => '1', 'values' => ['title' => 'Renamed']],
+            ['entity_type' => 'tool_test', 'id' => '1', 'values' => ['title' => 'Renamed'], 'mutation_token' => MutationTokenFixture::for($this->repo, 'tool_test', '1')],
             $this->account(['tool.entity.update']),
         );
 
@@ -256,7 +257,7 @@ final class EntityToolKeyRefusalTest extends TestCase
         $tool = new EntityUpdateTool($etm);
 
         $result = $tool->execute(
-            ['entity_type' => 'tool_test', 'id' => '1', 'values' => ['title' => 'zzz', 'score' => 200]],
+            ['entity_type' => 'tool_test', 'id' => '1', 'values' => ['title' => 'zzz', 'score' => 200], 'mutation_token' => MutationTokenFixture::for($repo, 'tool_test', '1')],
             $this->account(['tool.entity.update']),
         );
 
@@ -471,17 +472,17 @@ final class ValidationFailingRepository implements EntityRepositoryInterface
         return null;
     }
 
-    public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface
+    public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         throw new \BadMethodCallException('not used by these tests');
     }
 
-    public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface
+    public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         throw new \BadMethodCallException('not used by these tests');
     }
 
-    public function rollback(string $entityId, int $targetRevisionId): EntityInterface
+    public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface
     {
         throw new \BadMethodCallException('not used by these tests');
     }
@@ -506,7 +507,7 @@ final class ValidationFailingRepository implements EntityRepositoryInterface
         return [];
     }
 
-    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int
+    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int
     {
         throw new \BadMethodCallException('not used by these tests');
     }

@@ -66,6 +66,16 @@ final class InMemoryTransport implements TransportInterface
 
     public function release(int|string $jobId, int $delay = 0): void
     {
+        $this->requeue($jobId, $delay, true);
+    }
+
+    public function defer(int|string $jobId, int $delay = 0): void
+    {
+        $this->requeue($jobId, $delay, false);
+    }
+
+    private function requeue(int|string $jobId, int $delay, bool $incrementAttempts): void
+    {
         $job = $this->reserved[$jobId] ?? null;
         if ($job === null) {
             return;
@@ -76,7 +86,7 @@ final class InMemoryTransport implements TransportInterface
         $this->queues[$job['queue']][] = [
             'id' => (int) $jobId,
             'payload' => $job['payload'],
-            'attempts' => $job['attempts'] + 1,
+            'attempts' => $job['attempts'] + ($incrementAttempts ? 1 : 0),
             'available_at' => time() + $delay,
         ];
     }

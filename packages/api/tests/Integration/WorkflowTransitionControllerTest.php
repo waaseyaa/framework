@@ -19,12 +19,15 @@ use Waaseyaa\Api\Audit\AuditQueryDto;
 use Waaseyaa\Api\Audit\AuditQueryReadModelInterface;
 use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\ConfigInterface;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
+use Waaseyaa\Entity\EntityBase;
 use Waaseyaa\Entity\EntityInterface;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeInterface;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
 use Waaseyaa\Entity\Repository\EntityRepositoryInterface;
 use Waaseyaa\Entity\Storage\EntityQueryInterface;
+use Waaseyaa\EntityStorage\AggregateMutationRepositoryInterface;
 use Waaseyaa\Workflows\Binding\WorkflowBindingResolver;
 use Waaseyaa\Workflows\Transition\TransitionService;
 use Waaseyaa\Workflows\Workflow;
@@ -123,7 +126,8 @@ final class WorkflowTransitionControllerTest extends TestCase
     public function getTransitionsReturnsOnlyWhatTheServiceMakesAvailable(): void
     {
         [$controller, $repository, , ] = $this->boundWorld(denyView: false, permissions: ['use editorial transition submit_for_review']);
-        $repository->addEntity(new FixtureWorkflowEntity('7', 'draft'));
+        $entity = new FixtureWorkflowEntity('7', 'draft');
+        $repository->addEntity($entity);
         $account = $this->account(9, ['use editorial transition submit_for_review']);
         $request = $this->requestWithAccount('GET', '/api/wf_article/7/workflow/transitions', $account);
 
@@ -135,6 +139,8 @@ final class WorkflowTransitionControllerTest extends TestCase
         $this->assertSame('submit_for_review', $body['data'][0]['id']);
         $this->assertSame('review', $body['data'][0]['to']);
         $this->assertSame('draft', $body['meta']['workflow_state']);
+        $this->assertSame($entity->mutationToken()?->toOpaqueString(), $body['meta']['mutation_token']);
+        $this->assertSame($entity->mutationToken()?->toStrongEtag(), $response->headers->get('ETag'));
         $this->assertSame([], $body['meta']['workflow_history']);
     }
 
@@ -294,7 +300,8 @@ final class WorkflowTransitionControllerTest extends TestCase
     public function postTransitionSuccessReturnsTransitionShape(): void
     {
         [$controller, $repository] = $this->boundWorld(denyView: false);
-        $repository->addEntity(new FixtureWorkflowEntity('11', 'draft'));
+        $entity = new FixtureWorkflowEntity('11', 'draft');
+        $repository->addEntity($entity);
         $account = $this->account(9, ['use editorial transition submit_for_review']);
         $request = $this->postRequest('/api/wf_article/11/workflow/transition', '{"transition":"submit_for_review"}', $account);
 
@@ -305,6 +312,65 @@ final class WorkflowTransitionControllerTest extends TestCase
         $this->assertSame('submit_for_review', $body['data']['transition']);
         $this->assertSame('draft', $body['data']['from']);
         $this->assertSame('review', $body['data']['to']);
+        $this->assertSame($entity->mutationToken()?->toOpaqueString(), $body['meta']['mutation_token']);
+        $this->assertSame($entity->mutationToken()?->toStrongEtag(), $response->headers->get('ETag'));
+    }
+
+    #[Test]
+    public function postTransitionRequiresAStrongAggregatePrecondition(): void
+    {
+        [$controller, $repository] = $this->boundWorld(denyView: false);
+        $entity = new FixtureWorkflowEntity('18', 'draft');
+        $repository->addEntity($entity);
+        $account = $this->account(9, ['use editorial transition submit_for_review']);
+        $request = Request::create('/api/wf_article/18/workflow/transition', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], '{"transition":"submit_for_review"}');
+        $request->attributes->set('_account', $account);
+
+        $response = $controller->transition($request, self::ENTITY_TYPE_ID, '18');
+
+        $this->assertSame(428, $response->getStatusCode());
+        $this->assertSame('MUTATION_PRECONDITION_REQUIRED', $this->decode($response)['errors'][0]['code']);
+        $this->assertSame('draft', $entity->get('workflow_state'));
+    }
+
+    #[Test]
+    public function staleAggregatePreconditionCannotFireATransition(): void
+    {
+        [$controller, $repository] = $this->boundWorld(denyView: false);
+        $entity = new FixtureWorkflowEntity('19', 'draft');
+        $repository->addEntity($entity);
+        $stale = $entity->mutationToken()?->toStrongEtag();
+        $repository->save($entity);
+        $account = $this->account(9, ['use editorial transition submit_for_review']);
+        $request = $this->postRequest('/api/wf_article/19/workflow/transition', '{"transition":"submit_for_review"}', $account);
+        $request->headers->set('If-Match', (string) $stale);
+
+        $response = $controller->transition($request, self::ENTITY_TYPE_ID, '19');
+
+        $this->assertSame(412, $response->getStatusCode());
+        $this->assertSame('MUTATION_PRECONDITION_FAILED', $this->decode($response)['errors'][0]['code']);
+        $this->assertSame('draft', $entity->get('workflow_state'));
+    }
+
+    #[Test]
+    public function weakWildcardAndListPreconditionsAreRejected(): void
+    {
+        [$controller, $repository] = $this->boundWorld(denyView: false);
+        $entity = new FixtureWorkflowEntity('21', 'draft');
+        $repository->addEntity($entity);
+        $account = $this->account(9, ['use editorial transition submit_for_review']);
+        $etag = $entity->mutationToken()?->toStrongEtag();
+        $this->assertIsString($etag);
+
+        foreach (['W/' . $etag, '"*"', $etag . ', ' . $etag] as $invalid) {
+            $request = $this->postRequest('/api/wf_article/21/workflow/transition', '{"transition":"submit_for_review"}', $account);
+            $request->headers->set('If-Match', $invalid);
+            $response = $controller->transition($request, self::ENTITY_TYPE_ID, '21');
+
+            $this->assertSame(400, $response->getStatusCode(), $invalid);
+            $this->assertSame('INVALID_MUTATION_PRECONDITION', $this->decode($response)['errors'][0]['code']);
+        }
+        $this->assertSame('draft', $entity->get('workflow_state'));
     }
 
     #[Test]
@@ -519,6 +585,9 @@ final class WorkflowTransitionControllerTest extends TestCase
     {
         $request = Request::create($uri, 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], $body);
         $request->attributes->set('_account', $account);
+        if (preg_match('#/([^/]+)/workflow/transition$#', $uri, $matches) === 1) {
+            $request->headers->set('If-Match', FixtureWorkflowEntity::tokenFor($matches[1], 1)->toStrongEtag());
+        }
 
         return $request;
     }
@@ -536,33 +605,29 @@ final class WorkflowTransitionControllerTest extends TestCase
  * Minimal `EntityInterface` fixture carrying only what the controller and
  * `TransitionService` touch: id, `workflow_state`, `status`, a fixed bundle.
  */
-final class FixtureWorkflowEntity implements EntityInterface
+final class FixtureWorkflowEntity extends EntityBase
 {
-    /** @var array<string, mixed> */
-    private array $values;
-
     public function __construct(string $id, string $state = 'draft', int $status = 0)
     {
-        $this->values = ['id' => $id, 'workflow_state' => $state, 'status' => $status];
+        parent::__construct(
+            ['id' => $id, 'title' => 'Fixture', 'type' => 'wf_article', 'workflow_state' => $state, 'status' => $status],
+            'wf_article',
+            ['id' => 'id', 'label' => 'title', 'bundle' => 'type'],
+        );
+        $this->_hydrateMutationToken(self::tokenFor($id, 1));
     }
 
-    public function id(): int|string|null { return $this->values['id']; }
-    public function uuid(): string { return 'fixture-uuid-' . (string) $this->values['id']; }
-    public function label(): string { return 'Fixture'; }
-    public function getEntityTypeId(): string { return 'wf_article'; }
-    public function bundle(): string { return 'wf_article'; }
-    public function isNew(): bool { return false; }
-    public function get(string $name): mixed { return $this->values[$name] ?? null; }
-
-    public function set(string $name, mixed $value): static
+    public static function tokenFor(string $id, int $version): EntityMutationToken
     {
-        $this->values[$name] = $value;
-
-        return $this;
+        return EntityMutationToken::issue(
+            'workflow-fixture',
+            '_global',
+            'wf_article',
+            $id,
+            $version,
+            hash('sha256', 'workflow-fixture:' . $id . ':' . $version, true),
+        );
     }
-
-    public function toArray(): array { return $this->values; }
-    public function language(): string { return 'en'; }
 }
 
 /**
@@ -572,7 +637,7 @@ final class FixtureWorkflowEntity implements EntityInterface
  * unlike the shared `InMemoryEntityRepository` fixture) — `TransitionService`
  * calls it unconditionally, even for a non-revisionable-in-practice fixture.
  */
-final class FixtureWorkflowEntityRepository implements EntityRepositoryInterface
+final class FixtureWorkflowEntityRepository implements EntityRepositoryInterface, AggregateMutationRepositoryInterface
 {
     /** @var array<string, EntityInterface> */
     private array $entities = [];
@@ -601,23 +666,39 @@ final class FixtureWorkflowEntityRepository implements EntityRepositoryInterface
     public function save(EntityInterface $entity, bool $validate = true): int
     {
         $this->entities[(string) $entity->id()] = $entity;
+        if ($entity instanceof EntityBase && $entity->mutationToken() !== null) {
+            $entity->_hydrateMutationToken(FixtureWorkflowEntity::tokenFor(
+                (string) $entity->id(),
+                $entity->mutationToken()->aggregateVersion + 1,
+            ));
+        }
 
         return 2;
+    }
+
+    public function saveAggregateMutation(EntityInterface $entity, \Closure $mutation, bool $publishRevision = false, bool $validate = true, ?\Closure $publicationFinalizer = null, ?\Closure $beforeCommit = null): EntityInterface
+    {
+        $mutation($entity);
+        $publicationFinalizer?->__invoke($entity);
+        $this->save($entity, $validate);
+        $beforeCommit?->__invoke($entity);
+
+        return $entity;
     }
 
     public function delete(EntityInterface $entity): void { unset($this->entities[(string) $entity->id()]); }
     public function exists(string $id): bool { return isset($this->entities[$id]); }
     public function count(array $criteria = []): int { return \count($this->entities); }
     public function loadRevision(string $entityId, int $revisionId): ?EntityInterface { return null; }
-    public function rollback(string $entityId, int $targetRevisionId): EntityInterface { throw new \LogicException('not needed'); }
+    public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
     public function listRevisions(string $entityId): array { return []; }
-    public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface { throw new \LogicException('not needed'); }
+    public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
     public function loadPublishedRevision(string $entityId): ?EntityInterface { return null; }
-    public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface { throw new \LogicException('not needed'); }
+    public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
     public function saveMany(array $entities, bool $validate = true): array { return []; }
     public function deleteMany(array $entities): int { return 0; }
     public function findTranslations(EntityInterface $entity): array { return []; }
-    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int { return 0; }
+    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int { return 0; }
     public function loadTranslation(string $entityId, string $langcode): ?EntityInterface { return null; }
     public function listTranslationRevisions(string $entityId, string $langcode): array { return []; }
 }
@@ -641,15 +722,15 @@ final class FixtureWorkflowLookupRepository implements EntityRepositoryInterface
     public function exists(string $id): bool { return $this->workflow !== null; }
     public function count(array $criteria = []): int { return 0; }
     public function loadRevision(string $entityId, int $revisionId): ?EntityInterface { return null; }
-    public function rollback(string $entityId, int $targetRevisionId): EntityInterface { throw new \LogicException('not needed'); }
+    public function rollback(string $entityId, int $targetRevisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
     public function listRevisions(string $entityId): array { return []; }
-    public function setCurrentRevision(string $entityId, int $revisionId): EntityInterface { throw new \LogicException('not needed'); }
+    public function setCurrentRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
     public function loadPublishedRevision(string $entityId): ?EntityInterface { return null; }
-    public function setPublishedRevision(string $entityId, int $revisionId): EntityInterface { throw new \LogicException('not needed'); }
+    public function setPublishedRevision(string $entityId, int $revisionId, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): EntityInterface { throw new \LogicException('not needed'); }
     public function saveMany(array $entities, bool $validate = true): array { return []; }
     public function deleteMany(array $entities): int { return 0; }
     public function findTranslations(EntityInterface $entity): array { return []; }
-    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null): int { return 0; }
+    public function saveTranslation(string $entityId, string $langcode, array $values, ?string $log = null, ?\Waaseyaa\Entity\Concurrency\EntityMutationToken $expected = null): int { return 0; }
     public function loadTranslation(string $entityId, string $langcode): ?EntityInterface { return null; }
     public function listTranslationRevisions(string $entityId, string $langcode): array { return []; }
 }

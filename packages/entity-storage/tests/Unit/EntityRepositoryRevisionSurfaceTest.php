@@ -16,6 +16,7 @@ use Waaseyaa\EntityStorage\Driver\RevisionableStorageDriverV2;
 use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
 use Waaseyaa\EntityStorage\Driver\StorageBoundary;
 use Waaseyaa\EntityStorage\EntityRepository;
+use Waaseyaa\EntityStorage\Exception\EntityMutationConflictException;
 use Waaseyaa\EntityStorage\Revision\RevisionPruningPolicy;
 use Waaseyaa\EntityStorage\SqlSchemaHandler;
 use Waaseyaa\EntityStorage\Tests\Fixtures\TestRevisionableEntity;
@@ -85,6 +86,23 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
             $entity->set('title', $title);
             $this->repo->save($entity);
         }
+    }
+
+    #[Test]
+    public function staleAggregateCannotMoveARevisionPointer(): void
+    {
+        $this->createWithEdits('1', 'v1', 'v2');
+        $stale = $this->repo->find('1');
+        $winner = $this->repo->find('1');
+        self::assertNotNull($stale);
+        self::assertNotNull($winner);
+        self::assertNotNull($stale->mutationToken());
+
+        $winner->set('title', 'v3');
+        $this->repo->save($winner);
+
+        $this->expectException(EntityMutationConflictException::class);
+        $this->repo->rollback('1', 1, expected: $stale->mutationToken());
     }
 
     #[Test]
@@ -170,7 +188,7 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
         $this->createWithEdits('1', 'v1', 'v2', 'v3');
         $this->assertCount(3, $this->repo->listRevisions('1'));
 
-        $reverted = $this->repo->setCurrentRevision('1', 1);
+        $reverted = $this->repo->setCurrentRevision('1', 1, $this->mutationToken($this->repo, '1'));
 
         $this->assertSame('v1', $reverted->label());
         // The current/default entity now reads v1...
@@ -197,10 +215,10 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
             ['entity_id' => '1', 'revision_id' => 1],
         );
 
-        $this->repo->setCurrentRevision('1', 1);
+        $this->repo->setCurrentRevision('1', 1, $this->mutationToken($this->repo, '1'));
         self::assertSame(true, $this->repo->find('1')?->toArray()['flag']);
 
-        $rolledBack = $this->repo->rollback('1', 1);
+        $rolledBack = $this->repo->rollback('1', 1, $this->mutationToken($this->repo, '1'));
         self::assertSame(true, $rolledBack->toArray()['flag']);
         self::assertSame(true, $this->repo->find('1')?->toArray()['flag']);
     }
@@ -210,7 +228,7 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
     {
         $this->createWithEdits('1', 'v1');
         $this->expectException(\InvalidArgumentException::class);
-        $this->repo->setCurrentRevision('1', 999);
+        $this->repo->setCurrentRevision('1', 999, $this->mutationToken($this->repo, '1'));
     }
 
     #[Test]
@@ -230,11 +248,11 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
         $entity->set('status', 1);
         $this->repo->save($entity); // revision 2: status=1; base row status=1
 
-        $this->repo->setPublishedRevision('1', 1);
+        $this->repo->setPublishedRevision('1', 1, $this->mutationToken($this->repo, '1'));
         $this->assertSame(1, $this->repo->find('1')->get('published_revision_id'));
         $this->assertSame(true, $this->repo->find('1')->get('status'));
 
-        $reverted = $this->repo->setCurrentRevision('1', 1);
+        $reverted = $this->repo->setCurrentRevision('1', 1, $this->mutationToken($this->repo, '1'));
 
         $this->assertSame('v1', $reverted->label(), 'content restored from the target revision');
         $this->assertSame(true, $this->repo->find('1')->get('status'), 'live status untouched');
@@ -296,11 +314,12 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
         $revisionDriver->writeRevision('1', ['title' => 'v1', 'uuid' => 'a'], null);
         $revisionDriver->writeRevision('1', ['title' => 'v2', 'uuid' => 'a'], null);
 
-        $rolledBack = $legacyRepo->rollback('1', 1);
+        self::assertSame(1, $legacyRepo->backfillMutationAuthorities('legacy restore fixture'));
+        $rolledBack = $legacyRepo->rollback('1', 1, $this->mutationToken($legacyRepo, '1'));
         $this->assertSame('v1', $rolledBack->label());
         $this->assertNull($legacyRepo->find('1')->get('published_revision_id'));
 
-        $reverted = $legacyRepo->setCurrentRevision('1', 2);
+        $reverted = $legacyRepo->setCurrentRevision('1', 2, $this->mutationToken($legacyRepo, '1'));
         $this->assertSame('v2', $reverted->label());
         $this->assertNull($legacyRepo->find('1')->get('published_revision_id'));
     }
@@ -310,7 +329,11 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
     {
         $this->createWithEdits('1', 'v1', 'v2', 'v3', 'v4'); // revisions 1..4, current = 4
 
-        $report = $this->repo->pruneRevisions('1', RevisionPruningPolicy::keepLastUniform(2));
+        $report = $this->repo->pruneRevisions(
+            '1',
+            RevisionPruningPolicy::keepLastUniform(2),
+            $this->mutationToken($this->repo, '1'),
+        );
 
         $this->assertSame(2, $report->pruned, 'oldest 2 deleted');
         $remaining = $this->repo->listRevisions('1');
@@ -324,9 +347,13 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
     {
         $this->createWithEdits('1', 'v1', 'v2', 'v3', 'v4');
         // Make an OLD revision current, then prune hard (keep last 1).
-        $this->repo->setCurrentRevision('1', 1);
+        $this->repo->setCurrentRevision('1', 1, $this->mutationToken($this->repo, '1'));
 
-        $report = $this->repo->pruneRevisions('1', RevisionPruningPolicy::keepLastUniform(1));
+        $report = $this->repo->pruneRevisions(
+            '1',
+            RevisionPruningPolicy::keepLastUniform(1),
+            $this->mutationToken($this->repo, '1'),
+        );
 
         // Revision 1 is current → immortal; only revisions 2 and 3 are deletable
         // (revision 4 is the single newest kept).
@@ -340,7 +367,11 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
     public function prune_revisions_noop_policy_deletes_nothing(): void
     {
         $this->createWithEdits('1', 'v1', 'v2', 'v3');
-        $report = $this->repo->pruneRevisions('1', RevisionPruningPolicy::default());
+        $report = $this->repo->pruneRevisions(
+            '1',
+            RevisionPruningPolicy::default(),
+            $this->mutationToken($this->repo, '1'),
+        );
 
         $this->assertSame(0, $report->pruned);
         $this->assertCount(3, $this->repo->listRevisions('1'));
@@ -354,9 +385,13 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
         // when it differs from current and a keep-count would otherwise sweep
         // it up as an old candidate.
         $this->createWithEdits('1', 'v1', 'v2', 'v3', 'v4'); // revisions 1..4, current = 4
-        $this->repo->setPublishedRevision('1', 2);
+        $this->repo->setPublishedRevision('1', 2, $this->mutationToken($this->repo, '1'));
 
-        $report = $this->repo->pruneRevisions('1', RevisionPruningPolicy::keepLastUniform(1));
+        $report = $this->repo->pruneRevisions(
+            '1',
+            RevisionPruningPolicy::keepLastUniform(1),
+            $this->mutationToken($this->repo, '1'),
+        );
 
         // newest-kept = [4]; candidates = 1,2,3. Published (2) must survive
         // alongside current (4); only 1 and 3 are actually deletable.
@@ -420,7 +455,12 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
             $revisionDriver->writeRevision('1', ['title' => $title, 'uuid' => 'a'], null);
         }
 
-        $report = $legacyRepo->pruneRevisions('1', RevisionPruningPolicy::keepLastUniform(1));
+        self::assertSame(1, $legacyRepo->backfillMutationAuthorities('legacy prune fixture'));
+        $report = $legacyRepo->pruneRevisions(
+            '1',
+            RevisionPruningPolicy::keepLastUniform(1),
+            $this->mutationToken($legacyRepo, '1'),
+        );
 
         // No published pointer exists at all — only the current-revision (4)
         // guard applies, exactly like before this rework: 1,2,3 are all
@@ -442,6 +482,7 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
             'title' => 'legacy',
             '_data' => '{}',
         ]);
+        self::assertSame(1, $this->repo->backfillMutationAuthorities('legacy revision fixture'));
         $this->assertSame([], $this->repo->listRevisions('7'), 'no revisions before backfill');
 
         $count = $this->repo->backfillInitialRevisions();
@@ -465,8 +506,17 @@ final class EntityRepositoryRevisionSurfaceTest extends TestCase
             '_data' => json_encode(['flag' => true], JSON_THROW_ON_ERROR),
         ]);
 
+        self::assertSame(1, $this->repo->backfillMutationAuthorities('legacy boolean fixture'));
         self::assertSame(1, $this->repo->backfillInitialRevisions());
         self::assertSame(true, $this->repo->find('8')?->toArray()['flag']);
         self::assertSame(true, $this->repo->loadRevision('8', 1)?->toArray()['flag']);
+    }
+
+    private function mutationToken(EntityRepository $repository, string $entityId): \Waaseyaa\Entity\Concurrency\EntityMutationToken
+    {
+        $token = $repository->find($entityId)?->mutationToken();
+        self::assertNotNull($token);
+
+        return $token;
     }
 }

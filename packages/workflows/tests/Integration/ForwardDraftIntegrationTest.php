@@ -191,7 +191,7 @@ final class ForwardDraftIntegrationTest extends TestCase
 
         $denied = null;
         try {
-            $repository->setPublishedRevision($entityId, $publishedRevisionId);
+            $repository->setPublishedRevision($entityId, $publishedRevisionId, $repository->find($entityId)?->mutationToken());
         } catch (TransitionDeniedException $e) {
             $denied = $e;
         }

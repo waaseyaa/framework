@@ -19,6 +19,8 @@ use Waaseyaa\AdminSurface\Host\AdminSurfaceSessionData;
 use Waaseyaa\AdminSurface\Host\AdminSurfaceUiPayload;
 use Waaseyaa\AdminSurface\Host\AdminPublicationFieldReaderInterface;
 use Waaseyaa\AdminSurface\Host\GenericAdminSurfaceHost;
+use Waaseyaa\Api\Tests\Fixtures\TestEntity;
+use Waaseyaa\Entity\Concurrency\EntityMutationToken;
 use Waaseyaa\Entity\ConfigEntityBase;
 use Waaseyaa\Entity\ContentEntityBase;
 use Waaseyaa\Entity\EntityInterface;
@@ -795,10 +797,9 @@ final class GenericAdminSurfaceHostTest extends TestCase
         // misleading 404 and leaving the row in storage (D7 regression guard).
         $uuid = '807e4373-0f98-44fe-9fb5-111d5bd3a5ef';
 
-        $entity = $this->createStub(EntityInterface::class);
-        $entity->method('getEntityTypeId')->willReturn('story');
-        $entity->method('id')->willReturn(1);
-        $entity->method('uuid')->willReturn($uuid);
+        $entity = new TestEntity(['id' => 1, 'uuid' => $uuid], 'story');
+        $entity->enforceIsNew(false);
+        $entity->_hydrateMutationToken(EntityMutationToken::issue('admin-test', 'default', 'story', '1', 1));
 
         // Non-numeric id => find() is skipped; resolution goes through the
         // bounded uuid query + find() (C-22 WP3: loadByKey() has no repository
@@ -811,7 +812,9 @@ final class GenericAdminSurfaceHostTest extends TestCase
 
         $repository = $this->createMock(\Waaseyaa\Entity\Repository\EntityRepositoryInterface::class);
         $repository->method('getQuery')->willReturn($query);
-        $repository->expects(self::once())->method('find')->with('1')->willReturn($entity);
+        $repository->method('find')->willReturnCallback(
+            static fn(string $id): ?EntityInterface => in_array($id, ['1', $uuid], true) ? $entity : null,
+        );
         $repository->expects($this->once())->method('delete')->with($entity);
 
         $etm = $this->createStub(EntityTypeManagerInterface::class);
@@ -831,7 +834,10 @@ final class GenericAdminSurfaceHostTest extends TestCase
         $request->attributes->set('_account', $account);
         $host->resolveSession($request);
 
-        $result = $host->action('story', 'delete', ['id' => $uuid]);
+        $result = $host->action('story', 'delete', [
+            'id' => $uuid,
+            'mutation_token' => $entity->mutationToken()?->toOpaqueString(),
+        ]);
 
         $this->assertTrue($result->ok, 'Delete by UUID should succeed, not 404.');
         $this->assertSame(['deleted' => true], $result->data);

@@ -15,6 +15,8 @@ use Waaseyaa\Field\Entity\RetentionPolicy;
 use Waaseyaa\Field\Entity\RetentionPolicyMaintenanceReader;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Scheduler\Execution\LeaseExecutionContext;
+use Waaseyaa\Scheduler\Lease\LeaseLostException;
 
 /**
  * Scheduled job that redacts PII fields on entities matched by `action=redact`
@@ -60,16 +62,20 @@ final class RedactJob
         $this->subjectReader = $subjectReader ?? new ClassificationSubjectReader();
     }
 
-    public function run(): void
+    public function run(?LeaseExecutionContext $lease = null): void
     {
         foreach ($this->loadRedactPolicies() as $policy) {
+            $lease?->checkpoint();
             try {
-                $redacted = $this->applyPolicy($policy);
+                $redacted = $this->applyPolicy($policy, $lease);
                 $this->logger->info('classification.retention.redact_complete', [
                     'policy_id' => $policy->id(),
                     'redacted' => $redacted,
                 ]);
             } catch (\Throwable $e) {
+                if ($e instanceof LeaseLostException) {
+                    throw $e;
+                }
                 // NFR-004: isolate per-policy failures.
                 $this->logger->warning('classification.retention.redact_failed', [
                     'policy_id' => $policy->id(),
@@ -106,7 +112,7 @@ final class RedactJob
     /**
      * Apply a single redact policy. Returns the number of entities redacted.
      */
-    private function applyPolicy(RetentionPolicy $policy): int
+    private function applyPolicy(RetentionPolicy $policy, ?LeaseExecutionContext $lease): int
     {
         $view = $this->policyReader->read($policy);
         $redacted = 0;
@@ -117,6 +123,7 @@ final class RedactJob
             }
 
             foreach ($this->scanner->scan($entityTypeId, null, RetentionScanner::labelCondition($view)) as $entity) {
+                $lease?->checkpoint();
                 $labelId = $this->subjectReader->read($entity)->label ?? '';
                 if ($labelId === '' || !$view->matchesLabel($labelId)) {
                     continue;
@@ -135,12 +142,21 @@ final class RedactJob
                 foreach ($piiFields as $field) {
                     $entity->set($field, null);
                 }
-                // repository->save() dispatches POST_SAVE; the entity, its id/uuid,
-                // classification label, and audit trail are all preserved (FR-011).
-                $this->entityTypeManager->getRepository($entityTypeId)->save($entity);
-
-                $this->recordRedact($policy, $entityTypeId, $uuid, $labelId, $piiFields);
-                ++$redacted;
+                $effect = function () use ($entityTypeId, $entity, $policy, $uuid, $labelId, $piiFields): void {
+                    $this->entityTypeManager->getRepository($entityTypeId)->save($entity);
+                    $this->recordRedact($policy, $entityTypeId, $uuid, $labelId, $piiFields);
+                };
+                $executed = $lease?->effect(
+                    sprintf('entity:%s:%s', $entityTypeId, (string) $entity->id()),
+                    sprintf('redact:%s:%s', (string) $policy->id(), (string) $entity->id()),
+                    $effect,
+                ) ?? (function () use ($effect): bool {
+                    $effect();
+                    return true;
+                })();
+                if ($executed) {
+                    ++$redacted;
+                }
             }
         }
 

@@ -14,6 +14,8 @@ use Waaseyaa\Field\Entity\RetentionPolicy;
 use Waaseyaa\Field\Entity\RetentionPolicyMaintenanceReader;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Scheduler\Execution\LeaseExecutionContext;
+use Waaseyaa\Scheduler\Lease\LeaseLostException;
 
 /**
  * Verification-only scheduled job that surfaces hold-vs-purge
@@ -60,7 +62,7 @@ final class HoldScanJob
         $this->subjectReader = $subjectReader ?? new ClassificationSubjectReader();
     }
 
-    public function run(): void
+    public function run(?LeaseExecutionContext $lease = null): void
     {
         try {
             $holdPolicies = $this->loadPolicies(RetentionPolicy::ACTION_HOLD_FLAG);
@@ -70,11 +72,14 @@ final class HoldScanJob
                 return; // No possible conflict without at least one of each.
             }
 
-            $conflicts = $this->scanConflicts($holdPolicies, $purgePolicies);
+            $conflicts = $this->scanConflicts($holdPolicies, $purgePolicies, $lease);
             $this->logger->info('classification.retention.hold_scan_complete', [
                 'conflicts' => $conflicts,
             ]);
         } catch (\Throwable $e) {
+            if ($e instanceof LeaseLostException) {
+                throw $e;
+            }
             // NFR-004: a scan failure must not disrupt the scheduler tick.
             $this->logger->warning('classification.retention.hold_scan_failed', [
                 'error' => $e->getMessage(),
@@ -86,7 +91,7 @@ final class HoldScanJob
      * @param list<RetentionPolicy> $holdPolicies
      * @param list<RetentionPolicy> $purgePolicies
      */
-    private function scanConflicts(array $holdPolicies, array $purgePolicies): int
+    private function scanConflicts(array $holdPolicies, array $purgePolicies, ?LeaseExecutionContext $lease): int
     {
         $conflicts = 0;
 
@@ -96,6 +101,7 @@ final class HoldScanJob
             }
 
             foreach ($this->scanner->scan($entityTypeId, null, null) as $entity) {
+                $lease?->checkpoint();
                 $labelId = $this->subjectReader->read($entity)->label ?? '';
                 if ($labelId === '') {
                     continue;
@@ -108,8 +114,18 @@ final class HoldScanJob
                 }
 
                 $uuid = (string) ($entity->get('uuid') ?? '');
-                $this->recordConflict($entityTypeId, $uuid, $labelId, $holdPolicy, $purgePolicy);
-                ++$conflicts;
+                $effect = fn() => $this->recordConflict($entityTypeId, $uuid, $labelId, $holdPolicy, $purgePolicy);
+                $executed = $lease?->effect(
+                    sprintf('retention-conflict:%s:%s', $entityTypeId, (string) $entity->id()),
+                    sprintf('hold-scan:%s:%s', (string) $holdPolicy->id(), (string) $purgePolicy->id()),
+                    $effect,
+                ) ?? (function () use ($effect): bool {
+                    $effect();
+                    return true;
+                })();
+                if ($executed) {
+                    ++$conflicts;
+                }
             }
         }
 

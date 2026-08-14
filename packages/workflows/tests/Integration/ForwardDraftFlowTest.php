@@ -303,7 +303,7 @@ final class ForwardDraftFlowTest extends TestCase
 
         $denied = null;
         try {
-            $nodeRepository->rollback($entityId, $firstPublishedRevisionId);
+            $nodeRepository->rollback($entityId, $firstPublishedRevisionId, $nodeRepository->find($entityId)?->mutationToken());
         } catch (TransitionDeniedException $e) {
             $denied = $e;
         }
@@ -331,7 +331,7 @@ final class ForwardDraftFlowTest extends TestCase
         $accountContext->set($editor);
         $baseRowBeforeRollback = $this->rawBaseRow($db, $entityId);
 
-        $rolledBack = $nodeRepository->rollback($entityId, $firstPublishedRevisionId);
+        $rolledBack = $nodeRepository->rollback($entityId, $firstPublishedRevisionId, $afterDenial->mutationToken());
 
         $this->assertSame('Original title', $rolledBack->get('title'), 'The rollback return value carries the restored content.');
         $this->assertSame('published', \Waaseyaa\Workflows\Tests\Support\WorkflowSubjectView::state($rolledBack));
@@ -371,7 +371,7 @@ final class ForwardDraftFlowTest extends TestCase
         $baseRowBeforeRevertAttempt = $this->rawBaseRow($db, $entityId);
         $revertDenied = null;
         try {
-            $nodeRepository->setCurrentRevision($entityId, $newDraftTipRevisionId);
+            $nodeRepository->setCurrentRevision($entityId, $newDraftTipRevisionId, $rolledBack->mutationToken());
         } catch (TransitionDeniedException $e) {
             $revertDenied = $e;
         }

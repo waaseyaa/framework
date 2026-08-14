@@ -109,6 +109,7 @@ final class WorkflowTransitionEndToEndTest extends TestCase
             '{"transition":"submit_for_review"}',
         );
         $postRequest->attributes->set('_account', $author);
+        $postRequest->headers->set('If-Match', (string) $getResponse->headers->get('ETag'));
 
         $postResponse = $controller->transition($postRequest, self::ENTITY_TYPE_ID, $id);
         $this->assertSame(200, $postResponse->getStatusCode());
@@ -155,6 +156,9 @@ final class WorkflowTransitionEndToEndTest extends TestCase
             '{"transition":"submit_for_review"}',
         );
         $postRequest->attributes->set('_account', $outsider);
+        if ($entity instanceof \Waaseyaa\Entity\EntityBase && $entity->mutationToken() !== null) {
+            $postRequest->headers->set('If-Match', $entity->mutationToken()->toStrongEtag());
+        }
 
         $response = $controller->transition($postRequest, self::ENTITY_TYPE_ID, $id);
 

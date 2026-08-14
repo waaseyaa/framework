@@ -137,9 +137,13 @@ final class SchemaValidationTest extends TestCase
         self::assertNotNull($updateField->getArg('id'));
         self::assertNotNull($updateField->getArg('input'));
 
-        // deleteArticle should have 'id' arg and return DeleteResult
+        // deleteArticle requires the caller's observed aggregate token.
         $deleteField = $mutationType->getField('deleteArticle');
         self::assertNotNull($deleteField->getArg('id'));
+        $deleteMutationToken = $deleteField->getArg('mutationToken');
+        self::assertNotNull($deleteMutationToken);
+        self::assertInstanceOf(NonNull::class, $deleteMutationToken->getType());
+        self::assertSame('String', $deleteMutationToken->getType()->getWrappedType()->name);
         $deleteReturnType = $deleteField->getType();
         self::assertInstanceOf(ObjectType::class, $deleteReturnType);
         self::assertSame('DeleteResult', $deleteReturnType->name);
@@ -252,9 +256,14 @@ final class SchemaValidationTest extends TestCase
         $createBody = $createInputType->getField('body');
         self::assertNotInstanceOf(NonNull::class, $createBody->getType());
 
-        // Update input: all fields nullable (PATCH semantics)
+        // Update entity fields remain nullable (PATCH semantics), while the
+        // caller's observed aggregate token is mandatory.
         $updateTitle = $updateInputType->getField('title');
         self::assertNotInstanceOf(NonNull::class, $updateTitle->getType());
+        self::assertFalse($createInputType->hasField('mutationToken'));
+        $updateMutationToken = $updateInputType->getField('mutationToken');
+        self::assertInstanceOf(NonNull::class, $updateMutationToken->getType());
+        self::assertSame('String', $updateMutationToken->getType()->getWrappedType()->name);
 
         // Entity keys are excluded from both input types
         self::assertFalse($createInputType->hasField('id'));
@@ -262,9 +271,11 @@ final class SchemaValidationTest extends TestCase
         self::assertFalse($updateInputType->hasField('id'));
         self::assertFalse($updateInputType->hasField('uuid'));
 
-        // Both should have the same non-key, non-readOnly fields
+        // Apart from the update-only mutation authority, both expose the same
+        // non-key, non-readOnly entity fields.
         $createFieldNames = array_keys($createInputType->getFields());
         $updateFieldNames = array_keys($updateInputType->getFields());
+        $updateFieldNames = array_values(array_diff($updateFieldNames, ['mutationToken']));
         self::assertSame($createFieldNames, $updateFieldNames);
     }
 

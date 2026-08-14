@@ -10,13 +10,19 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Queue\Envelope\QueueAuthorityRuntimeInterface;
 use Waaseyaa\Queue\Envelope\QueueEnvelopeV1;
+use Waaseyaa\Queue\Envelope\QueueOccurrenceV1;
 use Waaseyaa\Queue\Envelope\QueueSystemReason;
 use Waaseyaa\Queue\Handler\HandlerInterface;
 use Waaseyaa\Queue\Handler\JobHandler;
 use Waaseyaa\Queue\PersistentQueueBoundaryConfig;
+use Waaseyaa\Queue\Occurrence\OccurrenceContextInterface;
+use Waaseyaa\Queue\Occurrence\OccurrenceRunResult;
+use Waaseyaa\Queue\Occurrence\OccurrenceRuntimeInterface;
 use Waaseyaa\Queue\Security\SignedQueuePayload;
 use Waaseyaa\Queue\Storage\InMemoryFailedJobRepository;
 use Waaseyaa\Queue\Tests\Unit\Fixtures\FailingJob;
+use Waaseyaa\Queue\Tests\Unit\Fixtures\FailingOccurrenceAwareJob;
+use Waaseyaa\Queue\Tests\Unit\Fixtures\OccurrenceAwareJob;
 use Waaseyaa\Queue\Tests\Unit\Fixtures\SuccessfulJob;
 use Waaseyaa\Queue\Tests\Unit\Fixtures\ThrowingFailureHookJob;
 use Waaseyaa\Queue\Transport\InMemoryTransport;
@@ -94,6 +100,7 @@ final class WorkerTest extends TestCase
         );
         SuccessfulJob::reset();
         FailingJob::reset();
+        OccurrenceAwareJob::$handleCount = 0;
     }
 
     #[Test]
@@ -258,5 +265,160 @@ final class WorkerTest extends TestCase
 
         self::assertFalse($active);
         self::assertSame(0, $this->transport->size('default'));
+    }
+
+    #[Test]
+    public function occurrenceRuntimeOwnsExecutionAndAcknowledgesCompletion(): void
+    {
+        $runtime = self::occurrenceRuntime(OccurrenceRunResult::Executed);
+        $worker = new Worker(
+            $this->transport,
+            $this->failedRepo,
+            [],
+            $this->signer,
+            authorityRuntime: self::authorityRuntime(),
+            occurrenceRuntime: $runtime,
+        );
+        $this->pushOccurrence(new OccurrenceAwareJob());
+
+        $worker->runNextJob('default', new WorkerOptions());
+
+        self::assertSame(1, OccurrenceAwareJob::$handleCount);
+        self::assertSame(0, $this->transport->size('default'));
+        self::assertSame([], $this->transport->getReserved());
+    }
+
+    #[Test]
+    public function duplicateOccurrenceIsAcknowledgedWithoutExecutingMessage(): void
+    {
+        $worker = new Worker(
+            $this->transport,
+            $this->failedRepo,
+            [],
+            $this->signer,
+            authorityRuntime: self::authorityRuntime(),
+            occurrenceRuntime: self::occurrenceRuntime(OccurrenceRunResult::Duplicate),
+        );
+        $this->pushOccurrence(new OccurrenceAwareJob());
+
+        $worker->runNextJob('default', new WorkerOptions());
+
+        self::assertSame(0, OccurrenceAwareJob::$handleCount);
+        self::assertSame(0, $this->transport->size('default'));
+    }
+
+    #[Test]
+    public function contendedOccurrenceIsDeferredWithoutConsumingAttempt(): void
+    {
+        $worker = new Worker(
+            $this->transport,
+            $this->failedRepo,
+            [],
+            $this->signer,
+            authorityRuntime: self::authorityRuntime(),
+            occurrenceRuntime: self::occurrenceRuntime(OccurrenceRunResult::Contended),
+        );
+        $this->pushOccurrence(new OccurrenceAwareJob());
+
+        $worker->runNextJob('default', new WorkerOptions());
+
+        $rows = $this->transport->listJobs(10);
+        self::assertSame(1, $rows['total']);
+        self::assertSame(0, $rows['data'][0]['attempts']);
+        self::assertSame(0, OccurrenceAwareJob::$handleCount);
+    }
+
+    #[Test]
+    public function finalFailureDeadLettersOccurrenceBeforeRejectingDelivery(): void
+    {
+        $deadLettered = false;
+        $runtime = new class ($deadLettered) implements OccurrenceRuntimeInterface {
+            public function __construct(private bool &$deadLettered) {}
+            public function run(QueueOccurrenceV1 $occurrence, callable $execute): OccurrenceRunResult
+            {
+                $execute(new class implements OccurrenceContextInterface {
+                    public function occurrenceId(): string { return str_repeat('a', 64); }
+                    public function fence(): int { return 1; }
+                    public function checkpoint(): void {}
+                    public function effect(string $resource, string $effectId, callable $effect): mixed { return $effect(); }
+                });
+
+                return OccurrenceRunResult::Executed;
+            }
+            public function deadLetter(QueueOccurrenceV1 $occurrence, string $failureClass): bool
+            {
+                $this->deadLettered = true;
+
+                return true;
+            }
+        };
+        $worker = new Worker(
+            $this->transport,
+            $this->failedRepo,
+            [],
+            $this->signer,
+            authorityRuntime: self::authorityRuntime(),
+            occurrenceRuntime: $runtime,
+        );
+        $this->pushOccurrence(new FailingOccurrenceAwareJob());
+
+        $worker->runNextJob('default', new WorkerOptions(maxTries: 1));
+
+        self::assertTrue($deadLettered);
+        self::assertCount(1, $this->failedRepo->all());
+        self::assertSame([], $this->transport->getReserved());
+    }
+
+    private function pushOccurrence(object $message): void
+    {
+        $envelope = QueueEnvelopeV1::forSystem(
+            serialize($message),
+            QueueSystemReason::Scheduler,
+            'scheduler',
+            null,
+            null,
+            'queue-occurrence',
+            new QueueOccurrenceV1(str_repeat('a', 64), 'retention', str_repeat('b', 64), 300_000),
+        );
+        $this->transport->push('default', $this->signer->seal(serialize($envelope)));
+    }
+
+    private static function authorityRuntime(): QueueAuthorityRuntimeInterface
+    {
+        return new class implements QueueAuthorityRuntimeInterface {
+            public function run(QueueEnvelopeV1 $envelope, \Closure $handler): mixed
+            {
+                return $handler();
+            }
+        };
+    }
+
+    private static function occurrenceRuntime(OccurrenceRunResult $result): OccurrenceRuntimeInterface
+    {
+        return new class ($result) implements OccurrenceRuntimeInterface {
+            public function __construct(private readonly OccurrenceRunResult $result) {}
+
+            public function run(QueueOccurrenceV1 $occurrence, callable $execute): OccurrenceRunResult
+            {
+                if ($this->result === OccurrenceRunResult::Executed) {
+                    $execute(new class implements OccurrenceContextInterface {
+                        public function occurrenceId(): string { return str_repeat('a', 64); }
+                        public function fence(): int { return 1; }
+                        public function checkpoint(): void {}
+                        public function effect(string $resource, string $effectId, callable $effect): mixed
+                        {
+                            return $effect();
+                        }
+                    });
+                }
+
+                return $this->result;
+            }
+
+            public function deadLetter(QueueOccurrenceV1 $occurrence, string $failureClass): bool
+            {
+                return true;
+            }
+        };
     }
 }

@@ -72,4 +72,18 @@ final class ScheduledTaskTest extends TestCase
 
         self::assertSame('2026-03-23 15:00:00', $next->format('Y-m-d H:i:s'));
     }
+
+    #[Test]
+    public function overlapProtectionRejectsAnUncooperativeClosure(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('stable lease-aware command');
+
+        new ScheduledTask(
+            name: 'unsafe-overlap',
+            expression: '* * * * *',
+            command: static fn() => null,
+            preventOverlap: true,
+        );
+    }
 }

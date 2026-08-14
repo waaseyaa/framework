@@ -4,80 +4,31 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Tools\Tests\Fixtures;
 
-use Waaseyaa\Entity\EntityInterface;
+use Waaseyaa\Entity\EntityBase;
 
 /**
  * Minimal revisionable-shaped entity for exercising the entity tools without a
  * real storage stack. Carries values in an array and records the revision log
  * the tools set, so tests can assert on `revision_log` handling.
  */
-final class ToolTestEntity implements EntityInterface
+final class ToolTestEntity extends EntityBase
 {
     private string $revisionLog = '';
-    private bool $new = false;
 
     /** @param array<string, mixed> $values */
-    public function __construct(private array $values = []) {}
-
-    public function enforceIsNew(): void
+    public function __construct(array $values = [])
     {
-        $this->new = true;
-    }
-
-    public function id(): int|string|null
-    {
-        return $this->values['id'] ?? null;
-    }
-
-    public function uuid(): string
-    {
-        return (string) ($this->values['uuid'] ?? '');
-    }
-
-    public function label(): string
-    {
-        return (string) ($this->values['title'] ?? ($this->values['name'] ?? ''));
-    }
-
-    public function getEntityTypeId(): string
-    {
-        return 'tool_test';
-    }
-
-    public function bundle(): string
-    {
-        return '';
-    }
-
-    public function isNew(): bool
-    {
-        return $this->new;
-    }
-
-    public function get(string $name): mixed
-    {
-        return $this->values[$name] ?? null;
-    }
-
-    public function set(string $name, mixed $value): static
-    {
-        $this->values[$name] = $value;
-
-        return $this;
-    }
-
-    public function toArray(): array
-    {
-        return $this->values;
+        parent::__construct($values, 'tool_test', [
+            'id' => 'id',
+            'uuid' => 'uuid',
+            'label' => 'title',
+            'revision' => 'revision_id',
+        ]);
+        $this->enforceIsNew(false);
     }
 
     // Intentionally no getValues(): the read/search tools must fall back to the
     // EntityInterface-guaranteed toArray() so they work for every entity.
-
-    public function language(): string
-    {
-        return 'en';
-    }
 
     // Revisionable surface the tools probe via method_exists().
 
@@ -95,13 +46,13 @@ final class ToolTestEntity implements EntityInterface
 
     public function getRevisionId(): ?int
     {
-        $rid = $this->values['revision_id'] ?? null;
+        $rid = $this->get('revision_id');
 
         return is_int($rid) ? $rid : null;
     }
 
     public function isCurrentRevision(): bool
     {
-        return (bool) ($this->values['is_current'] ?? false);
+        return (bool) $this->get('is_current');
     }
 }

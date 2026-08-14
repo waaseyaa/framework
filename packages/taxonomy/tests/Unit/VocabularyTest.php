@@ -46,7 +46,7 @@ class VocabularyTest extends TestCase
     {
         $vocab = new Vocabulary(['vid' => 'tags']);
 
-        $this->assertFalse($vocab->isNew());
+        $this->assertTrue($vocab->isNew());
     }
 
     public function testConfigEntityHasNoUuid(): void

@@ -124,7 +124,9 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
     public function browserShapedNodeListQueryPagesSortsAndFiltersMigratedRows(): void
     {
         [$entityTypeManager, $db, , $accountContext, $setAccessHandler] = $this->bootWiredProviders();
-        $entityTypeManager->getRepository('node_type')->save(new NodeType(['type' => 'page', 'name' => 'Page']));
+        $pageType = new NodeType(['type' => 'page', 'name' => 'Page']);
+        $pageType->enforceIsNew();
+        $entityTypeManager->getRepository('node_type')->save($pageType);
 
         $admin = $this->account(42, ['administer content', 'administer nodes', 'access content']);
         $accountContext->set($admin);
@@ -282,7 +284,7 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
     {
         [$entityTypeManager, , $transitionService, $accountContext, , $configStorage] = $this->bootWiredProviders();
 
-        $entityTypeManager->getRepository('workflow')->save(new Workflow([
+        $workflow = new Workflow([
             'id' => 'grouped_editorial',
             'label' => 'Grouped editorial',
             'initial_state' => 'draft',
@@ -299,7 +301,9 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
                     'group_constraint' => 'content_groups',
                 ],
             ],
-        ]));
+        ]);
+        $workflow->enforceIsNew();
+        $entityTypeManager->getRepository('workflow')->save($workflow);
         $configStorage->write('workflows.assignments', ['node.article' => 'grouped_editorial']);
 
         $reviewer = $this->account(42, ['review grouped content']);
@@ -413,6 +417,7 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
 
             $edited = $scope->run($principal, fn() => $host->action('node', 'update', [
                 'id' => $draftUuid,
+                'mutation_token' => $detail->data['mutation_token'],
                 'attributes' => ['title' => 'Editor draft revised'],
             ]));
             self::assertTrue($edited->ok, 'edit: ' . json_encode($edited->error));
@@ -433,6 +438,7 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
                 content: '{"transition":"submit_for_review"}',
             );
             $submitRequest->attributes->set('_account', $editor);
+            $submitRequest->headers->set('If-Match', (string) $discovery->headers->get('ETag'));
             $submitted = $scope->run($principal, fn() => $workflowController->transition($submitRequest, 'node', $draftUuid));
             self::assertSame(200, $submitted->getStatusCode());
 
@@ -449,6 +455,7 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
                 content: '{"transition":"publish"}',
             );
             $publishRequest->attributes->set('_account', $editor);
+            $publishRequest->headers->set('If-Match', (string) $reviewDiscovery->headers->get('ETag'));
             $published = $scope->run($principal, fn() => $workflowController->transition($publishRequest, 'node', $draftUuid));
             self::assertSame(200, $published->getStatusCode());
 
@@ -567,6 +574,7 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
         try {
             $updateResult = $scope->run($principal, fn() => $host->action('node', 'update', [
                 'id' => $entityId,
+                'mutation_token' => $getResult->data['mutation_token'],
                 'attributes' => $patchAttributes,
             ]));
         } finally {
@@ -698,7 +706,9 @@ final class GenericAdminSurfaceHostWriteAllowlistFlowTest extends TestCase
         $nodeProvider->boot();
         $workflowProvider->boot();
 
-        $entityTypeManager->getRepository('node_type')->save(new NodeType(['type' => 'article', 'name' => 'Article']));
+        $articleType = new NodeType(['type' => 'article', 'name' => 'Article']);
+        $articleType->enforceIsNew();
+        $entityTypeManager->getRepository('node_type')->save($articleType);
 
         /** @var TransitionService $transitionService */
         $transitionService = $workflowProvider->resolve(TransitionService::class);
