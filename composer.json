@@ -310,7 +310,7 @@
         }
     ],
     "require": {
-        "php": ">=8.5",
+        "php": ">=8.5 <8.6",
         "ext-pdo_sqlite": "*",
         "ext-sodium": "*",
         "ext-sqlite3": "*",

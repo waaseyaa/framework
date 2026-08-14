@@ -153,3 +153,7 @@ kitty-specs/**/mission-events.jsonl
 
 # Local credentials restored from a dropped stash (WP4 2026-07-02 incident) — never commit.
 .sofa/
+
+# Generated S1 conformance evidence and Windows UNC redirection residue.
+/support-contract-evidence.json
+/NUL
