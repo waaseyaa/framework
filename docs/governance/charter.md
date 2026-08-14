@@ -8,10 +8,10 @@ Generated: 2026-04-27T04:26:37Z; Last amended: 2026-06-17T16:30:00Z
 > this charter was relocated verbatim from `.kittify/charter/charter.md`. The
 > directives (DIR-*) and gate commitments below remain binding. References in the
 > body to Spec Kitty missions, work packages, and the implement-review loop
-> describe the retired process — substantive work now follows the design-first
-> flow in `docs/specs/workflow.md` (GitHub anchor issues, `#N`-traceable PRs).
-> Charter amendments follow that same flow: a PR editing this file, linked to an
-> anchor issue recording the rationale.
+> describe the retired process — substantive work now follows the
+> forge-neutral design-first flow in `docs/specs/workflow.md`. Charter
+> amendments bind a stable change record and exact review candidate; forge
+> links are optional mirrors.
 
 ## Testing Standards
 
@@ -20,11 +20,11 @@ Integration tests cover cross-package boundaries. Each subsystem provides
 in-memory implementations of its key interfaces so consuming packages can
 test against them without booting a real database or full kernel.
 
-CI testing matrix (mandatory): tests must run on PHP 8.5 across both
-Ubuntu LTS and Debian stable, with SQLite and PostgreSQL as mandatory
-database backends. MySQL is optional but encouraged. The full matrix is
-declared in the canonical CI template at
-`.github/workflows/ci-template.yml`. Flaky tests must be fixed at root
+The mandatory S1 matrix is PHP 8.5 on the declared Ubuntu 24.04 runner with
+SQLite `>=3.40 <4` and the exact topology in `support/s1-sqlite-v1.json`.
+PostgreSQL, MySQL, and MariaDB remain uncertified portability aspirations. A
+future expansion requires a separate profile contract and evidence. Flaky tests
+must be fixed at root
 cause; CI re-runs are capped at one retry. A test that needs repeated
 retries to pass is a charter violation, not an annoyance.
 
@@ -39,9 +39,8 @@ work package — no WP merges without its tests passing.
 
 - Mandatory before merge (all enforced by CI; any CI job failure blocks
 merge):
-  - Full PHPUnit suite green across the mandatory CI matrix (PHP 8.5 ×
-    Ubuntu/Debian × SQLite/Postgres). No skipped tests without
-    justification.
+  - Full PHPUnit suite green on the exact S1 runner and SQLite topology. No
+    skipped tests without justification.
   - PHPStan analysis clean against the committed baseline; new violations
     are fixed or explicitly added to the baseline with reviewer
     acknowledgement.
@@ -227,11 +226,11 @@ Integration tests cover cross-package boundaries. Each subsystem provides
 in-memory implementations of its key interfaces so consuming packages can
 test against them without booting a real database or full kernel.
 
-CI testing matrix (mandatory): tests must run on PHP 8.5 across both
-Ubuntu LTS and Debian stable, with SQLite and PostgreSQL as mandatory
-database backends. MySQL is optional but encouraged. The full matrix is
-declared in the canonical CI template at
-`.github/workflows/ci-template.yml`. Flaky tests must be fixed at root
+The mandatory S1 matrix is PHP 8.5 on the declared Ubuntu 24.04 runner with
+SQLite `>=3.40 <4` and the exact topology in `support/s1-sqlite-v1.json`.
+PostgreSQL, MySQL, and MariaDB remain uncertified portability aspirations. A
+future expansion requires a separate profile contract and evidence. Flaky tests
+must be fixed at root
 cause; CI re-runs are capped at one retry. A test that needs repeated
 retries to pass is a charter violation, not an annoyance.
 
@@ -243,9 +242,8 @@ work package — no WP merges without its tests passing.
 
 - Quality Gates: Mandatory before merge (all enforced by CI; any CI job failure blocks
 merge):
-  - Full PHPUnit suite green across the mandatory CI matrix (PHP 8.5 ×
-    Ubuntu/Debian × SQLite/Postgres). No skipped tests without
-    justification.
+  - Full PHPUnit suite green on the exact S1 runner and SQLite topology. No
+    skipped tests without justification.
   - PHPStan analysis clean against the committed baseline; new violations
     are fixed or explicitly added to the baseline with reviewer
     acknowledgement.
@@ -549,4 +547,3 @@ consecutive overdue cycles trigger maintainer review.
 Routine deviations from the charter (skipping a quality gate, breaking
 public API silently, etc.) are not exceptions — they are charter
 violations and the PR is rejected.
-

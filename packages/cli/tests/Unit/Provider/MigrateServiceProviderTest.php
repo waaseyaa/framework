@@ -48,4 +48,19 @@ final class MigrateServiceProviderTest extends TestCase
         self::assertIsCallable($bindings[MigrateRollbackHandler::class]['concrete']);
         self::assertIsCallable($bindings[MigrateStatusHandler::class]['concrete']);
     }
+
+    #[Test]
+    public function migrationRuntimeRejectsMemoryOutsideAnExplicitDevelopmentEnvironment(): void
+    {
+        $provider = new MigrateServiceProvider();
+        $provider->setKernelContext(sys_get_temp_dir(), [
+            'environment' => 'staging',
+            'database' => ':memory:',
+        ], []);
+        $provider->register();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('S1-DB002');
+        $provider->resolve(MigrateStatusHandler::class);
+    }
 }

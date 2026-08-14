@@ -6,6 +6,7 @@ namespace Waaseyaa\Foundation\Kernel\Bootstrap;
 
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Database\SqliteTopology;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
 
@@ -18,10 +19,14 @@ final class DatabaseBootstrapper
      */
     public function boot(string $projectRoot, array $config, ?LoggerInterface $logger = null): DatabaseInterface
     {
+        self::assertConfiguredPathShape($config);
         $path = $this->resolvePath($projectRoot, $config, $logger ?? new NullLogger());
+        // S1-DB002: production memory databases are refused before connection.
+        $environment = SqliteTopology::resolveEnvironment($config);
+        SqliteTopology::assertEnvironmentAllowsPath($path, $environment);
         $this->guardMissingProductionSqliteDatabase($path, $config);
 
-        return DBALDatabase::createSqlite($path);
+        return DBALDatabase::createSqlite($path, $environment);
     }
 
     /**
@@ -174,7 +179,7 @@ final class DatabaseBootstrapper
             return;
         }
 
-        if ($path === ':memory:' || file_exists($path)) {
+        if (file_exists($path)) {
             return;
         }
 
@@ -186,6 +191,21 @@ final class DatabaseBootstrapper
                 $path,
             ),
         );
+    }
+
+    /** @param array<string, mixed> $config */
+    public static function assertConfiguredPathShape(array $config): void
+    {
+        $configured = $config['database'] ?? null;
+        if (is_string($configured) && $configured !== '') {
+            SqliteTopology::assertSupportedPath($configured);
+            return;
+        }
+
+        $environmentPath = getenv('WAASEYAA_DB');
+        if (is_string($environmentPath) && $environmentPath !== '') {
+            SqliteTopology::assertSupportedPath($environmentPath);
+        }
     }
 
     private static function isAbsoluteOrMemory(string $path): bool
@@ -209,8 +229,6 @@ final class DatabaseBootstrapper
      */
     private function resolveEnvironment(array $config): string
     {
-        $env = $config['environment'] ?? getenv('APP_ENV') ?: 'production';
-
-        return is_string($env) && $env !== '' ? $env : 'production';
+        return SqliteTopology::resolveEnvironment($config);
     }
 }

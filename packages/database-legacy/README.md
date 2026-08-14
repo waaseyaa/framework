@@ -21,7 +21,12 @@ Despite the package directory being `database-legacy`, the PHP namespace is **`W
   the transaction finishes
 - `query()`, `quoteIdentifier()` — raw escape hatch + identifier quoting
 
-`DBALDatabase` is the concrete implementation. `DBALDatabase::createSqlite()` builds an in-memory SQLite instance for tests.
+`DBALDatabase` is the concrete implementation. `DBALDatabase::createSqlite()`
+is the common S1 connection boundary. It rejects DSN/URI and network-share path
+shapes, configures and verifies foreign keys plus a 5000 ms busy timeout on
+every connection, and additionally verifies WAL for file-backed databases. It
+builds an in-memory SQLite instance for development and tests; the production
+bootstrap refuses `:memory:`.
 
 ```php
 $db = DBALDatabase::createSqlite();           // in-memory, for tests

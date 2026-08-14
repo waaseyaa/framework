@@ -1,10 +1,15 @@
-# Workflow governance (anchor-issue + design-first)
+# Workflow governance (forge-neutral change record + design-first)
 
-<!-- Spec reviewed 2026-07-10 - Spec Kitty retirement: governance rewritten around GitHub anchor issues and the design-first flow. Spec Kitty (missions, work packages, .kittify/, spec-kitty CLI) is retired; its historical artifacts remain under kitty-specs/ and in git history. The project charter was relocated to docs/governance/charter.md. -->
+<!-- Spec reviewed 2026-08-12 - S1-FW-DB-01: workflow authority is forge-neutral. GitHub remains a current adapter and historical evidence locator; stable change records, exact Git objects, and signed evidence are portable authorities. -->
 
-**Planning and execution** for substantive work follow the **design-first flow**: brainstorm → design/spec in `docs/specs/` → written plan → TDD implementation → code review → verification. Multi-PR efforts are anchored by a **GitHub anchor issue** (e.g. CW-v1's #1920) that records scope, work-package breakdown, and descope decisions; every PR in the effort references it. **`docs/specs/`** remains the contract layer agents read from disk.
+**Planning and execution** for substantive work follow the **design-first flow**: brainstorm → design/spec in `docs/specs/` → written plan → TDD implementation → code review → verification. Multi-candidate efforts are anchored by a stable, repository-portable **change record** that records scope, work-package breakdown, and descope decisions; every review candidate references it. **`docs/specs/`** remains the contract layer agents read from disk.
 
-**GitHub** is the execution and visibility surface: issues (anchor issues, M11 governed-change filings), pull requests, Actions, releases, and security. CI and merge reality live on GitHub.
+GitHub is the current collaboration adapter: issues, pull requests, Actions,
+releases, and private reporting may mirror the portable records. Git history,
+signed evidence, exact dependency locks, content-addressed artifacts, and the
+independent deployment/key/recovery authorities remain usable without GitHub.
+No forge account, API, issue number, approval object, environment, or hosted
+artifact is a durable Waaseyaa authority.
 
 > **Spec Kitty is retired** (2026-07-06). Do not run `spec-kitty` commands or consult `.kittify/` state. Historical mission artifacts are preserved read-only under `kitty-specs/`; the charter formerly at `.kittify/charter/charter.md` now lives at [`docs/governance/charter.md`](../governance/charter.md).
 
@@ -47,7 +52,11 @@ The Waaseyaa Framework and Minoo (the flagship consumer app) version independent
 
 ## GitHub issues (optional)
 
-GitHub issues are not organized into Track milestones. A standalone issue (community visibility, Dependabot, M11 templates, or contributor preference) stands on its own — no enforced taxonomy or assignment is required. The **Framework Milestones** table above is the semantic capability narrative; **anchor issues** are the execution map for multi-PR efforts. The Track 1–5 GitHub milestones from earlier 2026 are retained on GitHub for historical context but are no longer load-bearing for workflow decisions.
+GitHub issues are not organized into Track milestones. A standalone issue
+(community visibility, Dependabot, templates, or contributor preference) stands
+on its own. The **Framework Milestones** table is the semantic capability
+narrative; versioned change records are the execution map. Historical GitHub
+milestones remain useful context but are not load-bearing workflow authority.
 
 **Dependabot and dependency PRs:** **Pull requests** that only bump dependencies may omit `(#N)` in the title when there is no tracking issue; if there is a chore or security issue, link it per rule #3.
 
@@ -80,17 +89,29 @@ GitHub issues are not organized into Track milestones. A standalone issue (commu
 
 The required `ci/unit-tests` context runs `CutoverFreshInstallSmokeTest` on a clean SQLite database through the real `db:init` path. The smoke must keep `schema:check` green, persist and render an import-derived bundle field from a separate HTTP process, and traverse a freshly-created relationship through SSR. Upgraded fixtures do not substitute for this fresh-install boundary.
 
-### 1. Substantive work begins with a design and an anchor issue
-Do not drive multi-step implementation from a blank prompt. Multi-PR efforts open a **GitHub anchor issue** recording intent, work-package breakdown, and decisions (descopes, deferrals land as issue comments), and follow the design-first flow: spec in `docs/specs/` first, then a written plan, then TDD implementation. **M11 governed-change** and similar templates keep the GitHub filing issue as the audit front door — link it from the anchor issue or PR body so traceability stays intact.
+### 1. Substantive work begins with a design and a stable change record
+Do not drive multi-step implementation from a blank prompt. Multi-candidate
+efforts create a versioned change record recording intent, work-package
+breakdown, decisions, descopes, and deferrals, then follow the design-first
+flow. A forge issue may mirror the record for discussion, but losing the forge
+must not lose the audit trail.
 
-### 2. GitHub issues are lightweight
-Not every change needs an issue — a single self-contained PR may stand alone if its body explains itself. When filed, issues are pure tracking — no enforced milestone or taxonomy. The **Framework milestones** table and narrative in this document describe **capability intent** (v1.x / v2.0); **anchor issues** are the execution map for multi-PR efforts.
+### 2. Forge issues are optional tracking mirrors
+Not every change needs a forge issue. When used, issues remain discovery and
+discussion surfaces and link the portable change-record identifier. The
+**Framework milestones** table describes capability intent; versioned change
+records are the durable execution map.
 
-### 3. PRs must be traceable
-Every PR must link **what it delivers**: `Closes #N` for a complete deliverable, `Part of #N` for one PR in an anchored effort, with `#N` in the title (e.g. `feat(#1920): …`). Use `.github/pull_request_template.md`. Dependency-only PRs may follow the Dependabot exception above.
+### 3. Review candidates must be traceable
+Every review candidate records what it delivers, its stable change-record ID,
+exact parent and candidate commits, and verification evidence. The GitHub
+adapter may additionally use `Closes #N`, `Part of #N`, and its pull-request
+template, but those locators do not replace the portable identity.
 
 ### 4. Read context before generating work
-At session start under an ongoing effort, read the anchor issue (including its comment trail — descopes and deferrals live there) and the relevant `docs/specs/` contracts before generating work.
+At session start under an ongoing effort, read the versioned change record,
+retained decision trail, and relevant `docs/specs/` contracts. Read the current
+forge mirror as supplemental context when it is available.
 
 ## Drift Detection
 
@@ -161,7 +182,12 @@ splits create no staging or production environment record.
 
 The push must use the `SPLIT_GITHUB_TOKEN` PAT, not the default `GITHUB_TOKEN`, because tag pushes by `GITHUB_TOKEN` do **not** trigger downstream workflows — and `split.yml` + `packagist-update.yml` are exactly what we need to fire.
 
-**Local gate runs are advisory only.** Pre-cut checks that matter run Linux-side in CI; a green local run (especially on Windows) proves nothing about the release — Windows masked both the `packages/`-scoped grep miss and platform-conditional test failures during the alpha.200–202 cuts, and local git hooks may not even be installed (`core.hooksPath` is unset on fresh clones). Never treat a local `composer verify`/phpunit pass as authorization to cut; the Actions API is the authority, and `bin/wait-for-green-ci` is how every release path consults it.
+**A run location is not an authority.** Release evidence must come from the
+declared Linux runner profile and bind the exact candidate, commands, inputs,
+and results. A Windows-only pass does not satisfy that profile, and an opaque
+hosted green check does not satisfy it without the evidence record. The current
+GitHub adapter uses `bin/wait-for-green-ci`; a replacement adapter must enforce
+the same machine contract without consulting GitHub.
 
 The legacy `scripts/release.sh` local-release script has been **removed** (alpha.234) — the `Cut Release` workflow is the only supported path. It could not CI-prove the exact release commit the way the workflow's gate branch does (it only enforced Gate 1 on the base via `bin/wait-for-green-ci`), and a local cut on Windows was an active footgun. There is no local fallback: cut releases through CI.
 
@@ -183,4 +209,4 @@ Failure format is machine- and human-readable, including:
 - current value
 - expected value
 
-The top-level M11 post-execution governance baseline is [m11-post-execution-governance-bootstrap.md](./m11-post-execution-governance-bootstrap.md). Governed changes enter that loop through [the governed-change issue template](../../.github/ISSUE_TEMPLATE/m11-governed-change.md) (GitHub as **audit front door**); link the filing issue from the anchor issue or PR when both exist. This workflow spec is the repo-local backlink to that artifact. The operating loop itself is [m11-steady-state-conformance-loop.md](./m11-steady-state-conformance-loop.md), and steady-state drift scans and C17+ logging use [m11-periodic-drift-scan-protocol.md](./m11-periodic-drift-scan-protocol.md) and the [M11 drift-scan log issue template](../../.github/ISSUE_TEMPLATE/m11-drift-scan-log.md).
+The top-level M11 post-execution governance baseline is [m11-post-execution-governance-bootstrap.md](./m11-post-execution-governance-bootstrap.md). Governed changes enter that loop through a versioned change record. The current [governed-change issue template](../../.github/ISSUE_TEMPLATE/m11-governed-change.md) may mirror the record for GitHub users but is not the audit front door. The operating loop itself is [m11-steady-state-conformance-loop.md](./m11-steady-state-conformance-loop.md), and steady-state drift scans and C17+ logging use [m11-periodic-drift-scan-protocol.md](./m11-periodic-drift-scan-protocol.md) and the optional [M11 drift-scan log issue template](../../.github/ISSUE_TEMPLATE/m11-drift-scan-log.md).

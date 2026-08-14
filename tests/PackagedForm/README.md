@@ -20,3 +20,14 @@ Rules:
   kernel-path round-trip.
 - Do not add named kernel subclasses under `tests/**`; the fixture harness
   must use the anonymous-subclass + `publicBoot()` pattern.
+
+`check-s1-sqlite-artifact` covers a separate boundary: it seals the exact
+candidate `waaseyaa/database-legacy` package, installs the archive into an
+isolated consumer `vendor` directory without a path repository, and runs the
+S1 SQLite runtime probe from those installed bytes. It is intentionally
+offline-capable; the consumer supplies the already locked third-party runtime
+dependencies but no Waaseyaa source autoloader. The proof rejects lock versus
+installed-metadata drift, binds exact Doctrine/PSR versions and source/dist
+references, compares recursive source/copy byte digests, and requires the
+resulting canonical dependency manifest to equal the reviewed
+`support/s1-sqlite-dependency-bytes.json` authority.

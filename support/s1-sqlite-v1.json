@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "contract_version": "s1-sqlite-v1",
+  "profile": "S1",
+  "authority": {
+    "application_nodes": 1,
+    "engine": "sqlite",
+    "authoritative_database_files": 1,
+    "filesystem": "local-non-network",
+    "consumer_filesystem": "ext4"
+  },
+  "connection": {
+    "foreign_keys": true,
+    "journal_mode": "wal",
+    "busy_timeout_ms": 5000,
+    "verify_effective_pragmas": true
+  },
+  "optional_search_projection": {
+    "maximum_files": 1,
+    "engine": "sqlite",
+    "authoritative": false,
+    "must_be_rebuildable": true,
+    "inherits_connection_contract": true
+  },
+  "environment": {
+    "in_memory_allowed": [
+      "local",
+      "dev",
+      "development",
+      "testing"
+    ],
+    "in_memory_refused": [
+      "all-other-environments"
+    ]
+  },
+  "refused": {
+    "dsn_or_uri_shaped_paths": true,
+    "unc_or_device_paths": true,
+    "alternate_databases": [
+      "mysql",
+      "mariadb",
+      "postgresql"
+    ],
+    "filesystems": [
+      "nfs",
+      "smb",
+      "object-mounted",
+      "clustered"
+    ],
+    "topologies": [
+      "horizontal-application-scaling",
+      "replication",
+      "database-failover",
+      "H1"
+    ]
+  },
+  "diagnostics": {
+    "invalid_path": "S1-DB001",
+    "production_memory": "S1-DB002",
+    "pragma_mismatch": "S1-DB003"
+  },
+  "verification": {
+    "repository_command": "php bin/check-s1-sqlite-contract",
+    "ci_command": "php bin/check-s1-sqlite-contract --ci",
+    "construction_roster": "support/s1-sqlite-construction-roster.json",
+    "installed_artifact_command": "tests/PackagedForm/check-s1-sqlite-artifact",
+    "artifact_uses_path_repository": false,
+    "artifact_binds_dependency_bytes": true,
+    "forge_is_authority": false
+  }
+}

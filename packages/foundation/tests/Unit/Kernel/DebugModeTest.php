@@ -201,7 +201,9 @@ final class DebugModeTest extends TestCase
     {
         putenv('APP_ENV=production');
         putenv('WAASEYAA_APP_SECRET=base64:' . base64_encode(str_repeat('p', 32)));
-        $this->writeConfig();
+        $databasePath = $this->projectRoot . '/storage/production.sqlite';
+        touch($databasePath);
+        $this->writeConfig(['database' => $databasePath]);
         $kernel = new class($this->projectRoot) extends AbstractKernel {
             public function publicBoot(): void { $this->boot(); }
             public function debugMode(): bool { return $this->isDebugMode(); }

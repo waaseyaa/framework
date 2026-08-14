@@ -6,16 +6,17 @@ namespace Waaseyaa\Database\Tests\Unit;
 
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\TransactionIsolationLevel;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\ConsistentReadDatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Database\DeleteInterface;
 use Waaseyaa\Database\InsertInterface;
 use Waaseyaa\Database\SchemaInterface;
 use Waaseyaa\Database\SelectInterface;
+use Waaseyaa\Database\SqliteTopology;
 use Waaseyaa\Database\TransactionInterface;
 use Waaseyaa\Database\UpdateInterface;
-use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\TestCase;
 
 #[CoversClass(DBALDatabase::class)]
 final class DBALDatabaseTest extends TestCase
@@ -51,6 +52,70 @@ final class DBALDatabaseTest extends TestCase
                 $this->fail('A new SQLite connection accepted an orphaned foreign key.');
             } catch (\Doctrine\DBAL\Exception\ForeignKeyConstraintViolationException) {
                 $this->addToAssertionCount(1);
+            }
+        }
+    }
+
+    public function testFileConnectionUsesTheVerifiedS1Pragmas(): void
+    {
+        $path = sys_get_temp_dir() . '/waaseyaa-s1-' . bin2hex(random_bytes(8)) . '.sqlite';
+
+        try {
+            $connection = DBALDatabase::createSqlite($path)->getConnection();
+
+            $this->assertSame(1, (int) $connection->fetchOne('PRAGMA foreign_keys'));
+            $this->assertSame('wal', strtolower((string) $connection->fetchOne('PRAGMA journal_mode')));
+            $this->assertSame(5000, (int) $connection->fetchOne('PRAGMA busy_timeout'));
+        } finally {
+            foreach ([$path, $path . '-wal', $path . '-shm'] as $candidate) {
+                if (is_file($candidate)) {
+                    unlink($candidate);
+                }
+            }
+        }
+    }
+
+    public function testDsnAndNetworkSharePathsFailWithTheStableS1Diagnostic(): void
+    {
+        foreach (['mysql:waaseyaa', 'postgresql://db/waaseyaa', 'sqlite:/tmp/waaseyaa', '\\\\server\\share\\waaseyaa.sqlite', '//server/share/waaseyaa.sqlite'] as $path) {
+            try {
+                DBALDatabase::createSqlite($path);
+                $this->fail("Unsupported SQLite path was accepted: {$path}");
+            } catch (\RuntimeException $exception) {
+                $this->assertStringContainsString('S1-DB001', $exception->getMessage());
+            }
+        }
+    }
+
+    public function testEveryEffectivePragmaDriftFailsWithTheStableS1Diagnostic(): void
+    {
+        $mutations = [
+            'foreign_keys' => 'PRAGMA foreign_keys = OFF',
+            'journal_mode' => 'PRAGMA journal_mode = DELETE',
+            'busy_timeout' => 'PRAGMA busy_timeout = 1',
+        ];
+
+        foreach ($mutations as $name => $mutation) {
+            $path = sys_get_temp_dir() . '/waaseyaa-s1-drift-' . bin2hex(random_bytes(8)) . '.sqlite';
+
+            try {
+                $connection = DBALDatabase::createSqlite($path)->getConnection();
+                $connection->executeStatement($mutation);
+
+                try {
+                    SqliteTopology::assertEffectivePragmas($connection, fileBacked: true);
+                    $this->fail("{$name} drift was accepted.");
+                } catch (\RuntimeException $exception) {
+                    $this->assertStringContainsString('S1-DB003', $exception->getMessage());
+                    $this->assertStringContainsString($name, $exception->getMessage());
+                }
+            } finally {
+                $connection = null;
+                foreach ([$path, $path . '-wal', $path . '-shm'] as $candidate) {
+                    if (is_file($candidate)) {
+                        unlink($candidate);
+                    }
+                }
             }
         }
     }
@@ -109,6 +174,46 @@ final class DBALDatabaseTest extends TestCase
         $this->assertSame(TransactionIsolationLevel::REPEATABLE_READ, $connection->getTransactionIsolation());
         $transaction->commit();
         $this->assertSame($before, $connection->getTransactionIsolation());
+    }
+
+    public function testPhysicalReconnectReappliesAndVerifiesTheS1Pragmas(): void
+    {
+        $path = sys_get_temp_dir() . '/waaseyaa-reconnect-' . bin2hex(random_bytes(6)) . '.sqlite';
+        $database = DBALDatabase::createSqlite($path);
+        $connection = $database->getConnection();
+
+        try {
+            $connection->close();
+            $connection->executeQuery('SELECT 1')->fetchOne();
+
+            $this->assertSame(1, (int) $connection->fetchOne('PRAGMA foreign_keys'));
+            $this->assertSame(5000, (int) $connection->fetchOne('PRAGMA busy_timeout'));
+            $this->assertSame('wal', strtolower((string) $connection->fetchOne('PRAGMA journal_mode')));
+        } finally {
+            $connection->close();
+            foreach ([$path, $path . '-wal', $path . '-shm'] as $candidate) {
+                if (is_file($candidate)) {
+                    unlink($candidate);
+                }
+            }
+        }
+    }
+
+    public function testMemoryIsAllowedOnlyForExplicitDevelopmentAndTestEnvironments(): void
+    {
+        foreach (['local', 'dev', 'development', 'testing', 'LOCAL', 'Testing'] as $environment) {
+            $database = DBALDatabase::createSqlite(':memory:', $environment);
+            $this->assertSame(1, (int) $database->getConnection()->fetchOne('PRAGMA foreign_keys'));
+        }
+
+        foreach (['production', 'prod', 'staging', 'stage', 'producton', '', 'unknown'] as $environment) {
+            try {
+                DBALDatabase::createSqlite(':memory:', $environment);
+                $this->fail("{$environment} unexpectedly accepted an in-memory database.");
+            } catch (\RuntimeException $exception) {
+                $this->assertStringContainsString('S1-DB002', $exception->getMessage());
+            }
+        }
     }
 
     public function testQueryExecutesRawSql(): void

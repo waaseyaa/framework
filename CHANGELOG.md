@@ -41,6 +41,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **explicit S1 SQLite topology (`S1-FW-DB-01`):** Define the one-node,
+  one-authoritative-file SQLite contract, bounded connection invariants,
+  optional rebuildable search projection, stable refusal diagnostics, and
+  forge-neutral verification authority; enforce the path and effective-PRAGMA
+  boundary in runtime code and on every physical reconnect, fail closed for
+  in-memory databases outside explicitly named development/test environments,
+  cover kernel/search/database CLI entry points, and prove it again from an
+  exact-tree deterministic installed package artifact without a source path
+  repository. Bind every repository SQLite construction occurrence and the
+  isolated artifact's exact lock-resolved dependency identities and bytes.
+
 - Expose governed cross-region block movement and complete section selection,
   reordering, layout change, duplication, and guarded removal in the shared
   Admin SPA page-builder workspace used by Anokii, with accessible destructive

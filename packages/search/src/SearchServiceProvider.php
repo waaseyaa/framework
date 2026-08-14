@@ -9,7 +9,9 @@ use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Database\SqliteTopology;
 use Waaseyaa\Entity\EntityTypeManagerInterface;
+use Waaseyaa\Foundation\Kernel\Bootstrap\DatabaseBootstrapper;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Search\Access\EntitySearchCandidateResolver;
 use Waaseyaa\Search\EventSubscriber\SearchIndexSubscriber;
@@ -140,9 +142,26 @@ final class SearchServiceProvider extends ServiceProvider
         }
 
         $searchDb = $this->config['search']['database'] ?? null;
+        $environment = SqliteTopology::resolveEnvironment($this->config);
+        if ($searchDb !== null && !is_string($searchDb)) {
+            throw new \RuntimeException('S1-DB001: Search database must be a local SQLite path string.');
+        }
+        if (is_string($searchDb)) {
+            SqliteTopology::assertEnvironmentAllowsPath($searchDb, $environment);
+            $searchDb = DatabaseBootstrapper::absolutize($searchDb, $this->projectRoot);
+            $directory = dirname($searchDb);
+            if ($searchDb !== ':memory:' && !is_dir($directory)
+                && !@mkdir($directory, 0o755, recursive: true) && !is_dir($directory)
+            ) {
+                throw new \RuntimeException(sprintf(
+                    'Failed to create the search projection directory "%s".',
+                    $directory,
+                ));
+            }
+        }
 
         $this->searchDatabase = $searchDb !== null
-            ? DBALDatabase::createSqlite($searchDb)
+            ? DBALDatabase::createSqlite($searchDb, $environment)
             : $this->resolve(DatabaseInterface::class);
 
         return $this->searchDatabase;

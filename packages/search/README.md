@@ -145,6 +145,13 @@ final class AppSearchProvider extends ServiceProvider implements ProvidesEntityS
 
 ## Protected index trust boundary
 
+Under the [S1 SQLite topology](../../docs/specs/s1-sqlite-topology.md), a
+separately configured search database is an optional, non-authoritative,
+rebuildable projection. It inherits the authoritative connection's path and
+PRAGMA refusal contract. Its file is protected and backed up until a verified
+`search:reindex` can deterministically rebuild it; it never becomes content
+authority merely because canonical content has not yet been reloaded.
+
 `search_index` and `search_metadata` are a protected, derived datastore, not a
 public content cache. An application-supplied search projection can contain
 protected titles, bodies, URLs, topics, or other metadata, so the index inherits

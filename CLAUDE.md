@@ -178,14 +178,14 @@ framework-vs-distribution boundary is codified in charter directive DIR-004.
 
 ## Workflow (anchor-issue + design-first)
 
-Substantive work follows the **design-first flow** — brainstorm → spec in `docs/specs/` → written plan → TDD implementation → code review → verification — anchored by a **GitHub anchor issue** for multi-PR efforts (e.g. CW-v1's #1920). **GitHub** is the PR/CI/releases surface. Full rules: `docs/specs/workflow.md` (versioning, PR traceability). Spec Kitty is retired (2026-07-06); do not run `spec-kitty` commands — historical mission artifacts live read-only under `kitty-specs/`, and the charter is at `docs/governance/charter.md`.
+Substantive work follows the **design-first flow** — brainstorm → spec in `docs/specs/` → written plan → TDD implementation → code review → verification — anchored by a stable, repository-portable change record for multi-candidate efforts. GitHub is the current review/CI/release adapter, never the authority. Full rules: `docs/specs/workflow.md`. Spec Kitty is retired (2026-07-06); do not run `spec-kitty` commands — historical mission artifacts live read-only under `kitty-specs/`, and the charter is at `docs/governance/charter.md`.
 
 **The 4 rules (summary — see `docs/specs/workflow.md` for nuance):**
 
-1. **Substantive work begins with a design and an anchor issue** — spec first, plan, then TDD; multi-PR efforts get an anchor issue recording scope and decisions. M11 filings may still require a GitHub issue as the audit front door (link it).
-2. **GitHub issues are lightweight** — not every change needs one. When filed, they're pure tracking with no enforced milestone or taxonomy. Anchor issues are the execution map for multi-PR efforts.
-3. **PRs must be traceable** — `Closes #N` / `Part of #N` plus `#N` in the title, per `docs/specs/workflow.md` and `.github/pull_request_template.md`.
-4. **Session context** — under an ongoing effort, read the anchor issue (including its comment trail) and the relevant specs before generating work.
+1. **Substantive work begins with a design and stable change record** — spec first, plan, then TDD; multi-candidate efforts record scope and decisions in versioned repository evidence.
+2. **Forge issues are lightweight mirrors** — not every change needs one, and no issue number is a durable identity or audit authority.
+3. **Review candidates must be traceable** — bind the portable change-record ID, exact parent/candidate commits, and verification evidence. A forge adapter may add its native links.
+4. **Session context** — read the change record, retained decision trail, relevant specs, and any available forge mirror before generating work.
 
 ### Commit & PR hygiene (imperative)
 

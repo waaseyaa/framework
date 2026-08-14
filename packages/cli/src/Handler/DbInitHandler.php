@@ -6,6 +6,7 @@ namespace Waaseyaa\CLI\Handler;
 
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Database\SqliteTopology;
 use Waaseyaa\EntityStorage\EntitySchemaSyncRunner;
 use Waaseyaa\Foundation\Discovery\PackageManifestCompiler;
 use Waaseyaa\Foundation\Kernel\Bootstrap\DatabaseBootstrapper;
@@ -39,7 +40,10 @@ final class DbInitHandler
 
         EnvLoader::load($this->projectRoot . '/.env');
         $config = $this->loadConfig();
+        DatabaseBootstrapper::assertConfiguredPathShape($config);
         $dbPath = $this->resolveDatabasePath($config);
+        $environment = SqliteTopology::resolveEnvironment($config);
+        SqliteTopology::assertEnvironmentAllowsPath($dbPath, $environment);
 
         if ($dryRun) {
             return $this->reportDryRun($dbPath, $io);
@@ -65,7 +69,7 @@ final class DbInitHandler
                 $io->writeln(sprintf('Database already present at %s.', $dbPath));
             }
 
-            $database = DBALDatabase::createSqlite($dbPath);
+            $database = DBALDatabase::createSqlite($dbPath, $environment);
             $connection = $database->getConnection();
 
             if (!$fresh && !$this->looksWaaseyaaInitialized($connection)) {
@@ -221,7 +225,7 @@ final class DbInitHandler
         }
 
         try {
-            $database = DBALDatabase::createSqlite($dbPath);
+            $database = DBALDatabase::createSqlite($dbPath, SqliteTopology::resolveEnvironment($this->loadConfig()));
             $connection = $database->getConnection();
         } catch (\Throwable $e) {
             $io->error(sprintf('Cannot open existing database: %s', $e->getMessage()));
