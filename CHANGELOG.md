@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Reconcile the Stage 0/1 authority gates with the accepted fresh-site source:
+  classify generated subscription migrations, refresh exact schema/SQLite
+  rosters and dependency bytes, and keep the reference-consumer CI job on a
+  fixed runner with an immutable checkout action.
+
 - Build the #2343 reference consumer from an exact tracked Git archive before
   Composer mirrors framework packages, preventing untracked workspace files or
   nested dependency symlinks from entering provider-neutral acceptance proof.
