@@ -75,6 +75,29 @@ final class DBALDatabaseTest extends TestCase
         }
     }
 
+    public function testEveryReconnectRestoresTheServingBusyTimeout(): void
+    {
+        $path = sys_get_temp_dir() . '/waaseyaa-s1-reconnect-' . bin2hex(random_bytes(8)) . '.sqlite';
+
+        try {
+            $first = DBALDatabase::createSqlite($path)->getConnection();
+            $first->executeStatement('PRAGMA busy_timeout = 1');
+            $this->assertSame(1, (int) $first->fetchOne('PRAGMA busy_timeout'));
+            $first->close();
+
+            $second = DBALDatabase::createSqlite($path)->getConnection();
+            $this->assertSame(5000, (int) $second->fetchOne('PRAGMA busy_timeout'));
+            SqliteTopology::assertEffectivePragmas($second, fileBacked: true);
+        } finally {
+            $first = $second = null;
+            foreach ([$path, $path . '-wal', $path . '-shm'] as $candidate) {
+                if (is_file($candidate)) {
+                    unlink($candidate);
+                }
+            }
+        }
+    }
+
     public function testDsnAndNetworkSharePathsFailWithTheStableS1Diagnostic(): void
     {
         foreach (['mysql:waaseyaa', 'postgresql://db/waaseyaa', 'sqlite:/tmp/waaseyaa', '\\\\server\\share\\waaseyaa.sqlite', '//server/share/waaseyaa.sqlite'] as $path) {
