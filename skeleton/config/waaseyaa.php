@@ -46,8 +46,13 @@ return [
     // Set an explicit path here to override both.
     'database' => null,
 
-    // Config sync directory. Override with WAASEYAA_CONFIG_DIR env var.
-    'config_dir' => getenv('WAASEYAA_CONFIG_DIR') ?: __DIR__ . '/sync',
+    // Desired-state configuration bundle. Runtime reads the active database
+    // generation, never this directory. Override only with the canonical
+    // WAASEYAA_CONFIG_SYNC_PATH bootstrap selector.
+    'config' => [
+        'sync_path' => null,
+        'allow_external_sync_path' => false,
+    ],
 
     // File storage root for LocalFileRepository (media package).
     'files_dir' => getenv('WAASEYAA_FILES_DIR') ?: __DIR__ . '/../storage/files',

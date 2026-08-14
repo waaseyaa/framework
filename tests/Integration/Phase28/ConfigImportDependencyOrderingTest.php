@@ -57,6 +57,7 @@ final class ConfigImportDependencyOrderingTest extends TestCase
         $importer = new ConfigImporter(
             repository: $repository,
             applyHook: $recorder,
+            preflight: new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight(),
         );
 
         $result = $importer->import();
@@ -91,10 +92,10 @@ final class ConfigImportDependencyOrderingTest extends TestCase
         }
 
         $firstRun = new RecordingApplyHook();
-        new ConfigImporter(repository: $repository, applyHook: $firstRun)->import();
+        new ConfigImporter(repository: $repository, applyHook: $firstRun, preflight: new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight())->import();
 
         $secondRun = new RecordingApplyHook();
-        new ConfigImporter(repository: $repository, applyHook: $secondRun)->import();
+        new ConfigImporter(repository: $repository, applyHook: $secondRun, preflight: new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight())->import();
 
         self::assertSame(
             $firstRun->applied,
@@ -127,6 +128,7 @@ final class ConfigImportDependencyOrderingTest extends TestCase
         $importer = new ConfigImporter(
             repository: $repository,
             applyHook: $recorder,
+            preflight: new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight(),
         );
 
         $result = $importer->import(activeRefs: ['role.admin']);
@@ -172,6 +174,7 @@ final class ConfigImportDependencyOrderingTest extends TestCase
         $importer = new ConfigImporter(
             repository: $repository,
             applyHook: $recorder,
+            preflight: new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight(),
         );
 
         $importer->import();

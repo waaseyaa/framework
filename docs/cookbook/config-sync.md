@@ -17,9 +17,10 @@ This guide walks the end-to-end CMI workflow:
 6. **Per-environment overrides** — the load-bearing pattern operators must
    internalise.
 
-By the end you'll have a `storage/config-sync/` directory you can commit to
-git, a CI gate that validates sync files before deploy, and confidence that a
-broken `config:import` can be unwound to a known-good state.
+By the end you'll have a versioned `storage/config-sync/` desired-state bundle,
+a provider-neutral CI gate that validates it before promotion, and a
+deterministic path back to a known-good bundle. Git commands appear only as one
+example; Waaseyaa requires no forge or source-hosting provider.
 
 ---
 
@@ -51,8 +52,8 @@ server) to refresh attribute discovery.
 ## Step 2 — Choose the sync-store location
 
 The default is `storage/config-sync/` resolved relative to the project root.
-You almost always want this committed to git so your team shares the same
-canonical configuration.
+Preserve this directory in your chosen source-control or immutable artifact
+system so the team shares one reviewed desired state.
 
 `config/waaseyaa.php`:
 
@@ -66,7 +67,7 @@ return [
 ];
 ```
 
-Add the directory to your repository:
+For a Git-based project, one possible setup is:
 
 ```bash
 mkdir -p storage/config-sync
@@ -74,9 +75,9 @@ git add storage/config-sync/.gitkeep
 git commit -m "chore: add config sync store"
 ```
 
-> **Why git-track it?** The sync store is your declarative source of truth.
-> A diff in `storage/config-sync/role.editor.yml` becomes a reviewable PR;
-> the matching `config:import` after deploy promotes it to the active store.
+> **Why version it?** The sync store is reviewed desired state. A change to
+> `storage/config-sync/role.editor.yml` can be reviewed in any VCS or artifact
+> workflow; the matching guarded import promotes it to the active generation.
 
 ---
 
@@ -104,8 +105,8 @@ storage/config-sync/
 
 Useful flags:
 
-- `--diff` — write only files whose content would change (preserves git's
-  mtime-aware diffing).
+- `--diff` — write only files whose content would change (preserves stable,
+  low-noise diffs in any versioning system).
 - `--dry-run` — preview the writes without touching the filesystem.
 
 The output format is stable; CI consumers can grep for the summary line.
@@ -171,23 +172,24 @@ bin/waaseyaa config:validate
 # Exit: 1
 ```
 
-Wire this into CI as a deploy gate:
+Run the same command in any CI or build system as a preflight gate:
 
-```yaml
-# .github/workflows/deploy.yml
-- name: Validate config sync store
-  run: bin/waaseyaa config:validate
+```bash
+bin/waaseyaa config:validate
 ```
 
 A failed validate blocks the import. Don't let bad YAML reach staging.
 
 ---
 
-## Step 6 — Import (the deploy step)
+## Step 6 — Import (successor-gated)
 
 `config:import` walks the dependency graph (declared via
-`ConfigDependencyInterface::configDependencies()`) and applies entities in
-topological order. Each entity import is its own DB transaction.
+`ConfigDependencyInterface::configDependencies()`) and computes the intended
+change set. In explicit test profiles the legacy apply hook can exercise that
+path. Production import is deliberately refused until CFG-02 installs atomic
+generation activation and CFG-03 installs schema, manifest, compatibility, and
+drift authorization.
 
 Dry run on staging first:
 
@@ -199,7 +201,8 @@ bin/waaseyaa config:import --dry-run
 # 3 entities would change.
 ```
 
-Apply for real:
+After those successor gates are installed and authorize the exact bundle, the
+same command applies it:
 
 ```bash
 bin/waaseyaa config:import
@@ -214,9 +217,9 @@ bin/waaseyaa config:import
 | Flag | Default | Use |
 |---|---|---|
 | `--dry-run` | off | Preview without writes; safe to run anywhere. |
-| `--delete-orphans` | off | Active-store entities with no matching sync file are deleted. Default is **warn-only** (see below). |
-| `--halt-on-error` | off | Stop at the first per-entity failure. Default is to log and continue. |
-| `--no-dependency-check` | off | **Emergency bypass.** Skip cycle + missing-dep detection. Use only when recovering from a broken state; every invocation is logged to `config.audit` at `warning` level. |
+| `--delete-orphans` | off | Include active-only entities as deletions in the guarded staged generation. Default is **warn-only** (see below). |
+| `--halt-on-error` | off | Test-adapter compatibility option; production generation activation is all-or-nothing. |
+| `--no-dependency-check` | off | Skip cycle + missing-dependency analysis only. It never bypasses schema, manifest, drift, activation, or authority gates; every invocation is logged to `config.audit` at `warning` level. |
 
 ### Orphan handling
 
@@ -267,7 +270,7 @@ reviews can replay manual interventions.
 
 When two developers edit the same entity in parallel, the sync-store YAML
 file conflicts the same way any source file would. Resolve the YAML conflict
-in git, then run:
+in your version-control or artifact workflow, then run:
 
 ```bash
 bin/waaseyaa config:validate     # confirm the merged YAML parses + validates
@@ -290,9 +293,10 @@ If a `config:import` partially applied and you need to back out:
 
 1. **Identify the broken entities.** Read the per-entity error messages from
    the failed run (logged to `config.audit`).
-2. **Restore prior YAML.** `git checkout HEAD~1 -- storage/config-sync/` (or
-   any known-good commit). The active store still contains the partial writes;
-   you're restoring the *sync store* to the last good intent.
+2. **Restore prior YAML.** Materialize a verified prior bundle from your
+   version-control or artifact system (for Git, for example,
+   `git checkout HEAD~1 -- storage/config-sync/`). The active store still
+   contains the partial writes; you are restoring desired intent.
 3. **Re-apply.** `bin/waaseyaa config:import`. Per-entity transactions mean
    each entity rolls back independently on failure, so re-applying is
    idempotent.
@@ -310,133 +314,96 @@ normal imports.**
 
 ---
 
-## §10 — Per-environment overrides (the load-bearing pattern)
+## §10 — Environment boundaries and secret references
 
-CMI does **not** ship runtime config overrides (Drupal `$config['x']['y']`
-style). When you need a value that differs between dev / staging / production
-— a feature flag, an API endpoint, a debug toggle — **use env vars consumed
-inside `config/waaseyaa.php`**, NOT per-environment sync-store overrides.
+CMI does **not** permit environment variables to override deployable active
+configuration. Feature flags, workflow settings, endpoints, roles, menus, and
+other application behavior belong in the reviewed sync bundle and become part
+of one activated SQLite generation. This keeps the active generation complete,
+hashable, and explainable.
 
-Why: the sync store is your single declarative source of truth. Per-env sync
-stores fragment the source of truth and re-introduce every problem CMI was
-built to solve (drift, manual reconciliation, accidental promotion of
-env-specific values).
+The bootstrap environment allowlist is narrower. It may select environment
+identity, database location, the sync-artifact path, and opaque secret
+references. It never carries deployable values into the active store. A
+credential-shaped field in a sync artifact must name a reference, not contain
+secret bytes:
 
-### The pattern
-
-`config/waaseyaa.php`:
-
-```php
-return [
-    'feature_x' => [
-        // Boolean — defaults to false in production-shaped environments.
-        'enabled' => (bool) ($_ENV['FEATURE_X_ENABLED'] ?? false),
-
-        // Integer — coerce explicitly so a stray "100\n" doesn't break math.
-        'budget' => (int) ($_ENV['FEATURE_X_BUDGET'] ?? 100),
-
-        // String list — split on comma; trim whitespace.
-        'allowed_emails' => array_filter(array_map(
-            'trim',
-            explode(',', $_ENV['FEATURE_X_ALLOWED_EMAILS'] ?? '')
-        )),
-    ],
-
-    'database' => [
-        // Connection string never goes in the sync store.
-        'url' => $_ENV['DATABASE_URL'] ?? 'sqlite://./storage/waaseyaa.sqlite',
-    ],
-];
+```yaml
+_meta:
+  entity_type: integration
+  uuid: 0193abc...
+  dependencies: []
+  langcode: en
+id: mail_provider
+endpoint: https://api.example.invalid
+api_key_env_var: SENDGRID_API_KEY
 ```
 
-Environment files (`.env.production`, `.env.staging`, `.env.local`):
-
-```bash
-# .env.staging
-FEATURE_X_ENABLED=true
-FEATURE_X_BUDGET=500
-
-# .env.production
-# FEATURE_X_ENABLED unset — defaults to false
-```
-
-Now `feature_x.enabled` is `true` in staging, `false` in production, and the
-sync store is **identical** in both. Promotions touch zero values per
-environment.
+CFG-04 resolves `SENDGRID_API_KEY` through configured custody without exporting
+its value into YAML, SQLite generations, manifests, logs, or evidence. A field
+named `api_key` is refused; an explicitly typed reference such as
+`api_key_env_var` is allowed.
 
 ### What goes where
 
-| Value type | Sync store | `config/waaseyaa.php` (env-driven) |
+| Value type | Active generation / sync artifact | Bootstrap or custody |
 |---|---|---|
-| Roles, permissions, menus, taxonomies | ✅ | — |
-| Workflow states, content types, field bundles | ✅ | — |
-| Feature flags (enabled in some envs, off in others) | — | ✅ |
-| API endpoints / external service URLs | — | ✅ |
-| Database / cache / queue connection strings | — | ✅ |
-| Secrets (API keys, OAuth client secrets) | **NEVER** — see [`docs/specs/security-defaults.md`](../specs/security-defaults.md) | ✅ via env vars |
-| Debug toggles | — | ✅ (`APP_DEBUG`) |
-| Caching strategy, log level | — | ✅ |
+| Roles, permissions, menus, taxonomies | Yes | — |
+| Workflow states, content types, field bundles | Yes | — |
+| Feature flags and external endpoints | Yes | — |
+| Database location and environment identity | — | Bootstrap |
+| Sync-artifact path | — | Bootstrap |
+| Secret reference identifier | Reference only | Bootstrap/custody mapping |
+| Secret bytes, private keys, access tokens | Never | CFG-04 custody only |
+| Debug posture | — | Bootstrap (`APP_DEBUG`, development profiles only) |
 
-If you find yourself wanting to export a different sync-store snapshot for
-each environment, stop and reach for env vars. The friction is the design.
+If staging and production intentionally need different deployable behavior,
+promote and activate distinct reviewed generations. Do not hide the difference
+in a runtime environment overlay.
 
 ---
 
-## §11 — CI gate recipe
+## §11 — Provider-neutral CI gate recipe
 
-Wire the validator and the diff check into your deploy pipeline:
+Any CI, build runner, or local release process can execute the same shell gate;
+Waaseyaa does not require GitHub Actions or any other hosted forge:
 
-```yaml
-# .github/workflows/deploy.yml
-jobs:
-  validate-config:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: shivammathur/setup-php@v2
-        with: { php-version: '8.5' }
-      - run: composer install --prefer-dist --no-progress
-      - name: Validate sync store YAML
-        run: bin/waaseyaa config:validate
-      - name: Confirm no unintended drift from main
-        run: |
-          bin/waaseyaa config:status --format=json > status.json
-          if [ "$(jq '.drift' status.json)" != "0" ]; then
-            echo "::error::Unintended config drift detected"
-            cat status.json
-            exit 1
-          fi
+```bash
+set -eu
 
-  deploy-staging:
-    needs: validate-config
-    runs-on: ubuntu-latest
-    steps:
-      - # … deploy app code …
-      - name: Apply config sync
-        run: bin/waaseyaa config:import
-        env:
-          # Per-env overrides — env vars, NOT sync-store entries
-          FEATURE_X_ENABLED: 'true'
+composer install --prefer-dist --no-progress
+bin/waaseyaa config:validate
+bin/waaseyaa config:status --format=json > status.json
+
+if [ "$(jq '.drift' status.json)" != "0" ]; then
+    echo 'Unintended configuration drift detected' >&2
+    cat status.json >&2
+    exit 1
+fi
 ```
 
-`config:validate` exits 1 on any validation error. `config:status --format=json`
-returns drift counts you can assert against. Together they make sync drift a
-build failure, not a production surprise.
+Treat successful validation as preflight evidence, not deployment permission.
+Production `config:import` remains refused until CFG-02 activation and CFG-03
+schema, manifest, compatibility, and drift gates are installed. Your delivery
+system invokes the same command only after those gates authorize the exact
+bundle; it must not infer authorization from branch names or forge metadata.
 
 ---
 
 ## §12 — Common questions
 
-### Should I commit `storage/config-sync/` to git?
+### Should I version `storage/config-sync/`?
 
-Yes. The sync store is your declarative source of truth — it belongs alongside
-your source code. The repo path is `storage/config-sync/` by convention; if
-you change `config.sync_path` to point elsewhere, commit that path too.
+Yes. Preserve the desired-state bundle in your chosen source-control or
+immutable artifact system. Git is common, but neither Git nor GitHub is a
+Waaseyaa dependency. If you change `config.sync_path`, version that selected
+bundle instead.
 
 ### What about secrets?
 
-Never put secrets in the sync store. The sync store is git-tracked and
-operators will leak it. Use env vars. See
+Never put secret values in the sync store. Assume every desired-state artifact
+can be widely read. Store only opaque references and let CFG-04 custody resolve
+them at use time. See
 [`docs/specs/security-defaults.md`](../specs/security-defaults.md).
 
 ### Can I import config from a Drupal site?
@@ -454,10 +421,12 @@ not yet support per-langcode config files. A future ADR will bridge ADR 017
 
 ### What happens if a `config:import` is interrupted mid-stream?
 
-Each entity import is its own transaction. Already-committed entities stay
-committed; the entity in flight rolls back atomically. Re-running
-`config:import` resumes from the next entity in topological order, and
-already-applied entities show as `unchanged`.
+At the CFG-01 stage, production import is refused because the atomic activation
+and schema/drift gates are not yet installed. CFG-02 replaces sequential
+per-entity publication with staged-generation activation and compare-and-swap;
+CFG-03 validates the complete manifest before activation. Test-only adapters
+may exercise the legacy per-entity path, but that is not the certified
+production recovery contract.
 
 ### How do I know which entities depend on which?
 

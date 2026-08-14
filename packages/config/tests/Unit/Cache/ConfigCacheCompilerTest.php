@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Config\Tests\Unit\Cache;
 
-use Waaseyaa\Config\Cache\ConfigCacheCompiler;
-use Waaseyaa\Config\Storage\MemoryStorage;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
+use Waaseyaa\Config\Cache\ConfigCacheCompiler;
+use Waaseyaa\Config\Storage\MemoryStorage;
 
 #[CoversClass(ConfigCacheCompiler::class)]
 final class ConfigCacheCompilerTest extends TestCase
@@ -54,6 +55,32 @@ final class ConfigCacheCompilerTest extends TestCase
 
         $loaded = require $cachePath;
         $this->assertSame(['name' => 'Test'], $loaded['system.site']);
+    }
+
+    #[Test]
+    public function productionCacheIsBoundToTheExactAuthorityGeneration(): void
+    {
+        $storage = new MemoryStorage();
+        $storage->write('system.site', ['name' => 'Test']);
+        $context = new ConfigurationAuthorityContext(
+            authorityId: str_repeat('a', 64),
+            databaseIdentity: 'database:v1:test',
+            syncPath: $this->tempDir . '/sync',
+            selectorProvenance: ['default'],
+            activeGenerationId: str_repeat('b', 64),
+            activationSequence: 7,
+        );
+        $cachePath = $this->tempDir . '/framework/config.php';
+
+        new ConfigCacheCompiler($storage, $cachePath, $context)->compileAndCache();
+        $loaded = require $cachePath;
+
+        self::assertSame([
+            'authority_id' => str_repeat('a', 64),
+            'generation_id' => str_repeat('b', 64),
+            'activation_sequence' => 7,
+        ], $loaded['_waaseyaa_config_cache_v1']);
+        self::assertSame(['name' => 'Test'], $loaded['config']['system.site']);
     }
 
     #[Test]

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Config\Sync;
 
+use Waaseyaa\Config\Authority\ConfigurationAuthorityConflictException;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Config\Exception\ConfigSerializationException;
 
 /**
@@ -28,10 +30,14 @@ final class ConfigSyncRepository
 {
     public const DEFAULT_PATH = 'storage/config-sync';
 
+    /** @var array{dev: int, ino: int}|null */
+    private ?array $openedSyncDirectoryIdentity = null;
+
     public function __construct(
         private readonly string $syncPath,
         private readonly ConfigSyncSerializer $serializer = new ConfigSyncSerializer(),
         private readonly ConfigSyncDeserializer $deserializer = new ConfigSyncDeserializer(),
+        private readonly ?ConfigurationAuthorityContext $authorityContext = null,
     ) {
         if ($this->syncPath === '') {
             throw new \InvalidArgumentException('ConfigSyncRepository syncPath must be non-empty.');
@@ -55,6 +61,7 @@ final class ConfigSyncRepository
      */
     public function list(): iterable
     {
+        $this->assertAuthorityPath();
         if (!is_dir($this->syncPath)) {
             return;
         }
@@ -69,6 +76,7 @@ final class ConfigSyncRepository
             if (!str_ends_with($entry, '.yml')) {
                 continue;
             }
+            $this->assertRegularMember($entry);
             try {
                 $filename = basename($entry);
                 ConfigSyncFile::splitFilename($filename);
@@ -81,68 +89,93 @@ final class ConfigSyncRepository
                 yield $file;
             }
         }
+        $this->assertAuthorityPath();
     }
 
     public function get(string $ref): ?ConfigSyncFile
     {
+        $this->assertAuthorityPath();
         $this->assertRefShape($ref);
         $filename = $ref . '.yml';
 
-        return $this->readFile($filename);
+        $file = $this->readFile($filename);
+        $this->assertAuthorityPath();
+
+        return $file;
     }
 
     public function has(string $ref): bool
     {
+        $this->assertAuthorityPath();
         $this->assertRefShape($ref);
+        $this->assertRegularMember($ref . '.yml', allowMissing: true);
+        $exists = is_file($this->absolutePath($ref . '.yml'));
+        $this->assertAuthorityPath();
 
-        return is_file($this->absolutePath($ref . '.yml'));
+        return $exists;
     }
 
     public function put(ConfigSyncFile $file): void
     {
+        $this->assertAuthorityPath();
         $this->ensureDirectory();
+        $this->assertAuthorityPath();
 
         $target = $this->absolutePath($file->filename());
-        $temp = $target . '.tmp';
-
+        $this->assertRegularMember($file->filename(), allowMissing: true);
         $yaml = $this->serializer->toYaml($file);
-
-        $bytesWritten = file_put_contents($temp, $yaml, \LOCK_EX);
-        if ($bytesWritten === false) {
-            throw new \RuntimeException(sprintf(
-                'Failed to write sync file temp "%s".',
-                $temp,
-            ));
+        $temp = $target . '.tmp-' . bin2hex(random_bytes(12));
+        $handle = @fopen($temp, 'x+b');
+        if ($handle === false) {
+            throw new \RuntimeException(sprintf('Failed to create exclusive sync-file temp "%s".', $temp));
         }
 
-        // Flush PHP's userspace write buffer to the OS before the rename.
-        // Note: fflush() is NOT fsync(2) — it does not guarantee durability
-        // across a power loss. The atomicity guarantee comes from the
-        // temp-then-rename pattern: a crash between write and rename leaves
-        // the original target untouched, never a partially-written file.
-        $handle = @fopen($temp, 'rb');
-        if ($handle !== false) {
-            @fflush($handle);
+        try {
+            $offset = 0;
+            $length = strlen($yaml);
+            while ($offset < $length) {
+                $written = @fwrite($handle, substr($yaml, $offset));
+                if ($written === false || $written === 0) {
+                    throw new \RuntimeException(sprintf('Failed to write sync-file temp "%s".', $temp));
+                }
+                $offset += $written;
+            }
+            if (!@fflush($handle) || (function_exists('fsync') && !@fsync($handle))) {
+                throw new \RuntimeException(sprintf('Failed to durably flush sync-file temp "%s".', $temp));
+            }
+        } finally {
             @fclose($handle);
         }
 
-        if (!@rename($temp, $target)) {
-            @unlink($temp);
-            throw new \RuntimeException(sprintf(
-                'Failed to atomically rename "%s" -> "%s".',
-                $temp,
-                $target,
-            ));
+        try {
+            $this->assertAuthorityPath();
+            $this->assertRegularMember(basename($temp));
+            $this->assertRegularMember($file->filename(), allowMissing: true);
+            if (!@rename($temp, $target)) {
+                throw new \RuntimeException(sprintf(
+                    'Failed to atomically rename "%s" -> "%s".',
+                    $temp,
+                    $target,
+                ));
+            }
+            $this->assertAuthorityPath();
+        } finally {
+            if (file_exists($temp) || is_link($temp)) {
+                @unlink($temp);
+            }
         }
     }
 
     public function delete(string $ref): void
     {
+        $this->assertAuthorityPath();
         $this->assertRefShape($ref);
         $target = $this->absolutePath($ref . '.yml');
         if (is_file($target)) {
+            $this->assertRegularMember($ref . '.yml');
             @unlink($target);
         }
+        $this->assertAuthorityPath();
     }
 
     /**
@@ -166,6 +199,7 @@ final class ConfigSyncRepository
         if (!is_file($absolute)) {
             return null;
         }
+        $this->assertRegularMember($filename);
         $contents = @file_get_contents($absolute);
         if ($contents === false || $contents === '') {
             return null;
@@ -196,6 +230,45 @@ final class ConfigSyncRepository
                 'Invalid sync ref "%s": expected `<entity_type>.<entity_id>` (each segment matching %s).',
                 $ref,
                 ConfigSyncFile::ID_PATTERN,
+            ));
+        }
+    }
+
+    private function assertAuthorityPath(): void
+    {
+        if ($this->authorityContext === null) {
+            return;
+        }
+        $this->authorityContext->assertSyncPathIdentity();
+        if (!file_exists($this->syncPath) && !is_link($this->syncPath)) {
+            return;
+        }
+        $real = realpath($this->syncPath);
+        $stat = $real === false ? false : @stat($real);
+        if (is_link($this->syncPath) || $real === false || $stat === false || !is_dir($real)) {
+            throw new ConfigurationAuthorityConflictException('Configuration sync path is not an inspectable non-link directory.');
+        }
+        $identity = ['dev' => $stat['dev'], 'ino' => $stat['ino']];
+        if ($this->openedSyncDirectoryIdentity === null) {
+            $this->openedSyncDirectoryIdentity = $identity;
+        } elseif ($this->openedSyncDirectoryIdentity !== $identity) {
+            throw new ConfigurationAuthorityConflictException(
+                'Configuration sync directory identity changed after its first authorized use.',
+            );
+        }
+        $this->authorityContext->assertSyncPathIdentity();
+    }
+
+    private function assertRegularMember(string $filename, bool $allowMissing = false): void
+    {
+        $path = $this->absolutePath($filename);
+        if ($allowMissing && !file_exists($path) && !is_link($path)) {
+            return;
+        }
+        if (is_link($path) || (file_exists($path) && !is_file($path))) {
+            throw new ConfigurationAuthorityConflictException(sprintf(
+                'Configuration sync member "%s" is not a regular non-link file.',
+                basename($filename),
             ));
         }
     }

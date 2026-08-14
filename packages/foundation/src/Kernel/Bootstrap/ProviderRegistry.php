@@ -16,6 +16,7 @@ use Waaseyaa\Foundation\Discovery\PackageManifest;
 use Waaseyaa\Foundation\Http\RequestContext;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\ServiceProvider\Capability\CapabilityRegistry;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 final class ProviderRegistry
@@ -101,6 +102,8 @@ final class ProviderRegistry
         foreach ($this->providers as $provider) {
             $provider->register();
         }
+
+        new CapabilityRegistry()->validate($this->providers);
 
         foreach ($this->providers as $provider) {
             foreach ($provider->getEntityTypeRegistrations() as $registration) {

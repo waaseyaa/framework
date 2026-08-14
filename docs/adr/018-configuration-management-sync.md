@@ -1,6 +1,7 @@
 # 018 — Configuration management: active/sync store split with filesystem export
 
-**Status:** Accepted (2026-05-11)
+**Status:** Accepted (2026-05-11); authority model amended by
+[`S1 configuration authority`](../specs/s1-configuration-authority.md)
 **Mission:** Stability charter ratification; clears charter §3.2 beta criterion 9 (matrix §3.5)
 **Spec context:** `docs/specs/drupal-comparison-matrix.md` §1.5, §3.5; intersects [ADR 010](010-multi-backend-field-storage.md) (config entities ride storage backends).
 
@@ -44,9 +45,16 @@ Drupal-shape config management with active/sync store split.
 
 ### Stable surface
 
-**Active store** (existing): config entities in the DB, accessed via `ConfigStorageInterface` on `EntityStorage` (ADR 010). No change.
+**Active store:** one versioned SQLite generation selected by the typed
+configuration authority. Named settings and config entities share that
+generation identity; ordinary runtime consumers do not select storage.
 
-**Sync store** (new): filesystem path holding YAML representations of every config entity. Default path: `storage/config-sync/`. Configurable via `config.sync_path` in `config/waaseyaa.php`. The sync store is **versioned in the consumer app's git repo**; that's the entire point.
+**Sync store:** filesystem path holding YAML representations of every config
+entity. Default path: `storage/config-sync/`. Configurable via
+`config.sync_path` in `config/waaseyaa.php`. It is desired-state input/output,
+never runtime authority. Teams normally preserve it in their chosen source or
+artifact versioning system; no forge, hosting vendor, or VCS is required by the
+framework.
 
 **Sync file format**: one YAML file per config entity, named `<entity_type>.<entity_id>.yml`. Example: `storage/config-sync/taxonomy_vocabulary.community_categories.yml`. The format:
 
@@ -112,12 +120,16 @@ This distinction matches Drupal's. The framework MUST refuse to export content e
 
 ### Per-environment overrides
 
-CMI is **environment-agnostic**. The same sync store applies to dev, staging, prod. Environment-specific values (API keys, mail-from addresses, SendGrid keys) go through env vars, NOT through the sync store. Env vars are read in `config/waaseyaa.php`:
+CMI is **environment-agnostic**. The same sync store applies to dev, staging,
+and production. Bootstrap environment values may select environment identity,
+database authority, sync path, and opaque secret references only. Raw secrets
+and deployable values do not enter the sync store or active generation:
 
 ```php
-'mail' => [
-    'from' => env('MAIL_FROM', 'noreply@example.com'),
-    'sendgrid_key' => env('SENDGRID_API_KEY'),
+    'secrets' => [
+        'mail_provider' => [
+            'api_key_env_var' => 'SENDGRID_API_KEY',
+        ],
 ],
 ```
 
@@ -138,7 +150,8 @@ Config entities ride the storage coordinator. With multi-backend storage, a conf
 Minoo and any future consumer with existing config entities:
 
 1. Run `bin/waaseyaa config:export` once.
-2. Commit `storage/config-sync/` to git.
+2. Preserve `storage/config-sync/` in the application's chosen versioned
+   source or artifact system.
 3. Add `storage/config-sync/` to deploy artifacts.
 4. On each deploy, CI runs `config:validate` and then `config:import`.
 
@@ -146,7 +159,9 @@ No data migration. No schema change. The mechanism layers cleanly on top of exis
 
 ## Consequences
 
-- **Multi-environment deployment becomes operationally tractable.** Dev → staging → prod config promotion is `git push` + `config:import`. The largest operational gap for non-Minoo consumers is closed.
+- **Multi-environment deployment becomes operationally tractable.** A reviewed,
+  versioned sync bundle plus `config:import` promotes intent independently of
+  the forge or delivery system.
 - **Framework gains six CLI commands and a YAML format on stable surface.** Modest addition; bounded scope.
 - **Beta gate criterion 9 is fully cleared.** Matrix §3.5 moves from `❌` to `📋` (planned). Combined with ADR 017, charter §11 Q7 is fully resolved.
 - **Config entities are explicitly excluded from multi-backend storage** beyond `sql-blob` / `sql-column`. Bounds the implementation; config-entity-on-vector-backend is forbidden by typed exception.

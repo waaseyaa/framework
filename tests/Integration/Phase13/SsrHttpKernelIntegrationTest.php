@@ -347,7 +347,7 @@ final class SsrHttpKernelIntegrationTest extends TestCase
 
             return [
                 'database' => '{$databasePath}',
-                'environment' => 'local',
+                'environment' => 'testing',
                 'app' => ['url' => 'http://localhost', 'name' => 'Waaseyaa Test'],
                 'cors_origins' => ['http://localhost:3000'],
                 'ssr' => [

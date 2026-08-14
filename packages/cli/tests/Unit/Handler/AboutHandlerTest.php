@@ -8,23 +8,23 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
+use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Handler\AboutHandler;
-use Waaseyaa\CLI\Provider\MiscAServiceProvider;
 use Waaseyaa\CLI\Testing\CliTester;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 
 #[CoversClass(AboutHandler::class)]
 final class AboutHandlerTest extends TestCase
 {
     private function makeDefinition(): \Waaseyaa\CLI\Command\HandlerCommand
     {
-        $provider = new MiscAServiceProvider();
-        foreach ($provider->consoleCommands() as $cmd) {
-            if ($cmd->name === 'about') {
-                return $cmd;
-            }
-        }
+        $handler = new AboutHandler($this->authorityContext());
 
-        throw new \RuntimeException('about command definition not found');
+        return new HandlerCommand(
+            name: 'about',
+            description: 'Display system information',
+            handler: \Closure::fromCallable([$handler, 'execute']),
+        );
     }
 
     private function makeContainer(): ContainerInterface
@@ -52,6 +52,8 @@ final class AboutHandlerTest extends TestCase
         self::assertStringContainsString('Waaseyaa', $tester->getStdout());
         self::assertStringContainsString('PHP Version', $tester->getStdout());
         self::assertStringContainsString(PHP_VERSION, $tester->getStdout());
+        self::assertStringContainsString('/srv/waaseyaa/config-sync', $tester->getStdout());
+        self::assertStringContainsString('config.sync_path', $tester->getStdout());
     }
 
     #[Test]
@@ -65,7 +67,7 @@ final class AboutHandlerTest extends TestCase
         putenv('WAASEYAA_DB=./storage/about.sqlite');
 
         try {
-            $handler = new AboutHandler(projectRoot: $projectRoot);
+            $handler = new AboutHandler($this->authorityContext(), projectRoot: $projectRoot);
             $definition = new \Waaseyaa\CLI\Command\HandlerCommand(
                 name: 'about',
                 description: 'Display system information',
@@ -82,5 +84,17 @@ final class AboutHandlerTest extends TestCase
             putenv('WAASEYAA_DB');
             rmdir($projectRoot);
         }
+    }
+
+    private function authorityContext(): ConfigurationAuthorityContext
+    {
+        return new ConfigurationAuthorityContext(
+            authorityId: str_repeat('a', 64),
+            databaseIdentity: 'database:v1:test',
+            syncPath: '/srv/waaseyaa/config-sync',
+            selectorProvenance: ['config.sync_path'],
+            activeGenerationId: str_repeat('b', 64),
+            activationSequence: 1,
+        );
     }
 }

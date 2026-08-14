@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Handler;
 
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Foundation\Diagnostic\HealthCheckerInterface;
 use Waaseyaa\Foundation\Diagnostic\HealthCheckResult;
 use Waaseyaa\Foundation\Ingestion\IngestionLogger;
@@ -23,6 +24,7 @@ final class HealthReportHandler
     public function __construct(
         private readonly HealthCheckerInterface $checker,
         private readonly string $projectRoot,
+        private readonly ConfigurationAuthorityContext $configurationAuthority,
         ?LoggerInterface $logger = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
@@ -31,7 +33,20 @@ final class HealthReportHandler
     public function execute(SymfonyCommandIO $io): int
     {
         $systemInfo = $this->gatherSystemInfo();
-        $healthResults = $this->checker->runAll();
+        $healthResults = [
+            ...$this->checker->runAll(),
+            new HealthCheckResult(
+                name: 'Configuration authority',
+                status: 'pass',
+                message: 'One configuration authority is resolved.',
+                context: [
+                    'authority_id' => $this->configurationAuthority->authorityId,
+                    'active_generation_id' => $this->configurationAuthority->activeGenerationId,
+                    'sync_path' => $this->configurationAuthority->syncPath,
+                    'selector_provenance' => $this->configurationAuthority->selectorProvenance,
+                ],
+            ),
+        ];
         $ingestionSummary = $this->gatherIngestionSummary();
 
         $outputFile = $io->option('output');
@@ -121,7 +136,10 @@ final class HealthReportHandler
                 $this->projectRoot,
                 ConfigLoader::load($this->projectRoot . '/config/waaseyaa.php'),
             ),
-            'Config Dir' => getenv('WAASEYAA_CONFIG_DIR') !== false ? getenv('WAASEYAA_CONFIG_DIR') : './config/sync',
+            'Config Authority' => $this->configurationAuthority->authorityId,
+            'Config Generation' => $this->configurationAuthority->activeGenerationId ?? 'unavailable',
+            'Config Sync Path' => $this->configurationAuthority->syncPath,
+            'Config Selectors' => implode(', ', $this->configurationAuthority->selectorProvenance),
             'Project Root' => $this->projectRoot,
             'Generated At' => new \DateTimeImmutable()->format(\DateTimeInterface::ATOM),
         ];

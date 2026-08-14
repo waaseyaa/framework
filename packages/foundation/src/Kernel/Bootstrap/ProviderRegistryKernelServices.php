@@ -11,6 +11,7 @@ use Waaseyaa\Access\Context\AccountFieldReadScopeInterface;
 use Waaseyaa\Access\EntityAccessHandler;
 use Waaseyaa\Access\Gate\EntityAccessGate;
 use Waaseyaa\Access\Gate\GateInterface;
+use Waaseyaa\Database\DatabaseIdentityProviderInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Entity\EntityTypeManager;
@@ -127,6 +128,11 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
         }
         if ($abstract === DatabaseInterface::class) {
             return $this->database;
+        }
+        if ($abstract === DatabaseIdentityProviderInterface::class) {
+            return $this->database instanceof DatabaseIdentityProviderInterface
+                ? $this->database
+                : null;
         }
         if ($abstract === EventDispatcherInterface::class || $abstract === PsrEventDispatcherInterface::class) {
             // Symfony\Contracts\EventDispatcher\EventDispatcherInterface (the

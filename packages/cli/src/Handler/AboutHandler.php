@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Waaseyaa\CLI\Handler;
 
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Foundation\Kernel\Bootstrap\DatabaseBootstrapper;
 use Waaseyaa\Foundation\Kernel\ConfigLoader;
 
+/** CLI command handler resolved through the provider command registry. @api */
 final class AboutHandler
 {
     /**
@@ -19,6 +21,7 @@ final class AboutHandler
      *        CLI context.
      */
     public function __construct(
+        private readonly ConfigurationAuthorityContext $configurationAuthority,
         private readonly array $info = [],
         private readonly ?string $projectRoot = null,
     ) {}
@@ -50,7 +53,10 @@ final class AboutHandler
             'Environment' => $_ENV['APP_ENV'] ?? 'production',
             'Debug Mode' => ($_ENV['APP_DEBUG'] ?? '0') === '1' ? 'ON' : 'OFF',
             'Database' => $this->resolvedDatabasePath(),
-            'Config Dir' => $_ENV['WAASEYAA_CONFIG_DIR'] ?? './config/sync',
+            'Config Authority' => $this->configurationAuthority->authorityId,
+            'Config Generation' => $this->configurationAuthority->activeGenerationId ?? 'unavailable',
+            'Config Sync Path' => $this->configurationAuthority->syncPath,
+            'Config Selectors' => implode(', ', $this->configurationAuthority->selectorProvenance),
             'OS' => PHP_OS_FAMILY,
         ];
     }

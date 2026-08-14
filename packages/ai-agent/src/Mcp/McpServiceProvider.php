@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace Waaseyaa\AI\Agent\Mcp;
 
 use Waaseyaa\AI\Tools\ToolRegistryInterface;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityUnavailableException;
 use Waaseyaa\Config\ConfigManagerInterface;
 use Waaseyaa\Config\Schema\Ai\McpServersConfig;
 use Waaseyaa\Config\Schema\ConfigSchemaValidator;
 use Waaseyaa\Config\StorageInterface as ConfigStorageInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Foundation\ServiceProvider\Capability\CapabilityRequirement;
+use Waaseyaa\Foundation\ServiceProvider\Capability\RequiresCapabilitiesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\HttpClient\HttpClientInterface;
 use Waaseyaa\HttpClient\StreamHttpClient;
@@ -29,7 +32,7 @@ use Waaseyaa\HttpClient\StreamHttpClient;
  *
  * @api
  */
-final class McpServiceProvider extends ServiceProvider
+final class McpServiceProvider extends ServiceProvider implements RequiresCapabilitiesInterface
 {
     public function register(): void
     {
@@ -62,6 +65,11 @@ final class McpServiceProvider extends ServiceProvider
                 $this->resolveToolRegistry() !== null ? $this->resolve(McpClientToolSource::class) : null,
             ),
         );
+    }
+
+    public function capabilityRequirements(): iterable
+    {
+        yield CapabilityRequirement::exact('configuration.authority.v1', 1);
     }
 
     public function boot(): void
@@ -134,6 +142,13 @@ final class McpServiceProvider extends ServiceProvider
             return $manager->getActiveStorage();
         }
 
-        return new NullConfigStorage();
+        $environment = strtolower((string) ($this->config['environment'] ?? ''));
+        if (in_array($environment, ['local', 'dev', 'development', 'testing'], true)) {
+            return new NullConfigStorage();
+        }
+
+        throw new ConfigurationAuthorityUnavailableException(
+            'MCP configuration requires configuration.authority.v1; NullConfigStorage is permitted only in explicit local/test profiles.',
+        );
     }
 }

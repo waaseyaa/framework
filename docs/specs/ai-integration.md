@@ -946,6 +946,20 @@ existing trace data.
 
 ## Implementation gotchas
 
+### Configuration authority dependency
+
+`McpServiceProvider` declares an exact `configuration.authority.v1` capability
+requirement. Provider composition therefore fails before boot when no compatible
+configuration authority is registered. MCP server definitions are always read
+through the active authority bridge in composed applications; the null storage
+fallback exists only for explicit `local`, `dev`, `development`, and `testing`
+profiles. Production, staging, misspelled, and unknown profiles fail closed
+rather than silently starting with an empty MCP server set.
+
+This capability is a runtime composition contract, not a dependency on a source
+forge or CI vendor. Providers exchange stable capability identifiers, versions,
+and authority fingerprints entirely inside the installed application.
+
 - **Tool-loop wiring and allowlisting are inseparable (R18 M2+M3, #1975):**
   `RunAgentHandler` resolves provider descriptors only for
   `AgentDefinition::$tools`; `AgentExecutor` receives the same trusted name

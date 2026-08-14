@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "contract_id": "s1-configuration-authority-v1",
+  "capability": "configuration.authority.v1",
+  "capability_version": 1,
+  "authority_provider": "Waaseyaa\\Config\\Authority\\ConfigurationAuthorityServiceProvider",
+  "active_bridge": "Waaseyaa\\EntityStorage\\Config\\DatabaseActiveConfigurationBridge",
+  "commands": [
+    "config:export",
+    "config:import",
+    "config:diff",
+    "config:status",
+    "config:validate",
+    "config:reset"
+  ],
+  "canonical_sync_setting": "config.sync_path",
+  "canonical_sync_environment": "WAASEYAA_CONFIG_SYNC_PATH",
+  "canonical_sync_default": "storage/config-sync",
+  "sync_path_revalidation": "anchor-device-inode-before-and-after-use",
+  "legacy_aliases": [
+    "config_dir",
+    "WAASEYAA_CONFIG_DIR"
+  ],
+  "testing_profile": "testing",
+  "production_missing_activation": "refuse",
+  "production_missing_import_gates": "refuse",
+  "bootstrap_active_collision": "refuse",
+  "secret_export_policy": "references-only",
+  "read_only_proof": "byte-for-byte",
+  "packaged_proofs": [
+    "path-repository-core-only",
+    "exact-head-local-archives"
+  ],
+  "deferred_to": [
+    "S1-FW-CFG-02",
+    "S1-FW-CFG-03",
+    "S1-FW-CFG-04"
+  ]
+}

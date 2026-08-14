@@ -11,9 +11,11 @@ use Waaseyaa\Config\Exception\ConfigImportFailedException;
 use Waaseyaa\Config\Sync\ConfigImportApplyHookInterface;
 use Waaseyaa\Config\Sync\ConfigImportEntryResult;
 use Waaseyaa\Config\Sync\ConfigImporter;
+use Waaseyaa\Config\Sync\ConfigImportPreflightException;
 use Waaseyaa\Config\Sync\ConfigImportResult;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
 use Waaseyaa\Config\Sync\ConfigSyncRepository;
+use Waaseyaa\Config\Sync\RefusingConfigImportPreflight;
 
 #[CoversClass(ConfigImporter::class)]
 #[CoversClass(ConfigImportResult::class)]
@@ -44,7 +46,7 @@ final class ConfigImporterTest extends TestCase
 
         $applied = [];
         $hook = $this->makeHook(applyOrder: $applied);
-        $importer = new ConfigImporter($repository, $hook);
+        $importer = new ConfigImporter($repository, $hook, new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight());
 
         $result = $importer->import();
 
@@ -66,13 +68,30 @@ final class ConfigImporterTest extends TestCase
         $applied = [];
         $hook = $this->makeHook(applyOrder: $applied);
 
-        $importer = new ConfigImporter($repository, $hook);
+        $importer = new ConfigImporter($repository, $hook, new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight());
         $result = $importer->import(dryRun: true);
 
         self::assertTrue($result->dryRun);
         self::assertSame([], $applied);
         self::assertCount(1, $result->entries);
         self::assertSame(ConfigImportEntryResult::STATUS_UPDATED, $result->entries[0]->status);
+    }
+
+    #[Test]
+    public function mandatoryPreflightRunsBeforeApplyEvenForDryRun(): void
+    {
+        $repository = $this->seed(['role.admin' => []]);
+        $applied = [];
+        $hook = $this->makeHook(applyOrder: $applied);
+        $importer = new ConfigImporter($repository, $hook, new RefusingConfigImportPreflight());
+
+        try {
+            $importer->import(dryRun: true, deleteOrphans: true, activeRefs: ['role.legacy']);
+            self::fail('Import bypassed its mandatory preflight.');
+        } catch (ConfigImportPreflightException $exception) {
+            self::assertStringContainsString('CFG-03 schema, manifest, and drift gates', $exception->getMessage());
+        }
+        self::assertSame([], $applied);
     }
 
     #[Test]
@@ -93,11 +112,11 @@ final class ConfigImporterTest extends TestCase
             public function delete(string $ref): void {}
         };
 
-        $importer = new ConfigImporter($repository, $hook);
+        $importer = new ConfigImporter($repository, $hook, new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight());
         $result = $importer->import();
 
         self::assertSame(1, $result->failureCount());
-        $statuses = array_map(static fn ($e) => $e->status, $result->entries);
+        $statuses = array_map(static fn($e) => $e->status, $result->entries);
         self::assertContains(ConfigImportEntryResult::STATUS_FAILED, $statuses);
         self::assertContains(ConfigImportEntryResult::STATUS_CREATED, $statuses);
     }
@@ -124,7 +143,7 @@ final class ConfigImporterTest extends TestCase
             public function delete(string $ref): void {}
         };
 
-        $importer = new ConfigImporter($repository, $hook);
+        $importer = new ConfigImporter($repository, $hook, new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight());
         $result = $importer->import(haltOnError: true);
 
         self::assertCount(1, $hook->calls, '--halt-on-error must stop after the first failure.');
@@ -152,6 +171,7 @@ final class ConfigImporterTest extends TestCase
         $importer = new ConfigImporter(
             $repository,
             $hook,
+            new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight(),
             auditLogger: $auditor,
         );
 
@@ -159,7 +179,7 @@ final class ConfigImporterTest extends TestCase
 
         self::assertSame(0, $result->failureCount());
         self::assertCount(2, $applied);
-        $warnings = array_filter($auditLog, static fn ($e) => $e[0] === 'warning');
+        $warnings = array_filter($auditLog, static fn($e) => $e[0] === 'warning');
         self::assertCount(1, $warnings, 'Bypass must emit exactly one audit warning.');
     }
 
@@ -174,7 +194,7 @@ final class ConfigImporterTest extends TestCase
         $applied = [];
         $hook = $this->makeHook(applyOrder: $applied);
 
-        $importer = new ConfigImporter($repository, $hook);
+        $importer = new ConfigImporter($repository, $hook, new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight());
         $result = $importer->import();
 
         self::assertSame(1, $result->failureCount());
@@ -193,19 +213,19 @@ final class ConfigImporterTest extends TestCase
             $auditLog[] = [$level, $message, $context];
         };
 
-        $importer = new ConfigImporter($repository, $hook, auditLogger: $auditor);
+        $importer = new ConfigImporter($repository, $hook, new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight(), auditLogger: $auditor);
 
         // role.legacy exists in active store but has no sync file.
         $result = $importer->import(activeRefs: ['role.admin', 'role.legacy']);
 
         $orphanEntry = array_values(array_filter(
             $result->entries,
-            static fn ($e) => $e->ref === 'role.legacy',
+            static fn($e) => $e->ref === 'role.legacy',
         ))[0] ?? null;
 
         self::assertNotNull($orphanEntry);
         self::assertSame(ConfigImportEntryResult::STATUS_UNCHANGED, $orphanEntry->status);
-        $infos = array_filter($auditLog, static fn ($e) => $e[0] === 'info');
+        $infos = array_filter($auditLog, static fn($e) => $e[0] === 'info');
         self::assertNotEmpty($infos, 'Orphan-warn must surface an audit info entry.');
     }
 
@@ -229,7 +249,7 @@ final class ConfigImporterTest extends TestCase
             }
         };
 
-        $importer = new ConfigImporter($repository, $hook);
+        $importer = new ConfigImporter($repository, $hook, new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight());
         $result = $importer->import(
             deleteOrphans: true,
             activeRefs: ['role.admin', 'role.legacy'],
@@ -238,7 +258,7 @@ final class ConfigImporterTest extends TestCase
         self::assertSame(['role.legacy'], $hook->deleted);
         $orphanEntry = array_values(array_filter(
             $result->entries,
-            static fn ($e) => $e->ref === 'role.legacy',
+            static fn($e) => $e->ref === 'role.legacy',
         ))[0] ?? null;
         self::assertNotNull($orphanEntry);
         self::assertSame(ConfigImportEntryResult::STATUS_DELETED, $orphanEntry->status);
@@ -264,7 +284,7 @@ final class ConfigImporterTest extends TestCase
             }
         };
 
-        $importer = new ConfigImporter($repository, $hook);
+        $importer = new ConfigImporter($repository, $hook, new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight());
         $result = $importer->import(
             dryRun: true,
             deleteOrphans: true,
@@ -274,7 +294,7 @@ final class ConfigImporterTest extends TestCase
         self::assertSame([], $hook->deleted);
         $orphanEntry = array_values(array_filter(
             $result->entries,
-            static fn ($e) => $e->ref === 'role.legacy',
+            static fn($e) => $e->ref === 'role.legacy',
         ))[0] ?? null;
         self::assertNotNull($orphanEntry);
         self::assertSame(ConfigImportEntryResult::STATUS_DELETED, $orphanEntry->status);
@@ -325,7 +345,7 @@ final class ConfigImporterTest extends TestCase
      */
     private function makeHook(array &$applyOrder): ConfigImportApplyHookInterface
     {
-        return new class($applyOrder) implements ConfigImportApplyHookInterface {
+        return new class ($applyOrder) implements ConfigImportApplyHookInterface {
             /** @param list<string> $applyOrder */
             public function __construct(private array &$applyOrder) {}
 

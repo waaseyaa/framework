@@ -627,9 +627,13 @@ jobs:
           test -d "$work/vendor/waaseyaa/scheduler" || { echo "::error::core-only install did not pull waaseyaa/scheduler (core metapackage is missing a fail-closed kernel boot dependency)"; exit 1; }
           mkdir -p "$work/config" "$work/config/sync" "$work/storage" "$work/storage/files"
           cp "$GITHUB_WORKSPACE/skeleton/config/waaseyaa.php" "$work/config/waaseyaa.php"
-          printf 'APP_ENV=local\nAPP_DEBUG=false\n' > "$work/.env"
+          # The fixture is an explicit testing profile. Production/local boots
+          # require a real active configuration generation and fail closed.
+          printf 'APP_ENV=testing\nAPP_DEBUG=false\n' > "$work/.env"
           cp "$GITHUB_WORKSPACE/tests/CoreOnlyBoot/boot.php" "$work/boot.php"
-          php "$work/boot.php"
+          cp "$GITHUB_WORKSPACE/tests/CoreOnlyBoot/prepare-runtime-schema.php" "$work/prepare-runtime-schema.php"
+          php "$work/prepare-runtime-schema.php"
+          WAASEYAA_DB="$work/storage/core-only.sqlite" php "$work/boot.php"
 
   verify-gates:
     name: ci/verify-gates
@@ -691,6 +695,7 @@ jobs:
           run_gate check-phpstan-paths
           run_gate check-portable-paths
           run_gate check-phpunit-paths
+          run_gate check-s1-configuration-authority
           run_gate check-package-layers-pl008-self-test
           run_gate check-distribution-extensions
           run_gate check-symfony-imports

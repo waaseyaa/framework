@@ -138,7 +138,7 @@ function buildConfig(string $projectRoot): string
 
         return [
             'database' => {$database},
-            'environment' => 'local',
+            'environment' => 'testing',
             'app' => ['url' => 'http://localhost', 'name' => 'Frozen Field Read Performance'],
             'ssr' => ['theme' => '', 'cache_max_age' => 300],
             'view_modes' => ['node' => ['full' => {$displayExport}]],
