@@ -32,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rosters and dependency bytes, and keep the reference-consumer CI job on a
   fixed runner with an immutable checkout action.
 
+- Initialize the clean reference consumer through the canonical `db:init`
+  coordinator before kernel-backed `site:init`, preserving DB-02's ban on lazy
+  runtime schema creation while keeping verification itself read-only.
+
 - Build the #2343 reference consumer from an exact tracked Git archive before
   Composer mirrors framework packages, preventing untracked workspace files or
   nested dependency symlinks from entering provider-neutral acceptance proof.
