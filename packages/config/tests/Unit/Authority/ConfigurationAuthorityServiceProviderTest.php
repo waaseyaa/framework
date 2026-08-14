@@ -11,6 +11,7 @@ use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityServiceProvider;
 use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\ConfigManagerInterface;
+use Waaseyaa\Config\Cache\CachedConfigFactory;
 use Waaseyaa\Config\Event\ConfigurationSelectorDeprecationEvent;
 use Waaseyaa\Config\Schema\ConfigSchemaValidator;
 use Waaseyaa\Config\Storage\MemoryStorage;
@@ -40,7 +41,7 @@ final class ConfigurationAuthorityServiceProviderTest extends TestCase
     {
         $bridge = new TestActiveConfigurationBridge();
         $provider = new ConfigurationAuthorityServiceProvider();
-        $provider->setKernelContext($this->root, [], []);
+        $provider->setKernelContext($this->root, ['environment' => 'testing'], []);
         $provider->setKernelServices(new TestKernelServices([
             DatabaseIdentityProviderInterface::class => new TestDatabaseIdentityProvider(),
             ActiveConfigurationBridgeInterface::class => $bridge,
@@ -56,6 +57,7 @@ final class ConfigurationAuthorityServiceProviderTest extends TestCase
         $bridge->bindContext($first);
 
         $factory = $provider->resolve(ConfigFactoryInterface::class);
+        self::assertInstanceOf(CachedConfigFactory::class, $factory);
         $manager = $provider->resolve(ConfigManagerInterface::class);
         self::assertInstanceOf(ConfigSchemaValidator::class, $provider->resolve(ConfigSchemaValidator::class));
         self::assertSame($bridge->activeStorage(), $manager->getActiveStorage());

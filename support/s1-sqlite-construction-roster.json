@@ -139,12 +139,12 @@
         },
         {
             "path": "bin/test-quality-inventory",
-            "line": 184,
+            "line": 185,
             "pattern": "sqlite_dsn_token",
             "class": "tooling-query",
             "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
             "line_sha256": "5602a8ff38284a9c559d3d42df160ec658ce6549c52ab29b191ad682e56045ca",
-            "source_sha256": "c0ab2e693224806b384aceaea39892b3937b15c3a3aed105650ceca7e27121b8"
+            "source_sha256": "019f4f64cff9aa1b01250978733323359a611927f52ee5bce16db1f96c15ba7f"
         },
         {
             "path": "packages/admin-surface/tests/Integration/Host/AuthenticatedNoteOwnershipFlowTest.php",
@@ -2370,6 +2370,33 @@
             "source_sha256": "6faec447456e4c6c4f32a5bf5e9ab2bf9aaa470949073b7de414bb87e69e2b18"
         },
         {
+            "path": "packages/entity-storage/tests/Integration/Config/DatabaseConfigurationActivationConcurrencyTest.php",
+            "line": 43,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "f2fc360e636707fa96a5713bd212f87f999c6aa2a6af10c89ef04f548436ae62",
+            "source_sha256": "a2475b15dfd661bbb1022affb9b86b7125127aaa456adc90ff56c6acac969019"
+        },
+        {
+            "path": "packages/entity-storage/tests/Integration/Config/DatabaseConfigurationActivationConcurrencyTest.php",
+            "line": 104,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "f2fc360e636707fa96a5713bd212f87f999c6aa2a6af10c89ef04f548436ae62",
+            "source_sha256": "a2475b15dfd661bbb1022affb9b86b7125127aaa456adc90ff56c6acac969019"
+        },
+        {
+            "path": "packages/entity-storage/tests/Integration/Config/DatabaseConfigurationActivationConcurrencyTest.php",
+            "line": 112,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "f2fc360e636707fa96a5713bd212f87f999c6aa2a6af10c89ef04f548436ae62",
+            "source_sha256": "a2475b15dfd661bbb1022affb9b86b7125127aaa456adc90ff56c6acac969019"
+        },
+        {
             "path": "packages/entity-storage/tests/Integration/Coordinator/PipelineInvariantTest.php",
             "line": 99,
             "pattern": "dbal_factory",
@@ -2569,12 +2596,39 @@
         },
         {
             "path": "packages/entity-storage/tests/Unit/Config/DatabaseActiveConfigurationBridgeTest.php",
-            "line": 31,
+            "line": 37,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "35cd2b13d7b3b53d94cd598fa231f750e1596227ea4a81c56ed490338c1b297c",
-            "source_sha256": "4e32f585f6d738f70468fdecc1aee36d8aa229d0cd9241ad4a497eb84b185490"
+            "source_sha256": "68c5d6d77f26afcc22faa1ce7c145df569fa9292832fc696214e04e7638a5712"
+        },
+        {
+            "path": "packages/entity-storage/tests/Unit/Config/DatabaseConfigurationActivatorTest.php",
+            "line": 33,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "35cd2b13d7b3b53d94cd598fa231f750e1596227ea4a81c56ed490338c1b297c",
+            "source_sha256": "a7166ecedebc378d2036dc550b1535e03f2957b0d202dae4484eede16fa0a418"
+        },
+        {
+            "path": "packages/entity-storage/tests/Unit/Config/DatabaseConfigurationActivatorTest.php",
+            "line": 284,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "b07bd6b3bab80576c80b023be95026bc05c1206c263a32272b74fc764623cde2",
+            "source_sha256": "a7166ecedebc378d2036dc550b1535e03f2957b0d202dae4484eede16fa0a418"
+        },
+        {
+            "path": "packages/entity-storage/tests/Unit/Config/DatabaseConfigurationActivatorTest.php",
+            "line": 300,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "55676c92b72b2049b0b68e2ebe4c59135c7566730c4b975f2f250928eee8cb9b",
+            "source_sha256": "a7166ecedebc378d2036dc550b1535e03f2957b0d202dae4484eede16fa0a418"
         },
         {
             "path": "packages/entity-storage/tests/Unit/Connection/SingleConnectionResolverTest.php",
@@ -7534,6 +7588,15 @@
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
             "source_sha256": "799b273bf20e03db1ac1f46f35f61017863a43a220909c9e76bfb23111027c26"
+        },
+        {
+            "path": "tests/PackagedForm/s1-configuration-activation-probe.php",
+            "line": 24,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "4f9a41f46e80173ade18d6096d50ab3e286cfbfbaf0853c779ba6409aacaf73f",
+            "source_sha256": "31ff8de74ba5fae09163541876c18cead90df17867ff87e46888075abc75bb8a"
         },
         {
             "path": "tests/PackagedForm/s1-schema-authority-artifact-probe.php",

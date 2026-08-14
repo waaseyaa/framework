@@ -17,6 +17,7 @@ use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Provider\ConfigCacheDbAuditServiceProvider;
 use Waaseyaa\Config\Authority\ActiveConfigurationBridgeInterface;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityUnavailableException;
 use Waaseyaa\Config\Sync\ConfigDiffer;
 use Waaseyaa\Config\Sync\ConfigExporter;
 use Waaseyaa\Config\Sync\ConfigImporter;
@@ -71,9 +72,13 @@ final class ConfigCacheDbAuditServiceProviderTest extends TestCase
     {
         $provider = new ConfigCacheDbAuditServiceProvider();
         $commands = [];
+        $importOptions = [];
         foreach ($provider->consoleCommands() as $command) {
             if (str_starts_with((string) $command->name, 'config:')) {
                 $commands[(string) $command->name] = $command->sourceClass();
+            }
+            if ($command->name === 'config:import') {
+                $importOptions = $command->handlerOptions();
             }
         }
 
@@ -85,6 +90,24 @@ final class ConfigCacheDbAuditServiceProviderTest extends TestCase
             'config:validate' => \Waaseyaa\CLI\Command\Config\ConfigValidateCommand::class,
             'config:reset' => \Waaseyaa\CLI\Command\Config\ConfigResetCommand::class,
         ], $commands);
+        self::assertSame([
+            'dry-run',
+            'delete-orphans',
+            'halt-on-error',
+            'no-dependency-check',
+            'activation-request-id',
+            'expected-generation',
+            'expected-sequence',
+        ], array_column($importOptions, 'name'));
+        self::assertSame([
+            HandlerOptionMode::None,
+            HandlerOptionMode::None,
+            HandlerOptionMode::None,
+            HandlerOptionMode::None,
+            HandlerOptionMode::Required,
+            HandlerOptionMode::Required,
+            HandlerOptionMode::Required,
+        ], array_column($importOptions, 'mode'));
     }
 
     #[Test]
@@ -122,6 +145,7 @@ final class ConfigCacheDbAuditServiceProviderTest extends TestCase
         };
 
         $provider = new ConfigCacheDbAuditServiceProvider();
+        $provider->setKernelContext($this->tempDir, ['environment' => 'testing'], []);
         $provider->setKernelServices($services);
         $provider->register();
 
@@ -150,5 +174,49 @@ final class ConfigCacheDbAuditServiceProviderTest extends TestCase
         self::assertSame('configuration.authority.v1', $requirements[0]->id);
         self::assertSame(1, $requirements[0]->minimumVersion);
         self::assertSame(1, $requirements[0]->maximumVersion);
+    }
+
+    #[Test]
+    public function productionImporterRefusesWhenTransactionalActivationAuthorityIsMissing(): void
+    {
+        $base = new ConfigurationAuthorityContext(
+            authorityId: str_repeat('a', 64),
+            databaseIdentity: 'database:v1:production-refusal',
+            syncPath: $this->tempDir,
+            selectorProvenance: ['production'],
+        );
+        $context = new ConfigurationAuthorityContext(
+            authorityId: $base->authorityId,
+            databaseIdentity: $base->databaseIdentity,
+            syncPath: $base->syncPath,
+            selectorProvenance: $base->selectorProvenance,
+            activeGenerationId: TestingConfigurationGenerationResolver::generationId($base),
+            activationSequence: 1,
+        );
+        $bridge = new TestingActiveConfigurationBridge($context);
+        $services = new class ($context, $bridge) implements KernelServicesInterface {
+            public function __construct(
+                private readonly ConfigurationAuthorityContext $context,
+                private readonly ActiveConfigurationBridgeInterface $bridge,
+            ) {}
+
+            public function get(string $abstract): ?object
+            {
+                return match ($abstract) {
+                    ConfigurationAuthorityContext::class => $this->context,
+                    ActiveConfigurationBridgeInterface::class => $this->bridge,
+                    default => null,
+                };
+            }
+        };
+
+        $provider = new ConfigCacheDbAuditServiceProvider();
+        $provider->setKernelContext($this->tempDir, ['environment' => 'production'], []);
+        $provider->setKernelServices($services);
+        $provider->register();
+
+        $this->expectException(ConfigurationAuthorityUnavailableException::class);
+        $this->expectExceptionMessage('transactional configuration activation authority');
+        $provider->resolve(ConfigImporter::class);
     }
 }

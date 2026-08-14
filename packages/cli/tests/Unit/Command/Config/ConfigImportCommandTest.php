@@ -13,6 +13,11 @@ use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
 use Waaseyaa\CLI\Testing\CliTester;
+use Waaseyaa\Config\Activation\ConfigurationActivationRequest;
+use Waaseyaa\Config\Activation\ConfigurationActivationResult;
+use Waaseyaa\Config\Activation\ConfigurationActivatorInterface;
+use Waaseyaa\Config\Activation\ConfigurationRollbackRequest;
+use Waaseyaa\Config\Authority\ConfigurationActiveToken;
 use Waaseyaa\Config\Exception\ConfigImportFailedException;
 use Waaseyaa\Config\Sync\ConfigImportApplyHookInterface;
 use Waaseyaa\Config\Sync\ConfigImportEntryResult;
@@ -81,6 +86,28 @@ final class ConfigImportCommandTest extends TestCase
     }
 
     #[Test]
+    public function transactional_dry_run_prints_generation_and_plan_identities(): void
+    {
+        $this->seed(['role.admin' => []]);
+        $activator = new class implements ConfigurationActivatorInterface {
+            public function activate(ConfigurationActivationRequest $request): ConfigurationActivationResult { throw new \LogicException('dry-run activated'); }
+            public function rollback(ConfigurationRollbackRequest $request): ConfigurationActivationResult { throw new \LogicException('not used'); }
+            public function committedResult(string $requestId): ?ConfigurationActivationResult { return null; }
+            public function currentToken(): ?ConfigurationActiveToken { return null; }
+            public function readGeneration(ConfigurationActiveToken $token): iterable { return []; }
+        };
+        $tester = $this->makeTester(activator: $activator);
+
+        $tester->execute(['--dry-run']);
+
+        self::assertSame(0, $tester->getExitCode());
+        self::assertMatchesRegularExpression(
+            '/\[dry-run\] generation [a-f0-9]{64}; plan [a-f0-9]{64}/',
+            $tester->getStdout(),
+        );
+    }
+
+    #[Test]
     public function failure_exits_one_and_writes_to_stderr(): void
     {
         $this->seed(['role.admin' => []]);
@@ -132,6 +159,21 @@ final class ConfigImportCommandTest extends TestCase
         self::assertStringContainsString('CFG-02 activation', $tester->getStderr());
     }
 
+    #[Test]
+    public function expectedTokenOptionsRequireOnePositiveIntegerSequence(): void
+    {
+        $this->seed(['role.admin' => []]);
+        $tester = $this->makeTester();
+
+        $tester->execute([
+            '--expected-generation=' . str_repeat('a', 64),
+            '--expected-sequence=1.5',
+        ]);
+
+        self::assertSame(1, $tester->getExitCode());
+        self::assertStringContainsString('must be supplied together', $tester->getStderr());
+    }
+
     /**
      * @param array<string, list<string>> $refsWithDeps
      */
@@ -155,6 +197,7 @@ final class ConfigImportCommandTest extends TestCase
     private function makeTester(
         ?ConfigImportApplyHookInterface $hook = null,
         ?ConfigImportPreflightInterface $preflight = null,
+        ?ConfigurationActivatorInterface $activator = null,
     ): CliTester {
         $repository = new ConfigSyncRepository($this->tempDir);
         $hook ??= new class implements ConfigImportApplyHookInterface {
@@ -169,6 +212,7 @@ final class ConfigImportCommandTest extends TestCase
             $repository,
             $hook,
             $preflight ?? new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight(),
+            activator: $activator,
         );
         $command = new ConfigImportCommand($importer);
 
@@ -203,6 +247,21 @@ final class ConfigImportCommandTest extends TestCase
                     name: 'no-dependency-check',
                     mode: HandlerOptionMode::None,
                     description: 'Emergency bypass: skip validation and DAG ordering.',
+                ),
+                new HandlerOption(
+                    name: 'activation-request-id',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Stable idempotency identity.',
+                ),
+                new HandlerOption(
+                    name: 'expected-generation',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Expected active generation.',
+                ),
+                new HandlerOption(
+                    name: 'expected-sequence',
+                    mode: HandlerOptionMode::Required,
+                    description: 'Expected active sequence.',
                 ),
             ],
             handler: [ConfigImportCommand::class, 'execute'],

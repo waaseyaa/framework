@@ -30,8 +30,9 @@ final class DatabaseActiveConfigurationStorage implements StorageInterface
 
     public function read(string $name): array|false
     {
+        $table = $this->entryTable();
         foreach ($this->database->query(
-            'SELECT fields_json FROM waaseyaa_config_entry WHERE authority_id = ? AND generation_id = ? AND config_name = ?',
+            "SELECT fields_json FROM {$table} WHERE authority_id = ? AND generation_id = ? AND config_name = ?",
             [$this->context->authorityId, $this->context->requireActiveGenerationId(), $this->qualified($name)],
         ) as $row) {
             $decoded = json_decode((string) $row['fields_json'], true, flags: JSON_THROW_ON_ERROR);
@@ -72,9 +73,10 @@ final class DatabaseActiveConfigurationStorage implements StorageInterface
 
     public function listAll(string $prefix = ''): array
     {
+        $table = $this->entryTable();
         $collectionPrefix = $this->collection === '' ? '' : $this->collection . '::';
         $rows = $this->database->query(
-            'SELECT config_name FROM waaseyaa_config_entry WHERE authority_id = ? AND generation_id = ? ORDER BY config_name',
+            "SELECT config_name FROM {$table} WHERE authority_id = ? AND generation_id = ? ORDER BY config_name",
             [$this->context->authorityId, $this->context->requireActiveGenerationId()],
         );
         $names = [];
@@ -116,9 +118,10 @@ final class DatabaseActiveConfigurationStorage implements StorageInterface
 
     public function getAllCollectionNames(): array
     {
+        $table = $this->entryTable();
         $collections = [];
         foreach ($this->database->query(
-            'SELECT config_name FROM waaseyaa_config_entry WHERE authority_id = ? AND generation_id = ?',
+            "SELECT config_name FROM {$table} WHERE authority_id = ? AND generation_id = ?",
             [$this->context->authorityId, $this->context->requireActiveGenerationId()],
         ) as $row) {
             $name = (string) $row['config_name'];
@@ -136,6 +139,20 @@ final class DatabaseActiveConfigurationStorage implements StorageInterface
     private function qualified(string $name): string
     {
         return $this->collection === '' ? $name : $this->collection . '::' . $name;
+    }
+
+    private function entryTable(): string
+    {
+        if ($this->database->schema()->tableExists('waaseyaa_config_generation_v2')) {
+            foreach ($this->database->query(
+                'SELECT 1 FROM waaseyaa_config_generation_v2 WHERE authority_id = ? AND generation_id = ?',
+                [$this->context->authorityId, $this->context->requireActiveGenerationId()],
+            ) as $_row) {
+                return 'waaseyaa_config_entry_v2';
+            }
+        }
+
+        return 'waaseyaa_config_entry';
     }
 
     private function mutationUnavailable(): ConfigurationAuthorityUnavailableException

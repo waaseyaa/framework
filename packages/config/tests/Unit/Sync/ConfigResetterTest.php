@@ -15,6 +15,11 @@ use Waaseyaa\Config\Sync\ConfigImportEntryResult;
 use Waaseyaa\Config\Sync\ConfigResetter;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
 use Waaseyaa\Config\Sync\ConfigSyncRepository;
+use Waaseyaa\Config\Sync\ConfigSyncFileSourceInterface;
+use Waaseyaa\Config\Activation\ConfigurationActivationRequest;
+use Waaseyaa\Config\Activation\ConfigurationActivationResult;
+use Waaseyaa\Config\Activation\ConfigurationActivatorInterface;
+use Waaseyaa\Config\Authority\ConfigurationActiveToken;
 
 #[CoversClass(ConfigResetter::class)]
 final class ConfigResetterTest extends TestCase
@@ -178,6 +183,53 @@ final class ConfigResetterTest extends TestCase
         self::assertCount(1, $events);
         self::assertFalse($events[0]->context['skip_confirmation']);
         self::assertNull($events[0]->actor);
+    }
+
+    #[Test]
+    public function productionResetUsesOneHashBoundActivationAndNeverTheLegacyHook(): void
+    {
+        $repository = $this->seed(['role.admin' => []]);
+        $activeFile = new ConfigSyncFile(
+            'role',
+            'admin',
+            ConfigSyncFile::deterministicUuid('role', 'admin'),
+            [],
+            'en',
+            ['label' => 'Old'],
+        );
+        $source = new class ($activeFile) implements ConfigSyncFileSourceInterface {
+            public function __construct(private readonly ConfigSyncFile $file) {}
+            public function iterate(): iterable { yield $this->file; }
+        };
+        $hook = new class implements ConfigImportApplyHookInterface {
+            public function apply(ConfigSyncFile $file): string { throw new \LogicException('legacy hook called'); }
+            public function delete(string $ref): void { throw new \LogicException('legacy hook called'); }
+        };
+        $expected = new ConfigurationActiveToken(str_repeat('a', 64), 4);
+        $committed = new ConfigurationActiveToken(str_repeat('b', 64), 5);
+        $activator = $this->createMock(ConfigurationActivatorInterface::class);
+        $activator->expects($this->once())
+            ->method('activate')
+            ->with($this->callback(static function (ConfigurationActivationRequest $request) use ($activeFile, $expected): bool {
+                return $request->requestId === 'reset-request-1'
+                    && $request->expectedToken == $expected
+                    && $request->expectedEntryHashes() === ['role.admin' => $activeFile->contentHash()];
+            }))
+            ->willReturn(new ConfigurationActivationResult('committed', $committed, 'reset-request-1', str_repeat('c', 64)));
+        $resetter = new ConfigResetter(
+            $repository,
+            $hook,
+            activator: $activator,
+            activeSource: $source,
+        );
+
+        $result = $resetter->reset(
+            'role.admin',
+            activationRequestId: 'reset-request-1',
+            expectedToken: $expected,
+        );
+
+        self::assertSame(ConfigImportEntryResult::STATUS_UPDATED, $result->status);
     }
 
     /**

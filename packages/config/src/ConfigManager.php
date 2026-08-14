@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Waaseyaa\Config;
 
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
+use Waaseyaa\Config\Activation\TransactionalConfigurationStorage;
+use Waaseyaa\Config\Authority\ConfigurationAuthorityUnavailableException;
 use Waaseyaa\Config\Event\ConfigEvent;
 use Waaseyaa\Config\Event\ConfigEvents;
 use Waaseyaa\Config\Exception\ConfigImportFailedException;
@@ -39,6 +41,11 @@ final class ConfigManager implements ConfigManagerInterface
      */
     public function import(): ConfigImportResult
     {
+        if ($this->activeStorage instanceof TransactionalConfigurationStorage) {
+            throw new ConfigurationAuthorityUnavailableException(
+                'Legacy ConfigManager::import is disabled in production; use the one-generation config:import activation path.',
+            );
+        }
         $syncNames = array_values($this->syncStorage->listAll());
         $activeNames = $this->activeStorage->listAll();
 

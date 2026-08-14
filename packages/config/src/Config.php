@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Config;
 
+use Waaseyaa\Config\Exception\ConfigMutationFailedException;
 use Waaseyaa\Config\Exception\ImmutableConfigException;
 
 /**
@@ -68,7 +69,9 @@ final class Config implements ConfigInterface
     {
         $this->assertMutable();
 
-        $this->storage->delete($this->name);
+        if (!$this->storage->delete($this->name)) {
+            throw ConfigMutationFailedException::forOperation('delete', $this->name);
+        }
         $this->data = [];
         $this->isNew = true;
 
@@ -79,7 +82,9 @@ final class Config implements ConfigInterface
     {
         $this->assertMutable();
 
-        $this->storage->write($this->name, $this->data);
+        if (!$this->storage->write($this->name, $this->data)) {
+            throw ConfigMutationFailedException::forOperation('save', $this->name);
+        }
         $this->isNew = false;
 
         return $this;

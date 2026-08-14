@@ -26,6 +26,8 @@ final readonly class ConfigImportResult
     public function __construct(
         public array $entries,
         public bool $dryRun = false,
+        public ?string $generationId = null,
+        public ?string $planHash = null,
     ) {}
 
     /**

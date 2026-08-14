@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "contract_id": "s1-configuration-activation-v1",
+  "capability": "configuration.activation.v1",
+  "capability_version": 1,
+  "predecessor": "s1-configuration-authority-v1",
+  "active_token": [
+    "activation_sequence",
+    "generation_id"
+  ],
+  "request_identity": "caller-supplied-id-bound-to-input-hash-and-original-expected-token",
+  "generation_identity": "sha256-canonical-complete-manifest",
+  "logical_pointer": "highest-committed-activation-sequence",
+  "transaction_first_operation": "activation-counter-cas-write",
+  "ordinary_absence": "retain",
+  "deletion": "explicit-tombstone-with-expected-entry-hash",
+  "complete_replacement": "explicit-mode-complete-manifest-and-content-bound-tombstones",
+  "blind_force": "unsupported",
+  "authorization": "mandatory-before-staging",
+  "delete_authorization": "independent-stronger-permission",
+  "rollback": "authorized-compatible-cas-new-sequence",
+  "candidate_cleanup": "authorized-fenced-supersede-only",
+  "legacy_false_result": "typed-failure",
+  "reader_epoch": "check-before-and-after-work-unit",
+  "compiled_cache": "exact-token-bound-refuse-or-bypass",
+  "external_evidence": "post-commit-ledger-rederivable",
+  "runtime_lazy_ddl": "forbidden",
+  "production_default_authorizer": "refuse",
+  "production_default_rollback_validator": "refuse",
+  "production_default_sweep_authorizer": "refuse",
+  "deferred_to": [
+    "S1-FW-CFG-03",
+    "S1-FW-CFG-04"
+  ]
+}

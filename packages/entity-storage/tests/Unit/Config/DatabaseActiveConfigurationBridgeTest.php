@@ -8,6 +8,9 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityUnavailableException;
+use Waaseyaa\Config\Activation\ConfigurationActivationAuthorizerInterface;
+use Waaseyaa\Config\Activation\ConfigurationActivationRequest;
+use Waaseyaa\Config\Authority\ConfigurationActiveToken;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
@@ -15,9 +18,12 @@ use Waaseyaa\EntityStorage\Config\ConfigurationStorageServiceProvider;
 use Waaseyaa\EntityStorage\Config\DatabaseActiveConfigurationBridge;
 use Waaseyaa\EntityStorage\Config\DatabaseActiveConfigurationStorage;
 use Waaseyaa\EntityStorage\Config\DatabaseConfigurationGenerationResolver;
+use Waaseyaa\EntityStorage\Config\DatabaseConfigurationActivator;
 use Waaseyaa\EntityStorage\Config\TestingActiveConfigurationBridge;
 use Waaseyaa\EntityStorage\Config\TestingConfigurationGenerationResolver;
 use Waaseyaa\Foundation\Migration\SchemaBuilder;
+use Waaseyaa\Foundation\Runtime\RuntimeEpochInterface;
+use Waaseyaa\Foundation\Runtime\StableRuntimeEpoch;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 
 final class DatabaseActiveConfigurationBridgeTest extends TestCase
@@ -59,6 +65,38 @@ final class DatabaseActiveConfigurationBridgeTest extends TestCase
         self::assertInstanceOf(ConfigSyncFile::class, $files[0]);
         self::assertSame('system.site', $files[0]->ref());
         self::assertSame('Waaseyaa', $files[0]->fields['name']);
+    }
+
+    #[Test]
+    public function oldRequestRemainsPinnedWhileFreshResolverSeesTheCommittedV2Head(): void
+    {
+        $migration = require dirname(__DIR__, 3) . '/migrations/2026_08_12_000003_configuration_activation.php';
+        $migration->up(new SchemaBuilder($this->database->getConnection()));
+        $authorizer = new class implements ConfigurationActivationAuthorizerInterface {
+            public function authorize(ConfigurationActivationRequest $request, bool $deletes): void {}
+        };
+        $activator = new DatabaseConfigurationActivator($this->database, $this->baseContext, $authorizer);
+        $first = $activator->activate(new ConfigurationActivationRequest(
+            'reader-pin-a',
+            null,
+            [$this->syncFile(['name' => 'A'])],
+        ));
+        $oldContext = new DatabaseConfigurationGenerationResolver($this->database)->bind($this->baseContext);
+        $oldBridge = new DatabaseActiveConfigurationBridge($this->database, $oldContext);
+
+        $activator->activate(new ConfigurationActivationRequest(
+            'reader-pin-b',
+            $first->token,
+            [$this->syncFile(['name' => 'B'])],
+            expectedEntryHashes: ['system.site' => $this->syncFile(['name' => 'A'])->contentHash()],
+        ));
+        $freshContext = new DatabaseConfigurationGenerationResolver($this->database)->bind($this->baseContext);
+        $freshBridge = new DatabaseActiveConfigurationBridge($this->database, $freshContext);
+
+        self::assertSame(['name' => 'A'], $oldBridge->activeStorage()->read('system.site'));
+        self::assertSame(['name' => 'B'], $freshBridge->activeStorage()->read('system.site'));
+        self::assertSame(1, $oldContext->activationSequence);
+        self::assertSame(2, $freshContext->activationSequence);
     }
 
     #[Test]
@@ -175,6 +213,7 @@ final class DatabaseActiveConfigurationBridgeTest extends TestCase
             TestingActiveConfigurationBridge::class,
             $testing->resolve(\Waaseyaa\Config\Authority\ActiveConfigurationBridgeInterface::class),
         );
+        self::assertInstanceOf(StableRuntimeEpoch::class, $testing->resolve(RuntimeEpochInterface::class));
         self::assertCount(1, iterator_to_array($testing->capabilityRequirements()));
 
         $this->seedActiveGeneration(['name' => 'Waaseyaa']);
@@ -187,6 +226,10 @@ final class DatabaseActiveConfigurationBridgeTest extends TestCase
         self::assertInstanceOf(
             DatabaseActiveConfigurationBridge::class,
             $production->resolve(\Waaseyaa\Config\Authority\ActiveConfigurationBridgeInterface::class),
+        );
+        self::assertInstanceOf(
+            \Waaseyaa\EntityStorage\Config\ConfigurationRuntimeEpoch::class,
+            $production->resolve(RuntimeEpochInterface::class),
         );
     }
 
@@ -276,14 +319,7 @@ final class DatabaseActiveConfigurationBridgeTest extends TestCase
     private function seedActiveGeneration(array $fields): void
     {
         ksort($fields, SORT_STRING);
-        $file = new ConfigSyncFile(
-            entityType: 'system',
-            entityId: 'site',
-            uuid: ConfigSyncFile::deterministicUuid('system', 'site'),
-            dependencies: [],
-            langcode: 'en',
-            fields: $fields,
-        );
+        $file = $this->syncFile($fields);
         $this->database->query(
             'INSERT INTO waaseyaa_config_generation '
             . '(authority_id, generation_id, activation_sequence, schema_version, manifest_hash, lifecycle_state, created_at) '
@@ -311,6 +347,21 @@ final class DatabaseActiveConfigurationBridgeTest extends TestCase
             'INSERT INTO waaseyaa_config_activation (authority_id, generation_id, activation_sequence, activated_at) '
             . 'VALUES (?, ?, 1, ?)',
             [$this->baseContext->authorityId, $this->generationId, '2026-08-12T00:00:00Z'],
+        );
+    }
+
+    /** @param array<string, mixed> $fields */
+    private function syncFile(array $fields): ConfigSyncFile
+    {
+        ksort($fields, SORT_STRING);
+
+        return new ConfigSyncFile(
+            entityType: 'system',
+            entityId: 'site',
+            uuid: ConfigSyncFile::deterministicUuid('system', 'site'),
+            dependencies: [],
+            langcode: 'en',
+            fields: $fields,
         );
     }
 

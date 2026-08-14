@@ -1,0 +1,2262 @@
+{
+    "schema_version": 1,
+    "query_version": "s1-configuration-activation-boundaries-v1",
+    "patterns": {
+        "activator_contract": "/\\bConfigurationActivatorInterface\\b/",
+        "activation_request": "/\\bConfigurationActivationRequest\\b/",
+        "rollback_request": "/\\bConfigurationRollbackRequest\\b/",
+        "active_token": "/\\bConfigurationActiveToken\\b/",
+        "activation_authorizer": "/\\bConfigurationActivationAuthorizerInterface\\b/",
+        "rollback_validator": "/\\bConfigurationRollbackValidatorInterface\\b/",
+        "candidate_sweep": "/\\b(?:ConfigurationCandidateMaintenanceInterface|ConfigurationCandidateSweepRequest|ConfigurationCandidateSweepAuthorizerInterface)\\b/",
+        "refusing_policy": "/\\b(?:RefusingConfigurationActivationAuthorizer|RefusingConfigurationRollbackValidator|RefusingConfigurationCandidateSweepAuthorizer)\\b/",
+        "transactional_storage": "/\\bTransactionalConfigurationStorage\\b/",
+        "runtime_epoch": "/\\bRuntimeEpochInterface\\b/",
+        "runtime_epoch_cache": "/\\bRuntimeEpochCacheBackend\\b/",
+        "typed_mutation_failure": "/\\bConfigMutationFailedException\\b/",
+        "activation_table": "/\\bwaaseyaa_config_(?:activation_counter|generation_v2|entry_v2|candidate|candidate_sweep_fence|activation_v2)\\b/",
+        "activation_command_option": "/\\b(?:activation-request-id|expected-generation|expected-sequence)\\b/",
+        "sqlite_contention": "/\\b(?:SQLITE_BUSY|database is locked|DeadlockException|LockWaitTimeoutException)\\b/i"
+    },
+    "allowed_classes": [
+        "activation-authority",
+        "activation-contract",
+        "active-reader",
+        "authorization-contract",
+        "authority-composition",
+        "command-adapter",
+        "command-composition",
+        "compiled-reader",
+        "epoch-cache",
+        "epoch-composition",
+        "epoch-consumer",
+        "epoch-contract",
+        "epoch-provider",
+        "failure-contract",
+        "legacy-mutation-adapter",
+        "maintenance-contract",
+        "mutation-orchestrator",
+        "refusing-default",
+        "request-contract",
+        "result-contract",
+        "schema-authority",
+        "testing-or-static-epoch",
+        "token-contract"
+    ],
+    "candidates": [
+        {
+            "path": "packages/cli/src/Command/Config/ConfigImportCommand.php",
+            "line": 8,
+            "pattern": "active_token",
+            "class": "command-adapter",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "78d0567f7e4c974efe35866aaa6207caf4e7a55040548aa4f693f4caf7304d7f",
+            "source_sha256": "3c4a87477fe78b97fd3991cdd55017e1db3c2ba30afc13da564fd1719bd78c3e"
+        },
+        {
+            "path": "packages/cli/src/Command/Config/ConfigImportCommand.php",
+            "line": 57,
+            "pattern": "activation_command_option",
+            "class": "command-adapter",
+            "match_sha256": "d7d7c9c34d915b9603fe8f954a80167a1a598a67f68e74c41239f0ed7f687feb",
+            "line_sha256": "10191c7b36c363fb268f3bfdb0b88954f88374fd6acac8675adb2be9ae46ca83",
+            "source_sha256": "3c4a87477fe78b97fd3991cdd55017e1db3c2ba30afc13da564fd1719bd78c3e"
+        },
+        {
+            "path": "packages/cli/src/Command/Config/ConfigImportCommand.php",
+            "line": 58,
+            "pattern": "activation_command_option",
+            "class": "command-adapter",
+            "match_sha256": "c2f6abebc369ac97328df66423ea7c6ae3b1e4d588d016ddce563379295c3d46",
+            "line_sha256": "a0a63174f90510b8be2d658dea92c7b4542c25cb4c296d6117ecd44c8ec441c7",
+            "source_sha256": "3c4a87477fe78b97fd3991cdd55017e1db3c2ba30afc13da564fd1719bd78c3e"
+        },
+        {
+            "path": "packages/cli/src/Command/Config/ConfigImportCommand.php",
+            "line": 67,
+            "pattern": "activation_command_option",
+            "class": "command-adapter",
+            "match_sha256": "c2f6abebc369ac97328df66423ea7c6ae3b1e4d588d016ddce563379295c3d46",
+            "line_sha256": "63b0785eef30f11d6ba1103fa7a5acb3a68bc91e2d7ed546eec32f6b7536d0ad",
+            "source_sha256": "3c4a87477fe78b97fd3991cdd55017e1db3c2ba30afc13da564fd1719bd78c3e"
+        },
+        {
+            "path": "packages/cli/src/Command/Config/ConfigImportCommand.php",
+            "line": 67,
+            "pattern": "activation_command_option",
+            "class": "command-adapter",
+            "match_sha256": "d7d7c9c34d915b9603fe8f954a80167a1a598a67f68e74c41239f0ed7f687feb",
+            "line_sha256": "63b0785eef30f11d6ba1103fa7a5acb3a68bc91e2d7ed546eec32f6b7536d0ad",
+            "source_sha256": "3c4a87477fe78b97fd3991cdd55017e1db3c2ba30afc13da564fd1719bd78c3e"
+        },
+        {
+            "path": "packages/cli/src/Command/Config/ConfigImportCommand.php",
+            "line": 69,
+            "pattern": "active_token",
+            "class": "command-adapter",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "32fbfe85673e30447a7c12ef04f1aa32bbc8039c8895384104bb2de4017e8651",
+            "source_sha256": "3c4a87477fe78b97fd3991cdd55017e1db3c2ba30afc13da564fd1719bd78c3e"
+        },
+        {
+            "path": "packages/cli/src/Command/Config/ConfigImportCommand.php",
+            "line": 77,
+            "pattern": "activation_command_option",
+            "class": "command-adapter",
+            "match_sha256": "574df1f64b15da7a85248ef726c5d576d1b2a2a9d8f62949fe934d18565f0d47",
+            "line_sha256": "841591ec9a3bb6f793e8ff8de192076f2a5ef132ee06efee900418f86eb1988b",
+            "source_sha256": "3c4a87477fe78b97fd3991cdd55017e1db3c2ba30afc13da564fd1719bd78c3e"
+        },
+        {
+            "path": "packages/cli/src/Command/Config/ConfigImportCommand.php",
+            "line": 77,
+            "pattern": "activation_command_option",
+            "class": "command-adapter",
+            "match_sha256": "574df1f64b15da7a85248ef726c5d576d1b2a2a9d8f62949fe934d18565f0d47",
+            "line_sha256": "841591ec9a3bb6f793e8ff8de192076f2a5ef132ee06efee900418f86eb1988b",
+            "source_sha256": "3c4a87477fe78b97fd3991cdd55017e1db3c2ba30afc13da564fd1719bd78c3e"
+        },
+        {
+            "path": "packages/cli/src/Command/Config/ConfigResetCommand.php",
+            "line": 8,
+            "pattern": "active_token",
+            "class": "command-adapter",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "78d0567f7e4c974efe35866aaa6207caf4e7a55040548aa4f693f4caf7304d7f",
+            "source_sha256": "b8420b49b5bc6361dd310d6ff9c08de889716daf24106434d430e73f511f77b9"
+        },
+        {
+            "path": "packages/cli/src/Command/Config/ConfigResetCommand.php",
+            "line": 74,
+            "pattern": "activation_command_option",
+            "class": "command-adapter",
+            "match_sha256": "d7d7c9c34d915b9603fe8f954a80167a1a598a67f68e74c41239f0ed7f687feb",
+            "line_sha256": "10191c7b36c363fb268f3bfdb0b88954f88374fd6acac8675adb2be9ae46ca83",
+            "source_sha256": "b8420b49b5bc6361dd310d6ff9c08de889716daf24106434d430e73f511f77b9"
+        },
+        {
+            "path": "packages/cli/src/Command/Config/ConfigResetCommand.php",
+            "line": 75,
+            "pattern": "activation_command_option",
+            "class": "command-adapter",
+            "match_sha256": "c2f6abebc369ac97328df66423ea7c6ae3b1e4d588d016ddce563379295c3d46",
+            "line_sha256": "a0a63174f90510b8be2d658dea92c7b4542c25cb4c296d6117ecd44c8ec441c7",
+            "source_sha256": "b8420b49b5bc6361dd310d6ff9c08de889716daf24106434d430e73f511f77b9"
+        },
+        {
+            "path": "packages/cli/src/Command/Config/ConfigResetCommand.php",
+            "line": 83,
+            "pattern": "activation_command_option",
+            "class": "command-adapter",
+            "match_sha256": "c2f6abebc369ac97328df66423ea7c6ae3b1e4d588d016ddce563379295c3d46",
+            "line_sha256": "c22e4209af0ed2eec393a74e1795b4344356af6e6607bf78213a2fefd3edbc79",
+            "source_sha256": "b8420b49b5bc6361dd310d6ff9c08de889716daf24106434d430e73f511f77b9"
+        },
+        {
+            "path": "packages/cli/src/Command/Config/ConfigResetCommand.php",
+            "line": 83,
+            "pattern": "activation_command_option",
+            "class": "command-adapter",
+            "match_sha256": "d7d7c9c34d915b9603fe8f954a80167a1a598a67f68e74c41239f0ed7f687feb",
+            "line_sha256": "c22e4209af0ed2eec393a74e1795b4344356af6e6607bf78213a2fefd3edbc79",
+            "source_sha256": "b8420b49b5bc6361dd310d6ff9c08de889716daf24106434d430e73f511f77b9"
+        },
+        {
+            "path": "packages/cli/src/Command/Config/ConfigResetCommand.php",
+            "line": 88,
+            "pattern": "active_token",
+            "class": "command-adapter",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "32fbfe85673e30447a7c12ef04f1aa32bbc8039c8895384104bb2de4017e8651",
+            "source_sha256": "b8420b49b5bc6361dd310d6ff9c08de889716daf24106434d430e73f511f77b9"
+        },
+        {
+            "path": "packages/cli/src/Command/Config/ConfigResetCommand.php",
+            "line": 95,
+            "pattern": "activation_command_option",
+            "class": "command-adapter",
+            "match_sha256": "574df1f64b15da7a85248ef726c5d576d1b2a2a9d8f62949fe934d18565f0d47",
+            "line_sha256": "e08575c13ff2a4adb98560a00ec51f058f75aa17c05924148adf72ab28e08928",
+            "source_sha256": "b8420b49b5bc6361dd310d6ff9c08de889716daf24106434d430e73f511f77b9"
+        },
+        {
+            "path": "packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php",
+            "line": 21,
+            "pattern": "activator_contract",
+            "class": "command-composition",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "line_sha256": "00b69802a1dc3b6c69bcf6cd93a4d76476d204ed008e782bf4a690c55a9d7ddf",
+            "source_sha256": "d729cd14d6e180a32d99c2b1015636480486209574e1a4ac3ed31c196eed485e"
+        },
+        {
+            "path": "packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php",
+            "line": 64,
+            "pattern": "activator_contract",
+            "class": "command-composition",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "line_sha256": "e604f370233c0d8f26ce485599fc3327f3029a3fea430b3eafad66443454c771",
+            "source_sha256": "d729cd14d6e180a32d99c2b1015636480486209574e1a4ac3ed31c196eed485e"
+        },
+        {
+            "path": "packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php",
+            "line": 65,
+            "pattern": "activator_contract",
+            "class": "command-composition",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "line_sha256": "349ae045dedee63d800d80d1b130c0ad457845a712ac88001e2169a14a7e4de4",
+            "source_sha256": "d729cd14d6e180a32d99c2b1015636480486209574e1a4ac3ed31c196eed485e"
+        },
+        {
+            "path": "packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php",
+            "line": 100,
+            "pattern": "activator_contract",
+            "class": "command-composition",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "line_sha256": "e604f370233c0d8f26ce485599fc3327f3029a3fea430b3eafad66443454c771",
+            "source_sha256": "d729cd14d6e180a32d99c2b1015636480486209574e1a4ac3ed31c196eed485e"
+        },
+        {
+            "path": "packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php",
+            "line": 101,
+            "pattern": "activator_contract",
+            "class": "command-composition",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "line_sha256": "349ae045dedee63d800d80d1b130c0ad457845a712ac88001e2169a14a7e4de4",
+            "source_sha256": "d729cd14d6e180a32d99c2b1015636480486209574e1a4ac3ed31c196eed485e"
+        },
+        {
+            "path": "packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php",
+            "line": 164,
+            "pattern": "activation_command_option",
+            "class": "command-composition",
+            "match_sha256": "574df1f64b15da7a85248ef726c5d576d1b2a2a9d8f62949fe934d18565f0d47",
+            "line_sha256": "a5cbb8f18174f91804c99f752c59a83519247b5c03572d81a3308ae3813066a4",
+            "source_sha256": "d729cd14d6e180a32d99c2b1015636480486209574e1a4ac3ed31c196eed485e"
+        },
+        {
+            "path": "packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php",
+            "line": 165,
+            "pattern": "activation_command_option",
+            "class": "command-composition",
+            "match_sha256": "d7d7c9c34d915b9603fe8f954a80167a1a598a67f68e74c41239f0ed7f687feb",
+            "line_sha256": "49ba7e836e3154dc73d138bd9b08463765d56ea387e9105d8271d02a23d268f9",
+            "source_sha256": "d729cd14d6e180a32d99c2b1015636480486209574e1a4ac3ed31c196eed485e"
+        },
+        {
+            "path": "packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php",
+            "line": 166,
+            "pattern": "activation_command_option",
+            "class": "command-composition",
+            "match_sha256": "c2f6abebc369ac97328df66423ea7c6ae3b1e4d588d016ddce563379295c3d46",
+            "line_sha256": "659c6f43cdb51d036bc9701234ccc98b0888b994ba14f6c1cbae3e3f053867c0",
+            "source_sha256": "d729cd14d6e180a32d99c2b1015636480486209574e1a4ac3ed31c196eed485e"
+        },
+        {
+            "path": "packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php",
+            "line": 166,
+            "pattern": "activation_command_option",
+            "class": "command-composition",
+            "match_sha256": "d7d7c9c34d915b9603fe8f954a80167a1a598a67f68e74c41239f0ed7f687feb",
+            "line_sha256": "659c6f43cdb51d036bc9701234ccc98b0888b994ba14f6c1cbae3e3f053867c0",
+            "source_sha256": "d729cd14d6e180a32d99c2b1015636480486209574e1a4ac3ed31c196eed485e"
+        },
+        {
+            "path": "packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php",
+            "line": 197,
+            "pattern": "activation_command_option",
+            "class": "command-composition",
+            "match_sha256": "574df1f64b15da7a85248ef726c5d576d1b2a2a9d8f62949fe934d18565f0d47",
+            "line_sha256": "b276f76bc38dce668de16286ba2dabe7b67617ca800b3a4c7e937aaf38803502",
+            "source_sha256": "d729cd14d6e180a32d99c2b1015636480486209574e1a4ac3ed31c196eed485e"
+        },
+        {
+            "path": "packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php",
+            "line": 198,
+            "pattern": "activation_command_option",
+            "class": "command-composition",
+            "match_sha256": "d7d7c9c34d915b9603fe8f954a80167a1a598a67f68e74c41239f0ed7f687feb",
+            "line_sha256": "e826bed2b9fd28c3d3372bc2c0b567f87d099b7f3b6e16033111c2ad25f44b14",
+            "source_sha256": "d729cd14d6e180a32d99c2b1015636480486209574e1a4ac3ed31c196eed485e"
+        },
+        {
+            "path": "packages/cli/src/Provider/ConfigCacheDbAuditServiceProvider.php",
+            "line": 199,
+            "pattern": "activation_command_option",
+            "class": "command-composition",
+            "match_sha256": "c2f6abebc369ac97328df66423ea7c6ae3b1e4d588d016ddce563379295c3d46",
+            "line_sha256": "87fe8fbf37228f6bc8661fe05a3678df19fe94d1de614ae5f9031b9a8568505e",
+            "source_sha256": "d729cd14d6e180a32d99c2b1015636480486209574e1a4ac3ed31c196eed485e"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationActivationAuthorizerInterface.php",
+            "line": 8,
+            "pattern": "activation_authorizer",
+            "class": "authorization-contract",
+            "match_sha256": "5d26788e83826d9ba1f9cc0c38a6c47bf4da12db8a020420e22c08a64c32e67d",
+            "line_sha256": "0be80e7307ea9b5a4d6eecfdfd34e1cab32d4da417e4de34bcd43e1dc3044835",
+            "source_sha256": "39fd7c7c9df87088d7f93b6f0d80fe4fc5860f444f119316a65c1a722f888e1b"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationActivationAuthorizerInterface.php",
+            "line": 10,
+            "pattern": "activation_request",
+            "class": "authorization-contract",
+            "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
+            "line_sha256": "0e6c859803ae30cf5109d091f1be4c5b29e00d40b279e88c171dbd47f32bf90d",
+            "source_sha256": "39fd7c7c9df87088d7f93b6f0d80fe4fc5860f444f119316a65c1a722f888e1b"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationActivationRequest.php",
+            "line": 7,
+            "pattern": "active_token",
+            "class": "request-contract",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "78d0567f7e4c974efe35866aaa6207caf4e7a55040548aa4f693f4caf7304d7f",
+            "source_sha256": "7ec8b13e311dc313d6496b79168d9a1777a23545d8e2134ddb9e9e345d447666"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationActivationRequest.php",
+            "line": 11,
+            "pattern": "activation_request",
+            "class": "request-contract",
+            "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
+            "line_sha256": "c336eb2a5d0435a9958940987bfb81e1fd31450203f1f96834ca1fea21dd5a21",
+            "source_sha256": "7ec8b13e311dc313d6496b79168d9a1777a23545d8e2134ddb9e9e345d447666"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationActivationRequest.php",
+            "line": 25,
+            "pattern": "active_token",
+            "class": "request-contract",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "840af42a5b21439637603956cb1f127c45e4b3defd96b7a9b89f01a995163088",
+            "source_sha256": "7ec8b13e311dc313d6496b79168d9a1777a23545d8e2134ddb9e9e345d447666"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationActivationResult.php",
+            "line": 7,
+            "pattern": "active_token",
+            "class": "result-contract",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "78d0567f7e4c974efe35866aaa6207caf4e7a55040548aa4f693f4caf7304d7f",
+            "source_sha256": "dda088faa714f76b143845783c04a33551cf2b91a7fad3969b513ffa5ea015e5"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationActivationResult.php",
+            "line": 13,
+            "pattern": "active_token",
+            "class": "result-contract",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "983598a1298f2ea5fc1af3d85fe78e63b0e0c2f609d87e00e0d78554dcfd0084",
+            "source_sha256": "dda088faa714f76b143845783c04a33551cf2b91a7fad3969b513ffa5ea015e5"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationActivationResult.php",
+            "line": 17,
+            "pattern": "active_token",
+            "class": "result-contract",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "e2dd0c85fea1568175aa8e64c013f2ed0ef3ef260f4bf4f24362f5c455a2a44f",
+            "source_sha256": "dda088faa714f76b143845783c04a33551cf2b91a7fad3969b513ffa5ea015e5"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationActivatorInterface.php",
+            "line": 7,
+            "pattern": "active_token",
+            "class": "activation-contract",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "78d0567f7e4c974efe35866aaa6207caf4e7a55040548aa4f693f4caf7304d7f",
+            "source_sha256": "65156e480d5675379ce7aac66dbc98d0b1dc74207836c897acb3c0665e139b4c"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationActivatorInterface.php",
+            "line": 11,
+            "pattern": "activator_contract",
+            "class": "activation-contract",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "line_sha256": "8f4d0bfeeebc4a1ed796c648267ddf894d73cf798a7fcfc01ad1e07d0ce06f11",
+            "source_sha256": "65156e480d5675379ce7aac66dbc98d0b1dc74207836c897acb3c0665e139b4c"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationActivatorInterface.php",
+            "line": 13,
+            "pattern": "activation_request",
+            "class": "activation-contract",
+            "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
+            "line_sha256": "1d0d7f5fd62d75b8a4d5c089ae47eb74decaa27699df273a360f486af3e32afd",
+            "source_sha256": "65156e480d5675379ce7aac66dbc98d0b1dc74207836c897acb3c0665e139b4c"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationActivatorInterface.php",
+            "line": 15,
+            "pattern": "rollback_request",
+            "class": "activation-contract",
+            "match_sha256": "9c4f85f33f199a467cf7135ff832adc5c02114278183c2a774bc886469f3b79a",
+            "line_sha256": "0b9c300e3167af2b06f0f947737edc38b5f118c0a3d5b53a8877fb6414db14b5",
+            "source_sha256": "65156e480d5675379ce7aac66dbc98d0b1dc74207836c897acb3c0665e139b4c"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationActivatorInterface.php",
+            "line": 19,
+            "pattern": "active_token",
+            "class": "activation-contract",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "1380cb746c206800c5c4987dabc979f11b29ee3fbae1d915e2118c9ddf9b0ba6",
+            "source_sha256": "65156e480d5675379ce7aac66dbc98d0b1dc74207836c897acb3c0665e139b4c"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationActivatorInterface.php",
+            "line": 22,
+            "pattern": "active_token",
+            "class": "activation-contract",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "d34f857ed38429ddec88b46153cee8108a0f87a7b7b4f5f54b09053e3cb3d3d2",
+            "source_sha256": "65156e480d5675379ce7aac66dbc98d0b1dc74207836c897acb3c0665e139b4c"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationCandidateMaintenanceInterface.php",
+            "line": 8,
+            "pattern": "candidate_sweep",
+            "class": "maintenance-contract",
+            "match_sha256": "69b0bcb41da5082e6abd2625518c9bc24d442dc7435cb7a6b48467e5dbba4aac",
+            "line_sha256": "1b65f7191c7a79ac5d0e1e8a7334c3cd83b42a4c2a43bc78f3728515f78fd7e7",
+            "source_sha256": "991dda3cb0a4ae15df2619cf9963527667409021594605ca49f4a991a5468e23"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationCandidateMaintenanceInterface.php",
+            "line": 10,
+            "pattern": "candidate_sweep",
+            "class": "maintenance-contract",
+            "match_sha256": "71e233342291b490fd5cfd54083262bd8f68d3e7080872f8ec97602dbc9626e0",
+            "line_sha256": "8a47fdd3c2ecfa40fa8cb19296bf1df33b283b22834f3b89a055d71cc44f5c7c",
+            "source_sha256": "991dda3cb0a4ae15df2619cf9963527667409021594605ca49f4a991a5468e23"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationCandidateSweepAuthorizerInterface.php",
+            "line": 8,
+            "pattern": "candidate_sweep",
+            "class": "authorization-contract",
+            "match_sha256": "982d454c70ff64c638048f0fd7741e8e1652648aaf0139b5f23f51e7163a945d",
+            "line_sha256": "a868fdb605e137e5a8f62aa804db36fcb8374b8fbf9aa38760367eab45598bac",
+            "source_sha256": "a8255547e7a09c3b07697140b52d31850094c48ce85f1ed0921f4e80ef5dad74"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationCandidateSweepAuthorizerInterface.php",
+            "line": 10,
+            "pattern": "candidate_sweep",
+            "class": "authorization-contract",
+            "match_sha256": "71e233342291b490fd5cfd54083262bd8f68d3e7080872f8ec97602dbc9626e0",
+            "line_sha256": "5e6b69c0a065855acd9aea8f54176a080b1c20577f46af5eaa989d3311fb05a7",
+            "source_sha256": "a8255547e7a09c3b07697140b52d31850094c48ce85f1ed0921f4e80ef5dad74"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationCandidateSweepRequest.php",
+            "line": 8,
+            "pattern": "candidate_sweep",
+            "class": "request-contract",
+            "match_sha256": "71e233342291b490fd5cfd54083262bd8f68d3e7080872f8ec97602dbc9626e0",
+            "line_sha256": "9db16ef9d3fec3615b29193c0fe4f9ca9b99bfcb85889995e2d29f77f927b82a",
+            "source_sha256": "d7d10a4e81d2452fcbf0de038d7b645a66aed18aadd6c28a5ad3bf71159ea757"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationRollbackRequest.php",
+            "line": 7,
+            "pattern": "active_token",
+            "class": "request-contract",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "78d0567f7e4c974efe35866aaa6207caf4e7a55040548aa4f693f4caf7304d7f",
+            "source_sha256": "99a4a9b0b524ab6b70c98ae52b9f2b6eb863d1af6f86427d871d10cea7e3271d"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationRollbackRequest.php",
+            "line": 10,
+            "pattern": "rollback_request",
+            "class": "request-contract",
+            "match_sha256": "9c4f85f33f199a467cf7135ff832adc5c02114278183c2a774bc886469f3b79a",
+            "line_sha256": "d060173e0b740af64fd502e4b5c3354e4509d195cabdd7893740f52dc6a5c313",
+            "source_sha256": "99a4a9b0b524ab6b70c98ae52b9f2b6eb863d1af6f86427d871d10cea7e3271d"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationRollbackRequest.php",
+            "line": 14,
+            "pattern": "active_token",
+            "class": "request-contract",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "d46a335a36d03a51e5bc965a2a9a3860b09d108b89f336f5f4af80cda30c9a28",
+            "source_sha256": "99a4a9b0b524ab6b70c98ae52b9f2b6eb863d1af6f86427d871d10cea7e3271d"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationRollbackRequest.php",
+            "line": 15,
+            "pattern": "active_token",
+            "class": "request-contract",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "ec6d4cd21a6f698e1b4b9cb2f283fdd9f2b33a2b3337c67b5e65e66eb4806d40",
+            "source_sha256": "99a4a9b0b524ab6b70c98ae52b9f2b6eb863d1af6f86427d871d10cea7e3271d"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationRollbackValidatorInterface.php",
+            "line": 10,
+            "pattern": "rollback_validator",
+            "class": "authorization-contract",
+            "match_sha256": "0ff51ace2e0c2c0e3a8f597000e78db80827eeefbda93832d20564d9c119a143",
+            "line_sha256": "b5a3bdb1628461124cbc31dacf7147abb48feb8db3491df4eb768de193b8144f",
+            "source_sha256": "c78fdedc2c001a490e0dd178e5a1f9d41ad4cf2a0f4bec113568eaea9752f668"
+        },
+        {
+            "path": "packages/config/src/Activation/ConfigurationRollbackValidatorInterface.php",
+            "line": 13,
+            "pattern": "rollback_request",
+            "class": "authorization-contract",
+            "match_sha256": "9c4f85f33f199a467cf7135ff832adc5c02114278183c2a774bc886469f3b79a",
+            "line_sha256": "032f3656a17b23f0abd6e3399e610d8684f1cb39526335188e180148e44c733a",
+            "source_sha256": "c78fdedc2c001a490e0dd178e5a1f9d41ad4cf2a0f4bec113568eaea9752f668"
+        },
+        {
+            "path": "packages/config/src/Activation/RefusingConfigurationActivationAuthorizer.php",
+            "line": 7,
+            "pattern": "activation_authorizer",
+            "class": "refusing-default",
+            "match_sha256": "5d26788e83826d9ba1f9cc0c38a6c47bf4da12db8a020420e22c08a64c32e67d",
+            "line_sha256": "7454218e0e6ccf1ffaea8ea5f3ed64d7dbf29c6be0102d9bf8057cee0198ec50",
+            "source_sha256": "21b2931b7cd33f77c8739e9cda2a4284e7832f7806b9b93a426a2c9b7db660f8"
+        },
+        {
+            "path": "packages/config/src/Activation/RefusingConfigurationActivationAuthorizer.php",
+            "line": 7,
+            "pattern": "refusing_policy",
+            "class": "refusing-default",
+            "match_sha256": "c62ed7d6682fdfe9246dbb71454afbe3ded2a1ec881144120fced9bb2c8a7116",
+            "line_sha256": "7454218e0e6ccf1ffaea8ea5f3ed64d7dbf29c6be0102d9bf8057cee0198ec50",
+            "source_sha256": "21b2931b7cd33f77c8739e9cda2a4284e7832f7806b9b93a426a2c9b7db660f8"
+        },
+        {
+            "path": "packages/config/src/Activation/RefusingConfigurationActivationAuthorizer.php",
+            "line": 9,
+            "pattern": "activation_request",
+            "class": "refusing-default",
+            "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
+            "line_sha256": "8f8538d20ac02efc0abfd22bfe8b153411d8450f12dd8c1a38eb18a52a15060a",
+            "source_sha256": "21b2931b7cd33f77c8739e9cda2a4284e7832f7806b9b93a426a2c9b7db660f8"
+        },
+        {
+            "path": "packages/config/src/Activation/RefusingConfigurationActivationAuthorizer.php",
+            "line": 12,
+            "pattern": "activation_authorizer",
+            "class": "refusing-default",
+            "match_sha256": "5d26788e83826d9ba1f9cc0c38a6c47bf4da12db8a020420e22c08a64c32e67d",
+            "line_sha256": "6914d53a0230e9ca403cfbdf671bf5489230b37cf8e71d9eee5f083b0fc46d27",
+            "source_sha256": "21b2931b7cd33f77c8739e9cda2a4284e7832f7806b9b93a426a2c9b7db660f8"
+        },
+        {
+            "path": "packages/config/src/Activation/RefusingConfigurationCandidateSweepAuthorizer.php",
+            "line": 7,
+            "pattern": "candidate_sweep",
+            "class": "refusing-default",
+            "match_sha256": "982d454c70ff64c638048f0fd7741e8e1652648aaf0139b5f23f51e7163a945d",
+            "line_sha256": "877c108e2467185521c7f42548f9841c21a8dd66f3d12358f182c61f96d3a7f7",
+            "source_sha256": "b8bf559b0701893fd09ca2ee72a4f205ade1f7a41b00c57a4d1372a621867c0c"
+        },
+        {
+            "path": "packages/config/src/Activation/RefusingConfigurationCandidateSweepAuthorizer.php",
+            "line": 7,
+            "pattern": "refusing_policy",
+            "class": "refusing-default",
+            "match_sha256": "327cea66df53efd7172ee66227f50edd136c0e9399c8ac37a4460cf8a231fa9e",
+            "line_sha256": "877c108e2467185521c7f42548f9841c21a8dd66f3d12358f182c61f96d3a7f7",
+            "source_sha256": "b8bf559b0701893fd09ca2ee72a4f205ade1f7a41b00c57a4d1372a621867c0c"
+        },
+        {
+            "path": "packages/config/src/Activation/RefusingConfigurationCandidateSweepAuthorizer.php",
+            "line": 9,
+            "pattern": "candidate_sweep",
+            "class": "refusing-default",
+            "match_sha256": "71e233342291b490fd5cfd54083262bd8f68d3e7080872f8ec97602dbc9626e0",
+            "line_sha256": "0df52b83f711c05a071ff3480d64b69a924923d8460b6c3a772471d1cef01f3a",
+            "source_sha256": "b8bf559b0701893fd09ca2ee72a4f205ade1f7a41b00c57a4d1372a621867c0c"
+        },
+        {
+            "path": "packages/config/src/Activation/RefusingConfigurationRollbackValidator.php",
+            "line": 7,
+            "pattern": "refusing_policy",
+            "class": "refusing-default",
+            "match_sha256": "820b86d396952d928c236464b6882fda369e477107d412072dfa510ab4625885",
+            "line_sha256": "118fb443b148f286588b5adc6f46a3fa16619cba58d6bd267a94db6347cae062",
+            "source_sha256": "12438e1e134e33554e49b1dd75c08138263f784e020384252e6dd06b1e578206"
+        },
+        {
+            "path": "packages/config/src/Activation/RefusingConfigurationRollbackValidator.php",
+            "line": 7,
+            "pattern": "rollback_validator",
+            "class": "refusing-default",
+            "match_sha256": "0ff51ace2e0c2c0e3a8f597000e78db80827eeefbda93832d20564d9c119a143",
+            "line_sha256": "118fb443b148f286588b5adc6f46a3fa16619cba58d6bd267a94db6347cae062",
+            "source_sha256": "12438e1e134e33554e49b1dd75c08138263f784e020384252e6dd06b1e578206"
+        },
+        {
+            "path": "packages/config/src/Activation/RefusingConfigurationRollbackValidator.php",
+            "line": 9,
+            "pattern": "rollback_request",
+            "class": "refusing-default",
+            "match_sha256": "9c4f85f33f199a467cf7135ff832adc5c02114278183c2a774bc886469f3b79a",
+            "line_sha256": "8ce3c657bf10476577a57ca586fb678af38819d387bf768b1317909ee179b6fc",
+            "source_sha256": "12438e1e134e33554e49b1dd75c08138263f784e020384252e6dd06b1e578206"
+        },
+        {
+            "path": "packages/config/src/Activation/TransactionalConfigurationStorage.php",
+            "line": 7,
+            "pattern": "active_token",
+            "class": "legacy-mutation-adapter",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "78d0567f7e4c974efe35866aaa6207caf4e7a55040548aa4f693f4caf7304d7f",
+            "source_sha256": "20537ae7aacac59f50ec05ae96615c5d357da196e48af0c1d3ada3181e330881"
+        },
+        {
+            "path": "packages/config/src/Activation/TransactionalConfigurationStorage.php",
+            "line": 13,
+            "pattern": "transactional_storage",
+            "class": "legacy-mutation-adapter",
+            "match_sha256": "436a3eb5361867f1801a631a488560cd080ef0532bdb442dcec2736c6dba26c5",
+            "line_sha256": "9d66d80b48b66f1abd4582271a269bf5086d73be708b897afb593528612b9559",
+            "source_sha256": "20537ae7aacac59f50ec05ae96615c5d357da196e48af0c1d3ada3181e330881"
+        },
+        {
+            "path": "packages/config/src/Activation/TransactionalConfigurationStorage.php",
+            "line": 22,
+            "pattern": "activator_contract",
+            "class": "legacy-mutation-adapter",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "line_sha256": "980b1468bcfedca39209342261ad01f8a37fd41e06e55373004fe4f44d9aca56",
+            "source_sha256": "20537ae7aacac59f50ec05ae96615c5d357da196e48af0c1d3ada3181e330881"
+        },
+        {
+            "path": "packages/config/src/Activation/TransactionalConfigurationStorage.php",
+            "line": 23,
+            "pattern": "active_token",
+            "class": "legacy-mutation-adapter",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "067439dc9538defd292af0f9ae231131ed0c21ab4d905f9e2ab7f1e2f0e47d6c",
+            "source_sha256": "20537ae7aacac59f50ec05ae96615c5d357da196e48af0c1d3ada3181e330881"
+        },
+        {
+            "path": "packages/config/src/Activation/TransactionalConfigurationStorage.php",
+            "line": 66,
+            "pattern": "activation_request",
+            "class": "legacy-mutation-adapter",
+            "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
+            "line_sha256": "adc60cabcb042c2be479ef88c011a409796d8be478b721f8a57e34032586bc7f",
+            "source_sha256": "20537ae7aacac59f50ec05ae96615c5d357da196e48af0c1d3ada3181e330881"
+        },
+        {
+            "path": "packages/config/src/Activation/TransactionalConfigurationStorage.php",
+            "line": 83,
+            "pattern": "activation_request",
+            "class": "legacy-mutation-adapter",
+            "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
+            "line_sha256": "adc60cabcb042c2be479ef88c011a409796d8be478b721f8a57e34032586bc7f",
+            "source_sha256": "20537ae7aacac59f50ec05ae96615c5d357da196e48af0c1d3ada3181e330881"
+        },
+        {
+            "path": "packages/config/src/Activation/TransactionalConfigurationStorage.php",
+            "line": 110,
+            "pattern": "activation_request",
+            "class": "legacy-mutation-adapter",
+            "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
+            "line_sha256": "adc60cabcb042c2be479ef88c011a409796d8be478b721f8a57e34032586bc7f",
+            "source_sha256": "20537ae7aacac59f50ec05ae96615c5d357da196e48af0c1d3ada3181e330881"
+        },
+        {
+            "path": "packages/config/src/Activation/TransactionalConfigurationStorage.php",
+            "line": 139,
+            "pattern": "activation_request",
+            "class": "legacy-mutation-adapter",
+            "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
+            "line_sha256": "adc60cabcb042c2be479ef88c011a409796d8be478b721f8a57e34032586bc7f",
+            "source_sha256": "20537ae7aacac59f50ec05ae96615c5d357da196e48af0c1d3ada3181e330881"
+        },
+        {
+            "path": "packages/config/src/Activation/TransactionalConfigurationStorage.php",
+            "line": 185,
+            "pattern": "activation_request",
+            "class": "legacy-mutation-adapter",
+            "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
+            "line_sha256": "45b9b294e5d3c71982b2eac613e9869052ee1ccad9f54c9a95910d013faded37",
+            "source_sha256": "20537ae7aacac59f50ec05ae96615c5d357da196e48af0c1d3ada3181e330881"
+        },
+        {
+            "path": "packages/config/src/Authority/ConfigurationActiveToken.php",
+            "line": 8,
+            "pattern": "active_token",
+            "class": "token-contract",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "8bfdb4c006fbccf800a8938e6537f5550180cd5c44d72f572833a5d13eb8030a",
+            "source_sha256": "fab2b1390f2481e2b70b3ae39f137d82962049b4f1fd563f6ccbf3c1ad2a739c"
+        },
+        {
+            "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
+            "line": 7,
+            "pattern": "activator_contract",
+            "class": "authority-composition",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "line_sha256": "00b69802a1dc3b6c69bcf6cd93a4d76476d204ed008e782bf4a690c55a9d7ddf",
+            "source_sha256": "f5cddfbcd14df1cf991d2e4db508b75f41db66405a1880fb34b12fdfff00ebcf"
+        },
+        {
+            "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
+            "line": 8,
+            "pattern": "transactional_storage",
+            "class": "authority-composition",
+            "match_sha256": "436a3eb5361867f1801a631a488560cd080ef0532bdb442dcec2736c6dba26c5",
+            "line_sha256": "445d3a69a44a48d6d56655501597417943d9f7df47b7c9b332d9e7a6284d6b08",
+            "source_sha256": "f5cddfbcd14df1cf991d2e4db508b75f41db66405a1880fb34b12fdfff00ebcf"
+        },
+        {
+            "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
+            "line": 146,
+            "pattern": "activator_contract",
+            "class": "authority-composition",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "line_sha256": "4e82c62c5f08f7d96c6d03bccbdaa62f82073ce90d3024dba16a4dabb75fb6a5",
+            "source_sha256": "f5cddfbcd14df1cf991d2e4db508b75f41db66405a1880fb34b12fdfff00ebcf"
+        },
+        {
+            "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
+            "line": 147,
+            "pattern": "activator_contract",
+            "class": "authority-composition",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "line_sha256": "d125de493b3eb1744544f0ac9f4a827d5e1443368002496151853a0618453515",
+            "source_sha256": "f5cddfbcd14df1cf991d2e4db508b75f41db66405a1880fb34b12fdfff00ebcf"
+        },
+        {
+            "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
+            "line": 153,
+            "pattern": "transactional_storage",
+            "class": "authority-composition",
+            "match_sha256": "436a3eb5361867f1801a631a488560cd080ef0532bdb442dcec2736c6dba26c5",
+            "line_sha256": "c409d75962b9ab2db3350d7d4553df03ad3b63f70775f3ae3c3c61d9efdcde82",
+            "source_sha256": "f5cddfbcd14df1cf991d2e4db508b75f41db66405a1880fb34b12fdfff00ebcf"
+        },
+        {
+            "path": "packages/config/src/Authority/ConfigurationAuthorityServiceProvider.php",
+            "line": 156,
+            "pattern": "active_token",
+            "class": "authority-composition",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "e065bc4ce57c130e15b6d7b7c46d6a59a68900bf3bde06f02324c81aaa73a715",
+            "source_sha256": "f5cddfbcd14df1cf991d2e4db508b75f41db66405a1880fb34b12fdfff00ebcf"
+        },
+        {
+            "path": "packages/config/src/Config.php",
+            "line": 7,
+            "pattern": "typed_mutation_failure",
+            "class": "legacy-mutation-adapter",
+            "match_sha256": "4c70d9eb3bb8db4b554fc1a852f0f01e86c8bace914f169dae81871ab04d5caf",
+            "line_sha256": "4fcad571cb89c6c8d78527708fab35811794ec562fecdfe9fcdc59f66f90a0bd",
+            "source_sha256": "5fde9e6da5698184ac5c6ae0ee5538890edd13fb187c6ddfd8c131d36e1ac18b"
+        },
+        {
+            "path": "packages/config/src/Config.php",
+            "line": 73,
+            "pattern": "typed_mutation_failure",
+            "class": "legacy-mutation-adapter",
+            "match_sha256": "4c70d9eb3bb8db4b554fc1a852f0f01e86c8bace914f169dae81871ab04d5caf",
+            "line_sha256": "ab1173a329bbae51929a642d6493391da79ad090f00005849079ec26924b042e",
+            "source_sha256": "5fde9e6da5698184ac5c6ae0ee5538890edd13fb187c6ddfd8c131d36e1ac18b"
+        },
+        {
+            "path": "packages/config/src/Config.php",
+            "line": 86,
+            "pattern": "typed_mutation_failure",
+            "class": "legacy-mutation-adapter",
+            "match_sha256": "4c70d9eb3bb8db4b554fc1a852f0f01e86c8bace914f169dae81871ab04d5caf",
+            "line_sha256": "5723b5fe8197203cdc1595601679f3180577acadb17acbd20ba1cf5db857855e",
+            "source_sha256": "5fde9e6da5698184ac5c6ae0ee5538890edd13fb187c6ddfd8c131d36e1ac18b"
+        },
+        {
+            "path": "packages/config/src/ConfigFactory.php",
+            "line": 8,
+            "pattern": "typed_mutation_failure",
+            "class": "legacy-mutation-adapter",
+            "match_sha256": "4c70d9eb3bb8db4b554fc1a852f0f01e86c8bace914f169dae81871ab04d5caf",
+            "line_sha256": "4fcad571cb89c6c8d78527708fab35811794ec562fecdfe9fcdc59f66f90a0bd",
+            "source_sha256": "f44250006a1b0f7b1f165c97c790d92a93c94bb5d296bb6116207e22d394331c"
+        },
+        {
+            "path": "packages/config/src/ConfigFactory.php",
+            "line": 77,
+            "pattern": "typed_mutation_failure",
+            "class": "legacy-mutation-adapter",
+            "match_sha256": "4c70d9eb3bb8db4b554fc1a852f0f01e86c8bace914f169dae81871ab04d5caf",
+            "line_sha256": "254404b00b25d10aeac8c2151f393d48412c0c5dc6c2ba41d142d4b40f3fe710",
+            "source_sha256": "f44250006a1b0f7b1f165c97c790d92a93c94bb5d296bb6116207e22d394331c"
+        },
+        {
+            "path": "packages/config/src/ConfigManager.php",
+            "line": 8,
+            "pattern": "transactional_storage",
+            "class": "legacy-mutation-adapter",
+            "match_sha256": "436a3eb5361867f1801a631a488560cd080ef0532bdb442dcec2736c6dba26c5",
+            "line_sha256": "445d3a69a44a48d6d56655501597417943d9f7df47b7c9b332d9e7a6284d6b08",
+            "source_sha256": "9dfb325d98c813c245ca0835f3c05982d2434115c5297fee31f26c375fc18c1b"
+        },
+        {
+            "path": "packages/config/src/ConfigManager.php",
+            "line": 44,
+            "pattern": "transactional_storage",
+            "class": "legacy-mutation-adapter",
+            "match_sha256": "436a3eb5361867f1801a631a488560cd080ef0532bdb442dcec2736c6dba26c5",
+            "line_sha256": "bbccb7adbcc536ddbed1f7dba63978f256619f587d2c7b72a0957e9de2980173",
+            "source_sha256": "9dfb325d98c813c245ca0835f3c05982d2434115c5297fee31f26c375fc18c1b"
+        },
+        {
+            "path": "packages/config/src/Exception/ConfigMutationFailedException.php",
+            "line": 8,
+            "pattern": "typed_mutation_failure",
+            "class": "failure-contract",
+            "match_sha256": "4c70d9eb3bb8db4b554fc1a852f0f01e86c8bace914f169dae81871ab04d5caf",
+            "line_sha256": "ffc4c7932b92b4b559344d689b9212aec32306b4c9acbca1f3b35be712f26fb4",
+            "source_sha256": "6569245dd5fe67f17ad57a934bd80e7960e7cfab13dbca09fd0d2e0076228584"
+        },
+        {
+            "path": "packages/config/src/Sync/ConfigImporter.php",
+            "line": 7,
+            "pattern": "activation_request",
+            "class": "mutation-orchestrator",
+            "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
+            "line_sha256": "0044ae19508bb4963ac2f3c5211db9f31f960add215fd8721399e2e52cdd5e07",
+            "source_sha256": "ddf2c0c72601147f17cd4ee63054f63146dee6c0b8e03fd892981cf7bafdda1d"
+        },
+        {
+            "path": "packages/config/src/Sync/ConfigImporter.php",
+            "line": 8,
+            "pattern": "activator_contract",
+            "class": "mutation-orchestrator",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "line_sha256": "00b69802a1dc3b6c69bcf6cd93a4d76476d204ed008e782bf4a690c55a9d7ddf",
+            "source_sha256": "ddf2c0c72601147f17cd4ee63054f63146dee6c0b8e03fd892981cf7bafdda1d"
+        },
+        {
+            "path": "packages/config/src/Sync/ConfigImporter.php",
+            "line": 9,
+            "pattern": "active_token",
+            "class": "mutation-orchestrator",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "78d0567f7e4c974efe35866aaa6207caf4e7a55040548aa4f693f4caf7304d7f",
+            "source_sha256": "ddf2c0c72601147f17cd4ee63054f63146dee6c0b8e03fd892981cf7bafdda1d"
+        },
+        {
+            "path": "packages/config/src/Sync/ConfigImporter.php",
+            "line": 64,
+            "pattern": "activator_contract",
+            "class": "mutation-orchestrator",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "line_sha256": "c2a911c7c3bbabad943265f786e6db0f7f8a1b23380f43b73ccd2b3754966d6f",
+            "source_sha256": "ddf2c0c72601147f17cd4ee63054f63146dee6c0b8e03fd892981cf7bafdda1d"
+        },
+        {
+            "path": "packages/config/src/Sync/ConfigImporter.php",
+            "line": 86,
+            "pattern": "active_token",
+            "class": "mutation-orchestrator",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "6d7982c2bed48fe17f482c6bdd17d65de072ccbab04a35c1c2e69dbdc0b1b49d",
+            "source_sha256": "ddf2c0c72601147f17cd4ee63054f63146dee6c0b8e03fd892981cf7bafdda1d"
+        },
+        {
+            "path": "packages/config/src/Sync/ConfigImporter.php",
+            "line": 174,
+            "pattern": "active_token",
+            "class": "mutation-orchestrator",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "52b93ceb90929a8bf4844609abc80c9512fc0a56511eb56d59b95d3d95029e1c",
+            "source_sha256": "ddf2c0c72601147f17cd4ee63054f63146dee6c0b8e03fd892981cf7bafdda1d"
+        },
+        {
+            "path": "packages/config/src/Sync/ConfigImporter.php",
+            "line": 182,
+            "pattern": "activation_command_option",
+            "class": "mutation-orchestrator",
+            "match_sha256": "574df1f64b15da7a85248ef726c5d576d1b2a2a9d8f62949fe934d18565f0d47",
+            "line_sha256": "a27a7c7b93c1e646b64b3d0b81bf02552933f3ab9bfa06f4e59a1bf3805e6883",
+            "source_sha256": "ddf2c0c72601147f17cd4ee63054f63146dee6c0b8e03fd892981cf7bafdda1d"
+        },
+        {
+            "path": "packages/config/src/Sync/ConfigImporter.php",
+            "line": 214,
+            "pattern": "activation_request",
+            "class": "mutation-orchestrator",
+            "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
+            "line_sha256": "9045c203f1c04d1c332c29f95e09d4e026e298bbb4b8c6b3ac35b8268d4a3b31",
+            "source_sha256": "ddf2c0c72601147f17cd4ee63054f63146dee6c0b8e03fd892981cf7bafdda1d"
+        },
+        {
+            "path": "packages/config/src/Sync/ConfigResetter.php",
+            "line": 7,
+            "pattern": "activation_request",
+            "class": "mutation-orchestrator",
+            "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
+            "line_sha256": "0044ae19508bb4963ac2f3c5211db9f31f960add215fd8721399e2e52cdd5e07",
+            "source_sha256": "f1770d77f38e8406a3c03d78107434881ee5379beec31caf756ca0cc8857d803"
+        },
+        {
+            "path": "packages/config/src/Sync/ConfigResetter.php",
+            "line": 8,
+            "pattern": "activator_contract",
+            "class": "mutation-orchestrator",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "line_sha256": "00b69802a1dc3b6c69bcf6cd93a4d76476d204ed008e782bf4a690c55a9d7ddf",
+            "source_sha256": "f1770d77f38e8406a3c03d78107434881ee5379beec31caf756ca0cc8857d803"
+        },
+        {
+            "path": "packages/config/src/Sync/ConfigResetter.php",
+            "line": 11,
+            "pattern": "active_token",
+            "class": "mutation-orchestrator",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "78d0567f7e4c974efe35866aaa6207caf4e7a55040548aa4f693f4caf7304d7f",
+            "source_sha256": "f1770d77f38e8406a3c03d78107434881ee5379beec31caf756ca0cc8857d803"
+        },
+        {
+            "path": "packages/config/src/Sync/ConfigResetter.php",
+            "line": 75,
+            "pattern": "activator_contract",
+            "class": "mutation-orchestrator",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "line_sha256": "c2a911c7c3bbabad943265f786e6db0f7f8a1b23380f43b73ccd2b3754966d6f",
+            "source_sha256": "f1770d77f38e8406a3c03d78107434881ee5379beec31caf756ca0cc8857d803"
+        },
+        {
+            "path": "packages/config/src/Sync/ConfigResetter.php",
+            "line": 95,
+            "pattern": "active_token",
+            "class": "mutation-orchestrator",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "6d7982c2bed48fe17f482c6bdd17d65de072ccbab04a35c1c2e69dbdc0b1b49d",
+            "source_sha256": "f1770d77f38e8406a3c03d78107434881ee5379beec31caf756ca0cc8857d803"
+        },
+        {
+            "path": "packages/config/src/Sync/ConfigResetter.php",
+            "line": 122,
+            "pattern": "activation_request",
+            "class": "mutation-orchestrator",
+            "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
+            "line_sha256": "9b9c931b9aaecbaaf17ab02fabd25eb44301f0b77bbb287fd177412eb3a3d694",
+            "source_sha256": "f1770d77f38e8406a3c03d78107434881ee5379beec31caf756ca0cc8857d803"
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php",
+            "line": 13,
+            "pattern": "activation_table",
+            "class": "schema-authority",
+            "match_sha256": "fa2f5ed5780d1c2e91947bb404cd527032078de98f6a3906db20d2f650341b59",
+            "line_sha256": "1083dd69593c93f28661a50647df1928c0d97088c20a749b19b96413f207e841",
+            "source_sha256": "e83fbcbd1798e0e1fa041df828e28a4a4754d5f760f5b2b948f31a11123201b0"
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php",
+            "line": 15,
+            "pattern": "activation_table",
+            "class": "schema-authority",
+            "match_sha256": "fa2f5ed5780d1c2e91947bb404cd527032078de98f6a3906db20d2f650341b59",
+            "line_sha256": "b985791a48ecf49db9aff519267161b3a5345effea79853254de9f2b792b646c",
+            "source_sha256": "e83fbcbd1798e0e1fa041df828e28a4a4754d5f760f5b2b948f31a11123201b0"
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php",
+            "line": 22,
+            "pattern": "activation_table",
+            "class": "schema-authority",
+            "match_sha256": "fa2f5ed5780d1c2e91947bb404cd527032078de98f6a3906db20d2f650341b59",
+            "line_sha256": "0547ce537216577ce88a6af8e512af1d5b291446dcc7bfef50e14612e5d19b70",
+            "source_sha256": "e83fbcbd1798e0e1fa041df828e28a4a4754d5f760f5b2b948f31a11123201b0"
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php",
+            "line": 29,
+            "pattern": "activation_table",
+            "class": "schema-authority",
+            "match_sha256": "0700efe9028b3540e780ebd862e0230daf7510a7bcf20e590c05bac2b3648f10",
+            "line_sha256": "39e73d372f8f00cbaa6cdbb9fc622a7ab00385afb903a3d9524fd5fb7ee91c20",
+            "source_sha256": "e83fbcbd1798e0e1fa041df828e28a4a4754d5f760f5b2b948f31a11123201b0"
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php",
+            "line": 31,
+            "pattern": "activation_table",
+            "class": "schema-authority",
+            "match_sha256": "0700efe9028b3540e780ebd862e0230daf7510a7bcf20e590c05bac2b3648f10",
+            "line_sha256": "973aee2cd1db1c1bba1517274afc4d6ed8c97af4f19835e2e92c0e51ff4d8428",
+            "source_sha256": "e83fbcbd1798e0e1fa041df828e28a4a4754d5f760f5b2b948f31a11123201b0"
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php",
+            "line": 39,
+            "pattern": "activation_table",
+            "class": "schema-authority",
+            "match_sha256": "0851416e0bae2beb95359ad257fc7d60b79827d9a508a0091e1b2cd2e72fb8c8",
+            "line_sha256": "d657903f985b18df606f938e3bfa13024a4e9ec45448cad2978b85e14b693c4c",
+            "source_sha256": "e83fbcbd1798e0e1fa041df828e28a4a4754d5f760f5b2b948f31a11123201b0"
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php",
+            "line": 41,
+            "pattern": "activation_table",
+            "class": "schema-authority",
+            "match_sha256": "0851416e0bae2beb95359ad257fc7d60b79827d9a508a0091e1b2cd2e72fb8c8",
+            "line_sha256": "43b2b83c440af253fc831b91bdc713a9a2185560a0378fba16a1adfe7568ef60",
+            "source_sha256": "e83fbcbd1798e0e1fa041df828e28a4a4754d5f760f5b2b948f31a11123201b0"
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php",
+            "line": 51,
+            "pattern": "activation_table",
+            "class": "schema-authority",
+            "match_sha256": "eb33867d90f1c11ac493918309b170dde468613865e03d5ad6eb593de9ca3a42",
+            "line_sha256": "9811b1111cf79bacb95d1575aca4209751075bf1af753632ef6bf4b96631369f",
+            "source_sha256": "e83fbcbd1798e0e1fa041df828e28a4a4754d5f760f5b2b948f31a11123201b0"
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php",
+            "line": 53,
+            "pattern": "activation_table",
+            "class": "schema-authority",
+            "match_sha256": "eb33867d90f1c11ac493918309b170dde468613865e03d5ad6eb593de9ca3a42",
+            "line_sha256": "9f16c2bd3c8b53d3588795dbefa60746b3fbcf8cedb57dbd4c9205ad02e35757",
+            "source_sha256": "e83fbcbd1798e0e1fa041df828e28a4a4754d5f760f5b2b948f31a11123201b0"
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php",
+            "line": 67,
+            "pattern": "activation_table",
+            "class": "schema-authority",
+            "match_sha256": "0851416e0bae2beb95359ad257fc7d60b79827d9a508a0091e1b2cd2e72fb8c8",
+            "line_sha256": "14f1a12c4068467eff2cf7341068de361e92009d41c43ee7c17323b88082e8ba",
+            "source_sha256": "e83fbcbd1798e0e1fa041df828e28a4a4754d5f760f5b2b948f31a11123201b0"
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php",
+            "line": 71,
+            "pattern": "activation_table",
+            "class": "schema-authority",
+            "match_sha256": "88c8c05c6b6bb3543fc8b0ea7c05fb786e087a24f64dc92d390e23b19814fbd8",
+            "line_sha256": "cdca5a6cad2083ebe5d16f43ffac89d180350e7c1f187ec674bef3634e28b4ac",
+            "source_sha256": "e83fbcbd1798e0e1fa041df828e28a4a4754d5f760f5b2b948f31a11123201b0"
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php",
+            "line": 73,
+            "pattern": "activation_table",
+            "class": "schema-authority",
+            "match_sha256": "88c8c05c6b6bb3543fc8b0ea7c05fb786e087a24f64dc92d390e23b19814fbd8",
+            "line_sha256": "ac7daa698d5beb37c66e9c71d65b733fac549af618dadf7b68fbce3450171341",
+            "source_sha256": "e83fbcbd1798e0e1fa041df828e28a4a4754d5f760f5b2b948f31a11123201b0"
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php",
+            "line": 88,
+            "pattern": "activation_table",
+            "class": "schema-authority",
+            "match_sha256": "0851416e0bae2beb95359ad257fc7d60b79827d9a508a0091e1b2cd2e72fb8c8",
+            "line_sha256": "14f1a12c4068467eff2cf7341068de361e92009d41c43ee7c17323b88082e8ba",
+            "source_sha256": "e83fbcbd1798e0e1fa041df828e28a4a4754d5f760f5b2b948f31a11123201b0"
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php",
+            "line": 92,
+            "pattern": "activation_table",
+            "class": "schema-authority",
+            "match_sha256": "6443c345bfb8d63311146af6193cb4b5106c32ff06c03c0a64f4a45fa06ce047",
+            "line_sha256": "456a9af5c5b68c3ae5014f4fd41c778272f7b8ad29646bd84b0f2008018b58e6",
+            "source_sha256": "e83fbcbd1798e0e1fa041df828e28a4a4754d5f760f5b2b948f31a11123201b0"
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php",
+            "line": 94,
+            "pattern": "activation_table",
+            "class": "schema-authority",
+            "match_sha256": "6443c345bfb8d63311146af6193cb4b5106c32ff06c03c0a64f4a45fa06ce047",
+            "line_sha256": "7f2e934c1c27b7cdf6432c1c38447034ad75f9586201a3adb154b619f322d251",
+            "source_sha256": "e83fbcbd1798e0e1fa041df828e28a4a4754d5f760f5b2b948f31a11123201b0"
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php",
+            "line": 108,
+            "pattern": "activation_table",
+            "class": "schema-authority",
+            "match_sha256": "88c8c05c6b6bb3543fc8b0ea7c05fb786e087a24f64dc92d390e23b19814fbd8",
+            "line_sha256": "be2ab155437a364b91d47365a298cd5eb2519847812485eea5c97d48c9956a80",
+            "source_sha256": "e83fbcbd1798e0e1fa041df828e28a4a4754d5f760f5b2b948f31a11123201b0"
+        },
+        {
+            "path": "packages/entity-storage/migrations/2026_08_12_000003_configuration_activation.php",
+            "line": 110,
+            "pattern": "activation_table",
+            "class": "schema-authority",
+            "match_sha256": "0851416e0bae2beb95359ad257fc7d60b79827d9a508a0091e1b2cd2e72fb8c8",
+            "line_sha256": "14f1a12c4068467eff2cf7341068de361e92009d41c43ee7c17323b88082e8ba",
+            "source_sha256": "e83fbcbd1798e0e1fa041df828e28a4a4754d5f760f5b2b948f31a11123201b0"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationRuntimeEpoch.php",
+            "line": 7,
+            "pattern": "activator_contract",
+            "class": "epoch-provider",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "line_sha256": "00b69802a1dc3b6c69bcf6cd93a4d76476d204ed008e782bf4a690c55a9d7ddf",
+            "source_sha256": "149d3e5ac1fb677ab3e8d111a3eae8c643336bf4f18c51b6b6db8fc7398b3f6d"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationRuntimeEpoch.php",
+            "line": 8,
+            "pattern": "active_token",
+            "class": "epoch-provider",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "78d0567f7e4c974efe35866aaa6207caf4e7a55040548aa4f693f4caf7304d7f",
+            "source_sha256": "149d3e5ac1fb677ab3e8d111a3eae8c643336bf4f18c51b6b6db8fc7398b3f6d"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationRuntimeEpoch.php",
+            "line": 9,
+            "pattern": "runtime_epoch",
+            "class": "epoch-provider",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
+            "line_sha256": "993b4a6497d6541494494051ae4fd58dab5950a8e26c7a8a6c799ea02259828e",
+            "source_sha256": "149d3e5ac1fb677ab3e8d111a3eae8c643336bf4f18c51b6b6db8fc7398b3f6d"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationRuntimeEpoch.php",
+            "line": 12,
+            "pattern": "runtime_epoch",
+            "class": "epoch-provider",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
+            "line_sha256": "72ae1ec6c52c7101c51ee125924102e8fd92fbb0d9de21ac2543da5e32f84910",
+            "source_sha256": "149d3e5ac1fb677ab3e8d111a3eae8c643336bf4f18c51b6b6db8fc7398b3f6d"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationRuntimeEpoch.php",
+            "line": 15,
+            "pattern": "activator_contract",
+            "class": "epoch-provider",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "line_sha256": "980b1468bcfedca39209342261ad01f8a37fd41e06e55373004fe4f44d9aca56",
+            "source_sha256": "149d3e5ac1fb677ab3e8d111a3eae8c643336bf4f18c51b6b6db8fc7398b3f6d"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationRuntimeEpoch.php",
+            "line": 16,
+            "pattern": "active_token",
+            "class": "epoch-provider",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "15f1c42d6cd7c46830bb0d33001e8a70d238eadbffcc13ff36c3fd555ad5f2e3",
+            "source_sha256": "149d3e5ac1fb677ab3e8d111a3eae8c643336bf4f18c51b6b6db8fc7398b3f6d"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 7,
+            "pattern": "activation_authorizer",
+            "class": "authority-composition",
+            "match_sha256": "5d26788e83826d9ba1f9cc0c38a6c47bf4da12db8a020420e22c08a64c32e67d",
+            "line_sha256": "2825495d1d79db33b291617bf726f62aff5a4ea97ae2f84d6a437777743855a9",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 8,
+            "pattern": "activator_contract",
+            "class": "authority-composition",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "line_sha256": "00b69802a1dc3b6c69bcf6cd93a4d76476d204ed008e782bf4a690c55a9d7ddf",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 9,
+            "pattern": "candidate_sweep",
+            "class": "authority-composition",
+            "match_sha256": "69b0bcb41da5082e6abd2625518c9bc24d442dc7435cb7a6b48467e5dbba4aac",
+            "line_sha256": "22e4fbc429f619ec12f022d4f6527fb41257df7a4f447e6ea96dca9bf860e81d",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 10,
+            "pattern": "candidate_sweep",
+            "class": "authority-composition",
+            "match_sha256": "982d454c70ff64c638048f0fd7741e8e1652648aaf0139b5f23f51e7163a945d",
+            "line_sha256": "6899a8a9414e988248966ea75d401e5cda92b41ddb3431cd04d4e66b0fc9f49e",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 11,
+            "pattern": "rollback_validator",
+            "class": "authority-composition",
+            "match_sha256": "0ff51ace2e0c2c0e3a8f597000e78db80827eeefbda93832d20564d9c119a143",
+            "line_sha256": "6773002101264a9ed3e218c49acd52d0326594e9df9b8c0dd002a3fac9441a46",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 12,
+            "pattern": "refusing_policy",
+            "class": "authority-composition",
+            "match_sha256": "c62ed7d6682fdfe9246dbb71454afbe3ded2a1ec881144120fced9bb2c8a7116",
+            "line_sha256": "c4d72f755916d7dc05f6867b492de119bf929365da544a286be66ffb22fa4c8f",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 13,
+            "pattern": "refusing_policy",
+            "class": "authority-composition",
+            "match_sha256": "327cea66df53efd7172ee66227f50edd136c0e9399c8ac37a4460cf8a231fa9e",
+            "line_sha256": "d3bc63121bd518fd9f56880febc913e8ae0e78385113a6682c19082c14068143",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 14,
+            "pattern": "refusing_policy",
+            "class": "authority-composition",
+            "match_sha256": "820b86d396952d928c236464b6882fda369e477107d412072dfa510ab4625885",
+            "line_sha256": "b5fb20301c0e1c5392a938994eb419cb7a9aa7e1173d09b9a8a7047ab9c1010b",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 19,
+            "pattern": "runtime_epoch",
+            "class": "authority-composition",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
+            "line_sha256": "993b4a6497d6541494494051ae4fd58dab5950a8e26c7a8a6c799ea02259828e",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 51,
+            "pattern": "activator_contract",
+            "class": "authority-composition",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "line_sha256": "1023f545a8db88a5c74c98d79aea583a6ddf5b21978bba2e45eec5fe3bc2c925",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 51,
+            "pattern": "activator_contract",
+            "class": "authority-composition",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "line_sha256": "1023f545a8db88a5c74c98d79aea583a6ddf5b21978bba2e45eec5fe3bc2c925",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 54,
+            "pattern": "activation_authorizer",
+            "class": "authority-composition",
+            "match_sha256": "5d26788e83826d9ba1f9cc0c38a6c47bf4da12db8a020420e22c08a64c32e67d",
+            "line_sha256": "903e384e4478b27685ab1ef66fd7b8b366359e00afd85b1038a6e7e60ec42291",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 55,
+            "pattern": "refusing_policy",
+            "class": "authority-composition",
+            "match_sha256": "c62ed7d6682fdfe9246dbb71454afbe3ded2a1ec881144120fced9bb2c8a7116",
+            "line_sha256": "61a5454016fd37490c9b9f651f49ad60ca598ee93bda2962ed0f0a98621d0808",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 56,
+            "pattern": "rollback_validator",
+            "class": "authority-composition",
+            "match_sha256": "0ff51ace2e0c2c0e3a8f597000e78db80827eeefbda93832d20564d9c119a143",
+            "line_sha256": "c8e6ed4b87129159f34cdf5381774835e3a805a92dc3af95e7b5fc2be476e333",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 57,
+            "pattern": "refusing_policy",
+            "class": "authority-composition",
+            "match_sha256": "820b86d396952d928c236464b6882fda369e477107d412072dfa510ab4625885",
+            "line_sha256": "aeeb048feb02cbf6a5d81384852e94a30857dbf0f56955c227a17470ef0fdb54",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 58,
+            "pattern": "candidate_sweep",
+            "class": "authority-composition",
+            "match_sha256": "982d454c70ff64c638048f0fd7741e8e1652648aaf0139b5f23f51e7163a945d",
+            "line_sha256": "ec402ff14494cf8739a693ce3444a84a8ca54d46258b238186efa59e093a3d1f",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 59,
+            "pattern": "refusing_policy",
+            "class": "authority-composition",
+            "match_sha256": "327cea66df53efd7172ee66227f50edd136c0e9399c8ac37a4460cf8a231fa9e",
+            "line_sha256": "c0f25005b7c543698c878b6b6e1dff4ca6ddc9a0a421b68c9b69a2bbfee52f14",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 62,
+            "pattern": "activation_authorizer",
+            "class": "authority-composition",
+            "match_sha256": "5d26788e83826d9ba1f9cc0c38a6c47bf4da12db8a020420e22c08a64c32e67d",
+            "line_sha256": "b17d751fb4054104fc07020e6438631831eda411039f7569c69d2229b5ba1e7a",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 63,
+            "pattern": "rollback_validator",
+            "class": "authority-composition",
+            "match_sha256": "0ff51ace2e0c2c0e3a8f597000e78db80827eeefbda93832d20564d9c119a143",
+            "line_sha256": "58807aef850151020bf79182440951d8369962338fe5b270dc13b0ab1fcc451d",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 64,
+            "pattern": "candidate_sweep",
+            "class": "authority-composition",
+            "match_sha256": "982d454c70ff64c638048f0fd7741e8e1652648aaf0139b5f23f51e7163a945d",
+            "line_sha256": "3b3862968f29bfec828dd4bd630f25a2c1b5336b6a26a01dbc04c571e21e91c4",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 68,
+            "pattern": "candidate_sweep",
+            "class": "authority-composition",
+            "match_sha256": "69b0bcb41da5082e6abd2625518c9bc24d442dc7435cb7a6b48467e5dbba4aac",
+            "line_sha256": "73f2931773c1243e1f6dfbe2aef79b6185e4e38c9f99afd8a26b86963905e223",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 68,
+            "pattern": "candidate_sweep",
+            "class": "authority-composition",
+            "match_sha256": "69b0bcb41da5082e6abd2625518c9bc24d442dc7435cb7a6b48467e5dbba4aac",
+            "line_sha256": "73f2931773c1243e1f6dfbe2aef79b6185e4e38c9f99afd8a26b86963905e223",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 69,
+            "pattern": "activator_contract",
+            "class": "authority-composition",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "line_sha256": "7a7f4c3416fdf2b5a42fd70d08b93affac3df7463d7506fddcecb5dd5cc4aed1",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 70,
+            "pattern": "candidate_sweep",
+            "class": "authority-composition",
+            "match_sha256": "69b0bcb41da5082e6abd2625518c9bc24d442dc7435cb7a6b48467e5dbba4aac",
+            "line_sha256": "8bf2d9c40099a2ad9e5348f65ea6558b34678054424349e5c34fcd7b3cab2c99",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 74,
+            "pattern": "runtime_epoch",
+            "class": "authority-composition",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
+            "line_sha256": "d679fe9ef7fed150e8efdf981c6b50dc3b83015d7d99adc5562fce64dc12100f",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 74,
+            "pattern": "runtime_epoch",
+            "class": "authority-composition",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
+            "line_sha256": "d679fe9ef7fed150e8efdf981c6b50dc3b83015d7d99adc5562fce64dc12100f",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 78,
+            "pattern": "activator_contract",
+            "class": "authority-composition",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "line_sha256": "7a7f4c3416fdf2b5a42fd70d08b93affac3df7463d7506fddcecb5dd5cc4aed1",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 80,
+            "pattern": "activator_contract",
+            "class": "authority-composition",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "line_sha256": "b8c4142b27f8e4df0ac705d7a955142503e393af7b35eff0d36c7bcafb3f9177",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/ConfigurationStorageServiceProvider.php",
+            "line": 85,
+            "pattern": "active_token",
+            "class": "authority-composition",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "25889674c5fdf30f32546153611f3697d2b94a99e18361121be7080be70f5a69",
+            "source_sha256": "6b1b1028c194b00f0ff9fa4ec666688ddc6270efac24c9cf3b9424a100df566b"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseActiveConfigurationBridge.php",
+            "line": 81,
+            "pattern": "activation_table",
+            "class": "active-reader",
+            "match_sha256": "0851416e0bae2beb95359ad257fc7d60b79827d9a508a0091e1b2cd2e72fb8c8",
+            "line_sha256": "d5f22d46ab03045110dec58d424658561dafc92a4a689b53e86510a4b958cfbb",
+            "source_sha256": "fa8d52b5ba17a1edc2c6d5703e1b1dc2f945f5e529471a2b1776e523f01b23ac"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseActiveConfigurationBridge.php",
+            "line": 83,
+            "pattern": "activation_table",
+            "class": "active-reader",
+            "match_sha256": "0851416e0bae2beb95359ad257fc7d60b79827d9a508a0091e1b2cd2e72fb8c8",
+            "line_sha256": "087f96ed14235733027f6f03fc2d67ac79e5776774d3131d7bab5bd652675ff0",
+            "source_sha256": "fa8d52b5ba17a1edc2c6d5703e1b1dc2f945f5e529471a2b1776e523f01b23ac"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseActiveConfigurationBridge.php",
+            "line": 86,
+            "pattern": "activation_table",
+            "class": "active-reader",
+            "match_sha256": "eb33867d90f1c11ac493918309b170dde468613865e03d5ad6eb593de9ca3a42",
+            "line_sha256": "cfd85f8df6590f658e53bbf7a5a10abbe6c1a0f5d595e0cf1523c577480b6f37",
+            "source_sha256": "fa8d52b5ba17a1edc2c6d5703e1b1dc2f945f5e529471a2b1776e523f01b23ac"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseActiveConfigurationStorage.php",
+            "line": 146,
+            "pattern": "activation_table",
+            "class": "active-reader",
+            "match_sha256": "0851416e0bae2beb95359ad257fc7d60b79827d9a508a0091e1b2cd2e72fb8c8",
+            "line_sha256": "d5f22d46ab03045110dec58d424658561dafc92a4a689b53e86510a4b958cfbb",
+            "source_sha256": "8cdd26df0335608b9424e7af18395dd7297d7ee5deb0cdc056e1554e7ed9d9af"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseActiveConfigurationStorage.php",
+            "line": 148,
+            "pattern": "activation_table",
+            "class": "active-reader",
+            "match_sha256": "0851416e0bae2beb95359ad257fc7d60b79827d9a508a0091e1b2cd2e72fb8c8",
+            "line_sha256": "087f96ed14235733027f6f03fc2d67ac79e5776774d3131d7bab5bd652675ff0",
+            "source_sha256": "8cdd26df0335608b9424e7af18395dd7297d7ee5deb0cdc056e1554e7ed9d9af"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseActiveConfigurationStorage.php",
+            "line": 151,
+            "pattern": "activation_table",
+            "class": "active-reader",
+            "match_sha256": "eb33867d90f1c11ac493918309b170dde468613865e03d5ad6eb593de9ca3a42",
+            "line_sha256": "cfd85f8df6590f658e53bbf7a5a10abbe6c1a0f5d595e0cf1523c577480b6f37",
+            "source_sha256": "8cdd26df0335608b9424e7af18395dd7297d7ee5deb0cdc056e1554e7ed9d9af"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 7,
+            "pattern": "sqlite_contention",
+            "class": "activation-authority",
+            "match_sha256": "3e45c19f5f14c4935145438e582f2d5192823817b958e4400a148db6989dad19",
+            "line_sha256": "ad18ff2f83800e6e63435772e77c1039fedcf46455e6b5d3998773180b551daa",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 8,
+            "pattern": "sqlite_contention",
+            "class": "activation-authority",
+            "match_sha256": "ecd528df2a5678f9b44123f5ffdbe62f1afb0f0c3b4e6aec4c4bce5cd6e7e304",
+            "line_sha256": "644487a8909a86e26672d8baeb9fcb317e05f58c0383156e602ce7f2bea94e89",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 10,
+            "pattern": "activation_authorizer",
+            "class": "activation-authority",
+            "match_sha256": "5d26788e83826d9ba1f9cc0c38a6c47bf4da12db8a020420e22c08a64c32e67d",
+            "line_sha256": "2825495d1d79db33b291617bf726f62aff5a4ea97ae2f84d6a437777743855a9",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 13,
+            "pattern": "activation_request",
+            "class": "activation-authority",
+            "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
+            "line_sha256": "0044ae19508bb4963ac2f3c5211db9f31f960add215fd8721399e2e52cdd5e07",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 16,
+            "pattern": "activator_contract",
+            "class": "activation-authority",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "line_sha256": "00b69802a1dc3b6c69bcf6cd93a4d76476d204ed008e782bf4a690c55a9d7ddf",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 17,
+            "pattern": "candidate_sweep",
+            "class": "activation-authority",
+            "match_sha256": "69b0bcb41da5082e6abd2625518c9bc24d442dc7435cb7a6b48467e5dbba4aac",
+            "line_sha256": "22e4fbc429f619ec12f022d4f6527fb41257df7a4f447e6ea96dca9bf860e81d",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 18,
+            "pattern": "candidate_sweep",
+            "class": "activation-authority",
+            "match_sha256": "982d454c70ff64c638048f0fd7741e8e1652648aaf0139b5f23f51e7163a945d",
+            "line_sha256": "6899a8a9414e988248966ea75d401e5cda92b41ddb3431cd04d4e66b0fc9f49e",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 19,
+            "pattern": "candidate_sweep",
+            "class": "activation-authority",
+            "match_sha256": "71e233342291b490fd5cfd54083262bd8f68d3e7080872f8ec97602dbc9626e0",
+            "line_sha256": "d3815634e896203b09407be03557607a7dad5926e433c92ddaadde6a688a0086",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 20,
+            "pattern": "rollback_request",
+            "class": "activation-authority",
+            "match_sha256": "9c4f85f33f199a467cf7135ff832adc5c02114278183c2a774bc886469f3b79a",
+            "line_sha256": "1d68ad6f632307705050b3b649fa6bc51524ecc12abafe1b0ad3845a08268023",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 21,
+            "pattern": "rollback_validator",
+            "class": "activation-authority",
+            "match_sha256": "0ff51ace2e0c2c0e3a8f597000e78db80827eeefbda93832d20564d9c119a143",
+            "line_sha256": "6773002101264a9ed3e218c49acd52d0326594e9df9b8c0dd002a3fac9441a46",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 22,
+            "pattern": "refusing_policy",
+            "class": "activation-authority",
+            "match_sha256": "327cea66df53efd7172ee66227f50edd136c0e9399c8ac37a4460cf8a231fa9e",
+            "line_sha256": "d3bc63121bd518fd9f56880febc913e8ae0e78385113a6682c19082c14068143",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 23,
+            "pattern": "refusing_policy",
+            "class": "activation-authority",
+            "match_sha256": "820b86d396952d928c236464b6882fda369e477107d412072dfa510ab4625885",
+            "line_sha256": "b5fb20301c0e1c5392a938994eb419cb7a9aa7e1173d09b9a8a7047ab9c1010b",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 24,
+            "pattern": "active_token",
+            "class": "activation-authority",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "78d0567f7e4c974efe35866aaa6207caf4e7a55040548aa4f693f4caf7304d7f",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 30,
+            "pattern": "activator_contract",
+            "class": "activation-authority",
+            "match_sha256": "73756122dd9aca195a9b5a6b091263f2258223b1c8f6c692d4e63519084c1f44",
+            "line_sha256": "1338f8612db6e345eb782ba023aaf3c6a4ce37df422caa818c07f0e94af68ec8",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 30,
+            "pattern": "candidate_sweep",
+            "class": "activation-authority",
+            "match_sha256": "69b0bcb41da5082e6abd2625518c9bc24d442dc7435cb7a6b48467e5dbba4aac",
+            "line_sha256": "1338f8612db6e345eb782ba023aaf3c6a4ce37df422caa818c07f0e94af68ec8",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 35,
+            "pattern": "activation_authorizer",
+            "class": "activation-authority",
+            "match_sha256": "5d26788e83826d9ba1f9cc0c38a6c47bf4da12db8a020420e22c08a64c32e67d",
+            "line_sha256": "8ffec84f849e99628ee3387e07bc2e858ad8dc95f1792e99c8eeb75bfc64ae75",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 36,
+            "pattern": "refusing_policy",
+            "class": "activation-authority",
+            "match_sha256": "820b86d396952d928c236464b6882fda369e477107d412072dfa510ab4625885",
+            "line_sha256": "05f505ce080ab3ba9418cfceb65a60e087b11b6864ac5a4a948e18a9f343282f",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 36,
+            "pattern": "rollback_validator",
+            "class": "activation-authority",
+            "match_sha256": "0ff51ace2e0c2c0e3a8f597000e78db80827eeefbda93832d20564d9c119a143",
+            "line_sha256": "05f505ce080ab3ba9418cfceb65a60e087b11b6864ac5a4a948e18a9f343282f",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 37,
+            "pattern": "candidate_sweep",
+            "class": "activation-authority",
+            "match_sha256": "982d454c70ff64c638048f0fd7741e8e1652648aaf0139b5f23f51e7163a945d",
+            "line_sha256": "4468bcd5a3d212b3acde78accb752f7ef5b4c3bfda0efbdd0fc4c90c114cc5e7",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 37,
+            "pattern": "refusing_policy",
+            "class": "activation-authority",
+            "match_sha256": "327cea66df53efd7172ee66227f50edd136c0e9399c8ac37a4460cf8a231fa9e",
+            "line_sha256": "4468bcd5a3d212b3acde78accb752f7ef5b4c3bfda0efbdd0fc4c90c114cc5e7",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 40,
+            "pattern": "activation_request",
+            "class": "activation-authority",
+            "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
+            "line_sha256": "d6491e5a3667fd15cda8a65ac5e53024636cdc4939e9a5e619f6e379ea1f38a6",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 49,
+            "pattern": "sqlite_contention",
+            "class": "activation-authority",
+            "match_sha256": "ecd528df2a5678f9b44123f5ffdbe62f1afb0f0c3b4e6aec4c4bce5cd6e7e304",
+            "line_sha256": "3345773ec0a762a90ae7526416daba9ec37e46c59d3089ad7b408f9cba5bb8d1",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 50,
+            "pattern": "sqlite_contention",
+            "class": "activation-authority",
+            "match_sha256": "3e45c19f5f14c4935145438e582f2d5192823817b958e4400a148db6989dad19",
+            "line_sha256": "410d55ce95555ffc791d4c1ef8f0c4fcc39cec210d87104d6fd682953ec429b3",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 51,
+            "pattern": "sqlite_contention",
+            "class": "activation-authority",
+            "match_sha256": "c9f12cbac88605d425a8c342931e771ee351f5232f2c5bd5e233ebdaf222daba",
+            "line_sha256": "c53b3a482ed5233ab5d491afce5b789fd8740f15be023bd892cc47110105b50c",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 51,
+            "pattern": "sqlite_contention",
+            "class": "activation-authority",
+            "match_sha256": "cdcb6080be7d5d89fff9d952b7a398be0e447cdc348c024552c74526a02c7fb1",
+            "line_sha256": "c53b3a482ed5233ab5d491afce5b789fd8740f15be023bd892cc47110105b50c",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 62,
+            "pattern": "activation_request",
+            "class": "activation-authority",
+            "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
+            "line_sha256": "988fa0751c5b211579e2708a195eb39ad12019703c8528fb21c7b3799b2cd2c8",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 79,
+            "pattern": "active_token",
+            "class": "activation-authority",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "e065bc4ce57c130e15b6d7b7c46d6a59a68900bf3bde06f02324c81aaa73a715",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 157,
+            "pattern": "activation_table",
+            "class": "activation-authority",
+            "match_sha256": "fa2f5ed5780d1c2e91947bb404cd527032078de98f6a3906db20d2f650341b59",
+            "line_sha256": "336089befe2090e83e5e343fcb3b6176b859012242bd8fd81957206d84f3e95e",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 172,
+            "pattern": "activation_table",
+            "class": "activation-authority",
+            "match_sha256": "6443c345bfb8d63311146af6193cb4b5106c32ff06c03c0a64f4a45fa06ce047",
+            "line_sha256": "e7066052b24b6575925f6ee8b9ef64e09ed11a722dede98696232fa0b5fe944e",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 188,
+            "pattern": "activation_table",
+            "class": "activation-authority",
+            "match_sha256": "88c8c05c6b6bb3543fc8b0ea7c05fb786e087a24f64dc92d390e23b19814fbd8",
+            "line_sha256": "adfa61ec6086b650e8ea772231799fa671797212170185ea51a8c46462cac97f",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 212,
+            "pattern": "active_token",
+            "class": "activation-authority",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "14ca4cfea206dfbc4d8f33380af896735440a9f96752a44acd0ec84ad9fc1a96",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 221,
+            "pattern": "rollback_request",
+            "class": "activation-authority",
+            "match_sha256": "9c4f85f33f199a467cf7135ff832adc5c02114278183c2a774bc886469f3b79a",
+            "line_sha256": "6d6b4a4af76063c94a48f4d667a01dbf7deb9d65904b3244645084c61c5ffc56",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 240,
+            "pattern": "activation_request",
+            "class": "activation-authority",
+            "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
+            "line_sha256": "a848adac500b18249edb7831ae9bb7727ef8211401435f23fbaf3b6606e11587",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 264,
+            "pattern": "active_token",
+            "class": "activation-authority",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "e065bc4ce57c130e15b6d7b7c46d6a59a68900bf3bde06f02324c81aaa73a715",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 277,
+            "pattern": "active_token",
+            "class": "activation-authority",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "f73d2f1d4935309bc9b804f48ca5e30ee6bbcf0d4d6c49c59d66066de8cdbb07",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 283,
+            "pattern": "active_token",
+            "class": "activation-authority",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "0f1c5225831cb57f41da37844e7ba56e9090dedf26d17a8a409849a50519e26d",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 289,
+            "pattern": "candidate_sweep",
+            "class": "activation-authority",
+            "match_sha256": "71e233342291b490fd5cfd54083262bd8f68d3e7080872f8ec97602dbc9626e0",
+            "line_sha256": "281671d2a0c330ff35c245884470fa13fef452da4faa0694a3d9d4f1f2d65322",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 296,
+            "pattern": "activation_table",
+            "class": "activation-authority",
+            "match_sha256": "88c8c05c6b6bb3543fc8b0ea7c05fb786e087a24f64dc92d390e23b19814fbd8",
+            "line_sha256": "960763ec03ff93fbce2fad345fe11331d40d50b6075e6aace6af27d8babc6978",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 314,
+            "pattern": "sqlite_contention",
+            "class": "activation-authority",
+            "match_sha256": "ecd528df2a5678f9b44123f5ffdbe62f1afb0f0c3b4e6aec4c4bce5cd6e7e304",
+            "line_sha256": "3345773ec0a762a90ae7526416daba9ec37e46c59d3089ad7b408f9cba5bb8d1",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 315,
+            "pattern": "sqlite_contention",
+            "class": "activation-authority",
+            "match_sha256": "3e45c19f5f14c4935145438e582f2d5192823817b958e4400a148db6989dad19",
+            "line_sha256": "410d55ce95555ffc791d4c1ef8f0c4fcc39cec210d87104d6fd682953ec429b3",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 316,
+            "pattern": "sqlite_contention",
+            "class": "activation-authority",
+            "match_sha256": "c9f12cbac88605d425a8c342931e771ee351f5232f2c5bd5e233ebdaf222daba",
+            "line_sha256": "c53b3a482ed5233ab5d491afce5b789fd8740f15be023bd892cc47110105b50c",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 316,
+            "pattern": "sqlite_contention",
+            "class": "activation-authority",
+            "match_sha256": "cdcb6080be7d5d89fff9d952b7a398be0e447cdc348c024552c74526a02c7fb1",
+            "line_sha256": "c53b3a482ed5233ab5d491afce5b789fd8740f15be023bd892cc47110105b50c",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 327,
+            "pattern": "candidate_sweep",
+            "class": "activation-authority",
+            "match_sha256": "71e233342291b490fd5cfd54083262bd8f68d3e7080872f8ec97602dbc9626e0",
+            "line_sha256": "124d9fc41e9555b291875decf723d4db63ea40519bde992efa885ebccce9f1ba",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 329,
+            "pattern": "activation_table",
+            "class": "activation-authority",
+            "match_sha256": "0700efe9028b3540e780ebd862e0230daf7510a7bcf20e590c05bac2b3648f10",
+            "line_sha256": "6da5fed78f4cf44ac4a35c21f95d557c07ad1584a23f9fd3b46498b6e3137e69",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 339,
+            "pattern": "activation_table",
+            "class": "activation-authority",
+            "match_sha256": "0700efe9028b3540e780ebd862e0230daf7510a7bcf20e590c05bac2b3648f10",
+            "line_sha256": "4e875b0f2de4a7678159d7a5dfb09de9ad63fe1a73faf3b74fd378e161d4ebeb",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 346,
+            "pattern": "activation_table",
+            "class": "activation-authority",
+            "match_sha256": "0700efe9028b3540e780ebd862e0230daf7510a7bcf20e590c05bac2b3648f10",
+            "line_sha256": "cc442d6087e8032663d564474335d2ac830279d4c7669c39c9478734a965d8cc",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 363,
+            "pattern": "activation_table",
+            "class": "activation-authority",
+            "match_sha256": "88c8c05c6b6bb3543fc8b0ea7c05fb786e087a24f64dc92d390e23b19814fbd8",
+            "line_sha256": "960763ec03ff93fbce2fad345fe11331d40d50b6075e6aace6af27d8babc6978",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 382,
+            "pattern": "active_token",
+            "class": "activation-authority",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "19fcd06c1c87e069cc57b0ac580b8bfd5b8681fc0a779e98f9c2023501ef3395",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 385,
+            "pattern": "activation_table",
+            "class": "activation-authority",
+            "match_sha256": "6443c345bfb8d63311146af6193cb4b5106c32ff06c03c0a64f4a45fa06ce047",
+            "line_sha256": "1f68611f63cbc0131acd6db61a3d918bf6e99a0a17b3d624fdf33ac6edd70f9f",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 389,
+            "pattern": "active_token",
+            "class": "activation-authority",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "de64daeeb6d2a93be2d53b3dfcb942226b4e670460f4cb64d3b76d911bb6c817",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 397,
+            "pattern": "active_token",
+            "class": "activation-authority",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "de64daeeb6d2a93be2d53b3dfcb942226b4e670460f4cb64d3b76d911bb6c817",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 405,
+            "pattern": "active_token",
+            "class": "activation-authority",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "9ddf62951a435aa8ad2d84db013ec3b82d16e592d029876d0669c64aaae5d3c6",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 408,
+            "pattern": "activation_table",
+            "class": "activation-authority",
+            "match_sha256": "eb33867d90f1c11ac493918309b170dde468613865e03d5ad6eb593de9ca3a42",
+            "line_sha256": "371ed530a80c5e2d160f807dd1df70d5f2269d9bb2e261291c6c3fdc684848bd",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 472,
+            "pattern": "activation_request",
+            "class": "activation-authority",
+            "match_sha256": "9f63a140b920df22e88474298a78d09e36caa90da19b86257b4b3886c78a6f78",
+            "line_sha256": "81cb8af7f58678da8e8b807482dddf1f45f7ce7e54e6e8f512f88f710f84ecc6",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 485,
+            "pattern": "activation_table",
+            "class": "activation-authority",
+            "match_sha256": "0851416e0bae2beb95359ad257fc7d60b79827d9a508a0091e1b2cd2e72fb8c8",
+            "line_sha256": "5c26b35d8409e0639c64f6b47c387e59a448cc4f55147f9e00fa8e341570bbc1",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 491,
+            "pattern": "activation_table",
+            "class": "activation-authority",
+            "match_sha256": "eb33867d90f1c11ac493918309b170dde468613865e03d5ad6eb593de9ca3a42",
+            "line_sha256": "90a017c41dd3b005042e3c4e2be7754b5812d832ae07851457111dad1b3504c6",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 510,
+            "pattern": "activation_table",
+            "class": "activation-authority",
+            "match_sha256": "88c8c05c6b6bb3543fc8b0ea7c05fb786e087a24f64dc92d390e23b19814fbd8",
+            "line_sha256": "eb3d9de3f5ba613fef0516488ab869f0b9a0457e99f808a24d8985ce4a157e47",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 568,
+            "pattern": "activation_table",
+            "class": "activation-authority",
+            "match_sha256": "88c8c05c6b6bb3543fc8b0ea7c05fb786e087a24f64dc92d390e23b19814fbd8",
+            "line_sha256": "f18a9d780268c7653ee1345c0470e1860b2f6c746148f66a9348aeca6b67c375",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 589,
+            "pattern": "activation_table",
+            "class": "activation-authority",
+            "match_sha256": "fa2f5ed5780d1c2e91947bb404cd527032078de98f6a3906db20d2f650341b59",
+            "line_sha256": "f91a9380db5f7623135812214657c298ef6f794b5faa5d5c2cdb7750c9c2abba",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 600,
+            "pattern": "activation_table",
+            "class": "activation-authority",
+            "match_sha256": "6443c345bfb8d63311146af6193cb4b5106c32ff06c03c0a64f4a45fa06ce047",
+            "line_sha256": "9842926ab110de5a3d31230d87db98c022444c42be495afd09a12b580a5e4e78",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 612,
+            "pattern": "activation_table",
+            "class": "activation-authority",
+            "match_sha256": "0851416e0bae2beb95359ad257fc7d60b79827d9a508a0091e1b2cd2e72fb8c8",
+            "line_sha256": "087f96ed14235733027f6f03fc2d67ac79e5776774d3131d7bab5bd652675ff0",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 636,
+            "pattern": "active_token",
+            "class": "activation-authority",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "4d1d62f5e5412794ebf108a040e699f1f713104be63b0b94ebaf62d4b7d3cfea",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 639,
+            "pattern": "activation_table",
+            "class": "activation-authority",
+            "match_sha256": "6443c345bfb8d63311146af6193cb4b5106c32ff06c03c0a64f4a45fa06ce047",
+            "line_sha256": "c8096c655c6df5ab5eafcb37fc24dfb84d2b3d2332782304f2bd9b6d23fa2510",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 661,
+            "pattern": "activation_table",
+            "class": "activation-authority",
+            "match_sha256": "fa2f5ed5780d1c2e91947bb404cd527032078de98f6a3906db20d2f650341b59",
+            "line_sha256": "a961f2dffd13a618efd59e01686818f6d93b5e22cf0fc293b26ec67b71e210e3",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 669,
+            "pattern": "active_token",
+            "class": "activation-authority",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "2aee0f27c17adfa9952f5b55ff36c444bcc07c17299a486a24b9da57956211db",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationActivator.php",
+            "line": 669,
+            "pattern": "active_token",
+            "class": "activation-authority",
+            "match_sha256": "158ff97013d985d4072b91a7f568e1717e1e0f2abe7f69872c73ffaa9944bc8c",
+            "line_sha256": "2aee0f27c17adfa9952f5b55ff36c444bcc07c17299a486a24b9da57956211db",
+            "source_sha256": "fd5cf13c2c0025e563b4dff4f9939650fb13ab9fd10114c4e8fc9038a15fb285"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationGenerationResolver.php",
+            "line": 20,
+            "pattern": "activation_table",
+            "class": "active-reader",
+            "match_sha256": "0851416e0bae2beb95359ad257fc7d60b79827d9a508a0091e1b2cd2e72fb8c8",
+            "line_sha256": "8015187c02d20e63d4ec30bda9dba2ec22d0dae2108c49d99cac2b7a27af0163",
+            "source_sha256": "a8467cd98ddb31dcc04bcf691e2ac36d0100224f52f6fc37224fd44c42ac5080"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationGenerationResolver.php",
+            "line": 20,
+            "pattern": "activation_table",
+            "class": "active-reader",
+            "match_sha256": "6443c345bfb8d63311146af6193cb4b5106c32ff06c03c0a64f4a45fa06ce047",
+            "line_sha256": "8015187c02d20e63d4ec30bda9dba2ec22d0dae2108c49d99cac2b7a27af0163",
+            "source_sha256": "a8467cd98ddb31dcc04bcf691e2ac36d0100224f52f6fc37224fd44c42ac5080"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationGenerationResolver.php",
+            "line": 23,
+            "pattern": "activation_table",
+            "class": "active-reader",
+            "match_sha256": "6443c345bfb8d63311146af6193cb4b5106c32ff06c03c0a64f4a45fa06ce047",
+            "line_sha256": "1f68611f63cbc0131acd6db61a3d918bf6e99a0a17b3d624fdf33ac6edd70f9f",
+            "source_sha256": "a8467cd98ddb31dcc04bcf691e2ac36d0100224f52f6fc37224fd44c42ac5080"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationGenerationResolver.php",
+            "line": 86,
+            "pattern": "activation_table",
+            "class": "active-reader",
+            "match_sha256": "0851416e0bae2beb95359ad257fc7d60b79827d9a508a0091e1b2cd2e72fb8c8",
+            "line_sha256": "61e8293dd201b302b97ffc77f5eac76c8cc5bf605a51e8cfed9dadf851cb4548",
+            "source_sha256": "a8467cd98ddb31dcc04bcf691e2ac36d0100224f52f6fc37224fd44c42ac5080"
+        },
+        {
+            "path": "packages/entity-storage/src/Config/DatabaseConfigurationGenerationResolver.php",
+            "line": 97,
+            "pattern": "activation_table",
+            "class": "active-reader",
+            "match_sha256": "eb33867d90f1c11ac493918309b170dde468613865e03d5ad6eb593de9ca3a42",
+            "line_sha256": "37dcfe7e6989179c7e98ae95bcd9b40a815ab8f1c5bc933045a6b60407f8c3d5",
+            "source_sha256": "a8467cd98ddb31dcc04bcf691e2ac36d0100224f52f6fc37224fd44c42ac5080"
+        },
+        {
+            "path": "packages/foundation/src/Kernel/HttpKernel.php",
+            "line": 47,
+            "pattern": "runtime_epoch_cache",
+            "class": "epoch-consumer",
+            "match_sha256": "83677b94f379ad69535edc4ef95b33f49c95f4808e2336e7660860e85d74c474",
+            "line_sha256": "460480a45c020c765b3c1101e4e6a3e4cb4c8701fcfd4c6a6da6948ca4abe1ff",
+            "source_sha256": "ef43922229a55c333bc1a09e7f842708dc33552997c58281f18ae2ecf9cbd6c4"
+        },
+        {
+            "path": "packages/foundation/src/Kernel/HttpKernel.php",
+            "line": 48,
+            "pattern": "runtime_epoch",
+            "class": "epoch-consumer",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
+            "line_sha256": "993b4a6497d6541494494051ae4fd58dab5950a8e26c7a8a6c799ea02259828e",
+            "source_sha256": "ef43922229a55c333bc1a09e7f842708dc33552997c58281f18ae2ecf9cbd6c4"
+        },
+        {
+            "path": "packages/foundation/src/Kernel/HttpKernel.php",
+            "line": 195,
+            "pattern": "runtime_epoch",
+            "class": "epoch-consumer",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
+            "line_sha256": "b744a715671d70855ff2a8c146c0dea1766264e23549bf80358359c01a5d11d5",
+            "source_sha256": "ef43922229a55c333bc1a09e7f842708dc33552997c58281f18ae2ecf9cbd6c4"
+        },
+        {
+            "path": "packages/foundation/src/Kernel/HttpKernel.php",
+            "line": 196,
+            "pattern": "runtime_epoch",
+            "class": "epoch-consumer",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
+            "line_sha256": "c9ea53a5dc958927b7703a131feb7f4535b5e1c12ca15e475a1b1f6a901ef9a6",
+            "source_sha256": "ef43922229a55c333bc1a09e7f842708dc33552997c58281f18ae2ecf9cbd6c4"
+        },
+        {
+            "path": "packages/foundation/src/Kernel/HttpKernel.php",
+            "line": 202,
+            "pattern": "runtime_epoch_cache",
+            "class": "epoch-consumer",
+            "match_sha256": "83677b94f379ad69535edc4ef95b33f49c95f4808e2336e7660860e85d74c474",
+            "line_sha256": "596deb7906d382fa935e9048937e2c492b4da8cd12d35eb056e1e33fe79e8d87",
+            "source_sha256": "ef43922229a55c333bc1a09e7f842708dc33552997c58281f18ae2ecf9cbd6c4"
+        },
+        {
+            "path": "packages/foundation/src/Kernel/HttpKernel.php",
+            "line": 202,
+            "pattern": "runtime_epoch_cache",
+            "class": "epoch-consumer",
+            "match_sha256": "83677b94f379ad69535edc4ef95b33f49c95f4808e2336e7660860e85d74c474",
+            "line_sha256": "596deb7906d382fa935e9048937e2c492b4da8cd12d35eb056e1e33fe79e8d87",
+            "source_sha256": "ef43922229a55c333bc1a09e7f842708dc33552997c58281f18ae2ecf9cbd6c4"
+        },
+        {
+            "path": "packages/foundation/src/Runtime/RuntimeEpochCacheBackend.php",
+            "line": 11,
+            "pattern": "runtime_epoch_cache",
+            "class": "epoch-cache",
+            "match_sha256": "83677b94f379ad69535edc4ef95b33f49c95f4808e2336e7660860e85d74c474",
+            "line_sha256": "952698ea109f3136323631e945ff2017aa7378770a3ee657f173af55682f1619",
+            "source_sha256": "a1b4b03e9020660d5d497e2c81994a68b6c32f94581626d98e63d490f9bc9c06"
+        },
+        {
+            "path": "packages/foundation/src/Runtime/RuntimeEpochInterface.php",
+            "line": 8,
+            "pattern": "runtime_epoch",
+            "class": "epoch-contract",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
+            "line_sha256": "29f9ac2949245ba421225d897ae52d45fd64cfd1987424c7352f998e6da02f89",
+            "source_sha256": "9d8149f5547a122e65e57492120552c290cb386ac5b9ad4d1af1b209a96afa3b"
+        },
+        {
+            "path": "packages/foundation/src/Runtime/StableRuntimeEpoch.php",
+            "line": 8,
+            "pattern": "runtime_epoch",
+            "class": "testing-or-static-epoch",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
+            "line_sha256": "c9b43bb9c428432953ec331c702a47ed930700f8a6b5e51c4a3fd68bad2a4a3f",
+            "source_sha256": "393b85630f9abe91a82ca25e2a316c0254e981dd9682a2669351ffd9384642b0"
+        },
+        {
+            "path": "packages/queue/src/QueueServiceProvider.php",
+            "line": 9,
+            "pattern": "runtime_epoch",
+            "class": "epoch-composition",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
+            "line_sha256": "993b4a6497d6541494494051ae4fd58dab5950a8e26c7a8a6c799ea02259828e",
+            "source_sha256": "a23e5b20414a1a16f5c1f3b78deae8727a61e67326c2ac6a23b5c201733f2b07"
+        },
+        {
+            "path": "packages/queue/src/QueueServiceProvider.php",
+            "line": 88,
+            "pattern": "runtime_epoch",
+            "class": "epoch-composition",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
+            "line_sha256": "155ff5ba7e6c4b65364b837f71493ecf4a6653a2e358ffe65691c20dcaca0529",
+            "source_sha256": "a23e5b20414a1a16f5c1f3b78deae8727a61e67326c2ac6a23b5c201733f2b07"
+        },
+        {
+            "path": "packages/queue/src/QueueServiceProvider.php",
+            "line": 92,
+            "pattern": "runtime_epoch",
+            "class": "epoch-composition",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
+            "line_sha256": "452d22a6046b3d970507f58258ba96c429ddd922d9b0da588d765a483e078bce",
+            "source_sha256": "a23e5b20414a1a16f5c1f3b78deae8727a61e67326c2ac6a23b5c201733f2b07"
+        },
+        {
+            "path": "packages/queue/src/QueueServiceProvider.php",
+            "line": 109,
+            "pattern": "runtime_epoch",
+            "class": "epoch-composition",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
+            "line_sha256": "3e3b80c72950e566f528ffacde281de8e7ffd68ff241163a980fb66038093c29",
+            "source_sha256": "a23e5b20414a1a16f5c1f3b78deae8727a61e67326c2ac6a23b5c201733f2b07"
+        },
+        {
+            "path": "packages/queue/src/Worker/Worker.php",
+            "line": 9,
+            "pattern": "runtime_epoch",
+            "class": "epoch-consumer",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
+            "line_sha256": "993b4a6497d6541494494051ae4fd58dab5950a8e26c7a8a6c799ea02259828e",
+            "source_sha256": "230d1b44d22753188a723147a04525edd09dd10cd16a915acf90810dfb79ac88"
+        },
+        {
+            "path": "packages/queue/src/Worker/Worker.php",
+            "line": 45,
+            "pattern": "runtime_epoch",
+            "class": "epoch-consumer",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
+            "line_sha256": "17792186984232ffbfb839d306e6cebded49ddaf188cff009e2c7ed21f71b67a",
+            "source_sha256": "230d1b44d22753188a723147a04525edd09dd10cd16a915acf90810dfb79ac88"
+        },
+        {
+            "path": "packages/queue/src/Worker/Worker.php",
+            "line": 59,
+            "pattern": "runtime_epoch",
+            "class": "epoch-consumer",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
+            "line_sha256": "a22de3005d8742895eb0831d099ddb7ba45abe3b2f4a6461f764bc049989be22",
+            "source_sha256": "230d1b44d22753188a723147a04525edd09dd10cd16a915acf90810dfb79ac88"
+        },
+        {
+            "path": "packages/queue/src/Worker/Worker.php",
+            "line": 66,
+            "pattern": "runtime_epoch",
+            "class": "epoch-consumer",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
+            "line_sha256": "1a4c2653845272a6c04d3f2f41ad905a096ab740d516b4226b8977688abb89d4",
+            "source_sha256": "230d1b44d22753188a723147a04525edd09dd10cd16a915acf90810dfb79ac88"
+        }
+    ]
+}

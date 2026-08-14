@@ -149,6 +149,7 @@ foreach ($phpTestFiles as $path) {
             'tests/Integration/FieldReadPagePerformance/PagePerformanceHarnessContractTest.php',
             'tests/Integration/FreshInstall/CutoverFreshInstallSmokeTest.php',
             'packages/foundation/tests/Integration/Migration/SchemaAuthorityConcurrencyTest.php' => 'subprocess_polling',
+            'packages/entity-storage/tests/Integration/Config/DatabaseConfigurationActivationConcurrencyTest.php' => 'subprocess_polling',
             'tests/Integration/Phase13/SsrHttpKernelIntegrationTest.php' => 'filesystem_retry',
             default => 'unclassified',
         };
