@@ -9,6 +9,10 @@ function idempotencyKey(): string {
   return crypto.randomUUID()
 }
 
+function cloneValue<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T
+}
+
 export function usePageBuilder(surface: string, entityId: string) {
   const definitions = ref<PageBuilderDefinitions | null>(null)
   const draft = ref<PageBuilderDraft | null>(null)
@@ -18,6 +22,12 @@ export function usePageBuilder(surface: string, entityId: string) {
   const loading = ref(false)
   const saving = ref(false)
   const error = ref<string | null>(null)
+  const conflict = ref<{
+    command: PageBuilderCommand
+    localDraft: PageBuilderDraft
+    detail: string
+    latestLoaded: boolean
+  } | null>(null)
   const config = useRuntimeConfig()
   const { apiFetch } = useApi()
   const client = new PageBuilderClient(
@@ -44,16 +54,26 @@ export function usePageBuilder(surface: string, entityId: string) {
     }
   }
 
-  async function apply(command: PageBuilderCommand): Promise<boolean> {
-    if (!draft.value || saving.value) return false
+  async function performApply(command: PageBuilderCommand, allowConflictRetry = false): Promise<boolean> {
+    if (!draft.value || saving.value || (conflict.value && !allowConflictRetry)) return false
     saving.value = true
     error.value = null
     try {
       const operationId = idempotencyKey()
       const result = await client.command(surface, entityId, draft.value, command, operationId)
+      if (!result.ok && result.error?.status === 409) {
+        conflict.value = {
+          command: cloneValue(command),
+          localDraft: cloneValue(draft.value),
+          detail: result.error.detail || result.error.title,
+          latestLoaded: false,
+        }
+        return false
+      }
       if (!result.ok || !result.data) throw new Error(result.error?.detail || result.error?.title || 'Unable to save the page change.')
       draft.value = result.data
       previewUrl.value = null
+      conflict.value = null
       return true
     } catch (reason) {
       error.value = reason instanceof Error ? reason.message : 'Unable to save the page change.'
@@ -61,6 +81,41 @@ export function usePageBuilder(surface: string, entityId: string) {
     } finally {
       saving.value = false
     }
+  }
+
+  async function apply(command: PageBuilderCommand): Promise<boolean> {
+    return performApply(command)
+  }
+
+  async function loadLatestForConflict(): Promise<boolean> {
+    if (!conflict.value || saving.value) return false
+    saving.value = true
+    error.value = null
+    try {
+      const result = await client.draft(surface, entityId)
+      if (!result.ok || !result.data) throw new Error(result.error?.detail || result.error?.title || 'Unable to load the newer page draft.')
+      comparedRevision.value = cloneValue(conflict.value.localDraft)
+      draft.value = result.data
+      previewUrl.value = null
+      conflict.value.latestLoaded = true
+      return true
+    } catch (reason) {
+      error.value = reason instanceof Error ? reason.message : 'Unable to load the newer page draft.'
+      return false
+    } finally {
+      saving.value = false
+    }
+  }
+
+  async function retryConflict(): Promise<boolean> {
+    if (!conflict.value?.latestLoaded) return false
+    const command = cloneValue(conflict.value.command)
+    return performApply(command, true)
+  }
+
+  function dismissConflict(): void {
+    conflict.value = null
+    comparedRevision.value = null
   }
 
   async function refreshPreview(): Promise<boolean> {
@@ -126,5 +181,9 @@ export function usePageBuilder(surface: string, entityId: string) {
     }
   }
 
-  return { definitions, draft, previewUrl, revisions, comparedRevision, loading, saving, error, load, apply, refreshPreview, loadHistory, compareRevision, restoreRevision }
+  return {
+    definitions, draft, previewUrl, revisions, comparedRevision, loading, saving, error, conflict,
+    load, apply, loadLatestForConflict, retryConflict, dismissConflict,
+    refreshPreview, loadHistory, compareRevision, restoreRevision,
+  }
 }

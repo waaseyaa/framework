@@ -202,29 +202,6 @@ function onLocaleChange(event: Event) {
 </template>
 
 <style>
-:root {
-  --admin-target-size: 44px;
-  --sidebar-width: 220px;
-  --topbar-height: 48px;
-  --color-bg: #f5f5f5;
-  --color-surface: #fff;
-  --color-primary: #0f766e;
-  --color-primary-hover: #0d4f4f;
-  --color-danger: #b42318;
-  --color-text: #1f2937;
-  --color-muted: #6b7280;
-  --color-border: #e5e7eb;
-}
-
-* { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  color: var(--color-text);
-  background: var(--color-bg);
-  overflow-wrap: anywhere;
-}
-
 .admin-shell {
   min-height: 100vh;
 }
@@ -346,28 +323,6 @@ body {
   overflow-x: clip;
 }
 
-/* Shared utility styles */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: var(--admin-target-size);
-  min-height: var(--admin-target-size);
-  padding: 8px 16px;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  background: var(--color-surface);
-  color: var(--color-text);
-  cursor: pointer;
-  font-size: 14px;
-  text-decoration: none;
-  transition: background 0.15s, border-color 0.15s;
-}
-.touch-target {
-  min-inline-size: var(--admin-target-size);
-  min-block-size: var(--admin-target-size);
-}
-
 /* Ordinary authenticated-admin actions and form controls share one effective
    target floor. Native checkbox/radio glyphs stay compact inside a labelled
    target supplied by their widget. */
@@ -387,14 +342,8 @@ body {
   display: inline-flex;
   align-items: center;
 }
-.btn:hover { background: var(--color-bg); }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn:focus-visible,
 .topbar-toggle:focus-visible,
-.topbar-locale-select:focus-visible,
-a:focus-visible,
-button:focus-visible,
-select:focus-visible {
+.topbar-locale-select:focus-visible {
   outline: 3px solid var(--color-primary-hover);
   outline-offset: 2px;
 }
@@ -404,11 +353,6 @@ select:focus-visible {
 .topbar-brand:focus-visible {
   outline-color: #fff;
 }
-.btn-primary { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
-.btn-primary:hover { background: var(--color-primary-hover); }
-.btn-danger { color: var(--color-danger); border-color: var(--color-danger); }
-.btn-sm { padding: 4px 10px; font-size: 12px; }
-
 .field { margin-bottom: 16px; }
 .field-label { display: block; margin-bottom: 4px; font-weight: 500; font-size: 14px; }
 .field-input {
@@ -493,19 +437,6 @@ pre {
 }
 .skip-link:focus {
   top: 0;
-}
-
-/* Screen reader only utility */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
 }
 
 /* SSE connection indicator */

@@ -9,6 +9,7 @@ use Waaseyaa\PageBuilder\Command\AddSection;
 use Waaseyaa\PageBuilder\Command\ChangeSectionLayout;
 use Waaseyaa\PageBuilder\Command\ConfigureBlock;
 use Waaseyaa\PageBuilder\Command\DuplicateBlock;
+use Waaseyaa\PageBuilder\Command\DuplicateSection;
 use Waaseyaa\PageBuilder\Command\EditCommand;
 use Waaseyaa\PageBuilder\Command\MoveBlock;
 use Waaseyaa\PageBuilder\Command\MoveSection;
@@ -52,6 +53,7 @@ final readonly class LayoutEditor
             $command instanceof MoveBlock => $this->moveBlock($payload, $command),
             $command instanceof RemoveBlock => $this->removeBlock($payload, $command),
             $command instanceof AddSection => $this->addSection($payload, $command),
+            $command instanceof DuplicateSection => $this->duplicateSection($payload, $command),
             $command instanceof MoveSection => $this->moveSection($payload, $command),
             $command instanceof RemoveSection => $this->removeSection($payload, $command),
             $command instanceof ChangeSectionLayout => $this->changeSectionLayout($payload, $command),
@@ -152,6 +154,43 @@ final readonly class LayoutEditor
         array_splice($payload['sections'], $command->position, 0, [$command->section]);
 
         return ['code' => 'section.added', 'target' => (string) ($command->section['id'] ?? '')];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{code: string, target: string}
+     */
+    private function duplicateSection(array &$payload, DuplicateSection $command): array
+    {
+        $sourceIndex = $this->sectionIndex($payload, $command->sourceSectionId);
+        $duplicate = $payload['sections'][$sourceIndex];
+        $sourceBlockIds = [];
+        foreach ($duplicate['regions'] as $blocks) {
+            foreach ($blocks as $block) {
+                $sourceBlockIds[] = (string) ($block['id'] ?? '');
+            }
+        }
+        $mappedSourceIds = array_keys($command->duplicateBlockIds);
+        sort($sourceBlockIds, SORT_STRING);
+        sort($mappedSourceIds, SORT_STRING);
+        if ($sourceBlockIds !== $mappedSourceIds) {
+            throw new InvalidEditCommandException(
+                'command.duplicate_section.block_ids_mismatch',
+                'Section duplication requires one fresh ID for every source block.',
+            );
+        }
+
+        $duplicate['id'] = $command->duplicateSectionId;
+        foreach ($duplicate['regions'] as &$blocks) {
+            foreach ($blocks as &$block) {
+                $block['id'] = $command->duplicateBlockIds[(string) $block['id']];
+            }
+            unset($block);
+        }
+        unset($blocks);
+        array_splice($payload['sections'], $sourceIndex + 1, 0, [$duplicate]);
+
+        return ['code' => 'section.duplicated', 'target' => $command->duplicateSectionId];
     }
 
     /**

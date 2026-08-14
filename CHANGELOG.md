@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Expose governed cross-region block movement and complete section selection,
+  reordering, layout change, duplication, and guarded removal in the shared
+  Admin SPA page-builder workspace used by Anokii, with accessible destructive
+  confirmation and explicit compare/reapply recovery for concurrent edits
+  (#2344).
+
 - Prove the #2343 golden path from a clean `composer create-project` consumer,
   including the complete governed authoring, published-content, and
   subscription recipes; byte-identical offline regeneration; strict

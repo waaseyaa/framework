@@ -10,6 +10,8 @@ export default defineNuxtConfig({
 
   modules: ['@nuxt/eslint'],
 
+  css: ['~/assets/css/admin-primitives.css'],
+
   eslint: {
     config: {
       stylistic: false,
