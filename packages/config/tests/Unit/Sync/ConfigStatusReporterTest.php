@@ -96,7 +96,7 @@ final class ConfigStatusReporterTest extends TestCase
 
         $report = $reporter->status();
 
-        $refs = array_map(static fn (StatusEntry $e): string => $e->ref, $report->entries);
+        $refs = array_map(static fn(StatusEntry $e): string => $e->ref, $report->entries);
         self::assertSame(['role.admin', 'role.member', 'role.zebra'], $refs);
     }
 
@@ -104,21 +104,31 @@ final class ConfigStatusReporterTest extends TestCase
     public function rename_is_propagated_into_status_entry(): void
     {
         $uuid = ConfigSyncFile::deterministicUuid('role', 'coordinator');
-        $sync = new ConfigSyncFile(
+        $sync = ConfigSyncFile::writable(
             entityType: 'role',
             entityId: 'community_coordinator',
             uuid: $uuid,
             dependencies: [],
             langcode: 'en',
             fields: ['label' => 'CC'],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
-        $active = new ConfigSyncFile(
+        $active = ConfigSyncFile::writable(
             entityType: 'role',
             entityId: 'coordinator',
             uuid: $uuid,
             dependencies: [],
             langcode: 'en',
             fields: ['label' => 'C'],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
         $repo = $this->seedRepo([$sync]);
         $reporter = new ConfigStatusReporter(new ConfigDiffer($repo, $this->source([$active])));
@@ -170,13 +180,18 @@ final class ConfigStatusReporterTest extends TestCase
     {
         ksort($fields, \SORT_STRING);
 
-        return new ConfigSyncFile(
+        return ConfigSyncFile::writable(
             entityType: $entityType,
             entityId: $entityId,
             uuid: ConfigSyncFile::deterministicUuid($entityType, $entityId),
             dependencies: [],
             langcode: 'en',
             fields: $fields,
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
     }
 
@@ -198,7 +213,7 @@ final class ConfigStatusReporterTest extends TestCase
      */
     private function source(array $files): ConfigSyncFileSourceInterface
     {
-        return new class($files) implements ConfigSyncFileSourceInterface {
+        return new class ($files) implements ConfigSyncFileSourceInterface {
             /** @param list<ConfigSyncFile> $files */
             public function __construct(private readonly array $files) {}
 

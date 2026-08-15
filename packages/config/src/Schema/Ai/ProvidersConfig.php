@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Config\Schema\Ai;
 
+use Waaseyaa\Config\Schema\ConfigSchemaRegistry;
+
 /**
  * JSON-Schema definition for the `config.ai.providers` list.
  *
@@ -23,6 +25,9 @@ namespace Waaseyaa\Config\Schema\Ai;
 final class ProvidersConfig
 {
     public const string CONFIG_NAME = 'config.ai.providers';
+    public const int SCHEMA_VERSION = 1;
+    public const string OWNER_PACKAGE = 'waaseyaa/config';
+    public const int OWNER_CONFIG_CONTRACT_VERSION = 1;
 
     /**
      * @return array<string, mixed>
@@ -30,6 +35,7 @@ final class ProvidersConfig
     public static function schema(): array
     {
         return [
+            'dialect' => ConfigSchemaRegistry::DIALECT_V1,
             'type' => 'object',
             'properties' => [
                 'providers' => [
@@ -58,7 +64,6 @@ final class ProvidersConfig
                             ],
                             'api_key_env_var' => [
                                 'type' => 'string',
-                                'description' => 'Env var NAME (never the value) carrying the API key. C-010.',
                             ],
                         ],
                     ],
@@ -67,5 +72,16 @@ final class ProvidersConfig
             ],
             'required' => ['providers'],
         ];
+    }
+
+    public static function register(ConfigSchemaRegistry $registry): void
+    {
+        $registry->register(
+            self::CONFIG_NAME,
+            self::SCHEMA_VERSION,
+            self::OWNER_PACKAGE,
+            self::OWNER_CONFIG_CONTRACT_VERSION,
+            self::schema(),
+        );
     }
 }

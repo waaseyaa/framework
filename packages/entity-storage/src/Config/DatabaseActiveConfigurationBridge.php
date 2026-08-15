@@ -35,9 +35,18 @@ final class DatabaseActiveConfigurationBridge implements ActiveConfigurationBrid
     public function iterate(): iterable
     {
         $table = $this->entryTable();
+        $hasContracts = $table === 'waaseyaa_config_entry_v2'
+            && $this->database->schema()->tableExists('waaseyaa_config_entry_contract');
+        $select = 'SELECT e.entity_type, e.entity_id, e.uuid, e.dependencies_json, e.langcode, e.fields_json';
+        $join = '';
+        if ($hasContracts) {
+            $select .= ', c.format, c.schema_id, c.schema_version, c.schema_hash, c.owner_package, c.owner_config_contract_version';
+            $join = ' LEFT JOIN waaseyaa_config_entry_contract c ON c.authority_id = e.authority_id '
+                . 'AND c.generation_id = e.generation_id AND c.config_name = e.config_name';
+        }
         $rows = $this->database->query(
-            'SELECT entity_type, entity_id, uuid, dependencies_json, langcode, fields_json '
-            . "FROM {$table} WHERE authority_id = ? AND generation_id = ? ORDER BY entity_type, entity_id",
+            $select . " FROM {$table} e" . $join
+            . ' WHERE e.authority_id = ? AND e.generation_id = ? ORDER BY e.entity_type, e.entity_id',
             [$this->context->authorityId, $this->context->requireActiveGenerationId()],
         );
         foreach ($rows as $row) {
@@ -48,14 +57,26 @@ final class DatabaseActiveConfigurationBridge implements ActiveConfigurationBrid
             }
             ksort($fields, SORT_STRING);
 
-            yield new ConfigSyncFile(
-                entityType: (string) $row['entity_type'],
-                entityId: (string) $row['entity_id'],
-                uuid: (string) $row['uuid'],
-                dependencies: array_values(array_filter($dependencies, 'is_string')),
-                langcode: (string) $row['langcode'],
-                fields: $fields,
-            );
+            $arguments = [
+                'entityType' => (string) $row['entity_type'],
+                'entityId' => (string) $row['entity_id'],
+                'uuid' => (string) $row['uuid'],
+                'dependencies' => array_values(array_filter($dependencies, 'is_string')),
+                'langcode' => (string) $row['langcode'],
+                'fields' => $fields,
+            ];
+            if (($row['format'] ?? null) === ConfigSyncFile::FORMAT_V1) {
+                yield ConfigSyncFile::writable(
+                    ...$arguments,
+                    schemaId: (string) $row['schema_id'],
+                    schemaVersion: (int) $row['schema_version'],
+                    schemaHash: (string) $row['schema_hash'],
+                    ownerPackage: (string) $row['owner_package'],
+                    ownerConfigContractVersion: (int) $row['owner_config_contract_version'],
+                );
+            } else {
+                yield ConfigSyncFile::legacyReadable(...$arguments);
+            }
         }
     }
 

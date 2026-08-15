@@ -43,7 +43,7 @@ final class TestingActiveConfigurationBridge implements ActiveConfigurationBridg
             }
             [$entityType, $entityId] = explode('.', $name, 2);
             ksort($data, SORT_STRING);
-            yield new ConfigSyncFile(
+            yield ConfigSyncFile::legacyReadable(
                 entityType: $entityType,
                 entityId: $entityId,
                 uuid: ConfigSyncFile::deterministicUuid($entityType, $entityId),

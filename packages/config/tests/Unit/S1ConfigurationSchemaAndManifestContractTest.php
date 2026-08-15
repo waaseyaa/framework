@@ -32,7 +32,7 @@ final class S1ConfigurationSchemaAndManifestContractTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Unsupported configuration schema type "mystery"');
 
-        (new ConfigSchemaValidator())->registerSchema('system.site', [
+        new ConfigSchemaValidator()->registerSchema('system.site', [
             'type' => 'object',
             'properties' => [
                 'title' => ['type' => 'mystery'],
@@ -46,7 +46,7 @@ final class S1ConfigurationSchemaAndManifestContractTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Unsupported configuration schema keyword "coerce"');
 
-        (new ConfigSchemaValidator())->registerSchema('system.site', [
+        new ConfigSchemaValidator()->registerSchema('system.site', [
             'type' => 'object',
             'coerce' => true,
             'properties' => [],
@@ -56,7 +56,7 @@ final class S1ConfigurationSchemaAndManifestContractTest extends TestCase
     #[Test]
     public function objects_are_closed_by_default(): void
     {
-        $violations = (new ConfigSchemaValidator())->validate(
+        $violations = new ConfigSchemaValidator()->validate(
             ['title' => 'Waaseyaa', 'undeclared' => true],
             [
                 'type' => 'object',
@@ -72,7 +72,7 @@ final class S1ConfigurationSchemaAndManifestContractTest extends TestCase
     #[Test]
     public function array_items_are_validated_recursively(): void
     {
-        $violations = (new ConfigSchemaValidator())->validate(
+        $violations = new ConfigSchemaValidator()->validate(
             ['servers' => [['enabled' => 'yes']]],
             [
                 'type' => 'object',
@@ -112,12 +112,12 @@ final class S1ConfigurationSchemaAndManifestContractTest extends TestCase
             ],
         ];
 
-        $effective = (new ConfigSchemaValidator())->materialize($authored, $schema);
+        $effective = new ConfigSchemaValidator()->materialize($authored, $schema);
 
         self::assertSame(['title' => 'Waaseyaa'], $authored);
         self::assertSame([
-            'features' => ['enabled' => false],
             'title' => 'Waaseyaa',
+            'features' => ['enabled' => false],
         ], $effective);
     }
 
@@ -173,8 +173,8 @@ final class S1ConfigurationSchemaAndManifestContractTest extends TestCase
             'nested' => ['beta' => 2, 'alpha' => 1],
         ]);
 
-        $leftManifest = (new ConfigManifest($left))->generate();
-        $rightManifest = (new ConfigManifest($right))->generate();
+        $leftManifest = new ConfigManifest($left)->generate();
+        $rightManifest = new ConfigManifest($right)->generate();
 
         self::assertSame($leftManifest['configs'], $rightManifest['configs']);
         self::assertSame($leftManifest['checksum'], $rightManifest['checksum']);

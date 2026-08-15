@@ -17,6 +17,7 @@ use Waaseyaa\Foundation\Http\RequestContext;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\ServiceProvider\Capability\CapabilityRegistry;
+use Waaseyaa\Foundation\ServiceProvider\Capability\FinalizesProviderBootInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 final class ProviderRegistry
@@ -189,6 +190,11 @@ final class ProviderRegistry
     {
         foreach ($providers as $provider) {
             $provider->boot();
+        }
+        foreach ($providers as $provider) {
+            if ($provider instanceof FinalizesProviderBootInterface) {
+                $provider->finalizeProviderBoot();
+            }
         }
     }
 }

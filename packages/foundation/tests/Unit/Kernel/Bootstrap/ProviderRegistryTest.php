@@ -9,10 +9,10 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Waaseyaa\Database\DBALDatabase;
-use Waaseyaa\Entity\DefinesEntityType;
 use Waaseyaa\Entity\Attribute\ContentEntityKeys;
 use Waaseyaa\Entity\Attribute\ContentEntityType;
 use Waaseyaa\Entity\ContentEntityBase;
+use Waaseyaa\Entity\DefinesEntityType;
 use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Entity\Exception\EntityTypeRegistrationCollisionException;
@@ -23,6 +23,7 @@ use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\LoggerTrait;
 use Waaseyaa\Foundation\Log\LogLevel;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Foundation\ServiceProvider\Capability\FinalizesProviderBootInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
 /**
@@ -123,7 +124,7 @@ final class ProviderRegistryTest extends TestCase
             dispatcher: $dispatcher,
         );
 
-        $warnings = array_filter($logger->messages, fn ($message) => $message['level'] === LogLevel::WARNING);
+        $warnings = array_filter($logger->messages, fn($message) => $message['level'] === LogLevel::WARNING);
         $this->assertNotEmpty($warnings);
 
         $warning = array_values($warnings)[0]['message'];
@@ -263,6 +264,56 @@ final class ProviderRegistryTest extends TestCase
 
         $this->assertFalse($entityTypeManager->hasDefinition('attr_auto_fixture'));
     }
+
+    #[Test]
+    public function boot_finalizers_run_only_after_every_provider_boots(): void
+    {
+        ProviderBootOrderFixture::$events = [];
+        $registry = new ProviderRegistry(new NullLogger());
+        $providers = $registry->discoverAndRegister(
+            manifest: new PackageManifest(providers: [
+                ProviderBootOrderFixture::class,
+                ProviderBootFinalizerFixture::class,
+            ]),
+            projectRoot: sys_get_temp_dir(),
+            config: [],
+            entityTypeManager: new EntityTypeManager(new EventDispatcher()),
+            database: DBALDatabase::createSqlite(':memory:'),
+            dispatcher: new EventDispatcher(),
+        );
+
+        $registry->boot($providers);
+
+        self::assertSame(['ordinary', 'finalizer-boot', 'finalize'], ProviderBootOrderFixture::$events);
+    }
+}
+
+final class ProviderBootOrderFixture extends ServiceProvider
+{
+    /** @var list<string> */
+    public static array $events = [];
+
+    public function register(): void {}
+
+    public function boot(): void
+    {
+        self::$events[] = 'ordinary';
+    }
+}
+
+final class ProviderBootFinalizerFixture extends ServiceProvider implements FinalizesProviderBootInterface
+{
+    public function register(): void {}
+
+    public function boot(): void
+    {
+        ProviderBootOrderFixture::$events[] = 'finalizer-boot';
+    }
+
+    public function finalizeProviderBoot(): void
+    {
+        ProviderBootOrderFixture::$events[] = 'finalize';
+    }
 }
 
 /**
@@ -344,9 +395,7 @@ final class AttributeAutoEntityFixture implements DefinesEntityType
 
 #[ContentEntityType(id: 'content_attr_auto_fixture', label: 'Content attribute fixture')]
 #[ContentEntityKeys(id: 'id', uuid: 'uuid', label: 'label')]
-final class ContentAttributeAutoEntityFixture extends ContentEntityBase
-{
-}
+final class ContentAttributeAutoEntityFixture extends ContentEntityBase {}
 
 #[ContentEntityType(id: 'canonical_metadata_fixture', label: 'Canonical metadata fixture', api: true)]
 #[ContentEntityKeys(id: 'id', uuid: 'uuid', label: 'label')]

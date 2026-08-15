@@ -18,12 +18,14 @@ final class StrictConfigSyncDeserializerTest extends TestCase
     public static function lexicalHazards(): iterable
     {
         yield 'duplicate key after null' => ["title:\ntitle: Waaseyaa\n"];
+        yield 'quoted duplicate key after null' => ["'title':\ntitle: Waaseyaa\n"];
         yield 'anchor' => ["title: &shared Waaseyaa\ncopy: Waaseyaa\n"];
         yield 'alias' => ["title: Waaseyaa\ncopy: *shared\n"];
         yield 'merge key' => ["title: Waaseyaa\n<<: {label: merged}\n"];
         yield 'explicit tag' => ["title: !php/object Waaseyaa\n"];
         yield 'directive' => ["%YAML 1.2\n---\ntitle: Waaseyaa\n"];
         yield 'implicit date' => ["title: Waaseyaa\nchanged: 2026-08-15\n"];
+        yield 'flow implicit date' => ["title: Waaseyaa\nchanged: [2026-08-15]\n"];
     }
 
     #[Test]
@@ -31,14 +33,14 @@ final class StrictConfigSyncDeserializerTest extends TestCase
     public function lexical_hazards_are_rejected_before_yaml_parsing(string $fields): void
     {
         $this->expectException(ConfigSerializationException::class);
-        (new ConfigSyncDeserializer())->fromYaml($this->yaml($fields), 'system.site.yml');
+        new ConfigSyncDeserializer()->fromYaml($this->yaml($fields), 'system.site.yml');
     }
 
     #[Test]
     public function invalid_utf8_is_rejected(): void
     {
         $this->expectException(ConfigSerializationException::class);
-        (new ConfigSyncDeserializer())->fromYaml($this->yaml("title: \xC3\x28\n"), 'system.site.yml');
+        new ConfigSyncDeserializer()->fromYaml($this->yaml("title: \xC3\x28\n"), 'system.site.yml');
     }
 
     #[Test]
@@ -46,11 +48,34 @@ final class StrictConfigSyncDeserializerTest extends TestCase
     {
         foreach (["ratio: 1.5\n", "count: 9007199254740992\n"] as $fields) {
             try {
-                (new ConfigSyncDeserializer())->fromYaml($this->yaml($fields), 'system.site.yml');
+                new ConfigSyncDeserializer()->fromYaml($this->yaml($fields), 'system.site.yml');
                 self::fail('Expected numeric hazard to be rejected.');
             } catch (ConfigSerializationException) {
+                self::addToAssertionCount(1);
             }
         }
+    }
+
+    #[Test]
+    public function syntax_like_text_inside_quoted_and_block_scalars_is_preserved(): void
+    {
+        $yaml = $this->yaml("description: |\n  Literal &anchor, *alias, !tag, and 2026-08-15.\nlabel: '*literal'\n");
+
+        $file = new ConfigSyncDeserializer()->fromYaml($yaml, 'system.site.yml');
+
+        self::assertSame("Literal &anchor, *alias, !tag, and 2026-08-15.\n", $file->fields['description']);
+        self::assertSame('*literal', $file->fields['label']);
+    }
+
+    #[Test]
+    public function repeated_keys_in_distinct_sequence_items_are_not_duplicates(): void
+    {
+        $file = new ConfigSyncDeserializer()->fromYaml(
+            $this->yaml("items:\n  - id: first\n  - id: second\n"),
+            'system.site.yml',
+        );
+
+        self::assertSame([['id' => 'first'], ['id' => 'second']], $file->fields['items']);
     }
 
     private function yaml(string $fields): string

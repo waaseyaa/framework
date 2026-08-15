@@ -134,7 +134,16 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
             }
         }
         ksort($nextEntries, SORT_STRING);
-        [$generationId, $manifestHash] = $this->generationIdentity($nextEntries);
+        if ($request->operation === 'activate') {
+            $verifiedBundle = $request->verifiedBundle
+                ?? throw new \LogicException('Verified activation bundle disappeared after request validation.');
+            $generationId = $verifiedBundle->effectiveManifest->generationId;
+            $manifestHash = $generationId;
+        } else {
+            $generationId = $request->targetGenerationId
+                ?? throw new \LogicException('Rollback target generation disappeared after request validation.');
+            $manifestHash = $this->manifestHashForGeneration($generationId);
+        }
         $planHash = hash('sha256', json_encode([
             'schema' => 'configuration-activation-plan.v1',
             'input_hash' => $inputHash,
@@ -185,6 +194,9 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
                     gmdate('c'),
                 ],
             );
+            if ($request->operation === 'activate') {
+                $this->recordVerifiedManifest($request, $generationId, $sequence);
+            }
             $candidateUpdated = $this->database->update('waaseyaa_config_candidate')
                 ->fields(['lifecycle_state' => 'committed', 'committed_sequence' => $sequence])
                 ->condition('authority_id', $this->context->authorityId)
@@ -249,6 +261,7 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
             completeReplacement: true,
             operation: 'rollback',
             targetGenerationId: $request->targetToken->generationId,
+            verifiedBundle: null,
         ));
     }
 
@@ -411,9 +424,19 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
         } else {
             throw new ConfigurationActivationConflictException('Configuration generation content is absent.');
         }
+        $hasContracts = $table === 'waaseyaa_config_entry_v2'
+            && $this->database->schema()->tableExists('waaseyaa_config_entry_contract');
+        $select = 'SELECT e.entity_type, e.entity_id, e.uuid, e.dependencies_json, e.langcode, e.fields_json';
+        $join = '';
+        if ($hasContracts) {
+            $select .= ', c.format, c.schema_id, c.schema_version, c.schema_hash, c.owner_package, '
+                . 'c.owner_config_contract_version, c.effective_entry_hash';
+            $join = ' LEFT JOIN waaseyaa_config_entry_contract c ON c.authority_id = e.authority_id '
+                . 'AND c.generation_id = e.generation_id AND c.config_name = e.config_name';
+        }
         foreach ($this->database->query(
-            'SELECT entity_type, entity_id, uuid, dependencies_json, langcode, fields_json '
-            . "FROM {$table} WHERE authority_id = ? AND generation_id = ? ORDER BY config_name",
+            $select . " FROM {$table} e" . $join
+            . ' WHERE e.authority_id = ? AND e.generation_id = ? ORDER BY e.config_name',
             [$this->context->authorityId, $token->generationId],
         ) as $row) {
             $dependencies = json_decode((string) $row['dependencies_json'], true, flags: JSON_THROW_ON_ERROR);
@@ -422,14 +445,26 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
                 throw new \UnexpectedValueException('Configuration generation contains invalid JSON.');
             }
             ksort($fields, SORT_STRING);
-            yield new ConfigSyncFile(
-                entityType: (string) $row['entity_type'],
-                entityId: (string) $row['entity_id'],
-                uuid: (string) $row['uuid'],
-                dependencies: array_values(array_filter($dependencies, 'is_string')),
-                langcode: (string) $row['langcode'],
-                fields: $fields,
-            );
+            $arguments = [
+                'entityType' => (string) $row['entity_type'],
+                'entityId' => (string) $row['entity_id'],
+                'uuid' => (string) $row['uuid'],
+                'dependencies' => array_values(array_filter($dependencies, 'is_string')),
+                'langcode' => (string) $row['langcode'],
+                'fields' => $fields,
+            ];
+            if (($row['format'] ?? null) === ConfigSyncFile::FORMAT_V1) {
+                yield ConfigSyncFile::writable(
+                    ...$arguments,
+                    schemaId: (string) $row['schema_id'],
+                    schemaVersion: (int) $row['schema_version'],
+                    schemaHash: (string) $row['schema_hash'],
+                    ownerPackage: (string) $row['owner_package'],
+                    ownerConfigContractVersion: (int) $row['owner_config_contract_version'],
+                );
+            } else {
+                yield ConfigSyncFile::legacyReadable(...$arguments);
+            }
         }
     }
 
@@ -448,23 +483,91 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
         return $entries;
     }
 
-    /**
-     * @param array<string, ConfigSyncFile> $entries
-     * @return array{string, string}
-     */
-    private function generationIdentity(array $entries): array
+    private function manifestHashForGeneration(string $generationId): string
     {
-        $manifest = [];
-        foreach ($entries as $ref => $file) {
-            $manifest[$ref] = $file->contentHash();
+        foreach ($this->database->query(
+            'SELECT manifest_hash FROM waaseyaa_config_generation_v2 WHERE authority_id = ? AND generation_id = ?',
+            [$this->context->authorityId, $generationId],
+        ) as $row) {
+            return (string) $row['manifest_hash'];
         }
-        $canonical = json_encode([
-            'schema' => 'configuration-generation.v1',
-            'entries' => $manifest,
-        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
-        $hash = hash('sha256', $canonical);
 
-        return [$hash, $hash];
+        throw new ConfigurationActivationConflictException('Retained rollback generation manifest is unavailable.');
+    }
+
+    private function recordVerifiedManifest(
+        ConfigurationActivationRequest $request,
+        string $generationId,
+        int $activationSequence,
+    ): void {
+        $bundle = $request->verifiedBundle
+            ?? throw new \LogicException('Verified activation evidence disappeared before commit.');
+        $verification = $bundle->verification;
+        $previousSequence = null;
+        foreach ($this->database->query(
+            'SELECT last_sequence FROM waaseyaa_config_manifest_replay '
+            . 'WHERE authority_id = ? AND bundle_scope = ? AND trust_key_reference = ?',
+            [$this->context->authorityId, $verification->bundleScope, $verification->trustKeyReference],
+        ) as $row) {
+            $previousSequence = (int) $row['last_sequence'];
+        }
+        if ($previousSequence !== null && $verification->bundleSequence <= $previousSequence) {
+            throw new ConfigurationActivationConflictException(sprintf(
+                'Configuration bundle sequence %d is not newer than committed sequence %d.',
+                $verification->bundleSequence,
+                $previousSequence,
+            ));
+        }
+        if ($previousSequence === null) {
+            $this->database->query(
+                'INSERT INTO waaseyaa_config_manifest_replay '
+                . '(authority_id, bundle_scope, trust_key_reference, last_sequence, manifest_hash, generation_id, activation_sequence) '
+                . 'VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [
+                    $this->context->authorityId,
+                    $verification->bundleScope,
+                    $verification->trustKeyReference,
+                    $verification->bundleSequence,
+                    $verification->manifestHash,
+                    $generationId,
+                    $activationSequence,
+                ],
+            );
+        } else {
+            $affected = $this->database->update('waaseyaa_config_manifest_replay')
+                ->fields([
+                    'last_sequence' => $verification->bundleSequence,
+                    'manifest_hash' => $verification->manifestHash,
+                    'generation_id' => $generationId,
+                    'activation_sequence' => $activationSequence,
+                ])
+                ->condition('authority_id', $this->context->authorityId)
+                ->condition('bundle_scope', $verification->bundleScope)
+                ->condition('trust_key_reference', $verification->trustKeyReference)
+                ->condition('last_sequence', $previousSequence)
+                ->execute();
+            if ($affected !== 1) {
+                throw new ConfigurationActivationConflictException('Configuration manifest replay state changed before commit.');
+            }
+        }
+
+        $this->database->query(
+            'INSERT INTO waaseyaa_config_activation_manifest '
+            . '(authority_id, activation_sequence, generation_id, manifest_hash, manifest_bytes, registry_checksum, bundle_scope, bundle_sequence, trust_key_reference, signed) '
+            . 'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [
+                $this->context->authorityId,
+                $activationSequence,
+                $generationId,
+                $verification->manifestHash,
+                $verification->manifest->canonicalBytes,
+                (string) $verification->manifest->document['registry_checksum'],
+                $verification->bundleScope,
+                $verification->bundleSequence,
+                $verification->trustKeyReference,
+                $verification->signed ? 1 : 0,
+            ],
+        );
     }
 
     /** @param array<string, ConfigSyncFile> $entries */
@@ -484,7 +587,15 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
                 $this->database->query(
                     'INSERT INTO waaseyaa_config_generation_v2 (authority_id, generation_id, schema_version, manifest_hash, created_at) '
                     . 'VALUES (?, ?, ?, ?, ?)',
-                    [$this->context->authorityId, $generationId, 'config-schema.v1', $manifestHash, $now],
+                    [
+                        $this->context->authorityId,
+                        $generationId,
+                        $request->operation === 'activate'
+                            ? \Waaseyaa\Config\Manifest\EffectiveGenerationManifest::FORMAT_V1
+                            : 'config-schema.v1',
+                        $manifestHash,
+                        $now,
+                    ],
                 );
                 foreach ($entries as $file) {
                     $this->database->query(
@@ -504,6 +615,30 @@ final class DatabaseConfigurationActivator implements ConfigurationActivatorInte
                             $file->contentHash(),
                         ],
                     );
+                }
+                if ($request->operation === 'activate') {
+                    $bundle = $request->verifiedBundle
+                        ?? throw new \LogicException('Verified entry metadata disappeared before staging.');
+                    foreach ($bundle->entries() as $entry) {
+                        $file = $entry->file;
+                        $this->database->query(
+                            'INSERT INTO waaseyaa_config_entry_contract '
+                            . '(authority_id, generation_id, config_name, format, schema_id, schema_version, schema_hash, owner_package, owner_config_contract_version, effective_entry_hash) '
+                            . 'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                            [
+                                $this->context->authorityId,
+                                $generationId,
+                                $file->ref(),
+                                ConfigSyncFile::FORMAT_V1,
+                                $file->schemaId,
+                                $file->schemaVersion,
+                                $file->schemaHash,
+                                $file->ownerPackage,
+                                $file->ownerConfigContractVersion,
+                                $entry->hashes->effectiveEntryHash,
+                            ],
+                        );
+                    }
                 }
             }
             $this->database->query(

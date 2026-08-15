@@ -20,7 +20,12 @@ final class ConfigSchemaRegistryTest extends TestCase
         $registry = new ConfigSchemaRegistry();
 
         $first = $registry->register('waaseyaa.system.site', 1, 'waaseyaa/config', 1, $this->schema());
-        $second = $registry->register('waaseyaa.system.site', 1, 'waaseyaa/config', 1, $this->schema());
+        $sameSchemaDifferentMapOrder = [
+            'properties' => ['title' => ['default' => 'Waaseyaa', 'type' => 'string']],
+            'type' => 'object',
+            'dialect' => ConfigSchemaRegistry::DIALECT_V1,
+        ];
+        $second = $registry->register('waaseyaa.system.site', 1, 'waaseyaa/config', 1, $sameSchemaDifferentMapOrder);
 
         self::assertSame($first, $second);
         self::assertCount(1, $registry->all());
@@ -38,6 +43,24 @@ final class ConfigSchemaRegistryTest extends TestCase
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessage('Conflicting configuration schema registration');
         $registry->register('waaseyaa.system.site', 1, 'waaseyaa/config', 1, $changed);
+    }
+
+    #[Test]
+    public function conflicting_registration_does_not_replace_the_validator_schema(): void
+    {
+        $validator = new \Waaseyaa\Config\Schema\ConfigSchemaValidator();
+        $registry = new ConfigSchemaRegistry($validator);
+        $original = $this->schema();
+        $registry->register('waaseyaa.system.site', 1, 'waaseyaa/config', 1, $original);
+        $changed = $original;
+        $changed['properties']['title']['default'] = 'Changed';
+
+        try {
+            $registry->register('waaseyaa.system.site', 1, 'waaseyaa/config', 1, $changed);
+            self::fail('Conflicting schema registration was accepted.');
+        } catch (\LogicException) {
+            self::assertSame($original, $validator->getSchema('waaseyaa.system.site'));
+        }
     }
 
     #[Test]
@@ -74,7 +97,7 @@ final class ConfigSchemaRegistryTest extends TestCase
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('dialect');
-        (new ConfigSchemaRegistry())->register('waaseyaa.system.site', 1, 'waaseyaa/config', 1, $schema);
+        new ConfigSchemaRegistry()->register('waaseyaa.system.site', 1, 'waaseyaa/config', 1, $schema);
     }
 
     /** @return array<string, mixed> */

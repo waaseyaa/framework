@@ -68,7 +68,7 @@ final class ConfigSyncRoundTripIntegrationTest extends TestCase
         self::assertSame(4, $exportResult->created());
 
         // 3. Mutate one sync file in place: rename role.admin's label.
-        $repository->put(new ConfigSyncFile(
+        $repository->put(ConfigSyncFile::writable(
             entityType: 'role',
             entityId: 'admin',
             uuid: ConfigSyncFile::deterministicUuid('role', 'admin'),
@@ -78,6 +78,11 @@ final class ConfigSyncRoundTripIntegrationTest extends TestCase
                 'label' => 'Administrator',
                 'permissions' => ['administer site', 'edit any node'],
             ],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         ));
 
         // 4. Pre-flight diff: sync now drifts from active for role.admin only.

@@ -16,28 +16,28 @@ final class ConfigurationAuthorityResolverTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->root = sys_get_temp_dir().'/waaseyaa-cfg01-'.bin2hex(random_bytes(6));
-        self::assertTrue(mkdir($this->root, 0700, true));
+        $this->root = sys_get_temp_dir() . '/waaseyaa-cfg01-' . bin2hex(random_bytes(6));
+        self::assertTrue(mkdir($this->root, 0o700, true));
     }
 
     protected function tearDown(): void
     {
-        @rmdir($this->root.'/storage/config-sync');
-        @rmdir($this->root.'/storage');
+        @rmdir($this->root . '/storage/config-sync');
+        @rmdir($this->root . '/storage');
         @rmdir($this->root);
     }
 
     #[Test]
     public function absent_selectors_use_the_project_relative_canonical_default(): void
     {
-        $context = (new ConfigurationAuthorityResolver())->resolve(
+        $context = new ConfigurationAuthorityResolver()->resolve(
             $this->root,
             'sqlite-primary',
             [],
             [],
         );
 
-        self::assertSame($this->root.'/storage/config-sync', $context->syncPath);
+        self::assertSame($this->root . '/storage/config-sync', $context->syncPath);
         self::assertSame(['default'], $context->selectorProvenance);
         self::assertFalse($context->usedLegacySelector());
         self::assertSame('sqlite-primary', $context->databaseIdentity);
@@ -47,14 +47,14 @@ final class ConfigurationAuthorityResolverTest extends TestCase
     #[Test]
     public function equivalent_canonical_and_legacy_selectors_collapse_with_provenance(): void
     {
-        $context = (new ConfigurationAuthorityResolver())->resolve(
+        $context = new ConfigurationAuthorityResolver()->resolve(
             $this->root,
             'sqlite-primary',
             ['config' => ['sync_path' => 'storage/../storage/config-sync'], 'config_dir' => './storage/config-sync'],
             ['WAASEYAA_CONFIG_SYNC_PATH' => 'storage/config-sync', 'WAASEYAA_CONFIG_DIR' => './storage/config-sync'],
         );
 
-        self::assertSame($this->root.'/storage/config-sync', $context->syncPath);
+        self::assertSame($this->root . '/storage/config-sync', $context->syncPath);
         self::assertSame(
             ['config.sync_path', 'WAASEYAA_CONFIG_SYNC_PATH', 'config_dir', 'WAASEYAA_CONFIG_DIR'],
             $context->selectorProvenance,
@@ -68,7 +68,7 @@ final class ConfigurationAuthorityResolverTest extends TestCase
         $this->expectException(ConfigurationAuthorityConflictException::class);
         $this->expectExceptionMessage('configuration sync selectors disagree');
 
-        (new ConfigurationAuthorityResolver())->resolve(
+        new ConfigurationAuthorityResolver()->resolve(
             $this->root,
             'sqlite-primary',
             ['config' => ['sync_path' => 'storage/config-sync'], 'config_dir' => 'storage/other'],
@@ -82,7 +82,7 @@ final class ConfigurationAuthorityResolverTest extends TestCase
         $this->expectException(ConfigurationAuthorityConflictException::class);
         $this->expectExceptionMessage('outside the project boundary');
 
-        (new ConfigurationAuthorityResolver())->resolve(
+        new ConfigurationAuthorityResolver()->resolve(
             $this->root,
             'sqlite-primary',
             ['config' => ['sync_path' => '../external']],
@@ -93,14 +93,14 @@ final class ConfigurationAuthorityResolverTest extends TestCase
     #[Test]
     public function explicit_external_local_policy_allows_a_lexically_normalized_path(): void
     {
-        $context = (new ConfigurationAuthorityResolver())->resolve(
+        $context = new ConfigurationAuthorityResolver()->resolve(
             $this->root,
             'sqlite-primary',
             ['config' => ['sync_path' => '../external', 'allow_external_sync_path' => true]],
             [],
         );
 
-        self::assertSame(dirname($this->root).'/external', $context->syncPath);
+        self::assertSame(dirname($this->root) . '/external', $context->syncPath);
     }
 
     #[Test]
@@ -121,7 +121,7 @@ final class ConfigurationAuthorityResolverTest extends TestCase
     public function replacing_an_existing_sync_directory_after_resolution_fails_at_use(): void
     {
         self::assertTrue(mkdir($this->root . '/storage/config-sync', 0o700, true));
-        $context = (new ConfigurationAuthorityResolver())->resolve($this->root, 'sqlite-primary', [], []);
+        $context = new ConfigurationAuthorityResolver()->resolve($this->root, 'sqlite-primary', [], []);
         self::assertTrue(rename($this->root . '/storage/config-sync', $this->root . '/storage/original'));
         self::assertTrue(mkdir($this->root . '/storage/config-sync', 0o700));
 
@@ -140,7 +140,7 @@ final class ConfigurationAuthorityResolverTest extends TestCase
     #[Test]
     public function creating_a_symlink_at_a_previously_missing_sync_path_fails_at_use(): void
     {
-        $context = (new ConfigurationAuthorityResolver())->resolve($this->root, 'sqlite-primary', [], []);
+        $context = new ConfigurationAuthorityResolver()->resolve($this->root, 'sqlite-primary', [], []);
         self::assertTrue(mkdir($this->root . '/storage', 0o700));
         self::assertTrue(mkdir($this->root . '/alternate', 0o700));
         self::assertTrue(symlink($this->root . '/alternate', $this->root . '/storage/config-sync'));
@@ -160,15 +160,20 @@ final class ConfigurationAuthorityResolverTest extends TestCase
     #[Test]
     public function directoryCreatedOnFirstUseCannotBeReplacedLater(): void
     {
-        $context = (new ConfigurationAuthorityResolver())->resolve($this->root, 'sqlite-primary', [], []);
+        $context = new ConfigurationAuthorityResolver()->resolve($this->root, 'sqlite-primary', [], []);
         $repository = new ConfigSyncRepository($context->syncPath, authorityContext: $context);
-        $repository->put(new \Waaseyaa\Config\Sync\ConfigSyncFile(
+        $repository->put(\Waaseyaa\Config\Sync\ConfigSyncFile::writable(
             entityType: 'role',
             entityId: 'editor',
             uuid: \Waaseyaa\Config\Sync\ConfigSyncFile::deterministicUuid('role', 'editor'),
             dependencies: [],
             langcode: 'en',
             fields: ['id' => 'editor'],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         ));
         self::assertTrue(rename($context->syncPath, $this->root . '/original-sync'));
         self::assertTrue(mkdir($context->syncPath, 0o700, true));

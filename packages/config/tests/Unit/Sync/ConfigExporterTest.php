@@ -286,7 +286,7 @@ final class ConfigExporterTest extends TestCase
      */
     private function source(array $files): ConfigSyncFileSourceInterface
     {
-        return new class($files) implements ConfigSyncFileSourceInterface {
+        return new class ($files) implements ConfigSyncFileSourceInterface {
             /** @param list<ConfigSyncFile> $files */
             public function __construct(private readonly array $files) {}
 
@@ -304,13 +304,18 @@ final class ConfigExporterTest extends TestCase
     {
         ksort($fields, \SORT_STRING);
 
-        return new ConfigSyncFile(
+        return ConfigSyncFile::writable(
             entityType: $entityType,
             entityId: $entityId,
             uuid: ConfigSyncFile::deterministicUuid($entityType, $entityId),
             dependencies: [],
             langcode: 'en',
             fields: $fields,
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
     }
 

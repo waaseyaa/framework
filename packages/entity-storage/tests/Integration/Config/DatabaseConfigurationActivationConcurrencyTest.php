@@ -13,6 +13,7 @@ use Waaseyaa\Config\Activation\ConfigurationActivationRequest;
 use Waaseyaa\Config\Authority\ConfigurationActiveToken;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
+use Waaseyaa\Config\Tests\Fixtures\VerifiedConfigBundleFixture;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\EntityStorage\Config\DatabaseConfigurationActivator;
 use Waaseyaa\Foundation\Migration\SchemaBuilder;
@@ -44,15 +45,16 @@ final class DatabaseConfigurationActivationConcurrencyTest extends TestCase
         foreach ([
             '2026_08_12_000002_configuration_authority.php',
             '2026_08_12_000003_configuration_activation.php',
+            '2026_08_15_000004_configuration_manifest_replay.php',
         ] as $migrationFile) {
             $migration = require dirname(__DIR__, 3) . '/migrations/' . $migrationFile;
             $migration->up(new SchemaBuilder($database->getConnection()));
         }
         $activator = new DatabaseConfigurationActivator($database, $this->context, $this->authorizer());
-        $this->baseToken = $activator->activate(new ConfigurationActivationRequest(
+        $this->baseToken = $activator->activate(ConfigurationActivationRequest::activateVerified(
             'race-base',
             null,
-            [$this->file('Base')],
+            VerifiedConfigBundleFixture::fromFiles([$this->file('Base')], 1),
         ))->token;
         $database->getConnection()->close();
     }
@@ -119,10 +121,10 @@ final class DatabaseConfigurationActivationConcurrencyTest extends TestCase
         }
 
         try {
-            $activator->activate(new ConfigurationActivationRequest(
+            $activator->activate(ConfigurationActivationRequest::activateVerified(
                 'race-' . strtolower($label),
                 $this->baseToken,
-                [$this->file($label)],
+                VerifiedConfigBundleFixture::fromFiles([$this->file($label)], 2),
             ));
             $outcome = 'committed';
         } catch (ConfigurationActivationConflictException|ConfigurationActivationContentionException) {
@@ -143,13 +145,18 @@ final class DatabaseConfigurationActivationConcurrencyTest extends TestCase
 
     private function file(string $name): ConfigSyncFile
     {
-        return new ConfigSyncFile(
+        return ConfigSyncFile::writable(
             entityType: 'system',
             entityId: 'site',
             uuid: ConfigSyncFile::deterministicUuid('system', 'site'),
             dependencies: [],
             langcode: 'en',
             fields: ['name' => $name],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
     }
 

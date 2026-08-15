@@ -45,6 +45,7 @@ final class CanonicalConfigEncoderTest extends TestCase
                 $encoder->encode($value);
                 self::fail('Expected invalid canonical map key to be rejected.');
             } catch (\InvalidArgumentException) {
+                self::addToAssertionCount(1);
             }
         }
     }
@@ -59,8 +60,22 @@ final class CanonicalConfigEncoderTest extends TestCase
                 $encoder->encode($value);
                 self::fail('Expected non-I-JSON number to be rejected.');
             } catch (\InvalidArgumentException) {
+                self::addToAssertionCount(1);
             }
         }
+    }
+
+    #[Test]
+    public function schema_encoding_preserves_empty_properties_as_a_map(): void
+    {
+        self::assertSame(
+            '{"dialect":"waaseyaa.config-schema/1","properties":{},"type":"object"}',
+            new CanonicalConfigEncoder()->encodeSchema([
+                'type' => 'object',
+                'properties' => [],
+                'dialect' => 'waaseyaa.config-schema/1',
+            ]),
+        );
     }
 
     #[Test]

@@ -42,7 +42,7 @@ final class ConfigImporterContractTest extends TestCase
         self::assertTrue($reflection->isPublic());
 
         $expectedFlags = ['dryRun', 'deleteOrphans', 'haltOnError', 'noDependencyCheck', 'activeRefs'];
-        $actual = array_map(static fn (\ReflectionParameter $p) => $p->getName(), $reflection->getParameters());
+        $actual = array_map(static fn(\ReflectionParameter $p) => $p->getName(), $reflection->getParameters());
         foreach ($expectedFlags as $flag) {
             self::assertContains($flag, $actual, "Importer::import() must accept named parameter '{$flag}'.");
         }
@@ -115,13 +115,18 @@ final class ConfigImporterContractTest extends TestCase
             public function delete(string $ref): void {}
         };
 
-        $file = new ConfigSyncFile(
+        $file = ConfigSyncFile::writable(
             entityType: 'role',
             entityId: 'admin',
             uuid: ConfigSyncFile::deterministicUuid('role', 'admin'),
             dependencies: [],
             langcode: 'en',
             fields: [],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
 
         self::assertSame(ConfigImportEntryResult::STATUS_UPDATED, $hook->apply($file));

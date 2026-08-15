@@ -8,13 +8,13 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
+use Waaseyaa\CLI\Command\Config\ConfigResetCommand;
 use Waaseyaa\CLI\Command\HandlerArgument;
 use Waaseyaa\CLI\Command\HandlerArgumentMode;
-use Waaseyaa\CLI\Command\Config\ConfigResetCommand;
 use Waaseyaa\CLI\Command\HandlerCommand;
-use Waaseyaa\CLI\Io\StdinSource;
 use Waaseyaa\CLI\Command\HandlerOption;
 use Waaseyaa\CLI\Command\HandlerOptionMode;
+use Waaseyaa\CLI\Io\StdinSource;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Config\Audit\ConfigAuditEvent;
 use Waaseyaa\Config\Sync\ConfigImportApplyHookInterface;
@@ -143,13 +143,18 @@ final class ConfigResetCommandTest extends TestCase
         $repository = new ConfigSyncRepository($this->tempDir);
         foreach ($refs as $ref) {
             [$entityType, $entityId] = explode('.', $ref, 2);
-            $repository->put(new ConfigSyncFile(
+            $repository->put(ConfigSyncFile::writable(
                 entityType: $entityType,
                 entityId: $entityId,
                 uuid: ConfigSyncFile::deterministicUuid($entityType, $entityId),
                 dependencies: [],
                 langcode: 'en',
                 fields: [],
+                schemaId: 'waaseyaa.test.config',
+                schemaVersion: 1,
+                schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                ownerPackage: 'waaseyaa/config',
+                ownerConfigContractVersion: 1,
             ));
         }
     }
@@ -159,7 +164,7 @@ final class ConfigResetCommandTest extends TestCase
      */
     private function spyHook(string $returnStatus): ConfigImportApplyHookInterface
     {
-        return new class($returnStatus) implements ConfigImportApplyHookInterface {
+        return new class ($returnStatus) implements ConfigImportApplyHookInterface {
             /** @var list<string> */
             public array $applied = [];
 
@@ -181,7 +186,7 @@ final class ConfigResetCommandTest extends TestCase
      */
     private function scriptedTty(array $lines): StdinSource
     {
-        return new class($lines) implements StdinSource {
+        return new class ($lines) implements StdinSource {
             /** @var list<string> */
             private array $lines;
 
@@ -248,7 +253,7 @@ final class ConfigResetCommandTest extends TestCase
 
     private function makeContainer(ConfigResetCommand $command): ContainerInterface
     {
-        return new class($command) implements ContainerInterface {
+        return new class ($command) implements ContainerInterface {
             public function __construct(private readonly ConfigResetCommand $command) {}
 
             public function get(string $id): mixed

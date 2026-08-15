@@ -18,13 +18,18 @@ final class DeployableConfigurationPolicyTest extends TestCase
         $this->expectException(ConfigurationAuthorityConflictException::class);
         $this->expectExceptionMessage('immutable bootstrap authority');
 
-        new ConfigSyncFile(
+        ConfigSyncFile::writable(
             entityType: 'config',
             entityId: 'sync_path',
             uuid: ConfigSyncFile::deterministicUuid('config', 'sync_path'),
             dependencies: [],
             langcode: 'en',
             fields: ['path' => 'storage/elsewhere'],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
     }
 
@@ -42,16 +47,20 @@ final class DeployableConfigurationPolicyTest extends TestCase
     #[Test]
     public function secret_reference_fields_remain_deployable_without_resolving_values(): void
     {
-        $file = new ConfigSyncFile(
+        $file = ConfigSyncFile::writable(
             entityType: 'ai',
             entityId: 'providers',
             uuid: ConfigSyncFile::deterministicUuid('ai', 'providers'),
             dependencies: [],
             langcode: 'en',
             fields: ['providers' => [['api_key_env_var' => 'OPENAI_API_KEY']]],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
 
         self::assertSame('OPENAI_API_KEY', $file->fields['providers'][0]['api_key_env_var']);
     }
 }
-

@@ -191,13 +191,18 @@ final class ConfigFactoryProductionBindingTest extends TestCase
             [],
         );
         $generationId = str_repeat('b', 64);
-        $file = new ConfigSyncFile(
+        $file = ConfigSyncFile::writable(
             entityType: 'system',
             entityId: 'site',
             uuid: ConfigSyncFile::deterministicUuid('system', 'site'),
             dependencies: [],
             langcode: 'en',
             fields: ['name' => 'Waaseyaa'],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
         $database->query(
             'INSERT INTO waaseyaa_config_generation '

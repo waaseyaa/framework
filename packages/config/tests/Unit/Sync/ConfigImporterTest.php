@@ -7,15 +7,18 @@ namespace Waaseyaa\Config\Tests\Unit\Sync;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Waaseyaa\Config\Exception\ConfigImportFailedException;
 use Waaseyaa\Config\Activation\ConfigurationActivationRequest;
 use Waaseyaa\Config\Activation\ConfigurationActivationResult;
 use Waaseyaa\Config\Activation\ConfigurationActivatorInterface;
 use Waaseyaa\Config\Activation\ConfigurationRollbackRequest;
 use Waaseyaa\Config\Authority\ConfigurationActiveToken;
+use Waaseyaa\Config\Exception\ConfigImportFailedException;
+use Waaseyaa\Config\Manifest\VerifiedConfigBundle;
+use Waaseyaa\Config\Tests\Fixtures\VerifiedConfigBundleFixture;
 use Waaseyaa\Config\Sync\ConfigImportApplyHookInterface;
 use Waaseyaa\Config\Sync\ConfigImportEntryResult;
 use Waaseyaa\Config\Sync\ConfigImporter;
+use Waaseyaa\Config\Sync\ConfigImportPreflightInterface;
 use Waaseyaa\Config\Sync\ConfigImportPreflightException;
 use Waaseyaa\Config\Sync\ConfigImportResult;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
@@ -176,7 +179,7 @@ final class ConfigImporterTest extends TestCase
         $importer = new ConfigImporter(
             $repository,
             $hook,
-            new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight(),
+            $this->verifiedPreflight($repository),
             auditLogger: $auditor,
         );
 
@@ -339,20 +342,38 @@ final class ConfigImporterTest extends TestCase
                 $this->request = $request;
                 return new ConfigurationActivationResult('committed', $this->committed, $request->requestId, str_repeat('c', 64));
             }
-            public function rollback(ConfigurationRollbackRequest $request): ConfigurationActivationResult { throw new \LogicException('not used'); }
-            public function committedResult(string $requestId): ?ConfigurationActivationResult { return null; }
-            public function currentToken(): ?ConfigurationActiveToken { return null; }
-            public function readGeneration(ConfigurationActiveToken $token): iterable { return []; }
+            public function rollback(ConfigurationRollbackRequest $request): ConfigurationActivationResult
+            {
+                throw new \LogicException('not used');
+            }
+            public function committedResult(string $requestId): ?ConfigurationActivationResult
+            {
+                return null;
+            }
+            public function currentToken(): ?ConfigurationActiveToken
+            {
+                return null;
+            }
+            public function readGeneration(ConfigurationActiveToken $token): iterable
+            {
+                return [];
+            }
         };
         $hook = new class implements ConfigImportApplyHookInterface {
-            public function apply(ConfigSyncFile $file): string { throw new \LogicException('legacy apply called'); }
-            public function delete(string $ref): void { throw new \LogicException('legacy delete called'); }
+            public function apply(ConfigSyncFile $file): string
+            {
+                throw new \LogicException('legacy apply called');
+            }
+            public function delete(string $ref): void
+            {
+                throw new \LogicException('legacy delete called');
+            }
         };
         $audit = [];
         $importer = new ConfigImporter(
             $repository,
             $hook,
-            new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight(),
+            $this->verifiedPreflight($repository),
             auditLogger: static function (string $level, string $message, array $context) use (&$audit): void {
                 $audit[] = [$level, $message, $context];
             },
@@ -387,7 +408,7 @@ final class ConfigImporterTest extends TestCase
         $importer = new ConfigImporter(
             $repository,
             $this->makeHook($unused),
-            new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight(),
+            $this->verifiedPreflight($repository),
             activator: $activator,
         );
 
@@ -406,13 +427,19 @@ final class ConfigImporterTest extends TestCase
         $activator = $this->createMock(ConfigurationActivatorInterface::class);
         $activator->expects($this->never())->method('activate');
         $hook = new class implements ConfigImportApplyHookInterface {
-            public function apply(ConfigSyncFile $file): string { throw new \LogicException('legacy apply called'); }
-            public function delete(string $ref): void { throw new \LogicException('legacy delete called'); }
+            public function apply(ConfigSyncFile $file): string
+            {
+                throw new \LogicException('legacy apply called');
+            }
+            public function delete(string $ref): void
+            {
+                throw new \LogicException('legacy delete called');
+            }
         };
         $importer = new ConfigImporter(
             $repository,
             $hook,
-            new \Waaseyaa\Config\Testing\AllowingConfigImportPreflight(),
+            $this->verifiedPreflight($repository),
             activator: $activator,
         );
 
@@ -443,18 +470,42 @@ final class ConfigImporterTest extends TestCase
         return $repository;
     }
 
+    private function verifiedPreflight(ConfigSyncRepository $repository): ConfigImportPreflightInterface
+    {
+        $bundle = VerifiedConfigBundleFixture::fromFiles(array_values(iterator_to_array($repository->list())));
+
+        return new class ($bundle) implements ConfigImportPreflightInterface {
+            public function __construct(private readonly VerifiedConfigBundle $bundle) {}
+
+            public function assertReady(
+                array $syncFiles,
+                array $activeRefs,
+                bool $dryRun,
+                bool $deleteOrphans,
+                bool $noDependencyCheck,
+            ): ?VerifiedConfigBundle {
+                return $this->bundle;
+            }
+        };
+    }
+
     /** @param list<string> $dependencies @param array<string, mixed> $fields */
     private function file(string $ref, array $dependencies = [], array $fields = []): ConfigSyncFile
     {
         [$entityType, $entityId] = explode('.', $ref, 2);
 
-        return new ConfigSyncFile(
+        return ConfigSyncFile::writable(
             entityType: $entityType,
             entityId: $entityId,
             uuid: ConfigSyncFile::deterministicUuid($entityType, $entityId),
             dependencies: $dependencies,
             langcode: 'en',
             fields: $fields,
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
     }
 

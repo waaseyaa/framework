@@ -11,6 +11,7 @@ use Waaseyaa\Config\Dependency\DependencyResolver;
 use Waaseyaa\Config\Dependency\Exception\ConfigDependencyCycleException;
 use Waaseyaa\Config\Dependency\Exception\ConfigDependencyMissingException;
 use Waaseyaa\Config\Exception\ConfigImportFailedException;
+use Waaseyaa\Config\Manifest\VerifiedConfigBundle;
 
 /**
  * Orchestrates `config:import`:
@@ -89,13 +90,23 @@ final class ConfigImporter
         $syncFiles = $this->collectSyncFiles();
         $entries = [];
 
-        $this->preflight->assertReady(
+        $verifiedBundle = $this->preflight->assertReady(
             syncFiles: $syncFiles,
             activeRefs: $activeRefs,
             dryRun: $dryRun,
             deleteOrphans: $deleteOrphans,
             noDependencyCheck: $noDependencyCheck,
         );
+        if ($verifiedBundle instanceof VerifiedConfigBundle) {
+            $syncFiles = [];
+            foreach ($verifiedBundle->files() as $file) {
+                $syncFiles[$file->ref()] = $file;
+            }
+        } elseif ($this->activator !== null) {
+            throw new ConfigImportPreflightException(
+                'Production config:import requires a verified CFG-03 bundle from its preflight authority.',
+            );
+        }
 
         if ($noDependencyCheck) {
             $this->audit(
@@ -134,6 +145,7 @@ final class ConfigImporter
                 $activationRequestId,
                 $expectedToken,
                 $activeFiles,
+                $verifiedBundle,
                 $dryRun,
             );
         }
@@ -173,6 +185,7 @@ final class ConfigImporter
         ?string $activationRequestId,
         ?ConfigurationActiveToken $expectedToken,
         array $activeFiles,
+        VerifiedConfigBundle $verifiedBundle,
         bool $dryRun = false,
     ): ConfigImportResult {
         if (!$dryRun && ($activationRequestId === null || $activationRequestId === '')) {
@@ -196,6 +209,14 @@ final class ConfigImporter
             $activeByRef[$file->ref()] = $file;
         }
         $orderedFiles = array_map(static fn(string $ref): ConfigSyncFile => $syncFiles[$ref], $orderedRefs);
+        $orphans = array_diff_key($activeByRef, $syncFiles);
+        if ($orphans !== [] && !$deleteOrphans) {
+            return new ConfigImportResult(entries: [new ConfigImportEntryResult(
+                ref: '<generation>',
+                status: ConfigImportEntryResult::STATUS_FAILED,
+                reason: 'Verified complete-bundle activation requires explicit --delete-orphans intent for every omitted active entry.',
+            )], dryRun: $dryRun);
+        }
         $tombstones = [];
         $expectedEntryHashes = [];
         foreach ($orderedFiles as $file) {
@@ -211,15 +232,14 @@ final class ConfigImporter
             }
         }
 
-        $request = new ConfigurationActivationRequest(
+        $request = ConfigurationActivationRequest::activateVerified(
             $activationRequestId,
             $expectedToken,
-            $orderedFiles,
+            $verifiedBundle,
             $tombstones,
             $expectedEntryHashes,
-            completeReplacement: $deleteOrphans,
         );
-        $nextByRef = $deleteOrphans ? [] : $activeByRef;
+        $nextByRef = [];
         foreach ($orderedFiles as $file) {
             $nextByRef[$file->ref()] = $file;
         }
@@ -227,14 +247,7 @@ final class ConfigImporter
             unset($nextByRef[$ref]);
         }
         ksort($nextByRef, SORT_STRING);
-        $manifest = [];
-        foreach ($nextByRef as $ref => $file) {
-            $manifest[$ref] = $file->contentHash();
-        }
-        $generationId = hash('sha256', json_encode([
-            'schema' => 'configuration-generation.v1',
-            'entries' => $manifest,
-        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+        $generationId = $verifiedBundle->effectiveManifest->generationId;
         $planHash = hash('sha256', json_encode([
             'schema' => 'configuration-activation-plan.v1',
             'input_hash' => $request->inputHash(),
@@ -256,16 +269,6 @@ final class ConfigImporter
             foreach (array_keys($tombstones) as $ref) {
                 $entries[] = new ConfigImportEntryResult($ref, ConfigImportEntryResult::STATUS_DELETED);
             }
-            if (!$deleteOrphans) {
-                foreach (array_diff_key($activeByRef, $syncFiles) as $ref => $_file) {
-                    $entries[] = new ConfigImportEntryResult(
-                        $ref,
-                        ConfigImportEntryResult::STATUS_UNCHANGED,
-                        'orphan retained; use --delete-orphans for explicit removal',
-                    );
-                }
-            }
-
             return new ConfigImportResult($entries, true, $generationId, $planHash);
         }
 

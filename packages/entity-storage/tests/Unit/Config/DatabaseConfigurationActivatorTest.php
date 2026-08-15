@@ -7,23 +7,30 @@ namespace Waaseyaa\EntityStorage\Tests\Unit\Config;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Config\Activation\ConfigurationActivationAuthorizerInterface;
-use Waaseyaa\Config\Activation\ConfigurationActivationContentionException;
 use Waaseyaa\Config\Activation\ConfigurationActivationConflictException;
+use Waaseyaa\Config\Activation\ConfigurationActivationContentionException;
 use Waaseyaa\Config\Activation\ConfigurationActivationRequest;
 use Waaseyaa\Config\Activation\ConfigurationActivationRequestReuseException;
-use Waaseyaa\Config\Activation\ConfigurationRollbackRequest;
-use Waaseyaa\Config\Activation\ConfigurationRollbackValidatorInterface;
 use Waaseyaa\Config\Activation\ConfigurationCandidateSweepAuthorizerInterface;
 use Waaseyaa\Config\Activation\ConfigurationCandidateSweepRequest;
+use Waaseyaa\Config\Activation\ConfigurationRollbackRequest;
+use Waaseyaa\Config\Activation\ConfigurationRollbackValidatorInterface;
 use Waaseyaa\Config\Authority\ConfigurationActiveToken;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
+use Waaseyaa\Config\Tests\Fixtures\VerifiedConfigBundleFixture;
+use Waaseyaa\Config\Drift\ConfigDriftVerifier;
+use Waaseyaa\Config\Sync\ConfigSyncBundleValidator;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\EntityStorage\Config\DatabaseConfigurationActivator;
+use Waaseyaa\EntityStorage\Config\DatabaseConfigReplayStateReader;
+use Waaseyaa\EntityStorage\Config\DatabaseConfigDriftSnapshotReader;
+use Waaseyaa\EntityStorage\Config\DatabaseActiveConfigurationBridge;
 use Waaseyaa\Foundation\Migration\SchemaBuilder;
 
 final class DatabaseConfigurationActivatorTest extends TestCase
 {
+    private int $bundleSequence = 0;
     private DBALDatabase $database;
     private ConfigurationAuthorityContext $context;
     private ConfigurationActivationAuthorizerInterface $authorizer;
@@ -31,13 +38,7 @@ final class DatabaseConfigurationActivatorTest extends TestCase
     protected function setUp(): void
     {
         $this->database = DBALDatabase::createSqlite(':memory:', 'testing');
-        foreach ([
-            '2026_08_12_000002_configuration_authority.php',
-            '2026_08_12_000003_configuration_activation.php',
-        ] as $migrationFile) {
-            $migration = require dirname(__DIR__, 3) . '/migrations/' . $migrationFile;
-            $migration->up(new SchemaBuilder($this->database->getConnection()));
-        }
+        $this->applyMigrations($this->database);
         $this->context = new ConfigurationAuthorityContext(
             authorityId: str_repeat('a', 64),
             databaseIdentity: 'database:v1:activation-test',
@@ -47,6 +48,29 @@ final class DatabaseConfigurationActivatorTest extends TestCase
         $this->authorizer = new class implements ConfigurationActivationAuthorizerInterface {
             public function authorize(ConfigurationActivationRequest $request, bool $deletes): void {}
         };
+    }
+
+    private function applyMigrations(DBALDatabase $database): void
+    {
+        foreach ([
+            '2026_08_12_000002_configuration_authority.php',
+            '2026_08_12_000003_configuration_activation.php',
+            '2026_08_15_000004_configuration_manifest_replay.php',
+        ] as $migrationFile) {
+            $migration = require dirname(__DIR__, 3) . '/migrations/' . $migrationFile;
+            $migration->up(new SchemaBuilder($database->getConnection()));
+        }
+    }
+
+    #[Test]
+    public function replayReaderFailsClosedWithAStableDiagnosticBeforeItsMigrationExists(): void
+    {
+        $database = DBALDatabase::createSqlite(':memory:', 'testing');
+        $reader = new DatabaseConfigReplayStateReader($database, $this->context);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('CFG-03 manifest replay state is unavailable');
+        $reader->lastCommittedSequence('test:configuration-activation', 'cfg04:test-key');
     }
 
     #[Test]
@@ -66,6 +90,90 @@ final class DatabaseConfigurationActivatorTest extends TestCase
             iterator_to_array($activator->readGeneration($result->token)),
         ));
         self::assertSame(1, $this->scalar('SELECT COUNT(*) FROM waaseyaa_config_activation_v2'));
+    }
+
+    #[Test]
+    public function replayEvidenceCannotReferenceAnAbsentActivation(): void
+    {
+        $result = $this->activator()->activate($this->request('trigger-guard-base', null, [
+            $this->file('system', 'site', ['name' => 'Waaseyaa']),
+        ]));
+
+        try {
+            $this->database->getConnection()->executeStatement(
+                'UPDATE waaseyaa_config_manifest_replay SET activation_sequence = 999 WHERE authority_id = ?',
+                [$this->context->authorityId],
+            );
+            self::fail('Replay state accepted an activation sequence with no committed activation.');
+        } catch (\Throwable $exception) {
+            self::assertStringContainsString('requires a committed activation', $exception->getMessage());
+        }
+        self::assertSame(
+            $result->token->activationSequence,
+            $this->scalar('SELECT activation_sequence FROM waaseyaa_config_manifest_replay'),
+        );
+    }
+
+    #[Test]
+    public function replayHighWaterCannotMoveBackward(): void
+    {
+        $first = $this->activator()->activate($this->request('replay-monotonic-first', null, [
+            $this->file('system', 'site', ['name' => 'A']),
+        ]));
+        $second = $this->activator()->activate($this->request('replay-monotonic-second', $first->token, [
+            $this->file('system', 'site', ['name' => 'B']),
+        ]));
+
+        $failure = null;
+        try {
+            $this->database->getConnection()->executeStatement(
+                'UPDATE waaseyaa_config_manifest_replay SET last_sequence = 1, activation_sequence = 1 WHERE authority_id = ?',
+                [$this->context->authorityId],
+            );
+        } catch (\Throwable $exception) {
+            $failure = $exception;
+        }
+        self::assertNotNull($failure, 'Replay high-water moved backward.');
+        self::assertStringContainsString('must advance monotonically', $failure->getMessage());
+        self::assertSame(
+            $second->token->activationSequence,
+            $this->scalar('SELECT last_sequence FROM waaseyaa_config_manifest_replay'),
+        );
+    }
+
+    #[Test]
+    public function manifestProvenanceAndEntryContractsAreAppendOnly(): void
+    {
+        $result = $this->activator()->activate($this->request('append-only-base', null, [
+            $this->file('system', 'site', ['name' => 'Waaseyaa']),
+        ]));
+
+        foreach ([
+            [
+                'UPDATE waaseyaa_config_activation_manifest SET manifest_hash = ? WHERE activation_sequence = ?',
+                ['sha256:' . str_repeat('0', 64), $result->token->activationSequence],
+                'manifest provenance is append-only',
+            ],
+            [
+                'DELETE FROM waaseyaa_config_activation_manifest WHERE activation_sequence = ?',
+                [$result->token->activationSequence],
+                'manifest provenance is append-only',
+            ],
+            [
+                'UPDATE waaseyaa_config_entry_contract SET effective_entry_hash = ? WHERE generation_id = ?',
+                ['sha256:' . str_repeat('0', 64), $result->token->generationId],
+                'entry contract evidence is immutable',
+            ],
+        ] as [$sql, $arguments, $message]) {
+            $failure = null;
+            try {
+                $this->database->getConnection()->executeStatement($sql, $arguments);
+            } catch (\Throwable $exception) {
+                $failure = $exception;
+            }
+            self::assertNotNull($failure, 'Direct evidence mutation unexpectedly succeeded.');
+            self::assertStringContainsString($message, $failure->getMessage());
+        }
     }
 
     #[Test]
@@ -142,14 +250,15 @@ final class DatabaseConfigurationActivatorTest extends TestCase
     }
 
     #[Test]
-    public function absenceRetainsWhileAnExplicitHashBoundTombstoneDeletes(): void
+    public function completeBundleRetainsExplicitEntriesWhileAHashBoundTombstoneDeletes(): void
     {
         $activator = $this->activator();
         $site = $this->file('system', 'site', ['name' => 'Waaseyaa']);
         $role = $this->file('role', 'editor', ['label' => 'Editor']);
         $first = $activator->activate($this->request('request-full', null, [$site, $role]));
 
-        $retained = $activator->activate($this->request('request-partial', $first->token, [
+        $retained = $activator->activate($this->request('request-complete-update', $first->token, [
+            $role,
             $this->file('system', 'site', ['name' => 'Waaseyaa 2']),
         ]));
         self::assertSame(['role.editor', 'system.site'], $this->refs($activator, $retained->token));
@@ -157,7 +266,7 @@ final class DatabaseConfigurationActivatorTest extends TestCase
         $deleted = $activator->activate($this->request(
             'request-delete',
             $retained->token,
-            [],
+            [$this->file('system', 'site', ['name' => 'Waaseyaa 2'])],
             ['role.editor' => $role->contentHash()],
         ));
         self::assertSame(['system.site'], $this->refs($activator, $deleted->token));
@@ -180,54 +289,44 @@ final class DatabaseConfigurationActivatorTest extends TestCase
         $first = $activator->activate($this->request('request-replacement-base', null, [$site, $role]));
 
         try {
-            new ConfigurationActivationRequest(
-                'request-replacement-no-token',
-                null,
-                [$site],
-                ['role.editor' => $role->contentHash()],
-                completeReplacement: true,
-            );
-            self::fail('Complete replacement accepted no expected token.');
+            new ConfigurationActivationRequest('request-replacement-unverified', null, [$site]);
+            self::fail('Ordinary activation accepted raw unverified files.');
         } catch (\InvalidArgumentException $exception) {
-            self::assertStringContainsString('expected active token', $exception->getMessage());
+            self::assertStringContainsString('verified CFG-03 bundle', $exception->getMessage());
         }
 
+        $incompleteBundle = VerifiedConfigBundleFixture::fromFiles([$site], ++$this->bundleSequence);
         try {
-            $activator->activate(new ConfigurationActivationRequest(
-                'request-replacement-incomplete-plan',
-                $first->token,
-                [$site],
-                completeReplacement: true,
+            $activator->activate(ConfigurationActivationRequest::activateVerified(
+                'request-replacement-incomplete-plan', $first->token, $incompleteBundle,
             ));
             self::fail('Complete replacement accepted an incomplete deletion plan.');
         } catch (ConfigurationActivationConflictException $exception) {
             self::assertStringContainsString('every omitted active entry', $exception->getMessage());
         }
 
-        $replacement = $activator->activate(new ConfigurationActivationRequest(
+        $replacement = $activator->activate(ConfigurationActivationRequest::activateVerified(
             'request-replacement-valid',
             $first->token,
-            [$site],
+            VerifiedConfigBundleFixture::fromFiles([$site], ++$this->bundleSequence),
             ['role.editor' => $role->contentHash()],
-            completeReplacement: true,
         ));
         self::assertSame(['system.site'], $this->refs($activator, $replacement->token));
     }
 
     #[Test]
-    public function completeReplacementModeIsBoundIntoRequestIdentity(): void
+    public function verifiedManifestIdentityIsBoundIntoRequestIdentity(): void
     {
         $token = new ConfigurationActiveToken(str_repeat('a', 64), 1);
         $file = $this->file('system', 'site', ['name' => 'Waaseyaa']);
-        $additive = new ConfigurationActivationRequest('request-mode-a', $token, [$file]);
-        $replacement = new ConfigurationActivationRequest(
-            'request-mode-b',
-            $token,
-            [$file],
-            completeReplacement: true,
+        $first = ConfigurationActivationRequest::activateVerified(
+            'request-mode-a', $token, VerifiedConfigBundleFixture::fromFiles([$file], 1),
+        );
+        $second = ConfigurationActivationRequest::activateVerified(
+            'request-mode-b', $token, VerifiedConfigBundleFixture::fromFiles([$file], 2),
         );
 
-        self::assertNotSame($additive->inputHash(), $replacement->inputHash());
+        self::assertNotSame($first->inputHash(), $second->inputHash());
     }
 
     #[Test]
@@ -286,6 +385,7 @@ final class DatabaseConfigurationActivatorTest extends TestCase
             foreach ([
                 '2026_08_12_000002_configuration_authority.php',
                 '2026_08_12_000003_configuration_activation.php',
+                '2026_08_15_000004_configuration_manifest_replay.php',
             ] as $migrationFile) {
                 $migration = require dirname(__DIR__, 3) . '/migrations/' . $migrationFile;
                 $migration->up(new SchemaBuilder($firstDatabase->getConnection()));
@@ -363,7 +463,7 @@ final class DatabaseConfigurationActivatorTest extends TestCase
         $result = $activator->activate($this->request(
             'request-after-legacy',
             $legacyToken,
-            [$this->file('role', 'editor', ['label' => 'Editor'])],
+            [$legacy, $this->file('role', 'editor', ['label' => 'Editor'])],
         ));
 
         self::assertSame(8, $result->token->activationSequence);
@@ -463,7 +563,10 @@ final class DatabaseConfigurationActivatorTest extends TestCase
     {
         $sweepAuthorizer = new class implements ConfigurationCandidateSweepAuthorizerInterface {
             public int $calls = 0;
-            public function authorize(ConfigurationCandidateSweepRequest $request): void { ++$this->calls; }
+            public function authorize(ConfigurationCandidateSweepRequest $request): void
+            {
+                ++$this->calls;
+            }
         };
         $activator = new DatabaseConfigurationActivator(
             $this->database,
@@ -480,8 +583,9 @@ final class DatabaseConfigurationActivatorTest extends TestCase
                 SELECT RAISE(ABORT, 'leave sweep candidate staged');
             END
             SQL);
+        $stagedRequest = $this->request('sweep-staged', $head->token, [$this->file('system', 'site', ['name' => 'B'])]);
         try {
-            $activator->activate($this->request('sweep-staged', $head->token, [$this->file('system', 'site', ['name' => 'B'])]));
+            $activator->activate($stagedRequest);
             self::fail('Injected sweep staging failure was reported as success.');
         } catch (\Throwable $exception) {
             self::assertStringContainsString('leave sweep candidate staged', $exception->getMessage());
@@ -508,11 +612,7 @@ final class DatabaseConfigurationActivatorTest extends TestCase
             "SELECT lifecycle_state FROM waaseyaa_config_candidate WHERE activation_request_id = 'sweep-staged'",
         ));
         self::assertEquals($head->token, $activator->currentToken());
-        $retried = $activator->activate($this->request(
-            'sweep-staged',
-            $head->token,
-            [$this->file('system', 'site', ['name' => 'B'])],
-        ));
+        $retried = $activator->activate($stagedRequest);
         self::assertSame(2, $retried->token->activationSequence);
         self::assertSame('committed', $this->stringScalar(
             "SELECT lifecycle_state FROM waaseyaa_config_candidate WHERE activation_request_id = 'sweep-staged'",
@@ -598,6 +698,176 @@ final class DatabaseConfigurationActivatorTest extends TestCase
         self::assertSame(1, $this->scalar('SELECT COUNT(*) FROM waaseyaa_config_activation_v2'));
     }
 
+    #[Test]
+    public function manifestReplaySequenceIsClaimedAtomicallyAndAuthoredEvidenceIsAppendOnly(): void
+    {
+        $activator = $this->activator();
+        $file = $this->file('system', 'site', ['name' => 'A']);
+        $firstBundle = VerifiedConfigBundleFixture::fromFiles([$file], 1);
+        $first = $activator->activate(ConfigurationActivationRequest::activateVerified(
+            'manifest-sequence-1', null, $firstBundle,
+        ));
+        $secondBundle = VerifiedConfigBundleFixture::fromFiles([$file], 2);
+        $second = $activator->activate(ConfigurationActivationRequest::activateVerified(
+            'manifest-sequence-2', $first->token, $secondBundle,
+        ));
+
+        self::assertSame($first->token->generationId, $second->token->generationId);
+        self::assertSame(1, $this->scalar('SELECT COUNT(*) FROM waaseyaa_config_generation_v2'));
+        self::assertSame(2, $this->scalar('SELECT COUNT(*) FROM waaseyaa_config_activation_manifest'));
+        self::assertSame(2, new DatabaseConfigReplayStateReader($this->database, $this->context)
+            ->lastCommittedSequence('test:configuration-activation', 'unsigned-sealed-local:authority:test'));
+        $retained = array_values(iterator_to_array($activator->readGeneration($second->token)));
+        self::assertCount(1, $retained);
+        self::assertTrue($retained[0]->isWritableV1());
+        self::assertSame($secondBundle->files()[0]->schemaHash, $retained[0]->schemaHash);
+        self::assertSame(
+            $secondBundle->verification->manifest->canonicalBytes,
+            $this->stringScalar('SELECT manifest_bytes FROM waaseyaa_config_activation_manifest WHERE activation_sequence = 2'),
+        );
+
+        $replayed = ConfigurationActivationRequest::activateVerified(
+            'manifest-sequence-replay',
+            $second->token,
+            VerifiedConfigBundleFixture::fromFiles([$this->file('system', 'site', ['name' => 'B'])], 2),
+        );
+        try {
+            $activator->activate($replayed);
+            self::fail('Replayed manifest sequence was committed.');
+        } catch (ConfigurationActivationConflictException $exception) {
+            self::assertStringContainsString('not newer than committed sequence', $exception->getMessage());
+        }
+        self::assertEquals($second->token, $activator->currentToken());
+        self::assertSame(2, $this->scalar('SELECT COUNT(*) FROM waaseyaa_config_activation_v2'));
+        self::assertSame(2, $this->scalar('SELECT COUNT(*) FROM waaseyaa_config_activation_manifest'));
+    }
+
+    #[Test]
+    public function driftVerificationBindsOneActiveSnapshotAndNeverMutatesArtifacts(): void
+    {
+        $directory = sys_get_temp_dir() . '/waaseyaa_cfg03_drift_' . bin2hex(random_bytes(6));
+        mkdir($directory, 0o700, true);
+        $compiled = $directory . '.compiled';
+        $sqlite = $directory . '.sqlite';
+        file_put_contents($compiled, 'compiled-evidence');
+        try {
+            $database = DBALDatabase::createSqlite($sqlite, 'testing');
+            $this->applyMigrations($database);
+            [$registry, $compatibility, $bundle] = VerifiedConfigBundleFixture::withAuthorities([
+                $this->file('system', 'site', ['name' => 'A']),
+            ], 1);
+            foreach ($bundle->entries() as $entry) {
+                file_put_contents($directory . '/' . $entry->file->filename(), $entry->exactBytes);
+            }
+            $baseContext = new ConfigurationAuthorityContext(
+                authorityId: $this->context->authorityId,
+                databaseIdentity: 'database:v1:file-backed-drift-test',
+                syncPath: $directory,
+                selectorProvenance: ['test'],
+            );
+            $activation = (new DatabaseConfigurationActivator($database, $baseContext, $this->authorizer))->activate(ConfigurationActivationRequest::activateVerified(
+                'drift-snapshot-base', null, $bundle,
+            ));
+            $context = new ConfigurationAuthorityContext(
+                authorityId: $baseContext->authorityId,
+                databaseIdentity: $baseContext->databaseIdentity,
+                syncPath: $directory,
+                selectorProvenance: ['test'],
+                activeGenerationId: $activation->token->generationId,
+                activationSequence: $activation->token->activationSequence,
+            );
+            $bridge = new DatabaseActiveConfigurationBridge($database, $context);
+            $verifier = new ConfigDriftVerifier(
+                $directory,
+                new ConfigSyncBundleValidator($registry),
+                $registry,
+                $compatibility,
+                new DatabaseConfigDriftSnapshotReader($database, $context, $bridge),
+                ['compiled' => $compiled, 'sqlite' => $sqlite, 'sync' => $directory],
+            );
+
+            $valid = $verifier->verify();
+            self::assertTrue($valid->isValid(), implode("\n", array_map(
+                static fn($diagnostic): string => $diagnostic->message,
+                $valid->diagnostics,
+            )));
+            self::assertStringStartsWith('sha256:', $valid->artifactsBefore['sqlite']);
+            self::assertSame($valid->artifactsBefore, $valid->artifactsAfter);
+            $activationRows = $this->scalarFrom($database, 'SELECT COUNT(*) FROM waaseyaa_config_activation_v2');
+
+            $database->getConnection()->executeStatement('DROP TRIGGER waaseyaa_config_activation_manifest_update_guard');
+            $database->getConnection()->executeStatement(
+                'UPDATE waaseyaa_config_activation_manifest SET manifest_hash = ? WHERE activation_sequence = ?',
+                ['sha256:' . str_repeat('0', 64), $activation->token->activationSequence],
+            );
+            $manifestHashDrift = $verifier->verify();
+            self::assertFalse($manifestHashDrift->isValid());
+            self::assertStringContainsString('does not match its retained canonical bytes', implode("\n", array_map(
+                static fn($diagnostic): string => $diagnostic->message,
+                $manifestHashDrift->diagnostics,
+            )));
+            self::assertSame($manifestHashDrift->artifactsBefore, $manifestHashDrift->artifactsAfter);
+            $database->getConnection()->executeStatement(
+                'UPDATE waaseyaa_config_activation_manifest SET manifest_hash = ? WHERE activation_sequence = ?',
+                [$bundle->verification->manifestHash, $activation->token->activationSequence],
+            );
+
+            $database->getConnection()->executeStatement('DROP TRIGGER waaseyaa_config_entry_contract_update_guard');
+            $database->getConnection()->executeStatement(
+                'UPDATE waaseyaa_config_entry_contract SET effective_entry_hash = ? WHERE generation_id = ?',
+                ['sha256:' . str_repeat('0', 64), $activation->token->generationId],
+            );
+            $entryContractDrift = $verifier->verify();
+            self::assertFalse($entryContractDrift->isValid());
+            self::assertStringContainsString('retained effective-entry identity', implode("\n", array_map(
+                static fn($diagnostic): string => $diagnostic->message,
+                $entryContractDrift->diagnostics,
+            )));
+            self::assertSame($entryContractDrift->artifactsBefore, $entryContractDrift->artifactsAfter);
+            $database->getConnection()->executeStatement(
+                'UPDATE waaseyaa_config_entry_contract SET effective_entry_hash = ? WHERE generation_id = ?',
+                [$bundle->entries()[0]->hashes->effectiveEntryHash, $activation->token->generationId],
+            );
+
+            $database->getConnection()->executeStatement('DROP TRIGGER waaseyaa_config_manifest_replay_monotonic_guard');
+            $database->getConnection()->executeStatement(
+                'UPDATE waaseyaa_config_manifest_replay SET last_sequence = 999 WHERE authority_id = ?',
+                [$context->authorityId],
+            );
+            $replayEvidenceDrift = $verifier->verify();
+            self::assertFalse($replayEvidenceDrift->isValid());
+            self::assertStringContainsString('does not match retained activation evidence', implode("\n", array_map(
+                static fn($diagnostic): string => $diagnostic->message,
+                $replayEvidenceDrift->diagnostics,
+            )));
+            self::assertSame($replayEvidenceDrift->artifactsBefore, $replayEvidenceDrift->artifactsAfter);
+            $database->getConnection()->executeStatement(
+                'UPDATE waaseyaa_config_manifest_replay SET last_sequence = ? WHERE authority_id = ?',
+                [$bundle->verification->bundleSequence, $context->authorityId],
+            );
+
+            file_put_contents($directory . '/system.site.yml', "# unauthenticated drift\n", \FILE_APPEND);
+            $drift = $verifier->verify();
+            self::assertFalse($drift->isValid());
+            self::assertStringContainsString('do not match the activated authored manifest', implode("\n", array_map(
+                static fn($diagnostic): string => $diagnostic->message,
+                $drift->diagnostics,
+            )));
+            self::assertSame($drift->artifactsBefore, $drift->artifactsAfter);
+            self::assertSame($activationRows, $this->scalarFrom($database, 'SELECT COUNT(*) FROM waaseyaa_config_activation_v2'));
+        } finally {
+            foreach (glob($directory . '/*') ?: [] as $path) {
+                @unlink($path);
+            }
+            @rmdir($directory);
+            @unlink($compiled);
+            @unlink($sqlite);
+            @unlink($sqlite . '-journal');
+            @unlink($sqlite . '-shm');
+            @unlink($sqlite . '-wal');
+        }
+    }
+
     private function activator(): DatabaseConfigurationActivator
     {
         return new DatabaseConfigurationActivator($this->database, $this->context, $this->authorizer);
@@ -613,7 +883,14 @@ final class DatabaseConfigurationActivatorTest extends TestCase
         array $files,
         array $tombstones = [],
     ): ConfigurationActivationRequest {
-        return new ConfigurationActivationRequest($requestId, $expected, $files, $tombstones);
+        $bundle = VerifiedConfigBundleFixture::fromFiles($files, ++$this->bundleSequence);
+
+        return ConfigurationActivationRequest::activateVerified(
+            $requestId,
+            $expected,
+            $bundle,
+            $tombstones,
+        );
     }
 
     /** @param array<string, mixed> $fields */
@@ -621,13 +898,18 @@ final class DatabaseConfigurationActivatorTest extends TestCase
     {
         ksort($fields, SORT_STRING);
 
-        return new ConfigSyncFile(
+        return ConfigSyncFile::writable(
             entityType: $entityType,
             entityId: $entityId,
             uuid: ConfigSyncFile::deterministicUuid($entityType, $entityId),
             dependencies: [],
             langcode: 'en',
             fields: $fields,
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
     }
 

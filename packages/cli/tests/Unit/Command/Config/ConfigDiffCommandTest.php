@@ -8,9 +8,9 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
+use Waaseyaa\CLI\Command\Config\ConfigDiffCommand;
 use Waaseyaa\CLI\Command\HandlerArgument;
 use Waaseyaa\CLI\Command\HandlerArgumentMode;
-use Waaseyaa\CLI\Command\Config\ConfigDiffCommand;
 use Waaseyaa\CLI\Command\HandlerCommand;
 use Waaseyaa\CLI\Testing\CliTester;
 use Waaseyaa\Config\Sync\ConfigDiffer;
@@ -65,21 +65,31 @@ final class ConfigDiffCommandTest extends TestCase
     public function uuid_rename_renders_annotation_line(): void
     {
         $uuid = ConfigSyncFile::deterministicUuid('role', 'coordinator');
-        $sync = new ConfigSyncFile(
+        $sync = ConfigSyncFile::writable(
             entityType: 'role',
             entityId: 'community_coordinator',
             uuid: $uuid,
             dependencies: [],
             langcode: 'en',
             fields: ['label' => 'CC'],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
-        $active = new ConfigSyncFile(
+        $active = ConfigSyncFile::writable(
             entityType: 'role',
             entityId: 'coordinator',
             uuid: $uuid,
             dependencies: [],
             langcode: 'en',
             fields: ['label' => 'C'],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
 
         $tester = $this->makeTester([$sync], [$active]);
@@ -127,7 +137,7 @@ final class ConfigDiffCommandTest extends TestCase
         foreach ($syncFiles as $file) {
             $repo->put($file);
         }
-        $source = new class($activeFiles) implements ConfigSyncFileSourceInterface {
+        $source = new class ($activeFiles) implements ConfigSyncFileSourceInterface {
             /** @param list<ConfigSyncFile> $files */
             public function __construct(private readonly array $files) {}
 
@@ -162,7 +172,7 @@ final class ConfigDiffCommandTest extends TestCase
 
     private function makeContainer(ConfigDiffCommand $command): ContainerInterface
     {
-        return new class($command) implements ContainerInterface {
+        return new class ($command) implements ContainerInterface {
             public function __construct(private readonly ConfigDiffCommand $command) {}
 
             public function get(string $id): mixed
@@ -187,13 +197,18 @@ final class ConfigDiffCommandTest extends TestCase
     {
         ksort($fields, \SORT_STRING);
 
-        return new ConfigSyncFile(
+        return ConfigSyncFile::writable(
             entityType: $entityType,
             entityId: $entityId,
             uuid: ConfigSyncFile::deterministicUuid($entityType, $entityId),
             dependencies: [],
             langcode: 'en',
             fields: $fields,
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
     }
 

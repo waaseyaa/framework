@@ -34,8 +34,8 @@ final class ConfigSyncSerializerTest extends TestCase
               langcode: en
               owner_config_contract_version: 1
               owner_package: waaseyaa/config
-              schema_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
-              schema_id: waaseyaa.config.unbound
+              schema_hash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+              schema_id: waaseyaa.test.config
               schema_version: 1
               uuid: 0193abcd-7c4d-7000-8b6e-1a2b3c4d5e6f
             description: 'Coordinators manage community calendars and welcome new members.'
@@ -80,7 +80,7 @@ final class ConfigSyncSerializerTest extends TestCase
         // The value object itself enforces sorted input, so this test exercises
         // the serializer's defensive sort by going through buildPayload — which
         // re-sorts to be safe even if input were unsorted at construction time.
-        $file = new ConfigSyncFile(
+        $file = ConfigSyncFile::writable(
             entityType: 'role',
             entityId: 'admin',
             uuid: '0193abcd-7c4d-7000-8b6e-1a2b3c4d5e6f',
@@ -91,6 +91,11 @@ final class ConfigSyncSerializerTest extends TestCase
                 'b_field' => 'second',
                 'c_field' => 'third',
             ],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
 
         $serializer = new ConfigSyncSerializer();
@@ -127,8 +132,8 @@ final class ConfigSyncSerializerTest extends TestCase
     {
         // Two fresh instances must produce byte-identical output for the same
         // input — no hidden per-instance state.
-        $a = (new ConfigSyncSerializer())->toYaml($this->canonicalCoordinatorFile());
-        $b = (new ConfigSyncSerializer())->toYaml($this->canonicalCoordinatorFile());
+        $a = new ConfigSyncSerializer()->toYaml($this->canonicalCoordinatorFile());
+        $b = new ConfigSyncSerializer()->toYaml($this->canonicalCoordinatorFile());
 
         self::assertSame($a, $b);
     }
@@ -150,13 +155,18 @@ final class ConfigSyncSerializerTest extends TestCase
     public function emptyDependenciesEmitsFlowList(): void
     {
         $serializer = new ConfigSyncSerializer();
-        $file = new ConfigSyncFile(
+        $file = ConfigSyncFile::writable(
             entityType: 'role',
             entityId: 'admin',
             uuid: '0193abcd-7c4d-7000-8b6e-1a2b3c4d5e6f',
             dependencies: [],
             langcode: 'en',
             fields: ['label' => 'Admin'],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
 
         $yaml = $serializer->toYaml($file);
@@ -167,9 +177,30 @@ final class ConfigSyncSerializerTest extends TestCase
         self::assertStringContainsString('label: Admin', $yaml);
     }
 
+    #[Test]
+    public function legacyReadableInputIsDiagnosticOnlyAndCannotBecomeWritableYaml(): void
+    {
+        $file = ConfigSyncFile::legacyReadable(
+            entityType: 'role',
+            entityId: 'admin',
+            uuid: '0193abcd-7c4d-7000-8b6e-1a2b3c4d5e6f',
+            dependencies: [],
+            langcode: 'en',
+            fields: ['label' => 'Admin'],
+        );
+        $serializer = new ConfigSyncSerializer();
+
+        $diagnostic = $serializer->toDiagnosticYaml($file);
+        self::assertStringContainsString('format: waaseyaa.config-sync/0-read-only', $diagnostic);
+        self::assertStringNotContainsString('schema_id:', $diagnostic);
+
+        $this->expectException(\Waaseyaa\Config\Exception\ConfigSerializationException::class);
+        $serializer->toYaml($file);
+    }
+
     private function canonicalCoordinatorFile(): ConfigSyncFile
     {
-        return new ConfigSyncFile(
+        return ConfigSyncFile::writable(
             entityType: 'role',
             entityId: 'coordinator',
             uuid: '0193abcd-7c4d-7000-8b6e-1a2b3c4d5e6f',
@@ -186,6 +217,11 @@ final class ConfigSyncSerializerTest extends TestCase
                 ],
                 'weight' => 10,
             ],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
     }
 }

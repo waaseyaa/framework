@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Config\Activation;
 
 use Waaseyaa\Config\Authority\ConfigurationActiveToken;
+use Waaseyaa\Config\Manifest\VerifiedConfigBundle;
 use Waaseyaa\Config\Sync\ConfigSyncFile;
 
 /** Immutable, replay-safe activation input. @api */
@@ -15,6 +16,28 @@ final class ConfigurationActivationRequest
 
     /** @var array<string, string> */
     private array $tombstones;
+
+    /**
+     * @param array<string, string> $tombstones
+     * @param array<string, string> $expectedEntryHashes
+     */
+    public static function activateVerified(
+        string $requestId,
+        ?ConfigurationActiveToken $expectedToken,
+        VerifiedConfigBundle $bundle,
+        array $tombstones = [],
+        array $expectedEntryHashes = [],
+    ): self {
+        return new self(
+            requestId: $requestId,
+            expectedToken: $expectedToken,
+            files: $bundle->files(),
+            tombstones: $tombstones,
+            expectedEntryHashes: $expectedEntryHashes,
+            completeReplacement: true,
+            verifiedBundle: $bundle,
+        );
+    }
 
     /**
      * @param list<ConfigSyncFile> $files
@@ -29,6 +52,7 @@ final class ConfigurationActivationRequest
         public readonly bool $completeReplacement = false,
         public readonly string $operation = 'activate',
         public readonly ?string $targetGenerationId = null,
+        public readonly ?VerifiedConfigBundle $verifiedBundle = null,
     ) {
         if (preg_match('/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/D', $requestId) !== 1) {
             throw new \InvalidArgumentException('Configuration activation request IDs must be stable printable identifiers.');
@@ -60,7 +84,7 @@ final class ConfigurationActivationRequest
         }
         $this->expectedEntryHashes = $expectedEntryHashes;
 
-        if ($completeReplacement && $expectedToken === null) {
+        if ($completeReplacement && $expectedToken === null && $verifiedBundle === null) {
             throw new \InvalidArgumentException('Complete replacement requires an expected active token.');
         }
         if (!in_array($operation, ['activate', 'rollback'], true)) {
@@ -71,6 +95,16 @@ final class ConfigurationActivationRequest
         }
         if ($targetGenerationId !== null && preg_match('/^[a-f0-9]{64}$/D', $targetGenerationId) !== 1) {
             throw new \InvalidArgumentException('Rollback target generation must be a SHA-256 identity.');
+        }
+        if ($operation === 'activate') {
+            if (!$verifiedBundle instanceof VerifiedConfigBundle) {
+                throw new \InvalidArgumentException('Ordinary configuration activation requires a verified CFG-03 bundle.');
+            }
+            if (!$completeReplacement || self::fileBindings($this->files) !== self::fileBindings($verifiedBundle->files())) {
+                throw new \InvalidArgumentException('Verified CFG-03 activation requires the exact complete bundle files.');
+            }
+        } elseif ($verifiedBundle !== null) {
+            throw new \InvalidArgumentException('Retained-generation rollback must not replace immutable signature provenance.');
         }
     }
 
@@ -112,6 +146,14 @@ final class ConfigurationActivationRequest
             'complete_replacement' => $this->completeReplacement,
             'operation' => $this->operation,
             'target_generation_id' => $this->targetGenerationId,
+            'verified_manifest' => $this->verifiedBundle === null ? null : [
+                'manifest_hash' => $this->verifiedBundle->verification->manifestHash,
+                'bundle_scope' => $this->verifiedBundle->verification->bundleScope,
+                'bundle_sequence' => $this->verifiedBundle->verification->bundleSequence,
+                'trust_key_reference' => $this->verifiedBundle->verification->trustKeyReference,
+                'signed' => $this->verifiedBundle->verification->signed,
+                'effective_generation_id' => $this->verifiedBundle->effectiveManifest->generationId,
+            ],
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
     }
 
@@ -122,5 +164,26 @@ final class ConfigurationActivationRequest
     public function expectedEntryHashes(): array
     {
         return $this->expectedEntryHashes;
+    }
+
+    /** @param list<ConfigSyncFile> $files @return array<string, array<string, mixed>> */
+    private static function fileBindings(array $files): array
+    {
+        $bindings = [];
+        foreach ($files as $file) {
+            $bindings[$file->ref() . '@' . $file->langcode] = [
+                'uuid' => $file->uuid,
+                'dependencies' => $file->dependencies,
+                'fields' => $file->fields,
+                'schema_id' => $file->schemaId,
+                'schema_version' => $file->schemaVersion,
+                'schema_hash' => $file->schemaHash,
+                'owner_package' => $file->ownerPackage,
+                'owner_config_contract_version' => $file->ownerConfigContractVersion,
+            ];
+        }
+        ksort($bindings, \SORT_STRING);
+
+        return $bindings;
     }
 }

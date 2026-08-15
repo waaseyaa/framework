@@ -9,10 +9,12 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Config\Authority\ActiveConfigurationBridgeInterface;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityContext;
 use Waaseyaa\Config\Authority\ConfigurationAuthorityServiceProvider;
+use Waaseyaa\Config\Cache\CachedConfigFactory;
 use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\ConfigManagerInterface;
-use Waaseyaa\Config\Cache\CachedConfigFactory;
 use Waaseyaa\Config\Event\ConfigurationSelectorDeprecationEvent;
+use Waaseyaa\Config\Manifest\UnsignedConfigPolicy;
+use Waaseyaa\Config\Schema\ConfigSchemaRegistry;
 use Waaseyaa\Config\Schema\ConfigSchemaValidator;
 use Waaseyaa\Config\Storage\MemoryStorage;
 use Waaseyaa\Config\Sync\ConfigImportApplyHookInterface;
@@ -60,6 +62,9 @@ final class ConfigurationAuthorityServiceProviderTest extends TestCase
         self::assertInstanceOf(CachedConfigFactory::class, $factory);
         $manager = $provider->resolve(ConfigManagerInterface::class);
         self::assertInstanceOf(ConfigSchemaValidator::class, $provider->resolve(ConfigSchemaValidator::class));
+        $unsignedPolicy = $provider->resolve(UnsignedConfigPolicy::class);
+        self::assertInstanceOf(UnsignedConfigPolicy::class, $unsignedPolicy);
+        self::assertFalse($unsignedPolicy->allowsUnsigned);
         self::assertSame($bridge->activeStorage(), $manager->getActiveStorage());
 
         $factory->getEditable('system.site')->set('name', 'Waaseyaa')->save();
@@ -110,6 +115,24 @@ final class ConfigurationAuthorityServiceProviderTest extends TestCase
 
         self::assertCount(1, $declarations);
         self::assertSame('configuration.authority.v1', $declarations[0]->id);
+    }
+
+    #[Test]
+    public function bootRegistersShippedSchemasAndFinalizationFreezesAuthority(): void
+    {
+        $provider = new ConfigurationAuthorityServiceProvider();
+        $provider->setKernelContext($this->root, ['environment' => 'testing'], []);
+        $provider->register();
+
+        $provider->boot();
+        $registry = $provider->resolve(ConfigSchemaRegistry::class);
+        self::assertInstanceOf(ConfigSchemaRegistry::class, $registry);
+        self::assertNotNull($registry->get('ai.mcp_servers', 1));
+        self::assertNotNull($registry->get('config.ai.providers', 1));
+        self::assertFalse($registry->isFrozen());
+
+        $provider->finalizeProviderBoot();
+        self::assertTrue($registry->isFrozen());
     }
 
     #[Test]

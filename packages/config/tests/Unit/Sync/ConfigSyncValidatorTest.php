@@ -57,7 +57,7 @@ final class ConfigSyncValidatorTest extends TestCase
 
         $result = $validator->validate();
 
-        $refs = array_map(static fn (ConfigValidateEntry $e) => $e->ref, $result->entries);
+        $refs = array_map(static fn(ConfigValidateEntry $e) => $e->ref, $result->entries);
         self::assertSame(['role.admin', 'role.member', 'role.zeta'], $refs);
     }
 
@@ -132,7 +132,7 @@ final class ConfigSyncValidatorTest extends TestCase
         $entry = $result->entries[0];
         self::assertSame('taxonomy_vocabulary.community_categories', $entry->ref);
         self::assertSame(['description', 'weight'], array_map(
-            static fn (FieldViolation $v) => $v->field,
+            static fn(FieldViolation $v) => $v->field,
             $entry->violations,
         ));
     }
@@ -156,7 +156,7 @@ final class ConfigSyncValidatorTest extends TestCase
     public function validate_file_runs_hook_against_in_memory_instance(): void
     {
         $repo = new ConfigSyncRepository($this->tempDir);
-        $hook = static fn (ConfigSyncFile $file): array => [
+        $hook = static fn(ConfigSyncFile $file): array => [
             new FieldViolation(field: 'label', message: 'forced failure', code: 'test.forced'),
         ];
         $validator = new ConfigSyncValidator($repo, $hook);
@@ -193,13 +193,18 @@ final class ConfigSyncValidatorTest extends TestCase
     {
         ksort($fields, \SORT_STRING);
 
-        return new ConfigSyncFile(
+        return ConfigSyncFile::writable(
             entityType: $entityType,
             entityId: $entityId,
             uuid: ConfigSyncFile::deterministicUuid($entityType, $entityId),
             dependencies: [],
             langcode: 'en',
             fields: $fields,
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
     }
 

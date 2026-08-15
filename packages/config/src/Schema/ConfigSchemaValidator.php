@@ -8,13 +8,13 @@ namespace Waaseyaa\Config\Schema;
  * Validates config data against JSON-Schema-like definitions.
  *
  * Schemas follow a subset of JSON Schema with the following supported keywords:
- * - type: string, integer, number, boolean, array, object
+ * - type: string, integer, boolean, array, object
  * - properties: nested property schemas (for type: object)
  * - required: list of required property names
  * - enum: allowed values
  * - minimum / maximum: numeric range constraints
  * - default: default value (missing values with defaults are not violations)
- * - translatable: marker for translation-eligible keys (informational, not validated)
+ * - nullable: explicit boolean permitting null in addition to one supported type
  * @api
  */
 final class ConfigSchemaValidator
@@ -30,7 +30,6 @@ final class ConfigSchemaValidator
         'nullable',
         'properties',
         'required',
-        'translatable',
         'type',
     ];
 
@@ -105,6 +104,8 @@ final class ConfigSchemaValidator
      */
     public function validate(array $data, array $schema): array
     {
+        $this->assertSchemaDefinition($schema, '$');
+
         return $this->validateValue($data, $schema, '');
     }
 
@@ -141,6 +142,10 @@ final class ConfigSchemaValidator
     private function validateValue(mixed $value, array $schema, string $path): array
     {
         $violations = [];
+
+        if ($value === null && ($schema['nullable'] ?? false) === true) {
+            return [];
+        }
 
         // Type checking
         if (isset($schema['type'])) {
@@ -263,13 +268,13 @@ final class ConfigSchemaValidator
             if (\is_array($additional)) {
                 $violations = array_merge(
                     $violations,
-                    $this->validateValue($value, $additional, $this->joinPath($path, (string) $propName)),
+                    $this->validateValue($value, $additional, $this->joinPath($path, $propName)),
                 );
                 continue;
             }
 
             $violations[] = new SchemaViolation(
-                path: $this->joinPath($path, (string) $propName),
+                path: $this->joinPath($path, $propName),
                 message: sprintf('Property "%s" is not declared by the closed configuration schema.', $propName),
             );
         }
@@ -282,7 +287,6 @@ final class ConfigSchemaValidator
         $valid = match ($expectedType) {
             'string' => is_string($value),
             'integer' => is_int($value),
-            'number' => is_int($value) || is_float($value),
             'boolean' => is_bool($value),
             'array' => is_array($value) && (array_values($value) === $value || $value === []),
             'object' => is_array($value),
@@ -318,10 +322,10 @@ final class ConfigSchemaValidator
     private function assertSchemaDefinition(array $schema, string $path): void
     {
         foreach (array_keys($schema) as $keyword) {
-            if (!\is_string($keyword) || !\in_array($keyword, self::REGISTRATION_KEYWORDS, true)) {
+            if (!\in_array($keyword, self::REGISTRATION_KEYWORDS, true)) {
                 throw new \InvalidArgumentException(sprintf(
                     'Unsupported configuration schema keyword "%s" at %s.',
-                    (string) $keyword,
+                    $keyword,
                     $path,
                 ));
             }
@@ -334,6 +338,18 @@ final class ConfigSchemaValidator
                 \is_scalar($type) ? (string) $type : get_debug_type($type),
                 $path,
             ));
+        }
+
+        if (isset($schema['dialect']) && $schema['dialect'] !== ConfigSchemaRegistry::DIALECT_V1) {
+            throw new \InvalidArgumentException(sprintf(
+                'Unsupported configuration schema dialect "%s" at %s.',
+                \is_scalar($schema['dialect']) ? (string) $schema['dialect'] : get_debug_type($schema['dialect']),
+                $path,
+            ));
+        }
+
+        if (isset($schema['nullable']) && !\is_bool($schema['nullable'])) {
+            throw new \InvalidArgumentException(sprintf('Configuration schema nullable at %s must be boolean.', $path));
         }
 
         if (isset($schema['properties'])) {
@@ -407,8 +423,6 @@ final class ConfigSchemaValidator
                 }
                 $effective[$name] = $this->materializeValue($effective[$name], $propertySchema);
             }
-            ksort($effective, \SORT_STRING);
-
             return $effective;
         }
 

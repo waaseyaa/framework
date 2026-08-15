@@ -38,13 +38,18 @@ final class ConfigManifestEntryTest extends TestCase
     #[Test]
     public function fromSyncFileMirrorsRefAndHash(): void
     {
-        $file = new ConfigSyncFile(
+        $file = ConfigSyncFile::writable(
             entityType: 'role',
             entityId: 'coordinator',
             uuid: '0193abcd-7c4d-7000-8b6e-1a2b3c4d5e6f',
             dependencies: [],
             langcode: 'en',
             fields: ['label' => 'Coordinator'],
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
 
         $entry = ConfigManifestEntry::fromSyncFile($file, '/abs/role.coordinator.yml', 42);

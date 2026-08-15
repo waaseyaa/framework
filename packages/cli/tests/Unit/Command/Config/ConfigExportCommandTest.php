@@ -126,7 +126,7 @@ final class ConfigExportCommandTest extends TestCase
     private function makeTester(array $files, ?ConfigSyncRepository $repository = null): CliTester
     {
         $repository ??= new ConfigSyncRepository($this->tempDir);
-        $source = new class($files) implements ConfigSyncFileSourceInterface {
+        $source = new class ($files) implements ConfigSyncFileSourceInterface {
             /** @param list<ConfigSyncFile> $files */
             public function __construct(private readonly array $files) {}
 
@@ -166,7 +166,7 @@ final class ConfigExportCommandTest extends TestCase
 
     private function makeContainer(ConfigExportCommand $command): ContainerInterface
     {
-        return new class($command) implements ContainerInterface {
+        return new class ($command) implements ContainerInterface {
             public function __construct(private readonly ConfigExportCommand $command) {}
 
             public function get(string $id): mixed
@@ -191,13 +191,18 @@ final class ConfigExportCommandTest extends TestCase
     {
         ksort($fields, \SORT_STRING);
 
-        return new ConfigSyncFile(
+        return ConfigSyncFile::writable(
             entityType: $entityType,
             entityId: $entityId,
             uuid: ConfigSyncFile::deterministicUuid($entityType, $entityId),
             dependencies: [],
             langcode: 'en',
             fields: $fields,
+            schemaId: 'waaseyaa.test.config',
+            schemaVersion: 1,
+            schemaHash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ownerPackage: 'waaseyaa/config',
+            ownerConfigContractVersion: 1,
         );
     }
 

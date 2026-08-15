@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Config\Sync;
 
+use Waaseyaa\Config\Manifest\VerifiedConfigBundle;
+
 /** CFG-01 fail-closed implementation used until CFG-02/CFG-03 bind production gates. */
 final class RefusingConfigImportPreflight implements ConfigImportPreflightInterface
 {
@@ -13,7 +15,7 @@ final class RefusingConfigImportPreflight implements ConfigImportPreflightInterf
         bool $dryRun,
         bool $deleteOrphans,
         bool $noDependencyCheck,
-    ): void {
+    ): ?VerifiedConfigBundle {
         throw new ConfigImportPreflightException(
             'Configuration import is unavailable until CFG-02 activation and CFG-03 schema, manifest, and drift gates are bound.',
         );
