@@ -370,6 +370,12 @@ final class ApplicationMasterRekeyStoreRetainedRedTest extends TestCase
             );
             $revision = $record->revision;
         }
+        $expectedGateStates = [
+            ApplicationMasterRekeyGate::WritersAndWorkersReconciled->value => ApplicationMasterRekeyState::ReconcileWritersAndWorkers,
+            ApplicationMasterRekeyGate::CachesReconciled->value => ApplicationMasterRekeyState::HoldAndOptionallyExecuteRollbackWindow,
+            ApplicationMasterRekeyGate::RollbackWindowClosed->value => ApplicationMasterRekeyState::ProveBackupRetentionOrRestoreCompatibility,
+            ApplicationMasterRekeyGate::RetainedBackupsCompatibleOrExpired->value => ApplicationMasterRekeyState::ProveBackupRetentionOrRestoreCompatibility,
+        ];
         foreach (ApplicationMasterRekeyGate::cases() as $gate) {
             $record = $store->recordRevocationGate(
                 self::REQUEST_ID,
@@ -378,6 +384,7 @@ final class ApplicationMasterRekeyStoreRetainedRedTest extends TestCase
                 hash('sha256', 'gate:' . $gate->value),
                 2_500,
             );
+            self::assertSame($expectedGateStates[$gate->value], $record->state);
             $revision = $record->revision;
         }
 
