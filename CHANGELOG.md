@@ -112,6 +112,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   per-purpose rollback verification before completion. A second prepared plan
   cannot install while another request is executing, and rollback operations
   refuse when the live version ledger no longer matches the persisted request.
+  Active provider contributions now compose a deterministic frozen registry and
+  adapter roster, reject duplicate ownership or a distinct database authority,
+  and return no fabricated registry when an install has no active consumers.
   Executable package adapters and process reconciliation remain incomplete.
   A generic coordinator now composes every frozen registry owner exactly once,
   refuses mismatched database identities or purpose rosters before inventory,

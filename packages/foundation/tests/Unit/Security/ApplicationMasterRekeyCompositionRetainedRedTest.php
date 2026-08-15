@@ -13,7 +13,6 @@ use Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterBatchResult;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterInventorySnapshot;
-use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterPurposeVerification;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyAdapterInterface;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyComposition;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyConflictException;
