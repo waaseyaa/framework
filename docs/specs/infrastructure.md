@@ -1187,7 +1187,7 @@ Immutable value object carrying a single log entry: `level` (LogLevel), `message
 
 File: `packages/foundation/src/Log/LogManager.php`
 
-Central log orchestrator. Implements `LoggerInterface` — calling `log()` delegates to the default channel. Constructor accepts `LoggerInterface|HandlerInterface` for the default handler (legacy loggers are wrapped in `LegacyLoggerHandler`). `channel(string $name)` returns a `ChannelLogger` for the named channel; unknown channels fall back to the default. `fromConfig(array $config)` static factory builds channels from config (two-pass: non-stack handlers first, then stack handlers that reference other channels). `addGlobalProcessor(ProcessorInterface $processor)` allows runtime registration of processors (used by `HttpKernel` to add `RequestContextProcessor` after request resolution).
+Central log orchestrator. Implements `LoggerInterface` — calling `log()` delegates to the default channel. Constructor accepts `LoggerInterface|HandlerInterface` for the default handler (legacy loggers are wrapped in `LegacyLoggerHandler`) plus an optional kernel-scoped `RedactorProcessor` sink sanitizer. `channel(string $name)` returns a `ChannelLogger` for the named channel; unknown channels fall back to the default. `fromConfig(array $config, ?RedactorProcessor $sinkSanitizer = null)` builds channels in two passes and preserves the same mandatory sanitizer even for empty configuration. `addGlobalProcessor(ProcessorInterface $processor)` allows runtime registration of enrichment processors (used by `HttpKernel` to add `RequestContextProcessor` after request resolution); the sink sanitizer always runs after them so later processors cannot reintroduce secret data.
 
 The kernel constructs `LogManager(new Handler\ErrorLogHandler())` at startup, then upgrades it after config loads: if `config['logging']['channels']` exists, uses `LogManager::fromConfig()`; otherwise falls back to `log_level` config with a single `Handler\ErrorLogHandler(minimumLevel: $level)`.
 
@@ -1195,7 +1195,7 @@ The kernel constructs `LogManager(new Handler\ErrorLogHandler())` at startup, th
 
 File: `packages/foundation/src/Log/ChannelLogger.php`
 
-Scoped `LoggerInterface` that stamps a channel name on every `LogRecord`, runs processors (global + per-channel), then delegates to a `HandlerInterface`. Created by `LogManager::channel()`. Constructor: `(string $channel, HandlerInterface $handler, array $processors = [])`. Processor failures are best-effort: caught, logged via `error_log()`, pipeline continues.
+Scoped `LoggerInterface` that stamps a channel name on every `LogRecord`, runs processors (global + per-channel), applies the same mandatory final sink sanitizer as its manager, then delegates to a `HandlerInterface`. Processor failures emit only fixed `LOG_PROCESSOR_FAILURE` fallback text and continue; sanitizer failure emits fixed `LOG_SANITIZER_FAILURE` text and drops the original record.
 
 ### Handler pipeline
 
@@ -1204,7 +1204,7 @@ Scoped `LoggerInterface` that stamps a channel name on every `LogRecord`, runs p
 | `HandlerInterface` | `Log/Handler/HandlerInterface.php` | Contract: `handle(LogRecord $record): void` |
 | `ErrorLogHandler` | `Log/Handler/ErrorLogHandler.php` | Delegates to `error_log()`. Constructor: `(?FormatterInterface $formatter = null, LogLevel $minimumLevel = LogLevel::DEBUG, ?\Closure $writer = null)`. Discards messages below `minimumLevel`. |
 | `FileHandler` | `Log/Handler/FileHandler.php` | Appends formatted record to a file with `LOCK_EX`. Constructor: `(string $path, ?FormatterInterface $formatter = null, LogLevel $minimumLevel = LogLevel::DEBUG)`. |
-| `StackHandler` | `Log/Handler/StackHandler.php` | Fan-out to multiple handlers. Constructor: `(HandlerInterface ...$handlers)`. Best-effort: catches `\Throwable` per handler so one failure doesn't stop others. |
+| `StackHandler` | `Log/Handler/StackHandler.php` | Fan-out to multiple handlers. Constructor: `(HandlerInterface ...$handlers)`. Best-effort: catches `\Throwable` per handler so one failure doesn't stop others and emits only fixed `LOG_HANDLER_FAILURE` fallback text. |
 | `NullHandler` | `Log/Handler/NullHandler.php` | Discards all records — for testing and disabled logging. |
 | `StreamHandler` | `Log/Handler/StreamHandler.php` | Writes to `php://stderr` or any stream resource. Constructor validates resource type; throws `\InvalidArgumentException` on non-resource. |
 | `LegacyLoggerHandler` | `Log/LegacyLoggerHandler.php` | Adapts Phase A `LoggerInterface` implementations to `HandlerInterface`. Internal, used by `LogManager` for backward compatibility. |
@@ -1224,7 +1224,7 @@ Processors enrich `LogRecord` context before handlers receive the record. Execut
 | Interface/Class | File | Purpose |
 |-------|------|---------|
 | `ProcessorInterface` | `Log/Processor/ProcessorInterface.php` | Contract: `process(LogRecord $record): LogRecord`. Must return a new record, not mutate input. |
-| `RedactorProcessor` | `Log/Processor/RedactorProcessor.php` | **Always-on security default** — prepended unconditionally by `LogManager::fromConfig()` before any config-named processors. Redacts context keys whose lowercased name contains any denylist keyword (`password`, `token`, `secret`, `authorization`, `api_key`, `cookie`) and, as a backstop, string values that contain those keywords (e.g. a verbatim `Authorization: Bearer …` header). Applies recursively to nested arrays. Replacement sentinel: `[REDACTED]`. Extra keywords accepted via constructor. Config name `redact` (can also be added explicitly via `processors` config). |
+| `RedactorProcessor` | `Log/Processor/RedactorProcessor.php` | **Mandatory final sink sanitizer** for bare, empty-config, configured, and scoped channel paths. It sanitizes message text and bounded recursive context after all enrichment processors; replaces typed `SensitiveValue` objects, Throwable chains, Stringable values, unknown objects/resources, and explicitly registered raw/base64/base64url/URL/JSON-escaped representations; and retains heuristic key/value matching for `password`, `token`, `secret`, `authorization`, `api_key`, `cookie`, `credential`, `private_key`, and `passphrase` as defense in depth. Replacement sentinel: `[REDACTED]`. Config name `redact` remains available as an earlier explicit processor, but cannot replace or bypass the final sanitizer. |
 | `RequestIdProcessor` | `Log/Processor/RequestIdProcessor.php` | Adds `request_id` (UUID hex) to context. Same ID for all records within a single processor instance. |
 | `HostnameProcessor` | `Log/Processor/HostnameProcessor.php` | Adds `hostname` to context. Defaults to `gethostname()`. |
 | `MemoryUsageProcessor` | `Log/Processor/MemoryUsageProcessor.php` | Adds `memory_peak_mb` (float) to context. |

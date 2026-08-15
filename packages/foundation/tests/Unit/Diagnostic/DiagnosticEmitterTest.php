@@ -161,6 +161,26 @@ final class DiagnosticEmitterTest extends TestCase
     }
 
     #[Test]
+    public function serialized_diagnostic_message_cannot_bypass_registered_value_sanitization(): void
+    {
+        $lines = [];
+        $canary = 'CFG04-SYNTHETIC-DIAGNOSTIC-CANARY';
+        $logger = new \Waaseyaa\Foundation\Log\LogManager(
+            new \Waaseyaa\Foundation\Log\Handler\ErrorLogHandler(writer: static function (string $line) use (&$lines): void {
+                $lines[] = $line;
+            }),
+            new \Waaseyaa\Foundation\Log\Processor\RedactorProcessor(registeredValues: [$canary]),
+        );
+        $emitter = new DiagnosticEmitter($logger);
+
+        $emitter->emit(DiagnosticCode::NAMESPACE_RESERVED, 'blocked', ['opaque' => $canary]);
+
+        $contents = implode("\n", $lines);
+        $this->assertStringNotContainsString($canary, $contents);
+        $this->assertStringContainsString('[REDACTED]', $contents);
+    }
+
+    #[Test]
     public function emitLogLineIsValidJson(): void
     {
         $lines = [];

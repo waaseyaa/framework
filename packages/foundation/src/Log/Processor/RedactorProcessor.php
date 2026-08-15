@@ -30,8 +30,8 @@ use Waaseyaa\Foundation\Security\SensitiveValue;
  * Stringable values are converted to a bounded sanitized view; unknown objects
  * and resources are replaced rather than passed to formatters.
  *
- * **Recursive:** context arrays are walked to arbitrary depth; each sub-array receives the
- * same key+value inspection. Array structure and non-sensitive entries are preserved exactly.
+ * **Recursive:** context arrays are walked to a bounded depth; each accepted sub-array receives
+ * the same key+value inspection. Deeper values are replaced rather than risking stack exhaustion.
  *
  * **Immutable:** `process()` always returns a new {@see LogRecord} — the input is never mutated.
  *
@@ -41,6 +41,8 @@ final class RedactorProcessor implements ProcessorInterface
 {
     /** Sentinel replacement for any redacted value. */
     public const SENTINEL = '[REDACTED]';
+
+    private const MAX_CONTEXT_DEPTH = 32;
 
     /**
      * Default set of keywords that trigger redaction when found as a case-insensitive
@@ -116,7 +118,7 @@ final class RedactorProcessor implements ProcessorInterface
      * @param array<array-key, mixed> $context
      * @return array<array-key, mixed>
      */
-    private function redactContext(array $context): array
+    private function redactContext(array $context, int $depth = 0): array
     {
         $result = [];
 
@@ -125,8 +127,9 @@ final class RedactorProcessor implements ProcessorInterface
                 // Key denylist hit — redact regardless of value type.
                 $result[$key] = self::SENTINEL;
             } elseif (is_array($value)) {
-                // Recurse into nested arrays.
-                $result[$key] = $this->redactContext($value);
+                $result[$key] = $depth >= self::MAX_CONTEXT_DEPTH - 1
+                    ? self::SENTINEL
+                    : $this->redactContext($value, $depth + 1);
             } else {
                 $result[$key] = $this->redactValue($value);
             }

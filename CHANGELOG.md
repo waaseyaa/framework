@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **secret-safe logging foundation (`S1-FW-CFG-04`):** Add guarded typed
+  secret-value metadata, mandatory final message/context sanitization for
+  fallback and configured channels, exact replacement for explicitly
+  registered synthetic or resolved representations, bounded recursive
+  inspection, and fixed non-sensitive processor, sanitizer, and handler failure
+  codes. Operational secret resolution, signing custody, integration
+  credentials, build isolation, and application-master rotation remain
+  deliberately unimplemented.
 - **configuration schema and sync authority (`S1-FW-CFG-03`):** Add the strict
   v1 configuration contract with closed recursive schema validation, separate
   default-materialized effective documents, versioned canonical encoding,

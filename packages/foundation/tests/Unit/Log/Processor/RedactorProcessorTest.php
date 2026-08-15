@@ -73,6 +73,24 @@ final class RedactorProcessorTest extends TestCase
         $this->assertStringNotContainsString($binary, var_export($processor, true));
     }
 
+    #[Test]
+    public function registered_representations_retire_with_the_sanitizer(): void
+    {
+        $property = new \ReflectionProperty(RedactorProcessor::class, 'registeredRepresentations');
+        $registry = $property->getValue();
+        $before = $registry instanceof \WeakMap ? count($registry) : 0;
+
+        $processor = new RedactorProcessor(registeredValues: ['cfg04-lifetime-canary']);
+        $registry = $property->getValue();
+        $this->assertInstanceOf(\WeakMap::class, $registry);
+        $this->assertCount($before + 1, $registry);
+
+        unset($processor);
+        gc_collect_cycles();
+
+        $this->assertCount($before, $registry);
+    }
+
     // -------------------------------------------------------------------------
     // Key denylist: case-insensitive substring match on context key names
     // -------------------------------------------------------------------------
@@ -232,7 +250,7 @@ final class RedactorProcessorTest extends TestCase
     }
 
     // -------------------------------------------------------------------------
-    // Recursive: nested arrays are walked to arbitrary depth
+    // Recursive: nested arrays are walked only to a bounded depth
     // -------------------------------------------------------------------------
 
     #[Test]
@@ -269,6 +287,28 @@ final class RedactorProcessorTest extends TestCase
 
         $this->assertSame(self::REDACTED, $result->context['level1']['level2']['api_key']);
         $this->assertSame('kept', $result->context['level1']['level2']['name']);
+    }
+
+    #[Test]
+    public function replaces_context_beyond_the_recursion_limit(): void
+    {
+        $nested = ['leaf' => 'safe'];
+        for ($depth = 0; $depth < 40; ++$depth) {
+            $nested = ['nested' => $nested];
+        }
+
+        $result = (new RedactorProcessor())->process(new LogRecord(
+            LogLevel::INFO,
+            'bounded',
+            $nested,
+        ));
+
+        $cursor = $result->context;
+        for ($depth = 0; $depth < 32; ++$depth) {
+            $this->assertIsArray($cursor);
+            $cursor = $cursor['nested'];
+        }
+        $this->assertSame(self::REDACTED, $cursor);
     }
 
     #[Test]

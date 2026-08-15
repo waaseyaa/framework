@@ -43,4 +43,6 @@ final class SensitiveKey
         throw new \LogicException('Sensitive keys cannot be serialized.');
     }
 
+    private function __clone() {}
+
 }
