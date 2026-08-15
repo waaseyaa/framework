@@ -15,6 +15,8 @@ use Waaseyaa\Audit\Rekey\AuditCheckpointSuccessionRekeyAdapter;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
+use Waaseyaa\Foundation\Migration\Migration;
+use Waaseyaa\Foundation\Migration\SchemaBuilder;
 use Waaseyaa\Foundation\Security\ApplicationMasterKeyring;
 use Waaseyaa\Foundation\Security\ApplicationMasterPurposePolicy;
 use Waaseyaa\Foundation\Security\ApplicationMasterPurposeRegistry;
@@ -22,8 +24,11 @@ use Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyConflictException;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyContext;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyCoordinator;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyRecord;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyRequest;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyState;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyStore;
 use Waaseyaa\Foundation\Security\SecretClass;
 use Waaseyaa\Foundation\Security\SecretProviderInterface;
 use Waaseyaa\Foundation\Security\SecretReference;
@@ -121,6 +126,79 @@ final class AuditCheckpointSuccessionRekeyAdapterRetainedRedTest extends TestCas
             $this->database,
             custody: new AuditCheckpointCustody($this->keyring(2)),
         ))->verify()->ok);
+    }
+
+    #[Test]
+    public function coordinator_rolls_back_parent_and_child_anchor_rows_when_child_evidence_insert_fails(): void
+    {
+        $checkpoint = $this->sealUnderVersion(1, 'atomic-pruned-at-cutover');
+        $predecessorCustody = new AuditCheckpointCustody($this->keyring(1));
+        $this->database->update('audit_checkpoint')->fields([
+            'pruned' => 1,
+            'prune_authorization' => $predecessorCustody->sealPruneAuthorization($checkpoint->getCheckpointHash()),
+        ])->condition('uuid', $checkpoint->getUuid())->execute();
+        $this->database->delete('audit_event')
+            ->condition('id', $checkpoint->getSegmentStartId(), '>=')
+            ->condition('id', $checkpoint->getSegmentEndId(), '<=')
+            ->execute();
+        $migration = require dirname(__DIR__, 4) . '/foundation/migrations/2026_08_15_000002_application_master_rekey.php';
+        if (!$migration instanceof Migration) {
+            throw new \LogicException('The Foundation application-master rekey migration is invalid.');
+        }
+        $migration->up(new SchemaBuilder($this->database->getConnection()));
+        $purposes = $this->purposes();
+        $keyring = $this->keyring(2, [1]);
+        $requestId = 'audit-succession-atomic-failure-v1-v2';
+        $store = new ApplicationMasterRekeyStore($this->database, static fn(): int => 1_200);
+        $store->prepare(new ApplicationMasterRekeyRequest(
+            requestId: $requestId,
+            fromVersion: 1,
+            toVersion: 2,
+            registryChecksum: $purposes->checksum(),
+            authorizationDigest: hash('sha256', 'audit-succession-atomic-authorization'),
+            actor: 'test-operator',
+            rollbackDeadline: 2_000,
+            retentionDeadline: 3_000,
+            createdAt: 1_000,
+        ), $purposes);
+        $store->installActive(
+            $requestId,
+            1,
+            $keyring->referenceFingerprint(1),
+            $keyring->referenceFingerprint(2),
+            1_100,
+        );
+        $adapter = new AuditCheckpointSuccessionRekeyAdapter($this->database);
+        $coordinator = new ApplicationMasterRekeyCoordinator($store, $keyring, $purposes, [$adapter]);
+        $coordinator->snapshotAdapter($requestId, 2, AuditCheckpointSuccessionRekeyAdapter::ID);
+        $this->database->getConnection()->executeStatement(
+            "CREATE TRIGGER refuse_audit_succession_child BEFORE INSERT ON audit_checkpoint_succession_pruned BEGIN SELECT RAISE(ABORT, 'synthetic child refusal'); END",
+        );
+
+        try {
+            $coordinator->transitionNextBatch(
+                $requestId,
+                3,
+                AuditCheckpointSuccessionRekeyAdapter::ID,
+                1,
+            );
+            self::fail('A partially written audit succession anchor was committed.');
+        } catch (ApplicationMasterRekeyConflictException $exception) {
+            self::assertStringContainsString('recorded', $exception->getMessage());
+        }
+
+        self::assertSame(0, (int) $this->database->getConnection()->fetchOne(
+            'SELECT COUNT(*) FROM audit_checkpoint_succession',
+        ));
+        self::assertSame(0, (int) $this->database->getConnection()->fetchOne(
+            'SELECT COUNT(*) FROM audit_checkpoint_succession_pruned',
+        ));
+        $progress = $store->requireAdapter($requestId, AuditCheckpointSuccessionRekeyAdapter::ID);
+        self::assertNull($progress->cursor);
+        self::assertSame(1, $progress->unresolvedFailures);
+        self::assertSame('adapter-transition-failed', $this->database->getConnection()->fetchOne(
+            'SELECT failure_code FROM waaseyaa_application_master_rekey_failure WHERE resolved_at IS NULL',
+        ));
     }
 
     #[Test]
@@ -395,17 +473,7 @@ final class AuditCheckpointSuccessionRekeyAdapterRetainedRedTest extends TestCas
     /** @param list<int> $legacyVersions */
     private function keyring(int $activeVersion, array $legacyVersions = []): ApplicationMasterKeyring
     {
-        $purposes = new ApplicationMasterPurposeRegistry();
-        $purposes->register(new ApplicationMasterPurposePolicy(
-            id: ApplicationSecret::PURPOSE_AUDIT_CHECKPOINT_HMAC,
-            ownerPackage: 'waaseyaa/audit',
-            strategy: ApplicationMasterPurposeStrategy::RetainHistoricVerifier,
-            maximumLifetimeSeconds: 0,
-            retentionSeconds: 0,
-            adapterId: AuditCheckpointSuccessionRekeyAdapter::ID,
-            rollbackBehavior: 'append-authenticated-rollback-marker',
-        ));
-        $purposes->freeze();
+        $purposes = $this->purposes();
         $resolver = new SecretResolverRegistry(new RedactorProcessor(), 'testing');
         $resolver->registerProvider(new AuditSuccessionSyntheticMasterProvider());
         $resolver->allow(
@@ -429,6 +497,23 @@ final class AuditCheckpointSuccessionRekeyAdapterRetainedRedTest extends TestCas
             $legacyReferences,
             $purposes,
         );
+    }
+
+    private function purposes(): ApplicationMasterPurposeRegistry
+    {
+        $purposes = new ApplicationMasterPurposeRegistry();
+        $purposes->register(new ApplicationMasterPurposePolicy(
+            id: ApplicationSecret::PURPOSE_AUDIT_CHECKPOINT_HMAC,
+            ownerPackage: 'waaseyaa/audit',
+            strategy: ApplicationMasterPurposeStrategy::RetainHistoricVerifier,
+            maximumLifetimeSeconds: 0,
+            retentionSeconds: 0,
+            adapterId: AuditCheckpointSuccessionRekeyAdapter::ID,
+            rollbackBehavior: 'append-authenticated-rollback-marker',
+        ));
+        $purposes->freeze();
+
+        return $purposes;
     }
 
     private function reference(int $version): SecretReference
