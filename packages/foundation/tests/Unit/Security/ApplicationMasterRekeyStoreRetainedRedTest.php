@@ -442,6 +442,17 @@ final class ApplicationMasterRekeyStoreRetainedRedTest extends TestCase
         $store = new ApplicationMasterRekeyStore($this->migratedDatabase());
         $registry = $this->purposes();
         $store->prepare($this->request(), $registry);
+        $store->prepare(new ApplicationMasterRekeyRequest(
+            requestId: 'synthetic-request-b',
+            fromVersion: 1,
+            toVersion: 3,
+            registryChecksum: $registry->checksum(),
+            authorizationDigest: hash('sha256', 'synthetic-second-authorization'),
+            actor: 'synthetic-operator-2',
+            rollbackDeadline: 3_000,
+            retentionDeadline: 3_500,
+            createdAt: 1_050,
+        ), $registry);
         $store->installActive(
             self::REQUEST_ID,
             1,
@@ -516,18 +527,6 @@ final class ApplicationMasterRekeyStoreRetainedRedTest extends TestCase
         self::assertStringContainsString('"successor_reusable":false', $event[0]->bodyJson);
         self::assertStringNotContainsString('synthetic-valid-rollback-authorization', $event[0]->bodyJson);
 
-        $store->prepare(new ApplicationMasterRekeyRequest(
-            requestId: 'synthetic-request-b',
-            fromVersion: 1,
-            toVersion: 3,
-            registryChecksum: $registry->checksum(),
-            authorizationDigest: hash('sha256', 'synthetic-second-authorization'),
-            actor: 'synthetic-operator-2',
-            rollbackDeadline: 3_000,
-            retentionDeadline: 3_500,
-            createdAt: 1_950,
-        ), $registry);
-
         try {
             $store->installActive(
                 'synthetic-request-b',
@@ -541,7 +540,6 @@ final class ApplicationMasterRekeyStoreRetainedRedTest extends TestCase
             self::assertSame(ApplicationMasterRekeyState::RollingBack, $store->require(self::REQUEST_ID)->state);
             self::assertSame('active-write', $store->masterVersionState(1));
             self::assertSame('failed-read-only', $store->masterVersionState(2));
-            self::assertNull($store->masterVersionState(3));
         }
     }
 

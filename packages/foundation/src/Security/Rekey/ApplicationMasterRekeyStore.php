@@ -163,6 +163,11 @@ final class ApplicationMasterRekeyStore
                 $toReferenceFingerprint,
                 $activatedAt,
             ): array {
+                if ($this->hasOtherExecutingRequest($record->requestId)) {
+                    throw new ApplicationMasterRekeyConflictException(
+                        'Another application-master rekey request is already executing.',
+                    );
+                }
                 $existingFrom = $this->fetchOne(
                     'SELECT * FROM ' . self::VERSION_TABLE . ' WHERE master_version = :version',
                     ['version' => $record->fromVersion],
@@ -1664,6 +1669,26 @@ final class ApplicationMasterRekeyStore
         return $this->countRows(self::PURPOSE_TABLE, $requestId) > 0
             && $this->countRows(self::PURPOSE_TABLE, $requestId)
                 === $this->countRows(self::VERIFICATION_TABLE, $requestId);
+    }
+
+    private function hasOtherExecutingRequest(string $requestId): bool
+    {
+        $rows = $this->database->select(self::REQUEST_TABLE)
+            ->fields(self::REQUEST_TABLE, ['request_id'])
+            ->condition('request_id', $requestId, '!=')
+            ->condition('state', [
+                ApplicationMasterRekeyState::PrepareAndAuthorize->value,
+                ApplicationMasterRekeyState::RevokeOldInLedger->value,
+                ApplicationMasterRekeyState::RolledBack->value,
+            ], 'NOT IN')
+            ->range(0, 1)
+            ->execute();
+
+        foreach ($rows as $_row) {
+            return true;
+        }
+
+        return false;
     }
 
     /** @return list<string> */

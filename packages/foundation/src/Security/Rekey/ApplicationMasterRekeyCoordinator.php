@@ -345,6 +345,13 @@ final class ApplicationMasterRekeyCoordinator
                 'The live keyring does not match the immutable rekey request.',
             );
         }
+        if ($rollbackTopology
+            && ($this->store->masterVersionState($activeVersion) !== 'active-write'
+                || $this->store->masterVersionState($readableVersion) !== 'failed-read-only')) {
+            throw new ApplicationMasterRekeyConflictException(
+                'The live application-master version ledger does not match the rollback request.',
+            );
+        }
 
         return new ApplicationMasterRekeyContext(
             $request,
