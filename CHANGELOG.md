@@ -103,9 +103,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   transitions without storing exception text. Coordinator transition and
   verification callback failures now roll back owner effects, discard callback
   messages, and persist only stable operation codes plus commitments over
-  non-secret identity metadata. Executable package adapters, snapshot-time
-  failure capture, forward rollback, and process reconciliation remain
-  incomplete.
+  non-secret identity metadata. Snapshot failures are likewise persisted before
+  an adapter projection exists, block inventory retry, and require explicit
+  resolution before the adapter may be snapshotted once. Executable package
+  adapters, forward rollback, and process reconciliation remain incomplete.
   A generic coordinator now composes every frozen registry owner exactly once,
   refuses mismatched database identities or purpose rosters before inventory,
   passes adapters the store's exact transaction authority, and commits owner CAS

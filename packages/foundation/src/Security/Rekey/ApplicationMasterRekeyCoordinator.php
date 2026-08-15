@@ -72,7 +72,16 @@ final class ApplicationMasterRekeyCoordinator
     ): ApplicationMasterAdapterProgress {
         $adapter = $this->adapter($adapterId);
         $context = $this->context($requestId);
-        $snapshot = $adapter->snapshot($context);
+        try {
+            $snapshot = $this->executeSnapshot($adapter, $context);
+        } catch (ApplicationMasterAdapterExecutionException $failure) {
+            $this->persistSnapshotFailureAndRefuse(
+                $context,
+                $expectedRequestRevision,
+                $adapterId,
+                $failure,
+            );
+        }
 
         return $this->store->recordAdapterSnapshot(
             $requestId,
@@ -227,6 +236,17 @@ final class ApplicationMasterRekeyCoordinator
         }
     }
 
+    private function executeSnapshot(
+        ApplicationMasterRekeyAdapterInterface $adapter,
+        ApplicationMasterRekeyContext $context,
+    ): ApplicationMasterInventorySnapshot {
+        try {
+            return $adapter->snapshot($context);
+        } catch (\Throwable $failure) {
+            throw new ApplicationMasterAdapterExecutionException('snapshot', $failure::class);
+        }
+    }
+
     /** @return array<string, ApplicationMasterPurposeVerification> */
     private function executeVerification(
         ApplicationMasterRekeyAdapterInterface $adapter,
@@ -268,6 +288,34 @@ final class ApplicationMasterRekeyCoordinator
 
         throw new ApplicationMasterRekeyConflictException(
             'The application-master adapter failure was recorded and must be resolved before retry.',
+        );
+    }
+
+    /** @return never */
+    private function persistSnapshotFailureAndRefuse(
+        ApplicationMasterRekeyContext $context,
+        int $expectedRequestRevision,
+        string $adapterId,
+        ApplicationMasterAdapterExecutionException $failure,
+    ): never {
+        $evidenceHash = hash('sha256', json_encode([
+            'format' => 'waaseyaa.application-master.adapter-failure.v1',
+            'request_digest' => $context->request->requestDigest,
+            'adapter_id' => $adapterId,
+            'cursor' => null,
+            'operation' => $failure->operation,
+            'failure_class' => $failure->failureClass,
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+        $this->store->recordAdapterSnapshotFailure(
+            $context->request->requestId,
+            $expectedRequestRevision,
+            $adapterId,
+            'adapter-snapshot-failed',
+            $evidenceHash,
+        );
+
+        throw new ApplicationMasterRekeyConflictException(
+            'The application-master adapter snapshot failure was recorded and must be resolved before retry.',
         );
     }
 }

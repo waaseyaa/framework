@@ -1940,8 +1940,10 @@ memory. The coordinator translates transition and verification callback
 exceptions into stable operation-specific codes and a SHA-256 commitment over
 only request digest, adapter, cursor, operation, and exception class; callback
 messages are discarded. Owner effects roll back before this separate failure
-transaction commits. Snapshot-time failure capture remains a separate concern
-and must not be inferred from the inventoried-adapter failure path.
+transaction commits. Snapshot callback failures use the same non-secret
+commitment before an adapter projection exists, increment only the request
+failure count, and block inventory retry until exact resolution evidence closes
+the open failure. A successful retry then creates the adapter projection once.
 
 One adapter owns every purpose that shares a storage row. Its immutable snapshot
 binds adapter id, sorted purpose ids, inventory token, and total. Each bounded

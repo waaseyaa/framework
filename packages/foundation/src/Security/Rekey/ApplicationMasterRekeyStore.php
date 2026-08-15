@@ -253,7 +253,12 @@ final class ApplicationMasterRekeyStore
             ],
             ApplicationMasterRekeyState::EnumerateSnapshot,
             'adapter-snapshotted',
-            function () use ($requestId, $adapterId, $purposeIds, $snapshotToken, $totalRecords, $counts): array {
+            function (ApplicationMasterRekeyRecord $record) use ($requestId, $adapterId, $purposeIds, $snapshotToken, $totalRecords, $counts): array {
+                if ($record->unresolvedFailures !== 0) {
+                    throw new ApplicationMasterRekeyConflictException(
+                        'An unresolved application-master failure blocks adapter inventory.',
+                    );
+                }
                 $this->database->insert(self::ADAPTER_TABLE)->values([
                     'request_id' => $requestId,
                     'adapter_id' => $adapterId,
@@ -279,6 +284,128 @@ final class ApplicationMasterRekeyStore
         );
 
         return $this->requireAdapter($requestId, $adapterId);
+    }
+
+    public function recordAdapterSnapshotFailure(
+        string $requestId,
+        int $expectedRequestRevision,
+        string $adapterId,
+        string $failureCode,
+        string $evidenceHash,
+    ): ApplicationMasterRekeyRecord {
+        self::assertStableIdentifier($adapterId, 'adapter id');
+        self::assertStableIdentifier($failureCode, 'failure code');
+        self::assertHash($evidenceHash, 'failure evidence hash');
+        $this->ensureSchema();
+
+        try {
+            return $this->transactional(function () use (
+                $requestId,
+                $expectedRequestRevision,
+                $adapterId,
+                $failureCode,
+                $evidenceHash,
+            ): ApplicationMasterRekeyRecord {
+                $record = $this->assertRequestRevision($requestId, $expectedRequestRevision, [
+                    ApplicationMasterRekeyState::InstallNewActiveWithOldLegacyReadVerify,
+                    ApplicationMasterRekeyState::EnumerateSnapshot,
+                ]);
+                if ($record->unresolvedFailures !== 0
+                    || !in_array($adapterId, $this->expectedAdapterIds($requestId), true)
+                    || $this->adapterExists($requestId, $adapterId)) {
+                    throw new ApplicationMasterRekeyConflictException(
+                        'The application-master snapshot failure projection is stale.',
+                    );
+                }
+
+                $now = $this->now();
+                $this->database->insert(self::FAILURE_TABLE)->values([
+                    'request_id' => $requestId,
+                    'adapter_id' => $adapterId,
+                    'cursor' => null,
+                    'failure_code' => $failureCode,
+                    'evidence_hash' => $evidenceHash,
+                    'opened_at' => $now,
+                    'resolved_at' => null,
+                    'resolution_hash' => null,
+                ])->execute();
+                $this->updateRequestFailureCount($record, 1, $now);
+                $this->appendEvent($requestId, 'adapter-failure-recorded', [
+                    'adapter_id' => $adapterId,
+                    'cursor' => null,
+                    'failure_code' => $failureCode,
+                    'evidence_hash' => $evidenceHash,
+                ], $now);
+                unset($this->recordCache[$requestId]);
+
+                return $this->requireFresh($requestId);
+            });
+        } catch (UniqueConstraintViolationException $exception) {
+            throw new ApplicationMasterRekeyConflictException(
+                'The application-master adapter already has an unresolved snapshot failure.',
+                previous: $exception,
+            );
+        }
+    }
+
+    public function resolveAdapterSnapshotFailure(
+        string $requestId,
+        int $expectedRequestRevision,
+        string $adapterId,
+        string $resolutionHash,
+    ): ApplicationMasterRekeyRecord {
+        self::assertStableIdentifier($adapterId, 'adapter id');
+        self::assertHash($resolutionHash, 'failure resolution hash');
+        $this->ensureSchema();
+
+        return $this->transactional(function () use (
+            $requestId,
+            $expectedRequestRevision,
+            $adapterId,
+            $resolutionHash,
+        ): ApplicationMasterRekeyRecord {
+            $record = $this->assertRequestRevision($requestId, $expectedRequestRevision, [
+                ApplicationMasterRekeyState::InstallNewActiveWithOldLegacyReadVerify,
+                ApplicationMasterRekeyState::EnumerateSnapshot,
+            ]);
+            $failure = $this->fetchOne(
+                'SELECT failure_id, failure_code, evidence_hash FROM ' . self::FAILURE_TABLE
+                    . ' WHERE request_id = :request AND adapter_id = :adapter'
+                    . ' AND cursor IS NULL AND resolved_at IS NULL',
+                ['request' => $requestId, 'adapter' => $adapterId],
+            );
+            if ($record->unresolvedFailures !== 1
+                || $failure === null
+                || $this->adapterExists($requestId, $adapterId)) {
+                throw new ApplicationMasterRekeyConflictException(
+                    'The application-master adapter has no exact snapshot failure to resolve.',
+                );
+            }
+
+            $now = $this->now();
+            $updated = $this->database->update(self::FAILURE_TABLE)->fields([
+                'resolved_at' => $now,
+                'resolution_hash' => $resolutionHash,
+            ])->condition('failure_id', (int) $failure['failure_id'])
+                ->condition('resolved_at', null, 'IS NULL')
+                ->execute();
+            if ($updated !== 1) {
+                throw new ApplicationMasterRekeyConflictException(
+                    'The application-master snapshot failure changed before resolution.',
+                );
+            }
+            $this->updateRequestFailureCount($record, -1, $now);
+            $this->appendEvent($requestId, 'adapter-failure-resolved', [
+                'adapter_id' => $adapterId,
+                'cursor' => null,
+                'failure_code' => (string) $failure['failure_code'],
+                'evidence_hash' => (string) $failure['evidence_hash'],
+                'resolution_hash' => $resolutionHash,
+            ], $now);
+            unset($this->recordCache[$requestId]);
+
+            return $this->requireFresh($requestId);
+        });
     }
 
     /**
@@ -1112,6 +1239,15 @@ final class ApplicationMasterRekeyStore
         $complete = $this->countRows(self::ADAPTER_TABLE, $requestId, 'status', 'complete');
 
         return $total > 0 && $total === $recorded && $total === $complete;
+    }
+
+    private function adapterExists(string $requestId, string $adapterId): bool
+    {
+        return $this->fetchOne(
+            'SELECT adapter_id FROM ' . self::ADAPTER_TABLE
+                . ' WHERE request_id = :request AND adapter_id = :adapter',
+            ['request' => $requestId, 'adapter' => $adapterId],
+        ) !== null;
     }
 
     /** @return list<string> */
