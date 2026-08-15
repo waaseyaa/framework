@@ -873,7 +873,7 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "aaa214af10e013c3e98e471a15cad1f05ef9ac68a6261974f7a6af3700a944e6",
-            "source_sha256": "022b189e53b9f3b2094b70f0d6ac90b27f30582f9bb3f08e6caafbb48fc4c1da"
+            "source_sha256": "9c21b1306fe55415e518cc4541d1233d16215166ec2ee84a4062f837ee59ade0"
         },
         {
             "path": "packages/audit/tests/Integration/AuditChainVerifierTest.php",
@@ -882,7 +882,7 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "ca61aee2525e2ffe56ea9e4ec7a9d83056768ddcbc355d840156c65afa4de753",
-            "source_sha256": "022b189e53b9f3b2094b70f0d6ac90b27f30582f9bb3f08e6caafbb48fc4c1da"
+            "source_sha256": "9c21b1306fe55415e518cc4541d1233d16215166ec2ee84a4062f837ee59ade0"
         },
         {
             "path": "packages/audit/tests/Integration/AuditChaosTest.php",
@@ -1377,7 +1377,7 @@
             "class": "test",
             "match_sha256": "312a5b2cf549260f2fd2637f570dbfed9d3a2b2759cd7ee075ce2ca432ffcd3c",
             "line_sha256": "b4b5b984e2614ac86137b2fff5b4efc23f1008ea3bb0d87b05fc2cb49391abc4",
-            "source_sha256": "c4621846a74571a9a8e0a754fc88887b7f253d56b90fced6794f5b95bffd9482"
+            "source_sha256": "e0f6534a848e581954ed95f6e9f32f32c0c6c68924b00f48195c4833e74d8454"
         },
         {
             "path": "packages/cache/tests/Unit/Backend/DatabaseBackendTest.php",
@@ -1386,7 +1386,25 @@
             "class": "test",
             "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
             "line_sha256": "b4b5b984e2614ac86137b2fff5b4efc23f1008ea3bb0d87b05fc2cb49391abc4",
-            "source_sha256": "c4621846a74571a9a8e0a754fc88887b7f253d56b90fced6794f5b95bffd9482"
+            "source_sha256": "e0f6534a848e581954ed95f6e9f32f32c0c6c68924b00f48195c4833e74d8454"
+        },
+        {
+            "path": "packages/cache/tests/Unit/Backend/DatabaseBackendTest.php",
+            "line": 106,
+            "pattern": "pdo_constructor",
+            "class": "test",
+            "match_sha256": "312a5b2cf549260f2fd2637f570dbfed9d3a2b2759cd7ee075ce2ca432ffcd3c",
+            "line_sha256": "b97ab05e90520a27306e1d5ee0fa9d8a42755b15266e801eb9d37a9f85689878",
+            "source_sha256": "e0f6534a848e581954ed95f6e9f32f32c0c6c68924b00f48195c4833e74d8454"
+        },
+        {
+            "path": "packages/cache/tests/Unit/Backend/DatabaseBackendTest.php",
+            "line": 106,
+            "pattern": "sqlite_dsn_token",
+            "class": "test",
+            "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
+            "line_sha256": "b97ab05e90520a27306e1d5ee0fa9d8a42755b15266e801eb9d37a9f85689878",
+            "source_sha256": "e0f6534a848e581954ed95f6e9f32f32c0c6c68924b00f48195c4833e74d8454"
         },
         {
             "path": "packages/cache/tests/Unit/CacheFactoryTest.php",
@@ -1516,12 +1534,12 @@
         },
         {
             "path": "packages/cache/tests/Unit/Rekey/CacheGenerationRekeyAdapterRetainedRedTest.php",
-            "line": 126,
+            "line": 151,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "dafe0d26813f49676455ce59fa2092b9c339ce79796de285b218378e5d208ac4",
-            "source_sha256": "45d90d0a5e5e8fab97339b95c78901ced6b23eccac435a19925bc6464cc72b84"
+            "source_sha256": "19b2eb3b00e3a3af373e105bb9b5aa7d28a91920b2f590042ad95cf6e41dbef0"
         },
         {
             "path": "packages/cli/src/Handler/DbInitHandler.php",
@@ -5745,6 +5763,15 @@
             "source_sha256": "a781d41ea210386e4bed6fe84ff8f3c040f47433de2bf2f31ad699d30f57b534"
         },
         {
+            "path": "packages/queue/tests/Unit/Security/QueueApplicationMasterRekeyRetainedRedTest.php",
+            "line": 192,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "dafe0d26813f49676455ce59fa2092b9c339ce79796de285b218378e5d208ac4",
+            "source_sha256": "8812b3ed389949fcf01b8452b793fd5c639aa4627b0a6fbac1fc5b0460ed77bc"
+        },
+        {
             "path": "packages/queue/tests/Unit/Storage/DatabaseFailedJobRepositoryTest.php",
             "line": 21,
             "pattern": "dbal_factory",
@@ -8002,6 +8029,15 @@
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "01acfde3d1a79d1fe24edcf188d19226126302af4a80de98dcfae724102b8694",
             "source_sha256": "799b273bf20e03db1ac1f46f35f61017863a43a220909c9e76bfb23111027c26"
+        },
+        {
+            "path": "tests/Integration/Security/ApplicationMasterPurposeRosterRetainedRedTest.php",
+            "line": 26,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "dafe0d26813f49676455ce59fa2092b9c339ce79796de285b218378e5d208ac4",
+            "source_sha256": "1d3c659d76880457b253b805a71d0efef79119cb056ebf2938045272af53e75a"
         },
         {
             "path": "tests/PackagedForm/s1-configuration-activation-probe.php",

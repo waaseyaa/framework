@@ -50,7 +50,10 @@ final class AuditCheckpointBuilder
         $latestRows = iterator_to_array(
             $this->database
                 ->select('audit_checkpoint')
-                ->fields('audit_checkpoint', ['segment_end_id', 'segment_hash', 'checkpoint_hash'])
+                ->fields('audit_checkpoint', [
+                    'id', 'segment_end_id', 'segment_hash', 'checkpoint_hash',
+                    'signature', 'is_genesis',
+                ])
                 ->orderBy('segment_end_id', 'DESC')
                 ->range(0, 1)
                 ->execute(),
@@ -59,6 +62,7 @@ final class AuditCheckpointBuilder
 
         if ($latestRows !== []) {
             $latest = $latestRows[0];
+            $this->authenticatePristineGenesis($latest);
             $lastSealedId       = (int) $latest['segment_end_id'];
             $prevRowHash        = (string) $latest['segment_hash'];
             $prevCheckpointHash = (string) $latest['checkpoint_hash'];
@@ -181,6 +185,49 @@ final class AuditCheckpointBuilder
         }
 
         return $checkpoint;
+    }
+
+    /** @param array<string, mixed> $latest */
+    private function authenticatePristineGenesis(array $latest): void
+    {
+        if ($this->hmacKey === null || !(bool) ($latest['is_genesis'] ?? false)) {
+            return;
+        }
+
+        $checkpointId = (int) $latest['id'];
+        $checkpointHash = (string) $latest['checkpoint_hash'];
+        $signature = (string) ($latest['signature'] ?? '');
+        $expected = 'hmac-sha256.hkdf-v1:' . hash_hmac('sha256', $checkpointHash, $this->hmacKey->bytes());
+
+        if ($signature === '') {
+            $updated = $this->database->update('audit_checkpoint')
+                ->fields(['signature' => $expected])
+                ->condition('id', $checkpointId)
+                ->condition('checkpoint_hash', $checkpointHash)
+                ->condition('signature', '')
+                ->condition('is_genesis', 1)
+                ->execute();
+
+            if ($updated === 1) {
+                return;
+            }
+
+            $rows = iterator_to_array(
+                $this->database->select('audit_checkpoint')
+                    ->fields('audit_checkpoint', ['signature'])
+                    ->condition('id', $checkpointId)
+                    ->range(0, 1)
+                    ->execute(),
+                false,
+            );
+            $signature = $rows === [] ? '' : (string) $rows[0]['signature'];
+        }
+
+        if (!hash_equals($expected, $signature)) {
+            throw new \RuntimeException(
+                'Keyed audit checkpoint creation refused a genesis anchor authenticated by a different or malformed key.',
+            );
+        }
     }
 
     /** @return array{database: string, sink: string, logger: string, hmac_key: string|null} */

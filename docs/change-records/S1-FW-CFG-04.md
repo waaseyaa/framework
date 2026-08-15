@@ -47,6 +47,11 @@ NDJSON record. External append-only sinks therefore retain the authentication
 material required to verify the exported hash-chain evidence independently;
 no key bytes or operational evidence are exported.
 
+The first keyed checkpoint now authenticates the deterministic pristine
+genesis anchor by compare-and-swap before it seals application events. A
+different or malformed genesis signature fails closed, while existing history
+still requires the explicit operator-confirmed migration path.
+
 ## Evidence disposition
 
 Every implementation slice records exact commit/tree identity, split test and

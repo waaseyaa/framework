@@ -128,6 +128,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   or failed payloads remain. Audit checkpoint NDJSON exports now carry the
   detached signature with the checkpoint hash-chain fields so an external
   append-only sink retains independently verifiable authentication evidence.
+  The first keyed checkpoint also authenticates the pristine genesis anchor by
+  compare-and-swap and refuses a conflicting genesis key, avoiding a fresh
+  install's otherwise-unrepairable mixed authenticated/unsigned history.
   Remaining package adapters and process
   reconciliation remain incomplete.
   A generic coordinator now composes every frozen registry owner exactly once,

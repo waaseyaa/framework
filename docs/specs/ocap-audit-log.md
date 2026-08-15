@@ -203,6 +203,10 @@ HMAC over `checkpoint_hash` is mandatory in kernel-wired operation. Its raw
 `hmac-sha256.hkdf-v1:<64 lowercase hex>`. When a derived key is configured, the
 verifier requires and constant-time verifies that envelope on **every** checkpoint,
 including genesis; empty/bare legacy values never count as authenticated history.
+Before the first keyed segment is sealed, the builder authenticates only the
+deterministic, empty pristine genesis anchor by compare-and-swap. It refuses a
+genesis signature produced by another or malformed key rather than creating a
+mixed chain. Existing non-genesis history is never migrated implicitly.
 Existing chains are upgraded only by the explicit, transactional
 `audit:migrate-checkpoint-signatures --confirm` command after the operator has
 established trust in a backup. It refuses malformed, mixed, or hash-chain-broken

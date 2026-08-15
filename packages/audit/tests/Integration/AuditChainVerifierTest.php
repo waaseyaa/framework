@@ -178,6 +178,44 @@ final class AuditChainVerifierTest extends TestCase
     }
 
     #[Test]
+    public function keyed_builder_authenticates_pristine_genesis_even_without_events(): void
+    {
+        $key = random_bytes(32);
+
+        $this->seal($key);
+
+        $result = $this->verifier($key)->verify();
+        self::assertTrue($result->ok);
+        self::assertSame(0, $result->segmentsVerified);
+        self::assertSame(0, new LegacyCheckpointSignatureMigrator($this->db, $key)->migrate());
+    }
+
+    #[Test]
+    public function keyed_builder_refuses_a_genesis_anchor_authenticated_by_another_key(): void
+    {
+        $firstKey = random_bytes(32);
+        $secondKey = random_bytes(32);
+        new LegacyCheckpointSignatureMigrator($this->db, $firstKey)->migrate();
+        $this->insertEvent('conflicting-genesis-key');
+
+        try {
+            $this->seal($secondKey);
+            self::fail('A conflicting genesis key must prevent checkpoint creation.');
+        } catch (\RuntimeException $e) {
+            self::assertStringContainsString('refused', $e->getMessage());
+        }
+
+        self::assertSame(
+            0,
+            (int) $this->db->getConnection()->fetchOne('SELECT COUNT(*) FROM audit_checkpoint WHERE is_genesis = 0'),
+        );
+        self::assertSame(
+            '',
+            (string) $this->db->getConnection()->fetchOne('SELECT row_hash FROM audit_event WHERE uuid = ?', ['conflicting-genesis-key']),
+        );
+    }
+
+    #[Test]
     public function audit_key_holders_never_expose_derived_bytes_through_debug_or_serialization(): void
     {
         $key = random_bytes(32);
