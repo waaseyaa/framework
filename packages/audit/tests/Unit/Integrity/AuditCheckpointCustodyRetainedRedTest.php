@@ -101,7 +101,7 @@ final class AuditCheckpointCustodyRetainedRedTest extends TestCase
             $this->keyring(2, [1]),
             hash('sha256', 'legacy-bridge', true),
         );
-        $diagnostic = var_export($custody, true);
+        $diagnostic = print_r($custody, true);
 
         self::assertStringContainsString('[NON_EXPORTING]', $diagnostic);
         self::assertStringContainsString('[REDACTED]', $diagnostic);
