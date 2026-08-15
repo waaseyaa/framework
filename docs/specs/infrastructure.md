@@ -1938,6 +1938,10 @@ The persisted state vocabulary follows the authorized sequence exactly:
 `revoke-old-in-ledger`. Forward-only `rolling-back` and `rolled-back` states may
 record an exercised rollback; failures append evidence and block advancement but
 do not erase a resumable state or cursor.
+The canonical writer/worker and cache reconciliation gates move the request into
+the still-open rollback-window state. Recording `rollback-window-closed` moves it
+forward to backup-retention proof; it never opens a window that its own evidence
+declares closed.
 
 Each inventoried adapter may have at most one open failure at its exact durable
 cursor. Recording a failure compare-and-swaps both adapter and request failure

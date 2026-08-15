@@ -993,9 +993,9 @@ final class ApplicationMasterRekeyStore
             ])->execute();
 
             $state = match ($gate) {
-                ApplicationMasterRekeyGate::WritersAndWorkersReconciled,
-                ApplicationMasterRekeyGate::CachesReconciled => ApplicationMasterRekeyState::ReconcileWritersAndWorkers,
-                ApplicationMasterRekeyGate::RollbackWindowClosed => ApplicationMasterRekeyState::HoldAndOptionallyExecuteRollbackWindow,
+                ApplicationMasterRekeyGate::WritersAndWorkersReconciled => ApplicationMasterRekeyState::ReconcileWritersAndWorkers,
+                ApplicationMasterRekeyGate::CachesReconciled => ApplicationMasterRekeyState::HoldAndOptionallyExecuteRollbackWindow,
+                ApplicationMasterRekeyGate::RollbackWindowClosed,
                 ApplicationMasterRekeyGate::RetainedBackupsCompatibleOrExpired => ApplicationMasterRekeyState::ProveBackupRetentionOrRestoreCompatibility,
             };
             $this->advanceRequestProjection($record, $state, $recordedAt);
