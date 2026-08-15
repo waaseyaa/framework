@@ -91,6 +91,8 @@ function computeAdminSourceSignature(string $root): string
         'bin/build-admin-dist',
         'bin/check-admin-dist-fresh',
         'bin/normalize-admin-dist',
+        'bin/run-hermetic-admin-build',
+        'packages/foundation/src/Log/Processor/RedactorProcessor.php',
         'packages/admin/nuxt.config.ts',
         'packages/admin/app.config.ts',
         'packages/admin/package.json',
@@ -100,6 +102,22 @@ function computeAdminSourceSignature(string $root): string
         $path = $root . '/' . $rel;
         if (is_file($path)) {
             $parts[] = $rel . ':' . hashNormalized($path);
+        }
+    }
+
+    // 3. The complete hermetic build pipeline. Its environment, input, child
+    //    output, and artifact policies are build-determining procedure.
+    $adminBuildDir = $root . '/packages/cli/src/AdminBuild';
+    if (is_dir($adminBuildDir)) {
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($adminBuildDir, FilesystemIterator::SKIP_DOTS),
+        );
+        foreach ($iterator as $file) {
+            if ($file->isFile() && $file->getExtension() === 'php') {
+                $path = $file->getPathname();
+                $rel = str_replace('\\', '/', substr($path, strlen($root) + 1));
+                $parts[] = $rel . ':' . hashNormalized($path);
+            }
         }
     }
 

@@ -145,6 +145,7 @@ The legacy `api_keys` map and raw provider-key configuration are not compliant w
 |-------|------|----------|
 | `bin/check-no-secrets` | Repository-wide shell scan for token patterns | CI: `security-defaults` job |
 | `DefaultsSecretsIntegrationTest` | Structural YAML/JSON value scanning | CI: PHPUnit `--filter Phase22` |
+| `HermeticAdminBuildPipeline` | Closed child environment, bounded sanitized output, deterministic generated/publishable artifact inventory and byte scan | `admin:build` and `bin/build-admin-dist` |
 
 Patterns checked: `sk-*` (OpenAI), `ghp_*` (GitHub), `xox[bp]-*` (Slack), `ya29.*` (Google OAuth), `AIza*` (Google API), PEM private keys, DSN with embedded credentials.
 

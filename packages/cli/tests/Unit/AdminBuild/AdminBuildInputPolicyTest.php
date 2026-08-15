@@ -13,11 +13,13 @@ use Waaseyaa\CLI\AdminBuild\AdminBuildPolicyException;
 #[CoversClass(AdminBuildInputPolicy::class)]
 final class AdminBuildInputPolicyTest extends TestCase
 {
+    private string $projectRoot;
     private string $adminPath;
 
     protected function setUp(): void
     {
-        $this->adminPath = sys_get_temp_dir() . '/waaseyaa_admin_input_' . bin2hex(random_bytes(6));
+        $this->projectRoot = sys_get_temp_dir() . '/waaseyaa_admin_input_' . bin2hex(random_bytes(6));
+        $this->adminPath = $this->projectRoot . '/packages/admin';
         mkdir($this->adminPath, 0700, true);
         file_put_contents($this->adminPath . '/package.json', json_encode([
             'name' => '@waaseyaa/synthetic-admin',
@@ -34,13 +36,13 @@ final class AdminBuildInputPolicyTest extends TestCase
     protected function tearDown(): void
     {
         $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->adminPath, \FilesystemIterator::SKIP_DOTS),
+            new \RecursiveDirectoryIterator($this->projectRoot, \FilesystemIterator::SKIP_DOTS),
             \RecursiveIteratorIterator::CHILD_FIRST,
         );
         foreach ($iterator as $entry) {
             $entry->isDir() ? rmdir($entry->getPathname()) : unlink($entry->getPathname());
         }
-        rmdir($this->adminPath);
+        rmdir($this->projectRoot);
     }
 
     #[Test]

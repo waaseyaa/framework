@@ -19,8 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sanitizer before returning them. Independent review hardening makes
   overlapping values redact globally longest-first, sanitizes recursive keys,
   wraps custom kernel loggers behind the same sink, canonicalizes environment
-  identity, and keeps JSON diagnostics fingerprint-only. Real provider adapters, purpose-specific
-  consumers, signing custody, integration migrations, build isolation, and the
+  identity, and keeps JSON diagnostics fingerprint-only. Admin generation and
+  distribution builds now resolve an absolute npm executable, install from the
+  exact lock offline with lifecycle scripts disabled, pass only fixed or
+  validated public build variables into disposable home/temp/npm/cache state,
+  neutralize dotenv and local Nuxt/npm configuration, sanitize bounded child
+  output, and deterministically inventory and scan generated, cached, source-map,
+  and publishable artifacts before success. Real provider adapters,
+  purpose-specific consumers, signing custody, integration migrations, and the
   versioned application-master transition remain deliberately unimplemented.
 - **configuration schema and sync authority (`S1-FW-CFG-03`):** Add the strict
   v1 configuration contract with closed recursive schema validation, separate

@@ -1,0 +1,44 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Waaseyaa\CLI\AdminBuild\AdminBuildArtifactScanException;
+use Waaseyaa\CLI\AdminBuild\AdminBuildArtifactScanner;
+use Waaseyaa\CLI\AdminBuild\AdminBuildPolicyException;
+use Waaseyaa\CLI\AdminBuild\AdminBuildProcessException;
+use Waaseyaa\CLI\AdminBuild\HermeticAdminBuildPipeline;
+use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
+
+$root = dirname(__DIR__);
+require $root . '/vendor/autoload.php';
+
+try {
+    if (in_array('--scan-only', $argv, true)) {
+        $report = new AdminBuildArtifactScanner()->scan($root, $root . '/packages/admin');
+    } else {
+        /** @var array<string, string> $parentEnvironment */
+        $parentEnvironment = getenv();
+        $report = new HermeticAdminBuildPipeline()->run(
+            projectRoot: $root,
+            adminPath: $root . '/packages/admin',
+            parentEnvironment: $parentEnvironment,
+            sanitizer: new RedactorProcessor(),
+            stdout: static function (string $text): void {
+                fwrite(STDOUT, $text);
+            },
+            stderr: static function (string $text): void {
+                fwrite(STDERR, $text);
+            },
+        );
+    }
+} catch (AdminBuildPolicyException|AdminBuildProcessException|AdminBuildArtifactScanException $e) {
+    fwrite(STDERR, sprintf('%s [%s]%s', $e->getMessage(), $e->errorCode, PHP_EOL));
+    exit(1);
+}
+
+fwrite(STDOUT, sprintf(
+    "Admin build artifacts verified: %d files; evidence %s.\n",
+    count($report->files),
+    $report->inventoryHash,
+));

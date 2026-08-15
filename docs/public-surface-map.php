@@ -736,6 +736,8 @@ return [
     'Waaseyaa\StructuredImport\StructuredImporterInterface' => 'public',
 
     'Waaseyaa\CLI\Io\StdinSource' => 'public',
+    'Waaseyaa\CLI\AdminBuild\AdminBuildPlatform' => 'internal',
+    'Waaseyaa\CLI\AdminBuild\AdminBuildProcessRunnerInterface' => 'internal',
 
     // Layer 6: Interfaces — internal
     'Waaseyaa\CLI\Command\Make\AbstractMakeHandler' => 'internal',

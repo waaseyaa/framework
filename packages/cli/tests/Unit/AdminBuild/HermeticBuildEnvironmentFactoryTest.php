@@ -31,11 +31,14 @@ final class HermeticBuildEnvironmentFactoryTest extends TestCase
     {
         $bin = $this->directory('bin');
         $npm = $bin . '/npm';
+        $node = $bin . '/node';
         file_put_contents($npm, "#!/bin/sh\nexit 0\n");
+        file_put_contents($node, "#!/bin/sh\nexit 0\n");
         chmod($npm, 0700);
+        chmod($node, 0700);
         $canary = 'cfg04-' . 'runtime-' . 'credential-' . bin2hex(random_bytes(8));
 
-        $environment = new HermeticBuildEnvironmentFactory()->create(
+        $environment = new HermeticBuildEnvironmentFactory()->build(
             parent: [
                 'PATH' => $bin,
                 'HOME' => '/home/real-user',
@@ -50,6 +53,7 @@ final class HermeticBuildEnvironmentFactoryTest extends TestCase
         );
 
         self::assertSame(realpath($npm), $environment->npmExecutable);
+        self::assertSame(realpath($node), $environment->nodeExecutable);
         self::assertSame([
             'CI',
             'HOME',
@@ -59,6 +63,7 @@ final class HermeticBuildEnvironmentFactoryTest extends TestCase
             'PATH',
             'TMPDIR',
             'WAASEYAA_ADMIN_BUILD_ID',
+            'XDG_CACHE_HOME',
             'npm_config_audit',
             'npm_config_cache',
             'npm_config_fund',
@@ -85,13 +90,16 @@ final class HermeticBuildEnvironmentFactoryTest extends TestCase
         $system32 = $systemRoot . '/System32';
         mkdir($system32, 0700, true);
         $npm = $bin . '/npm.CMD';
+        $node = $bin . '/node.EXE';
         $comspec = $system32 . '/cmd.exe';
         file_put_contents($npm, "@exit /b 0\r\n");
+        file_put_contents($node, 'synthetic');
         file_put_contents($comspec, 'synthetic');
         chmod($npm, 0700);
+        chmod($node, 0700);
         chmod($comspec, 0700);
 
-        $environment = new HermeticBuildEnvironmentFactory()->create(
+        $environment = new HermeticBuildEnvironmentFactory()->build(
             parent: [
                 'PATH' => $bin,
                 'PATHEXT' => '.COM;.EXE;.BAT;.CMD',
@@ -106,6 +114,7 @@ final class HermeticBuildEnvironmentFactoryTest extends TestCase
         );
 
         self::assertSame(realpath($npm), $environment->npmExecutable);
+        self::assertSame(realpath($node), $environment->nodeExecutable);
         self::assertSame([
             'APPDATA',
             'CI',
@@ -121,6 +130,7 @@ final class HermeticBuildEnvironmentFactoryTest extends TestCase
             'TMP',
             'USERPROFILE',
             'WAASEYAA_ADMIN_BUILD_ID',
+            'XDG_CACHE_HOME',
             'npm_config_audit',
             'npm_config_cache',
             'npm_config_fund',
@@ -142,10 +152,10 @@ final class HermeticBuildEnvironmentFactoryTest extends TestCase
 
         foreach ([
             ['PATH' => 'relative/bin'],
-            ['PATH' => $this->directory('bin-invalid'), 'NPM_BINARY' => 'npm'],
+            ['PATH' => $this->directory('bin-invalid'), 'NPM_BINARY' => 'relative/npm-bin', 'NODE_BINARY' => 'relative/node-bin'],
         ] as $parent) {
             try {
-                $factory->create($parent, $this->directory('invalid-' . bin2hex(random_bytes(2))), AdminBuildPlatform::Linux);
+                $factory->build($parent, $this->directory('invalid-' . bin2hex(random_bytes(2))), AdminBuildPlatform::Linux);
                 self::fail('Invalid executable authority must refuse.');
             } catch (\RuntimeException $e) {
                 if (isset($parent['NPM_BINARY'])) {

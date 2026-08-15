@@ -25,6 +25,7 @@ final class AdminBuildArtifactScannerTest extends TestCase
         mkdir($this->adminPath . '/.nuxt/cache', 0700, true);
         mkdir($this->adminPath . '/coverage', 0700, true);
         mkdir($this->adminPath . '/node_modules/dependency', 0700, true);
+        mkdir($this->adminPath . '/node_modules/.cache', 0700, true);
         mkdir($this->projectRoot . '/packages/admin-surface/dist', 0700, true);
         file_put_contents($this->adminPath . '/app/input.ts', 'export const synthetic = true');
         file_put_contents($this->adminPath . '/.output/public/index.html', '<main>synthetic</main>');
@@ -32,6 +33,7 @@ final class AdminBuildArtifactScannerTest extends TestCase
         file_put_contents($this->adminPath . '/.nuxt/cache/build.json', '{}');
         file_put_contents($this->adminPath . '/coverage/coverage.json', '{}');
         file_put_contents($this->adminPath . '/node_modules/dependency/fixture.txt', 'dependency fixture is not a build artifact');
+        file_put_contents($this->adminPath . '/node_modules/.cache/bundle.cache', 'synthetic dependency cache');
         file_put_contents($this->projectRoot . '/packages/admin-surface/dist/index.html', '<main>publishable</main>');
     }
 
@@ -62,8 +64,30 @@ final class AdminBuildArtifactScannerTest extends TestCase
         self::assertContains('packages/admin/.nuxt/cache/build.json', $first->files);
         self::assertContains('packages/admin/coverage/coverage.json', $first->files);
         self::assertContains('packages/admin-surface/dist/index.html', $first->files);
+        self::assertContains('packages/admin/node_modules/.cache/bundle.cache', $first->files);
         self::assertNotContains('packages/admin/node_modules/dependency/fixture.txt', $first->files);
+        self::assertNotContains('packages/admin/app/input.ts', $first->files);
         self::assertTrue($first->clean);
+    }
+
+    #[Test]
+    public function a_supported_external_admin_package_is_scanned_under_a_stable_logical_prefix(): void
+    {
+        $external = $this->projectRoot . '-external-admin';
+        mkdir($external . '/.output/public', 0700, true);
+        file_put_contents($external . '/.output/public/index.html', '<main>external synthetic</main>');
+
+        try {
+            $report = new AdminBuildArtifactScanner()->scan($this->projectRoot, $external);
+
+            self::assertContains('admin-package/.output/public/index.html', $report->files);
+            self::assertTrue($report->clean);
+        } finally {
+            unlink($external . '/.output/public/index.html');
+            rmdir($external . '/.output/public');
+            rmdir($external . '/.output');
+            rmdir($external);
+        }
     }
 
     #[Test]

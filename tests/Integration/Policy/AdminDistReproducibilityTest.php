@@ -87,9 +87,14 @@ final class AdminDistReproducibilityTest extends TestCase
 
         self::assertStringContainsString('check-admin-dist-fresh" --print', $build);
         self::assertStringContainsString('WAASEYAA_ADMIN_BUILD_ID', $build);
+        self::assertStringContainsString('run-hermetic-admin-build', $build);
         self::assertStringContainsString('normalize-admin-dist', $build);
+        self::assertStringNotContainsString(' npm ci', $build);
+        self::assertStringNotContainsString(' npm run generate', $build);
         self::assertStringContainsString('buildId: process.env.WAASEYAA_ADMIN_BUILD_ID', $config);
         self::assertStringContainsString("'bin/normalize-admin-dist'", $freshness);
+        self::assertStringContainsString("'bin/run-hermetic-admin-build'", $freshness);
+        self::assertStringContainsString("'/packages/cli/src/AdminBuild'", $freshness);
         self::assertStringContainsString("'.nvmrc'", $freshness);
     }
 
@@ -158,7 +163,8 @@ final class AdminDistReproducibilityTest extends TestCase
         if (!is_dir($dir)) {
             return;
         }
-        foreach (scandir($dir) ?: [] as $item) {
+        $items = scandir($dir);
+        foreach (is_array($items) ? $items : [] as $item) {
             if ($item === '.' || $item === '..') {
                 continue;
             }

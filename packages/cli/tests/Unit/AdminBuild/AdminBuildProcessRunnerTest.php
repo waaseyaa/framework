@@ -25,11 +25,9 @@ final class AdminBuildProcessRunnerTest extends TestCase
 $value = $argv[1];
 fwrite(STDOUT, substr($value, 0, 7));
 fflush(STDOUT);
-usleep(10000);
 fwrite(STDOUT, substr($value, 7) . "\n");
 fwrite(STDERR, substr($value, 0, 5));
 fflush(STDERR);
-usleep(10000);
 fwrite(STDERR, substr($value, 5) . "\n");
 PHP;
 
@@ -68,5 +66,30 @@ PHP;
             self::assertSame('child-output-limit', $e->errorCode);
             self::assertStringNotContainsString($canary, $captured . $e->getMessage());
         }
+    }
+
+    #[Test]
+    public function a_canary_split_between_stdout_and_stderr_drops_both_raw_streams(): void
+    {
+        $canary = 'cfg04-' . 'cross-stream-' . bin2hex(random_bytes(10));
+        $captured = '';
+        $code = <<<'PHP'
+$value = $argv[1];
+$split = intdiv(strlen($value), 2);
+fwrite(STDOUT, substr($value, 0, $split));
+fwrite(STDERR, substr($value, $split));
+PHP;
+
+        new AdminBuildProcessRunner()->run(
+            command: [PHP_BINARY, '-r', $code, $canary],
+            cwd: sys_get_temp_dir(),
+            environment: ['PATH' => dirname(PHP_BINARY)],
+            sanitizer: new RedactorProcessor(registeredValues: [$canary]),
+            stdout: static function (string $chunk) use (&$captured): void { $captured .= $chunk; },
+            stderr: static function (string $chunk) use (&$captured): void { $captured .= $chunk; },
+        );
+
+        self::assertSame(RedactorProcessor::SENTINEL, $captured);
+        self::assertStringNotContainsString($canary, $captured);
     }
 }

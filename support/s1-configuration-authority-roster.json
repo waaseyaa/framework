@@ -377,25 +377,25 @@
             "class": "diagnostic-composition",
             "match_sha256": "0f68001dd6cc71ef6c3ffe1fb5bd8d20106c17b9375efbf4f1ff53c28cfdb125",
             "line_sha256": "29811b57cc415313bf2929436613dc4173a0078fd06f54791e566f2c6c68e30c",
-            "source_sha256": "59295e12a05a85bb982b25201f408be2970cbd64c080b76dcd9d6e9aea93f43b"
+            "source_sha256": "e3b94cee534f2644bd219449c172b01c7024dd53d5ab1c89c7fd948dab0a850d"
         },
         {
             "path": "packages/cli/src/Provider/MiscAServiceProvider.php",
-            "line": 28,
+            "line": 42,
             "pattern": "authority_context",
             "class": "diagnostic-composition",
             "match_sha256": "0f68001dd6cc71ef6c3ffe1fb5bd8d20106c17b9375efbf4f1ff53c28cfdb125",
             "line_sha256": "843f906b2f2171961ce787354f3a8f6beb89efe65239b095b354e2fdd701c1d3",
-            "source_sha256": "59295e12a05a85bb982b25201f408be2970cbd64c080b76dcd9d6e9aea93f43b"
+            "source_sha256": "e3b94cee534f2644bd219449c172b01c7024dd53d5ab1c89c7fd948dab0a850d"
         },
         {
             "path": "packages/cli/src/Provider/MiscAServiceProvider.php",
-            "line": 29,
+            "line": 43,
             "pattern": "authority_context",
             "class": "diagnostic-composition",
             "match_sha256": "0f68001dd6cc71ef6c3ffe1fb5bd8d20106c17b9375efbf4f1ff53c28cfdb125",
             "line_sha256": "d9bf70c802cd710cffb0e31dae949668aa289f18ec3c4b47a5181703250853da",
-            "source_sha256": "59295e12a05a85bb982b25201f408be2970cbd64c080b76dcd9d6e9aea93f43b"
+            "source_sha256": "e3b94cee534f2644bd219449c172b01c7024dd53d5ab1c89c7fd948dab0a850d"
         },
         {
             "path": "packages/cli/src/Provider/MiscBServiceProvider.php",

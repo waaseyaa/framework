@@ -134,6 +134,17 @@ final class RedactorProcessor implements ProcessorInterface
     }
 
     /**
+     * Sanitize one complete diagnostic text payload before a non-log sink.
+     * Callers must bound the payload before invoking this method.
+     *
+     * @api
+     */
+    public function sanitizeText(string $value): string
+    {
+        return $this->redactString($value);
+    }
+
+    /**
      * Walk a context array, applying key-denylist and value-backstop rules recursively.
      *
      * @param array<array-key, mixed> $context

@@ -4,13 +4,21 @@ declare(strict_types=1);
 
 namespace Waaseyaa\CLI\Handler;
 
+use Waaseyaa\CLI\AdminBuild\AdminBuildArtifactScanException;
+use Waaseyaa\CLI\AdminBuild\AdminBuildPolicyException;
+use Waaseyaa\CLI\AdminBuild\AdminBuildProcessException;
+use Waaseyaa\CLI\AdminBuild\HermeticAdminBuildPipeline;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\CLI\Support\AdminPackagePathResolver;
+use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
 
+/** CLI command handler resolved through the provider command registry. @api */
 final class AdminBuildHandler
 {
     public function __construct(
         private readonly string $projectRoot,
+        private readonly HermeticAdminBuildPipeline $pipeline = new HermeticAdminBuildPipeline(),
+        private readonly RedactorProcessor $sanitizer = new RedactorProcessor(),
     ) {}
 
     public function execute(SymfonyCommandIO $io): int
@@ -23,36 +31,34 @@ final class AdminBuildHandler
             return 1;
         }
 
-        /** @var array<string, string> $env */
-        $env = getenv();
         $io->writeln(sprintf('Admin package: %s', $adminPath));
-
-        $process = proc_open(
-            [self::npmBinary(), 'run', 'generate'],
-            [STDIN, STDOUT, STDERR],
-            $pipes,
-            $adminPath,
-            $env,
-        );
-
-        if (!is_resource($process)) {
-            $io->error('Could not start npm.');
+        try {
+            /** @var array<string, string> $parentEnvironment */
+            $parentEnvironment = getenv();
+            $report = $this->pipeline->run(
+                projectRoot: $this->projectRoot,
+                adminPath: $adminPath,
+                parentEnvironment: $parentEnvironment,
+                sanitizer: $this->sanitizer,
+                stdout: static function (string $text) use ($io): void {
+                    $io->write($text);
+                },
+                stderr: static function (string $text) use ($io): void {
+                    $io->error(rtrim($text, "\r\n"));
+                },
+            );
+        } catch (AdminBuildPolicyException|AdminBuildProcessException|AdminBuildArtifactScanException $e) {
+            $io->error(sprintf('%s [%s]', $e->getMessage(), $e->errorCode));
 
             return 1;
         }
 
-        $exitCode = proc_close($process);
+        $io->writeln(sprintf(
+            'Admin build verified: %d inventoried files; evidence %s.',
+            count($report->files),
+            $report->inventoryHash,
+        ));
 
-        return $exitCode === 0 ? 0 : 1;
-    }
-
-    private static function npmBinary(): string
-    {
-        $npm = getenv('NPM_BINARY');
-        if (is_string($npm) && $npm !== '') {
-            return $npm;
-        }
-
-        return 'npm';
+        return 0;
     }
 }
