@@ -76,13 +76,22 @@ return new class extends Migration {
                 purpose_counts_json TEXT NOT NULL,
                 batch_chain_hash TEXT NOT NULL,
                 status TEXT NOT NULL,
+                rollback_snapshot_token TEXT,
+                rollback_total_records INTEGER NOT NULL DEFAULT 0,
+                rollback_cursor TEXT,
+                rolled_back_records INTEGER NOT NULL DEFAULT 0,
+                rollback_purpose_counts_json TEXT NOT NULL,
+                rollback_chain_hash TEXT NOT NULL,
+                rollback_status TEXT NOT NULL,
                 revision INTEGER NOT NULL,
                 unresolved_failures INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (request_id, adapter_id),
                 FOREIGN KEY (request_id) REFERENCES waaseyaa_application_master_rekey(request_id),
-                CHECK (total_records >= 0 AND transitioned_records >= 0),
+                CHECK (total_records >= 0 AND transitioned_records >= 0
+                    AND rollback_total_records >= 0 AND rolled_back_records >= 0),
                 CHECK (revision > 0 AND unresolved_failures >= 0),
-                CHECK (status IN ('snapshotted', 'transitioning', 'complete'))
+                CHECK (status IN ('snapshotted', 'transitioning', 'complete')),
+                CHECK (rollback_status IN ('pending', 'snapshotted', 'rolling-back', 'complete'))
             )",
             'CREATE TABLE waaseyaa_application_master_rekey_failure (
                 failure_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -102,6 +111,17 @@ return new class extends Migration {
                 ON waaseyaa_application_master_rekey_failure (request_id, adapter_id)
                 WHERE resolved_at IS NULL',
             'CREATE TABLE waaseyaa_application_master_rekey_verification (
+                request_id TEXT NOT NULL,
+                purpose_id TEXT NOT NULL,
+                verified_records INTEGER NOT NULL,
+                verification_hash TEXT NOT NULL,
+                recorded_at INTEGER NOT NULL,
+                PRIMARY KEY (request_id, purpose_id),
+                FOREIGN KEY (request_id, purpose_id)
+                    REFERENCES waaseyaa_application_master_rekey_purpose(request_id, purpose_id),
+                CHECK (verified_records >= 0)
+            )',
+            'CREATE TABLE waaseyaa_application_master_rekey_rollback_verification (
                 request_id TEXT NOT NULL,
                 purpose_id TEXT NOT NULL,
                 verified_records INTEGER NOT NULL,

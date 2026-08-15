@@ -22,6 +22,7 @@ final class ApplicationMasterRekeyStore
     private const string ADAPTER_TABLE = 'waaseyaa_application_master_rekey_adapter';
     private const string FAILURE_TABLE = 'waaseyaa_application_master_rekey_failure';
     private const string VERIFICATION_TABLE = 'waaseyaa_application_master_rekey_verification';
+    private const string ROLLBACK_VERIFICATION_TABLE = 'waaseyaa_application_master_rekey_rollback_verification';
     private const string GATE_TABLE = 'waaseyaa_application_master_rekey_gate';
     private const string EVENT_TABLE = 'waaseyaa_application_master_rekey_event';
 
@@ -270,6 +271,13 @@ final class ApplicationMasterRekeyStore
                     'purpose_counts_json' => $this->canonicalJson($counts),
                     'batch_chain_hash' => self::ZERO_HASH,
                     'status' => 'snapshotted',
+                    'rollback_snapshot_token' => null,
+                    'rollback_total_records' => 0,
+                    'rollback_cursor' => null,
+                    'rolled_back_records' => 0,
+                    'rollback_purpose_counts_json' => $this->canonicalJson($counts),
+                    'rollback_chain_hash' => self::ZERO_HASH,
+                    'rollback_status' => 'pending',
                     'revision' => 1,
                     'unresolved_failures' => 0,
                 ])->execute();
@@ -702,10 +710,14 @@ final class ApplicationMasterRekeyStore
                     ApplicationMasterRekeyState::EnumerateSnapshot,
                     ApplicationMasterRekeyState::TransitionBoundedBatches,
                     ApplicationMasterRekeyState::VerifyEveryPurpose,
+                    ApplicationMasterRekeyState::RollingBack,
                 ]);
                 $progress = $this->requireAdapterFresh($requestId, $adapterId);
+                $durableCursor = $record->state === ApplicationMasterRekeyState::RollingBack
+                    ? $progress->rollbackCursor
+                    : $progress->cursor;
                 if ($progress->revision !== $expectedAdapterRevision
-                    || $progress->cursor !== $expectedCursor
+                    || $durableCursor !== $expectedCursor
                     || $progress->unresolvedFailures !== 0) {
                     throw new ApplicationMasterRekeyConflictException(
                         'The application-master adapter failure projection is stale.',
@@ -765,6 +777,7 @@ final class ApplicationMasterRekeyStore
                 ApplicationMasterRekeyState::EnumerateSnapshot,
                 ApplicationMasterRekeyState::TransitionBoundedBatches,
                 ApplicationMasterRekeyState::VerifyEveryPurpose,
+                ApplicationMasterRekeyState::RollingBack,
             ]);
             $progress = $this->requireAdapterFresh($requestId, $adapterId);
             if ($record->unresolvedFailures < 1
@@ -779,7 +792,10 @@ final class ApplicationMasterRekeyStore
                     . ' WHERE request_id = :request AND adapter_id = :adapter AND resolved_at IS NULL',
                 ['request' => $requestId, 'adapter' => $adapterId],
             );
-            if ($failure === null || $progress->cursor !== $failure['cursor']) {
+            $durableCursor = $record->state === ApplicationMasterRekeyState::RollingBack
+                ? $progress->rollbackCursor
+                : $progress->cursor;
+            if ($failure === null || $durableCursor !== $failure['cursor']) {
                 throw new ApplicationMasterRekeyConflictException(
                     'The application-master adapter open failure does not match its durable cursor.',
                 );
@@ -801,7 +817,7 @@ final class ApplicationMasterRekeyStore
             $this->updateRequestFailureCount($record, -1, $now);
             $this->appendEvent($requestId, 'adapter-failure-resolved', [
                 'adapter_id' => $adapterId,
-                'cursor' => $progress->cursor,
+                'cursor' => $durableCursor,
                 'failure_code' => (string) $failure['failure_code'],
                 'evidence_hash' => (string) $failure['evidence_hash'],
                 'resolution_hash' => $resolutionHash,
@@ -1081,6 +1097,297 @@ final class ApplicationMasterRekeyStore
         );
     }
 
+    public function recordAdapterRollbackSnapshot(
+        string $requestId,
+        int $expectedRequestRevision,
+        string $adapterId,
+        int $expectedAdapterRevision,
+        string $snapshotToken,
+        int $totalRecords,
+    ): ApplicationMasterAdapterProgress {
+        self::assertStableIdentifier($adapterId, 'adapter id');
+        self::assertHash($snapshotToken, 'rollback snapshot token');
+        if ($totalRecords < 0) {
+            throw new \InvalidArgumentException('Application-master rollback snapshots require a non-negative total.');
+        }
+        $this->ensureSchema();
+
+        $this->transactional(function () use (
+            $requestId,
+            $expectedRequestRevision,
+            $adapterId,
+            $expectedAdapterRevision,
+            $snapshotToken,
+            $totalRecords,
+        ): void {
+            $record = $this->assertRequestRevision($requestId, $expectedRequestRevision, [
+                ApplicationMasterRekeyState::RollingBack,
+            ]);
+            $progress = $this->requireAdapterFresh($requestId, $adapterId);
+            if ($record->unresolvedFailures !== 0
+                || $progress->revision !== $expectedAdapterRevision
+                || $progress->status !== 'complete'
+                || $progress->rollbackStatus !== 'pending'
+                || $progress->unresolvedFailures !== 0) {
+                throw new ApplicationMasterRekeyConflictException(
+                    'The application-master rollback snapshot projection is stale.',
+                );
+            }
+            $counts = array_fill_keys($progress->purposeIds, 0);
+            $updated = $this->database->update(self::ADAPTER_TABLE)->fields([
+                'rollback_snapshot_token' => $snapshotToken,
+                'rollback_total_records' => $totalRecords,
+                'rollback_cursor' => null,
+                'rolled_back_records' => 0,
+                'rollback_purpose_counts_json' => $this->canonicalJson($counts),
+                'rollback_chain_hash' => self::ZERO_HASH,
+                'rollback_status' => 'snapshotted',
+                'revision' => $expectedAdapterRevision + 1,
+            ])->condition('request_id', $requestId)
+                ->condition('adapter_id', $adapterId)
+                ->condition('revision', $expectedAdapterRevision)
+                ->condition('rollback_status', 'pending')
+                ->execute();
+            if ($updated !== 1) {
+                throw new ApplicationMasterRekeyConflictException(
+                    'The application-master rollback snapshot changed concurrently.',
+                );
+            }
+            $now = $this->now();
+            $this->advanceRequestProjection($record, ApplicationMasterRekeyState::RollingBack, $now);
+            $this->appendEvent($requestId, 'adapter-rollback-snapshotted', [
+                'adapter_id' => $adapterId,
+                'snapshot_token' => $snapshotToken,
+                'total_records' => $totalRecords,
+                'purpose_ids' => $progress->purposeIds,
+            ], $now);
+        });
+        unset($this->recordCache[$requestId]);
+
+        return $this->requireAdapter($requestId, $adapterId);
+    }
+
+    /** @param \Closure(): ApplicationMasterBatchResult $operation */
+    public function commitAdapterRollbackOperation(
+        string $requestId,
+        int $expectedRequestRevision,
+        string $adapterId,
+        int $expectedAdapterRevision,
+        ?string $expectedCursor,
+        \Closure $operation,
+    ): ApplicationMasterAdapterProgress {
+        $this->ensureSchema();
+        $this->transactional(function () use (
+            $requestId,
+            $expectedRequestRevision,
+            $adapterId,
+            $expectedAdapterRevision,
+            $expectedCursor,
+            $operation,
+        ): void {
+            $record = $this->assertRequestRevision($requestId, $expectedRequestRevision, [
+                ApplicationMasterRekeyState::RollingBack,
+            ]);
+            $progress = $this->requireAdapterFresh($requestId, $adapterId);
+            if ($progress->revision !== $expectedAdapterRevision
+                || $progress->rollbackCursor !== $expectedCursor
+                || !in_array($progress->rollbackStatus, ['snapshotted', 'rolling-back'], true)
+                || $progress->rollbackSnapshotToken === null
+                || $progress->unresolvedFailures !== 0) {
+                throw new ApplicationMasterRekeyConflictException(
+                    'The application-master rollback adapter cursor or revision is stale.',
+                );
+            }
+
+            $result = $operation();
+            if ($result->nextCursor === $expectedCursor) {
+                throw new ApplicationMasterRekeyConflictException(
+                    'An application-master rollback batch must advance its durable cursor.',
+                );
+            }
+            $this->assertPurposeDeltas($progress, $result->purposeCountDeltas);
+            $newRolledBack = $progress->rolledBackRecords + $result->transitionedRecords;
+            if ($newRolledBack > $progress->rollbackTotalRecords) {
+                throw new ApplicationMasterRekeyConflictException(
+                    'The application-master rollback batch exceeds its immutable inventory total.',
+                );
+            }
+            $counts = $progress->rollbackPurposeCounts;
+            foreach ($result->purposeCountDeltas as $purpose => $delta) {
+                $counts[$purpose] += $delta;
+            }
+            ksort($counts, SORT_STRING);
+            $chainHash = hash('sha256', implode("\0", [
+                'waaseyaa.application-master.rollback-chain.v1',
+                $progress->rollbackChainHash,
+                $result->batchCommitment,
+                $result->nextCursor,
+                (string) $newRolledBack,
+                $this->canonicalJson($counts),
+            ]));
+
+            $update = $this->database->update(self::ADAPTER_TABLE)->fields([
+                'rollback_cursor' => $result->nextCursor,
+                'rolled_back_records' => $newRolledBack,
+                'rollback_purpose_counts_json' => $this->canonicalJson($counts),
+                'rollback_chain_hash' => $chainHash,
+                'rollback_status' => 'rolling-back',
+                'revision' => $expectedAdapterRevision + 1,
+            ])->condition('request_id', $requestId)
+                ->condition('adapter_id', $adapterId)
+                ->condition('revision', $expectedAdapterRevision);
+            $update = $expectedCursor === null
+                ? $update->condition('rollback_cursor', null, 'IS NULL')
+                : $update->condition('rollback_cursor', $expectedCursor);
+            if ($update->execute() !== 1) {
+                throw new ApplicationMasterRekeyConflictException(
+                    'The application-master rollback cursor changed before batch commit.',
+                );
+            }
+            $now = $this->now();
+            $this->advanceRequestProjection($record, ApplicationMasterRekeyState::RollingBack, $now);
+            $this->appendEvent($requestId, 'adapter-rollback-batch-committed', [
+                'adapter_id' => $adapterId,
+                'expected_cursor' => $expectedCursor,
+                'next_cursor' => $result->nextCursor,
+                'rolled_back_records' => $result->transitionedRecords,
+                'purpose_count_deltas' => $result->purposeCountDeltas,
+                'batch_commitment' => $result->batchCommitment,
+                'rollback_chain_hash' => $chainHash,
+            ], $now);
+        });
+        unset($this->recordCache[$requestId]);
+
+        return $this->requireAdapter($requestId, $adapterId);
+    }
+
+    /** @param array<string, ApplicationMasterPurposeVerification> $results */
+    public function completeRollbackAdapter(
+        string $requestId,
+        int $expectedRequestRevision,
+        string $adapterId,
+        int $expectedAdapterRevision,
+        ?string $expectedCursor,
+        array $results,
+    ): ApplicationMasterRekeyRecord {
+        $this->ensureSchema();
+
+        return $this->transactional(function () use (
+            $requestId,
+            $expectedRequestRevision,
+            $adapterId,
+            $expectedAdapterRevision,
+            $expectedCursor,
+            $results,
+        ): ApplicationMasterRekeyRecord {
+            $record = $this->assertRequestRevision($requestId, $expectedRequestRevision, [
+                ApplicationMasterRekeyState::RollingBack,
+            ]);
+            $progress = $this->requireAdapterFresh($requestId, $adapterId);
+            if ($progress->revision !== $expectedAdapterRevision
+                || $progress->rollbackCursor !== $expectedCursor
+                || $progress->rolledBackRecords !== $progress->rollbackTotalRecords
+                || $progress->rollbackSnapshotToken === null
+                || $progress->rollbackStatus === 'complete'
+                || $progress->unresolvedFailures !== 0) {
+                throw new ApplicationMasterRekeyConflictException(
+                    'The application-master rollback adapter is incomplete at the expected cursor.',
+                );
+            }
+            $resultPurposes = array_keys($results);
+            sort($resultPurposes, SORT_STRING);
+            if ($resultPurposes !== $progress->purposeIds) {
+                throw new ApplicationMasterRekeyConflictException(
+                    'Rollback verification does not match the adapter purpose roster.',
+                );
+            }
+            $evidence = [];
+            $now = $this->now();
+            foreach ($progress->purposeIds as $purposeId) {
+                $result = $results[$purposeId] ?? null;
+                if (!$result instanceof ApplicationMasterPurposeVerification
+                    || ($progress->rollbackPurposeCounts[$purposeId] ?? null) !== $result->verifiedRecords) {
+                    throw new ApplicationMasterRekeyConflictException(
+                        'Rollback verification does not match its durable purpose count.',
+                    );
+                }
+                $this->database->insert(self::ROLLBACK_VERIFICATION_TABLE)->values([
+                    'request_id' => $requestId,
+                    'purpose_id' => $purposeId,
+                    'verified_records' => $result->verifiedRecords,
+                    'verification_hash' => $result->verificationHash,
+                    'recorded_at' => $now,
+                ])->execute();
+                $evidence[$purposeId] = [
+                    'verified_records' => $result->verifiedRecords,
+                    'verification_hash' => $result->verificationHash,
+                ];
+            }
+            $updated = $this->database->update(self::ADAPTER_TABLE)->fields([
+                'rollback_status' => 'complete',
+                'revision' => $expectedAdapterRevision + 1,
+            ])->condition('request_id', $requestId)
+                ->condition('adapter_id', $adapterId)
+                ->condition('revision', $expectedAdapterRevision)
+                ->execute();
+            if ($updated !== 1) {
+                throw new ApplicationMasterRekeyConflictException(
+                    'The application-master rollback adapter completion changed concurrently.',
+                );
+            }
+            $this->advanceRequestProjection($record, ApplicationMasterRekeyState::RollingBack, $now);
+            $this->appendEvent($requestId, 'adapter-rollback-completed', [
+                'adapter_id' => $adapterId,
+                'cursor' => $expectedCursor,
+                'rolled_back_records' => $progress->rolledBackRecords,
+                'purpose_counts' => $progress->rollbackPurposeCounts,
+                'rollback_chain_hash' => $progress->rollbackChainHash,
+                'verifications' => $evidence,
+            ], $now);
+            unset($this->recordCache[$requestId]);
+
+            return $this->requireFresh($requestId);
+        });
+    }
+
+    public function completeRollback(
+        string $requestId,
+        int $expectedRequestRevision,
+        string $completionHash,
+        int $completedAt,
+    ): ApplicationMasterRekeyRecord {
+        self::assertHash($completionHash, 'rollback completion hash');
+
+        return $this->mutateRequest(
+            $requestId,
+            $expectedRequestRevision,
+            [ApplicationMasterRekeyState::RollingBack],
+            ApplicationMasterRekeyState::RolledBack,
+            'rollback-completed',
+            function (ApplicationMasterRekeyRecord $record) use ($completionHash, $completedAt): array {
+                if ($record->unresolvedFailures !== 0
+                    || !$this->allRollbackAdaptersComplete($record->requestId)
+                    || $completedAt < $record->updatedAt
+                    || $this->masterVersionState($record->fromVersion) !== 'active-write'
+                    || $this->masterVersionState($record->toVersion) !== 'failed-read-only') {
+                    throw new ApplicationMasterRekeyConflictException(
+                        'Application-master rollback completion evidence or version topology is incomplete.',
+                    );
+                }
+
+                return [
+                    'from_version' => $record->fromVersion,
+                    'to_version' => $record->toVersion,
+                    'completion_hash' => $completionHash,
+                    'completed_at' => $completedAt,
+                    'successor_reusable' => false,
+                    'external_destruction_claimed' => false,
+                ];
+            },
+            $completedAt,
+        );
+    }
+
     public function revokePredecessor(
         string $requestId,
         int $expectedRequestRevision,
@@ -1313,6 +1620,15 @@ final class ApplicationMasterRekeyStore
         return $total > 0 && $total === $recorded && $total === $complete;
     }
 
+    private function allRollbackAdaptersComplete(string $requestId): bool
+    {
+        $total = count($this->expectedAdapterIds($requestId));
+        $recorded = $this->countRows(self::ADAPTER_TABLE, $requestId);
+        $complete = $this->countRows(self::ADAPTER_TABLE, $requestId, 'rollback_status', 'complete');
+
+        return $total > 0 && $total === $recorded && $total === $complete;
+    }
+
     private function adapterExists(string $requestId, string $adapterId): bool
     {
         return $this->fetchOne(
@@ -1493,7 +1809,8 @@ final class ApplicationMasterRekeyStore
         }
         $purposeIds = json_decode((string) $row['purpose_ids_json'], true, 32, JSON_THROW_ON_ERROR);
         $purposeCounts = json_decode((string) $row['purpose_counts_json'], true, 32, JSON_THROW_ON_ERROR);
-        if (!is_array($purposeIds) || !is_array($purposeCounts)) {
+        $rollbackPurposeCounts = json_decode((string) $row['rollback_purpose_counts_json'], true, 32, JSON_THROW_ON_ERROR);
+        if (!is_array($purposeIds) || !is_array($purposeCounts) || !is_array($rollbackPurposeCounts)) {
             throw new \RuntimeException('The application-master adapter projection is malformed.');
         }
 
@@ -1508,6 +1825,13 @@ final class ApplicationMasterRekeyStore
             purposeCounts: array_map('intval', $purposeCounts),
             batchChainHash: (string) $row['batch_chain_hash'],
             status: (string) $row['status'],
+            rollbackSnapshotToken: $row['rollback_snapshot_token'] === null ? null : (string) $row['rollback_snapshot_token'],
+            rollbackTotalRecords: (int) $row['rollback_total_records'],
+            rollbackCursor: $row['rollback_cursor'] === null ? null : (string) $row['rollback_cursor'],
+            rolledBackRecords: (int) $row['rolled_back_records'],
+            rollbackPurposeCounts: array_map('intval', $rollbackPurposeCounts),
+            rollbackChainHash: (string) $row['rollback_chain_hash'],
+            rollbackStatus: (string) $row['rollback_status'],
             revision: (int) $row['revision'],
             unresolvedFailures: (int) $row['unresolved_failures'],
         );
@@ -1544,13 +1868,18 @@ final class ApplicationMasterRekeyStore
             self::ADAPTER_TABLE => [
                 'request_id', 'adapter_id', 'purpose_ids_json', 'snapshot_token', 'total_records',
                 'cursor', 'transitioned_records', 'purpose_counts_json', 'batch_chain_hash',
-                'status', 'revision', 'unresolved_failures',
+                'status', 'rollback_snapshot_token', 'rollback_total_records', 'rollback_cursor',
+                'rolled_back_records', 'rollback_purpose_counts_json', 'rollback_chain_hash',
+                'rollback_status', 'revision', 'unresolved_failures',
             ],
             self::FAILURE_TABLE => [
                 'failure_id', 'request_id', 'adapter_id', 'cursor', 'failure_code',
                 'evidence_hash', 'opened_at', 'resolved_at', 'resolution_hash',
             ],
             self::VERIFICATION_TABLE => [
+                'request_id', 'purpose_id', 'verified_records', 'verification_hash', 'recorded_at',
+            ],
+            self::ROLLBACK_VERIFICATION_TABLE => [
                 'request_id', 'purpose_id', 'verified_records', 'verification_hash', 'recorded_at',
             ],
             self::GATE_TABLE => ['request_id', 'gate_id', 'evidence_hash', 'recorded_at'],

@@ -1911,7 +1911,7 @@ candidates before resolving external custody.
 
 This core cryptographic boundary does not itself claim the rekey transition is
 complete. Purpose inventory adapters, joint row transitions, persisted registry
-state, immutable ledger/cursors, resumable compare-and-swap batches, rollback,
+state, immutable ledger/cursors, resumable compare-and-swap batches,
 worker/cache reconciliation, retained-backup compatibility, and predecessor
 revocation gates remain required. Their tables arrive only through DB-02
 versioned migrations; runtime constructors and read-only audits perform zero
@@ -1986,6 +1986,19 @@ owned by the rekey store; parameter-derived physical-database identities are not
 sufficient because distinct connections can share them. Every owner read and CAS
 effect uses the same object supplied through `ApplicationMasterRekeyContext`
 inside the store transaction.
+
+Rollback re-inventories successor-version rows only after the persisted writer
+switch. Every adapter has a separate immutable rollback snapshot, cursor, count
+map, status, and SHA-256 batch chain; forward transition evidence is never
+overwritten. Reverse owner CAS effects and rollback cursor evidence commit in one
+transaction on the exact database authority, and restart resumes from that
+cursor without replay. Callback failures roll owner effects back, retain only a
+stable code and non-secret commitment at the rollback cursor, and require exact
+resolution evidence. An adapter becomes rollback-complete only after immutable
+per-purpose verification matches its durable rollback counts. The request enters
+`rolled-back` only when every composed owner is complete and verified, the
+predecessor remains active, the successor remains failed-read-only, and a final
+non-secret completion hash extends the event chain.
 
 Executable adapters implement one Foundation contract and expose the same
 non-secret `DatabaseIdentityProviderInterface` identity as the rekey store.

@@ -133,6 +133,137 @@ final class ApplicationMasterRekeyCoordinator
         }
     }
 
+    public function snapshotRollbackAdapter(
+        string $requestId,
+        int $expectedRequestRevision,
+        string $adapterId,
+    ): ApplicationMasterAdapterProgress {
+        $adapter = $this->adapter($adapterId);
+        $context = $this->context($requestId);
+        $progress = $this->store->requireAdapter($requestId, $adapterId);
+        try {
+            $snapshot = $this->executeRollbackSnapshot($adapter, $context);
+        } catch (ApplicationMasterAdapterExecutionException $failure) {
+            $this->persistRollbackFailureAndRefuse(
+                $context,
+                $expectedRequestRevision,
+                $progress,
+                'adapter-rollback-snapshot-failed',
+                $failure,
+            );
+        }
+
+        return $this->store->recordAdapterRollbackSnapshot(
+            $requestId,
+            $expectedRequestRevision,
+            $adapterId,
+            $progress->revision,
+            $snapshot->token,
+            $snapshot->totalRecords,
+        );
+    }
+
+    public function rollbackNextBatch(
+        string $requestId,
+        int $expectedRequestRevision,
+        string $adapterId,
+        int $limit,
+    ): ApplicationMasterAdapterProgress {
+        if ($limit < 1 || $limit > 10_000) {
+            throw new \InvalidArgumentException('Application-master rollback batch limits must be between 1 and 10000.');
+        }
+        $adapter = $this->adapter($adapterId);
+        $context = $this->context($requestId);
+        $progress = $this->store->requireAdapter($requestId, $adapterId);
+        if ($progress->rollbackSnapshotToken === null) {
+            throw new ApplicationMasterRekeyConflictException(
+                'The application-master rollback adapter has no immutable snapshot.',
+            );
+        }
+        $snapshot = new ApplicationMasterInventorySnapshot(
+            $progress->rollbackSnapshotToken,
+            $progress->rollbackTotalRecords,
+        );
+
+        try {
+            return $this->store->commitAdapterRollbackOperation(
+                $requestId,
+                $expectedRequestRevision,
+                $adapterId,
+                $progress->revision,
+                $progress->rollbackCursor,
+                fn(): ApplicationMasterBatchResult => $this->executeRollback(
+                    $adapter,
+                    $context,
+                    $snapshot,
+                    $progress->rollbackCursor,
+                    $limit,
+                ),
+            );
+        } catch (ApplicationMasterAdapterExecutionException $failure) {
+            $this->persistRollbackFailureAndRefuse(
+                $context,
+                $expectedRequestRevision,
+                $progress,
+                'adapter-rollback-failed',
+                $failure,
+            );
+        }
+    }
+
+    public function completeRollbackAdapter(
+        string $requestId,
+        int $expectedRequestRevision,
+        string $adapterId,
+    ): ApplicationMasterRekeyRecord {
+        $adapter = $this->adapter($adapterId);
+        $context = $this->context($requestId);
+        $progress = $this->store->requireAdapter($requestId, $adapterId);
+        if ($progress->rollbackSnapshotToken === null) {
+            throw new ApplicationMasterRekeyConflictException(
+                'The application-master rollback adapter has no immutable snapshot.',
+            );
+        }
+        $snapshot = new ApplicationMasterInventorySnapshot(
+            $progress->rollbackSnapshotToken,
+            $progress->rollbackTotalRecords,
+        );
+        try {
+            $results = $this->executeRollbackVerification($adapter, $context, $snapshot);
+        } catch (ApplicationMasterAdapterExecutionException $failure) {
+            $this->persistRollbackFailureAndRefuse(
+                $context,
+                $expectedRequestRevision,
+                $progress,
+                'adapter-rollback-verification-failed',
+                $failure,
+            );
+        }
+
+        return $this->store->completeRollbackAdapter(
+            $requestId,
+            $expectedRequestRevision,
+            $adapterId,
+            $progress->revision,
+            $progress->rollbackCursor,
+            $results,
+        );
+    }
+
+    public function completeRollback(
+        string $requestId,
+        int $expectedRequestRevision,
+        string $completionHash,
+        int $completedAt,
+    ): ApplicationMasterRekeyRecord {
+        return $this->store->completeRollback(
+            $requestId,
+            $expectedRequestRevision,
+            $completionHash,
+            $completedAt,
+        );
+    }
+
     public function completeAdapter(
         string $requestId,
         int $expectedRequestRevision,
@@ -201,9 +332,15 @@ final class ApplicationMasterRekeyCoordinator
     private function context(string $requestId): ApplicationMasterRekeyContext
     {
         $request = $this->store->require($requestId);
+        $rollbackTopology = in_array($request->state, [
+            ApplicationMasterRekeyState::RollingBack,
+            ApplicationMasterRekeyState::RolledBack,
+        ], true);
+        $activeVersion = $rollbackTopology ? $request->fromVersion : $request->toVersion;
+        $readableVersion = $rollbackTopology ? $request->toVersion : $request->fromVersion;
         if ($request->registryChecksum !== $this->purposes->checksum()
-            || $request->toVersion !== $this->keyring->activeVersion()
-            || !in_array($request->fromVersion, $this->keyring->readableVersions(), true)) {
+            || $activeVersion !== $this->keyring->activeVersion()
+            || !in_array($readableVersion, $this->keyring->readableVersions(), true)) {
             throw new ApplicationMasterRekeyConflictException(
                 'The live keyring does not match the immutable rekey request.',
             );
@@ -244,6 +381,44 @@ final class ApplicationMasterRekeyCoordinator
             return $adapter->snapshot($context);
         } catch (\Throwable $failure) {
             throw new ApplicationMasterAdapterExecutionException('snapshot', $failure::class);
+        }
+    }
+
+    private function executeRollbackSnapshot(
+        ApplicationMasterRekeyAdapterInterface $adapter,
+        ApplicationMasterRekeyContext $context,
+    ): ApplicationMasterInventorySnapshot {
+        try {
+            return $adapter->rollbackSnapshot($context);
+        } catch (\Throwable $failure) {
+            throw new ApplicationMasterAdapterExecutionException('rollback-snapshot', $failure::class);
+        }
+    }
+
+    private function executeRollback(
+        ApplicationMasterRekeyAdapterInterface $adapter,
+        ApplicationMasterRekeyContext $context,
+        ApplicationMasterInventorySnapshot $snapshot,
+        ?string $cursor,
+        int $limit,
+    ): ApplicationMasterBatchResult {
+        try {
+            return $adapter->rollbackBatch($context, $snapshot, $cursor, $limit);
+        } catch (\Throwable $failure) {
+            throw new ApplicationMasterAdapterExecutionException('rollback', $failure::class);
+        }
+    }
+
+    /** @return array<string, ApplicationMasterPurposeVerification> */
+    private function executeRollbackVerification(
+        ApplicationMasterRekeyAdapterInterface $adapter,
+        ApplicationMasterRekeyContext $context,
+        ApplicationMasterInventorySnapshot $snapshot,
+    ): array {
+        try {
+            return $adapter->verifyRollback($context, $snapshot);
+        } catch (\Throwable $failure) {
+            throw new ApplicationMasterAdapterExecutionException('rollback-verification', $failure::class);
         }
     }
 
@@ -316,6 +491,37 @@ final class ApplicationMasterRekeyCoordinator
 
         throw new ApplicationMasterRekeyConflictException(
             'The application-master adapter snapshot failure was recorded and must be resolved before retry.',
+        );
+    }
+
+    /** @return never */
+    private function persistRollbackFailureAndRefuse(
+        ApplicationMasterRekeyContext $context,
+        int $expectedRequestRevision,
+        ApplicationMasterAdapterProgress $progress,
+        string $failureCode,
+        ApplicationMasterAdapterExecutionException $failure,
+    ): never {
+        $evidenceHash = hash('sha256', json_encode([
+            'format' => 'waaseyaa.application-master.adapter-failure.v1',
+            'request_digest' => $context->request->requestDigest,
+            'adapter_id' => $progress->adapterId,
+            'cursor' => $progress->rollbackCursor,
+            'operation' => $failure->operation,
+            'failure_class' => $failure->failureClass,
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+        $this->store->recordAdapterFailure(
+            $context->request->requestId,
+            $expectedRequestRevision,
+            $progress->adapterId,
+            $progress->revision,
+            $progress->rollbackCursor,
+            $failureCode,
+            $evidenceHash,
+        );
+
+        throw new ApplicationMasterRekeyConflictException(
+            'The application-master rollback adapter failure was recorded and must be resolved before retry.',
         );
     }
 }

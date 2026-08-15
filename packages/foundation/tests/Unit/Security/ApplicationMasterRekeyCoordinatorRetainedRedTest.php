@@ -335,6 +335,38 @@ final class ApplicationMasterRekeyCoordinatorRetainedRedTest extends TestCase
             [$adapter],
         );
 
+        $adapter->throwOnRollbackSnapshot = true;
+        try {
+            $rollback->snapshotRollbackAdapter(
+                self::REQUEST_ID,
+                $record->revision,
+                self::ADAPTER_ID,
+            );
+            self::fail('A rollback snapshot exception was not persisted.');
+        } catch (ApplicationMasterRekeyConflictException $exception) {
+            self::assertStringContainsString('recorded', $exception->getMessage());
+        }
+        $failed = $store->require(self::REQUEST_ID);
+        $failedProgress = $store->requireAdapter(self::REQUEST_ID, self::ADAPTER_ID);
+        self::assertSame(1, $failed->unresolvedFailures);
+        self::assertNull($failedProgress->rollbackSnapshotToken);
+        $failure = $database->getConnection()->fetchAssociative(
+            'SELECT failure_code, evidence_hash FROM waaseyaa_application_master_rekey_failure WHERE resolved_at IS NULL',
+        );
+        self::assertIsArray($failure);
+        self::assertSame('adapter-rollback-snapshot-failed', $failure['failure_code']);
+        self::assertStringNotContainsString(
+            'synthetic-rollback-snapshot-secret-shaped-detail',
+            json_encode($failure, JSON_THROW_ON_ERROR),
+        );
+        $record = $store->resolveAdapterFailure(
+            self::REQUEST_ID,
+            $failed->revision,
+            self::ADAPTER_ID,
+            $failedProgress->revision,
+            hash('sha256', 'synthetic-rollback-snapshot-resolution'),
+        );
+        $adapter->throwOnRollbackSnapshot = false;
         $progress = $rollback->snapshotRollbackAdapter(
             self::REQUEST_ID,
             $record->revision,
@@ -342,6 +374,43 @@ final class ApplicationMasterRekeyCoordinatorRetainedRedTest extends TestCase
         );
         self::assertSame(2, $progress->rollbackTotalRecords);
         self::assertNull($progress->rollbackCursor);
+
+        $adapter->throwOnRollback = true;
+        try {
+            $rollback->rollbackNextBatch(
+                self::REQUEST_ID,
+                $store->require(self::REQUEST_ID)->revision,
+                self::ADAPTER_ID,
+                1,
+            );
+            self::fail('A rollback batch exception was not persisted.');
+        } catch (ApplicationMasterRekeyConflictException $exception) {
+            self::assertStringContainsString('recorded', $exception->getMessage());
+        }
+        $failed = $store->require(self::REQUEST_ID);
+        $failedProgress = $store->requireAdapter(self::REQUEST_ID, self::ADAPTER_ID);
+        self::assertSame(1, $failed->unresolvedFailures);
+        self::assertNull($failedProgress->rollbackCursor);
+        self::assertSame(2, (int) $database->getConnection()->fetchOne(
+            'SELECT COUNT(*) FROM synthetic_secret_row WHERE master_version = 2',
+        ));
+        $failure = $database->getConnection()->fetchAssociative(
+            'SELECT failure_code, evidence_hash FROM waaseyaa_application_master_rekey_failure WHERE resolved_at IS NULL',
+        );
+        self::assertIsArray($failure);
+        self::assertSame('adapter-rollback-failed', $failure['failure_code']);
+        self::assertStringNotContainsString(
+            'synthetic-rollback-secret-shaped-detail',
+            json_encode($failure, JSON_THROW_ON_ERROR),
+        );
+        $store->resolveAdapterFailure(
+            self::REQUEST_ID,
+            $failed->revision,
+            self::ADAPTER_ID,
+            $failedProgress->revision,
+            hash('sha256', 'synthetic-rollback-batch-resolution'),
+        );
+        $adapter->throwOnRollback = false;
         $first = $rollback->rollbackNextBatch(
             self::REQUEST_ID,
             $store->require(self::REQUEST_ID)->revision,
@@ -391,6 +460,9 @@ final class ApplicationMasterRekeyCoordinatorRetainedRedTest extends TestCase
         self::assertSame(ApplicationMasterRekeyState::RolledBack, $rolledBack->state);
         self::assertSame('active-write', $restartedStore->masterVersionState(1));
         self::assertSame('failed-read-only', $restartedStore->masterVersionState(2));
+        self::assertSame(1, (int) $database->getConnection()->fetchOne(
+            'SELECT COUNT(*) FROM waaseyaa_application_master_rekey_rollback_verification',
+        ));
 
         $rows = $database->getConnection()->fetchAllAssociative(
             'SELECT row_id, master_version, envelope_json FROM synthetic_secret_row ORDER BY row_id',
@@ -577,6 +649,8 @@ final class SyntheticAtomicRekeyAdapter implements ApplicationMasterRekeyAdapter
     public bool $returnMalformedResult = false;
     public bool $throwOnTransition = false;
     public bool $throwOnVerification = false;
+    public bool $throwOnRollbackSnapshot = false;
+    public bool $throwOnRollback = false;
 
     /** @var array<string, int> */
     public array $transitionedById = [];
@@ -702,6 +776,9 @@ final class SyntheticAtomicRekeyAdapter implements ApplicationMasterRekeyAdapter
         ?string $cursor,
         int $limit,
     ): ApplicationMasterBatchResult {
+        if ($this->throwOnRollback) {
+            throw new \RuntimeException('synthetic-rollback-secret-shaped-detail');
+        }
         $rows = iterator_to_array($context->database->query(sprintf(
             'SELECT * FROM synthetic_secret_row WHERE master_version = :version AND row_id > :cursor ORDER BY row_id LIMIT %d',
             $limit,
@@ -743,6 +820,9 @@ final class SyntheticAtomicRekeyAdapter implements ApplicationMasterRekeyAdapter
 
     public function rollbackSnapshot(ApplicationMasterRekeyContext $context): ApplicationMasterInventorySnapshot
     {
+        if ($this->throwOnRollbackSnapshot) {
+            throw new \RuntimeException('synthetic-rollback-snapshot-secret-shaped-detail');
+        }
         $rows = iterator_to_array($context->database->query(
             'SELECT row_id, row_revision FROM synthetic_secret_row WHERE master_version = :version ORDER BY row_id',
             ['version' => $context->request->toVersion],
@@ -752,6 +832,29 @@ final class SyntheticAtomicRekeyAdapter implements ApplicationMasterRekeyAdapter
             hash('sha256', json_encode($rows, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)),
             count($rows),
         );
+    }
+
+    public function verifyRollback(
+        ApplicationMasterRekeyContext $context,
+        ApplicationMasterInventorySnapshot $snapshot,
+    ): array {
+        $rows = iterator_to_array($context->database->query(
+            'SELECT row_id, envelope_json FROM synthetic_secret_row WHERE master_version = :version ORDER BY row_id',
+            ['version' => $context->request->fromVersion],
+        ));
+        $commitments = [];
+        foreach ($rows as $row) {
+            $envelope = ApplicationMasterEnvelope::fromArray(
+                json_decode((string) $row['envelope_json'], true, 16, JSON_THROW_ON_ERROR),
+            );
+            $context->keyring->open($envelope);
+            $commitments[] = hash('sha256', (string) $row['envelope_json']);
+        }
+
+        return [$this->purposeId => new ApplicationMasterPurposeVerification(
+            count($rows),
+            hash('sha256', json_encode($commitments, JSON_THROW_ON_ERROR)),
+        )];
     }
 }
 

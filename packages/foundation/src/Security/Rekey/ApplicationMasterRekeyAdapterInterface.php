@@ -38,4 +38,12 @@ interface ApplicationMasterRekeyAdapterInterface
         ?string $cursor,
         int $limit,
     ): ApplicationMasterBatchResult;
+
+    public function rollbackSnapshot(ApplicationMasterRekeyContext $context): ApplicationMasterInventorySnapshot;
+
+    /** @return array<string, ApplicationMasterPurposeVerification> */
+    public function verifyRollback(
+        ApplicationMasterRekeyContext $context,
+        ApplicationMasterInventorySnapshot $snapshot,
+    ): array;
 }

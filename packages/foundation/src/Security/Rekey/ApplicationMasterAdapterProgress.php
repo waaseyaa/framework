@@ -22,6 +22,13 @@ final readonly class ApplicationMasterAdapterProgress
         public array $purposeCounts,
         public string $batchChainHash,
         public string $status,
+        public ?string $rollbackSnapshotToken,
+        public int $rollbackTotalRecords,
+        public ?string $rollbackCursor,
+        public int $rolledBackRecords,
+        public array $rollbackPurposeCounts,
+        public string $rollbackChainHash,
+        public string $rollbackStatus,
         public int $revision,
         public int $unresolvedFailures,
     ) {}
