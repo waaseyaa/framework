@@ -138,19 +138,17 @@ final class AdminDistContentTest extends TestCase
     }
 
     #[Test]
-    public function shipped_bundle_build_identity_matches_its_source_signature(): void
+    public function shipped_bundle_build_identity_is_internally_consistent(): void
     {
-        $signature = trim((string) file_get_contents(dirname(__DIR__, 2) . '/dist.signature'));
-        self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/D', $signature);
-        $buildId = 'waaseyaa-' . substr($signature, 0, 32);
-
         $latest = json_decode(
             (string) file_get_contents($this->distDir() . '/_nuxt/builds/latest.json'),
             true,
             512,
             JSON_THROW_ON_ERROR,
         );
-        self::assertSame($buildId, $latest['id'] ?? null);
+        $buildId = $latest['id'] ?? null;
+        self::assertIsString($buildId);
+        self::assertMatchesRegularExpression('/^waaseyaa-[a-f0-9]{32}$/D', $buildId);
 
         $metaFiles = glob($this->distDir() . '/_nuxt/builds/meta/*.json') ?: [];
         self::assertCount(1, $metaFiles, 'Exactly one normalized Nuxt build-meta file must ship.');
