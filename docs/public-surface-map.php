@@ -22,6 +22,8 @@ return [
     'Waaseyaa\Foundation\Migration\SchemaAuthorityManifest' => 'public',
     'Waaseyaa\Foundation\Log\LoggerInterface' => 'public',
     'Waaseyaa\Foundation\Security\SecretClass' => 'public',
+    'Waaseyaa\Foundation\Security\SecretConsumerInterface' => 'public',
+    'Waaseyaa\Foundation\Security\SecretConsumptionCode' => 'public',
     'Waaseyaa\Foundation\Security\SecretProviderInterface' => 'public',
     'Waaseyaa\Foundation\Security\SecretResolutionCode' => 'public',
     // #2177 F4 — fail-closed reserve/finalize audit port. Lives in foundation

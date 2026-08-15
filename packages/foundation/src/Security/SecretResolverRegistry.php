@@ -23,9 +23,17 @@ final class SecretResolverRegistry
     /** @var array<string, true> */
     private array $policies = [];
 
+    /** @var array<string, class-string<SecretConsumerInterface<mixed>>> */
+    private array $consumers = [];
+
+    /** @var array<string, class-string<SecretConsumerInterface<mixed>>> */
+    private array $consumerIds = [];
+
     private bool $frozen = false;
 
     private readonly string $environment;
+
+    private readonly object $consumerAuthority;
 
     public function __construct(
         private readonly RedactorProcessor $sinkSanitizer,
@@ -34,6 +42,7 @@ final class SecretResolverRegistry
         $environment = strtolower(trim($environment));
         self::assertStableIdentifier($environment, 'environment');
         $this->environment = $environment;
+        $this->consumerAuthority = new \stdClass();
     }
 
     public function registerProvider(SecretProviderInterface $provider): void
@@ -76,6 +85,38 @@ final class SecretResolverRegistry
         }
     }
 
+    /**
+     * @param class-string $consumerClass
+     */
+    public function registerConsumer(string $package, string $consumerClass): void
+    {
+        $this->assertMutable();
+        if (!preg_match('#^[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*$#D', $package)) {
+            throw new \InvalidArgumentException('Secret consumer packages must use vendor/package identifiers.');
+        }
+        if (!is_a($consumerClass, SecretConsumerInterface::class, true)) {
+            throw new \InvalidArgumentException('Secret consumers must implement SecretConsumerInterface.');
+        }
+
+        $id = $consumerClass::id();
+        if (!preg_match('/^waaseyaa\.[a-z0-9.-]+\.v[1-9][0-9]*$/D', $id)) {
+            throw new \InvalidArgumentException('Secret consumer IDs must be versioned Waaseyaa identifiers.');
+        }
+        $purpose = $consumerClass::purpose();
+        if (!preg_match('/^waaseyaa\.[a-z0-9.-]+\.v[1-9][0-9]*$/D', $purpose)) {
+            throw new \InvalidArgumentException('Secret consumer purposes must be versioned Waaseyaa identifiers.');
+        }
+
+        $classKey = implode("\0", [$package, $consumerClass]);
+        $idKey = implode("\0", [$package, $id]);
+        $existingClass = $this->consumerIds[$idKey] ?? null;
+        if ($existingClass !== null && $existingClass !== $consumerClass) {
+            throw new \InvalidArgumentException('Secret consumer IDs must be unique within a package.');
+        }
+        $this->consumers[$classKey] = $consumerClass;
+        $this->consumerIds[$idKey] = $consumerClass;
+    }
+
     public function freeze(): void
     {
         $this->frozen = true;
@@ -110,9 +151,59 @@ final class SecretResolverRegistry
             throw new SecretResolutionException(SecretResolutionCode::ClassMismatch, $reference->fingerprint());
         }
 
-        $value->registerWith($this->sinkSanitizer);
+        try {
+            $value->registerWith($this->sinkSanitizer);
+            $value->bindConsumerAuthority($this->consumerAuthority);
+        } catch (\Throwable) {
+            throw new SecretResolutionException(SecretResolutionCode::ProviderFailure, $reference->fingerprint());
+        }
 
         return $value;
+    }
+
+    /**
+     * Resolve one version and immediately transfer it to an explicitly
+     * registered purpose consumer. No raw bytes are returned to the caller.
+     *
+     * @template T
+     * @param SecretConsumerInterface<T> $consumer
+     * @return T
+     */
+    public function consume(SecretReference $reference, string $package, SecretConsumerInterface $consumer): mixed
+    {
+        if (!$this->frozen) {
+            throw new SecretConsumptionException(
+                SecretConsumptionCode::RegistryNotFrozen,
+                $reference->fingerprint(),
+            );
+        }
+
+        $consumerClass = $consumer::class;
+        $registered = $this->consumers[implode("\0", [$package, $consumerClass])] ?? null;
+        if ($registered !== $consumerClass) {
+            throw new SecretConsumptionException(
+                SecretConsumptionCode::ConsumerNotRegistered,
+                $reference->fingerprint(),
+            );
+        }
+        if ($consumerClass::secretClass() !== $reference->secretClass()
+            || $consumerClass::purpose() !== $reference->purpose()) {
+            throw new SecretConsumptionException(
+                SecretConsumptionCode::ConsumerMismatch,
+                $reference->fingerprint(),
+            );
+        }
+
+        $value = $this->resolve($reference, $package);
+
+        try {
+            return $value->consumeWith($consumer, $this->consumerAuthority);
+        } catch (\Throwable) {
+            throw new SecretConsumptionException(
+                SecretConsumptionCode::ConsumerFailure,
+                $reference->fingerprint(),
+            );
+        }
     }
 
     private function assertMutable(): void

@@ -16,7 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   production-composed resolver registry that enforces exact
   provider/package/class/purpose/environment policy, freezes after provider
   registration, and registers resolved values with the same final sink
-  sanitizer before returning them. Independent review hardening makes
+  sanitizer before returning them. Guarded bytes can cross that boundary only
+  through an explicitly registered class whose package, secret class, and
+  purpose match the reference; each consumption resolves one version and
+  replaces secret-bearing consumer failures with a fixed non-sensitive code.
+  Independent review hardening makes
   overlapping values redact globally longest-first, sanitizes recursive keys,
   wraps custom kernel loggers behind the same sink, canonicalizes environment
   identity, and keeps JSON diagnostics fingerprint-only. Admin generation and

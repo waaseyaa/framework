@@ -21,6 +21,9 @@ final class SensitiveValue implements \JsonSerializable, \Stringable
     /** @var \WeakMap<self, string>|null */
     private static ?\WeakMap $values = null;
 
+    /** @var \WeakMap<self, object>|null */
+    private static ?\WeakMap $consumerAuthorities = null;
+
     private function __construct(
         #[\SensitiveParameter]
         string $bytes,
@@ -60,6 +63,37 @@ final class SensitiveValue implements \JsonSerializable, \Stringable
             throw new \LogicException('Sensitive-value custody is unavailable.');
         }
         $sanitizer->registerSensitiveBytes($this, $bytes);
+    }
+
+    /** @internal Called exactly once by the authority that owns consumption. */
+    public function bindConsumerAuthority(object $authority): void
+    {
+        self::$consumerAuthorities ??= new \WeakMap();
+        $current = self::$consumerAuthorities[$this] ?? null;
+        if ($current !== null && $current !== $authority) {
+            throw new \LogicException('Sensitive-value custody is already bound to another authority.');
+        }
+        self::$consumerAuthorities[$this] = $authority;
+    }
+
+    /**
+     * @template T
+     * @param SecretConsumerInterface<T> $consumer
+     * @return T
+     * @internal The opaque authority is held only by a resolver or guarded handle.
+     */
+    public function consumeWith(SecretConsumerInterface $consumer, object $authority): mixed
+    {
+        $bound = self::$consumerAuthorities[$this] ?? null;
+        if ($bound === null || $bound !== $authority) {
+            throw new \LogicException('Sensitive-value consumption authority is unavailable.');
+        }
+        $bytes = self::$values[$this] ?? null;
+        if (!is_string($bytes)) {
+            throw new \LogicException('Sensitive-value custody is unavailable.');
+        }
+
+        return $consumer->consume($bytes, $this->version);
     }
 
     /** @return array{secret: string, class: string, version: string} */
