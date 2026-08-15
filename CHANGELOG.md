@@ -96,8 +96,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   triggers refuse event update/delete; restart reads preserve exact cursor and
   counts; every registry-implied adapter must complete; and ledger revocation
   requires exact purpose verification plus fleet, cache, rollback, and retained
-  backup/key-horizon evidence. Executable package adapters, failure injection
-  and recovery, forward rollback, and process reconciliation remain incomplete.
+  backup/key-horizon evidence. The store now persists one exact-cursor open
+  failure per inventoried adapter, compare-and-swaps request/adapter failure
+  counts and revisions, blocks replay across restart, and requires a separate
+  non-secret resolution hash before retry; immutable ledger events retain both
+  transitions without storing exception text. Executable package adapters,
+  automatic coordinator failure capture, forward rollback, and process
+  reconciliation remain incomplete.
   A generic coordinator now composes every frozen registry owner exactly once,
   refuses mismatched database identities or purpose rosters before inventory,
   passes adapters the store's exact transaction authority, and commits owner CAS

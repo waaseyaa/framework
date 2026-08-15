@@ -20,6 +20,7 @@ final class ApplicationMasterRekeyStore
     private const string VERSION_TABLE = 'waaseyaa_application_master_version';
     private const string PURPOSE_TABLE = 'waaseyaa_application_master_rekey_purpose';
     private const string ADAPTER_TABLE = 'waaseyaa_application_master_rekey_adapter';
+    private const string FAILURE_TABLE = 'waaseyaa_application_master_rekey_failure';
     private const string VERIFICATION_TABLE = 'waaseyaa_application_master_rekey_verification';
     private const string GATE_TABLE = 'waaseyaa_application_master_rekey_gate';
     private const string EVENT_TABLE = 'waaseyaa_application_master_rekey_event';
@@ -540,6 +541,144 @@ final class ApplicationMasterRekeyStore
                 'batch_chain_hash' => $progress->batchChainHash,
             ], $now);
 
+            unset($this->recordCache[$requestId]);
+
+            return $this->requireFresh($requestId);
+        });
+    }
+
+    public function recordAdapterFailure(
+        string $requestId,
+        int $expectedRequestRevision,
+        string $adapterId,
+        int $expectedAdapterRevision,
+        ?string $expectedCursor,
+        string $failureCode,
+        string $evidenceHash,
+    ): ApplicationMasterRekeyRecord {
+        self::assertStableIdentifier($adapterId, 'adapter id');
+        self::assertStableIdentifier($failureCode, 'failure code');
+        self::assertHash($evidenceHash, 'failure evidence hash');
+        $this->ensureSchema();
+
+        try {
+            return $this->transactional(function () use (
+                $requestId,
+                $expectedRequestRevision,
+                $adapterId,
+                $expectedAdapterRevision,
+                $expectedCursor,
+                $failureCode,
+                $evidenceHash,
+            ): ApplicationMasterRekeyRecord {
+                $record = $this->assertRequestRevision($requestId, $expectedRequestRevision, [
+                    ApplicationMasterRekeyState::EnumerateSnapshot,
+                    ApplicationMasterRekeyState::TransitionBoundedBatches,
+                    ApplicationMasterRekeyState::VerifyEveryPurpose,
+                ]);
+                $progress = $this->requireAdapterFresh($requestId, $adapterId);
+                if ($progress->revision !== $expectedAdapterRevision
+                    || $progress->cursor !== $expectedCursor
+                    || $progress->unresolvedFailures !== 0) {
+                    throw new ApplicationMasterRekeyConflictException(
+                        'The application-master adapter failure projection is stale.',
+                    );
+                }
+
+                $now = $this->now();
+                $this->database->insert(self::FAILURE_TABLE)->values([
+                    'request_id' => $requestId,
+                    'adapter_id' => $adapterId,
+                    'cursor' => $expectedCursor,
+                    'failure_code' => $failureCode,
+                    'evidence_hash' => $evidenceHash,
+                    'opened_at' => $now,
+                    'resolved_at' => null,
+                    'resolution_hash' => null,
+                ])->execute();
+                $this->updateAdapterFailureCount($progress, 1);
+                $this->updateRequestFailureCount($record, 1, $now);
+                $this->appendEvent($requestId, 'adapter-failure-recorded', [
+                    'adapter_id' => $adapterId,
+                    'cursor' => $expectedCursor,
+                    'failure_code' => $failureCode,
+                    'evidence_hash' => $evidenceHash,
+                ], $now);
+                unset($this->recordCache[$requestId]);
+
+                return $this->requireFresh($requestId);
+            });
+        } catch (UniqueConstraintViolationException $exception) {
+            throw new ApplicationMasterRekeyConflictException(
+                'The application-master adapter already has an unresolved failure.',
+                previous: $exception,
+            );
+        }
+    }
+
+    public function resolveAdapterFailure(
+        string $requestId,
+        int $expectedRequestRevision,
+        string $adapterId,
+        int $expectedAdapterRevision,
+        string $resolutionHash,
+    ): ApplicationMasterRekeyRecord {
+        self::assertStableIdentifier($adapterId, 'adapter id');
+        self::assertHash($resolutionHash, 'failure resolution hash');
+        $this->ensureSchema();
+
+        return $this->transactional(function () use (
+            $requestId,
+            $expectedRequestRevision,
+            $adapterId,
+            $expectedAdapterRevision,
+            $resolutionHash,
+        ): ApplicationMasterRekeyRecord {
+            $record = $this->assertRequestRevision($requestId, $expectedRequestRevision, [
+                ApplicationMasterRekeyState::EnumerateSnapshot,
+                ApplicationMasterRekeyState::TransitionBoundedBatches,
+                ApplicationMasterRekeyState::VerifyEveryPurpose,
+            ]);
+            $progress = $this->requireAdapterFresh($requestId, $adapterId);
+            if ($record->unresolvedFailures < 1
+                || $progress->revision !== $expectedAdapterRevision
+                || $progress->unresolvedFailures !== 1) {
+                throw new ApplicationMasterRekeyConflictException(
+                    'The application-master adapter has no exact unresolved failure to resolve.',
+                );
+            }
+            $failure = $this->fetchOne(
+                'SELECT failure_id, cursor, failure_code, evidence_hash FROM ' . self::FAILURE_TABLE
+                    . ' WHERE request_id = :request AND adapter_id = :adapter AND resolved_at IS NULL',
+                ['request' => $requestId, 'adapter' => $adapterId],
+            );
+            if ($failure === null || $progress->cursor !== $failure['cursor']) {
+                throw new ApplicationMasterRekeyConflictException(
+                    'The application-master adapter open failure does not match its durable cursor.',
+                );
+            }
+
+            $now = $this->now();
+            $updated = $this->database->update(self::FAILURE_TABLE)->fields([
+                'resolved_at' => $now,
+                'resolution_hash' => $resolutionHash,
+            ])->condition('failure_id', (int) $failure['failure_id'])
+                ->condition('resolved_at', null, 'IS NULL')
+                ->execute();
+            if ($updated !== 1) {
+                throw new ApplicationMasterRekeyConflictException(
+                    'The application-master adapter failure changed before resolution.',
+                );
+            }
+            $this->updateAdapterFailureCount($progress, -1);
+            $this->updateRequestFailureCount($record, -1, $now);
+            $this->appendEvent($requestId, 'adapter-failure-resolved', [
+                'adapter_id' => $adapterId,
+                'cursor' => $progress->cursor,
+                'failure_code' => (string) $failure['failure_code'],
+                'evidence_hash' => (string) $failure['evidence_hash'],
+                'resolution_hash' => $resolutionHash,
+            ], $now);
             unset($this->recordCache[$requestId]);
 
             return $this->requireFresh($requestId);
@@ -1199,6 +1338,10 @@ final class ApplicationMasterRekeyStore
                 'cursor', 'transitioned_records', 'purpose_counts_json', 'batch_chain_hash',
                 'status', 'revision', 'unresolved_failures',
             ],
+            self::FAILURE_TABLE => [
+                'failure_id', 'request_id', 'adapter_id', 'cursor', 'failure_code',
+                'evidence_hash', 'opened_at', 'resolved_at', 'resolution_hash',
+            ],
             self::VERIFICATION_TABLE => [
                 'request_id', 'purpose_id', 'verified_records', 'verification_hash', 'recorded_at',
             ],
@@ -1251,6 +1394,49 @@ final class ApplicationMasterRekeyStore
     {
         if (!preg_match('/^[a-z0-9][a-z0-9._-]{0,127}$/D', $value)) {
             throw new \InvalidArgumentException(sprintf('Application-master %s must be a stable lowercase identifier.', $label));
+        }
+    }
+
+    private function updateAdapterFailureCount(ApplicationMasterAdapterProgress $progress, int $delta): void
+    {
+        $next = $progress->unresolvedFailures + $delta;
+        if ($next < 0) {
+            throw new ApplicationMasterRekeyConflictException('Application-master adapter failure count underflow.');
+        }
+        $updated = $this->database->update(self::ADAPTER_TABLE)->fields([
+            'unresolved_failures' => $next,
+            'revision' => $progress->revision + 1,
+        ])->condition('request_id', $progress->requestId)
+            ->condition('adapter_id', $progress->adapterId)
+            ->condition('revision', $progress->revision)
+            ->condition('unresolved_failures', $progress->unresolvedFailures)
+            ->execute();
+        if ($updated !== 1) {
+            throw new ApplicationMasterRekeyConflictException(
+                'The application-master adapter failure count changed concurrently.',
+            );
+        }
+    }
+
+    private function updateRequestFailureCount(ApplicationMasterRekeyRecord $record, int $delta, int $updatedAt): void
+    {
+        $next = $record->unresolvedFailures + $delta;
+        if ($next < 0) {
+            throw new ApplicationMasterRekeyConflictException('Application-master request failure count underflow.');
+        }
+        $updated = $this->database->update(self::REQUEST_TABLE)->fields([
+            'unresolved_failures' => $next,
+            'revision' => $record->revision + 1,
+            'updated_at' => $updatedAt,
+        ])->condition('request_id', $record->requestId)
+            ->condition('revision', $record->revision)
+            ->condition('state', $record->state->value)
+            ->condition('unresolved_failures', $record->unresolvedFailures)
+            ->execute();
+        if ($updated !== 1) {
+            throw new ApplicationMasterRekeyConflictException(
+                'The application-master request failure count changed concurrently.',
+            );
         }
     }
 

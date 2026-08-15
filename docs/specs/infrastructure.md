@@ -1927,6 +1927,18 @@ The persisted state vocabulary follows the authorized sequence exactly:
 record an exercised rollback; failures append evidence and block advancement but
 do not erase a resumable state or cursor.
 
+Each inventoried adapter may have at most one open failure at its exact durable
+cursor. Recording a failure compare-and-swaps both adapter and request failure
+counts, advances both revisions without changing the resumable state/cursor, and
+appends only a stable failure code plus non-secret evidence hash. Resolution
+requires the exact request revision, adapter revision, open cursor, and a new
+resolution hash; it closes the mutable failure projection and appends immutable
+resolution evidence before retry is permitted. Exception text, tokens,
+ciphertext, plaintext, and key material are never persisted as failure evidence.
+Restart reconstructs the block from database projections rather than process
+memory. Snapshot-time failure capture and coordinator exception translation are
+separate executable concerns and must not be inferred from the store API alone.
+
 One adapter owns every purpose that shares a storage row. Its immutable snapshot
 binds adapter id, sorted purpose ids, inventory token, and total. Each bounded
 batch commits the owner's joint row CAS effects and the expected prior cursor,

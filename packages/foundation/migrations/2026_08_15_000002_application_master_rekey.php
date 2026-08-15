@@ -84,6 +84,23 @@ return new class extends Migration {
                 CHECK (revision > 0 AND unresolved_failures >= 0),
                 CHECK (status IN ('snapshotted', 'transitioning', 'complete'))
             )",
+            'CREATE TABLE waaseyaa_application_master_rekey_failure (
+                failure_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                request_id TEXT NOT NULL,
+                adapter_id TEXT NOT NULL,
+                cursor TEXT,
+                failure_code TEXT NOT NULL,
+                evidence_hash TEXT NOT NULL,
+                opened_at INTEGER NOT NULL,
+                resolved_at INTEGER,
+                resolution_hash TEXT,
+                FOREIGN KEY (request_id) REFERENCES waaseyaa_application_master_rekey(request_id),
+                CHECK ((resolved_at IS NULL AND resolution_hash IS NULL)
+                    OR (resolved_at IS NOT NULL AND resolution_hash IS NOT NULL))
+            )',
+            'CREATE UNIQUE INDEX waaseyaa_app_master_failure_open_idx
+                ON waaseyaa_application_master_rekey_failure (request_id, adapter_id)
+                WHERE resolved_at IS NULL',
             'CREATE TABLE waaseyaa_application_master_rekey_verification (
                 request_id TEXT NOT NULL,
                 purpose_id TEXT NOT NULL,
