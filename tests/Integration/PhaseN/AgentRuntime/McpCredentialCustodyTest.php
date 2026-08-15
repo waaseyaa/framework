@@ -209,9 +209,10 @@ final class McpCredentialCustodyTest extends TestCase
 
         self::assertTrue($result->isError);
         self::assertSame('remote_error', $result->summary);
+        self::assertStringNotContainsString('CFG04-REMOTE-CANARY', $result->content[0]['text'] ?? '');
         self::assertSame([
             'state' => 'healthy',
-            'reason' => null,
+            'reason' => 'ready',
         ], $health->status('stub'));
     }
 

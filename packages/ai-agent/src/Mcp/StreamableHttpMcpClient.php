@@ -293,16 +293,7 @@ final class StreamableHttpMcpClient
         }
 
         if (isset($decoded['error']) && is_array($decoded['error'])) {
-            $errMessage = isset($decoded['error']['message']) && is_string($decoded['error']['message'])
-                ? $decoded['error']['message']
-                : 'Unknown MCP error';
-            $errCode = isset($decoded['error']['code']) ? (int) $decoded['error']['code'] : 0;
-            throw new \RuntimeException(sprintf(
-                'MCP %s error (code %d): %s',
-                $method,
-                $errCode,
-                $errMessage,
-            ));
+            throw new McpRemoteErrorException();
         }
 
         $result = $decoded['result'] ?? null;

@@ -291,6 +291,16 @@ final class McpClientToolSource
                         message: '{"error":"mcp_server_unavailable"}',
                         summary: 'mcp_server_unavailable',
                     );
+                } catch (McpRemoteErrorException) {
+                    $this->logger->warning('Remote MCP tool call failed: JSON-RPC error', [
+                        'url' => $this->url,
+                        'tool' => $this->remoteName,
+                    ]);
+
+                    return AgentToolResult::error(
+                        message: '{"error":"mcp_remote_error"}',
+                        summary: 'remote_error',
+                    );
                 }
 
                 $blocks = $this->normaliseContent($remote->content);

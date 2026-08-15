@@ -7,6 +7,7 @@ namespace Waaseyaa\AI\Agent\Tests\Unit\Mcp;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\AI\Agent\Mcp\McpRemoteErrorException;
 use Waaseyaa\AI\Agent\Mcp\McpRemoteToolResult;
 use Waaseyaa\AI\Agent\Mcp\McpServerInfo;
 use Waaseyaa\AI\Agent\Mcp\McpServerUnavailableException;
@@ -227,7 +228,7 @@ final class StreamableHttpMcpClientTest extends TestCase
     }
 
     #[Test]
-    public function jsonRpcErrorObjectThrowsRuntimeException(): void
+    public function jsonRpcErrorObjectThrowsFixedRemoteErrorWithoutRemoteMessage(): void
     {
         $http = new StubHttpClient();
         $http->enqueueJson([
@@ -238,8 +239,8 @@ final class StreamableHttpMcpClientTest extends TestCase
 
         $client = new StreamableHttpMcpClient($http);
 
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessageMatches('/Method not found/');
+        $this->expectException(McpRemoteErrorException::class);
+        $this->expectExceptionMessage('MCP server returned a remote JSON-RPC error.');
         $client->callTool('https://example.invalid/mcp', null, 'missing', []);
     }
 }
