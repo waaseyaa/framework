@@ -27,8 +27,13 @@ final class OidcSecretStorageTest extends TestCase
         $stored = (string) $db->getConnection()->fetchOne('SELECT private_key_pem FROM oidc_signing_key');
 
         self::assertStringStartsWith('secretbox.hkdf-v1:', $stored);
-        self::assertStringNotContainsString((string) $key->privateKeyPem, $stored);
-        self::assertSame($key->privateKeyPem, $repository->currentKey()->privateKeyPem);
+        self::assertStringNotContainsString('PRIVATE KEY', $stored);
+        self::assertSame($key->kid, $repository->currentKey()->kid);
+        $signature = $repository->currentSigner()->sign('cfg04-storage-test');
+        self::assertSame(
+            1,
+            openssl_verify('cfg04-storage-test', $signature, $key->publicKeyPem, OPENSSL_ALGO_SHA256),
+        );
     }
 
     #[Test]
@@ -75,7 +80,7 @@ final class OidcSecretStorageTest extends TestCase
         );
 
         $this->expectException(\RuntimeException::class);
-        $repository->currentKey();
+        $repository->currentSigner();
     }
 
     #[Test]
@@ -96,9 +101,14 @@ final class OidcSecretStorageTest extends TestCase
         $counts = new LegacyOidcSecretMigrator($db, ...$keys)->migrate();
 
         self::assertSame(['signing_keys' => 1, 'access_tokens' => 1, 'refresh_tokens' => 1], $counts);
-        self::assertSame($keyPair['private'], (new SigningKeyRepository($db, $keys[0]))->currentKey()->privateKeyPem);
-        self::assertSame('access', (new AccessTokenIssuer($db, $keys[1], $keys[2]))->findByOpaqueToken('legacy-access')['jti'] ?? null);
-        self::assertSame('refresh', (new RefreshTokenIssuer($db, $keys[3], $keys[4]))->findByToken('legacy-refresh')?->jti);
+        $repository = new SigningKeyRepository($db, $keys[0]);
+        $signature = $repository->currentSigner()->sign('cfg04-migration-test');
+        self::assertSame(
+            1,
+            openssl_verify('cfg04-migration-test', $signature, $keyPair['public'], OPENSSL_ALGO_SHA256),
+        );
+        self::assertSame('access', new AccessTokenIssuer($db, $keys[1], $keys[2])->findByOpaqueToken('legacy-access')['jti'] ?? null);
+        self::assertSame('refresh', new RefreshTokenIssuer($db, $keys[3], $keys[4])->findByToken('legacy-refresh')?->jti);
     }
 
     #[Test]

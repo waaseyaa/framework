@@ -10,7 +10,9 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Waaseyaa\Oidc\Keys\OpenSslKeyFactory;
+use Waaseyaa\Oidc\Keys\RsaSigningKeySigner;
 use Waaseyaa\Oidc\Keys\SigningKey;
+use Waaseyaa\Oidc\Keys\SigningKeySignerInterface;
 use Waaseyaa\Oidc\Token\IdTokenMinter;
 use Waaseyaa\Oidc\Token\KeyMaterialProviderInterface;
 
@@ -102,12 +104,17 @@ final class IdTokenMinterTest extends TestCase
     }
 
     #[Test]
-    public function throwsWhenNoSigningKeyHasPrivateKey(): void
+    public function throwsWhenNoSigningHandleIsAvailable(): void
     {
-        $provider = new class () implements KeyMaterialProviderInterface {
+        $provider = new class implements KeyMaterialProviderInterface {
             public function currentKey(): SigningKey
             {
-                return new SigningKey('key-1', 'RS256', 'dummy-public-pem', null);
+                return new SigningKey('key-1', 'RS256', 'dummy-public-pem');
+            }
+
+            public function currentSigner(): SigningKeySignerInterface
+            {
+                throw new RuntimeException('No signing handle is available.');
             }
 
             public function allActive(): array
@@ -128,10 +135,15 @@ final class IdTokenMinterTest extends TestCase
     {
         // IdTokenMinter always uses currentKey() — this test verifies that a key
         // with no private PEM causes a RuntimeException when signing is attempted.
-        $provider = new class () implements KeyMaterialProviderInterface {
+        $provider = new class implements KeyMaterialProviderInterface {
             public function currentKey(): SigningKey
             {
-                return new SigningKey('key-1', 'ES256', 'dummy-public-pem', null);
+                return new SigningKey('key-1', 'ES256', 'dummy-public-pem');
+            }
+
+            public function currentSigner(): SigningKeySignerInterface
+            {
+                throw new RuntimeException('No RS256 signing handle is available.');
             }
 
             public function allActive(): array
@@ -158,7 +170,12 @@ final class IdTokenMinterTest extends TestCase
 
             public function currentKey(): SigningKey
             {
-                return new SigningKey($this->key_id, 'RS256', $this->public_pem, $this->private_pem);
+                return new SigningKey($this->key_id, 'RS256', $this->public_pem);
+            }
+
+            public function currentSigner(): SigningKeySignerInterface
+            {
+                return RsaSigningKeySigner::fromPrivatePem($this->currentKey(), $this->private_pem);
             }
 
             public function allActive(): array

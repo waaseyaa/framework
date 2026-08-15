@@ -8,15 +8,16 @@ use DateTimeImmutable;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\Schema\SchemaRequirement;
 use Waaseyaa\Oidc\Keys\OpenSslKeyFactory;
+use Waaseyaa\Oidc\Keys\RsaSigningKeySigner;
 use Waaseyaa\Oidc\Keys\SigningKey;
+use Waaseyaa\Oidc\Keys\SigningKeySignerInterface;
 use Waaseyaa\Oidc\Security\SecretBoxEnvelope;
 
 /**
  * DB-backed signing key repository.
  *
- * Rotation policy: keep current (rotated_out_at IS NULL) + one previous.
- * Older keys are pruned atomically on each rotate() call.
- * Auto-bootstraps a first key on empty table so cold-start auth requests succeed.
+ * Read paths never initialize or rotate. Explicit lifecycle operations retain
+ * every verification predecessor until a later policy-governed cleanup.
  *
  * Private-key PEM values are persisted only in versioned sodium secretbox
  * envelopes under the application-derived OIDC signing-key purpose.
@@ -40,8 +41,7 @@ final class SigningKeyRepository
     }
 
     /**
-     * The current signing key (rotated_out_at IS NULL).
-     * Auto-generates one if the table is empty.
+     * The current signing key metadata (rotated_out_at IS NULL).
      */
     public function currentKey(): SigningKey
     {
@@ -52,8 +52,27 @@ final class SigningKeyRepository
             return $this->hydrate($row);
         }
 
-        // Auto-bootstrap first key on empty table
-        return $this->rotate();
+        throw new \RuntimeException(
+            'OIDC signing-key custody has no active key; run the explicit authorized initialization command.',
+        );
+    }
+
+    public function currentSigner(): SigningKeySignerInterface
+    {
+        $this->assertSchemaAvailable();
+        $row = $this->fetchCurrent();
+        if ($row === null) {
+            throw new \RuntimeException(
+                'OIDC signing-key custody has no active key; run the explicit authorized initialization command.',
+            );
+        }
+
+        $key = $this->hydrate($row);
+        $privateKeyPem = $this->envelope->open((string) $row['private_key_pem']);
+        $signer = RsaSigningKeySigner::fromPrivatePem($key, $privateKeyPem);
+        unset($privateKeyPem);
+
+        return $signer;
     }
 
     /**
@@ -84,14 +103,18 @@ final class SigningKeyRepository
     {
         $this->assertSchemaAvailable();
 
-        $current = $this->currentKey();
-        $prev = $this->previousKey();
-
-        if ($prev !== null) {
-            return [$current, $prev];
+        $this->currentKey();
+        $keys = [];
+        foreach (
+            $this->database->query(
+                'SELECT * FROM ' . self::TABLE . ' ORDER BY CASE WHEN rotated_out_at IS NULL THEN 0 ELSE 1 END, rotated_out_at DESC, created_at DESC, kid ASC',
+            ) as $row
+        ) {
+            /** @var array<string, mixed> $row */
+            $keys[] = $this->hydrate($row);
         }
 
-        return [$current];
+        return $keys;
     }
 
     /**
@@ -104,44 +127,42 @@ final class SigningKeyRepository
     {
         $this->assertSchemaAvailable();
 
-        $now = new DateTimeImmutable();
-        $nowTs = $now->getTimestamp();
-
-        // Mark current as rotated-out
-        $this->database->query(
-            'UPDATE ' . self::TABLE . ' SET rotated_out_at = ? WHERE rotated_out_at IS NULL',
-            [$nowTs],
-        );
-
-        // Prune keys older than the one we just rotated out (keep only current + previous)
-        $this->database->query(
-            'DELETE FROM ' . self::TABLE . ' WHERE rotated_out_at IS NOT NULL AND rotated_out_at < ?',
-            [$nowTs],
-        );
-
         $keyPair = new OpenSslKeyFactory()->generateRsaKeyPair();
         $privateKeyPem = $keyPair['private'];
         $publicKeyPem = $keyPair['public'];
-
         $kid = $this->uuid();
+        $now = new DateTimeImmutable();
+        $nowTs = $now->getTimestamp();
+        $transaction = $this->database->transaction('oidc-signing-key-rotate');
+        try {
+            $this->database->update(self::TABLE)
+                ->fields(['rotated_out_at' => $nowTs])
+                ->condition('rotated_out_at', null, 'IS NULL')
+                ->execute();
+            $this->database->insert(self::TABLE)
+                ->values([
+                    'kid' => $kid,
+                    'algorithm' => self::ALGORITHM,
+                    'private_key_pem' => $this->envelope->seal($privateKeyPem),
+                    'public_key_pem' => $publicKeyPem,
+                    'created_at' => $nowTs,
+                    'rotated_out_at' => null,
+                ])
+                ->execute();
+            $transaction->commit();
+        } catch (\Throwable $exception) {
+            try {
+                $transaction->rollBack();
+            } catch (\Throwable) {
+            }
+            throw $exception;
+        } finally {
+            if (function_exists('sodium_memzero')) {
+                sodium_memzero($privateKeyPem);
+            }
+        }
 
-        $this->database->insert(self::TABLE)
-            ->values([
-                'kid' => $kid,
-                'algorithm' => self::ALGORITHM,
-                'private_key_pem' => $this->envelope->seal($privateKeyPem),
-                'public_key_pem' => $publicKeyPem,
-                'created_at' => $nowTs,
-                'rotated_out_at' => null,
-            ])
-            ->execute();
-
-        return new SigningKey(
-            kid: $kid,
-            algorithm: self::ALGORITHM,
-            publicKeyPem: $publicKeyPem,
-            privateKeyPem: $privateKeyPem,
-        );
+        return new SigningKey($kid, self::ALGORITHM, $publicKeyPem);
     }
 
     private function fetchCurrent(): ?array
@@ -183,7 +204,6 @@ final class SigningKeyRepository
             kid: (string) $row['kid'],
             algorithm: (string) $row['algorithm'],
             publicKeyPem: (string) $row['public_key_pem'],
-            privateKeyPem: $this->envelope->open((string) $row['private_key_pem']),
         );
     }
 

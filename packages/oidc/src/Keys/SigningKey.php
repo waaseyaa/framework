@@ -10,6 +10,5 @@ final readonly class SigningKey
         public string $kid,
         public string $algorithm,
         public string $publicKeyPem,
-        public ?string $privateKeyPem = null,
     ) {}
 }

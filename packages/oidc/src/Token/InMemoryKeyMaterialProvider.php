@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Oidc\Token;
 
-use RuntimeException;
 use Waaseyaa\Oidc\Keys\OidcKeyLoaderInterface;
 use Waaseyaa\Oidc\Keys\SigningKey;
+use Waaseyaa\Oidc\Keys\SigningKeySignerInterface;
 
 /**
  * File-backed KeyMaterialProvider — delegates to the existing OidcKeyLoaderInterface.
@@ -20,13 +20,12 @@ final readonly class InMemoryKeyMaterialProvider implements KeyMaterialProviderI
 
     public function currentKey(): SigningKey
     {
-        foreach ($this->keyLoader->loadSigningKeys() as $key) {
-            if ($key->algorithm === 'RS256' && $key->privateKeyPem !== null) {
-                return $key;
-            }
-        }
+        return $this->currentSigner()->key();
+    }
 
-        throw new RuntimeException('No RS256 signing key with private key material is available.');
+    public function currentSigner(): SigningKeySignerInterface
+    {
+        return $this->keyLoader->loadCurrentSigner();
     }
 
     public function allActive(): array
