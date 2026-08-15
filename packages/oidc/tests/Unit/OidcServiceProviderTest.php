@@ -8,6 +8,10 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use Waaseyaa\Database\DatabaseInterface;
+use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Oidc\Discovery\DiscoveryController;
 use Waaseyaa\Oidc\Entity\OidcClient;
 use Waaseyaa\Oidc\Jwks\JwksController;
@@ -15,6 +19,8 @@ use Waaseyaa\Oidc\Keys\OidcKeyLoaderInterface;
 use Waaseyaa\Oidc\Keys\OpenSslKeyFactory;
 use Waaseyaa\Oidc\Keys\PemFileKeyLoader;
 use Waaseyaa\Oidc\OidcServiceProvider;
+use Waaseyaa\Oidc\Tests\Support\OidcSchema;
+use Waaseyaa\Oidc\Token\KeyMaterialProviderInterface;
 
 #[CoversClass(OidcServiceProvider::class)]
 final class OidcServiceProviderTest extends TestCase
@@ -154,7 +160,7 @@ final class OidcServiceProviderTest extends TestCase
     }
 
     #[Test]
-    public function registerBindsJwksControllerUsingResolvedKeyLoader(): void
+    public function issuerJwksUsesDatabaseLifecycleEvenWhenFileKeysAreConfigured(): void
     {
         [$publicPath] = $this->writeRsaKeypair('jwks-key');
 
@@ -168,6 +174,7 @@ final class OidcServiceProviderTest extends TestCase
             ],
         ], []);
 
+        $databaseKey = $this->attachSigningServices($provider);
         $provider->register();
 
         $controller = $provider->resolve(JwksController::class);
@@ -175,7 +182,12 @@ final class OidcServiceProviderTest extends TestCase
 
         $body = json_decode((string) ($controller)()->getContent(), true, 512, JSON_THROW_ON_ERROR);
         self::assertCount(1, $body['keys']);
-        self::assertSame('jwks-key', $body['keys'][0]['kid']);
+        self::assertSame($databaseKey->kid, $body['keys'][0]['kid']);
+        self::assertNotSame('jwks-key', $body['keys'][0]['kid']);
+        self::assertInstanceOf(
+            \Waaseyaa\Oidc\Key\RealKeyMaterialProvider::class,
+            $provider->resolve(KeyMaterialProviderInterface::class),
+        );
     }
 
     #[Test]
@@ -225,6 +237,7 @@ final class OidcServiceProviderTest extends TestCase
             ],
         ], []);
 
+        $this->attachSigningServices($provider);
         $provider->register();
 
         self::assertSame(
@@ -252,5 +265,36 @@ final class OidcServiceProviderTest extends TestCase
         file_put_contents($privatePath, $keyPair['private']);
 
         return [$publicPath, $privatePath];
+    }
+
+    private function attachSigningServices(OidcServiceProvider $provider): \Waaseyaa\Oidc\Keys\SigningKey
+    {
+        $database = DBALDatabase::createSqlite();
+        OidcSchema::installSigningKeys($database);
+        $applicationSecret = ApplicationSecret::fromEnvironmentValue(
+            'base64:' . base64_encode(random_bytes(32)),
+            'testing',
+        );
+        $key = new \Waaseyaa\Oidc\Key\SigningKeyRepository(
+            $database,
+            $applicationSecret->derive(ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION),
+        )->initialize();
+        $provider->setKernelServices(new class ($database, $applicationSecret) implements KernelServicesInterface {
+            public function __construct(
+                private readonly DatabaseInterface $database,
+                private readonly ApplicationSecret $applicationSecret,
+            ) {}
+
+            public function get(string $abstract): ?object
+            {
+                return match ($abstract) {
+                    DatabaseInterface::class => $this->database,
+                    ApplicationSecret::class => $this->applicationSecret,
+                    default => null,
+                };
+            }
+        });
+
+        return $key;
     }
 }

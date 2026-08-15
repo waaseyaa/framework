@@ -27,6 +27,10 @@ final class PemFileKeyLoader implements OidcKeyLoaderInterface
         }
 
         ksort($config);
+        $policy = new SigningAlgorithmPolicy();
+        foreach ($config as $entry) {
+            $policy->assertAllowed($entry['algorithm'] ?? 'RS256');
+        }
 
         return new self($config);
     }

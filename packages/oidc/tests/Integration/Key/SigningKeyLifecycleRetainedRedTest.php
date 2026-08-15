@@ -7,6 +7,7 @@ namespace Waaseyaa\Oidc\Tests\Integration\Key;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Oidc\Key\SigningKeyLifecyclePolicy;
 use Waaseyaa\Oidc\Key\SigningKeyRepository;
 use Waaseyaa\Oidc\Tests\Support\OidcSchema;
 
@@ -18,7 +19,7 @@ final class SigningKeyLifecycleRetainedRedTest extends TestCase
     {
         $database = DBALDatabase::createSqlite();
         OidcSchema::installSigningKeys($database);
-        $repository = new SigningKeyRepository($database, random_bytes(32));
+        $repository = $this->repository($database);
 
         $thrown = null;
         try {
@@ -36,7 +37,7 @@ final class SigningKeyLifecycleRetainedRedTest extends TestCase
     {
         $database = DBALDatabase::createSqlite();
         OidcSchema::installSigningKeys($database);
-        $repository = new SigningKeyRepository($database, random_bytes(32));
+        $repository = $this->repository($database);
 
         $key = $repository->rotate();
         $publicProperties = array_keys(get_object_vars($key));
@@ -50,14 +51,14 @@ final class SigningKeyLifecycleRetainedRedTest extends TestCase
     {
         $database = DBALDatabase::createSqlite();
         OidcSchema::installSigningKeys($database);
-        $repository = new SigningKeyRepository($database, random_bytes(32));
+        $repository = $this->repository($database);
         $active = $repository->rotate();
         $database->getConnection()->executeStatement(
             "CREATE TRIGGER refuse_oidc_successor BEFORE INSERT ON oidc_signing_key BEGIN SELECT RAISE(ABORT, 'synthetic successor refusal'); END",
         );
 
         try {
-            $repository->rotate();
+            $repository->stageSuccessor();
             self::fail('The synthetic successor insert must fail.');
         } catch (\Throwable) {
         }
@@ -65,7 +66,7 @@ final class SigningKeyLifecycleRetainedRedTest extends TestCase
         self::assertSame(
             $active->kid,
             $database->getConnection()->fetchOne(
-                'SELECT kid FROM oidc_signing_key WHERE rotated_out_at IS NULL',
+                "SELECT kid FROM oidc_signing_key WHERE state = 'active-sign-and-verify'",
             ),
         );
     }
@@ -75,18 +76,31 @@ final class SigningKeyLifecycleRetainedRedTest extends TestCase
     {
         $database = DBALDatabase::createSqlite();
         OidcSchema::installSigningKeys($database);
-        $repository = new SigningKeyRepository($database, random_bytes(32));
+        $repository = $this->repository($database);
 
-        $first = $repository->rotate();
-        $repository->rotate();
-        $database->getConnection()->update(
-            'oidc_signing_key',
-            ['rotated_out_at' => 1],
-            ['kid' => $first->kid],
-        );
-        $repository->rotate();
+        $first = $repository->initialize();
+        $second = $repository->stageSuccessor();
+        $repository->recordPropagation($second->kid, hash('sha256', 'second'));
+        $repository->activateSuccessor($second->kid, $first->version);
+        $third = $repository->stageSuccessor();
+        $repository->recordPropagation($third->kid, hash('sha256', 'third'));
+        $repository->activateSuccessor($third->kid, $second->version);
 
         self::assertSame(3, $this->rowCount($database));
+    }
+
+    private function repository(DBALDatabase $database): SigningKeyRepository
+    {
+        return new SigningKeyRepository(
+            database: $database,
+            encryptionKey: random_bytes(32),
+            lifecyclePolicy: new SigningKeyLifecyclePolicy(
+                maximumTokenLifetimeSeconds: 3_600,
+                maximumClockSkewSeconds: 0,
+                jwksCacheLifetimeSeconds: 0,
+                propagationMarginSeconds: 0,
+            ),
+        );
     }
 
     private function rowCount(DBALDatabase $database): int

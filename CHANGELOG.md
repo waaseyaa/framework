@@ -51,8 +51,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   neutralize dotenv and local Nuxt/npm configuration, classify npm failures
   before line-scoped output sanitization, enforce bounded child output/runtime,
   and deterministically inventory and scan generated, cached, source-map, and
-  symlink-free publishable artifacts before readable static publication. Signing custody and the
-  versioned application-master transition remain deliberately unimplemented.
+  symlink-free publishable artifacts before readable static publication.
+  OIDC signing custody now separates public metadata from non-exporting signer
+  handles, refuses read-time initialization, publishes one verify-only successor
+  through an evidenced JWKS cache horizon, transactionally activates it with a
+  monotonic version fence, retains every predecessor through the full token,
+  skew, cache, and propagation margin, and exposes only explicit confirmed
+  lifecycle commands. Issuer signing and JWKS composition always use the
+  migration-backed lifecycle even when compatibility PEM loaders are configured.
+  This removes the former immediate oidc:rotate-signing-key surface and public
+  private-PEM property, a **breaking** correction. Emergency compromise handling
+  and the versioned application-master transition remain separate incomplete
+  slices.
 - **configuration schema and sync authority (`S1-FW-CFG-03`):** Add the strict
   v1 configuration contract with closed recursive schema validation, separate
   default-materialized effective documents, versioned canonical encoding,

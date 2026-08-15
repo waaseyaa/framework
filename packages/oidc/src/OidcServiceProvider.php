@@ -24,16 +24,17 @@ use Waaseyaa\Oidc\Entity\OidcClient;
 use Waaseyaa\Oidc\Jwks\JwksController;
 use Waaseyaa\Oidc\Jwks\JwksDocumentBuilder;
 use Waaseyaa\Oidc\Key\RealKeyMaterialProvider;
+use Waaseyaa\Oidc\Key\SigningKeyLifecyclePolicy;
 use Waaseyaa\Oidc\Key\SigningKeyRepository;
 use Waaseyaa\Oidc\Keys\OidcKeyLoaderInterface;
 use Waaseyaa\Oidc\Keys\PemFileKeyLoader;
+use Waaseyaa\Oidc\Keys\SigningAlgorithmPolicy;
 use Waaseyaa\Oidc\Repository\AuthorizationCodeRepositoryInterface;
 use Waaseyaa\Oidc\Repository\DatabaseAuthorizationCodeRepository;
 use Waaseyaa\Oidc\Revoke\RevocationController;
 use Waaseyaa\Oidc\Security\LegacyOidcSecretMigrator;
 use Waaseyaa\Oidc\Token\AccessTokenIssuer;
 use Waaseyaa\Oidc\Token\IdTokenMinter;
-use Waaseyaa\Oidc\Token\InMemoryKeyMaterialProvider;
 use Waaseyaa\Oidc\Token\KeyMaterialProviderInterface;
 use Waaseyaa\Oidc\Token\PkceVerifier;
 use Waaseyaa\Oidc\Token\RefreshTokenGrantHandler;
@@ -67,6 +68,33 @@ final class OidcServiceProvider extends ServiceProvider
         );
 
         $this->singleton(
+            SigningKeyLifecyclePolicy::class,
+            fn(): SigningKeyLifecyclePolicy => new SigningKeyLifecyclePolicy(
+                maximumTokenLifetimeSeconds: $this->lifecycleDuration(
+                    'maximum_token_lifetime_seconds',
+                    7_776_000,
+                ),
+                maximumClockSkewSeconds: $this->lifecycleDuration(
+                    'maximum_clock_skew_seconds',
+                    300,
+                ),
+                jwksCacheLifetimeSeconds: $this->lifecycleDuration(
+                    'jwks_cache_lifetime_seconds',
+                    86_400,
+                ),
+                propagationMarginSeconds: $this->lifecycleDuration(
+                    'propagation_margin_seconds',
+                    300,
+                ),
+            ),
+        );
+
+        $this->singleton(
+            SigningAlgorithmPolicy::class,
+            static fn(): SigningAlgorithmPolicy => new SigningAlgorithmPolicy(),
+        );
+
+        $this->singleton(
             SigningKeyRepository::class,
             function (): SigningKeyRepository {
                 $database = $this->resolveDatabase();
@@ -77,29 +105,24 @@ final class OidcServiceProvider extends ServiceProvider
                 return new SigningKeyRepository(
                     database: $database,
                     encryptionKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION),
+                    lifecyclePolicy: $this->resolve(SigningKeyLifecyclePolicy::class),
                 );
             },
         );
 
         $this->singleton(
             KeyMaterialProviderInterface::class,
-            function (): KeyMaterialProviderInterface {
-                if ($this->hasConfiguredFileKeys()) {
-                    return new InMemoryKeyMaterialProvider(
-                        keyLoader: $this->resolve(OidcKeyLoaderInterface::class),
-                    );
-                }
-
-                return new RealKeyMaterialProvider(
-                    repository: $this->resolve(SigningKeyRepository::class),
-                );
-            },
+            fn(): KeyMaterialProviderInterface => new RealKeyMaterialProvider(
+                repository: $this->resolve(SigningKeyRepository::class),
+            ),
         );
 
         // JWKS + discovery
         $this->singleton(
             JwksDocumentBuilder::class,
-            static fn(): JwksDocumentBuilder => new JwksDocumentBuilder(),
+            fn(): JwksDocumentBuilder => new JwksDocumentBuilder(
+                algorithmPolicy: $this->resolve(SigningAlgorithmPolicy::class),
+            ),
         );
 
         $this->singleton(
@@ -107,6 +130,7 @@ final class OidcServiceProvider extends ServiceProvider
             fn(): JwksController => new JwksController(
                 keyProvider: $this->resolve(KeyMaterialProviderInterface::class),
                 builder: $this->resolve(JwksDocumentBuilder::class),
+                lifecyclePolicy: $this->resolve(SigningKeyLifecyclePolicy::class),
             ),
         );
 
@@ -181,6 +205,7 @@ final class OidcServiceProvider extends ServiceProvider
             IdTokenMinter::class,
             fn(): IdTokenMinter => new IdTokenMinter(
                 keyProvider: $this->resolve(KeyMaterialProviderInterface::class),
+                algorithmPolicy: $this->resolve(SigningAlgorithmPolicy::class),
             ),
         );
 
@@ -367,15 +392,16 @@ final class OidcServiceProvider extends ServiceProvider
         return PemFileKeyLoader::fromConfig([]);
     }
 
-    private function hasConfiguredFileKeys(): bool
+    private function lifecycleDuration(string $name, int $default): int
     {
-        $configKeys = $this->config['oidc']['signing_keys'] ?? null;
-        if (is_array($configKeys) && $configKeys !== []) {
-            return true;
+        $value = $this->config['oidc']['signing_key_lifecycle'][$name] ?? $default;
+        if (!is_int($value)) {
+            throw new \RuntimeException(sprintf(
+                'OIDC signing-key lifecycle setting "%s" must be an integer.',
+                $name,
+            ));
         }
 
-        $envDir = getenv('OIDC_SIGNING_KEY_DIR');
-
-        return is_string($envDir) && $envDir !== '';
+        return $value;
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Oidc\Jwks;
 
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Waaseyaa\Oidc\Key\SigningKeyLifecyclePolicy;
 use Waaseyaa\Oidc\Token\KeyMaterialProviderInterface;
 
 /**
@@ -17,10 +18,15 @@ use Waaseyaa\Oidc\Token\KeyMaterialProviderInterface;
  */
 final readonly class JwksController
 {
+    private SigningKeyLifecyclePolicy $lifecyclePolicy;
+
     public function __construct(
         private KeyMaterialProviderInterface $keyProvider,
         private JwksDocumentBuilder $builder,
-    ) {}
+        ?SigningKeyLifecyclePolicy $lifecyclePolicy = null,
+    ) {
+        $this->lifecyclePolicy = $lifecyclePolicy ?? new SigningKeyLifecyclePolicy();
+    }
 
     public function __invoke(): JsonResponse
     {
@@ -28,7 +34,10 @@ final readonly class JwksController
         $document = $this->builder->build($keys);
 
         $response = new JsonResponse($document, 200);
-        $response->headers->set('Cache-Control', 'public, max-age=86400');
+        $response->headers->set(
+            'Cache-Control',
+            'public, max-age=' . $this->lifecyclePolicy->jwksCacheLifetimeSeconds(),
+        );
 
         return $response;
     }

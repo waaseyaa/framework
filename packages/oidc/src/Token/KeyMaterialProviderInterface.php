@@ -27,7 +27,8 @@ interface KeyMaterialProviderInterface
     public function currentSigner(): SigningKeySignerInterface;
 
     /**
-     * All keys valid for verification: current + rotated-out-but-not-expired.
+     * All keys valid for verification: staged, active, and every unexpired
+     * retired predecessor.
      *
      * @return list<SigningKey>
      */

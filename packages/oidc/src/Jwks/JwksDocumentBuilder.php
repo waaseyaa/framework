@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Oidc\Jwks;
 
 use RuntimeException;
+use Waaseyaa\Oidc\Keys\SigningAlgorithmPolicy;
 use Waaseyaa\Oidc\Keys\SigningKey;
 
 /**
@@ -16,12 +17,24 @@ use Waaseyaa\Oidc\Keys\SigningKey;
  */
 final class JwksDocumentBuilder
 {
+    private readonly SigningAlgorithmPolicy $algorithmPolicy;
+
+    public function __construct(?SigningAlgorithmPolicy $algorithmPolicy = null)
+    {
+        $this->algorithmPolicy = $algorithmPolicy ?? new SigningAlgorithmPolicy();
+    }
+
     /**
      * @param list<SigningKey> $keys
      * @return array<string, mixed>
      */
     public function build(array $keys): array
     {
+        $keys = array_values(array_filter(
+            $keys,
+            static fn(SigningKey $key): bool => $key->state->canVerify(),
+        ));
+
         return [
             'keys' => array_map(fn(SigningKey $key): array => $this->toJwk($key), $keys),
         ];
@@ -32,6 +45,7 @@ final class JwksDocumentBuilder
      */
     private function toJwk(SigningKey $key): array
     {
+        $this->algorithmPolicy->assertAllowed($key->algorithm);
         $resource = openssl_pkey_get_public($key->publicKeyPem);
         if ($resource === false) {
             throw new RuntimeException("Unable to parse public key PEM for kid={$key->kid}.");

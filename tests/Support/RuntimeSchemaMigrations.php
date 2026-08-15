@@ -95,6 +95,7 @@ final class RuntimeSchemaMigrations
             '2026_05_25_000004_oidc_user_consent_schema.php',
             '2026_07_15_000005_oidc_secret_storage.php',
             '2026_08_12_000006_oidc_authorization_code_schema.php',
+            '2026_08_15_000007_oidc_signing_key_lifecycle.php',
         ] as $migration) {
             self::apply($database, 'packages/oidc/migrations/' . $migration);
         }

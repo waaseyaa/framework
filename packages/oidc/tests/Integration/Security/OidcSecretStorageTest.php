@@ -101,6 +101,7 @@ final class OidcSecretStorageTest extends TestCase
         $counts = new LegacyOidcSecretMigrator($db, ...$keys)->migrate();
 
         self::assertSame(['signing_keys' => 1, 'access_tokens' => 1, 'refresh_tokens' => 1], $counts);
+        OidcSchema::installSigningKeys($db);
         $repository = new SigningKeyRepository($db, $keys[0]);
         $signature = $repository->currentSigner()->sign('cfg04-migration-test');
         self::assertSame(

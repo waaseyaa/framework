@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Oidc\Token;
 
 use DateTimeImmutable;
+use Waaseyaa\Oidc\Keys\SigningAlgorithmPolicy;
 
 /**
  * Mints RS256-signed ID tokens per OIDC Core §2 and RFC 7519.
@@ -20,7 +21,14 @@ final class IdTokenMinter
     private const ALGORITHM = 'RS256';
     private const EXPIRY_SECONDS = 3600;
 
-    public function __construct(private readonly KeyMaterialProviderInterface $keyProvider) {}
+    private readonly SigningAlgorithmPolicy $algorithmPolicy;
+
+    public function __construct(
+        private readonly KeyMaterialProviderInterface $keyProvider,
+        ?SigningAlgorithmPolicy $algorithmPolicy = null,
+    ) {
+        $this->algorithmPolicy = $algorithmPolicy ?? new SigningAlgorithmPolicy();
+    }
 
     public function mint(
         string $issuer,
@@ -32,6 +40,10 @@ final class IdTokenMinter
     ): string {
         $signer = $this->keyProvider->currentSigner();
         $key = $signer->key();
+        $this->algorithmPolicy->assertAllowed($key->algorithm);
+        if (!$key->state->canSign()) {
+            throw new \RuntimeException('OIDC signer handle is not in active-sign-and-verify state.');
+        }
 
         $header = [
             'alg' => self::ALGORITHM,

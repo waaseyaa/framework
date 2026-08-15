@@ -46,6 +46,8 @@ final class FrameworkRuntimeTableCatalogue
             new RuntimeTableDefinition('oidc_client', RuntimeTablePolicy::Preserve),
             new RuntimeTableDefinition('oidc_refresh_token', RuntimeTablePolicy::Preserve, ['account_id']),
             new RuntimeTableDefinition('oidc_signing_key', RuntimeTablePolicy::Preserve),
+            new RuntimeTableDefinition('oidc_signing_key_revocation', RuntimeTablePolicy::AppendOnly),
+            new RuntimeTableDefinition('oidc_signing_key_version_sequence', RuntimeTablePolicy::Preserve),
             new RuntimeTableDefinition('oidc_user_consent', RuntimeTablePolicy::Preserve, ['account_id']),
             new RuntimeTableDefinition('waaseyaa_queue_jobs', RuntimeTablePolicy::Preserve),
             new RuntimeTableDefinition('waaseyaa_failed_jobs', RuntimeTablePolicy::Preserve),
