@@ -117,6 +117,10 @@ final class AuditCheckpointSuccessionRekeyAdapterRetainedRedTest extends TestCas
         self::assertIsArray($evidence);
         self::assertSame($checkpoint->getUuid(), $evidence['checkpoint_uuid']);
         self::assertSame($checkpoint->getCheckpointHash(), $evidence['checkpoint_hash']);
+        self::assertTrue((new AuditChainVerifier(
+            $this->database,
+            custody: new AuditCheckpointCustody($this->keyring(2)),
+        ))->verify()->ok);
     }
 
     #[Test]
@@ -133,6 +137,31 @@ final class AuditCheckpointSuccessionRekeyAdapterRetainedRedTest extends TestCas
         $this->expectException(ApplicationMasterRekeyConflictException::class);
         $this->expectExceptionMessage('predecessor');
         $adapter->snapshot($this->context($this->database));
+    }
+
+    #[Test]
+    public function an_unlisted_post_anchor_prune_requires_a_current_readable_authorization(): void
+    {
+        $this->sealUnderVersion(1, 'kept-at-cutover');
+        $laterPruned = $this->sealUnderVersion(1, 'forged-after-cutover');
+        $context = $this->context($this->database);
+        $adapter = new AuditCheckpointSuccessionRekeyAdapter($this->database);
+        $snapshot = $adapter->snapshot($context);
+        $adapter->transitionBatch($context, $snapshot, null, 1);
+        $this->database->update('audit_checkpoint')->fields(['pruned' => 1])
+            ->condition('uuid', $laterPruned->getUuid())->execute();
+        $this->database->delete('audit_event')
+            ->condition('id', $laterPruned->getSegmentStartId(), '>=')
+            ->condition('id', $laterPruned->getSegmentEndId(), '<=')
+            ->execute();
+
+        $result = new AuditChainVerifier(
+            $this->database,
+            custody: new AuditCheckpointCustody($this->keyring(2)),
+        )->verify();
+
+        self::assertFalse($result->ok);
+        self::assertSame('prune_authorization', $result->failureKind);
     }
 
     #[Test]
@@ -224,6 +253,81 @@ final class AuditCheckpointSuccessionRekeyAdapterRetainedRedTest extends TestCas
         );
     }
 
+    #[Test]
+    public function a_later_anchor_transitively_verifies_history_after_intermediate_key_removal(): void
+    {
+        $this->sealUnderVersion(1, 'multi-hop-v1');
+        $adapter = new AuditCheckpointSuccessionRekeyAdapter($this->database);
+        $firstContext = $this->contextVersions($this->database, 1, 2);
+        $firstSnapshot = $adapter->snapshot($firstContext);
+        $adapter->transitionBatch($firstContext, $firstSnapshot, null, 1);
+        $this->insertEvent('multi-hop-v2');
+        new AuditCheckpointBuilder(
+            $this->database,
+            $this->sink,
+            custody: new AuditCheckpointCustody($this->keyring(2, [1])),
+        )->build();
+        $secondContext = $this->contextVersions($this->database, 2, 3);
+        $secondSnapshot = $adapter->snapshot($secondContext);
+        $adapter->transitionBatch($secondContext, $secondSnapshot, null, 1);
+        $records = $this->database->getConnection()->fetchAllAssociative(
+            'SELECT sequence, previous_ledger_hash, record_hash FROM audit_checkpoint_succession ORDER BY sequence',
+        );
+
+        self::assertCount(2, $records);
+        self::assertSame($records[0]['record_hash'], $records[1]['previous_ledger_hash']);
+        self::assertTrue((new AuditChainVerifier(
+            $this->database,
+            custody: new AuditCheckpointCustody($this->keyring(3)),
+        ))->verify()->ok);
+    }
+
+    #[Test]
+    public function child_evidence_inserted_after_anchor_commit_breaks_the_signed_count_and_digest(): void
+    {
+        $checkpoint = $this->sealUnderVersion(1, 'post-commit-child');
+        $context = $this->context($this->database);
+        $adapter = new AuditCheckpointSuccessionRekeyAdapter($this->database);
+        $snapshot = $adapter->snapshot($context);
+        $adapter->transitionBatch($context, $snapshot, null, 1);
+        $sequence = (int) $this->database->getConnection()->fetchOne(
+            'SELECT sequence FROM audit_checkpoint_succession',
+        );
+        $this->database->insert('audit_checkpoint_succession_pruned')->values([
+            'anchor_sequence' => $sequence,
+            'checkpoint_id' => 1,
+            'checkpoint_uuid' => $checkpoint->getUuid(),
+            'checkpoint_hash' => $checkpoint->getCheckpointHash(),
+        ])->execute();
+
+        $result = new AuditChainVerifier(
+            $this->database,
+            custody: new AuditCheckpointCustody($this->keyring(2)),
+        )->verify();
+
+        self::assertFalse($result->ok);
+        self::assertSame('succession_anchor', $result->failureKind);
+    }
+
+    #[Test]
+    public function trailing_checkpoint_deletion_breaks_the_anchor_terminal_identity(): void
+    {
+        $checkpoint = $this->sealUnderVersion(1, 'trailing-deletion');
+        $context = $this->context($this->database);
+        $adapter = new AuditCheckpointSuccessionRekeyAdapter($this->database);
+        $snapshot = $adapter->snapshot($context);
+        $adapter->transitionBatch($context, $snapshot, null, 1);
+        $this->database->delete('audit_checkpoint')->condition('uuid', $checkpoint->getUuid())->execute();
+
+        $result = new AuditChainVerifier(
+            $this->database,
+            custody: new AuditCheckpointCustody($this->keyring(2)),
+        )->verify();
+
+        self::assertFalse($result->ok);
+        self::assertSame('succession_anchor', $result->failureKind);
+    }
+
     private function sealUnderVersion(int $version, string $uuid): AuditCheckpoint
     {
         $this->insertEvent($uuid);
@@ -256,14 +360,22 @@ final class AuditCheckpointSuccessionRekeyAdapterRetainedRedTest extends TestCas
 
     private function context(DatabaseInterface $database): ApplicationMasterRekeyContext
     {
-        $keyring = $this->keyring(2, [1]);
+        return $this->contextVersions($database, 1, 2);
+    }
+
+    private function contextVersions(
+        DatabaseInterface $database,
+        int $fromVersion,
+        int $toVersion,
+    ): ApplicationMasterRekeyContext {
+        $keyring = $this->keyring($toVersion, [$fromVersion]);
 
         return new ApplicationMasterRekeyContext(
             new ApplicationMasterRekeyRecord(
-                requestId: 'audit-succession-request',
-                requestDigest: hash('sha256', 'audit-succession-request'),
-                fromVersion: 1,
-                toVersion: 2,
+                requestId: 'audit-succession-request-v' . $fromVersion . '-v' . $toVersion,
+                requestDigest: hash('sha256', 'audit-succession-request-v' . $fromVersion . '-v' . $toVersion),
+                fromVersion: $fromVersion,
+                toVersion: $toVersion,
                 registryChecksum: $keyring->purposeRegistryChecksum(),
                 authorizationDigest: hash('sha256', 'audit-succession-authorization'),
                 actor: 'test-operator',

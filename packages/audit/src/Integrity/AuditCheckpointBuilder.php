@@ -67,7 +67,8 @@ final class AuditCheckpointBuilder
 
         if ($latestRows !== []) {
             $latest = $latestRows[0];
-            $this->authenticatePristineGenesis($latest);
+            $latest['signature'] = $this->authenticatePristineGenesis($latest);
+            $this->assertActiveSigningAuthorized($latest);
             $lastSealedId       = (int) $latest['segment_end_id'];
             $prevRowHash        = (string) $latest['segment_hash'];
             $prevCheckpointHash = (string) $latest['checkpoint_hash'];
@@ -191,10 +192,10 @@ final class AuditCheckpointBuilder
     }
 
     /** @param array<string, mixed> $latest */
-    private function authenticatePristineGenesis(array $latest): void
+    private function authenticatePristineGenesis(array $latest): string
     {
         if ($this->custody === null || !(bool) ($latest['is_genesis'] ?? false)) {
-            return;
+            return (string) ($latest['signature'] ?? '');
         }
 
         $checkpointId = (int) $latest['id'];
@@ -212,7 +213,7 @@ final class AuditCheckpointBuilder
                 ->execute();
 
             if ($updated === 1) {
-                return;
+                return $expected;
             }
 
             $rows = iterator_to_array(
@@ -229,6 +230,44 @@ final class AuditCheckpointBuilder
         if (!$this->custody->verifyCheckpoint($signature, $checkpointHash)) {
             throw new \RuntimeException(
                 'Keyed audit checkpoint creation refused a genesis anchor authenticated by a different or malformed key.',
+            );
+        }
+
+        return $signature;
+    }
+
+    /** @param array<string, mixed> $latest */
+    private function assertActiveSigningAuthorized(array $latest): void
+    {
+        if ($this->custody === null || $this->custody->activeVersion() === null) {
+            return;
+        }
+        $activeVersion = $this->custody->activeVersion();
+        if ($this->custody->checkpointEnvelopeVersion((string) $latest['signature']) === $activeVersion) {
+            return;
+        }
+        $checkpoints = iterator_to_array(
+            $this->database->select('audit_checkpoint')->fields('audit_checkpoint', [
+                'id', 'uuid', 'segment_start_id', 'segment_end_id', 'row_count', 'segment_hash',
+                'prev_checkpoint_hash', 'checkpoint_hash', 'signature', 'hash_version',
+                'is_genesis', 'pruned', 'prune_authorization', 'created_at',
+            ])->orderBy('id', 'ASC')->execute(),
+            false,
+        );
+        try {
+            $window = new AuditCheckpointSuccessionVerifier(
+                $this->database,
+                $this->custody,
+            )->window($checkpoints);
+        } catch (\Throwable) {
+            throw new \RuntimeException(
+                'Keyed audit checkpoint creation refused a successor master version without a verified succession anchor.',
+            );
+        }
+        if ($window->signingVersion !== $activeVersion
+            || $window->pinnedThroughCheckpointId < (int) $latest['id']) {
+            throw new \RuntimeException(
+                'Keyed audit checkpoint creation refused a successor master version without a verified succession anchor.',
             );
         }
     }

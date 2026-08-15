@@ -6,6 +6,7 @@ namespace Waaseyaa\Audit\Rekey;
 
 use Waaseyaa\Audit\Integrity\AuditChainVerifier;
 use Waaseyaa\Audit\Integrity\AuditCheckpointCustody;
+use Waaseyaa\Audit\Integrity\AuditCheckpointSuccessionVerifier;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterBatchResult;
@@ -219,9 +220,12 @@ final readonly class AuditCheckpointSuccessionRekeyAdapter implements Applicatio
         $chainDigest = hash('sha256', 'waaseyaa.audit.checkpoint-succession-chain.v1');
         $prunedDigest = hash('sha256', 'waaseyaa.audit.checkpoint-succession-pruned.v1');
         $pruned = [];
+        $window = new AuditCheckpointSuccessionVerifier($this->database, $custody)->window($checkpoints);
         foreach ($checkpoints as $checkpoint) {
             $version = $custody->checkpointEnvelopeVersion((string) $checkpoint['signature']);
-            if ($requirePredecessorOnly && $version !== $context->request->fromVersion) {
+            if ($requirePredecessorOnly
+                && (int) $checkpoint['id'] > $window->pinnedThroughCheckpointId
+                && $version !== $context->request->fromVersion) {
                 throw new ApplicationMasterRekeyConflictException(
                     'Audit predecessor history must be wholly version-bound to the request predecessor.',
                 );

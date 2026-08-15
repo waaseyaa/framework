@@ -53,6 +53,7 @@ final class AuditChainVerifier
                 ->select('audit_checkpoint')
                 ->fields('audit_checkpoint', [
                     'id',
+                    'uuid',
                     'segment_start_id',
                     'segment_end_id',
                     'row_count',
@@ -63,6 +64,8 @@ final class AuditChainVerifier
                     'pruned',
                     'signature',
                     'prune_authorization',
+                    'hash_version',
+                    'created_at',
                 ])
                 ->orderBy('segment_end_id', 'ASC')
                 ->execute(),
@@ -74,7 +77,31 @@ final class AuditChainVerifier
             return AuditVerificationResult::intact(0, 0, $this->countUnsealedRows(0));
         }
 
-        $signatureFailure = $this->verifyCheckpointSignatures($checkpoints);
+        $successionWindow = null;
+        $pinnedThroughCheckpointId = 0;
+        if ($this->custody !== null) {
+            try {
+                $successionWindow = new AuditCheckpointSuccessionVerifier(
+                    $this->database,
+                    $this->custody,
+                )->window($checkpoints);
+                $pinnedThroughCheckpointId = $successionWindow->pinnedThroughCheckpointId;
+            } catch (\Throwable) {
+                return AuditVerificationResult::broken(
+                    0,
+                    'succession_anchor',
+                    'Audit checkpoint succession evidence did not verify.',
+                    0,
+                    0,
+                    $this->countUnsealedRows(0),
+                );
+            }
+        }
+
+        $signatureFailure = $this->verifyCheckpointSignatures(
+            $checkpoints,
+            $pinnedThroughCheckpointId,
+        );
         if ($signatureFailure !== null) {
             return $signatureFailure;
         }
@@ -186,10 +213,17 @@ final class AuditChainVerifier
                     );
                 }
 
-                if ($this->custody !== null && !$this->custody->verifyPruneAuthorization(
-                    (string) ($checkpoint['prune_authorization'] ?? ''),
+                $anchoredPrune = $successionWindow?->authorizesPrune(
+                    (int) $checkpoint['id'],
+                    (string) $checkpoint['uuid'],
                     (string) $checkpoint['checkpoint_hash'],
-                )) {
+                ) ?? false;
+                if ($this->custody !== null
+                    && !$anchoredPrune
+                    && !$this->custody->verifyPruneAuthorization(
+                        (string) ($checkpoint['prune_authorization'] ?? ''),
+                        (string) $checkpoint['checkpoint_hash'],
+                    )) {
                     $this->logger->warning('audit.verify.prune_authorization_invalid', [
                         'segment_end_id' => $segEndId,
                     ]);
@@ -393,9 +427,14 @@ final class AuditChainVerifier
      *
      * @param list<array<string, mixed>> $checkpoints
      */
-    private function verifyCheckpointSignatures(array $checkpoints): ?AuditVerificationResult
-    {
+    private function verifyCheckpointSignatures(
+        array $checkpoints,
+        int $pinnedThroughCheckpointId,
+    ): ?AuditVerificationResult {
         foreach ($checkpoints as $checkpoint) {
+            if ((int) $checkpoint['id'] <= $pinnedThroughCheckpointId) {
+                continue;
+            }
             $signature = (string) ($checkpoint['signature'] ?? '');
             $segmentEndId = (int) $checkpoint['segment_end_id'];
             if ($this->custody !== null) {

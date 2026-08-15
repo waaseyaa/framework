@@ -23,6 +23,7 @@ namespace Waaseyaa\Audit\Integrity;
  *  - `checkpoint_hash`  — the recomputed checkpoint hash does not match the stored value.
  *  - `checkpoint_signature` — a configured checkpoint signature is missing or invalid.
  *  - `prune_authorization` — a keyed pruned checkpoint lacks valid deletion authorization.
+ *  - `succession_anchor` — version-bound succession evidence is missing or invalid.
  *  - `genesis`          — the genesis checkpoint's stored hash does not verify.
  *
  * @api
@@ -65,7 +66,8 @@ final class AuditVerificationResult
      *
      * @param string $failureKind One of: row_content, chain_link, row_count,
      *                            segment_hash, checkpoint_chain, checkpoint_hash,
-     *                            checkpoint_signature, prune_authorization, genesis.
+     *                            checkpoint_signature, prune_authorization,
+     *                            succession_anchor, genesis.
      */
     public static function broken(
         int $firstBrokenId,
