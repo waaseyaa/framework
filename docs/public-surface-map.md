@@ -21,6 +21,14 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `FormatterInterface` | interface | Formats a log record into its final string or array representation |
 | `ProcessorInterface` | interface | Enriches log records with additional context before handling |
 | `LoggerTrait` | trait | Default implementations of all log-level methods delegating to `log()` |
+| `Security\SecretClass` | enum | Closed secret classifications used by typed references, policies, and guarded consumers |
+| `Security\SecretConsumerInterface` | interface | Purpose-specific guarded endpoint for resolved secret bytes |
+| `Security\SecretProviderInterface` | interface | External secret-provider resolution seam |
+| `Security\ApplicationMasterPurposeStrategy` | enum | Closed transition strategies for versioned application-master purposes |
+| `Security\ApplicationMasterPurposePolicy` | final readonly class | Immutable owner, retention, adapter, strategy, and rollback metadata for one derived purpose |
+| `Security\ApplicationMasterPurposeRegistry` | final class | Deterministic boot-time frozen registry of application-master purposes |
+| `Security\ApplicationMasterEnvelope` | final readonly class | Strict XChaCha20-Poly1305 envelope binding master version, purpose, record, and schema identity |
+| `Security\ApplicationMasterKeyring` | final class | Active-write and bounded legacy-read custody over externally resolved versioned masters |
 | `HttpHandlerInterface` | interface | Terminal HTTP request handler (innermost layer of the middleware onion) |
 | `HttpMiddlewareInterface` | interface | Wraps an HTTP handler to add cross-cutting behavior |
 | `JobHandlerInterface` | interface | Terminal queue job handler |

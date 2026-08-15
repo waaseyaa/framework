@@ -72,8 +72,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   trust reference before it may sign. Verifier-only profiles fail closed,
   revoked or unknown trust references cannot verify, and raw private-key
   configuration is rejected.
-  The versioned application-master transition remains a separate incomplete
-  slice.
+  The versioned application-master core now adds one active-write and a bounded
+  declared legacy-read key roster over external references, a deterministic
+  frozen purpose registry with six closed transition strategies, and strict
+  XChaCha20-Poly1305 envelopes whose associated data binds format, exact master
+  version, registered purpose, record identity, and schema version. New writes
+  use only the active version; reads select only the envelope-declared version;
+  unknown versions or purposes refuse without arbitrary provider fallback; and
+  diagnostics, clone, and serialization disclose no master or provider path.
+  Persisted purpose inventory, resumable CAS transitions, ledger/cursors,
+  rollback, worker/cache/backup reconciliation, revocation gates, and migration
+  of compatibility `ApplicationSecret` consumers remain incomplete slices.
 - **configuration schema and sync authority (`S1-FW-CFG-03`):** Add the strict
   v1 configuration contract with closed recursive schema validation, separate
   default-materialized effective documents, versioned canonical encoding,

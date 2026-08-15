@@ -1877,8 +1877,9 @@ New encrypted writes use only the active master version. Persisted ciphertext
 uses `ApplicationMasterEnvelope` format
 `waaseyaa.application-master.envelope.v1`; XChaCha20-Poly1305 authenticates the
 format, exact master version, registered purpose, record identity, and schema
-version as associated data. A purpose-specific 32-byte key is derived from the
-selected master with HKDF-SHA-256 and a public domain-separation salt. Reads
+version as associated data. A purpose-and-master-version-specific 32-byte key is
+derived from the selected master with HKDF-SHA-256 and a public
+domain-separation salt. Reads
 select exactly the version declared by the envelope and never probe arbitrary
 keys or fall back to the active version. Unknown versions, unknown purposes,
 non-canonical encodings, malformed envelopes, and authentication failures are

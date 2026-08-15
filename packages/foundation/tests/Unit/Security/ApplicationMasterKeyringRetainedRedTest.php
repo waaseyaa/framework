@@ -64,8 +64,9 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
     #[Test]
     public function envelope_authenticates_master_version_purpose_record_and_schema_identity(): void
     {
+        $provider = $this->provider();
         $keyring = ApplicationMasterKeyring::fromReferences(
-            resolver: $this->resolver($this->provider()),
+            resolver: $this->resolver($provider),
             activeVersion: 2,
             activeReference: $this->reference('master-v2'),
             legacyReferences: [1 => $this->reference('master-v1')],
@@ -78,10 +79,11 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
             'synthetic-plaintext',
         );
 
-        foreach (['purpose', 'record_identity', 'schema_version'] as $field) {
+        foreach (['master_version', 'purpose', 'record_identity', 'schema_version'] as $field) {
             $document = $envelope->toArray();
             $document[$field] = match ($field) {
-                'purpose' => ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP,
+                'master_version' => 1,
+                'purpose' => ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_ENCRYPTION,
                 'record_identity' => 'oidc-token:row-8',
                 default => 4,
             };
@@ -92,6 +94,14 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
                 self::addToAssertionCount(1);
             }
         }
+
+        $document = $envelope->toArray();
+        $ciphertext = base64_decode($document['ciphertext'], true);
+        self::assertIsString($ciphertext);
+        $ciphertext[0] = chr(ord($ciphertext[0]) ^ 1);
+        $document['ciphertext'] = base64_encode($ciphertext);
+        $this->expectException(\RuntimeException::class);
+        $keyring->open(ApplicationMasterEnvelope::fromArray($document));
     }
 
     #[Test]
@@ -120,7 +130,16 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
             'plaintext',
         )->toArray();
         $provider->resolvedIdentifiers = [];
+        $document['purpose'] = 'waaseyaa.unregistered-but-valid.v1';
+        try {
+            $keyring->open(ApplicationMasterEnvelope::fromArray($document));
+            self::fail('Unregistered application-master envelope purpose was accepted.');
+        } catch (\RuntimeException) {
+            self::assertSame([], $provider->resolvedIdentifiers);
+        }
+
         $document['master_version'] = 99;
+        $document['purpose'] = ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION;
         try {
             $keyring->open(ApplicationMasterEnvelope::fromArray($document));
             self::fail('Unknown application-master version was accepted.');
@@ -130,17 +149,132 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
     }
 
     #[Test]
+    public function envelope_parser_requires_exact_fields_types_and_canonical_encodings(): void
+    {
+        $document = ApplicationMasterEnvelope::seal(
+            1,
+            ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION,
+            'record:strict-parser',
+            1,
+            str_repeat('n', SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES),
+            str_repeat('c', SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_ABYTES),
+        )->toArray();
+
+        $invalid = [
+            array_merge($document, ['extension' => 'not-allowed']),
+            array_diff_key($document, ['schema_version' => true]),
+            array_merge($document, ['master_version' => '1']),
+            array_merge($document, ['nonce' => $document['nonce'] . '=']),
+            array_merge($document, ['ciphertext' => '*invalid-base64*']),
+        ];
+        foreach ($invalid as $candidate) {
+            try {
+                ApplicationMasterEnvelope::fromArray($candidate);
+                self::fail('Malformed application-master envelope was accepted.');
+            } catch (\InvalidArgumentException) {
+                self::addToAssertionCount(1);
+            }
+        }
+    }
+
+    #[Test]
+    public function keyring_topology_and_reference_contract_fail_before_provider_resolution(): void
+    {
+        $provider = $this->provider();
+        $resolver = $this->resolver($provider);
+        $active = $this->reference('master-v2');
+        $invalidCases = [
+            [0, $active, []],
+            [2, $active, [2 => $this->reference('master-v1')]],
+            [2, $active, [1 => $active]],
+            [2, SecretReference::create(
+                'synthetic-master-vault',
+                'tenant/application/master-v2',
+                SecretClass::ApplicationMaster,
+                'waaseyaa.application.wrong-purpose.v1',
+            ), []],
+        ];
+
+        foreach ($invalidCases as [$activeVersion, $activeReference, $legacyReferences]) {
+            try {
+                ApplicationMasterKeyring::fromReferences(
+                    $resolver,
+                    $activeVersion,
+                    $activeReference,
+                    $legacyReferences,
+                    $this->purposes(),
+                );
+                self::fail('Invalid application-master keyring topology was accepted.');
+            } catch (\InvalidArgumentException) {
+                self::assertSame([], $provider->resolvedIdentifiers);
+            }
+        }
+    }
+
+    #[Test]
+    public function transition_strategy_vocabulary_is_closed_and_exact(): void
+    {
+        self::assertSame(
+            [
+                'reencrypt-ciphertext',
+                'recompute-lookup-index',
+                'retain-historic-verifier',
+                'invalidate-rebuildable',
+                'drain-or-expire',
+                'ephemeral-no-persistence',
+            ],
+            array_map(
+                static fn(ApplicationMasterPurposeStrategy $strategy): string => $strategy->value,
+                ApplicationMasterPurposeStrategy::cases(),
+            ),
+        );
+    }
+
+    #[Test]
+    public function purpose_policy_and_registry_refuse_incomplete_or_ambiguous_metadata(): void
+    {
+        $registry = new ApplicationMasterPurposeRegistry();
+        try {
+            $registry->freeze();
+            self::fail('An empty application-master purpose registry was frozen.');
+        } catch (\LogicException) {
+            self::addToAssertionCount(1);
+        }
+
+        $registry->register($this->reencryptPolicy());
+        try {
+            $registry->register($this->reencryptPolicy());
+            self::fail('A duplicate application-master purpose was registered.');
+        } catch (\InvalidArgumentException) {
+            self::addToAssertionCount(1);
+        }
+
+        $this->expectException(\InvalidArgumentException::class);
+        new ApplicationMasterPurposePolicy(
+            id: 'waaseyaa.invalid-retention.v1',
+            ownerPackage: 'waaseyaa/foundation',
+            strategy: ApplicationMasterPurposeStrategy::RetainHistoricVerifier,
+            maximumLifetimeSeconds: 86_400,
+            retentionSeconds: 3_600,
+            adapterId: 'synthetic-audit-v1',
+            rollbackBehavior: 'retain-successor-anchor',
+        );
+    }
+
+    #[Test]
     public function purpose_registry_is_order_stable_closed_and_frozen_before_derivation(): void
     {
         $first = $this->purposes();
         $second = new ApplicationMasterPurposeRegistry();
         $second->register($this->lookupPolicy());
+        $second->register($this->accessTokenEncryptionPolicy());
         $second->register($this->reencryptPolicy());
         $second->freeze();
 
         self::assertSame($first->checksum(), $second->checksum());
         self::assertSame(
             [
+                ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_ENCRYPTION,
                 ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP,
                 ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION,
             ],
@@ -184,6 +318,7 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
         $registry = new ApplicationMasterPurposeRegistry();
         $registry->register($this->reencryptPolicy());
         $registry->register($this->lookupPolicy());
+        $registry->register($this->accessTokenEncryptionPolicy());
         $registry->freeze();
 
         return $registry;
@@ -208,6 +343,19 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
             id: ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP,
             ownerPackage: 'waaseyaa/oidc',
             strategy: ApplicationMasterPurposeStrategy::RecomputeLookupIndex,
+            maximumLifetimeSeconds: 3_600,
+            retentionSeconds: 86_400,
+            adapterId: 'synthetic-oidc-row-v1',
+            rollbackBehavior: 'reverse-cas',
+        );
+    }
+
+    private function accessTokenEncryptionPolicy(): ApplicationMasterPurposePolicy
+    {
+        return new ApplicationMasterPurposePolicy(
+            id: ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_ENCRYPTION,
+            ownerPackage: 'waaseyaa/oidc',
+            strategy: ApplicationMasterPurposeStrategy::ReencryptCiphertext,
             maximumLifetimeSeconds: 3_600,
             retentionSeconds: 86_400,
             adapterId: 'synthetic-oidc-row-v1',

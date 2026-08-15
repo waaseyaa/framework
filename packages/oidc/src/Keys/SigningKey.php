@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Oidc\Keys;
 
+/** Public signing-key lifecycle metadata; contains public material only. @api */
 final readonly class SigningKey
 {
     public function __construct(

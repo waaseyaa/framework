@@ -6,7 +6,10 @@ namespace Waaseyaa\Oidc\Keys;
 
 use Waaseyaa\Foundation\Security\SecretHandle;
 
-/** @internal Guarded RS256 signer; private PEM is never an object property. */
+/**
+ * @internal Guarded RS256 signer; private PEM is never an object property.
+ * @api Security boundary whose magic-method rejection surface is intentional.
+ */
 final class RsaSigningKeySigner implements SigningKeySignerInterface
 {
     public function __construct(

@@ -137,6 +137,10 @@ final class RedactorProcessorTest extends TestCase
     #[Test]
     public function registered_representations_retire_with_the_sanitizer(): void
     {
+        // WeakMap drops unreachable keys only after pending object cycles have
+        // been collected. Normalize the process-wide baseline before measuring
+        // this processor's lifetime so earlier tests cannot inflate $before.
+        gc_collect_cycles();
         $property = new \ReflectionProperty(RedactorProcessor::class, 'registeredRepresentations');
         $registry = $property->getValue();
         $before = $registry instanceof \WeakMap ? count($registry) : 0;
@@ -358,7 +362,7 @@ final class RedactorProcessorTest extends TestCase
             $nested = ['nested' => $nested];
         }
 
-        $result = (new RedactorProcessor())->process(new LogRecord(
+        $result = new RedactorProcessor()->process(new LogRecord(
             LogLevel::INFO,
             'bounded',
             $nested,
