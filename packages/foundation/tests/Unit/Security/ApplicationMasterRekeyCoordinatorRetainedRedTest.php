@@ -155,6 +155,33 @@ final class ApplicationMasterRekeyCoordinatorRetainedRedTest extends TestCase
     }
 
     #[Test]
+    public function verification_exception_is_persisted_without_exception_text(): void
+    {
+        [$database, $store, $coordinator, $adapter] = $this->preparedCoordinator();
+        $coordinator->snapshotAdapter(self::REQUEST_ID, 2, self::ADAPTER_ID);
+        $coordinator->transitionNextBatch(self::REQUEST_ID, 3, self::ADAPTER_ID, 2);
+        $coordinator->completeAdapter(self::REQUEST_ID, 4, self::ADAPTER_ID);
+        $adapter->throwOnVerification = true;
+
+        try {
+            $coordinator->verifyAdapter(self::REQUEST_ID, 5, self::ADAPTER_ID);
+            self::fail('A verification exception was not recorded.');
+        } catch (ApplicationMasterRekeyConflictException) {
+            self::assertSame(1, $store->require(self::REQUEST_ID)->unresolvedFailures);
+        }
+        $failure = $database->getConnection()->fetchAssociative(
+            'SELECT failure_code, evidence_hash FROM waaseyaa_application_master_rekey_failure WHERE resolved_at IS NULL',
+        );
+        self::assertIsArray($failure);
+        self::assertSame('adapter-verification-failed', $failure['failure_code']);
+        self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/D', (string) $failure['evidence_hash']);
+        self::assertStringNotContainsString(
+            'synthetic-verification-secret-shaped-detail',
+            json_encode($failure, JSON_THROW_ON_ERROR),
+        );
+    }
+
+    #[Test]
     public function valid_batches_resume_after_restart_without_reprocessing_and_verify_every_row(): void
     {
         [$database, $store, $coordinator, $adapter] = $this->preparedCoordinator();
@@ -358,6 +385,7 @@ final class SyntheticAtomicRekeyAdapter implements ApplicationMasterRekeyAdapter
     public int $snapshotCalls = 0;
     public bool $returnMalformedResult = false;
     public bool $throwOnTransition = false;
+    public bool $throwOnVerification = false;
 
     /** @var array<string, int> */
     public array $transitionedById = [];
@@ -449,6 +477,9 @@ final class SyntheticAtomicRekeyAdapter implements ApplicationMasterRekeyAdapter
         ApplicationMasterRekeyContext $context,
         ApplicationMasterInventorySnapshot $snapshot,
     ): array {
+        if ($this->throwOnVerification) {
+            throw new \RuntimeException('synthetic-verification-secret-shaped-detail');
+        }
         $rows = iterator_to_array($context->database->query(
             'SELECT row_id, envelope_json FROM synthetic_secret_row WHERE master_version = :version ORDER BY row_id',
             ['version' => $context->request->toVersion],

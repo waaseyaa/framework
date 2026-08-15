@@ -98,19 +98,30 @@ final class ApplicationMasterRekeyCoordinator
         $progress = $this->store->requireAdapter($requestId, $adapterId);
         $snapshot = new ApplicationMasterInventorySnapshot($progress->snapshotToken, $progress->totalRecords);
 
-        return $this->store->commitAdapterBatchOperation(
-            $requestId,
-            $expectedRequestRevision,
-            $adapterId,
-            $progress->revision,
-            $progress->cursor,
-            fn(): ApplicationMasterBatchResult => $adapter->transitionBatch(
-                $context,
-                $snapshot,
+        try {
+            return $this->store->commitAdapterBatchOperation(
+                $requestId,
+                $expectedRequestRevision,
+                $adapterId,
+                $progress->revision,
                 $progress->cursor,
-                $limit,
-            ),
-        );
+                fn(): ApplicationMasterBatchResult => $this->executeTransition(
+                    $adapter,
+                    $context,
+                    $snapshot,
+                    $progress->cursor,
+                    $limit,
+                ),
+            );
+        } catch (ApplicationMasterAdapterExecutionException $failure) {
+            $this->persistFailureAndRefuse(
+                $context,
+                $expectedRequestRevision,
+                $progress,
+                'adapter-transition-failed',
+                $failure,
+            );
+        }
     }
 
     public function completeAdapter(
@@ -142,7 +153,17 @@ final class ApplicationMasterRekeyCoordinator
             throw new ApplicationMasterRekeyConflictException('An incomplete adapter cannot verify its purposes.');
         }
         $snapshot = new ApplicationMasterInventorySnapshot($progress->snapshotToken, $progress->totalRecords);
-        $results = $adapter->verify($context, $snapshot);
+        try {
+            $results = $this->executeVerification($adapter, $context, $snapshot);
+        } catch (ApplicationMasterAdapterExecutionException $failure) {
+            $this->persistFailureAndRefuse(
+                $context,
+                $expectedRequestRevision,
+                $progress,
+                'adapter-verification-failed',
+                $failure,
+            );
+        }
         $purposeIds = array_keys($results);
         sort($purposeIds, SORT_STRING);
         $expected = $adapter->purposeIds();
@@ -190,5 +211,63 @@ final class ApplicationMasterRekeyCoordinator
     {
         return $this->adapters[$adapterId]
             ?? throw new ApplicationMasterRekeyConflictException('The requested rekey adapter is not composed.');
+    }
+
+    private function executeTransition(
+        ApplicationMasterRekeyAdapterInterface $adapter,
+        ApplicationMasterRekeyContext $context,
+        ApplicationMasterInventorySnapshot $snapshot,
+        ?string $cursor,
+        int $limit,
+    ): ApplicationMasterBatchResult {
+        try {
+            return $adapter->transitionBatch($context, $snapshot, $cursor, $limit);
+        } catch (\Throwable $failure) {
+            throw new ApplicationMasterAdapterExecutionException('transition', $failure::class);
+        }
+    }
+
+    /** @return array<string, ApplicationMasterPurposeVerification> */
+    private function executeVerification(
+        ApplicationMasterRekeyAdapterInterface $adapter,
+        ApplicationMasterRekeyContext $context,
+        ApplicationMasterInventorySnapshot $snapshot,
+    ): array {
+        try {
+            return $adapter->verify($context, $snapshot);
+        } catch (\Throwable $failure) {
+            throw new ApplicationMasterAdapterExecutionException('verification', $failure::class);
+        }
+    }
+
+    /** @return never */
+    private function persistFailureAndRefuse(
+        ApplicationMasterRekeyContext $context,
+        int $expectedRequestRevision,
+        ApplicationMasterAdapterProgress $progress,
+        string $failureCode,
+        ApplicationMasterAdapterExecutionException $failure,
+    ): never {
+        $evidenceHash = hash('sha256', json_encode([
+            'format' => 'waaseyaa.application-master.adapter-failure.v1',
+            'request_digest' => $context->request->requestDigest,
+            'adapter_id' => $progress->adapterId,
+            'cursor' => $progress->cursor,
+            'operation' => $failure->operation,
+            'failure_class' => $failure->failureClass,
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+        $this->store->recordAdapterFailure(
+            $context->request->requestId,
+            $expectedRequestRevision,
+            $progress->adapterId,
+            $progress->revision,
+            $progress->cursor,
+            $failureCode,
+            $evidenceHash,
+        );
+
+        throw new ApplicationMasterRekeyConflictException(
+            'The application-master adapter failure was recorded and must be resolved before retry.',
+        );
     }
 }

@@ -1936,8 +1936,12 @@ resolution hash; it closes the mutable failure projection and appends immutable
 resolution evidence before retry is permitted. Exception text, tokens,
 ciphertext, plaintext, and key material are never persisted as failure evidence.
 Restart reconstructs the block from database projections rather than process
-memory. Snapshot-time failure capture and coordinator exception translation are
-separate executable concerns and must not be inferred from the store API alone.
+memory. The coordinator translates transition and verification callback
+exceptions into stable operation-specific codes and a SHA-256 commitment over
+only request digest, adapter, cursor, operation, and exception class; callback
+messages are discarded. Owner effects roll back before this separate failure
+transaction commits. Snapshot-time failure capture remains a separate concern
+and must not be inferred from the inventoried-adapter failure path.
 
 One adapter owns every purpose that shares a storage row. Its immutable snapshot
 binds adapter id, sorted purpose ids, inventory token, and total. Each bounded
