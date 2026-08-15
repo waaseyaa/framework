@@ -50,6 +50,7 @@ final class StreamableHttpMcpClient
      * Perform the MCP `initialize` handshake.
      *
      * @throws McpServerUnavailableException On transport failure or 5xx response.
+     * @throws McpRemoteErrorException On a JSON-RPC error response.
      */
     public function initialize(string $url, ?string $authHeader): McpServerInfo
     {
@@ -100,6 +101,7 @@ final class StreamableHttpMcpClient
      * @return list<McpRemoteToolDescriptor>
      *
      * @throws McpServerUnavailableException On transport failure or 5xx response.
+     * @throws McpRemoteErrorException On a JSON-RPC error response.
      */
     public function listTools(string $url, ?string $authHeader): array
     {
@@ -156,6 +158,7 @@ final class StreamableHttpMcpClient
      * @param array<string, mixed> $arguments Tool arguments as a JSON object.
      *
      * @throws McpServerUnavailableException On transport failure or 5xx response.
+     * @throws McpRemoteErrorException On a JSON-RPC error response.
      */
     public function callTool(
         string $url,
@@ -213,6 +216,7 @@ final class StreamableHttpMcpClient
      * @return array<string, mixed>
      *
      * @throws McpServerUnavailableException On transport failure or 5xx response.
+     * @throws McpRemoteErrorException On a JSON-RPC error response.
      */
     private function rpc(string $url, ?string $authHeader, string $method, array $params): array
     {
