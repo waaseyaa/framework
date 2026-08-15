@@ -21,6 +21,45 @@ final class OidcApplicationMasterKeyring
     /** @param list<int> $legacyVersions */
     public static function create(int $activeVersion, array $legacyVersions = []): ApplicationMasterKeyring
     {
+        [$resolver, $purposes] = self::composition();
+
+        $legacyReferences = [];
+        foreach ($legacyVersions as $version) {
+            $legacyReferences[$version] = self::reference($version);
+        }
+
+        return ApplicationMasterKeyring::fromReferences(
+            $resolver,
+            $activeVersion,
+            self::reference($activeVersion),
+            $legacyReferences,
+            $purposes,
+        );
+    }
+
+    /** @param list<int> $legacyVersions */
+    public static function rollback(int $activeVersion, int $failedVersion, array $legacyVersions = []): ApplicationMasterKeyring
+    {
+        [$resolver, $purposes] = self::composition();
+        $legacyReferences = [];
+        foreach ($legacyVersions as $version) {
+            $legacyReferences[$version] = self::reference($version);
+        }
+
+        return ApplicationMasterKeyring::fromRollbackReferences(
+            $resolver,
+            $activeVersion,
+            self::reference($activeVersion),
+            $legacyReferences,
+            $failedVersion,
+            self::reference($failedVersion),
+            $purposes,
+        );
+    }
+
+    /** @return array{SecretResolverRegistry, ApplicationMasterPurposeRegistry} */
+    private static function composition(): array
+    {
         $purposes = new ApplicationMasterPurposeRegistry();
         foreach (self::policies() as $policy) {
             $purposes->register($policy);
@@ -39,18 +78,7 @@ final class OidcApplicationMasterKeyring
         ApplicationMasterKeyring::registerResolverConsumers($resolver);
         $resolver->freeze();
 
-        $legacyReferences = [];
-        foreach ($legacyVersions as $version) {
-            $legacyReferences[$version] = self::reference($version);
-        }
-
-        return ApplicationMasterKeyring::fromReferences(
-            $resolver,
-            $activeVersion,
-            self::reference($activeVersion),
-            $legacyReferences,
-            $purposes,
-        );
+        return [$resolver, $purposes];
     }
 
     /** @return list<ApplicationMasterPurposePolicy> */
