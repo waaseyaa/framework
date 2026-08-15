@@ -51,6 +51,18 @@ final class RedactorProcessorTest extends TestCase
     }
 
     #[Test]
+    public function diagnostic_text_redacts_registered_representations_containing_line_breaks(): void
+    {
+        $canary = "cfg04-multiline-canary-AAAAAAAA\nsecond-line-BBBBBBBB";
+        $processor = new RedactorProcessor(registeredValues: [$canary]);
+
+        $sanitized = $processor->sanitizeText("safe prefix\n{$canary}\nsafe suffix\n");
+
+        self::assertStringNotContainsString($canary, $sanitized);
+        self::assertStringContainsString("safe prefix\n" . self::REDACTED . "\nsafe suffix\n", $sanitized);
+    }
+
+    #[Test]
     public function redacts_overlapping_resolved_values_independent_of_registration_order(): void
     {
         $short = 'cfg04-overlap-base-0001';

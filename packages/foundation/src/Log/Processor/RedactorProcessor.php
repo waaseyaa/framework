@@ -141,6 +141,10 @@ final class RedactorProcessor implements ProcessorInterface
      */
     public function sanitizeText(string $value): string
     {
+        // Exact registered representations may themselves contain line breaks,
+        // so replace them before applying the denylist one diagnostic line at
+        // a time. Line scoping preserves safe error codes on adjacent lines.
+        $value = $this->replaceRegisteredRepresentations($value);
         $parts = preg_split('/(\r\n|\n|\r)/', $value, -1, PREG_SPLIT_DELIM_CAPTURE);
         if (!is_array($parts)) {
             return self::SENTINEL;
