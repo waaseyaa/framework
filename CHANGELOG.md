@@ -119,7 +119,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   provider boot, while restricted, failed, and in-progress boots expose none.
   The installed database-cache owner now advances one migration-owned logical
   generation by CAS for both forward transition and rollback; all bins ignore
-  older generations without payload rewrites, and rollback cannot reactivate
+  older generations without payload rewrites, explicit deletion reclaims
+  selected ids or bins across every generation, and rollback cannot reactivate
   stale predecessor or failed-successor cache rows. Remaining package adapters
   and process reconciliation remain incomplete.
   A generic coordinator now composes every frozen registry owner exactly once,

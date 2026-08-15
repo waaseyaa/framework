@@ -528,7 +528,10 @@ database-cache write records its current generation and every read requires an
 exact match. Forward rekey and rollback each compare-and-swap that one logical
 record to the next monotonic generation. Existing payload rows are neither
 opened nor rewritten, and a later rollback never reactivates an older cache
-generation. Runtime cache construction and reads perform no DDL.
+generation. Explicit deletion is physical across every generation for the
+selected cache id or bin, so operator cache clears reclaim superseded payload
+rows instead of only hiding them. Runtime cache construction and reads perform
+no DDL.
 
 ### Cache event listeners
 

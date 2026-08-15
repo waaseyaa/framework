@@ -101,6 +101,17 @@ final class DatabaseBackendTest extends TestCase
     }
 
     #[Test]
+    public function empty_get_multiple_is_a_database_free_no_op(): void
+    {
+        $pdo = new \PDO('sqlite::memory:');
+        $backend = new DatabaseBackend($pdo, 'cache_unmigrated');
+        $cids = [];
+
+        self::assertSame([], $backend->getMultiple($cids));
+        self::assertSame([], $cids);
+    }
+
+    #[Test]
     public function expiration(): void
     {
         $this->backend->set('expired', 'old data', time() - 1);

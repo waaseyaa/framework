@@ -6,6 +6,7 @@ namespace Waaseyaa\Cache\Tests\Unit\Rekey;
 
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Cache\Backend\DatabaseBackend;
 use Waaseyaa\Cache\CacheServiceProvider;
 use Waaseyaa\Cache\Rekey\CacheGenerationRekeyAdapter;
 use Waaseyaa\Database\DatabaseInterface;
@@ -119,6 +120,30 @@ final class CacheGenerationRekeyAdapterRetainedRedTest extends TestCase
         $this->expectExceptionMessage('exact successor');
 
         $adapter->verify($context, $snapshot);
+    }
+
+    #[Test]
+    public function forward_and_rollback_never_reactivate_a_payload_through_the_real_backend(): void
+    {
+        $database = $this->database();
+        $pdo = $database->getConnection()->getNativeConnection();
+        self::assertInstanceOf(\PDO::class, $pdo);
+        $backend = new DatabaseBackend($pdo, 'cache_render', str_repeat('k', 32));
+        $backend->set('predecessor', 'synthetic-predecessor');
+        $adapter = new CacheGenerationRekeyAdapter($database);
+
+        $forwardContext = $this->context($database, ApplicationMasterRekeyState::TransitionBoundedBatches);
+        $forwardSnapshot = $adapter->snapshot($forwardContext);
+        $adapter->transitionBatch($forwardContext, $forwardSnapshot, null, 1);
+        self::assertFalse($backend->get('predecessor'));
+
+        $backend->set('successor', 'synthetic-successor');
+        $rollbackContext = $this->context($database, ApplicationMasterRekeyState::RollingBack);
+        $rollbackSnapshot = $adapter->rollbackSnapshot($rollbackContext);
+        $adapter->rollbackBatch($rollbackContext, $rollbackSnapshot, null, 1);
+
+        self::assertFalse($backend->get('predecessor'));
+        self::assertFalse($backend->get('successor'));
     }
 
     private function database(): DBALDatabase

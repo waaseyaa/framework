@@ -75,11 +75,11 @@ final class DatabaseBackend implements TagAwareCacheInterface
     /** @return array<string, CacheItem> */
     public function getMultiple(array &$cids): array
     {
-        $generation = $this->currentGeneration();
-
         if ($cids === []) {
             return [];
         }
+
+        $generation = $this->currentGeneration();
 
         $placeholders = implode(',', array_fill(0, count($cids), '?'));
         $stmt = $this->prepare(
@@ -130,12 +130,9 @@ final class DatabaseBackend implements TagAwareCacheInterface
 
     public function delete(string $cid): void
     {
-        $generation = $this->currentGeneration();
-
-        $stmt = $this->prepare(
-            'DELETE FROM ' . self::TABLE . ' WHERE bin = :bin AND cid = :cid AND generation = :generation',
-        );
-        $stmt->execute([':bin' => $this->bin, ':cid' => $cid, ':generation' => $generation]);
+        $this->ensureTable();
+        $stmt = $this->prepare('DELETE FROM ' . self::TABLE . ' WHERE bin = :bin AND cid = :cid');
+        $stmt->execute([':bin' => $this->bin, ':cid' => $cid]);
     }
 
     public function deleteMultiple(array $cids): void
@@ -144,21 +141,16 @@ final class DatabaseBackend implements TagAwareCacheInterface
             return;
         }
 
-        $generation = $this->currentGeneration();
-
+        $this->ensureTable();
         $placeholders = implode(',', array_fill(0, count($cids), '?'));
-        $stmt = $this->prepare(
-            'DELETE FROM ' . self::TABLE . " WHERE bin = ? AND generation = ? AND cid IN ({$placeholders})",
-        );
-        $stmt->execute([$this->bin, $generation, ...array_values($cids)]);
+        $stmt = $this->prepare('DELETE FROM ' . self::TABLE . " WHERE bin = ? AND cid IN ({$placeholders})");
+        $stmt->execute([$this->bin, ...array_values($cids)]);
     }
 
     public function deleteAll(): void
     {
-        $generation = $this->currentGeneration();
-        $this->prepare(
-            'DELETE FROM ' . self::TABLE . ' WHERE bin = :bin AND generation = :generation',
-        )->execute([':bin' => $this->bin, ':generation' => $generation]);
+        $this->ensureTable();
+        $this->prepare('DELETE FROM ' . self::TABLE . ' WHERE bin = :bin')->execute([':bin' => $this->bin]);
     }
 
     public function invalidate(string $cid): void
