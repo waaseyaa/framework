@@ -163,6 +163,58 @@ final class McpCredentialCustodyTest extends TestCase
         ], $health->status('stub'));
     }
 
+    #[Test]
+    public function authenticated_json_rpc_startup_error_is_not_misreported_as_a_credential_failure(): void
+    {
+        $http = new RecordingMcpHttpClient(new JsonRpcErrorMcpHttpClient('initialize'));
+        $health = new McpIntegrationHealth();
+        $tools = $this->toolRegistry();
+        $source = $this->source(
+            $http,
+            $tools,
+            $this->storage('optional', 'secret-reference'),
+            $this->secretRegistry(new RotatingMcpCredentialProvider()),
+            $health,
+        );
+
+        $source->bootstrap();
+
+        self::assertFalse($tools->has('stub.echo'));
+        self::assertCount(1, $http->requests);
+        self::assertSame([
+            'state' => 'degraded',
+            'reason' => 'server_unavailable',
+        ], $health->status('stub'));
+    }
+
+    #[Test]
+    public function authenticated_json_rpc_tool_error_crosses_custody_as_remote_error(): void
+    {
+        $http = new RecordingMcpHttpClient(new JsonRpcErrorMcpHttpClient('tools/call'));
+        $health = new McpIntegrationHealth();
+        $tools = $this->toolRegistry();
+        $source = $this->source(
+            $http,
+            $tools,
+            $this->storage('required', 'secret-reference'),
+            $this->secretRegistry(new RotatingMcpCredentialProvider()),
+            $health,
+        );
+
+        $source->bootstrap();
+        $result = $tools->get('stub.echo')->impl->execute(
+            ['message' => 'hello'],
+            $this->account('tool.mcp.stub.echo'),
+        );
+
+        self::assertTrue($result->isError);
+        self::assertSame('remote_error', $result->summary);
+        self::assertSame([
+            'state' => 'healthy',
+            'reason' => null,
+        ], $health->status('stub'));
+    }
+
     private function source(
         RecordingMcpHttpClient $http,
         ToolRegistryInterface $tools,
@@ -343,6 +395,47 @@ final class FailingMcpHttpClient implements HttpClientInterface
     public function request(string $method, string $url, array $headers = [], array|string|null $body = null): HttpResponse
     {
         throw new HttpRequestException('synthetic MCP outage', $url, $method);
+    }
+
+    public function get(string $url, array $headers = []): HttpResponse
+    {
+        return $this->request('GET', $url, $headers);
+    }
+
+    public function post(string $url, array $headers = [], array|string|null $body = null): HttpResponse
+    {
+        return $this->request('POST', $url, $headers, $body);
+    }
+}
+
+final class JsonRpcErrorMcpHttpClient implements HttpClientInterface
+{
+    private readonly StubMcpServerHttpClient $inner;
+
+    public function __construct(private readonly string $methodToFail)
+    {
+        $this->inner = new StubMcpServerHttpClient();
+        $this->inner->registerTool('echo', 'Echo input', ['type' => 'object'], static fn(array $args): array => [
+            'isError' => false,
+            'content' => [['type' => 'text', 'text' => (string) ($args['message'] ?? '')]],
+        ]);
+    }
+
+    public function request(string $method, string $url, array $headers = [], array|string|null $body = null): HttpResponse
+    {
+        $payload = is_string($body) ? json_decode($body, true, 512, JSON_THROW_ON_ERROR) : $body;
+        if (is_array($payload) && ($payload['method'] ?? null) === $this->methodToFail) {
+            return new HttpResponse(200, json_encode([
+                'jsonrpc' => '2.0',
+                'id' => $payload['id'] ?? null,
+                'error' => [
+                    'code' => -32601,
+                    'message' => 'CFG04-REMOTE-CANARY',
+                ],
+            ], JSON_THROW_ON_ERROR));
+        }
+
+        return $this->inner->request($method, $url, $headers, $body);
     }
 
     public function get(string $url, array $headers = []): HttpResponse
