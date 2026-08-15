@@ -426,6 +426,26 @@ final class AuditChainVerifierTest extends TestCase
         self::assertContains($result->failureKind, ['row_count', 'chain_link'], 'failure kind must reflect missing row');
     }
 
+    #[Test]
+    public function keyed_verifier_rejects_a_forged_pruned_flag_without_authenticated_authorization(): void
+    {
+        $key = random_bytes(32);
+        new LegacyCheckpointSignatureMigrator($this->db, $key)->migrate();
+        $this->insertEvent('forged-prune-1');
+        $this->insertEvent('forged-prune-2');
+        $this->seal($key);
+
+        $this->db->getConnection()->executeStatement('DELETE FROM audit_event WHERE id <= 2');
+        $this->db->getConnection()->executeStatement(
+            'UPDATE audit_checkpoint SET pruned = 1 WHERE is_genesis = 0',
+        );
+
+        $result = $this->verifier($key)->verify();
+
+        self::assertFalse($result->ok, 'A mutable pruned flag must not authenticate deletion of a signed segment.');
+        self::assertSame('prune_authorization', $result->failureKind);
+    }
+
     // ------------------------------------------------------------------
     // Case 4: checkpoint-forgery
     // ------------------------------------------------------------------
