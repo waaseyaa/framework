@@ -159,6 +159,25 @@ final class AuditChainVerifierTest extends TestCase
     }
 
     #[Test]
+    public function first_keyed_checkpoint_authenticates_the_pristine_genesis_anchor(): void
+    {
+        $key = random_bytes(32);
+        $this->insertEvent('fresh-keyed-install');
+
+        $this->seal($key);
+
+        self::assertTrue(
+            $this->verifier($key)->verify()->ok,
+            'The first keyed checkpoint must not leave the pristine genesis anchor unauthenticated.',
+        );
+        self::assertSame(
+            0,
+            new LegacyCheckpointSignatureMigrator($this->db, $key)->migrate(),
+            'A fresh keyed chain must not require an operator migration after its first checkpoint.',
+        );
+    }
+
+    #[Test]
     public function audit_key_holders_never_expose_derived_bytes_through_debug_or_serialization(): void
     {
         $key = random_bytes(32);
