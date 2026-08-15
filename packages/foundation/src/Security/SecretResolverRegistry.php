@@ -122,6 +122,12 @@ final class SecretResolverRegistry
         $this->frozen = true;
     }
 
+    /** Canonical non-secret environment used in every policy key. */
+    public function environment(): string
+    {
+        return $this->environment;
+    }
+
     public function resolve(SecretReference $reference, string $package): SensitiveValue
     {
         if (!$this->frozen) {

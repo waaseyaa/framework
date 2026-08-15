@@ -63,6 +63,48 @@ stateless issuance window. Revoked keys leave signing and JWKS trust
 immediately. External key destruction and any operational invalidation remain
 deployment/operator responsibilities.
 
+## Configuration-manifest trust composition
+
+CFG-03 envelope signing is composed only by the configuration authority
+provider. Every profile receives a closed Ed25519 verifier. A profile receives
+a signer only when bootstrap configuration supplies an exact trusted public key
+reference and an exact non-secret secret-provider reference:
+
+```php
+'config_manifest_signing' => [
+    'trust_keys' => [
+        'cfg04:manifest-key-v1' => [
+            'algorithm' => 'Ed25519',
+            'public_key' => '<canonical-base64-32-byte-public-key>',
+        ],
+    ],
+    'revoked_trust_keys' => [],
+    'signing_key' => [
+        'trust_key_reference' => 'cfg04:manifest-key-v1',
+        'secret_reference' => [
+            'provider' => '<registered-provider-id>',
+            'identifier' => '<opaque-provider-reference>',
+            'secret_class' => 'token-signing-private-key',
+            'purpose' => 'waaseyaa.config.manifest-signing.v1',
+        ],
+    ],
+],
+```
+
+The provider registers that exact package, class, purpose, provider, and the
+resolver registry's canonical environment tuple before the kernel freezes the
+registry. It never accepts private material in configuration. Signing resolves
+one provider version into a non-exporting handle operation and derives its
+Ed25519 public key before signing; a rotated or stale private version that does
+not match the public key bound to the trust reference fails closed. Diagnostic
+and serialization surfaces cannot expose the provider identifier or private
+bytes. Verification
+accepts only the envelope's exact Ed25519 algorithm and trust reference, and a
+revoked, unknown, malformed, or tampered envelope fails closed. A verifier-only
+profile requires no signing provider and publishes no signing authority. This
+slice publishes the CFG-03 interface bindings; it adds no operational signing
+command or key ceremony.
+
 ## Schema and verification
 
 All lifecycle columns, version authority, indexes, and append-only revocation
@@ -72,4 +114,3 @@ non-exporting custody, rollback on successor failure, staged propagation,
 oldest-cache verification, exact retention arithmetic, competing successors,
 monotonic versions, cleanup boundaries, emergency revocation, and the CFG-03
 trust-policy seam.
-

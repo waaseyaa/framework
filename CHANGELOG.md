@@ -64,9 +64,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   request-identified emergency path now removes compromised signing trust,
   transactionally invalidates and hashes the enumeration of live persisted
   access/refresh tokens, and appends the conservative stateless issuance window
-  without presenting compromise as ordinary rotation. CFG-03 trust composition
-  and the versioned application-master transition remain separate incomplete
-  slices.
+  without presenting compromise as ordinary rotation. CFG-03 manifest signing
+  now composes through a closed Ed25519 trust policy and a guarded signer that
+  consumes only an exact non-secret reference through the frozen kernel secret
+  registry. Policy registration uses that registry's canonical environment, and
+  each freshly resolved private version must derive the public key bound to its
+  trust reference before it may sign. Verifier-only profiles fail closed,
+  revoked or unknown trust references cannot verify, and raw private-key
+  configuration is rejected.
+  The versioned application-master transition remains a separate incomplete
+  slice.
 - **configuration schema and sync authority (`S1-FW-CFG-03`):** Add the strict
   v1 configuration contract with closed recursive schema validation, separate
   default-materialized effective documents, versioned canonical encoding,

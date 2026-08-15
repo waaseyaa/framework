@@ -10,6 +10,12 @@ use Waaseyaa\Config\ConfigFactoryInterface;
 use Waaseyaa\Config\ConfigManager;
 use Waaseyaa\Config\ConfigManagerInterface;
 use Waaseyaa\Config\Event\ConfigurationSelectorDeprecationEvent;
+use Waaseyaa\Config\Manifest\ConfigManifestEd25519Signer;
+use Waaseyaa\Config\Manifest\ConfigManifestEd25519Verifier;
+use Waaseyaa\Config\Manifest\ConfigManifestSignatureVerifierInterface;
+use Waaseyaa\Config\Manifest\ConfigManifestSignerInterface;
+use Waaseyaa\Config\Manifest\ConfigManifestTrustPolicy;
+use Waaseyaa\Config\Manifest\Ed25519ManifestSigningOperation;
 use Waaseyaa\Config\Manifest\UnsignedConfigPolicy;
 use Waaseyaa\Config\Schema\Ai\McpServersConfig;
 use Waaseyaa\Config\Schema\Ai\ProvidersConfig;
@@ -17,6 +23,9 @@ use Waaseyaa\Config\Schema\ConfigSchemaRegistry;
 use Waaseyaa\Config\Schema\ConfigSchemaValidator;
 use Waaseyaa\Database\DatabaseIdentityProviderInterface;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
+use Waaseyaa\Foundation\Security\SecretClass;
+use Waaseyaa\Foundation\Security\SecretReference;
+use Waaseyaa\Foundation\Security\SecretResolverRegistry;
 use Waaseyaa\Foundation\ServiceProvider\Capability\CapabilityDeclaration;
 use Waaseyaa\Foundation\ServiceProvider\Capability\FinalizesProviderBootInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesCapabilitiesInterface;
@@ -36,6 +45,7 @@ class ConfigurationAuthorityServiceProvider extends ServiceProvider implements F
     {
         $root = $this->projectRoot !== '' ? $this->projectRoot : (string) getcwd();
         $bootstrap = $this->config;
+        $this->registerManifestSigningCustody();
 
         $this->singleton(ConfigurationAuthorityResolver::class, ConfigurationAuthorityResolver::class);
         $this->singleton(ConfigSchemaValidator::class, ConfigSchemaValidator::class);
@@ -162,6 +172,125 @@ class ConfigurationAuthorityServiceProvider extends ServiceProvider implements F
         }
 
         return $bridge;
+    }
+
+    private function registerManifestSigningCustody(): void
+    {
+        $raw = $this->config['config_manifest_signing'] ?? [];
+        if (!is_array($raw)) {
+            throw new \InvalidArgumentException('CFG-04 manifest signing configuration must be an array.');
+        }
+        self::assertExactKeys($raw, ['trust_keys', 'revoked_trust_keys', 'signing_key'], 'manifest signing');
+
+        $trustKeys = $raw['trust_keys'] ?? [];
+        $revoked = $raw['revoked_trust_keys'] ?? [];
+        if (!is_array($trustKeys) || !is_array($revoked) || !array_is_list($revoked)) {
+            throw new \InvalidArgumentException('CFG-04 manifest trust configuration is malformed.');
+        }
+        foreach ($trustKeys as $reference => $entry) {
+            if (!is_string($reference) || !is_array($entry)) {
+                throw new \InvalidArgumentException('CFG-04 manifest trust configuration is malformed.');
+            }
+            self::assertExactKeys($entry, ['algorithm', 'public_key'], 'manifest trust entry');
+        }
+        foreach ($revoked as $reference) {
+            if (!is_string($reference)) {
+                throw new \InvalidArgumentException('CFG-04 revoked trust references must be strings.');
+            }
+        }
+
+        /** @var array<string, array{algorithm: string, public_key: string}> $trustKeys */
+        /** @var list<string> $revoked */
+        $trustPolicy = new ConfigManifestTrustPolicy($trustKeys, $revoked);
+        $this->singleton(ConfigManifestTrustPolicy::class, static fn(): ConfigManifestTrustPolicy => $trustPolicy);
+        $this->singleton(
+            ConfigManifestEd25519Verifier::class,
+            fn(): ConfigManifestEd25519Verifier => new ConfigManifestEd25519Verifier(
+                $this->resolve(ConfigManifestTrustPolicy::class),
+            ),
+        );
+        $this->singleton(
+            ConfigManifestSignatureVerifierInterface::class,
+            fn(): ConfigManifestSignatureVerifierInterface => $this->resolve(ConfigManifestEd25519Verifier::class),
+        );
+
+        if (!array_key_exists('signing_key', $raw)) {
+            return;
+        }
+        $signingKey = $raw['signing_key'];
+        if (!is_array($signingKey)) {
+            throw new \InvalidArgumentException('CFG-04 manifest signing-key configuration is malformed.');
+        }
+        self::assertExactKeys($signingKey, ['trust_key_reference', 'secret_reference'], 'manifest signing key');
+        $trustKeyReference = $signingKey['trust_key_reference'] ?? null;
+        $secretReference = $signingKey['secret_reference'] ?? null;
+        if (!is_string($trustKeyReference) || !is_array($secretReference)) {
+            throw new \InvalidArgumentException('CFG-04 manifest signing-key configuration is malformed.');
+        }
+        self::assertExactKeys(
+            $secretReference,
+            ['provider', 'identifier', 'secret_class', 'purpose'],
+            'manifest signing secret reference',
+        );
+        $provider = $secretReference['provider'] ?? null;
+        $identifier = $secretReference['identifier'] ?? null;
+        $secretClass = $secretReference['secret_class'] ?? null;
+        $purpose = $secretReference['purpose'] ?? null;
+        $trustedPublicKey = $trustPolicy->trustedPublicKey(
+            $trustKeyReference,
+            \Waaseyaa\Config\Manifest\SignedConfigManifestEnvelope::ALGORITHM_V1,
+        );
+        if (!is_string($provider) || !is_string($identifier) || !is_string($secretClass) || !is_string($purpose)
+            || $secretClass !== SecretClass::TokenSigningPrivateKey->value
+            || $purpose !== Ed25519ManifestSigningOperation::PURPOSE
+            || $trustedPublicKey === null) {
+            throw new \InvalidArgumentException('CFG-04 manifest signing-key reference is invalid or untrusted.');
+        }
+
+        $registry = $this->kernelServices?->get(SecretResolverRegistry::class);
+        if (!$registry instanceof SecretResolverRegistry) {
+            throw new ConfigurationAuthorityUnavailableException(
+                'CFG-04 manifest signing requires the kernel secret resolver registry.',
+            );
+        }
+        $reference = SecretReference::create(
+            $provider,
+            $identifier,
+            SecretClass::TokenSigningPrivateKey,
+            Ed25519ManifestSigningOperation::PURPOSE,
+        );
+        $registry->registerConsumer(ConfigManifestEd25519Signer::PACKAGE, Ed25519ManifestSigningOperation::class);
+        $registry->allow(
+            $provider,
+            ConfigManifestEd25519Signer::PACKAGE,
+            SecretClass::TokenSigningPrivateKey,
+            Ed25519ManifestSigningOperation::PURPOSE,
+            [$registry->environment()],
+        );
+        $this->singleton(
+            ConfigManifestEd25519Signer::class,
+            static fn(): ConfigManifestEd25519Signer => new ConfigManifestEd25519Signer(
+                $registry,
+                $reference,
+                $trustKeyReference,
+                $trustedPublicKey,
+            ),
+        );
+        $this->singleton(
+            ConfigManifestSignerInterface::class,
+            fn(): ConfigManifestSignerInterface => $this->resolve(ConfigManifestEd25519Signer::class),
+        );
+    }
+
+    /** @param array<mixed> $value @param list<string> $allowed */
+    private static function assertExactKeys(array $value, array $allowed, string $label): void
+    {
+        $keys = array_keys($value);
+        foreach ($keys as $key) {
+            if (!is_string($key) || !in_array($key, $allowed, true)) {
+                throw new \InvalidArgumentException(sprintf('CFG-04 %s contains an unknown field.', $label));
+            }
+        }
     }
 
     private function mutationStorage(

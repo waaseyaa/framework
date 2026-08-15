@@ -74,6 +74,7 @@ final class SecretResolverRegistryTest extends TestCase
         $registry->allow('synthetic-vault', 'waaseyaa/ai-vector', SecretClass::ProviderCredential, 'waaseyaa.ai.embedding.v1', ['testing']);
         $registry->freeze();
 
+        $this->assertSame('testing', $registry->environment());
         $this->assertInstanceOf(SensitiveValue::class, $registry->resolve($this->reference(), 'waaseyaa/ai-vector'));
     }
 

@@ -17,7 +17,7 @@
 5. Add the DB-02 migration, staged propagation, transactional activation,
    retention/JWKS policy, and explicit operator commands.
 6. Commit retained-red compromise failures, then add separately confirmed
-   emergency revocation and CFG-03 trust composition.
+   emergency revocation and the closed Ed25519 CFG-03 trust composition.
 7. Implement the versioned application-master/rekey primitives as a separate
    slice; Sheg retains ownership of operational preflight and ceremony.
 8. Re-run exact verification, packaged-form proof, evidence sealing, and
@@ -45,4 +45,3 @@ keys, non-secret fingerprints, counts, hashes, versions, and command outcomes.
 This record remains open until signing lifecycle, emergency compromise,
 CFG-03 composition, application-master transition, exact verification, and
 independent review are all complete.
-
