@@ -1412,16 +1412,16 @@
             "class": "authority-contract",
             "match_sha256": "2f3c310da3a99cdc805590b8e30bb7a3601101bb9d53f2997f3d657120c5bf8f",
             "line_sha256": "4c657d1f9572b4484f2ffe72b49ebcc7d6c088ad27cbeb73c05c40004290201b",
-            "source_sha256": "692d71bbb1ff6c7cc63b66f762c46ec251370166e8b3710429cb883255b6300a"
+            "source_sha256": "2d318c77e13c6cd92bae1a885f8027654a50c1d457a475568d16171f706b499c"
         },
         {
             "path": "packages/config/src/Sync/ConfigSyncFile.php",
-            "line": 259,
+            "line": 337,
             "pattern": "deployable_policy",
             "class": "authority-contract",
             "match_sha256": "2f3c310da3a99cdc805590b8e30bb7a3601101bb9d53f2997f3d657120c5bf8f",
             "line_sha256": "32a1707ecd972f00107039a4250412be31798aafd0dee1dae4eb300f6726d801",
-            "source_sha256": "692d71bbb1ff6c7cc63b66f762c46ec251370166e8b3710429cb883255b6300a"
+            "source_sha256": "2d318c77e13c6cd92bae1a885f8027654a50c1d457a475568d16171f706b499c"
         },
         {
             "path": "packages/config/src/Sync/ConfigSyncFileSourceInterface.php",
