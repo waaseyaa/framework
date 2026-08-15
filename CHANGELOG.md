@@ -125,7 +125,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   writes strict active-version application-master authentication tags, reads
   only declared versions, and contributes a no-mutation drain gate that refuses
   forward or rollback completion while predecessor or failed-successor pending
-  or failed payloads remain. Remaining package adapters and process
+  or failed payloads remain. Audit checkpoint NDJSON exports now carry the
+  detached signature with the checkpoint hash-chain fields so an external
+  append-only sink retains independently verifiable authentication evidence.
+  Remaining package adapters and process
   reconciliation remain incomplete.
   A generic coordinator now composes every frozen registry owner exactly once,
   refuses mismatched database identities or purpose rosters before inventory,

@@ -191,7 +191,9 @@ re-derived** next run (the high-water mark comes from the last *checkpoint*, not
 from row state). It runs on a schedule (`AuditCheckpointScheduleEntries`, default
 `*/15 * * * *`) and on demand via `bin/waaseyaa audit:checkpoint`. Each sealed
 checkpoint is exported through a pluggable **`CheckpointSink`** — the
-**load-bearing anchor**. The default `FileCheckpointSink` appends NDJSON locally
+**load-bearing anchor**. The exported record includes the detached checkpoint
+signature so an external sink retains the authentication material alongside the
+hash-chain fields. The default `FileCheckpointSink` appends NDJSON locally
 (+ optional stdout), but this is only as trustworthy as the host: **real
 tamper-evidence requires configuring an off-box / WORM / external append-only
 sink** (a host able to edit `audit_event` can also edit a local file). Optional

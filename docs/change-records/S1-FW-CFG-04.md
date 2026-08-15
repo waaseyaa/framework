@@ -42,6 +42,11 @@ failed-successor payloads without deleting jobs. `F-CFG-011` stays red until a
 separately authorized Sheg/operator workflow supplies deployment preflight,
 external custody, retained-backup, and ceremony evidence.
 
+Checkpoint export now preserves each detached authentication signature in the
+NDJSON record. External append-only sinks therefore retain the authentication
+material required to verify the exported hash-chain evidence independently;
+no key bytes or operational evidence are exported.
+
 ## Evidence disposition
 
 Every implementation slice records exact commit/tree identity, split test and
