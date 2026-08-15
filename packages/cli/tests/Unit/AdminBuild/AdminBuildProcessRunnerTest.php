@@ -1,0 +1,72 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Waaseyaa\CLI\Tests\Unit\AdminBuild;
+
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
+use Waaseyaa\CLI\AdminBuild\AdminBuildProcessException;
+use Waaseyaa\CLI\AdminBuild\AdminBuildProcessRunner;
+use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
+
+#[CoversClass(AdminBuildProcessRunner::class)]
+final class AdminBuildProcessRunnerTest extends TestCase
+{
+    #[Test]
+    public function split_stdout_and_stderr_canaries_are_sanitized_before_callbacks(): void
+    {
+        $canary = 'cfg04-' . 'stream-' . 'credential-' . bin2hex(random_bytes(10));
+        $sanitizer = new RedactorProcessor(registeredValues: [$canary]);
+        $stdout = '';
+        $stderr = '';
+        $code = <<<'PHP'
+$value = $argv[1];
+fwrite(STDOUT, substr($value, 0, 7));
+fflush(STDOUT);
+usleep(10000);
+fwrite(STDOUT, substr($value, 7) . "\n");
+fwrite(STDERR, substr($value, 0, 5));
+fflush(STDERR);
+usleep(10000);
+fwrite(STDERR, substr($value, 5) . "\n");
+PHP;
+
+        $exitCode = new AdminBuildProcessRunner()->run(
+            command: [PHP_BINARY, '-r', $code, $canary],
+            cwd: sys_get_temp_dir(),
+            environment: ['PATH' => dirname(PHP_BINARY)],
+            sanitizer: $sanitizer,
+            stdout: static function (string $chunk) use (&$stdout): void { $stdout .= $chunk; },
+            stderr: static function (string $chunk) use (&$stderr): void { $stderr .= $chunk; },
+        );
+
+        self::assertSame(0, $exitCode);
+        self::assertStringNotContainsString($canary, $stdout . $stderr);
+        self::assertStringContainsString(RedactorProcessor::SENTINEL, $stdout);
+        self::assertStringContainsString(RedactorProcessor::SENTINEL, $stderr);
+    }
+
+    #[Test]
+    public function excessive_child_output_is_dropped_with_a_fixed_non_sensitive_code(): void
+    {
+        $canary = 'cfg04-' . 'overflow-' . 'credential-' . bin2hex(random_bytes(8));
+        $captured = '';
+
+        try {
+            new AdminBuildProcessRunner(maxOutputBytesPerStream: 64)->run(
+                command: [PHP_BINARY, '-r', 'fwrite(STDOUT, str_repeat($argv[1], 20));', $canary],
+                cwd: sys_get_temp_dir(),
+                environment: ['PATH' => dirname(PHP_BINARY)],
+                sanitizer: new RedactorProcessor(registeredValues: [$canary]),
+                stdout: static function (string $chunk) use (&$captured): void { $captured .= $chunk; },
+                stderr: static function (string $chunk) use (&$captured): void { $captured .= $chunk; },
+            );
+            self::fail('Output overflow must refuse.');
+        } catch (AdminBuildProcessException $e) {
+            self::assertSame('child-output-limit', $e->errorCode);
+            self::assertStringNotContainsString($canary, $captured . $e->getMessage());
+        }
+    }
+}
