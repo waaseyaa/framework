@@ -10,7 +10,9 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApplicationMasterRekeyContributionsInterface;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Oidc\Discovery\DiscoveryController;
 use Waaseyaa\Oidc\Entity\OidcClient;
@@ -221,6 +223,91 @@ final class OidcServiceProviderTest extends TestCase
         self::assertArrayHasKey('redirect_uris', $fields);
         self::assertArrayHasKey('scopes', $fields);
         self::assertArrayHasKey('client_secret_hash', $fields);
+    }
+
+    #[Test]
+    public function contributesExactApplicationMasterPurposeOwners(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $provider = new OidcServiceProvider();
+        $provider->setKernelContext('/tmp/oidc-test', [
+            'oidc' => [
+                'signing_key_lifecycle' => [
+                    'maximum_token_lifetime_seconds' => 7_776_000,
+                    'maximum_clock_skew_seconds' => 300,
+                    'jwks_cache_lifetime_seconds' => 86_400,
+                    'propagation_margin_seconds' => 300,
+                ],
+            ],
+        ], []);
+        $provider->setKernelServices(new class ($database) implements KernelServicesInterface {
+            public function __construct(private readonly DatabaseInterface $database) {}
+
+            public function get(string $abstract): ?object
+            {
+                return $abstract === DatabaseInterface::class ? $this->database : null;
+            }
+        });
+
+        self::assertInstanceOf(ProvidesApplicationMasterRekeyContributionsInterface::class, $provider);
+        $contributions = iterator_to_array($provider->applicationMasterRekeyContributions(), false);
+        self::assertCount(3, $contributions);
+
+        $records = [];
+        foreach ($contributions as $contribution) {
+            foreach ($contribution->policies() as $policy) {
+                $records[$policy->id] = $policy->canonicalRecord();
+            }
+        }
+        ksort($records, SORT_STRING);
+
+        self::assertSame([
+            ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_ENCRYPTION => [
+                'id' => ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_ENCRYPTION,
+                'owner_package' => 'waaseyaa/oidc',
+                'strategy' => ApplicationMasterPurposeStrategy::ReencryptCiphertext->value,
+                'maximum_lifetime_seconds' => 3_600,
+                'retention_seconds' => 3_900,
+                'adapter_id' => 'oidc-access-token-v1',
+                'rollback_behavior' => 'restore-predecessor-ciphertext-and-index',
+            ],
+            ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP => [
+                'id' => ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP,
+                'owner_package' => 'waaseyaa/oidc',
+                'strategy' => ApplicationMasterPurposeStrategy::RecomputeLookupIndex->value,
+                'maximum_lifetime_seconds' => 3_600,
+                'retention_seconds' => 3_900,
+                'adapter_id' => 'oidc-access-token-v1',
+                'rollback_behavior' => 'restore-predecessor-ciphertext-and-index',
+            ],
+            ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_ENCRYPTION => [
+                'id' => ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_ENCRYPTION,
+                'owner_package' => 'waaseyaa/oidc',
+                'strategy' => ApplicationMasterPurposeStrategy::ReencryptCiphertext->value,
+                'maximum_lifetime_seconds' => 7_776_000,
+                'retention_seconds' => 7_776_300,
+                'adapter_id' => 'oidc-refresh-token-v1',
+                'rollback_behavior' => 'restore-predecessor-ciphertext-and-index',
+            ],
+            ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_LOOKUP => [
+                'id' => ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_LOOKUP,
+                'owner_package' => 'waaseyaa/oidc',
+                'strategy' => ApplicationMasterPurposeStrategy::RecomputeLookupIndex->value,
+                'maximum_lifetime_seconds' => 7_776_000,
+                'retention_seconds' => 7_776_300,
+                'adapter_id' => 'oidc-refresh-token-v1',
+                'rollback_behavior' => 'restore-predecessor-ciphertext-and-index',
+            ],
+            ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION => [
+                'id' => ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION,
+                'owner_package' => 'waaseyaa/oidc',
+                'strategy' => ApplicationMasterPurposeStrategy::ReencryptCiphertext->value,
+                'maximum_lifetime_seconds' => 7_776_000,
+                'retention_seconds' => 7_863_000,
+                'adapter_id' => 'oidc-signing-key-v1',
+                'rollback_behavior' => 'restore-predecessor-ciphertext',
+            ],
+        ], $records);
     }
 
     #[Test]
