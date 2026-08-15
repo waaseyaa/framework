@@ -82,6 +82,32 @@ final class ApplicationMasterRekeyCoordinatorRetainedRedTest extends TestCase
     }
 
     #[Test]
+    public function coordinator_refuses_a_distinct_connection_even_when_database_parameters_match(): void
+    {
+        $database = $this->migratedDatabase();
+        $samePhysicalDatabase = DBALDatabase::createSqlite($this->dbPath);
+        self::assertSame($database->databaseIdentity(), $samePhysicalDatabase->databaseIdentity());
+        self::assertNotSame($database, $samePhysicalDatabase);
+        $adapter = new SyntheticAtomicRekeyAdapter(
+            $samePhysicalDatabase,
+            self::ADAPTER_ID,
+            $this->purpose(),
+        );
+
+        try {
+            new ApplicationMasterRekeyCoordinator(
+                new ApplicationMasterRekeyStore($database),
+                $this->rotatedKeyring(),
+                $this->purposes(),
+                [$adapter],
+            );
+            self::fail('A rekey adapter with a distinct same-parameter connection was composed.');
+        } catch (ApplicationMasterRekeyConflictException) {
+            self::assertSame(0, $adapter->snapshotCalls);
+        }
+    }
+
+    #[Test]
     public function snapshot_exception_persists_a_request_level_block_until_explicit_resolution(): void
     {
         [$database, $store, $coordinator, $adapter] = $this->preparedCoordinator();
