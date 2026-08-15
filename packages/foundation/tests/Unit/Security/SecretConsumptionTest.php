@@ -7,11 +7,14 @@ namespace Waaseyaa\Foundation\Tests\Unit\Security;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Waaseyaa\Foundation\Log\LogLevel;
+use Waaseyaa\Foundation\Log\LogRecord;
 use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
 use Waaseyaa\Foundation\Security\SecretClass;
 use Waaseyaa\Foundation\Security\SecretConsumerInterface;
 use Waaseyaa\Foundation\Security\SecretConsumptionCode;
 use Waaseyaa\Foundation\Security\SecretConsumptionException;
+use Waaseyaa\Foundation\Security\SecretHandle;
 use Waaseyaa\Foundation\Security\SecretProviderInterface;
 use Waaseyaa\Foundation\Security\SecretReference;
 use Waaseyaa\Foundation\Security\SecretResolverRegistry;
@@ -92,6 +95,25 @@ final class SecretConsumptionTest extends TestCase
             self::assertStringNotContainsString($canary, $exception->getMessage());
             self::assertNull($exception->getPrevious(), 'The secret-bearing exception chain must not escape.');
         }
+    }
+
+    #[Test]
+    public function process_local_handle_bytes_are_visible_to_every_sink_sanitizer_while_live(): void
+    {
+        $canary = 'CFG04-PROCESS-LOCAL-REDACTION-CANARY';
+        $handle = SecretHandle::fromBytes(
+            $canary,
+            SecretClass::ProviderCredential,
+            self::PURPOSE,
+            'legacy-static-v1',
+            [SyntheticEmbeddingConsumer::class],
+        );
+        $sanitizer = new RedactorProcessor();
+
+        $record = $sanitizer->process(new LogRecord(LogLevel::INFO, 'value=' . $canary));
+
+        self::assertSame('value=[REDACTED]', $record->message);
+        self::assertInstanceOf(SecretHandle::class, $handle);
     }
 
     private function registry(SecretProviderInterface $provider): SecretResolverRegistry

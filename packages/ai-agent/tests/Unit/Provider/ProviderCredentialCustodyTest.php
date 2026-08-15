@@ -12,6 +12,8 @@ use Waaseyaa\AI\Agent\Provider\AnthropicProvider;
 use Waaseyaa\AI\Agent\Provider\MessageRequest;
 use Waaseyaa\AI\Agent\Provider\OpenAiCompatibleCredentialOperation;
 use Waaseyaa\AI\Agent\Provider\OpenAiCompatibleProvider;
+use Waaseyaa\AI\Agent\Provider\RateLimitException;
+use Waaseyaa\AI\Agent\Provider\TransportException;
 use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
 use Waaseyaa\Foundation\Security\SecretClass;
 use Waaseyaa\Foundation\Security\SecretConsumptionException;
@@ -126,6 +128,40 @@ final class ProviderCredentialCustodyTest extends TestCase
             $client->sendMessage(new MessageRequest(messages: [['role' => 'user', 'content' => 'hello']]));
             self::fail('Credential-bearing transport errors must be replaced.');
         } catch (SecretConsumptionException $exception) {
+            self::assertStringNotContainsString($canary, $exception->getMessage());
+            self::assertNull($exception->getPrevious());
+        }
+    }
+
+    #[Test]
+    public function provider_retry_taxonomy_crosses_custody_with_only_safe_metadata(): void
+    {
+        $canary = 'CFG04-PROVIDER-DOMAIN-ERROR-CANARY';
+        $request = new MessageRequest(messages: [['role' => 'user', 'content' => 'hello']]);
+        $anthropic = new AnthropicProvider(
+            apiKey: 'synthetic-anthropic-key',
+            authenticatedTransport: static fn(): never => throw new RateLimitException(17, $canary),
+        );
+
+        try {
+            $anthropic->sendMessage($request);
+            self::fail('Rate-limit taxonomy must survive guarded credential use.');
+        } catch (RateLimitException $exception) {
+            self::assertSame(17, $exception->retryAfterSeconds);
+            self::assertSame('Provider rate limited.', $exception->getMessage());
+            self::assertStringNotContainsString($canary, $exception->getMessage());
+            self::assertNull($exception->getPrevious());
+        }
+
+        $openAi = new OpenAiCompatibleProvider(
+            apiKey: 'synthetic-openai-key',
+            authenticatedTransport: static fn(): never => throw new TransportException($canary),
+        );
+        try {
+            $openAi->sendMessage($request);
+            self::fail('Transport taxonomy must survive guarded credential use.');
+        } catch (TransportException $exception) {
+            self::assertSame('Provider transport unavailable.', $exception->getMessage());
             self::assertStringNotContainsString($canary, $exception->getMessage());
             self::assertNull($exception->getPrevious());
         }

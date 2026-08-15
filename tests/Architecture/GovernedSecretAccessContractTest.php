@@ -36,7 +36,8 @@ final class GovernedSecretAccessContractTest extends TestCase
         file_put_contents($source . '/Bypass.php', <<<'PHP'
             <?php
 
-            $credential = getenv('SYNTHETIC_PROVIDER_KEY');
+            $credential = \getenv('SYNTHETIC_PROVIDER_KEY');
+            $document = \file_get_contents('/tmp/synthetic-public-document');
             PHP);
 
         try {
@@ -47,6 +48,7 @@ final class GovernedSecretAccessContractTest extends TestCase
             ]);
             self::assertSame(1, $exit, $output);
             self::assertStringContainsString('GSA001', $output);
+            self::assertStringContainsString('GSA002', $output);
             self::assertStringNotContainsString('SYNTHETIC_PROVIDER_KEY', $output);
         } finally {
             @unlink($source . '/Bypass.php');

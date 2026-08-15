@@ -138,6 +138,30 @@ final class McpCredentialCustodyTest extends TestCase
         ], $http->authorizationValues());
     }
 
+    #[Test]
+    public function authenticated_transport_outage_is_not_misreported_as_a_credential_failure(): void
+    {
+        $http = new RecordingMcpHttpClient(new FailingMcpHttpClient());
+        $health = new McpIntegrationHealth();
+        $tools = $this->toolRegistry();
+        $source = $this->source(
+            $http,
+            $tools,
+            $this->storage('optional', 'secret-reference'),
+            $this->secretRegistry(new RotatingMcpCredentialProvider()),
+            $health,
+        );
+
+        $source->bootstrap();
+
+        self::assertFalse($tools->has('stub.echo'));
+        self::assertCount(1, $http->requests);
+        self::assertSame([
+            'state' => 'degraded',
+            'reason' => 'server_unavailable',
+        ], $health->status('stub'));
+    }
+
     private function source(
         RecordingMcpHttpClient $http,
         ToolRegistryInterface $tools,
@@ -310,5 +334,23 @@ final class RotatingMcpCredentialProvider implements SecretProviderInterface
             SecretClass::IntegrationCredential,
             'synthetic-v' . $this->resolveCount,
         );
+    }
+}
+
+final class FailingMcpHttpClient implements HttpClientInterface
+{
+    public function request(string $method, string $url, array $headers = [], array|string|null $body = null): HttpResponse
+    {
+        throw new \RuntimeException('synthetic MCP outage');
+    }
+
+    public function get(string $url, array $headers = []): HttpResponse
+    {
+        return $this->request('GET', $url, $headers);
+    }
+
+    public function post(string $url, array $headers = [], array|string|null $body = null): HttpResponse
+    {
+        return $this->request('POST', $url, $headers, $body);
     }
 }

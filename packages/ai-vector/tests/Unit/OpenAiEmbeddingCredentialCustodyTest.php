@@ -111,6 +111,28 @@ final class OpenAiEmbeddingCredentialCustodyTest extends TestCase
         }
     }
 
+    #[Test]
+    public function empty_default_reference_is_refused_with_the_typed_configuration_exception(): void
+    {
+        try {
+            EmbeddingProviderFactory::fromConfig([
+                'ai' => [
+                    'embedding_provider' => 'openai',
+                    'openai_credential_reference' => [
+                        'provider' => '',
+                        'identifier' => '',
+                        'secret_class' => 'provider-credential',
+                        'purpose' => OpenAiEmbeddingProvider::CREDENTIAL_PURPOSE,
+                    ],
+                ],
+            ], $this->registry(new RotatingEmbeddingCredentialProvider()));
+            self::fail('Empty default references must fail through the typed provider configuration boundary.');
+        } catch (ProviderCredentialConfigurationException $exception) {
+            self::assertSame('OpenAI embedding credential reference fields are invalid.', $exception->getMessage());
+            self::assertNull($exception->getPrevious());
+        }
+    }
+
     private function registry(SecretProviderInterface $provider): SecretResolverRegistry
     {
         $registry = new SecretResolverRegistry(new RedactorProcessor(), 'testing');
