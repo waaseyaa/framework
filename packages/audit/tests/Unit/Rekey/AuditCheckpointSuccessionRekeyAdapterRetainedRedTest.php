@@ -9,6 +9,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Audit\Entity\AuditCheckpoint;
 use Waaseyaa\Audit\Integrity\AuditCheckpointBuilder;
 use Waaseyaa\Audit\Integrity\AuditCheckpointCustody;
+use Waaseyaa\Audit\Integrity\AuditChainVerifier;
 use Waaseyaa\Audit\Integrity\CheckpointSink;
 use Waaseyaa\Audit\Rekey\AuditCheckpointSuccessionRekeyAdapter;
 use Waaseyaa\Database\DatabaseInterface;
@@ -145,6 +146,82 @@ final class AuditCheckpointSuccessionRekeyAdapterRetainedRedTest extends TestCas
         $this->expectException(ApplicationMasterRekeyConflictException::class);
         $this->expectExceptionMessage('exact coordinator database authority');
         $adapter->snapshot($this->context($other));
+    }
+
+    #[Test]
+    public function predecessor_history_verifies_through_the_anchor_after_predecessor_removal(): void
+    {
+        $this->sealUnderVersion(1, 'survives-predecessor-removal');
+        $context = $this->context($this->database);
+        $adapter = new AuditCheckpointSuccessionRekeyAdapter($this->database);
+        $snapshot = $adapter->snapshot($context);
+        $adapter->transitionBatch($context, $snapshot, null, 1);
+
+        $result = new AuditChainVerifier(
+            $this->database,
+            custody: new AuditCheckpointCustody($this->keyring(2)),
+        )->verify();
+
+        self::assertTrue($result->ok);
+    }
+
+    #[Test]
+    public function tampering_a_pinned_predecessor_signature_breaks_the_successor_anchor(): void
+    {
+        $checkpoint = $this->sealUnderVersion(1, 'tamper-pinned-signature');
+        $context = $this->context($this->database);
+        $adapter = new AuditCheckpointSuccessionRekeyAdapter($this->database);
+        $snapshot = $adapter->snapshot($context);
+        $adapter->transitionBatch($context, $snapshot, null, 1);
+        $this->database->update('audit_checkpoint')->fields([
+            'signature' => AuditCheckpointCustody::CHECKPOINT_PREFIX . '1:' . str_repeat('A', 43),
+        ])->condition('uuid', $checkpoint->getUuid())->execute();
+
+        $result = new AuditChainVerifier(
+            $this->database,
+            custody: new AuditCheckpointCustody($this->keyring(2)),
+        )->verify();
+
+        self::assertFalse($result->ok);
+        self::assertSame('succession_anchor', $result->failureKind);
+    }
+
+    #[Test]
+    public function builder_refuses_successor_signing_until_a_verified_anchor_covers_the_latest_checkpoint(): void
+    {
+        $this->sealUnderVersion(1, 'successor-write-gate');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('succession anchor');
+        $this->insertEvent('forbidden-successor-write');
+        new AuditCheckpointBuilder(
+            $this->database,
+            $this->sink,
+            custody: new AuditCheckpointCustody($this->keyring(2, [1])),
+        )->build();
+    }
+
+    #[Test]
+    public function builder_signs_with_the_successor_after_the_anchor_is_durable_and_verified(): void
+    {
+        $this->sealUnderVersion(1, 'pre-anchor-checkpoint');
+        $context = $this->context($this->database);
+        $adapter = new AuditCheckpointSuccessionRekeyAdapter($this->database);
+        $snapshot = $adapter->snapshot($context);
+        $adapter->transitionBatch($context, $snapshot, null, 1);
+        $this->insertEvent('post-anchor-checkpoint');
+
+        $checkpoint = new AuditCheckpointBuilder(
+            $this->database,
+            $this->sink,
+            custody: new AuditCheckpointCustody($this->keyring(2, [1])),
+        )->build();
+
+        self::assertNotNull($checkpoint);
+        self::assertStringStartsWith(
+            AuditCheckpointCustody::CHECKPOINT_PREFIX . '2:',
+            $checkpoint->getSignature(),
+        );
     }
 
     private function sealUnderVersion(int $version, string $uuid): AuditCheckpoint
