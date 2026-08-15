@@ -31,6 +31,44 @@ use Waaseyaa\Foundation\Security\SensitiveValue;
 final class ApplicationMasterKeyringRetainedRedTest extends TestCase
 {
     #[Test]
+    public function readable_versions_expose_only_their_stable_non_secret_reference_fingerprint(): void
+    {
+        $resolver = $this->resolver($this->provider());
+        $purposes = $this->purposes();
+        $predecessor = $this->reference('master-v1');
+        $successor = $this->reference('master-v2');
+        $keyring = ApplicationMasterKeyring::fromReferences(
+            resolver: $resolver,
+            activeVersion: 2,
+            activeReference: $successor,
+            legacyReferences: [1 => $predecessor],
+            purposes: $purposes,
+        );
+
+        self::assertSame($predecessor->fingerprint(), $keyring->referenceFingerprint(1));
+        self::assertSame($successor->fingerprint(), $keyring->referenceFingerprint(2));
+        self::assertStringNotContainsString('master-v1', $keyring->referenceFingerprint(1));
+        self::assertStringNotContainsString('master-v2', $keyring->referenceFingerprint(2));
+    }
+
+    #[Test]
+    public function an_undeclared_version_has_no_reference_fingerprint_fallback(): void
+    {
+        $keyring = ApplicationMasterKeyring::fromReferences(
+            resolver: $this->resolver($this->provider()),
+            activeVersion: 1,
+            activeReference: $this->reference('master-v1'),
+            legacyReferences: [],
+            purposes: $this->purposes(),
+        );
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('not declared readable');
+
+        $keyring->referenceFingerprint(2);
+    }
+
+    #[Test]
     public function active_authentication_tags_remain_verifiable_after_rotation_without_exporting_a_key(): void
     {
         $provider = $this->provider();
