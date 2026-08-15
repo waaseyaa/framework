@@ -82,6 +82,51 @@ final class ApplicationMasterRekeyCoordinatorRetainedRedTest extends TestCase
     }
 
     #[Test]
+    public function snapshot_exception_persists_a_request_level_block_until_explicit_resolution(): void
+    {
+        [$database, $store, $coordinator, $adapter] = $this->preparedCoordinator();
+        $adapter->throwOnSnapshot = true;
+
+        try {
+            $coordinator->snapshotAdapter(self::REQUEST_ID, 2, self::ADAPTER_ID);
+            self::fail('A snapshot exception was not recorded.');
+        } catch (ApplicationMasterRekeyConflictException $exception) {
+            self::assertStringContainsString('recorded', $exception->getMessage());
+        }
+        $record = $store->require(self::REQUEST_ID);
+        self::assertSame(1, $record->unresolvedFailures);
+        self::assertSame(3, $record->revision);
+        self::assertSame(0, (int) $database->getConnection()->fetchOne(
+            'SELECT COUNT(*) FROM waaseyaa_application_master_rekey_adapter',
+        ));
+        $failure = $database->getConnection()->fetchAssociative(
+            'SELECT failure_code, evidence_hash FROM waaseyaa_application_master_rekey_failure WHERE resolved_at IS NULL',
+        );
+        self::assertIsArray($failure);
+        self::assertSame('adapter-snapshot-failed', $failure['failure_code']);
+        self::assertStringNotContainsString(
+            'synthetic-snapshot-secret-shaped-detail',
+            json_encode($failure, JSON_THROW_ON_ERROR),
+        );
+
+        try {
+            $coordinator->snapshotAdapter(self::REQUEST_ID, 3, self::ADAPTER_ID);
+            self::fail('An unresolved snapshot failure permitted inventory retry.');
+        } catch (ApplicationMasterRekeyConflictException) {
+            self::assertSame(1, $store->require(self::REQUEST_ID)->unresolvedFailures);
+        }
+        $store->resolveAdapterSnapshotFailure(
+            self::REQUEST_ID,
+            3,
+            self::ADAPTER_ID,
+            hash('sha256', 'synthetic-snapshot-resolution'),
+        );
+        $adapter->throwOnSnapshot = false;
+        $progress = $coordinator->snapshotAdapter(self::REQUEST_ID, 4, self::ADAPTER_ID);
+        self::assertSame(2, $progress->totalRecords);
+    }
+
+    #[Test]
     public function malformed_adapter_result_rolls_back_owner_rows_and_cursor_in_one_transaction(): void
     {
         [$database, $store, $coordinator, $adapter] = $this->preparedCoordinator();
@@ -383,6 +428,7 @@ final class ApplicationMasterRekeyCoordinatorRetainedRedTest extends TestCase
 final class SyntheticAtomicRekeyAdapter implements ApplicationMasterRekeyAdapterInterface
 {
     public int $snapshotCalls = 0;
+    public bool $throwOnSnapshot = false;
     public bool $returnMalformedResult = false;
     public bool $throwOnTransition = false;
     public bool $throwOnVerification = false;
@@ -414,6 +460,9 @@ final class SyntheticAtomicRekeyAdapter implements ApplicationMasterRekeyAdapter
     public function snapshot(ApplicationMasterRekeyContext $context): ApplicationMasterInventorySnapshot
     {
         ++$this->snapshotCalls;
+        if ($this->throwOnSnapshot) {
+            throw new \RuntimeException('synthetic-snapshot-secret-shaped-detail');
+        }
         $rows = iterator_to_array($context->database->query(
             'SELECT row_id, row_revision FROM synthetic_secret_row WHERE master_version = :version ORDER BY row_id',
             ['version' => $context->request->fromVersion],
