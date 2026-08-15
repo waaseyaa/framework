@@ -109,6 +109,72 @@ final class SigningKeyEmergencyRevocationRetainedRedTest extends TestCase
         }
     }
 
+    #[Test]
+    public function ordinary_rotation_never_uses_the_compromise_ledger_or_revokes_tokens(): void
+    {
+        [$database, $repository, $policy, $clock] = $this->lifecycle();
+        $active = $repository->initialize();
+        [$access, $refresh] = $this->issuePersistedTokens($database, $clock->now());
+        $successor = $repository->stageSuccessor();
+        $repository->recordPropagation($successor->kid, hash('sha256', 'ordinary-rotation'));
+        $clock->setTimestamp(1_000 + $policy->effectivePropagationHorizonSeconds());
+        $repository->activateSuccessor($successor->kid, $active->version);
+
+        self::assertSame(
+            0,
+            (int) $database->getConnection()->fetchOne('SELECT COUNT(*) FROM oidc_signing_key_revocation'),
+        );
+        $accessRow = $database->getConnection()->fetchAssociative(
+            'SELECT revoked_at FROM oidc_access_token WHERE jti = ?',
+            [$access->jti],
+        );
+        $refreshRow = $database->getConnection()->fetchAssociative(
+            'SELECT revoked_at FROM oidc_refresh_token WHERE jti = ?',
+            [$refresh->jti],
+        );
+        self::assertIsArray($accessRow);
+        self::assertIsArray($refreshRow);
+        self::assertNull($accessRow['revoked_at']);
+        self::assertNull($refreshRow['revoked_at']);
+    }
+
+    #[Test]
+    public function failed_evidence_append_rolls_back_key_and_token_revocation(): void
+    {
+        [$database, $repository, $policy, $clock] = $this->lifecycle();
+        $key = $repository->initialize();
+        [$access] = $this->issuePersistedTokens($database, $clock->now());
+        $database->getConnection()->executeStatement(
+            "CREATE TRIGGER refuse_revocation_evidence
+             BEFORE INSERT ON oidc_signing_key_revocation
+             BEGIN SELECT RAISE(ABORT, 'synthetic evidence refusal'); END",
+        );
+        $service = new SigningKeyEmergencyRevocationService($database, $repository, $policy, $clock);
+
+        try {
+            $service->revoke(
+                'synthetic-compromise-0003',
+                $key->kid,
+                'synthetic-test-operator',
+                'synthetic rollback proof',
+            );
+            self::fail('The synthetic evidence insert must fail.');
+        } catch (\Throwable) {
+        }
+
+        self::assertSame($key->kid, $repository->currentKey()->kid);
+        $accessRow = $database->getConnection()->fetchAssociative(
+            'SELECT revoked_at FROM oidc_access_token WHERE jti = ?',
+            [$access->jti],
+        );
+        self::assertIsArray($accessRow);
+        self::assertNull($accessRow['revoked_at']);
+        self::assertSame(
+            0,
+            (int) $database->getConnection()->fetchOne('SELECT COUNT(*) FROM oidc_signing_key_revocation'),
+        );
+    }
+
     /**
      * @return array{DBALDatabase, SigningKeyRepository, SigningKeyLifecyclePolicy, MutableEmergencyClock}
      */
@@ -158,6 +224,11 @@ final class SigningKeyEmergencyRevocationRetainedRedTest extends TestCase
 final class MutableEmergencyClock implements EntityClockInterface
 {
     public function __construct(private int $timestamp) {}
+
+    public function setTimestamp(int $timestamp): void
+    {
+        $this->timestamp = $timestamp;
+    }
 
     public function now(): DateTimeImmutable
     {

@@ -45,4 +45,11 @@ final readonly class SigningKeyLifecyclePolicy
     {
         return $rotatedAt->getTimestamp() + $this->retentionSeconds();
     }
+
+    public function statelessTokenWindowEnd(DateTimeImmutable $revokedAt): int
+    {
+        return $revokedAt->getTimestamp()
+            + $this->maximumTokenLifetimeSeconds
+            + $this->maximumClockSkewSeconds;
+    }
 }

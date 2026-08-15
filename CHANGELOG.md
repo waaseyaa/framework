@@ -60,7 +60,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   lifecycle commands. Issuer signing and JWKS composition always use the
   migration-backed lifecycle even when compatibility PEM loaders are configured.
   This removes the former immediate oidc:rotate-signing-key surface and public
-  private-PEM property, a **breaking** correction. Emergency compromise handling
+  private-PEM property, a **breaking** correction. A separately confirmed,
+  request-identified emergency path now removes compromised signing trust,
+  transactionally invalidates and hashes the enumeration of live persisted
+  access/refresh tokens, and appends the conservative stateless issuance window
+  without presenting compromise as ordinary rotation. CFG-03 trust composition
   and the versioned application-master transition remain separate incomplete
   slices.
 - **configuration schema and sync authority (`S1-FW-CFG-03`):** Add the strict

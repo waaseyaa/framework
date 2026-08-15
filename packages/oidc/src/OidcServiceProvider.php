@@ -24,6 +24,7 @@ use Waaseyaa\Oidc\Entity\OidcClient;
 use Waaseyaa\Oidc\Jwks\JwksController;
 use Waaseyaa\Oidc\Jwks\JwksDocumentBuilder;
 use Waaseyaa\Oidc\Key\RealKeyMaterialProvider;
+use Waaseyaa\Oidc\Key\SigningKeyEmergencyRevocationService;
 use Waaseyaa\Oidc\Key\SigningKeyLifecyclePolicy;
 use Waaseyaa\Oidc\Key\SigningKeyRepository;
 use Waaseyaa\Oidc\Keys\OidcKeyLoaderInterface;
@@ -114,6 +115,15 @@ final class OidcServiceProvider extends ServiceProvider
             KeyMaterialProviderInterface::class,
             fn(): KeyMaterialProviderInterface => new RealKeyMaterialProvider(
                 repository: $this->resolve(SigningKeyRepository::class),
+            ),
+        );
+
+        $this->singleton(
+            SigningKeyEmergencyRevocationService::class,
+            fn(): SigningKeyEmergencyRevocationService => new SigningKeyEmergencyRevocationService(
+                database: $this->resolveDatabase(),
+                repository: $this->resolve(SigningKeyRepository::class),
+                policy: $this->resolve(SigningKeyLifecyclePolicy::class),
             ),
         );
 

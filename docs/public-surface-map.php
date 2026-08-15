@@ -707,6 +707,9 @@ return [
     'Waaseyaa\\Oidc\\Key\\SigningKeyLifecyclePolicy' => 'public',
     'Waaseyaa\\Oidc\\Key\\SigningKeyRepository' => 'public',
 
+    'Waaseyaa\\Oidc\\Key\\SigningKeyEmergencyRevocationService' => 'public',
+    'Waaseyaa\\Oidc\\Key\\SigningKeyRevocationRecord' => 'public',
+
     // Layer 1: Core Data — public (discovered during L5-L6 scan)
     // #2177 F3: durable bearer-token lifecycle store (hashed-at-rest, expiring,
     // revocable, rotatable, audience-bound). Consumed by the MCP write tier's
