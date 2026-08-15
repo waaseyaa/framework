@@ -64,6 +64,7 @@ final class ProviderCredentialCustodyTest extends TestCase
                 ];
             },
         );
+        $this->assertViewsDoNotContain($client, 'tenant/provider/credential');
 
         $request = new MessageRequest(messages: [['role' => 'user', 'content' => 'hello']]);
         $client->sendMessage($request);
@@ -99,6 +100,7 @@ final class ProviderCredentialCustodyTest extends TestCase
                 ];
             },
         );
+        $this->assertViewsDoNotContain($client, 'tenant/provider/credential');
 
         $request = new MessageRequest(messages: [['role' => 'user', 'content' => 'hello']]);
         $client->sendMessage($request);

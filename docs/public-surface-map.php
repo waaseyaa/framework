@@ -26,6 +26,8 @@ return [
     'Waaseyaa\Foundation\Security\SecretConsumptionCode' => 'public',
     'Waaseyaa\Foundation\Security\SecretProviderInterface' => 'public',
     'Waaseyaa\Foundation\Security\SecretResolutionCode' => 'public',
+    'Waaseyaa\Config\Schema\Ai\McpAuthMode' => 'public',
+    'Waaseyaa\Config\Schema\Ai\McpAvailability' => 'public',
     // #2177 F4 — fail-closed reserve/finalize audit port. Lives in foundation
     // (not waaseyaa/audit) so waaseyaa/mcp keeps its no-runtime-audit-dependency
     // boundary; implemented by Waaseyaa\Audit\Writer\DatabaseStrictAuditLedger.

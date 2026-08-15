@@ -20,6 +20,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   through an explicitly registered class whose package, secret class, and
   purpose match the reference; each consumption resolves one version and
   replaces secret-bearing consumer failures with a fixed non-sensitive code.
+  Outbound MCP schema v2 separates `none` from `secret-reference`, declares
+  required/optional availability, validates exact integration references, and
+  migrates legacy configured environment names to required central-provider
+  references without resolving them or downgrading them to unauthenticated use.
+  AI provider schema v2 likewise replaces env-var-name fields with exact typed
+  references while retaining a deterministic v1 migration. Anthropic,
+  OpenAI-compatible chat, and OpenAI embedding adapters retain only guarded
+  handles, resolve and pin one version per request, inject headers inside
+  registered purpose consumers, hide full references from diagnostic state,
+  and replace credential-bearing transport failures with fixed custody codes.
+  The embedding test transport now sits above authentication and receives only
+  endpoint and payload. A fail-on-new architecture gate rejects direct
+  environment access and unreviewed file reads in governed AI/MCP packages.
   Independent review hardening makes
   overlapping values redact globally longest-first, sanitizes recursive keys,
   wraps custom kernel loggers behind the same sink, canonicalizes environment
@@ -32,8 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   neutralize dotenv and local Nuxt/npm configuration, classify npm failures
   before line-scoped output sanitization, enforce bounded child output/runtime,
   and deterministically inventory and scan generated, cached, source-map, and
-  symlink-free publishable artifacts before readable static publication. Real provider adapters,
-  purpose-specific consumers, signing custody, integration migrations, and the
+  symlink-free publishable artifacts before readable static publication. Signing custody and the
   versioned application-master transition remain deliberately unimplemented.
 - **configuration schema and sync authority (`S1-FW-CFG-03`):** Add the strict
   v1 configuration contract with closed recursive schema validation, separate

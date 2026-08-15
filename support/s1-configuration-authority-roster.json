@@ -44,7 +44,7 @@
             "class": "bootstrap-declaration",
             "match_sha256": "5d6ee5d9c95df0495d29c15803eaed935e24f09dfd820e6ac195cfbff9c6773f",
             "line_sha256": "3d93ec6a0190f00c39c8eefdd0cbb7e279ce374d7bde518e33c53ee951d70d74",
-            "source_sha256": "28c9a206ef8d8860df28ea507f82b460b4c7ff557989a48036220b053901a301"
+            "source_sha256": "be6c2a08f48d4a6afcbc44238938442fafae22fa8a16f48dea5d89bb0be7c216"
         },
         {
             "path": "packages/ai-agent/src/Mcp/McpServiceProvider.php",
@@ -53,34 +53,34 @@
             "class": "optional-consumer",
             "match_sha256": "6860307fa6357104fa46978fe044a7d06f9c4d21e4bce662a0dd869183a950d9",
             "line_sha256": "ea712e916ef5b6c9ac53ce24406b715bb4fb1d339d37367bbb9f3b8cd2238072",
-            "source_sha256": "9e58993800afab1b8444daacb82b290ce6b8806e8f5a7b31ce90a94edba8dd8f"
+            "source_sha256": "d70e9878a2dcd68812f7e64b9f311cf7228dc6a63c27956fbe5e9c1992f75a1b"
         },
         {
             "path": "packages/ai-agent/src/Mcp/McpServiceProvider.php",
-            "line": 132,
+            "line": 141,
             "pattern": "manager_compatibility",
             "class": "optional-consumer",
             "match_sha256": "6860307fa6357104fa46978fe044a7d06f9c4d21e4bce662a0dd869183a950d9",
             "line_sha256": "35f5996b9b7397a37a41305b8b44151a88033c390585adbc04b0ae6a07c079b4",
-            "source_sha256": "9e58993800afab1b8444daacb82b290ce6b8806e8f5a7b31ce90a94edba8dd8f"
+            "source_sha256": "d70e9878a2dcd68812f7e64b9f311cf7228dc6a63c27956fbe5e9c1992f75a1b"
         },
         {
             "path": "packages/ai-agent/src/Mcp/McpServiceProvider.php",
-            "line": 133,
+            "line": 142,
             "pattern": "manager_compatibility",
             "class": "optional-consumer",
             "match_sha256": "6860307fa6357104fa46978fe044a7d06f9c4d21e4bce662a0dd869183a950d9",
             "line_sha256": "17918b96233cbf5ad3b9d873c58800b4405a79cf0318d4bb98e3a6cdc0e6b849",
-            "source_sha256": "9e58993800afab1b8444daacb82b290ce6b8806e8f5a7b31ce90a94edba8dd8f"
+            "source_sha256": "d70e9878a2dcd68812f7e64b9f311cf7228dc6a63c27956fbe5e9c1992f75a1b"
         },
         {
             "path": "packages/ai-agent/src/Mcp/McpServiceProvider.php",
-            "line": 139,
+            "line": 148,
             "pattern": "null_config_construction",
             "class": "optional-consumer",
             "match_sha256": "364a4ebde4df8e14c059e84db926437068fb0555a3949994aade50e4b01bc86f",
             "line_sha256": "9d73c70887c51b0a33f8e826cc594f4971c5f4b44126858d62c83d15777055da",
-            "source_sha256": "9e58993800afab1b8444daacb82b290ce6b8806e8f5a7b31ce90a94edba8dd8f"
+            "source_sha256": "d70e9878a2dcd68812f7e64b9f311cf7228dc6a63c27956fbe5e9c1992f75a1b"
         },
         {
             "path": "packages/cli/src/Command/Config/ConfigImportCommand.php",
@@ -2330,7 +2330,7 @@
             "class": "bootstrap-declaration",
             "match_sha256": "5d6ee5d9c95df0495d29c15803eaed935e24f09dfd820e6ac195cfbff9c6773f",
             "line_sha256": "3d93ec6a0190f00c39c8eefdd0cbb7e279ce374d7bde518e33c53ee951d70d74",
-            "source_sha256": "bd0bc451884881101c4592d5368de3677826d3f2d0bd97b832bc3c40909c105f"
+            "source_sha256": "c42e638c826c9f91d29374d0e78372d8973f8579374a355c5c8b945e28f35289"
         }
     ]
 }

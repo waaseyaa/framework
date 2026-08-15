@@ -282,9 +282,18 @@ proxied to the remote at execution time.
 
 - Capability check: tools surfaced through this source receive capability
   `tool.mcp.<server_alias>.<tool_name>`.
-- Remote unavailability: the source reports tools missing on `tools/list`
-  rather than throwing; the agent gets a smaller catalogue. Per-call
-  network failures yield `ToolResultBlock(isError: true)`.
+- Authentication: every server declares `auth_mode` as either `none` or
+  `secret-reference`. A referenced credential is resolved through the frozen
+  kernel `SecretResolverRegistry`, pinned for one startup or call boundary,
+  and exposed only inside the registered MCP credential consumer that creates
+  the outbound authorization header. Missing credentials never downgrade to
+  unauthenticated requests.
+- Remote unavailability: every server declares `availability` as `required` or
+  `optional`. An optional startup failure contributes no tools and records a
+  degraded health state; a required startup failure blocks readiness. Both
+  paths send no request when credential resolution fails. Per-call network or
+  credential failures yield `ToolResultBlock(isError: true)` without retaining
+  or logging secret bytes.
 - Streamable HTTP transport only; stdio MCP servers are out of scope for v1.
 
 ## Identity & permissions
@@ -467,16 +476,21 @@ Index: `(run_id, occurred_at)`. Append-only outside the purge job.
 
 | Key | Shape | Default |
 |---|---|---|
-| `config.ai.providers` | `[{ id, type, model_default, timeout_ms, rate_limit_per_min, api_key_env_var }, …]` | empty — at least one required for non-Null runs |
-| `config.ai.mcp_servers` | `[{ alias, url, auth_header_env_var, enabled, capability_prefix }, …]` | empty |
+| `config.ai.providers` | `[{ id, type, model_default, timeout_ms, rate_limit_per_min, credential_reference }, …]` | empty — at least one required for non-Null runs |
+| `config.ai.mcp_servers` | `[{ alias, url, auth_mode, availability, credential_reference, enabled, capability_prefix }, …]` | empty |
 | `config.ai.run_retention_days` | int | 30 |
 | `config.ai.hitl_timeout_seconds` | int | 300 |
 | `config.ai.max_runtime_seconds` | int | 600 |
 | `config.ai.transcript_max_bytes` | int | 262144 (256 KB) |
 | `config.ai.hitl_poll_interval_ms` | int | 1000 |
 
-Secrets are **env-only**; config rows carry env var names, not values.
-Hot-reload follows the existing `config:*` CLI / CMI sync model.
+Credential configuration contains typed `SecretReference` metadata, never
+secret bytes. Legacy v1 environment-variable-name fields migrate
+deterministically to references for the central environment provider; they are
+not read by the schema and unresolved references fail closed. Provider and MCP
+adapters retain only guarded `SecretHandle` values and resolve a fresh version
+for each outbound request. Hot-reload follows the existing `config:*` CLI / CMI
+sync model.
 
 ## Error taxonomy
 

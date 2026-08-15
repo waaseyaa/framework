@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Waaseyaa\AI\Agent\Provider;
 
+use Waaseyaa\Foundation\Security\SecretClass;
+use Waaseyaa\Foundation\Security\SecretHandle;
+
 /**
  * Anthropic Messages API provider using cURL.
  *
@@ -12,13 +15,30 @@ namespace Waaseyaa\AI\Agent\Provider;
 final class AnthropicProvider implements StreamingProviderInterface
 {
     private const string API_URL = 'https://api.anthropic.com/v1/messages';
-    private const string API_VERSION = '2023-06-01';
     private const string DEFAULT_MODEL = 'claude-sonnet-4-6';
 
+    private readonly SecretHandle $credential;
+
+    /** @var (\Closure(string, array<string, string>, array<string, mixed>): array<string, mixed>)|null */
+    private readonly ?\Closure $authenticatedTransport;
+
     public function __construct(
-        private readonly string $apiKey,
+        #[\SensitiveParameter]
+        string|SecretHandle $apiKey,
         private readonly string $model = self::DEFAULT_MODEL,
-    ) {}
+        ?\Closure $authenticatedTransport = null,
+    ) {
+        $this->credential = $apiKey instanceof SecretHandle
+            ? $apiKey
+            : SecretHandle::fromBytes(
+                $apiKey,
+                SecretClass::ProviderCredential,
+                AnthropicCredentialOperation::PURPOSE,
+                'legacy-static-v1',
+                [AnthropicCredentialOperation::class],
+            );
+        $this->authenticatedTransport = $authenticatedTransport;
+    }
 
     public function sendMessage(MessageRequest $request): MessageResponse
     {
@@ -170,6 +190,24 @@ final class AnthropicProvider implements StreamingProviderInterface
      */
     private function httpPost(string $url, array $body): array
     {
+        return $this->credential->consume(new AnthropicCredentialOperation(
+            function (array $headers, string $version) use ($url, $body): array {
+                if ($this->authenticatedTransport !== null) {
+                    return ($this->authenticatedTransport)($url, $headers, $body);
+                }
+
+                return $this->httpPostAuthenticated($url, $body, $headers);
+            },
+        ));
+    }
+
+    /**
+     * @param array<string, mixed> $body
+     * @param array<string, string> $headers
+     * @return array<string, mixed>
+     */
+    private function httpPostAuthenticated(string $url, array $body, array $headers): array
+    {
         $jsonBody = \json_encode($body, \JSON_THROW_ON_ERROR);
 
         $ch = \curl_init($url);
@@ -181,11 +219,7 @@ final class AnthropicProvider implements StreamingProviderInterface
             \CURLOPT_POST => true,
             \CURLOPT_POSTFIELDS => $jsonBody,
             \CURLOPT_RETURNTRANSFER => true,
-            \CURLOPT_HTTPHEADER => [
-                'Content-Type: application/json',
-                'x-api-key: ' . $this->apiKey,
-                'anthropic-version: ' . self::API_VERSION,
-            ],
+            \CURLOPT_HTTPHEADER => self::headerLines($headers),
             \CURLOPT_TIMEOUT => 120,
         ]);
 
@@ -252,6 +286,22 @@ final class AnthropicProvider implements StreamingProviderInterface
      */
     private function httpPostStreaming(string $url, array $body, callable $onChunk): MessageResponse
     {
+        return $this->credential->consume(new AnthropicCredentialOperation(
+            fn(array $headers, string $version): MessageResponse => $this->httpPostStreamingAuthenticated(
+                $url,
+                $body,
+                $onChunk,
+                $headers,
+            ),
+        ));
+    }
+
+    /**
+     * @param array<string, mixed> $body
+     * @param array<string, string> $headers
+     */
+    private function httpPostStreamingAuthenticated(string $url, array $body, callable $onChunk, array $headers): MessageResponse
+    {
         $jsonBody = \json_encode($body, \JSON_THROW_ON_ERROR);
 
         $ch = \curl_init($url);
@@ -267,11 +317,7 @@ final class AnthropicProvider implements StreamingProviderInterface
             \CURLOPT_POST => true,
             \CURLOPT_POSTFIELDS => $jsonBody,
             \CURLOPT_RETURNTRANSFER => false,
-            \CURLOPT_HTTPHEADER => [
-                'Content-Type: application/json',
-                'x-api-key: ' . $this->apiKey,
-                'anthropic-version: ' . self::API_VERSION,
-            ],
+            \CURLOPT_HTTPHEADER => self::headerLines($headers),
             \CURLOPT_TIMEOUT => 300,
             \CURLOPT_WRITEFUNCTION => function ($ch, string $data) use (&$buffer, &$allLines, &$fullText, $onChunk): int {
                 $buffer .= $data;
@@ -373,5 +419,19 @@ final class AnthropicProvider implements StreamingProviderInterface
             content: $content,
             stopReason: $parsed['stop_reason'],
         );
+    }
+
+    /**
+     * @param array<string, string> $headers
+     * @return list<string>
+     */
+    private static function headerLines(array $headers): array
+    {
+        $lines = [];
+        foreach ($headers as $name => $value) {
+            $lines[] = $name . ': ' . $value;
+        }
+
+        return $lines;
     }
 }

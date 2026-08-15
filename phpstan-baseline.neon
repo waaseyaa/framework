@@ -43,12 +43,6 @@ parameters:
 			path: packages/ai-agent/src/Provider/RateLimitException.php
 
 		-
-			message: '#^Short ternary operator is not allowed\. Use null coalesce operator if applicable or consider using long ternary\.$#'
-			identifier: ternary.shortNotAllowed
-			count: 1
-			path: packages/ai-vector/src/EmbeddingProviderFactory.php
-
-		-
 			message: '#^Loose comparison via "\=\=" is not allowed\.$#'
 			identifier: equal.notAllowed
 			count: 2
@@ -65,12 +59,6 @@ parameters:
 			identifier: cast.useless
 			count: 1
 			path: packages/ai-vector/src/OllamaEmbeddingProvider.php
-
-		-
-			message: '#^Casting to array\<string, mixed\> something that''s already array\<string, mixed\>\.$#'
-			identifier: cast.useless
-			count: 1
-			path: packages/ai-vector/src/OpenAiEmbeddingProvider.php
 
 		-
 			message: '#^Casting to string something that''s already string\.$#'

@@ -128,16 +128,15 @@ Version-controlled source — including `defaults/`, packages, scripts, document
 | Variable | Purpose | Required |
 |----------|---------|----------|
 | `WAASEYAA_JWT_SECRET` | HS256 shared secret for bearer auth | Only if bearer auth is used |
-| `OPENAI_API_KEY` | OpenAI API key for embeddings | Only if `embedding_provider=openai` |
 | `WAASEYAA_DEV_FALLBACK_ACCOUNT` | Dev-only auto-auth as platform admin | **Must be false in production** |
 
 Full listing: `.env.example`.
 
-`WAASEYAA_APP_SECRET` remains the Layer-0 bootstrap authority while the versioned master-key transition is implemented. Package-level direct environment or secret-file reads for governed credentials are not the target contract; existing call sites remain explicit CFG-04 migration work and must not be used as precedent for new integrations.
+`WAASEYAA_APP_SECRET` remains the Layer-0 bootstrap authority while the versioned master-key transition is implemented. Governed MCP and AI provider credentials use typed references and registered consumers; their packages reject direct environment or secret-file reads. Other existing package-level call sites remain explicit CFG-04 migration work and must not be used as precedent for new integrations.
 
 ### Configuration secrets
 
-The legacy `api_keys` map and raw provider-key configuration are not compliant with the governed custody contract merely because a deployment file is untracked. CFG-04 migration replaces raw values with closed typed references and explicit absence/availability policy. Until those consumers are migrated, their presence remains a tracked red condition and new code must not add another raw configuration path.
+The legacy `api_keys` map and raw provider-key configuration are not compliant with the governed custody contract merely because a deployment file is untracked. MCP schema v2 uses explicit `none` or `secret-reference` authentication plus `required` or `optional` availability. AI provider schema v2 uses exact class-and-purpose references. Legacy environment-name fields migrate to central-provider references without resolution; raw values and direct-environment bypasses are refused. Signing custody, the versioned application-master transition, and consumers outside the governed AI/MCP scope remain tracked red conditions.
 
 ### Enforcement
 

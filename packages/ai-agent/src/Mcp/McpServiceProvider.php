@@ -10,6 +10,7 @@ use Waaseyaa\Config\ConfigManagerInterface;
 use Waaseyaa\Config\StorageInterface as ConfigStorageInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Foundation\Security\SecretResolverRegistry;
 use Waaseyaa\Foundation\ServiceProvider\Capability\CapabilityRequirement;
 use Waaseyaa\Foundation\ServiceProvider\Capability\RequiresCapabilitiesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
@@ -19,10 +20,10 @@ use Waaseyaa\HttpClient\StreamHttpClient;
 /**
  * Registers the remote-MCP tool source with the kernel.
  *
- * `boot()` calls {@see McpClientToolSource::bootstrap()} inside a try/catch
- * so a misconfigured or unreachable server cannot break the rest of the
- * kernel boot. Servers that are momentarily unavailable simply drop out
- * of the catalogue for this boot — the next boot will retry.
+ * `boot()` delegates availability policy to
+ * {@see McpClientToolSource::bootstrap()}: optional server failures record
+ * degraded health and contribute no tools, while required failures propagate
+ * as {@see McpReadinessException} and block application readiness.
  *
  * The provider stays inert on hosts that do not provide a config storage
  * or HTTP client; in that case the tool source is constructed but
@@ -34,6 +35,13 @@ final class McpServiceProvider extends ServiceProvider implements RequiresCapabi
 {
     public function register(): void
     {
+        $secretRegistry = $this->resolveSecretRegistry();
+        if ($secretRegistry !== null) {
+            $secretRegistry->registerConsumer(McpClientToolSource::PACKAGE, McpCredentialOperation::class);
+        }
+
+        $this->singleton(McpIntegrationHealth::class, static fn(): McpIntegrationHealth => new McpIntegrationHealth());
+
         $this->singleton(
             StreamableHttpMcpClient::class,
             fn(): StreamableHttpMcpClient => new StreamableHttpMcpClient(
@@ -53,6 +61,8 @@ final class McpServiceProvider extends ServiceProvider implements RequiresCapabi
                 $this->requireToolRegistry(),
                 $this->resolveConfigStorage(),
                 $this->resolveLogger(),
+                $this->resolveSecretRegistry(),
+                $this->resolve(McpIntegrationHealth::class),
             ),
         );
 
@@ -72,20 +82,12 @@ final class McpServiceProvider extends ServiceProvider implements RequiresCapabi
 
     public function boot(): void
     {
-        // Bootstrap remote tool catalogues. Failures degrade gracefully —
-        // we never let a flaky MCP server abort the kernel boot.
         if ($this->resolveToolRegistry() === null) {
             return;
         }
-        try {
-            $source = $this->resolve(McpClientToolSource::class);
-            $source->bootstrap();
-        } catch (\Throwable $e) {
-            $this->resolveLogger()->warning('McpClientToolSource::bootstrap() failed; continuing without remote tools', [
-                'exception' => $e::class,
-                'message' => $e->getMessage(),
-            ]);
-        }
+
+        $source = $this->resolve(McpClientToolSource::class);
+        $source->bootstrap();
     }
 
     private function resolveLogger(): LoggerInterface
@@ -115,6 +117,13 @@ final class McpServiceProvider extends ServiceProvider implements RequiresCapabi
         // Hosts that wire ai-tools (via AttributeToolRegistry) get a
         // populated catalogue; minimal CLI smoke harnesses skip cleanly.
         return null;
+    }
+
+    private function resolveSecretRegistry(): ?SecretResolverRegistry
+    {
+        $candidate = $this->kernelServices?->get(SecretResolverRegistry::class);
+
+        return $candidate instanceof SecretResolverRegistry ? $candidate : null;
     }
 
     private function requireToolRegistry(): ToolRegistryInterface

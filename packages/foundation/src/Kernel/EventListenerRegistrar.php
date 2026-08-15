@@ -18,6 +18,7 @@ use Waaseyaa\EntityStorage\Event\RevisionPointerMovedEvent;
 use Waaseyaa\Foundation\Event\EventDispatcherInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Foundation\Security\SecretResolverRegistry;
 
 /**
  * Registers all event listeners used by the HTTP kernel.
@@ -32,6 +33,7 @@ final class EventListenerRegistrar
     public function __construct(
         private readonly EventDispatcherInterface $dispatcher,
         ?LoggerInterface $logger = null,
+        private readonly ?SecretResolverRegistry $secretResolverRegistry = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -147,7 +149,7 @@ final class EventListenerRegistrar
         array $config,
         ?EntityTypeManagerInterface $entityTypeManager = null,
     ): void {
-        $embeddingProvider = EmbeddingProviderFactory::fromConfig($config);
+        $embeddingProvider = EmbeddingProviderFactory::fromConfig($config, $this->secretResolverRegistry);
         $embeddingListener = new EntityEmbeddingListener(
             storage: $embeddingStorage,
             embeddingProvider: $embeddingProvider,

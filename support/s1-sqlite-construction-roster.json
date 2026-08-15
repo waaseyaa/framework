@@ -220,12 +220,21 @@
         },
         {
             "path": "packages/ai-agent/tests/Unit/Mcp/McpServiceProviderManifestTest.php",
-            "line": 98,
+            "line": 99,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "1ce9ddb0b7b0f8fc9ca3cf2fd844217986843ab50acda38df17029ba9d7b362b",
-            "source_sha256": "39bddbdeb4a20e8211f0ee21b86b9742d6b94e6ea1405137ffb614ba26cb2284"
+            "source_sha256": "967f15c6be17f8762e9456f25eaaf6c4aa6851ae58889e7bb2bea2c6385deed3"
+        },
+        {
+            "path": "packages/ai-agent/tests/Unit/Mcp/McpServiceProviderManifestTest.php",
+            "line": 144,
+            "pattern": "dbal_factory",
+            "class": "test",
+            "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
+            "line_sha256": "1ce9ddb0b7b0f8fc9ca3cf2fd844217986843ab50acda38df17029ba9d7b362b",
+            "source_sha256": "967f15c6be17f8762e9456f25eaaf6c4aa6851ae58889e7bb2bea2c6385deed3"
         },
         {
             "path": "packages/ai-agent/tests/Unit/Migration/ApprovalExpiryMigrationTest.php",

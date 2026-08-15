@@ -128,7 +128,9 @@ final class ConfigurationAuthorityServiceProviderTest extends TestCase
         $registry = $provider->resolve(ConfigSchemaRegistry::class);
         self::assertInstanceOf(ConfigSchemaRegistry::class, $registry);
         self::assertNotNull($registry->get('ai.mcp_servers', 1));
+        self::assertNotNull($registry->get('ai.mcp_servers', 2));
         self::assertNotNull($registry->get('config.ai.providers', 1));
+        self::assertNotNull($registry->get('config.ai.providers', 2));
         self::assertFalse($registry->isFrozen());
 
         $provider->finalizeProviderBoot();
