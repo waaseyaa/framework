@@ -72,6 +72,7 @@ final class ApplicationMasterRekeyStoreRetainedRedTest extends TestCase
                 'waaseyaa_application_master_rekey',
                 'waaseyaa_application_master_rekey_adapter',
                 'waaseyaa_application_master_rekey_event',
+                'waaseyaa_application_master_rekey_failure',
                 'waaseyaa_application_master_rekey_gate',
                 'waaseyaa_application_master_rekey_purpose',
                 'waaseyaa_application_master_rekey_verification',
@@ -83,6 +84,7 @@ final class ApplicationMasterRekeyStoreRetainedRedTest extends TestCase
                     'waaseyaa_application_master_rekey',
                     'waaseyaa_application_master_rekey_adapter',
                     'waaseyaa_application_master_rekey_event',
+                    'waaseyaa_application_master_rekey_failure',
                     'waaseyaa_application_master_rekey_gate',
                     'waaseyaa_application_master_rekey_purpose',
                     'waaseyaa_application_master_rekey_verification',
@@ -226,6 +228,104 @@ final class ApplicationMasterRekeyStoreRetainedRedTest extends TestCase
         } catch (ApplicationMasterRekeyConflictException) {
             self::assertEquals($first, $store->requireAdapter(self::REQUEST_ID, self::ADAPTER_ID));
         }
+    }
+
+    #[Test]
+    public function adapter_failures_persist_block_replay_and_require_exact_resolution_evidence(): void
+    {
+        $database = $this->migratedDatabase();
+        $store = new ApplicationMasterRekeyStore($database);
+        $registry = $this->purposes();
+        $store->prepare($this->request(), $registry);
+        $store->installActive(
+            self::REQUEST_ID,
+            1,
+            hash('sha256', 'synthetic-master-v1-reference'),
+            hash('sha256', 'synthetic-master-v2-reference'),
+            1_100,
+        );
+        $purposes = $registry->purposeIds();
+        $store->recordAdapterSnapshot(
+            self::REQUEST_ID,
+            2,
+            self::ADAPTER_ID,
+            $purposes,
+            hash('sha256', 'failure-snapshot'),
+            1,
+        );
+
+        $failed = $store->recordAdapterFailure(
+            self::REQUEST_ID,
+            expectedRequestRevision: 3,
+            adapterId: self::ADAPTER_ID,
+            expectedAdapterRevision: 1,
+            expectedCursor: null,
+            failureCode: 'owner-cas-conflict',
+            evidenceHash: hash('sha256', 'synthetic-failure-evidence'),
+        );
+        self::assertSame(1, $failed->unresolvedFailures);
+        self::assertSame(4, $failed->revision);
+        $progress = $store->requireAdapter(self::REQUEST_ID, self::ADAPTER_ID);
+        self::assertSame(1, $progress->unresolvedFailures);
+        self::assertSame(2, $progress->revision);
+        self::assertNull($progress->cursor);
+
+        $restarted = new ApplicationMasterRekeyStore(DBALDatabase::createSqlite($this->dbPath));
+        self::assertSame(1, $restarted->require(self::REQUEST_ID)->unresolvedFailures);
+        try {
+            $restarted->commitAdapterBatch(
+                self::REQUEST_ID,
+                4,
+                self::ADAPTER_ID,
+                2,
+                null,
+                'row:1',
+                1,
+                array_fill_keys($purposes, 1),
+                hash('sha256', 'must-not-commit'),
+            );
+            self::fail('An unresolved adapter failure permitted batch replay.');
+        } catch (ApplicationMasterRekeyConflictException) {
+            self::assertNull($restarted->requireAdapter(self::REQUEST_ID, self::ADAPTER_ID)->cursor);
+        }
+
+        $resolved = $restarted->resolveAdapterFailure(
+            self::REQUEST_ID,
+            expectedRequestRevision: 4,
+            adapterId: self::ADAPTER_ID,
+            expectedAdapterRevision: 2,
+            resolutionHash: hash('sha256', 'synthetic-resolution-evidence'),
+        );
+        self::assertSame(0, $resolved->unresolvedFailures);
+        self::assertSame(5, $resolved->revision);
+        self::assertSame(0, $restarted->requireAdapter(self::REQUEST_ID, self::ADAPTER_ID)->unresolvedFailures);
+
+        $batch = $restarted->commitAdapterBatch(
+            self::REQUEST_ID,
+            5,
+            self::ADAPTER_ID,
+            3,
+            null,
+            'row:1',
+            1,
+            array_fill_keys($purposes, 1),
+            hash('sha256', 'committed-after-resolution'),
+        );
+        self::assertSame('row:1', $batch->cursor);
+        self::assertSame(
+            ['adapter-failure-recorded', 'adapter-failure-resolved'],
+            $database->getConnection()->fetchFirstColumn(
+                "SELECT event_type FROM waaseyaa_application_master_rekey_event WHERE event_type LIKE 'adapter-failure-%' ORDER BY sequence",
+            ),
+        );
+        $failure = $database->getConnection()->fetchAssociative(
+            'SELECT failure_code, evidence_hash, resolution_hash, resolved_at FROM waaseyaa_application_master_rekey_failure',
+        );
+        self::assertIsArray($failure);
+        self::assertSame('owner-cas-conflict', $failure['failure_code']);
+        self::assertSame(hash('sha256', 'synthetic-failure-evidence'), $failure['evidence_hash']);
+        self::assertSame(hash('sha256', 'synthetic-resolution-evidence'), $failure['resolution_hash']);
+        self::assertNotNull($failure['resolved_at']);
     }
 
     #[Test]
