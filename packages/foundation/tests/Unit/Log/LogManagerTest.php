@@ -75,6 +75,37 @@ final class LogManagerTest extends TestCase
     }
 
     #[Test]
+    public function configured_factory_uses_the_supplied_registered_value_sanitizer_at_the_sink(): void
+    {
+        $tmpFile = sys_get_temp_dir() . '/waaseyaa-cfg04-registered-' . bin2hex(random_bytes(6)) . '.log';
+        $canary = 'cfg04-registered-factory-canary';
+
+        try {
+            $manager = LogManager::fromConfig([
+                'default' => 'file',
+                'channels' => [
+                    'file' => [
+                        'type' => 'file',
+                        'path' => $tmpFile,
+                        'formatter' => 'json',
+                    ],
+                ],
+            ], new \Waaseyaa\Foundation\Log\Processor\RedactorProcessor(registeredValues: [$canary]));
+
+            $manager->info('value=' . $canary, ['nested' => ['encoded' => base64_encode($canary)]]);
+
+            $output = file_get_contents($tmpFile);
+            $this->assertIsString($output);
+            $this->assertStringNotContainsString($canary, $output);
+            $this->assertStringNotContainsString(base64_encode($canary), $output);
+        } finally {
+            if (file_exists($tmpFile)) {
+                unlink($tmpFile);
+            }
+        }
+    }
+
+    #[Test]
     public function implements_logger_interface(): void
     {
         $manager = new LogManager(new NullHandler());

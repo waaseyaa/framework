@@ -63,13 +63,13 @@ final class LogManager implements LoggerInterface
      *
      * @param array<string, mixed> $config The 'logging' section of waaseyaa.php
      */
-    public static function fromConfig(array $config): self
+    public static function fromConfig(array $config, ?RedactorProcessor $sinkSanitizer = null): self
     {
         $channelConfigs = $config['channels'] ?? [];
         $defaultName = $config['default'] ?? 'default';
 
         if ($channelConfigs === []) {
-            return new self(new ErrorLogHandler());
+            return new self(new ErrorLogHandler(), $sinkSanitizer);
         }
 
         // Configured processors run before the mandatory final sink sanitizer.
@@ -122,7 +122,7 @@ final class LogManager implements LoggerInterface
             $handlers[$name] = new StackHandler(...$stackHandlers);
         }
 
-        $manager = new self($handlers[$defaultName] ?? new ErrorLogHandler());
+        $manager = new self($handlers[$defaultName] ?? new ErrorLogHandler(), $sinkSanitizer);
 
         foreach ($handlers as $name => $handler) {
             $manager->handlers[$name] = $handler;
