@@ -34,7 +34,7 @@
         "@nuxt/eslint": "^1.16.0",
         "@nuxt/test-utils": "^4.0.3",
         "@playwright/test": "^1.59.1",
-        "@types/node": "^24.13.3",
+        "@types/node": "^26.2.0",
         "@vitest/coverage-v8": "^4.1.6",
         "@vue/test-utils": "^2.4.11",
         "eslint": "^10.4.1",
