@@ -1110,6 +1110,42 @@
             "source_sha256": "e96f7359b89bfb575e92e0b0dd3c9b748336a5c257d7f9f75c5c4c7d0f3b9dac"
         },
         {
+            "path": "packages/cache/migrations/2026_08_15_000002_cache_generation.php",
+            "line": 18,
+            "pattern": "ddl_sql",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "18fe2016fea59dc69f3d1391d957282b50f5f93674e668ed7abfb5703f02f573",
+            "line_sha256": "81e3fdae76b7f222dd56a81b578feeadf6c5c2082cb871b0f211bdc3e5fbcdc0",
+            "source_sha256": "1859d33910e3c38b6a654f48f8cd03e3d591fa7c897d48c5c634862793411b73"
+        },
+        {
+            "path": "packages/cache/migrations/2026_08_15_000002_cache_generation.php",
+            "line": 23,
+            "pattern": "ddl_sql",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "4e1ed6b467b9c88689ed3e59700edbb836420c627c05fde1777023b293716af6",
+            "source_sha256": "1859d33910e3c38b6a654f48f8cd03e3d591fa7c897d48c5c634862793411b73"
+        },
+        {
+            "path": "packages/cache/tests/Unit/Rekey/CacheGenerationRekeyAdapterRetainedRedTest.php",
+            "line": 129,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "f33eccc452f96a434b8bb264e9ff4bba2615d1176560f3748a69ff767c357d56",
+            "source_sha256": "45d90d0a5e5e8fab97339b95c78901ced6b23eccac435a19925bc6464cc72b84"
+        },
+        {
+            "path": "packages/cache/tests/Unit/Rekey/CacheGenerationRekeyAdapterRetainedRedTest.php",
+            "line": 132,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "97ff59e18caa43e9d8ff2709ff1205bfc9be754c9820b30f4dd3e7b4418ade9d",
+            "source_sha256": "45d90d0a5e5e8fab97339b95c78901ced6b23eccac435a19925bc6464cc72b84"
+        },
+        {
             "path": "packages/cli/src/Command/Migration/StorageMigrationTemplate.php",
             "line": 55,
             "pattern": "ddl_sql",
@@ -5601,13 +5637,130 @@
             "source_sha256": "cf58b4d7ea8f652d3e1196db548278c8c2ec37b275b53ff7c7703a047c401040"
         },
         {
+            "path": "packages/foundation/migrations/2026_08_15_000002_application_master_rekey.php",
+            "line": 31,
+            "pattern": "ddl_sql",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "cce87da20dad05d63cebe7b2757c8519b276d0e5ba8487abf62c03c1baaaeb9c",
+            "source_sha256": "30ff96ef2187bdc26f797e42db6dbf5cca76d018e45913f7b836209018f64bba"
+        },
+        {
+            "path": "packages/foundation/migrations/2026_08_15_000002_application_master_rekey.php",
+            "line": 50,
+            "pattern": "ddl_sql",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "fa353a4b5a8eeffdd61325f16cafe6a046680f5d485b7a685cd7fc309057013f",
+            "source_sha256": "30ff96ef2187bdc26f797e42db6dbf5cca76d018e45913f7b836209018f64bba"
+        },
+        {
+            "path": "packages/foundation/migrations/2026_08_15_000002_application_master_rekey.php",
+            "line": 60,
+            "pattern": "ddl_sql",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "4d67ef3af66bce20c9cbda16ab40aeaaab5a2650e9f37caff59cf1cb0401120c",
+            "source_sha256": "30ff96ef2187bdc26f797e42db6dbf5cca76d018e45913f7b836209018f64bba"
+        },
+        {
+            "path": "packages/foundation/migrations/2026_08_15_000002_application_master_rekey.php",
+            "line": 68,
+            "pattern": "ddl_sql",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "996cc3d4547adc0a4666848fa07fafbdac0f59e854dc2159abb5a2ccebb05b5c",
+            "source_sha256": "30ff96ef2187bdc26f797e42db6dbf5cca76d018e45913f7b836209018f64bba"
+        },
+        {
+            "path": "packages/foundation/migrations/2026_08_15_000002_application_master_rekey.php",
+            "line": 96,
+            "pattern": "ddl_sql",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "c08bc58974888bec11e9d7cfb33c71d6017a70ce16b8baef0909f0b857cf35fd",
+            "source_sha256": "30ff96ef2187bdc26f797e42db6dbf5cca76d018e45913f7b836209018f64bba"
+        },
+        {
+            "path": "packages/foundation/migrations/2026_08_15_000002_application_master_rekey.php",
+            "line": 110,
+            "pattern": "ddl_sql",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "2d52dcb3fc5e1214a87232f9f36b00313f5973a074b1d12bfd81d2874ab0e460",
+            "line_sha256": "798e983aef39905237c072aa5fbdc10ae83c2dda6b7b5e3bd7630f116f6fd2a6",
+            "source_sha256": "30ff96ef2187bdc26f797e42db6dbf5cca76d018e45913f7b836209018f64bba"
+        },
+        {
+            "path": "packages/foundation/migrations/2026_08_15_000002_application_master_rekey.php",
+            "line": 113,
+            "pattern": "ddl_sql",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "f0ff91531350ff41018ec0d20f758e120e3221715a53ac95bf07dc3ccacabdea",
+            "source_sha256": "30ff96ef2187bdc26f797e42db6dbf5cca76d018e45913f7b836209018f64bba"
+        },
+        {
+            "path": "packages/foundation/migrations/2026_08_15_000002_application_master_rekey.php",
+            "line": 124,
+            "pattern": "ddl_sql",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "6c47eaabc94c72d0419d4e31d119d2f264aa19b1dffa2a98a5f9e59a1a726a51",
+            "source_sha256": "30ff96ef2187bdc26f797e42db6dbf5cca76d018e45913f7b836209018f64bba"
+        },
+        {
+            "path": "packages/foundation/migrations/2026_08_15_000002_application_master_rekey.php",
+            "line": 135,
+            "pattern": "ddl_sql",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "d2e27226a9c80464c6b3ab3fcd57621749d4a03eb2d64feec14d2353441d85d0",
+            "source_sha256": "30ff96ef2187bdc26f797e42db6dbf5cca76d018e45913f7b836209018f64bba"
+        },
+        {
+            "path": "packages/foundation/migrations/2026_08_15_000002_application_master_rekey.php",
+            "line": 143,
+            "pattern": "ddl_sql",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "45a33aace1b1fcf58738e6c724c6626e167869a2563ba852744f2d9c54bb218e",
+            "source_sha256": "30ff96ef2187bdc26f797e42db6dbf5cca76d018e45913f7b836209018f64bba"
+        },
+        {
+            "path": "packages/foundation/migrations/2026_08_15_000002_application_master_rekey.php",
+            "line": 156,
+            "pattern": "ddl_sql",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "f72c69d56240d662918da2a012e6420655b21fccd4e21ab7931ddc0d4bbe5376",
+            "line_sha256": "dc8d4aa3202d7e449c29c665b186effb3f396dc29d494d04bd24e6bc4c2c52de",
+            "source_sha256": "30ff96ef2187bdc26f797e42db6dbf5cca76d018e45913f7b836209018f64bba"
+        },
+        {
+            "path": "packages/foundation/migrations/2026_08_15_000002_application_master_rekey.php",
+            "line": 157,
+            "pattern": "ddl_sql",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "8da7ba06b5f582f6ded2f77e1fd50df4a3de90dd741e51d366a2474e697b11a2",
+            "line_sha256": "ff5f5e648523d17abc6583d11f41c1be908a73f48ee4bb8f0fde91fcd866278b",
+            "source_sha256": "30ff96ef2187bdc26f797e42db6dbf5cca76d018e45913f7b836209018f64bba"
+        },
+        {
+            "path": "packages/foundation/migrations/2026_08_15_000002_application_master_rekey.php",
+            "line": 160,
+            "pattern": "ddl_sql",
+            "class": "coordinator-plan-or-executor",
+            "match_sha256": "8da7ba06b5f582f6ded2f77e1fd50df4a3de90dd741e51d366a2474e697b11a2",
+            "line_sha256": "5c9cd57bf005c147cf3b4074b2c5eb66eaeadac4deac6bb864f19765b8f63efc",
+            "source_sha256": "30ff96ef2187bdc26f797e42db6dbf5cca76d018e45913f7b836209018f64bba"
+        },
+        {
             "path": "packages/foundation/src/Kernel/AbstractKernel.php",
-            "line": 823,
+            "line": 837,
             "pattern": "legacy_schema_method",
             "class": "explicit-exclusion",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "4af93b5c2fac46b866e8ce8880ae4de90071226c8ed7faa9e6338596895c60cc",
-            "source_sha256": "d00d27435936f7e66af949c1943f8a3c479c0c8c72528f200b081e8d4ee473b4"
+            "source_sha256": "b0673e3af86afdc121deae1c0e54ab7fa06d974681c96c581a2c1236aa51d0a7"
         },
         {
             "path": "packages/foundation/src/Kernel/ConsoleKernel.php",
@@ -6634,6 +6787,15 @@
             "match_sha256": "18fe2016fea59dc69f3d1391d957282b50f5f93674e668ed7abfb5703f02f573",
             "line_sha256": "1c31c3e5ad0c9d86db2baba3a54075ef228e5bf1ba5db4bddd39137927627c08",
             "source_sha256": "3637506b2c46e8e6266b38f5d935c10b893141550895c06f40db39cc963e6a2d"
+        },
+        {
+            "path": "packages/foundation/tests/Unit/Security/ApplicationMasterRekeyCoordinatorRetainedRedTest.php",
+            "line": 562,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "979a548b36935d83f63d8af006c0e7634657f759915ca5305371d6a1d40e25ea",
+            "source_sha256": "a651af6ac6cf810facb1654bcdfbdbf109d45cbec340124f74f36d0a1eddd01f"
         },
         {
             "path": "packages/genealogy/tests/Integration/GenealogySeoEnumerationTest.php",
@@ -8292,6 +8454,15 @@
             "source_sha256": "a713a7f3a6792329b54969a319ad3b0be52c295373c3358cf2130985c5ddfa9f"
         },
         {
+            "path": "packages/oidc/tests/Integration/Key/SigningKeyEmergencyRevocationRetainedRedTest.php",
+            "line": 148,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "8da7ba06b5f582f6ded2f77e1fd50df4a3de90dd741e51d366a2474e697b11a2",
+            "line_sha256": "6e1555739b6b05f186e91d24253474e30afff0d23e35bc5b651a500e8ade623b",
+            "source_sha256": "39c258125941ccafa692488464a4c0be09efc0ba3544d584a73a30ab24fa9d96"
+        },
+        {
             "path": "packages/oidc/tests/Integration/Key/SigningKeyLifecycleRetainedRedTest.php",
             "line": 57,
             "pattern": "ddl_sql",
@@ -9918,7 +10089,16 @@
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "c6e5500dedd47cf11cccf2b59850c5f13c363a03086d0b894368479c6ad3c851",
-            "source_sha256": "d16d9c6cd230de395793aeeacdfeb17d604496b8f3bd40f4b4ba3787a4f13687"
+            "source_sha256": "59b6f0e41e5a3ce40cc6c09eac337cb64c5fe8af2ef71ead38fca70d159e839a"
+        },
+        {
+            "path": "tests/Integration/Migration/CacheRuntimeSchemaAuthorityTest.php",
+            "line": 46,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "e6223bc56669b2a68f05086b11970516f1da4a65245caf064eb7793d2b13d6d3",
+            "source_sha256": "59b6f0e41e5a3ce40cc6c09eac337cb64c5fe8af2ef71ead38fca70d159e839a"
         },
         {
             "path": "tests/Integration/Migration/InfrastructureRuntimeSchemaAuthorityTest.php",
@@ -10993,39 +11173,48 @@
         },
         {
             "path": "tests/Support/RuntimeSchemaMigrations.php",
-            "line": 61,
+            "line": 66,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "ca10322741851f383b2c1daaa32f5cce8d12ee77a3c731cb8a2251edebcd1314",
-            "source_sha256": "e0863328d80455efff6a6917eb29c4cb0a591b03b96de5a066f59675ab2f2686"
+            "source_sha256": "2da73d3b02bb8eee9c1e4b0771ccab5be7433311264bb848d44a2acdfe8d83b2"
         },
         {
             "path": "tests/Support/RuntimeSchemaMigrations.php",
-            "line": 129,
+            "line": 77,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "3a3bc998e0544c9df1049bb8c74aaf31e2fe23797178cfd008396e8ca864c83c",
+            "source_sha256": "2da73d3b02bb8eee9c1e4b0771ccab5be7433311264bb848d44a2acdfe8d83b2"
+        },
+        {
+            "path": "tests/Support/RuntimeSchemaMigrations.php",
+            "line": 142,
             "pattern": "schema_method",
             "class": "test-only",
             "match_sha256": "7a58133564c60e8f34ddde862bac483b98fb2890d578d176a8b832f4387c451e",
             "line_sha256": "3cf2341eee15c3361cab13fe0e706a1cc5e50dd90e537efa21adb73df6e6604c",
-            "source_sha256": "e0863328d80455efff6a6917eb29c4cb0a591b03b96de5a066f59675ab2f2686"
+            "source_sha256": "2da73d3b02bb8eee9c1e4b0771ccab5be7433311264bb848d44a2acdfe8d83b2"
         },
         {
             "path": "tests/Support/RuntimeSchemaMigrations.php",
-            "line": 157,
+            "line": 170,
             "pattern": "schema_method",
             "class": "test-only",
             "match_sha256": "c556b38d4459d2acb7179b870ffaec9af9bb8930f4882d56315f7c52c8ec8a64",
             "line_sha256": "46703431ca652234039b136b1d9acfdee8615f01947d0bef9cda23035e2c902f",
-            "source_sha256": "e0863328d80455efff6a6917eb29c4cb0a591b03b96de5a066f59675ab2f2686"
+            "source_sha256": "2da73d3b02bb8eee9c1e4b0771ccab5be7433311264bb848d44a2acdfe8d83b2"
         },
         {
             "path": "tests/Support/RuntimeSchemaMigrations.php",
-            "line": 172,
+            "line": 185,
             "pattern": "schema_method",
             "class": "test-only",
             "match_sha256": "179586185d58c76978df4fca596acad8506fff96a9b06b4947251e2d3a878029",
             "line_sha256": "d021c75a57c8a3ea3be78384e8bd1e9b5fa9ff47416263fe462e202cfa6fc0e4",
-            "source_sha256": "e0863328d80455efff6a6917eb29c4cb0a591b03b96de5a066f59675ab2f2686"
+            "source_sha256": "2da73d3b02bb8eee9c1e4b0771ccab5be7433311264bb848d44a2acdfe8d83b2"
         }
     ]
 }

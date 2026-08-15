@@ -40,16 +40,24 @@ final class CacheRuntimeSchemaAuthorityTest extends TestCase
             created INTEGER NOT NULL DEFAULT 0,
             tags TEXT NOT NULL DEFAULT \'\',
             valid INTEGER NOT NULL DEFAULT 1,
+            generation INTEGER NOT NULL DEFAULT 1,
             PRIMARY KEY (bin, cid)
         )');
+        $pdo->exec('CREATE TABLE cache_generation (
+            singleton_id INTEGER PRIMARY KEY,
+            generation INTEGER NOT NULL,
+            CHECK (singleton_id = 1),
+            CHECK (generation > 0)
+        )');
+        $pdo->exec('INSERT INTO cache_generation (singleton_id, generation) VALUES (1, 1)');
         $backend = new DatabaseBackend($pdo, 'cache_dynamic');
         $backend->set('item', 'value');
 
         $backend->removeBin();
 
-        self::assertSame(['cache_items'], $this->tables($pdo));
+        self::assertSame(['cache_generation', 'cache_items'], $this->tables($pdo));
         self::assertFalse($backend->get('item'));
-        self::assertSame(['cache_items'], $this->tables($pdo));
+        self::assertSame(['cache_generation', 'cache_items'], $this->tables($pdo));
     }
 
     /** @return list<string> */

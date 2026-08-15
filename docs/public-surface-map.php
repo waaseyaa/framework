@@ -91,6 +91,7 @@ return [
     'Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsApiCatalogEntryProvidersInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesAiCatalogEntriesInterface' => 'public',
     'Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApiCatalogEntriesInterface' => 'public',
+    'Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApplicationMasterRekeyContributionsInterface' => 'public',
     // Content-model-provider injection capability (G-026, #1940): mirrors
     // AcceptsMigrationProvidersInterface immediately above — kernel guards
     // provider wiring via this named interface instead of a Layer-3 concrete edge.

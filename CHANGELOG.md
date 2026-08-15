@@ -117,14 +117,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and return no fabricated registry when an install has no active consumers.
   Full kernel boot freezes that complete graph after registration and before
   provider boot, while restricted, failed, and in-progress boots expose none.
-  Executable package adapters and process reconciliation remain incomplete.
+  The installed database-cache owner now advances one migration-owned logical
+  generation by CAS for both forward transition and rollback; all bins ignore
+  older generations without payload rewrites, and rollback cannot reactivate
+  stale predecessor or failed-successor cache rows. Remaining package adapters
+  and process reconciliation remain incomplete.
   A generic coordinator now composes every frozen registry owner exactly once,
   refuses mismatched database identities or purpose rosters before inventory,
   passes adapters the store's exact transaction authority, and commits owner CAS
   effects with validated cursor/count/commitment evidence in one transaction.
   Malformed adapter output rolls back both row and cursor; restart resumes from
   the durable cursor without replay; and all verification results for a joint
-  adapter commit atomically. Concrete audit/cache/OIDC/queue/state adapters and
+  adapter commit atomically. Concrete audit/OIDC/queue/state adapters and
   fleet/backup evidence producers remain incomplete.
 - **configuration schema and sync authority (`S1-FW-CFG-03`):** Add the strict
   v1 configuration contract with closed recursive schema validation, separate

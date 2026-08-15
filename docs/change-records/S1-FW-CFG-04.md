@@ -30,10 +30,13 @@ or destroyed. No issue, pull request, hosted check, merge, split-package fan
 out, publication, release, deployment, production operation, backup, restore,
 or recovery action is authorized by this record.
 
-Framework emergency-revocation and master-rekey work is synthetic capability
-proof only. `F-CFG-011` stays red until a separately authorized Sheg/operator
-workflow supplies deployment preflight, external custody, retained-backup, and
-ceremony evidence.
+Framework emergency-revocation and master-rekey work provides production
+primitives exercised only with synthetic evidence in this change record. The
+installed cache owner contributes a concrete, database-authoritative generation
+adapter; advancing the generation invalidates rebuildable cache payloads without
+exporting key material or rewriting payload rows. `F-CFG-011` stays red until a
+separately authorized Sheg/operator workflow supplies deployment preflight,
+external custody, retained-backup, and ceremony evidence.
 
 ## Evidence disposition
 

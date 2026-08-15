@@ -485,7 +485,7 @@ interface TagAwareCacheInterface extends CacheBackendInterface
 | Backend | File | Tag-aware | Notes |
 |---------|------|-----------|-------|
 | `MemoryBackend` | `packages/cache/src/Backend/MemoryBackend.php` | Yes | In-memory array; use for tests. Implements `TagAwareCacheInterface`. |
-| `DatabaseBackend` | `packages/cache/src/Backend/DatabaseBackend.php` | Yes | PDO-backed; auto-creates table on first use. `INSERT OR REPLACE`. Tags stored comma-separated. |
+| `DatabaseBackend` | `packages/cache/src/Backend/DatabaseBackend.php` | Yes | PDO-backed; requires migration-owned schema. `INSERT OR REPLACE`. Tags are comma-separated and every read is restricted to the active cache generation. |
 | `NullBackend` | `packages/cache/src/Backend/NullBackend.php` | No | All gets return false; all writes are no-ops. Use for disabled bins. |
 
 ### CacheFactory and CacheConfiguration
@@ -518,6 +518,17 @@ $cache = $factory->get('cache_other');   // returns MemoryBackend
 File: `packages/cache/src/CacheTagsInvalidator.php`
 
 `CacheTagsInvalidator` holds references to all registered cache bins and delegates `invalidateTags()` to those that implement `TagAwareCacheInterface`.
+
+### Application-master cache invalidation
+
+`CacheServiceProvider` contributes the installed cache HMAC purpose through the
+Foundation application-master capability. The DB-02 migration-owned
+`cache_generation` singleton is the bounded invalidation authority: every
+database-cache write records its current generation and every read requires an
+exact match. Forward rekey and rollback each compare-and-swap that one logical
+record to the next monotonic generation. Existing payload rows are neither
+opened nor rewritten, and a later rollback never reactivates an older cache
+generation. Runtime cache construction and reads perform no DDL.
 
 ### Cache event listeners
 
@@ -2008,9 +2019,10 @@ per-purpose verification matches its durable rollback counts. The request enters
 predecessor remains active, the successor remains failed-read-only, and a final
 non-secret completion hash extends the event chain.
 
-Executable adapters implement one Foundation contract and expose the same
-non-secret `DatabaseIdentityProviderInterface` identity as the rekey store.
-Composition refuses a mismatch before inventory or mutation. Snapshot is
+Executable adapters implement one Foundation contract and expose the exact
+`DatabaseInterface` object owned by the rekey store. Composition refuses a
+distinct object before inventory or mutation even when both connections report
+the same physical database identity. Snapshot is
 read-only. A transition callback executes *inside* the store's database
 transaction after expected request/adapter revisions and cursor are checked; it
 returns the next cursor, row count, exact per-purpose deltas, and commitment.

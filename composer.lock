@@ -4045,10 +4045,11 @@
             "dist": {
                 "type": "path",
                 "url": "packages/cache",
-                "reference": "da129078749a450c8805390947b956c414dd5928"
+                "reference": "7929e99c3b70c32398d83aaf4d4f3f305f105057"
             },
             "require": {
                 "php": ">=8.5",
+                "waaseyaa/database-legacy": "^0.1.0-alpha.293",
                 "waaseyaa/foundation": "^0.1.0-alpha.293"
             },
             "require-dev": {
@@ -4062,6 +4063,9 @@
             "type": "library",
             "extra": {
                 "waaseyaa": {
+                    "providers": [
+                        "Waaseyaa\\Cache\\CacheServiceProvider"
+                    ],
                     "migrations": "migrations"
                 },
                 "branch-alias": {

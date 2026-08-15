@@ -48,13 +48,24 @@ final class AuthRuntimeSchemaMigrationTest extends TestCase
             'waaseyaa/foundation:2026_08_12_000001_rate_limit_window_schema',
             $all['waaseyaa/foundation'] ?? [],
         );
+        self::assertArrayHasKey(
+            'waaseyaa/foundation:2026_08_15_000002_application_master_rekey',
+            $all['waaseyaa/foundation'] ?? [],
+        );
 
         $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
         $result = new Migrator($connection, new MigrationRepository($connection))->run($all);
-        self::assertSame(2, $result->count);
+        self::assertSame(3, $result->count);
 
         $schema = new SchemaBuilder($connection);
-        foreach (['auth_tokens', 'auth_bearer_token', 'rate_limits', 'rate_limit_windows'] as $table) {
+        foreach ([
+            'auth_tokens',
+            'auth_bearer_token',
+            'rate_limits',
+            'rate_limit_windows',
+            'waaseyaa_application_master_rekey',
+            'waaseyaa_application_master_version',
+        ] as $table) {
             self::assertTrue($schema->hasTable($table), sprintf('Migration did not install "%s".', $table));
         }
         self::assertTrue($schema->hasColumn('auth_bearer_token', 'rotated_from'));

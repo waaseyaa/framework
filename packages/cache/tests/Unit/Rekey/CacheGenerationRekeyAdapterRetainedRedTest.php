@@ -17,6 +17,7 @@ use Waaseyaa\Foundation\Security\ApplicationMasterPurposeRegistry;
 use Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyContext;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyConflictException;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyRecord;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyState;
 use Waaseyaa\Foundation\Security\SecretClass;
@@ -99,6 +100,25 @@ final class CacheGenerationRekeyAdapterRetainedRedTest extends TestCase
         self::assertSame(3, (int) $database->getConnection()->fetchOne(
             'SELECT generation FROM cache_generation WHERE singleton_id = 1',
         ));
+    }
+
+    #[Test]
+    public function verification_rejects_an_additional_generation_advance_after_the_transition(): void
+    {
+        $database = $this->database();
+        $adapter = new CacheGenerationRekeyAdapter($database);
+        $context = $this->context($database, ApplicationMasterRekeyState::TransitionBoundedBatches);
+        $snapshot = $adapter->snapshot($context);
+        $adapter->transitionBatch($context, $snapshot, null, 1);
+        $database->update('cache_generation')->fields(['generation' => 3])
+            ->condition('singleton_id', 1)
+            ->condition('generation', 2)
+            ->execute();
+
+        $this->expectException(ApplicationMasterRekeyConflictException::class);
+        $this->expectExceptionMessage('exact successor');
+
+        $adapter->verify($context, $snapshot);
     }
 
     private function database(): DBALDatabase

@@ -52,7 +52,12 @@ final class RuntimeSchemaMigrations
 
     public static function cache(DBALDatabase $database): void
     {
-        self::apply($database, 'packages/cache/migrations/2026_08_12_000001_cache_items_schema.php');
+        foreach ([
+            '2026_08_12_000001_cache_items_schema.php',
+            '2026_08_15_000002_cache_generation.php',
+        ] as $migration) {
+            self::apply($database, 'packages/cache/migrations/' . $migration);
+        }
     }
 
     /** Test-only PDO fixture for cache consumers that do not compose DBALDatabase. */
@@ -66,8 +71,16 @@ final class RuntimeSchemaMigrations
             created INTEGER NOT NULL DEFAULT 0,
             tags TEXT NOT NULL DEFAULT \'\',
             valid INTEGER NOT NULL DEFAULT 1,
+            generation INTEGER NOT NULL DEFAULT 1,
             PRIMARY KEY (bin, cid)
         )');
+        $pdo->exec('CREATE TABLE IF NOT EXISTS cache_generation (
+            singleton_id INTEGER PRIMARY KEY,
+            generation INTEGER NOT NULL,
+            CHECK (singleton_id = 1),
+            CHECK (generation > 0)
+        )');
+        $pdo->exec('INSERT OR IGNORE INTO cache_generation (singleton_id, generation) VALUES (1, 1)');
     }
 
     public static function auth(DBALDatabase $database): void
