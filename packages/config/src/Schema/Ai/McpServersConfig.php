@@ -54,6 +54,7 @@ final class McpServersConfig
             'properties' => [
                 self::ITEMS_KEY => [
                     'type' => 'array',
+                    'items' => self::rowSchema(),
                     'default' => [],
                 ],
             ],

@@ -107,6 +107,31 @@ final class ConfigManifest
         }
 
         $manifestConfigs = $manifestData['configs'] ?? [];
+        if (!\is_array($manifestConfigs)) {
+            return new ManifestVerificationResult(
+                isValid: false,
+                error: 'Manifest configs must be a map.',
+            );
+        }
+
+        $checksumParts = [];
+        foreach ($manifestConfigs as $name => $entry) {
+            if (!\is_string($name) || !\is_array($entry) || !isset($entry['checksum']) || !\is_string($entry['checksum'])) {
+                return new ManifestVerificationResult(
+                    isValid: false,
+                    error: 'Manifest config entry is malformed.',
+                );
+            }
+            $checksumParts[] = $name . ':' . $entry['checksum'];
+        }
+        sort($checksumParts, \SORT_STRING);
+        $expectedAggregate = 'sha256:' . hash('sha256', implode("\n", $checksumParts));
+        if (!isset($manifestData['checksum']) || !\is_string($manifestData['checksum']) || !hash_equals($expectedAggregate, $manifestData['checksum'])) {
+            return new ManifestVerificationResult(
+                isValid: false,
+                error: 'Manifest aggregate checksum mismatch.',
+            );
+        }
         $currentNames = $this->getConfigNames();
 
         $modified = [];
@@ -194,10 +219,30 @@ final class ConfigManifest
      */
     private function computeChecksum(array $data): string
     {
-        // Use json_encode with sorted keys for deterministic serialization
-        $json = json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $json = json_encode(
+            $this->canonicalize($data),
+            JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
+        );
 
         return 'sha256:' . hash('sha256', $json);
+    }
+
+    private function canonicalize(mixed $value): mixed
+    {
+        if (!\is_array($value)) {
+            return $value;
+        }
+
+        if (array_is_list($value)) {
+            return array_map($this->canonicalize(...), $value);
+        }
+
+        ksort($value, \SORT_STRING);
+        foreach ($value as $key => $item) {
+            $value[$key] = $this->canonicalize($item);
+        }
+
+        return $value;
     }
 
     /**

@@ -180,8 +180,15 @@ final class ConfigSyncFileTest extends TestCase
         $parsed = [
             '_meta' => [
                 'dependencies' => ['role.admin'],
+                'entity_id' => 'coordinator',
                 'entity_type' => 'role',
+                'format' => ConfigSyncFile::FORMAT_V1,
                 'langcode' => 'en',
+                'owner_config_contract_version' => 1,
+                'owner_package' => 'waaseyaa/config',
+                'schema_hash' => 'sha256:' . str_repeat('a', 64),
+                'schema_id' => 'waaseyaa.role',
+                'schema_version' => 1,
                 'uuid' => '0193abcd-7c4d-7000-8b6e-1a2b3c4d5e6f',
             ],
             'description' => 'Coordinators manage community calendars.',
@@ -242,20 +249,27 @@ final class ConfigSyncFileTest extends TestCase
     }
 
     #[Test]
-    public function fromParsedArrayDefaultsDependenciesToEmptyList(): void
+    public function fromParsedArrayRejectsMissingDependencies(): void
     {
         $parsed = [
             '_meta' => [
+                'entity_id' => 'coordinator',
                 'entity_type' => 'role',
+                'format' => ConfigSyncFile::FORMAT_V1,
                 'uuid' => 'u',
                 'langcode' => 'en',
+                'owner_config_contract_version' => 1,
+                'owner_package' => 'waaseyaa/config',
+                'schema_hash' => 'sha256:' . str_repeat('a', 64),
+                'schema_id' => 'waaseyaa.role',
+                'schema_version' => 1,
             ],
             'label' => 'Coordinator',
         ];
 
-        $file = ConfigSyncFile::fromParsedArray($parsed, 'role.coordinator.yml');
-
-        self::assertSame([], $file->dependencies);
+        $this->expectException(ConfigSerializationException::class);
+        $this->expectExceptionMessage('dependencies');
+        ConfigSyncFile::fromParsedArray($parsed, 'role.coordinator.yml');
     }
 
     #[Test]

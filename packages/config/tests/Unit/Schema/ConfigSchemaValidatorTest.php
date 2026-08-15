@@ -297,7 +297,7 @@ final class ConfigSchemaValidatorTest extends TestCase
     }
 
     #[Test]
-    public function validate_ignores_extra_properties_without_additional_properties_flag(): void
+    public function validate_rejects_extra_properties_without_additional_properties_schema(): void
     {
         $schema = [
             'type' => 'object',
@@ -310,7 +310,8 @@ final class ConfigSchemaValidatorTest extends TestCase
 
         $violations = $this->validator->validate($data, $schema);
 
-        $this->assertSame([], $violations);
+        $this->assertCount(1, $violations);
+        $this->assertSame('extra_key', $violations[0]->path);
     }
 
     #[Test]

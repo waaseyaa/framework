@@ -80,8 +80,15 @@ final class ConfigSyncSerializer
     {
         $meta = [
             'dependencies' => $file->dependencies,
+            'entity_id' => $file->entityId,
             'entity_type' => $file->entityType,
+            'format' => $file->format,
             'langcode' => $file->langcode,
+            'owner_config_contract_version' => $file->ownerConfigContractVersion,
+            'owner_package' => $file->ownerPackage,
+            'schema_hash' => $file->schemaHash,
+            'schema_id' => $file->schemaId,
+            'schema_version' => $file->schemaVersion,
             'uuid' => $file->uuid,
         ];
         ksort($meta, \SORT_STRING);

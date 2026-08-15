@@ -19,6 +19,29 @@ namespace Waaseyaa\Config\Schema;
  */
 final class ConfigSchemaValidator
 {
+    private const array REGISTRATION_KEYWORDS = [
+        'additionalProperties',
+        'default',
+        'dialect',
+        'enum',
+        'items',
+        'maximum',
+        'minimum',
+        'nullable',
+        'properties',
+        'required',
+        'translatable',
+        'type',
+    ];
+
+    private const array REGISTRATION_TYPES = [
+        'array',
+        'boolean',
+        'integer',
+        'object',
+        'string',
+    ];
+
     /** @var array<string, array<string, mixed>> */
     private array $schemas = [];
 
@@ -30,6 +53,7 @@ final class ConfigSchemaValidator
      */
     public function registerSchema(string $configName, array $schema): void
     {
+        $this->assertSchemaDefinition($schema, '$');
         $this->schemas[$configName] = $schema;
     }
 
@@ -82,6 +106,33 @@ final class ConfigSchemaValidator
     public function validate(array $data, array $schema): array
     {
         return $this->validateValue($data, $schema, '');
+    }
+
+    /**
+     * Return a recursively default-materialized effective document without
+     * mutating the caller's authored input.
+     *
+     * @param array<string, mixed> $data
+     * @param array<string, mixed> $schema
+     * @return array<string, mixed>
+     */
+    public function materialize(array $data, array $schema): array
+    {
+        $violations = $this->validate($data, $schema);
+        if ($violations !== []) {
+            throw new \InvalidArgumentException(sprintf(
+                'Configuration cannot be materialized: %s: %s',
+                $violations[0]->path,
+                $violations[0]->message,
+            ));
+        }
+
+        $effective = $this->materializeValue($data, $schema);
+        if (!\is_array($effective)) {
+            throw new \LogicException('A root configuration schema must materialize an object.');
+        }
+
+        return $effective;
     }
 
     /**
@@ -151,6 +202,15 @@ final class ConfigSchemaValidator
             );
         }
 
+        if (($schema['type'] ?? null) === 'array' && \is_array($value) && isset($schema['items']) && \is_array($schema['items'])) {
+            foreach ($value as $index => $item) {
+                $violations = array_merge(
+                    $violations,
+                    $this->validateValue($item, $schema['items'], $this->joinPath($path, (string) $index)),
+                );
+            }
+        }
+
         return $violations;
     }
 
@@ -194,6 +254,26 @@ final class ConfigSchemaValidator
             );
         }
 
+        foreach ($data as $propName => $value) {
+            if (\array_key_exists($propName, $properties)) {
+                continue;
+            }
+
+            $additional = $schema['additionalProperties'] ?? false;
+            if (\is_array($additional)) {
+                $violations = array_merge(
+                    $violations,
+                    $this->validateValue($value, $additional, $this->joinPath($path, (string) $propName)),
+                );
+                continue;
+            }
+
+            $violations[] = new SchemaViolation(
+                path: $this->joinPath($path, (string) $propName),
+                message: sprintf('Property "%s" is not declared by the closed configuration schema.', $propName),
+            );
+        }
+
         return $violations;
     }
 
@@ -230,5 +310,112 @@ final class ConfigSchemaValidator
         }
 
         return $base . '.' . $key;
+    }
+
+    /**
+     * @param array<string, mixed> $schema
+     */
+    private function assertSchemaDefinition(array $schema, string $path): void
+    {
+        foreach (array_keys($schema) as $keyword) {
+            if (!\is_string($keyword) || !\in_array($keyword, self::REGISTRATION_KEYWORDS, true)) {
+                throw new \InvalidArgumentException(sprintf(
+                    'Unsupported configuration schema keyword "%s" at %s.',
+                    (string) $keyword,
+                    $path,
+                ));
+            }
+        }
+
+        $type = $schema['type'] ?? null;
+        if (!\is_string($type) || !\in_array($type, self::REGISTRATION_TYPES, true)) {
+            throw new \InvalidArgumentException(sprintf(
+                'Unsupported configuration schema type "%s" at %s.',
+                \is_scalar($type) ? (string) $type : get_debug_type($type),
+                $path,
+            ));
+        }
+
+        if (isset($schema['properties'])) {
+            if ($type !== 'object' || !\is_array($schema['properties'])) {
+                throw new \InvalidArgumentException(sprintf('Configuration schema properties at %s must be an object map.', $path));
+            }
+            foreach ($schema['properties'] as $name => $propertySchema) {
+                if (!\is_string($name) || $name === '' || !\is_array($propertySchema)) {
+                    throw new \InvalidArgumentException(sprintf('Configuration schema property at %s is malformed.', $path));
+                }
+                $this->assertSchemaDefinition($propertySchema, $this->joinPath($path, $name));
+            }
+        }
+
+        if ($type === 'array') {
+            if (!isset($schema['items']) || !\is_array($schema['items'])) {
+                throw new \InvalidArgumentException(sprintf('Configuration array schema at %s requires one items schema.', $path));
+            }
+            $this->assertSchemaDefinition($schema['items'], $path . '[]');
+        } elseif (isset($schema['items'])) {
+            throw new \InvalidArgumentException(sprintf('Configuration schema items at %s requires type array.', $path));
+        }
+
+        if (isset($schema['required'])) {
+            if ($type !== 'object' || !\is_array($schema['required']) || array_values($schema['required']) !== $schema['required']) {
+                throw new \InvalidArgumentException(sprintf('Configuration schema required at %s must be a list.', $path));
+            }
+            foreach ($schema['required'] as $required) {
+                if (!\is_string($required) || !isset($schema['properties'][$required])) {
+                    throw new \InvalidArgumentException(sprintf('Configuration schema required entry at %s is undeclared.', $path));
+                }
+            }
+        }
+
+        if (isset($schema['additionalProperties'])) {
+            $additional = $schema['additionalProperties'];
+            if ($type !== 'object' || ($additional !== false && !\is_array($additional))) {
+                throw new \InvalidArgumentException(sprintf(
+                    'Configuration schema additionalProperties at %s must be false or a typed schema.',
+                    $path,
+                ));
+            }
+            if (\is_array($additional)) {
+                $this->assertSchemaDefinition($additional, $path . '.*');
+            }
+        }
+
+        if (\array_key_exists('default', $schema)) {
+            $violations = $this->validateValue($schema['default'], $schema, $path . '.default');
+            if ($violations !== []) {
+                throw new \InvalidArgumentException(sprintf(
+                    'Configuration schema default at %s is invalid: %s',
+                    $path,
+                    $violations[0]->message,
+                ));
+            }
+        }
+    }
+
+    /** @param array<string, mixed> $schema */
+    private function materializeValue(mixed $value, array $schema): mixed
+    {
+        if (($schema['type'] ?? null) === 'object' && \is_array($value)) {
+            $effective = $value;
+            foreach (($schema['properties'] ?? []) as $name => $propertySchema) {
+                if (!\array_key_exists($name, $effective)) {
+                    if (!\array_key_exists('default', $propertySchema)) {
+                        continue;
+                    }
+                    $effective[$name] = $propertySchema['default'];
+                }
+                $effective[$name] = $this->materializeValue($effective[$name], $propertySchema);
+            }
+            ksort($effective, \SORT_STRING);
+
+            return $effective;
+        }
+
+        if (($schema['type'] ?? null) === 'array' && \is_array($value) && isset($schema['items']) && \is_array($schema['items'])) {
+            return array_map(fn(mixed $item): mixed => $this->materializeValue($item, $schema['items']), $value);
+        }
+
+        return $value;
     }
 }

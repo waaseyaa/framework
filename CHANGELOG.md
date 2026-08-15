@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **configuration schema and sync authority (`S1-FW-CFG-03`):** Begin the
+  strict v1 configuration contract with closed recursive schema validation,
+  default materialization into separate effective documents, versioned sync
+  metadata, strict dependency parsing, and canonical manifest verification.
 - **transactional configuration activation (`S1-FW-CFG-02`):** Add
   content-bound immutable generations, ordered compare-and-swap activation,
   idempotent request identities, explicit hash-bound deletion, and fail-closed

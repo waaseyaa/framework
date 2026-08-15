@@ -28,8 +28,15 @@ final class ConfigSyncSerializerTest extends TestCase
             _meta:
               dependencies:
                 - role.admin
+              entity_id: coordinator
               entity_type: role
+              format: waaseyaa.config-sync/1
               langcode: en
+              owner_config_contract_version: 1
+              owner_package: waaseyaa/config
+              schema_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
+              schema_id: waaseyaa.config.unbound
+              schema_version: 1
               uuid: 0193abcd-7c4d-7000-8b6e-1a2b3c4d5e6f
             description: 'Coordinators manage community calendars and welcome new members.'
             id: coordinator

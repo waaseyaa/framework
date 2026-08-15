@@ -86,4 +86,9 @@ final class ConfigSerializationException extends \RuntimeException
             $filename,
         ));
     }
+
+    public static function invalidMeta(string $filename, string $reason): self
+    {
+        return new self(sprintf('Sync file "%s" has invalid _meta: %s', $filename, $reason));
+    }
 }
