@@ -1,5 +1,7 @@
 # Content Publishing v1 — agent-operable editorial CRUD over the entity substrate
 
+<!-- Spec reviewed 2026-08-15 - S1-FW-CFG-04: preview links moved from single-scheme ApplicationSecret HMAC to versioned application-master custody. PreviewLinkService signs with keyring-sealed versioned tags (purpose waaseyaa.publishing.preview-hmac.v1), enforces the 30-minute hard TTL maximum, and fail-closed verification accepts only keyring-declared versions; legacy unversioned signatures verify only behind publishing.preview.accept_legacy_application_secret_signatures (default false). New PublishingServiceProvider owns the composition and contributes the zero-row PublishingPreviewRekeyAdapter — the framework's sole ephemeral-no-persistence application-master purpose. See PreviewLinkService and PublishingServiceProvider sections. -->
+
 <!-- Spec reviewed 2026-07-29 - #2141: capability-authorized publisher results use a closed descriptor-defined internal projection rather than ambient FieldReadGuard authority, and each content mutation plus its idempotency replay record shares one database transaction. A post-save projection/serialization failure therefore rolls back the entity write and cannot strand a slug before the replay record exists. -->
 
 **Status:** DESIGN → in build (anchor issue filed at creation; see Traceability).
@@ -14,7 +16,7 @@ Per the standing rule: framework gaps are fixed in the framework, not papered ov
 |---|---|---|
 | Draft/publish/unpublish/revisions/rollback service over `EntityRepositoryInterface` | **`waaseyaa/publishing` (NEW, Layer 3)** | Every CMS consumer re-derives this glue today; Drupal ships it as product. Composes only existing primitives (repository revisions, `SaveContext::withExpectedRevisionId`, access handler, audit writer) — no new write path. |
 | Idempotency keys for mutations | **`waaseyaa/publishing`** (store) — extraction to `api` middleware is a follow-up | Net-new framework-wide; enterprise write APIs treat this as table stakes. |
-| Short-lived signed preview links | **`waaseyaa/publishing`** | Access-control-adjacent; every CMS needs shareable draft previews. HMAC over the kernel `ApplicationSecret`; no route shipped (apps wire routes, same pattern as `seo`). |
+| Short-lived signed preview links | **`waaseyaa/publishing`** | Access-control-adjacent; every CMS needs shareable draft previews. Versioned application-master signatures (legacy `ApplicationSecret`-derived HMAC only behind an explicit compatibility flag); no route shipped (apps wire routes, same pattern as `seo`). |
 | Bundle-scoped MCP content tool set (factory) | **`packages/ai-tools/src/Content/` (Layer 5)** | Hand-writing N tools per app does not scale. Apps declare a `ContentTypeDescriptor` + tool-name prefix and get the full tool set. L5 importing L3 `publishing` is downward — legal. |
 | MCP per-principal rate limiting | **`packages/mcp` (Layer 6)** | The `RateLimiterInterface` primitive exists (auth, L1); the endpoint must consume it. |
 | `content.*` audit kinds | **`packages/audit` (Layer 1)** | Closed taxonomy stays closed; five new first-party kinds. |
@@ -59,7 +61,9 @@ direct repository save path.
 
 Editor preview uses the additive exact-revision grant. Its HMAC input is
 domain-separated from legacy working-copy grants and binds entity type, entity
-identity, positive revision identity, and expiry. `ContentPublisher` verifies
+identity, positive revision identity, and expiry. Under application-master
+custody the grant signature additionally carries the exact active master
+version (see PreviewLinkService). `ContentPublisher` verifies
 that the requested revision is still the working copy before issuing and
 auditing the grant. The application preview route must load that exact revision;
 loading whichever working copy happens to be current is not compliant.
@@ -87,7 +91,13 @@ Table `publishing_idempotency` (`idem_key` PK, `operation`, `request_hash` (sha2
 
 ### PreviewLinkService
 
-`issue(entityTypeId, id, ttl): PreviewToken{expiresAt, signature}` / `verify(entityTypeId, id, expiresAt, signature): bool`. Signature = HMAC-SHA256(`type|id|expiresAt`) with the kernel `ApplicationSecret`; constant-time compare; expired → invalid. The package ships **no route** — the app wires `GET .../preview/{id}?exp&sig`, renders the **working copy** (`loadWorkingCopy()`) through its real layout, and MUST send `X-Robots-Tag: noindex, nofollow` + the meta tag. Preview mutates nothing.
+`issue(entityTypeId, id, ttl): PreviewToken{expiresAt, signature}` / `verify(entityTypeId, id, expiresAt, signature): bool`, plus the exact-revision pair. TTL is bounded: 1 ≤ ttl ≤ 1800 seconds — 30 minutes is the hard maximum grant lifetime, not just the default. Under application-master custody (the production composition) signatures are versioned tags `hmac-sha256.application-master.preview.v1:<masterVersion>:<base64url digest>`, sealed by the keyring under purpose `waaseyaa.publishing.preview-hmac.v1` over a NUL-domain-separated message; new grants always carry the exact active master version, and verification accepts only versions the keyring declares. Legacy unversioned signatures (HMAC-SHA256 of `type|id|expiresAt` with the purpose-derived `ApplicationSecret` key, constant-time compare) verify only when legacy custody is configured. Verification is fail-closed and never throws: a malformed prefix/version/digest, an undeclared master version, a custody error, or a legacy signature with no legacy secret configured all return `false`; expired → invalid. The signer refuses serialization and redacts custody in debug output. The package ships **no route** — the app wires `GET .../preview/{id}?exp&sig`, renders the **working copy** (`loadWorkingCopy()`) through its real layout, and MUST send `X-Robots-Tag: noindex, nofollow` + the meta tag. Preview mutates nothing. Keyring mechanics (versions, tag format, purpose registry) live in `docs/specs/infrastructure.md`.
+
+### PublishingServiceProvider (custody composition and rekey ownership)
+
+`PublishingServiceProvider` (auto-discovered via `extra.waaseyaa.providers`) composes `PreviewLinkService` keyring-first: when the kernel exposes an `ApplicationMasterKeyring`, previews sign with versioned application-master custody, and legacy unversioned signatures are accepted only when config `publishing.preview.accept_legacy_application_secret_signatures` is explicitly `true` (default false). Without a keyring the service falls back to the purpose-derived `ApplicationSecret` legacy custody alone.
+
+`waaseyaa/publishing` owns the `waaseyaa.publishing.preview-hmac.v1` purpose in the application-master rekey roster through `PublishingPreviewRekeyAdapter` — the framework's sole `ephemeral-no-persistence` purpose. Preview grants are stateless: there are no persisted rows to transition or export, so the adapter snapshots exactly zero records and refuses transition and rollback batches. Its purpose policy declares owner `waaseyaa/publishing`, lifetime and retention equal to the 30-minute maximum grant lifetime, and rollback behavior `verify-declared-version-until-expiry` — grants issued under a predecessor master version stay verifiable through their lifetime because reads accept any keyring-declared version. Coordinator and keyring mechanics live in `docs/specs/infrastructure.md`.
 
 ### Audit
 

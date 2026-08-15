@@ -7,6 +7,8 @@
 <!-- Spec reviewed 2026-08-04 - #2200: ai-schema ships only EntityJsonSchemaGenerator and has no current agent-runtime or MCP consumer. Retired the nonexistent McpToolDefinition, McpToolGenerator, TranslationToolGenerator, McpToolExecutor, and SchemaRegistry surfaces and the fictional accessCheck(false) path. Agent tools own and validate their declared schemas in ai-tools; MCP transports those descriptors without an ai-schema dependency. -->
 <!-- Spec reviewed 2026-08-04 - #2191: the legacy McpController discovery blend, search aliases, and stable-meta claims are explicitly retired; new remote search must use the canonical access-checked agent-tool lifecycle. -->
 
+<!-- Spec reviewed 2026-08-15 - S1-FW-CFG-04 (governed secret custody): outbound MCP and the LLM/embedding providers moved from raw string credential reads to typed SecretReference custody through the frozen kernel SecretResolverRegistry — providers hold a SecretHandle and resolve a fresh version per outbound request inside a registered consumer (McpCredentialOperation, AnthropicCredentialOperation, OpenAiCompatibleCredentialOperation, OpenAiEmbeddingCredentialOperation); credential bytes never cross the operation boundary, and outcome objects (ProviderCredentialOutcome, McpCredentialOutcome) discard original exception text. Every MCP server row now declares auth_mode (none|secret-reference) and availability (required|optional): an optional server's startup/call failure records degraded McpIntegrationHealth and yields no tools; a REQUIRED server's failure throws McpReadinessException and blocks boot — this supersedes the 2026-07-13 "an unavailable server cannot abort kernel boot" claim for required servers. Remote JSON-RPC errors surface as the fixed McpRemoteErrorException signal; tool-call errors are the fixed envelopes mcp_credential_unavailable / mcp_server_unavailable / mcp_remote_error (no detail text). Custody mechanics: docs/specs/infrastructure.md; MCP tool-source contract and ai.providers/ai.mcp_servers schema v2: docs/specs/agent-executor.md; policy: docs/specs/security-defaults.md. -->
+
 <!-- Spec reviewed 2026-08-03 - #2177 F1 slice B: `AgentTool::toMcpDescriptor()` now always emits the spec-standard MCP `annotations.destructiveHint`, projected from the tool's declared `$destructive`. It is advisory display metadata for MCP clients; server-side enforcement (the write tier's human-approval gate, see docs/specs/mcp-endpoint.md §"Human-approval gate") reads `$destructive` itself and never the hint. On a gated endpoint the MCP layer additionally decorates destructive tools' tools/list descriptors with `_meta["ai.waaseyaa.mcp/approval"]="required"` — that decoration lives in `McpEndpoint`, not in AgentTool. Acceptance: AgentToolDescriptorTest. -->
 
 <!-- Spec reviewed 2026-08-03 - #2177 F6 (mcp-public-boundary): the 11 generic `catch (\Throwable)` arms across the entity/relationship/vector tools no longer embed `$e->getMessage()` in the returned AgentToolResult (nor in its `summary`, the audit/transcript line) — they call `AbstractAgentTool::internalError()`, which returns a fixed INTERNAL_ERROR envelope plus a random correlation id via the new `Waaseyaa\AI\Tools\Error\SanitizedToolError`. The logger (attached at hydration by AttributeToolRegistry, mirroring the EntityAccessHandler mechanism) receives safe diagnostic METADATA only — correlation id, tool, exception class, file, line, integer code — never the message, trace, or the Throwable object. Typed domain catches (validation, revision conflict, key refusal, not-revisionable, forbidden) are untouched and remain machine-readable. See the new "Tool failure contract" section. -->
@@ -258,8 +260,10 @@ interface StreamingProviderInterface extends ProviderInterface
 final class AnthropicProvider implements StreamingProviderInterface
 {
     public function __construct(
-        private readonly string $apiKey,
-        private readonly string $model = 'claude-sonnet-4-20250514',
+        #[\SensitiveParameter]
+        string|SecretHandle $apiKey,
+        private readonly string $model = 'claude-sonnet-4-6',
+        ?\Closure $authenticatedTransport = null,
     );
 
     public function sendMessage(MessageRequest $request): MessageResponse;
@@ -271,6 +275,8 @@ final class AnthropicProvider implements StreamingProviderInterface
 ```
 
 Uses cURL for HTTP. `CURLOPT_WRITEFUNCTION` callbacks must not throw — `json_decode` is wrapped in try-catch inside callbacks. Error handling parses error bodies and handles HTTP 429 with `RateLimitException`.
+
+The API key is held as a `SecretHandle` (a plain string is wrapped into a legacy static handle). Every request resolves it inside the registered `AnthropicCredentialOperation` consumer (purpose `waaseyaa.ai.anthropic.v1`), which builds the `x-api-key`/`anthropic-version` headers so credential bytes never return to provider code. Failures cross the custody boundary only as `ProviderCredentialOutcome`'s closed taxonomy — `RateLimitException` (retry-after seconds preserved), `TransportException`, `ClientErrorException` — re-thrown with fixed non-secret messages; the original exception text and chain are discarded. `OpenAiCompatibleProvider` follows the same pattern via `OpenAiCompatibleCredentialOperation` (purpose `waaseyaa.ai.openai-chat.v1`).
 
 ### Message Block Value Objects
 
@@ -329,7 +335,7 @@ final class RateLimitException extends \RuntimeException
 }
 ```
 
-Thrown by `AnthropicProvider` on HTTP 429. `$retryAfterSeconds` parsed from the `retry-after` header.
+Thrown by `AnthropicProvider` on HTTP 429. `$retryAfterSeconds` parsed from the `retry-after` header. Since CFG-04, callers receive a re-minted instance with a fixed message (`Provider rate limited.`) — `retryAfterSeconds` survives the custody boundary, the upstream error body text does not.
 
 **File:** `packages/ai-agent/src/Provider/MaxIterationsException.php`
 
@@ -433,11 +439,13 @@ Implementations connect to embedding providers. The `getDimensions()` method ret
 final class OpenAiEmbeddingProvider implements EmbeddingInterface
 {
     public function __construct(
-        private readonly string $apiKey,
+        #[\SensitiveParameter]
+        string|SecretHandle $apiKey,
         private readonly string $model = 'text-embedding-3-small',
         private readonly string $endpoint = 'https://api.openai.com/v1/embeddings',
-        private readonly mixed $transport = null,    // callable for testing
+        mixed $transport = null,                     // credential-free seam
         private readonly int $dimensions = 1536,
+        mixed $authenticatedTransport = null,        // seam below credential injection
     );
 }
 ```
@@ -456,7 +464,9 @@ final class OllamaEmbeddingProvider implements EmbeddingInterface
 }
 ```
 
-Both accept an optional `$transport` callable `(string $url, array $headers, array $body): array` for test injection. When null, they use real HTTP calls.
+Ollama's `$transport` keeps the `(string $url, array $headers, array $body): array` shape. OpenAI's `$transport` is credential-free — `(string $url, array $payload): array`, invoked before any credential is resolved; the separate `$authenticatedTransport` seam receives headers below credential injection. A string `$apiKey` is wrapped into a legacy static `SecretHandle`; requests resolve it inside the registered `OpenAiEmbeddingCredentialOperation` consumer (purpose `waaseyaa.ai.embedding.v1`). When the seams are null, real HTTP calls are made.
+
+`EmbeddingProviderFactory::fromConfig()` still returns `null` when `ai.embedding_provider` is unset or unknown (the warmer reports `skipped_no_provider`), but a configured `openai` provider is fail-closed: a raw `ai.openai_api_key` value, a missing kernel `SecretResolverRegistry`, or a missing/invalid typed `ai.openai_credential_reference` throws `ProviderCredentialConfigurationException` — there is no environment-variable fallback.
 
 ### VectorStoreInterface
 
@@ -922,6 +932,10 @@ Pipeline uses `syncStepsToValues()` to maintain a single source of truth. Called
 | `packages/ai-vector/src/DistanceMetric.php` | `DistanceMetric` | Distance metric enum |
 | `packages/ai-vector/src/Testing/FakeEmbeddingProvider.php` | `FakeEmbeddingProvider` | Deterministic test embeddings |
 | `packages/ai-vector/src/SemanticIndexWarmer.php` | `SemanticIndexWarmer` | Deterministic semantic index warming service |
+| `packages/ai-vector/src/ProviderCredentialConfigurationException.php` | `ProviderCredentialConfigurationException` | Fail-closed refusal for raw/incomplete provider credential config |
+| `packages/ai-agent/src/Mcp/McpIntegrationHealth.php` | `McpIntegrationHealth` | Process-local per-alias healthy/degraded/blocked MCP readiness view |
+| `packages/ai-agent/src/Mcp/McpReadinessException.php` | `McpReadinessException` | Non-sensitive refusal when a required MCP server is not ready (blocks boot) |
+| `packages/ai-agent/src/Mcp/McpRemoteErrorException.php` | `McpRemoteErrorException` | Fixed non-secret signal for a remote JSON-RPC error |
 | `packages/cli/src/Command/SemanticWarmCommand.php` | `SemanticWarmCommand` | Operational CLI entry point for warmer |
 | `packages/cli/src/Command/SemanticRefreshCommand.php` | `SemanticRefreshCommand` | Operational CLI entry point for resumable refresh batches |
 

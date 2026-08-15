@@ -47,6 +47,19 @@ final class ProjectHooksTest extends TestCase
     }
 
     #[Test]
+    public function pre_push_reports_drift_truthfully_against_a_configurable_base(): void
+    {
+        $script = (string) file_get_contents($this->root . '/bin/project-hooks');
+
+        self::assertStringNotContainsString('drift-detector.sh origin/main', $script, 'pre-push must not hardcode the drift base at the callsite');
+        self::assertStringContainsString('WAASEYAA_DRIFT_BASE', $script);
+        self::assertStringContainsString('waaseyaa.driftBase', $script);
+        self::assertStringContainsString('spec drift clean against ${drift_base}', $script);
+        self::assertStringContainsString('except spec drift', $script);
+        self::assertStringContainsString('blocking in CI against the PR base', $script);
+    }
+
+    #[Test]
     public function installer_is_idempotent_and_preserves_unknown_hooks(): void
     {
         $fixture = sys_get_temp_dir() . '/waaseyaa-project-hooks-' . bin2hex(random_bytes(6));

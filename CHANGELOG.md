@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **drift-detector hardening (`S1-FW-CFG-04`):** Harden the spec-drift gate end
+  to end. Map `packages/oidc/` to `docs/specs/api-layer.md` (the enduring home
+  of the OIDC issuer's HTTP surface) with additive path-specific secondary
+  couplings for the non-HTTP OIDC concerns (signing-key lifecycle, key
+  material, token custody, secret storage, rekey adapters, migrations →
+  `s1-signing-key-lifecycle.md` / `security-defaults.md`), and add
+  evidence-backed secondary rules for config manifest signing
+  (`config-management.md` + `s1-signing-key-lifecycle.md`), AI config schema
+  (`agent-executor.md` + `security-defaults.md`), and the hermetic admin build
+  (`admin-spa.md` + `security-defaults.md`). Map the eleven previously
+  uncovered production packages and treat `packages/*/migrations/` as
+  contract-bearing. Acknowledgement trailers are now provenance-ordered — a
+  `spec-reviewed:` trailer only covers source changes committed at or before
+  the acknowledging commit, so an old trailer cannot pre-approve later edits (a
+  final `--allow-empty` commit remains the supported acknowledgement vehicle).
+  The trailer grammar accepts a comma-separated spec list with per-token
+  validation: non-spec tokens, tokens naming no existing spec, and tokens
+  naming specs unaffected by the diff are diagnosed on stderr and ignored, and
+  the blanket `spec-reviewed: all` form is retired with a hard rejection (exit
+  2). Base resolution fails closed: an unresolvable explicit base exits 3
+  without any fallback, a repository with no determinable base exits 4 instead
+  of passing green, and git plumbing failures exit 5 instead of being
+  swallowed. The pre-push hook now reports drift truthfully — it names the
+  compared base (configurable via `WAASEYAA_DRIFT_BASE` or
+  `git config waaseyaa.driftBase`, default `origin/main`), stays advisory
+  locally, and states that hosted CI diffs the PR base and blocks. A new
+  `DriftDetectorMappingCompletenessTest` parses the mapping table out of the
+  script and fails when any `packages/*/{src,app}` package is unmapped or a
+  mapped contract document is missing. Reconcile the CFG-04 spec-drift
+  obligations: document versioned application-master preview custody in
+  `content-publishing.md`, governed provider/MCP credential custody and
+  required-server readiness in `ai-integration.md`, the
+  `ProvidesApplicationMasterRekeyContributionsInterface` capability in
+  `package-discovery.md`, and the lifecycle-governed JWKS response in
+  `api-layer.md`.
+
 - **runtime-table catalogue custody coverage (`S1-FW-CFG-04`):** Catalogue the
   eleven CFG-04 custody runtime tables — `cache_generation`,
   `oidc_token_custody_sequence`, and the nine `waaseyaa_application_master_*`

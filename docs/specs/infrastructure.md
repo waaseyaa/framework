@@ -1117,7 +1117,7 @@ Per spec §15 Q9, `extra.waaseyaa.migrations` also accepts an **ordered list** o
 
 **SQLite / `down()`:** Additive column migrations may use a no-op `down()` when portable `DROP COLUMN` is not guaranteed; prefer compensating migrations for breaking changes.
 
-**Reference packages:** `waaseyaa/queue`, `waaseyaa/notification`, `waaseyaa/scheduler`, `waaseyaa/ai-observability` register `migrations`; `waaseyaa/oidc` registers its client, token, signing-key, consent, and secret-storage migrations. The secret-storage migration adds keyed lookup columns for access and refresh tokens; existing secret values are converted transactionally by the application-key-aware `oidc:migrate-secrets --confirm` command (#2037).
+**Reference packages:** `waaseyaa/queue`, `waaseyaa/notification`, `waaseyaa/scheduler`, `waaseyaa/ai-observability` register `migrations`; `waaseyaa/oidc` registers its client, token, signing-key, consent, secret-storage, authorization-code, signing-key-lifecycle, and application-master-custody migrations. The secret-storage migration adds keyed lookup columns for access and refresh tokens; existing secret values are converted transactionally by the application-key-aware `oidc:migrate-secrets --confirm` command (#2037). The authorization-code migration (`2026_08_12_000006`) owns the `oidc_authorization_codes` schema formerly installed by request traffic (contract: `docs/specs/api-layer.md`).
 
 ## HTTP Client
 
