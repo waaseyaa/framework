@@ -148,6 +148,7 @@ final class ApplicationMasterRekeyStoreRetainedRedTest extends TestCase
             authorizationDigest: hash('sha256', 'different-synthetic-authorization'),
             actor: 'synthetic-operator-1',
             rollbackDeadline: 2_000,
+            retentionDeadline: 2_500,
             createdAt: 1_000,
         ), $registry);
     }
@@ -280,6 +281,13 @@ final class ApplicationMasterRekeyStoreRetainedRedTest extends TestCase
             $revision = $record->revision;
         }
 
+        try {
+            $store->revokePredecessor(self::REQUEST_ID, $revision, 2_400);
+            self::fail('Application-master predecessor revocation ignored the retained-backup horizon.');
+        } catch (ApplicationMasterRekeyRevocationBlockedException $exception) {
+            self::assertStringContainsString('retention deadline', $exception->getMessage());
+        }
+
         $revoked = $store->revokePredecessor(self::REQUEST_ID, $revision, 3_000);
         self::assertSame(ApplicationMasterRekeyState::RevokeOldInLedger, $revoked->state);
         self::assertSame('revoked', $store->masterVersionState(1));
@@ -294,6 +302,100 @@ final class ApplicationMasterRekeyStoreRetainedRedTest extends TestCase
             self::assertSame($event->recomputeHash(), $event->eventHash);
             $previousHash = $event->eventHash;
         }
+
+        $nextRequestId = 'synthetic-rekey-20260815-0002';
+        $store->prepare(new ApplicationMasterRekeyRequest(
+            requestId: $nextRequestId,
+            fromVersion: 2,
+            toVersion: 3,
+            registryChecksum: $registry->checksum(),
+            authorizationDigest: hash('sha256', 'next-synthetic-authorization'),
+            actor: 'synthetic-operator-2',
+            rollbackDeadline: 4_000,
+            retentionDeadline: 4_500,
+            createdAt: 3_500,
+        ), $registry);
+        $store->installActive(
+            $nextRequestId,
+            1,
+            hash('sha256', 'synthetic-master-v2-reference'),
+            hash('sha256', 'synthetic-master-v3-reference'),
+            3_600,
+        );
+        self::assertSame('revoked', $store->masterVersionState(1));
+        self::assertSame('legacy-read-verify', $store->masterVersionState(2));
+        self::assertSame('active-write', $store->masterVersionState(3));
+    }
+
+    #[Test]
+    public function one_completed_adapter_cannot_skip_an_uninventoried_registry_owner(): void
+    {
+        $registry = $this->purposes();
+        $expanded = new ApplicationMasterPurposeRegistry();
+        foreach ($registry->purposeIds() as $purpose) {
+            $expanded->register($registry->policy($purpose));
+        }
+        $expanded->register(new ApplicationMasterPurposePolicy(
+            id: ApplicationSecret::PURPOSE_CACHE_PAYLOAD_HMAC,
+            ownerPackage: 'waaseyaa/cache',
+            strategy: ApplicationMasterPurposeStrategy::InvalidateRebuildable,
+            maximumLifetimeSeconds: 86_400,
+            retentionSeconds: 86_400,
+            adapterId: 'synthetic-cache-v1',
+            rollbackBehavior: 'rebuild-generation',
+        ));
+        $expanded->freeze();
+
+        $store = new ApplicationMasterRekeyStore($this->migratedDatabase());
+        $store->prepare(new ApplicationMasterRekeyRequest(
+            requestId: self::REQUEST_ID,
+            fromVersion: 1,
+            toVersion: 2,
+            registryChecksum: $expanded->checksum(),
+            authorizationDigest: hash('sha256', 'synthetic-two-person-authorization'),
+            actor: 'synthetic-operator-1',
+            rollbackDeadline: 2_000,
+            retentionDeadline: 2_500,
+            createdAt: 1_000,
+        ), $expanded);
+        $store->installActive(
+            self::REQUEST_ID,
+            1,
+            hash('sha256', 'synthetic-master-v1-reference'),
+            hash('sha256', 'synthetic-master-v2-reference'),
+            1_100,
+        );
+        $oidcPurposes = array_values(array_filter(
+            $expanded->purposeIds(),
+            static fn(string $purpose): bool => $purpose !== ApplicationSecret::PURPOSE_CACHE_PAYLOAD_HMAC,
+        ));
+        $store->recordAdapterSnapshot(
+            self::REQUEST_ID,
+            2,
+            self::ADAPTER_ID,
+            $oidcPurposes,
+            hash('sha256', 'empty-oidc-snapshot'),
+            0,
+        );
+        $afterOidc = $store->completeAdapter(self::REQUEST_ID, 3, self::ADAPTER_ID, 1, null);
+        self::assertSame(ApplicationMasterRekeyState::TransitionBoundedBatches, $afterOidc->state);
+
+        $store->recordAdapterSnapshot(
+            self::REQUEST_ID,
+            4,
+            'synthetic-cache-v1',
+            [ApplicationSecret::PURPOSE_CACHE_PAYLOAD_HMAC],
+            hash('sha256', 'empty-cache-snapshot'),
+            0,
+        );
+        $afterCache = $store->completeAdapter(
+            self::REQUEST_ID,
+            5,
+            'synthetic-cache-v1',
+            1,
+            null,
+        );
+        self::assertSame(ApplicationMasterRekeyState::VerifyEveryPurpose, $afterCache->state);
     }
 
     private function request(): ApplicationMasterRekeyRequest
@@ -306,6 +408,7 @@ final class ApplicationMasterRekeyStoreRetainedRedTest extends TestCase
             authorizationDigest: hash('sha256', 'synthetic-two-person-authorization'),
             actor: 'synthetic-operator-1',
             rollbackDeadline: 2_000,
+            retentionDeadline: 2_500,
             createdAt: 1_000,
         );
     }

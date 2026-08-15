@@ -29,6 +29,12 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `Security\ApplicationMasterPurposeRegistry` | final class | Deterministic boot-time frozen registry of application-master purposes |
 | `Security\ApplicationMasterEnvelope` | final readonly class | Strict XChaCha20-Poly1305 envelope binding master version, purpose, record, and schema identity |
 | `Security\ApplicationMasterKeyring` | final class | Active-write and bounded legacy-read custody over externally resolved versioned masters |
+| `Security\Rekey\ApplicationMasterRekeyState` | enum | Closed persisted prepare-through-revocation and forward-rollback states |
+| `Security\Rekey\ApplicationMasterRekeyGate` | enum | Closed fleet, cache, rollback, and retained-backup revocation gates |
+| `Security\Rekey\ApplicationMasterRekeyRequest` | final readonly class | Immutable non-secret request, authorization digest, versions, and rollback/retention horizons |
+| `Security\Rekey\ApplicationMasterRekeyStore` | final class | Migration-backed CAS projections and append-only hash-chained rekey evidence |
+| `Security\Rekey\ApplicationMasterAdapterProgress` | final readonly class | Restart-safe joint-owner snapshot, cursor, counts, and commitment projection |
+| `Security\Rekey\ApplicationMasterRekeyEvent` | final readonly class | Verifiable immutable non-secret ledger event |
 | `HttpHandlerInterface` | interface | Terminal HTTP request handler (innermost layer of the middleware onion) |
 | `HttpMiddlewareInterface` | interface | Wraps an HTTP handler to add cross-cutting behavior |
 | `JobHandlerInterface` | interface | Terminal queue job handler |

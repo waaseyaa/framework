@@ -23,6 +23,8 @@ return [
     'Waaseyaa\Foundation\Log\LoggerInterface' => 'public',
     'Waaseyaa\Foundation\Security\SecretClass' => 'public',
     'Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy' => 'public',
+    'Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyGate' => 'public',
+    'Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyState' => 'public',
     'Waaseyaa\Foundation\Security\SecretConsumerInterface' => 'public',
     'Waaseyaa\Foundation\Security\SecretConsumptionCode' => 'public',
     'Waaseyaa\Foundation\Security\SecretProviderInterface' => 'public',

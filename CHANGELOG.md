@@ -80,9 +80,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   use only the active version; reads select only the envelope-declared version;
   unknown versions or purposes refuse without arbitrary provider fallback; and
   diagnostics, clone, and serialization disclose no master or provider path.
-  Persisted purpose inventory, resumable CAS transitions, ledger/cursors,
-  rollback, worker/cache/backup reconciliation, revocation gates, and migration
-  of compatibility `ApplicationSecret` consumers remain incomplete slices.
+  Executable purpose adapters, coordinator-driven transitions, and migration of
+  compatibility `ApplicationSecret` consumers remain separate slices.
+  A DB-02 Foundation migration now installs non-secret master-version,
+  immutable purpose-policy snapshot, joint-adapter cursor/count, per-purpose
+  verification, closed revocation-gate, request-projection, and append-only
+  hash-chained event tables. Runtime construction performs zero DDL. Request and
+  cursor revisions use compare-and-swap; stale batches roll back; database
+  triggers refuse event update/delete; restart reads preserve exact cursor and
+  counts; every registry-implied adapter must complete; and ledger revocation
+  requires exact purpose verification plus fleet, cache, rollback, and retained
+  backup/key-horizon evidence. Executable inventory/transition adapters, failure
+  injection and recovery, forward rollback, process reconciliation, and the
+  coordinator that drives this store remain incomplete.
 - **configuration schema and sync authority (`S1-FW-CFG-03`):** Add the strict
   v1 configuration contract with closed recursive schema validation, separate
   default-materialized effective documents, versioned canonical encoding,
