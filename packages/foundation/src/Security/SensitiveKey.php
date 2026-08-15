@@ -9,6 +9,7 @@ namespace Waaseyaa\Foundation\Security;
  *
  * @internal Framework key holders wrap raw derivation output immediately so
  * object inspection cannot expose bytes through ordinary property traversal.
+ * @api Security boundary whose magic-method rejection surface is intentional.
  */
 final class SensitiveKey
 {
