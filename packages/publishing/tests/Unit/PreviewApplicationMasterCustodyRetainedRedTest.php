@@ -74,6 +74,18 @@ final class PreviewApplicationMasterCustodyRetainedRedTest extends TestCase
     }
 
     #[Test]
+    public function preview_issuance_cannot_outlive_the_registered_retention_horizon(): void
+    {
+        $service = PreviewLinkService::fromApplicationMasterKeyring(
+            $this->keyring(2, [1]),
+            clock: static fn(): int => 1_000_000,
+        );
+
+        $this->expectException(\InvalidArgumentException::class);
+        $service->issue('node', '42', PreviewLinkService::DEFAULT_TTL_SECONDS + 1);
+    }
+
+    #[Test]
     public function provider_binds_runtime_custody_and_the_exact_zero_row_policy(): void
     {
         $database = DBALDatabase::createSqlite();
