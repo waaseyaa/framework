@@ -18,6 +18,8 @@ final class ApplicationMasterKeyring
         private readonly int $activeVersion,
         array $handles,
         private readonly ApplicationMasterPurposeRegistry $purposes,
+        /** @var list<int> */
+        private readonly array $failedVersions,
     ) {
         $this->handles = $handles;
     }
@@ -64,30 +66,63 @@ final class ApplicationMasterKeyring
         }
         ksort($references, SORT_NUMERIC);
 
-        $handles = [];
-        foreach ($references as $version => $reference) {
-            $allowedConsumers = $version === $activeVersion
-                ? [
-                    ApplicationMasterSealOperation::class,
-                    ApplicationMasterOpenOperation::class,
-                    ApplicationMasterAuthenticateOperation::class,
-                    ApplicationMasterVerifyOperation::class,
-                    ApplicationMasterLookupOperation::class,
-                ]
-                : [
-                    ApplicationMasterOpenOperation::class,
-                    ApplicationMasterVerifyOperation::class,
-                    ApplicationMasterLookupOperation::class,
-                ];
-            $handles[$version] = SecretHandle::fromReference(
-                $resolver,
-                $reference,
-                self::PACKAGE,
-                $allowedConsumers,
-            );
+        return self::create($resolver, $activeVersion, $references, $purposes, []);
+    }
+
+    /**
+     * Compose an exercised rollback: the predecessor is active, lower legacy
+     * versions remain readable, and exactly one higher failed successor is
+     * read-only and permanently distinct.
+     *
+     * @param array<array-key, mixed> $legacyReferences
+     */
+    public static function fromRollbackReferences(
+        SecretResolverRegistry $resolver,
+        int $activeVersion,
+        SecretReference $activeReference,
+        array $legacyReferences,
+        int $failedVersion,
+        SecretReference $failedReference,
+        ApplicationMasterPurposeRegistry $purposes,
+    ): self {
+        if (!$resolver->isFrozen()) {
+            throw new \LogicException('The secret resolver must be frozen before keyring construction.');
+        }
+        if (!$purposes->isFrozen()) {
+            throw new \LogicException('Application-master purposes must be frozen before keyring construction.');
+        }
+        if ($activeVersion < 1 || $failedVersion <= $activeVersion) {
+            throw new \InvalidArgumentException('Rollback application-master topology requires one higher failed successor.');
+        }
+        if (count($legacyReferences) + 1 > self::MAX_LEGACY_VERSIONS) {
+            throw new \InvalidArgumentException('The application-master read-only roster exceeds its bounded limit.');
         }
 
-        return new self($activeVersion, $handles, $purposes);
+        self::assertReference($activeReference);
+        self::assertReference($failedReference);
+        $references = [$activeVersion => $activeReference];
+        $fingerprints = [$activeReference->fingerprint() => true];
+        foreach ($legacyReferences as $version => $reference) {
+            if (!is_int($version) || $version < 1 || $version >= $activeVersion) {
+                throw new \InvalidArgumentException('Rollback legacy application-master versions must be positive and lower than active.');
+            }
+            if (!$reference instanceof SecretReference) {
+                throw new \InvalidArgumentException('Rollback legacy application-master entries must be secret references.');
+            }
+            self::assertReference($reference);
+            if (isset($fingerprints[$reference->fingerprint()])) {
+                throw new \InvalidArgumentException('Application-master versions require distinct external references.');
+            }
+            $fingerprints[$reference->fingerprint()] = true;
+            $references[$version] = $reference;
+        }
+        if (isset($fingerprints[$failedReference->fingerprint()]) || isset($references[$failedVersion])) {
+            throw new \InvalidArgumentException('The failed application-master successor requires a distinct version and reference.');
+        }
+        $references[$failedVersion] = $failedReference;
+        ksort($references, SORT_NUMERIC);
+
+        return self::create($resolver, $activeVersion, $references, $purposes, [$failedVersion]);
     }
 
     public static function registerResolverConsumers(SecretResolverRegistry $registry): void
@@ -203,7 +238,7 @@ final class ApplicationMasterKeyring
         return $candidates;
     }
 
-    /** @return array{keyring: string, active_version: int, legacy_versions: list<int>, purpose_registry_checksum: string} */
+    /** @return array{keyring: string, active_version: int, legacy_versions: list<int>, failed_versions: list<int>, purpose_registry_checksum: string} */
     public function __debugInfo(): array
     {
         $versions = array_keys($this->handles);
@@ -213,8 +248,10 @@ final class ApplicationMasterKeyring
             'active_version' => $this->activeVersion,
             'legacy_versions' => array_values(array_filter(
                 $versions,
-                fn(int $version): bool => $version !== $this->activeVersion,
+                fn(int $version): bool => $version !== $this->activeVersion
+                    && !in_array($version, $this->failedVersions, true),
             )),
+            'failed_versions' => $this->failedVersions,
             'purpose_registry_checksum' => $this->purposes->checksum(),
         ];
     }
@@ -233,5 +270,42 @@ final class ApplicationMasterKeyring
             || $reference->purpose() !== self::MASTER_PURPOSE) {
             throw new \InvalidArgumentException('Application-master references require the exact class and custody purpose.');
         }
+    }
+
+    /**
+     * @param array<int, SecretReference> $references
+     * @param list<int> $failedVersions
+     */
+    private static function create(
+        SecretResolverRegistry $resolver,
+        int $activeVersion,
+        array $references,
+        ApplicationMasterPurposeRegistry $purposes,
+        array $failedVersions,
+    ): self {
+        $handles = [];
+        foreach ($references as $version => $reference) {
+            $allowedConsumers = $version === $activeVersion
+                ? [
+                    ApplicationMasterSealOperation::class,
+                    ApplicationMasterOpenOperation::class,
+                    ApplicationMasterAuthenticateOperation::class,
+                    ApplicationMasterVerifyOperation::class,
+                    ApplicationMasterLookupOperation::class,
+                ]
+                : [
+                    ApplicationMasterOpenOperation::class,
+                    ApplicationMasterVerifyOperation::class,
+                    ApplicationMasterLookupOperation::class,
+                ];
+            $handles[$version] = SecretHandle::fromReference(
+                $resolver,
+                $reference,
+                self::PACKAGE,
+                $allowedConsumers,
+            );
+        }
+
+        return new self($activeVersion, $handles, $purposes, $failedVersions);
     }
 }

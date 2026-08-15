@@ -1949,6 +1949,12 @@ verification and with no unresolved failure. One transaction records the forward
 failed successor to `failed-read-only`. The successor remains readable, recorded,
 and non-reusable; neither framework rollback nor its evidence claims external key
 destruction.
+The matching explicit rollback keyring topology makes the predecessor the only
+active seal/authentication version, retains any lower declared legacy readers,
+and permits exactly one higher failed successor for open, verification, and
+lookup only. Ordinary monotonic construction continues to reject higher
+read-only versions; rollback composition must bind this exceptional topology to
+the persisted `rolling-back` request and version ledger.
 
 Each inventoried adapter may have at most one open failure at its exact durable
 cursor. Recording a failure compare-and-swaps both adapter and request failure
