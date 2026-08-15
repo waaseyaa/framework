@@ -57,6 +57,22 @@ final class RedactorProcessorTest extends TestCase
         $this->assertStringNotContainsString('cfg04-throwable-canary', serialize($result->context));
     }
 
+    #[Test]
+    public function handles_list_context_and_binary_registered_values_without_disclosure(): void
+    {
+        $binary = "\xFF\xFEcfg04-binary-canary\x00";
+        $processor = new RedactorProcessor(registeredValues: [$binary]);
+        $record = new LogRecord(LogLevel::INFO, 'safe', [
+            'items' => ['safe', base64_encode($binary)],
+        ]);
+
+        $result = $processor->process($record);
+
+        $this->assertSame('safe', $result->context['items'][0]);
+        $this->assertSame(self::REDACTED, $result->context['items'][1]);
+        $this->assertStringNotContainsString($binary, var_export($processor, true));
+    }
+
     // -------------------------------------------------------------------------
     // Key denylist: case-insensitive substring match on context key names
     // -------------------------------------------------------------------------
