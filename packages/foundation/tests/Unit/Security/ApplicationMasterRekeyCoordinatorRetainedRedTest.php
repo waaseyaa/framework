@@ -107,6 +107,54 @@ final class ApplicationMasterRekeyCoordinatorRetainedRedTest extends TestCase
     }
 
     #[Test]
+    public function adapter_exception_rolls_back_owner_effects_and_persists_a_non_secret_retry_block(): void
+    {
+        [$database, $store, $coordinator, $adapter] = $this->preparedCoordinator();
+        $coordinator->snapshotAdapter(self::REQUEST_ID, 2, self::ADAPTER_ID);
+        $adapter->throwOnTransition = true;
+
+        try {
+            $coordinator->transitionNextBatch(self::REQUEST_ID, 3, self::ADAPTER_ID, 1);
+            self::fail('An adapter exception was not surfaced as a durable retry block.');
+        } catch (ApplicationMasterRekeyConflictException $exception) {
+            self::assertStringContainsString('recorded', $exception->getMessage());
+        }
+        $row = $database->getConnection()->fetchAssociative(
+            'SELECT master_version, row_revision FROM synthetic_secret_row WHERE row_id = ?',
+            ['row:1'],
+        );
+        self::assertIsArray($row);
+        self::assertSame(1, (int) $row['master_version']);
+        self::assertSame(1, (int) $row['row_revision']);
+        self::assertSame(1, $store->require(self::REQUEST_ID)->unresolvedFailures);
+        $progress = $store->requireAdapter(self::REQUEST_ID, self::ADAPTER_ID);
+        self::assertSame(1, $progress->unresolvedFailures);
+        self::assertSame(2, $progress->revision);
+        self::assertNull($progress->cursor);
+        $failure = $database->getConnection()->fetchAssociative(
+            'SELECT failure_code, evidence_hash FROM waaseyaa_application_master_rekey_failure WHERE resolved_at IS NULL',
+        );
+        self::assertIsArray($failure);
+        self::assertSame('adapter-transition-failed', $failure['failure_code']);
+        self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/D', (string) $failure['evidence_hash']);
+        self::assertStringNotContainsString(
+            'synthetic-adapter-secret-shaped-detail',
+            json_encode($failure, JSON_THROW_ON_ERROR),
+        );
+
+        $store->resolveAdapterFailure(
+            self::REQUEST_ID,
+            4,
+            self::ADAPTER_ID,
+            2,
+            hash('sha256', 'operator-confirmed-synthetic-resolution'),
+        );
+        $adapter->throwOnTransition = false;
+        $batch = $coordinator->transitionNextBatch(self::REQUEST_ID, 5, self::ADAPTER_ID, 1);
+        self::assertSame('row:1', $batch->cursor);
+    }
+
+    #[Test]
     public function valid_batches_resume_after_restart_without_reprocessing_and_verify_every_row(): void
     {
         [$database, $store, $coordinator, $adapter] = $this->preparedCoordinator();
@@ -309,6 +357,7 @@ final class SyntheticAtomicRekeyAdapter implements ApplicationMasterRekeyAdapter
 {
     public int $snapshotCalls = 0;
     public bool $returnMalformedResult = false;
+    public bool $throwOnTransition = false;
 
     /** @var array<string, int> */
     public array $transitionedById = [];
@@ -354,6 +403,9 @@ final class SyntheticAtomicRekeyAdapter implements ApplicationMasterRekeyAdapter
         ?string $cursor,
         int $limit,
     ): ApplicationMasterBatchResult {
+        if ($this->throwOnTransition) {
+            throw new \RuntimeException('synthetic-adapter-secret-shaped-detail');
+        }
         $rows = iterator_to_array($context->database->query(sprintf(
             'SELECT * FROM synthetic_secret_row WHERE master_version = :version AND row_id > :cursor ORDER BY row_id LIMIT %d',
             $limit,
