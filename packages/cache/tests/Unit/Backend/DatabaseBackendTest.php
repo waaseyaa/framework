@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Cache\Tests\Unit\Backend;
 
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
 use Waaseyaa\Cache\Backend\DatabaseBackend;
 use Waaseyaa\Cache\CacheBackendInterface;
 use Waaseyaa\Cache\CacheItem;
 use Waaseyaa\Cache\TagAwareCacheInterface;
-use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\TestCase;
 use Waaseyaa\Tests\Support\RuntimeSchemaMigrations;
 
 #[CoversClass(DatabaseBackend::class)]
@@ -40,6 +40,26 @@ final class DatabaseBackendTest extends TestCase
         $this->assertSame(CacheBackendInterface::PERMANENT, $item->expire);
         $this->assertSame([], $item->tags);
         $this->assertTrue($item->valid);
+    }
+
+    #[Test]
+    public function advancing_the_cache_generation_invalidates_every_existing_bin_without_rewriting_payload_rows(): void
+    {
+        $otherBin = new DatabaseBackend($this->pdo, 'cache_other');
+        $this->backend->set('item:1', 'first');
+        $otherBin->set('item:2', 'second');
+        $before = $this->pdo->query('SELECT bin, cid, data FROM cache_items ORDER BY bin, cid')->fetchAll(\PDO::FETCH_ASSOC);
+
+        $updated = $this->pdo->exec('UPDATE cache_generation SET generation = generation + 1 WHERE singleton_id = 1');
+
+        self::assertSame(1, $updated);
+        self::assertFalse($this->backend->get('item:1'));
+        self::assertFalse($otherBin->get('item:2'));
+        self::assertSame($before, $this->pdo->query('SELECT bin, cid, data FROM cache_items ORDER BY bin, cid')->fetchAll(\PDO::FETCH_ASSOC));
+
+        $this->backend->set('item:1', 'rebuilt');
+        self::assertSame('rebuilt', $this->backend->get('item:1')->data);
+        self::assertSame(2, (int) $this->pdo->query("SELECT generation FROM cache_items WHERE bin = 'cache_test' AND cid = 'item:1'")->fetchColumn());
     }
 
     #[Test]
