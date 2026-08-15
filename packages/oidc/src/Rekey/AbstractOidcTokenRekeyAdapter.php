@@ -14,7 +14,7 @@ use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyContext;
 use Waaseyaa\Foundation\Security\SensitiveKey;
 use Waaseyaa\Oidc\Security\OpaqueTokenProtector;
 
-/** Shared joint-row CAS mechanics for OIDC opaque-token purpose owners. @api */
+/** Shared joint-row CAS mechanics for OIDC opaque-token purpose owners. @internal */
 abstract class AbstractOidcTokenRekeyAdapter implements ApplicationMasterRekeyAdapterInterface
 {
     private readonly ?SensitiveKey $legacyEncryptionKey;

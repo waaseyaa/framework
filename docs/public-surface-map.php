@@ -26,6 +26,7 @@ return [
     'Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyGate' => 'public',
     'Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyState' => 'public',
     'Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyAdapterInterface' => 'public',
+    'Waaseyaa\Oidc\Rekey\AbstractOidcTokenRekeyAdapter' => 'internal',
     'Waaseyaa\Foundation\Security\SecretConsumerInterface' => 'public',
     'Waaseyaa\Foundation\Security\SecretConsumptionCode' => 'public',
     'Waaseyaa\Foundation\Security\SecretProviderInterface' => 'public',

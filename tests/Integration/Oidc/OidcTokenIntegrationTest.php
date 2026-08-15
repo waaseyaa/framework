@@ -101,7 +101,11 @@ final class OidcTokenIntegrationTest extends TestCase
     {
         $result = $this->runTokenFlow(nonce: 'nonce-xyz');
 
-        self::assertSame(200, $result['status'], 'Body: ' . $result['body']);
+        self::assertSame(
+            200,
+            $result['status'],
+            'Body: ' . $result['body'] . "\nRunner diagnostics:\n" . $result['diagnostics'],
+        );
         self::assertStringContainsString('application/json', $result['headers']['content-type']);
         self::assertStringContainsString('no-store', $result['headers']['cache-control']);
 
@@ -124,7 +128,7 @@ final class OidcTokenIntegrationTest extends TestCase
     }
 
     /**
-     * @return array{status:int,headers:array<string,string>,body:string,signing_public_key:string}
+     * @return array{status:int,headers:array<string,string>,body:string,signing_public_key:string,diagnostics:string}
      */
     private function runTokenFlow(?string $nonce = null): array
     {
@@ -158,6 +162,7 @@ final class OidcTokenIntegrationTest extends TestCase
             'headers' => is_array($payload['headers'] ?? null) ? $payload['headers'] : [],
             'body' => (string) ($payload['body'] ?? ''),
             'signing_public_key' => (string) ($payload['signing_public_key'] ?? ''),
+            'diagnostics' => implode("\n", array_slice($lines, 0, -1)),
         ];
     }
 
