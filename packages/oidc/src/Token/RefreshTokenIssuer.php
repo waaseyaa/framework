@@ -7,6 +7,8 @@ namespace Waaseyaa\Oidc\Token;
 use DateTimeImmutable;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\Schema\SchemaRequirement;
+use Waaseyaa\Foundation\Security\ApplicationMasterKeyring;
+use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Oidc\Security\OpaqueTokenProtector;
 
 /**
@@ -22,19 +24,30 @@ use Waaseyaa\Oidc\Security\OpaqueTokenProtector;
 final class RefreshTokenIssuer
 {
     private const TABLE = 'oidc_refresh_token';
-    private const EXPIRY_SECONDS = 7_776_000; // 90 days
+    public const EXPIRY_SECONDS = 7_776_000; // 90 days
 
     private bool $schemaVerified = false;
     private readonly OpaqueTokenProtector $protector;
+    private readonly TokenCustodySequenceAllocator $custodySequences;
 
     public function __construct(
         private readonly DatabaseInterface $database,
         #[\SensitiveParameter]
-        string $encryptionKey,
+        ?string $encryptionKey,
         #[\SensitiveParameter]
-        string $lookupKey,
+        ?string $lookupKey,
+        ?ApplicationMasterKeyring $keyring = null,
     ) {
-        $this->protector = new OpaqueTokenProtector($encryptionKey, $lookupKey);
+        $this->protector = $keyring === null
+            ? new OpaqueTokenProtector($encryptionKey, $lookupKey)
+            : OpaqueTokenProtector::fromApplicationMasterKeyring(
+                $keyring,
+                ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_ENCRYPTION,
+                ApplicationSecret::PURPOSE_OIDC_REFRESH_TOKEN_LOOKUP,
+                $encryptionKey,
+                $lookupKey,
+            );
+        $this->custodySequences = new TokenCustodySequenceAllocator($database);
     }
 
     /**
@@ -59,22 +72,36 @@ final class RefreshTokenIssuer
         $expiresAt = $issuedAt + self::EXPIRY_SECONDS;
         $chainRootJti ??= $jti;
 
-        $this->database->insert(self::TABLE)
-            ->values([
-                'jti' => $jti,
-                'token' => $this->protector->seal($token),
-                'token_lookup' => $this->protector->lookup($token),
-                'access_token_jti' => $accessTokenJti,
-                'client_id' => $clientId,
-                'account_id' => $accountId,
-                'scope' => implode(' ', $scopes),
-                'auth_time' => $authTime,
-                'chain_root_jti' => $chainRootJti,
-                'issued_at' => $issuedAt,
-                'expires_at' => $expiresAt,
-                'revoked_at' => null,
-            ])
-            ->execute();
+        $this->transactional(function () use (
+            $jti,
+            $token,
+            $accessTokenJti,
+            $clientId,
+            $accountId,
+            $scopes,
+            $authTime,
+            $chainRootJti,
+            $issuedAt,
+            $expiresAt,
+        ): void {
+            $this->database->insert(self::TABLE)
+                ->values([
+                    'jti' => $jti,
+                    'token' => $this->protector->seal($token, $jti),
+                    'token_lookup' => $this->protector->lookup($token),
+                    'custody_sequence' => $this->custodySequences->allocate(TokenCustodySequenceAllocator::REFRESH),
+                    'access_token_jti' => $accessTokenJti,
+                    'client_id' => $clientId,
+                    'account_id' => $accountId,
+                    'scope' => implode(' ', $scopes),
+                    'auth_time' => $authTime,
+                    'chain_root_jti' => $chainRootJti,
+                    'issued_at' => $issuedAt,
+                    'expires_at' => $expiresAt,
+                    'revoked_at' => null,
+                ])
+                ->execute();
+        });
 
         return new RefreshTokenRecord(
             jti: $jti,
@@ -98,8 +125,10 @@ final class RefreshTokenIssuer
     {
         $this->assertSchemaAvailable();
 
-        foreach ($this->database->select(self::TABLE)->condition('token_lookup', $this->protector->lookup($token))->execute() as $row) {
-            $storedToken = $this->protector->open((string) $row['token']);
+        foreach ($this->database->select(self::TABLE)
+            ->condition('token_lookup', $this->protector->lookupCandidates($token), 'IN')
+            ->execute() as $row) {
+            $storedToken = $this->protector->open((string) $row['token'], (string) $row['jti']);
             if (hash_equals($storedToken, $token)) {
                 $row['token'] = $storedToken;
 
@@ -118,7 +147,7 @@ final class RefreshTokenIssuer
         $this->assertSchemaAvailable();
 
         foreach ($this->database->select(self::TABLE)->condition('jti', $jti)->execute() as $row) {
-            $row['token'] = $this->protector->open((string) $row['token']);
+            $row['token'] = $this->protector->open((string) $row['token'], (string) $row['jti']);
 
             return $this->hydrate($row);
         }
@@ -190,8 +219,8 @@ final class RefreshTokenIssuer
         SchemaRequirement::assertAvailable(
             $this->database,
             self::TABLE,
-            ['jti', 'token', 'token_lookup', 'access_token_jti', 'client_id', 'account_id', 'scope', 'auth_time', 'chain_root_jti', 'issued_at', 'expires_at', 'revoked_at'],
-            'waaseyaa/oidc:2026_07_15_000005_oidc_secret_storage',
+            ['jti', 'token', 'token_lookup', 'custody_sequence', 'access_token_jti', 'client_id', 'account_id', 'scope', 'auth_time', 'chain_root_jti', 'issued_at', 'expires_at', 'revoked_at'],
+            'waaseyaa/oidc:2026_08_15_000008_oidc_application_master_custody',
         );
 
         $this->schemaVerified = true;
@@ -209,6 +238,28 @@ final class RefreshTokenIssuer
     private function opaqueToken(): string
     {
         return rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+    }
+
+    /**
+     * @template T
+     * @param \Closure(): T $operation
+     * @return T
+     */
+    private function transactional(\Closure $operation): mixed
+    {
+        $transaction = $this->database->transaction('oidc-refresh-token-issue');
+        try {
+            $result = $operation();
+            $transaction->commit();
+
+            return $result;
+        } catch (\Throwable $failure) {
+            try {
+                $transaction->rollBack();
+            } catch (\Throwable) {
+            }
+            throw $failure;
+        }
     }
 
     /**

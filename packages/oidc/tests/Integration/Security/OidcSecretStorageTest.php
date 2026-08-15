@@ -97,6 +97,7 @@ final class OidcSecretStorageTest extends TestCase
         $connection->insert('oidc_access_token', ['jti' => 'access', 'token' => 'legacy-access', 'client_id' => 'client', 'account_id' => 'account', 'scope' => 'openid', 'issued_at' => 1, 'expires_at' => 2, 'revoked_at' => null]);
         $connection->insert('oidc_refresh_token', ['jti' => 'refresh', 'token' => 'legacy-refresh', 'access_token_jti' => 'access', 'client_id' => 'client', 'account_id' => 'account', 'scope' => 'openid', 'auth_time' => 1, 'chain_root_jti' => 'refresh', 'issued_at' => 1, 'expires_at' => 2, 'revoked_at' => null]);
 
+        OidcSchema::installTokenStorage($db);
         $keys = [random_bytes(32), random_bytes(32), random_bytes(32), random_bytes(32), random_bytes(32)];
         $counts = new LegacyOidcSecretMigrator($db, ...$keys)->migrate();
 
