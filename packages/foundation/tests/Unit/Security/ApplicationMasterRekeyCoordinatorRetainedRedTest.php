@@ -477,6 +477,59 @@ final class ApplicationMasterRekeyCoordinatorRetainedRedTest extends TestCase
         }
     }
 
+    #[Test]
+    public function rollback_batches_refuse_when_the_version_ledger_no_longer_matches_the_request(): void
+    {
+        [$database, $store, $coordinator, $adapter] = $this->preparedCoordinator();
+        $coordinator->snapshotAdapter(self::REQUEST_ID, 2, self::ADAPTER_ID);
+        $coordinator->transitionNextBatch(self::REQUEST_ID, 3, self::ADAPTER_ID, 2);
+        $record = $coordinator->completeAdapter(self::REQUEST_ID, 4, self::ADAPTER_ID);
+        $record = $coordinator->verifyAdapter(self::REQUEST_ID, $record->revision, self::ADAPTER_ID);
+        foreach ([
+            ApplicationMasterRekeyGate::WritersAndWorkersReconciled,
+            ApplicationMasterRekeyGate::CachesReconciled,
+        ] as $offset => $gate) {
+            $record = $store->recordRevocationGate(
+                self::REQUEST_ID,
+                $record->revision,
+                $gate,
+                hash('sha256', 'synthetic-ledger-drift-gate:' . $gate->value),
+                1_300 + ($offset * 100),
+            );
+        }
+        $record = $store->beginRollback(
+            self::REQUEST_ID,
+            $record->revision,
+            'synthetic-successor-refused',
+            hash('sha256', 'synthetic-ledger-drift-authorization'),
+            1_500,
+        );
+        $rollback = new ApplicationMasterRekeyCoordinator(
+            $store,
+            $this->rollbackKeyring(),
+            $this->purposes(),
+            [$adapter],
+        );
+        $rollback->snapshotRollbackAdapter(
+            self::REQUEST_ID,
+            $record->revision,
+            self::ADAPTER_ID,
+        );
+
+        $database->getConnection()->executeStatement(
+            "UPDATE waaseyaa_application_master_version SET state = 'legacy-read-verify' WHERE master_version = 1",
+        );
+
+        $this->expectException(ApplicationMasterRekeyConflictException::class);
+        $this->expectExceptionMessage('version ledger');
+        $rollback->rollbackNextBatch(
+            self::REQUEST_ID,
+            $store->require(self::REQUEST_ID)->revision,
+            self::ADAPTER_ID,
+            1,
+        );
+    }
+
     /** @return array{DBALDatabase, ApplicationMasterRekeyStore, ApplicationMasterRekeyCoordinator, SyntheticAtomicRekeyAdapter} */
     private function preparedCoordinator(): array
     {

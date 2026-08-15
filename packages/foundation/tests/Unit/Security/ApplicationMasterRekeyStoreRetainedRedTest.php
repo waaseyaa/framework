@@ -515,6 +515,34 @@ final class ApplicationMasterRekeyStoreRetainedRedTest extends TestCase
         self::assertCount(1, $event);
         self::assertStringContainsString('"successor_reusable":false', $event[0]->bodyJson);
         self::assertStringNotContainsString('synthetic-valid-rollback-authorization', $event[0]->bodyJson);
+
+        $store->prepare(new ApplicationMasterRekeyRequest(
+            requestId: 'synthetic-request-b',
+            fromVersion: 1,
+            toVersion: 3,
+            registryChecksum: $registry->checksum(),
+            authorizationDigest: hash('sha256', 'synthetic-second-authorization'),
+            actor: 'synthetic-operator-2',
+            rollbackDeadline: 3_000,
+            retentionDeadline: 3_500,
+            createdAt: 1_950,
+        ), $registry);
+
+        try {
+            $store->installActive(
+                'synthetic-request-b',
+                1,
+                hash('sha256', 'synthetic-master-v1-reference'),
+                hash('sha256', 'synthetic-master-v3-reference'),
+                2_000,
+            );
+            self::fail('A second application-master request demoted an active rollback predecessor.');
+        } catch (ApplicationMasterRekeyConflictException) {
+            self::assertSame(ApplicationMasterRekeyState::RollingBack, $store->require(self::REQUEST_ID)->state);
+            self::assertSame('active-write', $store->masterVersionState(1));
+            self::assertSame('failed-read-only', $store->masterVersionState(2));
+            self::assertNull($store->masterVersionState(3));
+        }
     }
 
     #[Test]
