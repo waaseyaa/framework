@@ -39,6 +39,15 @@ appends one immutable activation record. Any false result, exception,
 contention, or stale token leaves the previous head serving. Events and external
 evidence follow commit and never define the head.
 
+### S1 schema, sync-format, and manifest amendment (CFG-03)
+
+The normative closed schema dialect, strict versioned sync format, canonical
+authored/effective identities, package compatibility rules, signed-envelope
+boundary, and snapshot-consistent drift contract are defined in
+[`s1-configuration-schema-manifest.md`](s1-configuration-schema-manifest.md).
+Production continues to refuse unsigned activation until CFG-04 supplies
+independent key custody and trust policy.
+
 ---
 
 ## 1. What ships
