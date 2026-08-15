@@ -35,7 +35,9 @@ and verification needlessly coupled.
 A DB-02 versioned migration:
 
 - widens both opaque-token `token` columns from `VARCHAR(128)` to `TEXT` using
-  Doctrine DBAL schema comparison, including SQLite's generated table rebuild;
+  Doctrine DBAL schema comparison, including SQLite's generated table rebuild,
+  and removes the obsolete ciphertext uniqueness constraint because the
+  purpose-bound lookup index is the lookup/uniqueness authority;
 - adds a positive, unique `custody_sequence` to each opaque-token table and
   deterministically backfills existing rows in `jti` order;
 - adds one non-secret `oidc_token_custody_sequence` allocation table with an
@@ -126,4 +128,3 @@ these current issuer constants, but it must not weaken the registered bounds.
    PHPStan, style, package-layer, migration, changelog, dead-code, and exact-head
    verification gates.
 6. Reconcile an independent exact-head review before CFG04 closure.
-
