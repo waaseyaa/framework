@@ -90,9 +90,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   triggers refuse event update/delete; restart reads preserve exact cursor and
   counts; every registry-implied adapter must complete; and ledger revocation
   requires exact purpose verification plus fleet, cache, rollback, and retained
-  backup/key-horizon evidence. Executable inventory/transition adapters, failure
-  injection and recovery, forward rollback, process reconciliation, and the
-  coordinator that drives this store remain incomplete.
+  backup/key-horizon evidence. Executable package adapters, failure injection
+  and recovery, forward rollback, and process reconciliation remain incomplete.
+  A generic coordinator now composes every frozen registry owner exactly once,
+  refuses mismatched database identities or purpose rosters before inventory,
+  passes adapters the store's exact transaction authority, and commits owner CAS
+  effects with validated cursor/count/commitment evidence in one transaction.
+  Malformed adapter output rolls back both row and cursor; restart resumes from
+  the durable cursor without replay; and all verification results for a joint
+  adapter commit atomically. Concrete audit/cache/OIDC/queue/state adapters,
+  failure recovery, rollback execution, and fleet/backup evidence producers
+  remain incomplete.
 - **configuration schema and sync authority (`S1-FW-CFG-03`):** Add the strict
   v1 configuration contract with closed recursive schema validation, separate
   default-materialized effective documents, versioned canonical encoding,

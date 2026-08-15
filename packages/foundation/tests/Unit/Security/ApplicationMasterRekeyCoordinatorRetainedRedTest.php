@@ -337,10 +337,10 @@ final class SyntheticAtomicRekeyAdapter implements ApplicationMasterRekeyAdapter
     public function snapshot(ApplicationMasterRekeyContext $context): ApplicationMasterInventorySnapshot
     {
         ++$this->snapshotCalls;
-        $rows = $this->database->getConnection()->fetchAllAssociative(
-            'SELECT row_id, row_revision FROM synthetic_secret_row WHERE master_version = ? ORDER BY row_id',
-            [$context->request->fromVersion],
-        );
+        $rows = iterator_to_array($context->database->query(
+            'SELECT row_id, row_revision FROM synthetic_secret_row WHERE master_version = :version ORDER BY row_id',
+            ['version' => $context->request->fromVersion],
+        ));
 
         return new ApplicationMasterInventorySnapshot(
             hash('sha256', json_encode($rows, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)),
@@ -354,11 +354,10 @@ final class SyntheticAtomicRekeyAdapter implements ApplicationMasterRekeyAdapter
         ?string $cursor,
         int $limit,
     ): ApplicationMasterBatchResult {
-        $rows = $this->database->getConnection()->fetchAllAssociative(
-            'SELECT * FROM synthetic_secret_row WHERE master_version = ? AND row_id > ? ORDER BY row_id LIMIT ?',
-            [$context->request->fromVersion, $cursor ?? '', $limit],
-            [\Doctrine\DBAL\ParameterType::INTEGER, \Doctrine\DBAL\ParameterType::STRING, \Doctrine\DBAL\ParameterType::INTEGER],
-        );
+        $rows = iterator_to_array($context->database->query(sprintf(
+            'SELECT * FROM synthetic_secret_row WHERE master_version = :version AND row_id > :cursor ORDER BY row_id LIMIT %d',
+            $limit,
+        ), ['version' => $context->request->fromVersion, 'cursor' => $cursor ?? '']));
         $ids = [];
         foreach ($rows as $row) {
             $id = (string) $row['row_id'];
@@ -367,7 +366,7 @@ final class SyntheticAtomicRekeyAdapter implements ApplicationMasterRekeyAdapter
             );
             $plaintext = $context->keyring->open($envelope);
             $replacement = $context->keyring->seal($this->purposeId, $id, 1, $plaintext);
-            $updated = $this->database->update('synthetic_secret_row')->fields([
+            $updated = $context->database->update('synthetic_secret_row')->fields([
                 'master_version' => $context->request->toVersion,
                 'envelope_json' => json_encode(
                     $replacement->toArray(),
@@ -398,10 +397,10 @@ final class SyntheticAtomicRekeyAdapter implements ApplicationMasterRekeyAdapter
         ApplicationMasterRekeyContext $context,
         ApplicationMasterInventorySnapshot $snapshot,
     ): array {
-        $rows = $this->database->getConnection()->fetchAllAssociative(
-            'SELECT row_id, envelope_json FROM synthetic_secret_row WHERE master_version = ? ORDER BY row_id',
-            [$context->request->toVersion],
-        );
+        $rows = iterator_to_array($context->database->query(
+            'SELECT row_id, envelope_json FROM synthetic_secret_row WHERE master_version = :version ORDER BY row_id',
+            ['version' => $context->request->toVersion],
+        ));
         $commitments = [];
         foreach ($rows as $row) {
             $envelope = ApplicationMasterEnvelope::fromArray(

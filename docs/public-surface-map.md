@@ -34,6 +34,11 @@ Machine-readable source: `docs/public-surface-map.php`.
 | `Security\Rekey\ApplicationMasterRekeyAdapterInterface` | interface | Same-database joint-owner inventory, transition, verification, and rollback seam |
 | `Security\Rekey\ApplicationMasterRekeyRequest` | final readonly class | Immutable non-secret request, authorization digest, versions, and rollback/retention horizons |
 | `Security\Rekey\ApplicationMasterRekeyStore` | final class | Migration-backed CAS projections and append-only hash-chained rekey evidence |
+| `Security\Rekey\ApplicationMasterRekeyCoordinator` | final class | Restart-safe same-transaction executor for composed owner adapters |
+| `Security\Rekey\ApplicationMasterRekeyContext` | final readonly class | Exact immutable request, guarded keyring, and store transaction authority passed to adapters |
+| `Security\Rekey\ApplicationMasterInventorySnapshot` | final readonly class | Immutable inventory count and SHA-256 commitment |
+| `Security\Rekey\ApplicationMasterBatchResult` | final readonly class | Next cursor, transitioned count, per-purpose deltas, and batch commitment |
+| `Security\Rekey\ApplicationMasterPurposeVerification` | final readonly class | Per-purpose verified count and commitment |
 | `Security\Rekey\ApplicationMasterAdapterProgress` | final readonly class | Restart-safe joint-owner snapshot, cursor, counts, and commitment projection |
 | `Security\Rekey\ApplicationMasterRekeyEvent` | final readonly class | Verifiable immutable non-secret ledger event |
 | `HttpHandlerInterface` | interface | Terminal HTTP request handler (innermost layer of the middleware onion) |

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Waaseyaa\Foundation\Security\Rekey;
 
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
+use Waaseyaa\Database\DatabaseIdentityProviderInterface;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\Schema\SchemaRequirement;
 use Waaseyaa\Foundation\Security\ApplicationMasterPurposeRegistry;
@@ -33,6 +34,23 @@ final class ApplicationMasterRekeyStore
         private readonly DatabaseInterface $database,
         private readonly ?\Closure $clock = null,
     ) {}
+
+    public function databaseIdentity(): string
+    {
+        if (!$this->database instanceof DatabaseIdentityProviderInterface) {
+            throw new ApplicationMasterRekeyConflictException(
+                'The application-master rekey store requires a stable database identity.',
+            );
+        }
+
+        return $this->database->databaseIdentity();
+    }
+
+    /** Exact transaction authority adapters must use for owner CAS effects. */
+    public function databaseAuthority(): DatabaseInterface
+    {
+        return $this->database;
+    }
 
     public function prepare(
         ApplicationMasterRekeyRequest $request,
@@ -368,6 +386,105 @@ final class ApplicationMasterRekeyStore
         return $this->requireAdapter($requestId, $adapterId);
     }
 
+    /**
+     * Execute owner CAS effects and persist their validated cursor evidence in
+     * one transaction on the exact database authority exposed in the context.
+     *
+     * @param \Closure(): ApplicationMasterBatchResult $operation
+     */
+    public function commitAdapterBatchOperation(
+        string $requestId,
+        int $expectedRequestRevision,
+        string $adapterId,
+        int $expectedAdapterRevision,
+        ?string $expectedCursor,
+        \Closure $operation,
+    ): ApplicationMasterAdapterProgress {
+        $this->ensureSchema();
+        $this->transactional(function () use (
+            $requestId,
+            $expectedRequestRevision,
+            $adapterId,
+            $expectedAdapterRevision,
+            $expectedCursor,
+            $operation,
+        ): void {
+            $record = $this->assertRequestRevision($requestId, $expectedRequestRevision, [
+                ApplicationMasterRekeyState::EnumerateSnapshot,
+                ApplicationMasterRekeyState::TransitionBoundedBatches,
+            ]);
+            $progress = $this->requireAdapterFresh($requestId, $adapterId);
+            if ($progress->revision !== $expectedAdapterRevision
+                || $progress->cursor !== $expectedCursor
+                || $progress->status === 'complete'
+                || $progress->unresolvedFailures !== 0) {
+                throw new ApplicationMasterRekeyConflictException(
+                    'The application-master adapter cursor or revision is stale.',
+                );
+            }
+
+            $result = $operation();
+            if ($result->nextCursor === $expectedCursor) {
+                throw new ApplicationMasterRekeyConflictException(
+                    'An application-master batch must advance its durable cursor.',
+                );
+            }
+            $this->assertPurposeDeltas($progress, $result->purposeCountDeltas);
+            $newTransitioned = $progress->transitionedRecords + $result->transitionedRecords;
+            if ($newTransitioned > $progress->totalRecords) {
+                throw new ApplicationMasterRekeyConflictException(
+                    'The application-master batch exceeds its immutable inventory total.',
+                );
+            }
+            $counts = $progress->purposeCounts;
+            foreach ($result->purposeCountDeltas as $purpose => $delta) {
+                $counts[$purpose] += $delta;
+            }
+            ksort($counts, SORT_STRING);
+            $chainHash = hash('sha256', implode("\0", [
+                'waaseyaa.application-master.batch-chain.v1',
+                $progress->batchChainHash,
+                $result->batchCommitment,
+                $result->nextCursor,
+                (string) $newTransitioned,
+                $this->canonicalJson($counts),
+            ]));
+
+            $update = $this->database->update(self::ADAPTER_TABLE)->fields([
+                'cursor' => $result->nextCursor,
+                'transitioned_records' => $newTransitioned,
+                'purpose_counts_json' => $this->canonicalJson($counts),
+                'batch_chain_hash' => $chainHash,
+                'status' => 'transitioning',
+                'revision' => $expectedAdapterRevision + 1,
+            ])->condition('request_id', $requestId)
+                ->condition('adapter_id', $adapterId)
+                ->condition('revision', $expectedAdapterRevision);
+            $update = $expectedCursor === null
+                ? $update->condition('cursor', null, 'IS NULL')
+                : $update->condition('cursor', $expectedCursor);
+            if ($update->execute() !== 1) {
+                throw new ApplicationMasterRekeyConflictException(
+                    'The application-master adapter cursor changed before batch commit.',
+                );
+            }
+            $now = $this->now();
+            $this->advanceRequestProjection($record, ApplicationMasterRekeyState::TransitionBoundedBatches, $now);
+            $this->appendEvent($requestId, 'adapter-batch-committed', [
+                'adapter_id' => $adapterId,
+                'expected_cursor' => $expectedCursor,
+                'next_cursor' => $result->nextCursor,
+                'transitioned_records' => $result->transitionedRecords,
+                'purpose_count_deltas' => $result->purposeCountDeltas,
+                'batch_commitment' => $result->batchCommitment,
+                'batch_chain_hash' => $chainHash,
+            ], $now);
+        });
+        unset($this->recordCache[$requestId]);
+
+        return $this->requireAdapter($requestId, $adapterId);
+    }
+
     public function completeAdapter(
         string $requestId,
         int $expectedRequestRevision,
@@ -489,6 +606,82 @@ final class ApplicationMasterRekeyStore
 
             return $this->requireFresh($requestId);
         });
+    }
+
+    /**
+     * Persist every purpose result for one completed joint adapter atomically.
+     *
+     * @param array<string, ApplicationMasterPurposeVerification> $results
+     */
+    public function recordAdapterVerifications(
+        string $requestId,
+        int $expectedRequestRevision,
+        string $adapterId,
+        array $results,
+    ): ApplicationMasterRekeyRecord {
+        $this->ensureSchema();
+        try {
+            return $this->transactional(function () use (
+                $requestId,
+                $expectedRequestRevision,
+                $adapterId,
+                $results,
+            ): ApplicationMasterRekeyRecord {
+                $record = $this->assertRequestRevision($requestId, $expectedRequestRevision, [
+                    ApplicationMasterRekeyState::VerifyEveryPurpose,
+                    ApplicationMasterRekeyState::ReconcileWritersAndWorkers,
+                ]);
+                $progress = $this->requireAdapterFresh($requestId, $adapterId);
+                $resultPurposes = array_keys($results);
+                sort($resultPurposes, SORT_STRING);
+                if ($progress->status !== 'complete'
+                    || $progress->unresolvedFailures !== 0
+                    || $resultPurposes !== $progress->purposeIds) {
+                    throw new ApplicationMasterRekeyConflictException(
+                        'Joint-adapter verification does not match its completed purpose roster.',
+                    );
+                }
+
+                $evidence = [];
+                $now = $this->now();
+                foreach ($progress->purposeIds as $purposeId) {
+                    $result = $results[$purposeId] ?? null;
+                    if (!$result instanceof ApplicationMasterPurposeVerification
+                        || ($progress->purposeCounts[$purposeId] ?? null) !== $result->verifiedRecords) {
+                        throw new ApplicationMasterRekeyConflictException(
+                            'Purpose verification does not match its completed adapter projection.',
+                        );
+                    }
+                    $this->database->insert(self::VERIFICATION_TABLE)->values([
+                        'request_id' => $requestId,
+                        'purpose_id' => $purposeId,
+                        'verified_records' => $result->verifiedRecords,
+                        'verification_hash' => $result->verificationHash,
+                        'recorded_at' => $now,
+                    ])->execute();
+                    $evidence[$purposeId] = [
+                        'verified_records' => $result->verifiedRecords,
+                        'verification_hash' => $result->verificationHash,
+                    ];
+                }
+                $state = $this->allPurposesVerified($requestId)
+                    ? ApplicationMasterRekeyState::ReconcileWritersAndWorkers
+                    : ApplicationMasterRekeyState::VerifyEveryPurpose;
+                $this->advanceRequestProjection($record, $state, $now);
+                $this->appendEvent($requestId, 'adapter-purposes-verified', [
+                    'adapter_id' => $adapterId,
+                    'purposes' => $evidence,
+                ], $now);
+                unset($this->recordCache[$requestId]);
+
+                return $this->requireFresh($requestId);
+            });
+        } catch (UniqueConstraintViolationException $exception) {
+            throw new ApplicationMasterRekeyConflictException(
+                'The joint adapter already has immutable purpose verification evidence.',
+                previous: $exception,
+            );
+        }
     }
 
     public function recordRevocationGate(

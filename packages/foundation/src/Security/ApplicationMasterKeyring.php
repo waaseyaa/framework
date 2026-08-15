@@ -80,6 +80,22 @@ final class ApplicationMasterKeyring
         $registry->registerConsumer(self::PACKAGE, ApplicationMasterOpenOperation::class);
     }
 
+    public function activeVersion(): int
+    {
+        return $this->activeVersion;
+    }
+
+    /** @return list<int> */
+    public function readableVersions(): array
+    {
+        return array_keys($this->handles);
+    }
+
+    public function purposeRegistryChecksum(): string
+    {
+        return $this->purposes->checksum();
+    }
+
     public function seal(string $purpose, string $recordIdentity, int $schemaVersion, #[\SensitiveParameter] string $plaintext): ApplicationMasterEnvelope
     {
         $policy = $this->purposes->policy($purpose);
