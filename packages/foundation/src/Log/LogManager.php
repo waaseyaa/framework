@@ -153,6 +153,12 @@ final class LogManager implements LoggerInterface
         return new ChannelLogger($name, $handler, $processors, $this->sinkSanitizer);
     }
 
+    /** @internal Kernel composition reuses one sanitizer across logger rebuilds and secret resolution. */
+    public function sinkSanitizer(): RedactorProcessor
+    {
+        return $this->sinkSanitizer;
+    }
+
     public function log(LogLevel $level, string|\Stringable $message, array $context = []): void
     {
         $record = new LogRecord(

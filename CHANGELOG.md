@@ -12,9 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fallback and configured channels, exact replacement for explicitly
   registered synthetic or resolved representations, bounded recursive
   inspection, and fixed non-sensitive processor, sanitizer, and handler failure
-  codes. Operational secret resolution, signing custody, integration
-  credentials, build isolation, and application-master rotation remain
-  deliberately unimplemented.
+  codes. Add closed non-secret references, typed provider failures, and one
+  production-composed resolver registry that enforces exact
+  provider/package/class/purpose/environment policy, freezes after provider
+  registration, and registers resolved values with the same final sink
+  sanitizer before returning them. Real provider adapters, purpose-specific
+  consumers, signing custody, integration migrations, build isolation, and the
+  versioned application-master transition remain deliberately unimplemented.
 - **configuration schema and sync authority (`S1-FW-CFG-03`):** Add the strict
   v1 configuration contract with closed recursive schema validation, separate
   default-materialized effective documents, versioned canonical encoding,

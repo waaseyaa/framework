@@ -287,6 +287,7 @@ final class HttpKernel extends AbstractKernel
                 fieldReadScope: $this->fieldReadScope(),
                 requestContext: $this->requestContextForProviders(),
                 communityContext: $this->communityContext,
+                secretResolverRegistry: $this->secretResolverRegistry(),
             ),
             logger: $this->logger,
         );

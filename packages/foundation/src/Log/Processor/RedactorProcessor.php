@@ -70,6 +70,9 @@ final class RedactorProcessor implements ProcessorInterface
     /** @var \WeakMap<self, list<string>>|null */
     private static ?\WeakMap $registeredRepresentations = null;
 
+    /** @var \WeakMap<self, \WeakMap<SensitiveValue, list<string>>>|null */
+    private static ?\WeakMap $registeredSensitiveRepresentations = null;
+
     /**
      * @param list<string> $extraKeys Additional keywords to add to the denylist.
      *                                The built-in {@see DENYLIST} is always applied.
@@ -99,6 +102,24 @@ final class RedactorProcessor implements ProcessorInterface
         usort($registeredRepresentations, static fn(string $left, string $right): int => strlen($right) <=> strlen($left));
         self::$registeredRepresentations ??= new \WeakMap();
         self::$registeredRepresentations[$this] = $registeredRepresentations;
+    }
+
+    /** @internal SensitiveValue custody calls this before a resolved value is returned. */
+    public function registerSensitiveBytes(
+        SensitiveValue $value,
+        #[\SensitiveParameter]
+        string $bytes,
+    ): void {
+        if (strlen($bytes) < 8) {
+            return;
+        }
+        $representations = array_values(array_unique($this->representations($bytes)));
+        usort($representations, static fn(string $left, string $right): int => strlen($right) <=> strlen($left));
+        self::$registeredSensitiveRepresentations ??= new \WeakMap();
+        /** @var \WeakMap<SensitiveValue, list<string>> $values */
+        $values = self::$registeredSensitiveRepresentations[$this] ?? new \WeakMap();
+        $values[$value] = $representations;
+        self::$registeredSensitiveRepresentations[$this] = $values;
     }
 
     public function process(LogRecord $record): LogRecord
@@ -174,7 +195,15 @@ final class RedactorProcessor implements ProcessorInterface
             return self::SENTINEL;
         }
 
-        return str_replace(self::$registeredRepresentations[$this] ?? [], self::SENTINEL, $value);
+        $representations = self::$registeredRepresentations[$this] ?? [];
+        $sensitiveValues = self::$registeredSensitiveRepresentations[$this] ?? null;
+        if ($sensitiveValues instanceof \WeakMap) {
+            foreach ($sensitiveValues as $registered) {
+                array_push($representations, ...$registered);
+            }
+        }
+
+        return str_replace($representations, self::SENTINEL, $value);
     }
 
     /** @return list<string> */

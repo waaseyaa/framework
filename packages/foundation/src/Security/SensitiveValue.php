@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Foundation\Security;
 
+use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
+
 /**
  * Process-local guarded custody for resolved secret bytes.
  *
@@ -48,6 +50,16 @@ final class SensitiveValue implements \JsonSerializable, \Stringable
     public function __toString(): string
     {
         throw new \LogicException('Sensitive values cannot be cast to strings.');
+    }
+
+    /** @internal Called by the kernel-scoped resolver before returning this value. */
+    public function registerWith(RedactorProcessor $sanitizer): void
+    {
+        $bytes = self::$values[$this] ?? null;
+        if (!is_string($bytes)) {
+            throw new \LogicException('Sensitive-value custody is unavailable.');
+        }
+        $sanitizer->registerSensitiveBytes($this, $bytes);
     }
 
     /** @return array{secret: string, class: string, version: string} */

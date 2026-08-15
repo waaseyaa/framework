@@ -23,6 +23,8 @@ use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\LoggerTrait;
 use Waaseyaa\Foundation\Log\LogLevel;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
+use Waaseyaa\Foundation\Security\SecretResolverRegistry;
 use Waaseyaa\Foundation\ServiceProvider\Capability\FinalizesProviderBootInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
@@ -58,6 +60,26 @@ final class ProviderRegistryTest extends TestCase
 
         $resolved = $providers[0]->resolve(EntityTypeManager::class);
         $this->assertSame($entityTypeManager, $resolved);
+    }
+
+    #[Test]
+    public function provider_receives_the_kernel_owned_secret_registry_during_registration(): void
+    {
+        SecretRegistryConsumerProvider::$resolvedRegistry = null;
+        $secretRegistry = new SecretResolverRegistry(new RedactorProcessor(), 'testing');
+        $registry = new ProviderRegistry(new NullLogger());
+
+        $registry->discoverAndRegister(
+            manifest: new PackageManifest(providers: [SecretRegistryConsumerProvider::class]),
+            projectRoot: sys_get_temp_dir(),
+            config: [],
+            entityTypeManager: new EntityTypeManager(new EventDispatcher()),
+            database: DBALDatabase::createSqlite(':memory:'),
+            dispatcher: new EventDispatcher(),
+            secretResolverRegistry: $secretRegistry,
+        );
+
+        self::assertSame($secretRegistry, SecretRegistryConsumerProvider::$resolvedRegistry);
     }
 
     #[Test]
@@ -324,6 +346,26 @@ final class KernelResolverTestProvider extends ServiceProvider
     public function register(): void
     {
         // No local bindings; EntityTypeManager must come from kernel resolver.
+    }
+}
+
+/** @internal Test fixture proving secret policy can be composed before kernel freeze. */
+final class SecretRegistryConsumerProvider extends ServiceProvider
+{
+    public static ?SecretResolverRegistry $resolvedRegistry = null;
+
+    public function register(): void
+    {
+        $registry = $this->resolve(SecretResolverRegistry::class);
+        self::assertRegistry($registry);
+        self::$resolvedRegistry = $registry;
+    }
+
+    private static function assertRegistry(object $registry): void
+    {
+        if (!$registry instanceof SecretResolverRegistry) {
+            throw new \LogicException('Kernel secret registry was not composed.');
+        }
     }
 }
 

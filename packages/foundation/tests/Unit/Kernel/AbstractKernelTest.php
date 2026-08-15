@@ -9,6 +9,8 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Foundation\Kernel\AbstractKernel;
 use Waaseyaa\Foundation\Kernel\Bootstrap\ScheduleEntryRegistry;
+use Waaseyaa\Foundation\Security\SecretClass;
+use Waaseyaa\Foundation\Security\SecretResolverRegistry;
 use Waaseyaa\Scheduler\ScheduleEntriesInterface;
 use Waaseyaa\Scheduler\ScheduleInterface;
 
@@ -99,6 +101,34 @@ final class AbstractKernelTest extends TestCase
         $this->assertNotNull($kernel->getEntityTypeManager());
         $this->assertNotNull($kernel->getDatabase());
         $this->assertNotNull($kernel->getEventDispatcher());
+    }
+
+    #[Test]
+    public function kernel_freezes_secret_policy_after_provider_registration(): void
+    {
+        $kernel = new class ($this->projectRoot) extends AbstractKernel {
+            public function publicBoot(): void
+            {
+                $this->boot();
+            }
+
+            public function publicSecretRegistry(): SecretResolverRegistry
+            {
+                return $this->secretResolverRegistry();
+            }
+        };
+
+        $kernel->publicBoot();
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('secret resolver registry is frozen');
+        $kernel->publicSecretRegistry()->allow(
+            'synthetic-vault',
+            'waaseyaa/foundation',
+            SecretClass::ApplicationMaster,
+            'waaseyaa.application.master.v1',
+            ['testing'],
+        );
     }
 
     #[Test]

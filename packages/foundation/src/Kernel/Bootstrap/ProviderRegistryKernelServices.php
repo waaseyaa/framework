@@ -23,6 +23,7 @@ use Waaseyaa\Foundation\Event\EventDispatcherInterface as FoundationEventDispatc
 use Waaseyaa\Foundation\Http\RequestContext;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\Security\SecretResolverRegistry;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 
@@ -90,6 +91,7 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
          */
         private readonly ?RequestContext $requestContext = null,
         private readonly ?CommunityContextInterface $communityContext = null,
+        private readonly ?SecretResolverRegistry $secretResolverRegistry = null,
     ) {
         $this->providersAccessor = $providersAccessor;
         $this->accessHandlerAccessor = $accessHandlerAccessor;
@@ -163,6 +165,9 @@ final class ProviderRegistryKernelServices implements KernelServicesInterface
         }
         if ($abstract === ApplicationSecret::class) {
             return $this->applicationSecret;
+        }
+        if ($abstract === SecretResolverRegistry::class) {
+            return $this->secretResolverRegistry;
         }
         if ($abstract === EntityAccessHandler::class) {
             return $this->accessHandlerAccessor !== null

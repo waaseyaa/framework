@@ -275,6 +275,7 @@ public function get(string $abstract): ?object;
 | `Psr\EventDispatcher\EventDispatcherInterface` | The same event dispatcher instance (G-025 / #1940) |
 | `Waaseyaa\Foundation\Event\EventDispatcherInterface` | The same event dispatcher instance, guarded by `instanceof` since the property's declared type doesn't statically guarantee it (G-025 / #1940) |
 | `Waaseyaa\Foundation\Log\LoggerInterface` | The kernel’s logger |
+| `Waaseyaa\Foundation\Security\SecretResolverRegistry` | The one kernel-owned registry used to compose secret providers and exact provider/package/class/purpose/environment policy during provider registration; the kernel freezes it immediately after that registration pass |
 | `\PDO` | The native PDO connection beneath `DBALDatabase` |
 | `Waaseyaa\Access\Gate\GateInterface` | A shared `EntityAccessGate` wrapping the kernel's `EntityAccessHandler` (G-014 / #1940) — memoized per handler instance. Resolves `null` before `AbstractKernel::discoverAccessPolicies()` has run (the handler accessor is not yet available), matching the existing `EntityAccessHandler::class` case's degrade-to-null behaviour. |
 | anything else | The first sibling provider whose `getBindings()` declares the abstract, or `null` |
@@ -1187,7 +1188,7 @@ Immutable value object carrying a single log entry: `level` (LogLevel), `message
 
 File: `packages/foundation/src/Log/LogManager.php`
 
-Central log orchestrator. Implements `LoggerInterface` — calling `log()` delegates to the default channel. Constructor accepts `LoggerInterface|HandlerInterface` for the default handler (legacy loggers are wrapped in `LegacyLoggerHandler`) plus an optional kernel-scoped `RedactorProcessor` sink sanitizer. `channel(string $name)` returns a `ChannelLogger` for the named channel; unknown channels fall back to the default. `fromConfig(array $config, ?RedactorProcessor $sinkSanitizer = null)` builds channels in two passes and preserves the same mandatory sanitizer even for empty configuration. `addGlobalProcessor(ProcessorInterface $processor)` allows runtime registration of enrichment processors (used by `HttpKernel` to add `RequestContextProcessor` after request resolution); the sink sanitizer always runs after them so later processors cannot reintroduce secret data.
+Central log orchestrator. Implements `LoggerInterface` — calling `log()` delegates to the default channel. Constructor accepts `LoggerInterface|HandlerInterface` for the default handler (legacy loggers are wrapped in `LegacyLoggerHandler`) plus an optional kernel-scoped `RedactorProcessor` sink sanitizer. `channel(string $name)` returns a `ChannelLogger` for the named channel; unknown channels fall back to the default. `fromConfig(array $config, ?RedactorProcessor $sinkSanitizer = null)` builds channels in two passes and preserves the same mandatory sanitizer even for empty configuration. `addGlobalProcessor(ProcessorInterface $processor)` allows runtime registration of enrichment processors (used by `HttpKernel` to add `RequestContextProcessor` after request resolution); the sink sanitizer always runs after them so later processors cannot reintroduce secret data. The kernel reuses this exact sanitizer instance when configuration rebuilds the manager and when it constructs `SecretResolverRegistry`, so a resolved `SensitiveValue` registers its eligible raw and encoded representations before the resolver returns it.
 
 The kernel constructs `LogManager(new Handler\ErrorLogHandler())` at startup, then upgrades it after config loads: if `config['logging']['channels']` exists, uses `LogManager::fromConfig()`; otherwise falls back to `log_level` config with a single `Handler\ErrorLogHandler(minimumLevel: $level)`.
 
@@ -1224,7 +1225,7 @@ Processors enrich `LogRecord` context before handlers receive the record. Execut
 | Interface/Class | File | Purpose |
 |-------|------|---------|
 | `ProcessorInterface` | `Log/Processor/ProcessorInterface.php` | Contract: `process(LogRecord $record): LogRecord`. Must return a new record, not mutate input. |
-| `RedactorProcessor` | `Log/Processor/RedactorProcessor.php` | **Mandatory final sink sanitizer** for bare, empty-config, configured, and scoped channel paths. It sanitizes message text and bounded recursive context after all enrichment processors; replaces typed `SensitiveValue` objects, Throwable chains, Stringable values, unknown objects/resources, and explicitly registered raw/base64/base64url/URL/JSON-escaped representations; and retains heuristic key/value matching for `password`, `token`, `secret`, `authorization`, `api_key`, `cookie`, `credential`, `private_key`, and `passphrase` as defense in depth. Replacement sentinel: `[REDACTED]`. Config name `redact` remains available as an earlier explicit processor, but cannot replace or bypass the final sanitizer. |
+| `RedactorProcessor` | `Log/Processor/RedactorProcessor.php` | **Mandatory final sink sanitizer** for bare, empty-config, configured, and scoped channel paths. It sanitizes message text and bounded recursive context after all enrichment processors; replaces typed `SensitiveValue` objects, Throwable chains, Stringable values, unknown objects/resources, and explicitly registered raw/base64/base64url/URL/JSON-escaped representations; and retains heuristic key/value matching for `password`, `token`, `secret`, `authorization`, `api_key`, `cookie`, `credential`, `private_key`, and `passphrase` as defense in depth. Resolved-value representations are held in a nested WeakMap keyed by the sanitizer and live `SensitiveValue`, so high-churn versions retire with their custody holder. Replacement sentinel: `[REDACTED]`. Config name `redact` remains available as an earlier explicit processor, but cannot replace or bypass the final sanitizer. |
 | `RequestIdProcessor` | `Log/Processor/RequestIdProcessor.php` | Adds `request_id` (UUID hex) to context. Same ID for all records within a single processor instance. |
 | `HostnameProcessor` | `Log/Processor/HostnameProcessor.php` | Adds `hostname` to context. Defaults to `gethostname()`. |
 | `MemoryUsageProcessor` | `Log/Processor/MemoryUsageProcessor.php` | Adds `memory_peak_mb` (float) to context. |
@@ -1912,6 +1913,7 @@ EnvLoader::load(.env)
   → ConfigLoader::load(config/waaseyaa.php)
   → rebuild LogManager (fromConfig if logging.channels exists, else log_level fallback)
   → debug/environment safety guard
+  → construct one SecretResolverRegistry over the same final sink sanitizer
   → resolve WAASEYAA_APP_SECRET into kernel-owned ApplicationSecret (before database IO)
   → new EventDispatcher()
   → new EntityTypeLifecycleManager($projectRoot)
@@ -1921,7 +1923,8 @@ EnvLoader::load(.env)
   → bootEntityTypeManager()  // delegates to EntityTypeManagerFactory: repository factory (EntityRepository, sole engine post-C-22) — no storage factory is wired
   → compileManifest()        // ManifestBootstrapper
   → bootMigrations()         // reuses DBAL connection from bootDatabase
-  → discoverAndRegisterProviders()  // ProviderRegistry
+  → discoverAndRegisterProviders()  // providers may register exact secret provider/policy declarations
+  → freeze SecretResolverRegistry   // all later provider/class/purpose/environment mutations refuse
   → loadAppEntityTypes()     // reads config/entity-types.php
   → validateContentTypes()   // DiagnosticEmitter check
   → bootProviders()          // calls boot() on all registered providers

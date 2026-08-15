@@ -121,9 +121,9 @@ When field-level encryption is implemented:
 
 ### Invariant: no secrets in repository source
 
-Version-controlled source — including `defaults/`, packages, scripts, documentation, and workflows — must **never** contain credentials, tokens, or connection strings. All secrets enter the application exclusively via environment variables. `bin/check-no-secrets` scans the repository root and excludes only generated or dependency trees (`.git`, `.worktrees`, `vendor`, `node_modules`, `dist`, `build`, and `tmp`). Test fixtures assemble secret-shaped dummy values from fragments so the repository contains no static token-like payload.
+Version-controlled source — including `defaults/`, packages, scripts, documentation, and workflows — must **never** contain credentials, tokens, or connection strings. Bootstrap-only legacy variables remain at documented kernel seams; governed integration and provider credentials use deployable `SecretReference` values and are resolved through the frozen kernel-owned `SecretResolverRegistry`. References contain provider, identifier, expected secret class, and versioned purpose but are not secret values; diagnostic views disclose only their fingerprint, class, and purpose. `bin/check-no-secrets` scans the repository root and excludes only generated or dependency trees (`.git`, `.worktrees`, `vendor`, `node_modules`, `dist`, `build`, and `tmp`). Test fixtures assemble secret-shaped dummy values from fragments so the repository contains no static token-like payload.
 
-### Environment variable contract
+### Transitional environment variable contract
 
 | Variable | Purpose | Required |
 |----------|---------|----------|
@@ -133,9 +133,11 @@ Version-controlled source — including `defaults/`, packages, scripts, document
 
 Full listing: `.env.example`.
 
+`WAASEYAA_APP_SECRET` remains the Layer-0 bootstrap authority while the versioned master-key transition is implemented. Package-level direct environment or secret-file reads for governed credentials are not the target contract; existing call sites remain explicit CFG-04 migration work and must not be used as precedent for new integrations.
+
 ### Configuration secrets
 
-`api_keys` in `config/waaseyaa.php` maps raw API keys to UIDs. This file is **not** version-controlled in deployments (only `skeleton/config/waaseyaa.php` is committed as a template). Deployments must override it via environment-specific config.
+The legacy `api_keys` map and raw provider-key configuration are not compliant with the governed custody contract merely because a deployment file is untracked. CFG-04 migration replaces raw values with closed typed references and explicit absence/availability policy. Until those consumers are migrated, their presence remains a tracked red condition and new code must not add another raw configuration path.
 
 ### Enforcement
 

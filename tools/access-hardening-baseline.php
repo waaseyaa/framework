@@ -19,6 +19,8 @@ return [
         => 'Process-lifetime WeakMap custody keyed by kernel-owned ApplicationSecret objects; entries disappear with their kernel, contain no request/account data, and keep master bytes out of object debug and serialization surfaces.',
     'packages/foundation/src/Log/Processor/RedactorProcessor.php::$registeredRepresentations'
         => 'Process-lifetime WeakMap custody keyed by a sink-sanitizer instance; registered synthetic or resolved representations disappear with that sanitizer, contain no request/account data, and remain outside object debug and serialization surfaces.',
+    'packages/foundation/src/Log/Processor/RedactorProcessor.php::$registeredSensitiveRepresentations'
+        => 'Process-lifetime nested WeakMap custody keyed first by sink sanitizer and then by a live SensitiveValue holder; representations disappear with either holder, contain no request/account data, and keep high-churn secret rotations bounded.',
     'packages/foundation/src/Security/SensitiveKey.php::$keys'
         => 'Process-lifetime WeakMap custody keyed by derived-key holder objects; entries disappear with their holder, contain no request/account data, and keep derived bytes out of object debug and serialization surfaces.',
     'packages/foundation/src/Security/SensitiveValue.php::$values'
