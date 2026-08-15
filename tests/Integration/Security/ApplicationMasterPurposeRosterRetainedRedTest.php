@@ -15,6 +15,7 @@ use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyComposition;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Oidc\OidcServiceProvider;
+use Waaseyaa\Publishing\PublishingServiceProvider;
 use Waaseyaa\Queue\QueueServiceProvider;
 
 /** Retained-red closure proof for every declared application-master purpose owner. */
@@ -36,6 +37,7 @@ final class ApplicationMasterPurposeRosterRetainedRedTest extends TestCase
             new AuditServiceProvider(),
             new CacheServiceProvider(),
             new OidcServiceProvider(),
+            new PublishingServiceProvider(),
             new QueueServiceProvider(),
         ];
         foreach ($providers as $provider) {
