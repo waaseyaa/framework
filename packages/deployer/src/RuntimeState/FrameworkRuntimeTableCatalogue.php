@@ -61,6 +61,8 @@ final class FrameworkRuntimeTableCatalogue
             new RuntimeTableDefinition('trace_span', RuntimeTablePolicy::Preserve),
             new RuntimeTableDefinition('audit_event', RuntimeTablePolicy::AppendOnly, ['account_uid', 'actor_uid'], [0, \PHP_INT_MAX]),
             new RuntimeTableDefinition('audit_checkpoint', RuntimeTablePolicy::AppendOnly),
+            new RuntimeTableDefinition('audit_checkpoint_succession', RuntimeTablePolicy::AppendOnly),
+            new RuntimeTableDefinition('audit_checkpoint_succession_pruned', RuntimeTablePolicy::AppendOnly),
             new RuntimeTableDefinition('privileged_read_ledger', RuntimeTablePolicy::AppendOnly),
             new RuntimeTableDefinition('strict_audit_ledger', RuntimeTablePolicy::AppendOnly, ['actor_uid'], [0, \PHP_INT_MAX]),
             new RuntimeTableDefinition('mcp_approval_event', RuntimeTablePolicy::AppendOnly, ['operator_uid'], [\PHP_INT_MAX]),

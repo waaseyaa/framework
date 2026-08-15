@@ -24,6 +24,8 @@ foreach ([
     '2026_08_12_000003_audit_runtime_schema.php',
     '2026_08_12_000004_strict_audit_ledger_schema.php',
     '2026_08_12_000005_approval_event_schema.php',
+    '2026_08_15_000006_audit_prune_authorization.php',
+    '2026_08_15_000007_audit_checkpoint_succession.php',
 ] as $migrationName) {
     $migration = require __DIR__ . '/vendor/waaseyaa/audit/migrations/' . $migrationName;
     if (!$migration instanceof \Waaseyaa\Foundation\Migration\Migration) {

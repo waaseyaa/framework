@@ -59,6 +59,7 @@ function s1SchemaClass(string $path): string
         'packages/audit/migrations/2026_08_12_000004_strict_audit_ledger_schema.php' => 'coordinator-plan-or-executor',
         'packages/audit/migrations/2026_08_12_000005_approval_event_schema.php' => 'coordinator-plan-or-executor',
         'packages/audit/migrations/2026_08_15_000006_audit_prune_authorization.php' => 'coordinator-plan-or-executor',
+        'packages/audit/migrations/2026_08_15_000007_audit_checkpoint_succession.php' => 'coordinator-plan-or-executor',
         'packages/audit/src/Schema/AuditEventSchemaHandler.php' => 'read-only-or-declaration',
         'packages/audit/src/Storage/AppendOnlyAuditDatabase.php' => 'read-only-or-declaration',
         'packages/audit/src/Storage/AppendOnlySchema.php' => 'read-only-or-declaration',

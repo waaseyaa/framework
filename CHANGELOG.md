@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **append-only audit succession substrate (`S1-FW-CFG-04`):** Add
+  version-bound audit checkpoint authentication, non-secret application-master
+  reference identities, and DB-02-owned succession plus anchored-prune evidence
+  tables for cryptographic predecessor continuity without runtime DDL.
+
 - **secret-safe logging foundation (`S1-FW-CFG-04`):** Add guarded typed
   secret-value metadata, mandatory final message/context sanitization for
   fallback and configured channels, exact replacement for explicitly

@@ -46,6 +46,8 @@ final class SqliteArtifactPreparerTest extends TestCase
         self::assertSame(RuntimeTablePolicy::Preserve, $definitions['oidc_signing_key']->policy);
         self::assertSame(['account_id'], $definitions['agent_run']->accountReferenceColumns);
         self::assertSame(RuntimeTablePolicy::AppendOnly, $definitions['audit_event']->policy);
+        self::assertSame(RuntimeTablePolicy::AppendOnly, $definitions['audit_checkpoint_succession']->policy);
+        self::assertSame(RuntimeTablePolicy::AppendOnly, $definitions['audit_checkpoint_succession_pruned']->policy);
         self::assertSame(RuntimeTablePolicy::AppendOnly, $definitions['privileged_read_ledger']->policy);
         self::assertSame(RuntimeTablePolicy::AppendOnly, $definitions['strict_audit_ledger']->policy);
         self::assertSame(RuntimeTablePolicy::AppendOnly, $definitions['mcp_approval_event']->policy);

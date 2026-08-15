@@ -69,7 +69,7 @@ final class AuditSuccessionSchemaRetainedRedTest extends TestCase
         $connection = $database->getConnection();
         $connection->executeStatement($this->anchorInsertSql());
         $connection->executeStatement(
-            "INSERT INTO audit_checkpoint_succession_pruned (anchor_sequence, checkpoint_id, checkpoint_uuid, checkpoint_hash) VALUES (1, 9, 'checkpoint-9', '" . str_repeat('9', 64) . "')",
+            "INSERT INTO audit_checkpoint_succession_pruned (anchor_sequence, checkpoint_id, checkpoint_uuid, checkpoint_hash) VALUES (1, 1, 'checkpoint-1', '" . str_repeat('9', 64) . "')",
         );
 
         $this->expectException(DriverException::class);
