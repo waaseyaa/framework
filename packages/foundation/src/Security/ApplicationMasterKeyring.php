@@ -32,6 +32,9 @@ final class ApplicationMasterKeyring
         array $legacyReferences,
         ApplicationMasterPurposeRegistry $purposes,
     ): self {
+        if (!$resolver->isFrozen()) {
+            throw new \LogicException('The secret resolver must be frozen before keyring construction.');
+        }
         if (!$purposes->isFrozen()) {
             throw new \LogicException('Application-master purposes must be frozen before keyring construction.');
         }
@@ -63,11 +66,14 @@ final class ApplicationMasterKeyring
 
         $handles = [];
         foreach ($references as $version => $reference) {
+            $allowedConsumers = $version === $activeVersion
+                ? [ApplicationMasterSealOperation::class, ApplicationMasterOpenOperation::class]
+                : [ApplicationMasterOpenOperation::class];
             $handles[$version] = SecretHandle::fromReference(
                 $resolver,
                 $reference,
                 self::PACKAGE,
-                [ApplicationMasterSealOperation::class, ApplicationMasterOpenOperation::class],
+                $allowedConsumers,
             );
         }
 
@@ -102,6 +108,12 @@ final class ApplicationMasterKeyring
         if ($policy->strategy !== ApplicationMasterPurposeStrategy::ReencryptCiphertext) {
             throw new \InvalidArgumentException('Only re-encrypt ciphertext purposes may create application-master envelopes.');
         }
+        ApplicationMasterEnvelope::encodeAssociatedData(
+            $this->activeVersion,
+            $purpose,
+            $recordIdentity,
+            $schemaVersion,
+        );
 
         return $this->handles[$this->activeVersion]->consume(new ApplicationMasterSealOperation(
             $this->activeVersion,

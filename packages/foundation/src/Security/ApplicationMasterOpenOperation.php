@@ -40,7 +40,7 @@ final readonly class ApplicationMasterOpenOperation implements SecretConsumerInt
             sodium_memzero($key);
         }
         if ($plaintext === false) {
-            throw new \RuntimeException('Application-master envelope authentication failed.');
+            throw new SecretConsumerRefusalException(SecretConsumptionCode::AuthenticationFailed);
         }
 
         return $plaintext;

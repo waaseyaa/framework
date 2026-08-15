@@ -122,6 +122,11 @@ final class SecretResolverRegistry
         $this->frozen = true;
     }
 
+    public function isFrozen(): bool
+    {
+        return $this->frozen;
+    }
+
     /** Canonical non-secret environment used in every policy key. */
     public function environment(): string
     {
@@ -204,6 +209,11 @@ final class SecretResolverRegistry
 
         try {
             return $value->consumeWith($consumer, $this->consumerAuthority);
+        } catch (SecretConsumerRefusalException $exception) {
+            throw new SecretConsumptionException(
+                $exception->reason,
+                $reference->fingerprint(),
+            );
         } catch (\Throwable) {
             throw new SecretConsumptionException(
                 SecretConsumptionCode::ConsumerFailure,

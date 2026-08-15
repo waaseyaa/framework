@@ -1862,6 +1862,14 @@ versioned resolver purpose `waaseyaa.application.master.v1`. Key material is
 resolved only at a guarded cryptographic operation boundary; the keyring,
 handles, diagnostics, exceptions, serialization, and clone surfaces expose no
 master bytes or provider identifiers.
+The resolver must already be frozen when the keyring is constructed. Legacy
+handles are read-only and cannot invoke the seal consumer. Each cryptographic
+operation resolves its selected reference afresh; framework custody deliberately
+does not retain master bytes between operations. A provider may apply its own
+policy-governed cache behind the reference boundary, but it must never replace
+the bytes of an existing application-master reference in place. Rotation creates
+a new immutable reference and monotonically higher keyring version; the
+provider-returned version token is diagnostic metadata, not an envelope key ID.
 
 `ApplicationMasterPurposeRegistry` is assembled before use and then frozen. A
 purpose policy declares a stable purpose identifier, owning package, transition
@@ -1883,7 +1891,11 @@ domain-separation salt. Reads
 select exactly the version declared by the envelope and never probe arbitrary
 keys or fall back to the active version. Unknown versions, unknown purposes,
 non-canonical encodings, malformed envelopes, and authentication failures are
-refused before unrelated references are resolved.
+refused before unrelated references are resolved. Invalid caller-supplied seal
+metadata is validated before the active reference is resolved. Authenticated
+decryption failures retain the stable non-secret
+`SECRET_CONSUMER_AUTHENTICATION_FAILED` reason instead of collapsing into a
+generic consumer failure.
 
 This core cryptographic boundary does not itself claim the rekey transition is
 complete. Purpose inventory adapters, joint row transitions, persisted registry

@@ -80,6 +80,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   use only the active version; reads select only the envelope-declared version;
   unknown versions or purposes refuse without arbitrary provider fallback; and
   diagnostics, clone, and serialization disclose no master or provider path.
+  Invalid seal metadata now refuses before external resolution, authenticated
+  decryption has a distinct non-secret refusal code, legacy handles expose only
+  read capability, resolver freeze is a construction precondition, and the
+  plaintext-bearing seal operation is non-exporting. References are immutable
+  per master version and resolve afresh for each operation; providers must use a
+  distinct reference rather than replacing application-master bytes in place.
   Executable purpose adapters, coordinator-driven transitions, and migration of
   compatibility `ApplicationSecret` consumers remain separate slices.
   A DB-02 Foundation migration now installs non-secret master-version,

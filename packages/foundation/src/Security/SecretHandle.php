@@ -139,6 +139,8 @@ final class SecretHandle implements \JsonSerializable
 
         try {
             return $custody['value']->consumeWith($consumer, $custody['authority']);
+        } catch (SecretConsumerRefusalException $exception) {
+            throw new SecretConsumptionException($exception->reason, $this->fingerprint);
         } catch (\Throwable) {
             throw new SecretConsumptionException(SecretConsumptionCode::ConsumerFailure, $this->fingerprint);
         }

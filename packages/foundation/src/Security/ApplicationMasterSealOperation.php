@@ -62,4 +62,23 @@ final readonly class ApplicationMasterSealOperation implements SecretConsumerInt
             $ciphertext,
         );
     }
+
+    /** @return array{operation: string, master_version: int, purpose: string, record_identity: string, schema_version: int} */
+    public function __debugInfo(): array
+    {
+        return [
+            'operation' => '[NON_EXPORTING]',
+            'master_version' => $this->masterVersion,
+            'purpose' => $this->purposeId,
+            'record_identity' => $this->recordIdentity,
+            'schema_version' => $this->schemaVersion,
+        ];
+    }
+
+    /** @return never */
+    public function __serialize(): array
+    {
+        throw new \LogicException('Application-master seal operations cannot be serialized.');
+    }
+
 }

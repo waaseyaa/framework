@@ -16,6 +16,7 @@ use Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy;
 use Waaseyaa\Foundation\Security\ApplicationMasterSealOperation;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\Security\SecretClass;
+use Waaseyaa\Foundation\Security\SecretConsumptionCode;
 use Waaseyaa\Foundation\Security\SecretConsumptionException;
 use Waaseyaa\Foundation\Security\SecretProviderInterface;
 use Waaseyaa\Foundation\Security\SecretReference;
@@ -93,8 +94,8 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
             try {
                 $keyring->open(ApplicationMasterEnvelope::fromArray($document));
                 self::fail(sprintf('Tampered application-master envelope field %s was accepted.', $field));
-            } catch (\RuntimeException) {
-                self::addToAssertionCount(1);
+            } catch (SecretConsumptionException $exception) {
+                self::assertSame(SecretConsumptionCode::AuthenticationFailed, $exception->reason);
             }
         }
 
@@ -103,8 +104,12 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
         self::assertIsString($ciphertext);
         $ciphertext[0] = chr(ord($ciphertext[0]) ^ 1);
         $document['ciphertext'] = base64_encode($ciphertext);
-        $this->expectException(\RuntimeException::class);
-        $keyring->open(ApplicationMasterEnvelope::fromArray($document));
+        try {
+            $keyring->open(ApplicationMasterEnvelope::fromArray($document));
+            self::fail('Tampered application-master ciphertext was accepted.');
+        } catch (SecretConsumptionException $exception) {
+            self::assertSame(SecretConsumptionCode::AuthenticationFailed, $exception->reason);
+        }
     }
 
     #[Test]
