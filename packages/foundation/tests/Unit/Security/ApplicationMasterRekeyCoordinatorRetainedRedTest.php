@@ -23,6 +23,7 @@ use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyAdapterInterface;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyConflictException;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyContext;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyCoordinator;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyGate;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyRequest;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyState;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyStore;
@@ -300,6 +301,110 @@ final class ApplicationMasterRekeyCoordinatorRetainedRedTest extends TestCase
         }
     }
 
+    #[Test]
+    public function rollback_reinventories_successor_rows_and_resumes_reverse_cas_batches_after_restart(): void
+    {
+        [$database, $store, $coordinator, $adapter] = $this->preparedCoordinator();
+        $coordinator->snapshotAdapter(self::REQUEST_ID, 2, self::ADAPTER_ID);
+        $coordinator->transitionNextBatch(self::REQUEST_ID, 3, self::ADAPTER_ID, 2);
+        $record = $coordinator->completeAdapter(self::REQUEST_ID, 4, self::ADAPTER_ID);
+        $record = $coordinator->verifyAdapter(self::REQUEST_ID, $record->revision, self::ADAPTER_ID);
+        foreach ([
+            ApplicationMasterRekeyGate::WritersAndWorkersReconciled,
+            ApplicationMasterRekeyGate::CachesReconciled,
+        ] as $offset => $gate) {
+            $record = $store->recordRevocationGate(
+                self::REQUEST_ID,
+                $record->revision,
+                $gate,
+                hash('sha256', 'synthetic-rollback-gate:' . $gate->value),
+                1_300 + ($offset * 100),
+            );
+        }
+        $record = $store->beginRollback(
+            self::REQUEST_ID,
+            $record->revision,
+            'synthetic-successor-refused',
+            hash('sha256', 'synthetic-rollback-authorization'),
+            1_500,
+        );
+        $rollback = new ApplicationMasterRekeyCoordinator(
+            $store,
+            $this->rollbackKeyring(),
+            $this->purposes(),
+            [$adapter],
+        );
+
+        $progress = $rollback->snapshotRollbackAdapter(
+            self::REQUEST_ID,
+            $record->revision,
+            self::ADAPTER_ID,
+        );
+        self::assertSame(2, $progress->rollbackTotalRecords);
+        self::assertNull($progress->rollbackCursor);
+        $first = $rollback->rollbackNextBatch(
+            self::REQUEST_ID,
+            $store->require(self::REQUEST_ID)->revision,
+            self::ADAPTER_ID,
+            1,
+        );
+        self::assertSame('row:1', $first->rollbackCursor);
+        self::assertSame(1, $first->rolledBackRecords);
+        self::assertSame(1, $adapter->rolledBackById['row:1'] ?? 0);
+
+        $restartedDatabase = DBALDatabase::createSqlite($this->dbPath);
+        $restartedStore = new ApplicationMasterRekeyStore($restartedDatabase, static fn(): int => 1_600);
+        $restartedAdapter = new SyntheticAtomicRekeyAdapter(
+            $restartedDatabase,
+            self::ADAPTER_ID,
+            $this->purpose(),
+        );
+        $restarted = new ApplicationMasterRekeyCoordinator(
+            $restartedStore,
+            $this->rollbackKeyring(),
+            $this->purposes(),
+            [$restartedAdapter],
+        );
+        $second = $restarted->rollbackNextBatch(
+            self::REQUEST_ID,
+            $restartedStore->require(self::REQUEST_ID)->revision,
+            self::ADAPTER_ID,
+            1,
+        );
+        self::assertSame('row:2', $second->rollbackCursor);
+        self::assertSame(2, $second->rolledBackRecords);
+        self::assertSame(0, $restartedAdapter->rolledBackById['row:1'] ?? 0);
+        self::assertSame(1, $restartedAdapter->rolledBackById['row:2'] ?? 0);
+
+        $record = $restarted->completeRollbackAdapter(
+            self::REQUEST_ID,
+            $restartedStore->require(self::REQUEST_ID)->revision,
+            self::ADAPTER_ID,
+        );
+        self::assertSame(ApplicationMasterRekeyState::RollingBack, $record->state);
+        $rolledBack = $restarted->completeRollback(
+            self::REQUEST_ID,
+            $record->revision,
+            hash('sha256', 'synthetic-rollback-completion'),
+            1_700,
+        );
+        self::assertSame(ApplicationMasterRekeyState::RolledBack, $rolledBack->state);
+        self::assertSame('active-write', $restartedStore->masterVersionState(1));
+        self::assertSame('failed-read-only', $restartedStore->masterVersionState(2));
+
+        $rows = $database->getConnection()->fetchAllAssociative(
+            'SELECT row_id, master_version, envelope_json FROM synthetic_secret_row ORDER BY row_id',
+        );
+        self::assertCount(2, $rows);
+        foreach ($rows as $index => $row) {
+            self::assertSame(1, (int) $row['master_version']);
+            $envelope = ApplicationMasterEnvelope::fromArray(
+                json_decode((string) $row['envelope_json'], true, 16, JSON_THROW_ON_ERROR),
+            );
+            self::assertSame('synthetic-plaintext-' . ($index + 1), $this->rollbackKeyring()->open($envelope));
+        }
+    }
+
     /** @return array{DBALDatabase, ApplicationMasterRekeyStore, ApplicationMasterRekeyCoordinator, SyntheticAtomicRekeyAdapter} */
     private function preparedCoordinator(): array
     {
@@ -408,6 +513,19 @@ final class ApplicationMasterRekeyCoordinatorRetainedRedTest extends TestCase
         );
     }
 
+    private function rollbackKeyring(): ApplicationMasterKeyring
+    {
+        return ApplicationMasterKeyring::fromRollbackReferences(
+            $this->resolver(),
+            1,
+            $this->reference('master-v1'),
+            [],
+            2,
+            $this->reference('master-v2'),
+            $this->purposes(),
+        );
+    }
+
     private function resolver(): SecretResolverRegistry
     {
         $resolver = new SecretResolverRegistry(new RedactorProcessor(), 'testing');
@@ -462,6 +580,9 @@ final class SyntheticAtomicRekeyAdapter implements ApplicationMasterRekeyAdapter
 
     /** @var array<string, int> */
     public array $transitionedById = [];
+
+    /** @var array<string, int> */
+    public array $rolledBackById = [];
 
     public function __construct(
         private readonly DBALDatabase $database,
@@ -581,7 +702,56 @@ final class SyntheticAtomicRekeyAdapter implements ApplicationMasterRekeyAdapter
         ?string $cursor,
         int $limit,
     ): ApplicationMasterBatchResult {
-        throw new \LogicException('Synthetic rollback is exercised by a later retained slice.');
+        $rows = iterator_to_array($context->database->query(sprintf(
+            'SELECT * FROM synthetic_secret_row WHERE master_version = :version AND row_id > :cursor ORDER BY row_id LIMIT %d',
+            $limit,
+        ), ['version' => $context->request->toVersion, 'cursor' => $cursor ?? '']));
+        $ids = [];
+        foreach ($rows as $row) {
+            $id = (string) $row['row_id'];
+            $envelope = ApplicationMasterEnvelope::fromArray(
+                json_decode((string) $row['envelope_json'], true, 16, JSON_THROW_ON_ERROR),
+            );
+            $plaintext = $context->keyring->open($envelope);
+            $replacement = $context->keyring->seal($this->purposeId, $id, 1, $plaintext);
+            $updated = $context->database->update('synthetic_secret_row')->fields([
+                'master_version' => $context->request->fromVersion,
+                'envelope_json' => json_encode(
+                    $replacement->toArray(),
+                    JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES,
+                ),
+                'row_revision' => (int) $row['row_revision'] + 1,
+            ])->condition('row_id', $id)
+                ->condition('master_version', $context->request->toVersion)
+                ->condition('row_revision', (int) $row['row_revision'])
+                ->execute();
+            if ($updated !== 1) {
+                throw new ApplicationMasterRekeyConflictException('Synthetic owner row changed during rollback CAS transition.');
+            }
+            $ids[] = $id;
+            $this->rolledBackById[$id] = ($this->rolledBackById[$id] ?? 0) + 1;
+        }
+        $nextCursor = $ids === [] ? ($cursor ?? 'empty') : $ids[array_key_last($ids)];
+
+        return new ApplicationMasterBatchResult(
+            nextCursor: $nextCursor,
+            transitionedRecords: count($ids),
+            purposeCountDeltas: [$this->purposeId => count($ids)],
+            batchCommitment: hash('sha256', json_encode($ids, JSON_THROW_ON_ERROR)),
+        );
+    }
+
+    public function rollbackSnapshot(ApplicationMasterRekeyContext $context): ApplicationMasterInventorySnapshot
+    {
+        $rows = iterator_to_array($context->database->query(
+            'SELECT row_id, row_revision FROM synthetic_secret_row WHERE master_version = :version ORDER BY row_id',
+            ['version' => $context->request->toVersion],
+        ));
+
+        return new ApplicationMasterInventorySnapshot(
+            hash('sha256', json_encode($rows, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)),
+            count($rows),
+        );
     }
 }
 
