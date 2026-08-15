@@ -7,13 +7,17 @@ namespace Waaseyaa\Foundation\Tests\Unit\Security;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
+use Waaseyaa\Foundation\Security\ApplicationMasterAuthenticateOperation;
+use Waaseyaa\Foundation\Security\ApplicationMasterAuthenticationTag;
 use Waaseyaa\Foundation\Security\ApplicationMasterEnvelope;
 use Waaseyaa\Foundation\Security\ApplicationMasterKeyring;
+use Waaseyaa\Foundation\Security\ApplicationMasterLookupOperation;
 use Waaseyaa\Foundation\Security\ApplicationMasterOpenOperation;
 use Waaseyaa\Foundation\Security\ApplicationMasterPurposePolicy;
 use Waaseyaa\Foundation\Security\ApplicationMasterPurposeRegistry;
 use Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy;
 use Waaseyaa\Foundation\Security\ApplicationMasterSealOperation;
+use Waaseyaa\Foundation\Security\ApplicationMasterVerifyOperation;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\Security\SecretClass;
 use Waaseyaa\Foundation\Security\SecretConsumptionCode;
@@ -26,6 +30,126 @@ use Waaseyaa\Foundation\Security\SensitiveValue;
 /** Retained-red core proof for the CFG-04 versioned application-master slice. */
 final class ApplicationMasterKeyringRetainedRedTest extends TestCase
 {
+    #[Test]
+    public function active_authentication_tags_remain_verifiable_after_rotation_without_exporting_a_key(): void
+    {
+        $provider = $this->provider();
+        $purposes = $this->purposes();
+        $resolver = $this->resolver($provider);
+        $oldOnly = ApplicationMasterKeyring::fromReferences(
+            resolver: $resolver,
+            activeVersion: 1,
+            activeReference: $this->reference('master-v1'),
+            legacyReferences: [],
+            purposes: $purposes,
+        );
+        $oldTag = $oldOnly->authenticate(
+            ApplicationSecret::PURPOSE_AUDIT_CHECKPOINT_HMAC,
+            'synthetic-checkpoint-v1',
+        );
+        $rotated = ApplicationMasterKeyring::fromReferences(
+            resolver: $resolver,
+            activeVersion: 2,
+            activeReference: $this->reference('master-v2'),
+            legacyReferences: [1 => $this->reference('master-v1')],
+            purposes: $purposes,
+        );
+        $newTag = $rotated->authenticate(
+            ApplicationSecret::PURPOSE_AUDIT_CHECKPOINT_HMAC,
+            'synthetic-checkpoint-v2',
+        );
+
+        self::assertSame(1, $oldTag->masterVersion);
+        self::assertSame(2, $newTag->masterVersion);
+        self::assertTrue($rotated->verify($oldTag, 'synthetic-checkpoint-v1'));
+        self::assertTrue($rotated->verify($newTag, 'synthetic-checkpoint-v2'));
+        self::assertFalse($rotated->verify($oldTag, 'tampered-checkpoint'));
+        self::assertSame($oldTag, ApplicationMasterAuthenticationTag::fromArray($oldTag->toArray()));
+    }
+
+    #[Test]
+    public function lookup_candidates_cover_each_declared_readable_version_without_permitting_legacy_writes(): void
+    {
+        $provider = $this->provider();
+        $purposes = $this->purposes();
+        $resolver = $this->resolver($provider);
+        $oldOnly = ApplicationMasterKeyring::fromReferences(
+            resolver: $resolver,
+            activeVersion: 1,
+            activeReference: $this->reference('master-v1'),
+            legacyReferences: [],
+            purposes: $purposes,
+        );
+        $oldCandidate = $oldOnly->lookupCandidates(
+            ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP,
+            'synthetic-opaque-token',
+        )[0];
+        $rotated = ApplicationMasterKeyring::fromReferences(
+            resolver: $resolver,
+            activeVersion: 2,
+            activeReference: $this->reference('master-v2'),
+            legacyReferences: [1 => $this->reference('master-v1')],
+            purposes: $purposes,
+        );
+        $candidates = $rotated->lookupCandidates(
+            ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP,
+            'synthetic-opaque-token',
+        );
+
+        self::assertSame([1, 2], array_column(array_map(
+            static fn(ApplicationMasterAuthenticationTag $tag): array => $tag->toArray(),
+            $candidates,
+        ), 'master_version'));
+        self::assertSame($oldCandidate->digest, $candidates[0]->digest);
+        self::assertNotSame($candidates[0]->digest, $candidates[1]->digest);
+
+        $handles = (new \ReflectionProperty($rotated, 'handles'))->getValue($rotated);
+        self::assertIsArray($handles);
+        $allowed = (new \ReflectionProperty($handles[1], 'allowedConsumers'))->getValue($handles[1]);
+        self::assertSame(
+            [
+                ApplicationMasterOpenOperation::class,
+                ApplicationMasterVerifyOperation::class,
+                ApplicationMasterLookupOperation::class,
+            ],
+            array_keys($allowed),
+        );
+        self::assertArrayNotHasKey(ApplicationMasterAuthenticateOperation::class, $allowed);
+    }
+
+    #[Test]
+    public function authentication_and_lookup_strategy_refusals_happen_before_external_resolution(): void
+    {
+        $provider = $this->provider();
+        $keyring = ApplicationMasterKeyring::fromReferences(
+            resolver: $this->resolver($provider),
+            activeVersion: 2,
+            activeReference: $this->reference('master-v2'),
+            legacyReferences: [1 => $this->reference('master-v1')],
+            purposes: $this->purposes(),
+        );
+
+        try {
+            $keyring->authenticate(
+                ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION,
+                'synthetic-message',
+            );
+            self::fail('A ciphertext purpose created an authentication tag.');
+        } catch (\InvalidArgumentException) {
+            self::assertSame([], $provider->resolvedIdentifiers);
+        }
+
+        try {
+            $keyring->lookupCandidates(
+                ApplicationSecret::PURPOSE_AUDIT_CHECKPOINT_HMAC,
+                'synthetic-message',
+            );
+            self::fail('A non-lookup purpose created lookup candidates.');
+        } catch (\InvalidArgumentException) {
+            self::assertSame([], $provider->resolvedIdentifiers);
+        }
+    }
+
     #[Test]
     public function new_writes_use_only_the_active_version_while_declared_legacy_envelopes_remain_readable(): void
     {
@@ -200,7 +324,11 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
         self::assertIsArray($handles);
         $allowedProperty = new \ReflectionProperty($handles[1], 'allowedConsumers');
         self::assertSame(
-            [ApplicationMasterOpenOperation::class],
+            [
+                ApplicationMasterOpenOperation::class,
+                ApplicationMasterVerifyOperation::class,
+                ApplicationMasterLookupOperation::class,
+            ],
             array_keys($allowedProperty->getValue($handles[1])),
         );
     }
@@ -388,12 +516,14 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
         $second = new ApplicationMasterPurposeRegistry();
         $second->register($this->lookupPolicy());
         $second->register($this->accessTokenEncryptionPolicy());
+        $second->register($this->auditPolicy());
         $second->register($this->reencryptPolicy());
         $second->freeze();
 
         self::assertSame($first->checksum(), $second->checksum());
         self::assertSame(
             [
+                ApplicationSecret::PURPOSE_AUDIT_CHECKPOINT_HMAC,
                 ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_ENCRYPTION,
                 ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP,
                 ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION,
@@ -444,6 +574,7 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
         $registry->register($this->reencryptPolicy());
         $registry->register($this->lookupPolicy());
         $registry->register($this->accessTokenEncryptionPolicy());
+        $registry->register($this->auditPolicy());
         $registry->freeze();
 
         return $registry;
@@ -485,6 +616,19 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
             retentionSeconds: 86_400,
             adapterId: 'synthetic-oidc-row-v1',
             rollbackBehavior: 'reverse-cas',
+        );
+    }
+
+    private function auditPolicy(): ApplicationMasterPurposePolicy
+    {
+        return new ApplicationMasterPurposePolicy(
+            id: ApplicationSecret::PURPOSE_AUDIT_CHECKPOINT_HMAC,
+            ownerPackage: 'waaseyaa/audit',
+            strategy: ApplicationMasterPurposeStrategy::RetainHistoricVerifier,
+            maximumLifetimeSeconds: 86_400,
+            retentionSeconds: 604_800,
+            adapterId: 'synthetic-audit-checkpoint-v1',
+            rollbackBehavior: 'retain-successor-anchor',
         );
     }
 
