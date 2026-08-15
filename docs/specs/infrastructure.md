@@ -1894,6 +1894,42 @@ versioned migrations; runtime constructors and read-only audits perform zero
 DDL. Framework code never generates or replaces an operational master, and
 external custody remains responsible for provisioning and eventual destruction.
 
+The persistence model separates append-only evidence from mutable coordination
+projections. `waaseyaa_application_master_rekey_event` is a per-request,
+sequence-unique SHA-256 hash chain; database triggers refuse update and delete.
+`waaseyaa_application_master_rekey` stores the immutable request tuple and a CAS
+revision for its current state. Purpose-policy snapshots are canonical rows bound
+to the request's registry checksum. Non-secret master-version rows retain only
+version, state, reference fingerprint, and lifecycle timestamps. Adapter progress,
+per-purpose verification, and revocation-gate evidence use request-scoped
+composite keys. No table stores master or derived-key bytes, plaintext, complete
+ciphertext, tokens, or raw authorization material.
+
+The persisted state vocabulary follows the authorized sequence exactly:
+`prepare-and-authorize`, `install-new-active-with-old-legacy-read-verify`,
+`enumerate-snapshot`, `transition-bounded-batches`, `verify-every-purpose`,
+`reconcile-writers-and-workers`,
+`hold-and-optionally-execute-rollback-window`,
+`prove-backup-retention-or-restore-compatibility`, and
+`revoke-old-in-ledger`. Forward-only `rolling-back` and `rolled-back` states may
+record an exercised rollback; failures append evidence and block advancement but
+do not erase a resumable state or cursor.
+
+One adapter owns every purpose that shares a storage row. Its immutable snapshot
+binds adapter id, sorted purpose ids, inventory token, and total. Each bounded
+batch commits the owner's joint row CAS effects and the expected prior cursor,
+next cursor, per-purpose counts, and batch commitment in one database
+transaction. A stale cursor or projection revision rolls the transaction back;
+retry begins from the durable cursor. Adapter completion does not imply purpose
+verification: every purpose separately records a count and verification hash.
+
+Predecessor revocation additionally requires exact evidence for four closed
+gates: `writers-and-workers-reconciled`, `caches-reconciled`,
+`rollback-window-closed`, and `retained-backups-compatible-or-expired`. Missing
+or failed purpose verification, adapter failure, cursor incompleteness, or a
+missing gate refuses revocation. Revocation changes only the framework ledger
+and future-use policy; it does not claim external key destruction.
+
 `ApplicationSecret` remains a compatibility adapter while existing consumers
 move to the versioned keyring. Its unversioned bootstrap behavior is not evidence
 of rotation safety and must not be copied into new persisted-purpose consumers.
