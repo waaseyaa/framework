@@ -9,11 +9,14 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
 use Waaseyaa\Foundation\Security\ApplicationMasterEnvelope;
 use Waaseyaa\Foundation\Security\ApplicationMasterKeyring;
+use Waaseyaa\Foundation\Security\ApplicationMasterOpenOperation;
 use Waaseyaa\Foundation\Security\ApplicationMasterPurposePolicy;
 use Waaseyaa\Foundation\Security\ApplicationMasterPurposeRegistry;
 use Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy;
+use Waaseyaa\Foundation\Security\ApplicationMasterSealOperation;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\Security\SecretClass;
+use Waaseyaa\Foundation\Security\SecretConsumptionException;
 use Waaseyaa\Foundation\Security\SecretProviderInterface;
 use Waaseyaa\Foundation\Security\SecretReference;
 use Waaseyaa\Foundation\Security\SecretResolverRegistry;
@@ -102,6 +105,118 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
         $document['ciphertext'] = base64_encode($ciphertext);
         $this->expectException(\RuntimeException::class);
         $keyring->open(ApplicationMasterEnvelope::fromArray($document));
+    }
+
+    #[Test]
+    public function authenticated_decryption_failure_retains_a_distinct_non_secret_reason(): void
+    {
+        $keyring = ApplicationMasterKeyring::fromReferences(
+            resolver: $this->resolver($this->provider()),
+            activeVersion: 1,
+            activeReference: $this->reference('master-v1'),
+            legacyReferences: [],
+            purposes: $this->purposes(),
+        );
+        $document = $keyring->seal(
+            ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION,
+            'record:authenticated-refusal',
+            1,
+            'synthetic-plaintext',
+        )->toArray();
+        $ciphertext = base64_decode($document['ciphertext'], true);
+        self::assertIsString($ciphertext);
+        $ciphertext[0] = chr(ord($ciphertext[0]) ^ 1);
+        $document['ciphertext'] = base64_encode($ciphertext);
+
+        try {
+            $keyring->open(ApplicationMasterEnvelope::fromArray($document));
+            self::fail('Tampered ciphertext was accepted.');
+        } catch (SecretConsumptionException $exception) {
+            self::assertSame('SECRET_CONSUMER_AUTHENTICATION_FAILED', $exception->reason->value);
+            self::assertNull($exception->getPrevious());
+            self::assertStringNotContainsString('synthetic-plaintext', $exception->getMessage());
+        }
+    }
+
+    #[Test]
+    public function invalid_seal_metadata_refuses_before_external_custody_resolution(): void
+    {
+        $provider = $this->provider();
+        $keyring = ApplicationMasterKeyring::fromReferences(
+            resolver: $this->resolver($provider),
+            activeVersion: 1,
+            activeReference: $this->reference('master-v1'),
+            legacyReferences: [],
+            purposes: $this->purposes(),
+        );
+
+        foreach ([['', 1], ["record:\0control", 1], [str_repeat('x', 513), 1], ['record:valid', 0]] as [$identity, $schemaVersion]) {
+            try {
+                $keyring->seal(
+                    ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION,
+                    $identity,
+                    $schemaVersion,
+                    'synthetic-plaintext',
+                );
+                self::fail('Invalid envelope metadata was accepted.');
+            } catch (\InvalidArgumentException) {
+                self::assertSame([], $provider->resolvedIdentifiers);
+            }
+        }
+    }
+
+    #[Test]
+    public function legacy_handles_are_read_only_and_resolver_freeze_is_a_construction_precondition(): void
+    {
+        $provider = $this->provider();
+        $unfrozen = $this->resolver($provider, false);
+        try {
+            ApplicationMasterKeyring::fromReferences(
+                resolver: $unfrozen,
+                activeVersion: 1,
+                activeReference: $this->reference('master-v1'),
+                legacyReferences: [],
+                purposes: $this->purposes(),
+            );
+            self::fail('An application-master keyring accepted an unfrozen resolver.');
+        } catch (\LogicException) {
+            self::assertSame([], $provider->resolvedIdentifiers);
+        }
+
+        $keyring = ApplicationMasterKeyring::fromReferences(
+            resolver: $this->resolver($provider),
+            activeVersion: 2,
+            activeReference: $this->reference('master-v2'),
+            legacyReferences: [1 => $this->reference('master-v1')],
+            purposes: $this->purposes(),
+        );
+        $handlesProperty = new \ReflectionProperty($keyring, 'handles');
+        $handles = $handlesProperty->getValue($keyring);
+        self::assertIsArray($handles);
+        $allowedProperty = new \ReflectionProperty($handles[1], 'allowedConsumers');
+        self::assertSame(
+            [ApplicationMasterOpenOperation::class],
+            array_keys($allowedProperty->getValue($handles[1])),
+        );
+    }
+
+    #[Test]
+    public function seal_operation_plaintext_is_non_exporting(): void
+    {
+        $operation = new ApplicationMasterSealOperation(
+            1,
+            ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION,
+            'record:non-exporting',
+            1,
+            'synthetic-operation-plaintext',
+        );
+        ob_start();
+        var_dump($operation);
+        $diagnostic = (string) ob_get_clean();
+        self::assertStringNotContainsString('synthetic-operation-plaintext', $diagnostic);
+
+        $this->expectException(\LogicException::class);
+        serialize($operation);
     }
 
     #[Test]
@@ -297,11 +412,16 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
             purposes: $this->purposes(),
         );
         $diagnostic = var_export($keyring, true);
+        ob_start();
+        var_dump($keyring);
+        $debugDiagnostic = (string) ob_get_clean();
 
         foreach ($provider->masters as $master) {
             self::assertStringNotContainsString(base64_encode($master), $diagnostic);
         }
         self::assertStringNotContainsString('tenant/application/master-v', $diagnostic);
+        self::assertStringContainsString('[NON_EXPORTING]', $debugDiagnostic);
+        self::assertStringNotContainsString('tenant/application/master-v', $debugDiagnostic);
         try {
             clone $keyring;
             self::fail('Application-master keyring was cloneable.');
@@ -363,7 +483,7 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
         );
     }
 
-    private function resolver(SyntheticApplicationMasterProvider $provider): SecretResolverRegistry
+    private function resolver(SyntheticApplicationMasterProvider $provider, bool $freeze = true): SecretResolverRegistry
     {
         $registry = new SecretResolverRegistry(new RedactorProcessor(), 'testing');
         $registry->registerProvider($provider);
@@ -375,7 +495,9 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
             ApplicationMasterKeyring::MASTER_PURPOSE,
             ['testing'],
         );
-        $registry->freeze();
+        if ($freeze) {
+            $registry->freeze();
+        }
 
         return $registry;
     }
