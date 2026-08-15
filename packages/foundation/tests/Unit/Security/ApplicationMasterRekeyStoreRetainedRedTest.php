@@ -435,6 +435,87 @@ final class ApplicationMasterRekeyStoreRetainedRedTest extends TestCase
     }
 
     #[Test]
+    public function authorized_rollback_reactivates_the_predecessor_and_records_the_failed_successor_forward_only(): void
+    {
+        $store = new ApplicationMasterRekeyStore($this->migratedDatabase());
+        $registry = $this->purposes();
+        $store->prepare($this->request(), $registry);
+        $store->installActive(
+            self::REQUEST_ID,
+            1,
+            hash('sha256', 'synthetic-master-v1-reference'),
+            hash('sha256', 'synthetic-master-v2-reference'),
+            1_100,
+        );
+        $purposes = $registry->purposeIds();
+        $store->recordAdapterSnapshot(
+            self::REQUEST_ID,
+            2,
+            self::ADAPTER_ID,
+            $purposes,
+            hash('sha256', 'rollback-ready-snapshot'),
+            0,
+        );
+        $record = $store->completeAdapter(self::REQUEST_ID, 3, self::ADAPTER_ID, 1, null);
+        foreach ($purposes as $purpose) {
+            $record = $store->recordPurposeVerification(
+                self::REQUEST_ID,
+                $record->revision,
+                $purpose,
+                0,
+                hash('sha256', 'rollback-ready:' . $purpose),
+            );
+        }
+        foreach ([
+            ApplicationMasterRekeyGate::WritersAndWorkersReconciled,
+            ApplicationMasterRekeyGate::CachesReconciled,
+        ] as $offset => $gate) {
+            $record = $store->recordRevocationGate(
+                self::REQUEST_ID,
+                $record->revision,
+                $gate,
+                hash('sha256', 'rollback-gate:' . $gate->value),
+                1_500 + ($offset * 100),
+            );
+        }
+        self::assertSame(ApplicationMasterRekeyState::HoldAndOptionallyExecuteRollbackWindow, $record->state);
+
+        try {
+            $store->beginRollback(
+                self::REQUEST_ID,
+                $record->revision,
+                'synthetic-successor-refused',
+                hash('sha256', 'synthetic-expired-rollback-authorization'),
+                2_001,
+            );
+            self::fail('An expired application-master rollback was started.');
+        } catch (ApplicationMasterRekeyConflictException) {
+            self::assertSame(ApplicationMasterRekeyState::HoldAndOptionallyExecuteRollbackWindow, $store->require(self::REQUEST_ID)->state);
+            self::assertSame('legacy-read-verify', $store->masterVersionState(1));
+            self::assertSame('active-write', $store->masterVersionState(2));
+        }
+
+        $rollingBack = $store->beginRollback(
+            self::REQUEST_ID,
+            $record->revision,
+            'synthetic-successor-refused',
+            hash('sha256', 'synthetic-valid-rollback-authorization'),
+            1_900,
+        );
+        self::assertSame(ApplicationMasterRekeyState::RollingBack, $rollingBack->state);
+        self::assertSame('active-write', $store->masterVersionState(1));
+        self::assertSame('failed-read-only', $store->masterVersionState(2));
+
+        $event = array_values(array_filter(
+            $store->eventChain(self::REQUEST_ID),
+            static fn($candidate): bool => $candidate->eventType === 'rollback-started',
+        ));
+        self::assertCount(1, $event);
+        self::assertStringContainsString('"successor_reusable":false', $event[0]->bodyJson);
+        self::assertStringNotContainsString('synthetic-valid-rollback-authorization', $event[0]->bodyJson);
+    }
+
+    #[Test]
     public function one_completed_adapter_cannot_skip_an_uninventoried_registry_owner(): void
     {
         $registry = $this->purposes();
