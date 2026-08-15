@@ -298,11 +298,18 @@ __DD_IDX=0
 while IFS= read -r c; do
   [ -z "$c" ] && continue
 
-  # Two-tree diff vs first parent: correct for both plain and merge commits
-  # (a bare diff-tree on a merge prints nothing). FILE_SPECS holds only files
-  # from the net three-dot diff, so base-branch files imported by a merge are
-  # ignored here exactly as they are in the range pass above.
-  if git rev-parse --verify --quiet "${c}^1" >/dev/null 2>&1; then
+  # Ordinary commits are attributed from their parent diff. Merge commits use
+  # a combined diff so only resolution changes unique to the merge are
+  # attributed here; changes already carried by a parent were attributed to
+  # their original commits. This is essential on GitHub's synthetic PR merge
+  # checkout, where diffing the merge against its first parent would replay the
+  # entire PR after the head commit's acknowledgement.
+  if git rev-parse --verify --quiet "${c}^2" >/dev/null 2>&1; then
+    if ! COMMIT_FILES="$(git diff-tree -r --cc --name-only --no-commit-id "$c")"; then
+      echo "ERROR: 'git diff-tree --cc' failed for merge commit ${c}." >&2
+      exit 5
+    fi
+  elif git rev-parse --verify --quiet "${c}^1" >/dev/null 2>&1; then
     if ! COMMIT_FILES="$(git diff-tree -r --name-only --no-commit-id "${c}^1" "$c")"; then
       echo "ERROR: 'git diff-tree' failed for commit ${c}." >&2
       exit 5

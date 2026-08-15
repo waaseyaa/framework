@@ -175,6 +175,31 @@ final class DriftDetectorAcknowledgementTest extends TestCase
     }
 
     #[Test]
+    public function synthetic_merge_commit_does_not_make_a_head_acknowledgement_stale(): void
+    {
+        [, $base] = $this->executeCommand('git rev-parse HEAD');
+        [, $baseBranch] = $this->executeCommand('git branch --show-current');
+        $this->executeCommand('git switch --quiet -c feature');
+        file_put_contents(
+            $this->fixtureRoot . '/packages/entity/src/Example.php',
+            "<?php\nfinal class Example { public const CHANGED = true; }\n",
+        );
+        $this->executeCommand('git add packages/entity/src/Example.php');
+        $this->executeCommand("git commit --quiet -m 'feat: reviewed change' -m 'spec-reviewed: docs/specs/entity-system.md - reviewed'");
+        $this->executeCommand('git switch --quiet ' . escapeshellarg($baseBranch));
+        $this->executeCommand("git merge --quiet --no-ff feature -m 'Merge feature for CI'");
+
+        [$exitCode, $output] = $this->executeCommand(
+            'bash tools/drift-detector.sh ' . escapeshellarg($base),
+            allowFailure: true,
+        );
+
+        self::assertSame(0, $exitCode, $output);
+        self::assertStringContainsString("OK: docs/specs/entity-system.md (acknowledged via 'spec-reviewed:')", $output);
+        self::assertStringNotContainsString('predates later source change', $output);
+    }
+
+    #[Test]
     public function blanket_all_acknowledgement_is_rejected_with_a_diagnostic(): void
     {
         file_put_contents(
