@@ -92,7 +92,9 @@ final class LegacyCheckpointSignatureMigrator
                     custody: $legacyHkdfCount > 0 ? $this->custody : null,
                 )->verify();
                 if (!$preflight->ok) {
-                    throw new \RuntimeException('Legacy checkpoint signature migration refused a broken hash chain.');
+                    throw new \RuntimeException($legacyHkdfCount > 0
+                        ? 'Legacy checkpoint signature migration refused history without verifiable compatibility custody.'
+                        : 'Legacy checkpoint signature migration refused a broken hash chain.');
                 }
             }
 

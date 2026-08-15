@@ -105,7 +105,7 @@ final class AuditCheckpointRuntimeCustodyRetainedRedTest extends TestCase
     #[Test]
     public function explicit_migration_upgrades_legacy_signatures_to_the_active_master_version(): void
     {
-        $legacyKey = hash('sha256', 'runtime-migration-legacy-key', true);
+        $legacyKey = hash('sha256', 'runtime-migration-legacy-key');
         $this->insertEvent('runtime-migration-versioned');
         new AuditCheckpointBuilder(
             $this->database,

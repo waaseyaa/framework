@@ -85,6 +85,28 @@ final class AuditCheckpointCustodyRetainedRedTest extends TestCase
     }
 
     #[Test]
+    public function legacy_compatibility_preserves_non_empty_hmac_key_shapes(): void
+    {
+        $checkpointHash = str_repeat('1', 64);
+        foreach (['short-operator-key', str_repeat('a', 64)] as $key) {
+            $custody = new AuditCheckpointCustody(legacyKey: $key);
+
+            self::assertSame(
+                'hmac-sha256.hkdf-v1:' . hash_hmac('sha256', $checkpointHash, $key),
+                $custody->sealCheckpoint($checkpointHash),
+            );
+        }
+    }
+
+    #[Test]
+    public function an_empty_legacy_hmac_key_is_refused(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        new AuditCheckpointCustody(legacyKey: '');
+    }
+
+    #[Test]
     public function versioned_envelopes_never_fall_back_to_a_configured_legacy_key(): void
     {
         $message = str_repeat('f', 64);

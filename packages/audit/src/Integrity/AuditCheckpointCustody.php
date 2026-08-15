@@ -28,8 +28,8 @@ final class AuditCheckpointCustody
         #[\SensitiveParameter]
         ?string $legacyKey = null,
     ) {
-        if ($legacyKey !== null && strlen($legacyKey) !== 32) {
-            throw new \InvalidArgumentException('Legacy audit checkpoint HMAC keys must be exactly 32 bytes.');
+        if ($legacyKey === '') {
+            throw new \InvalidArgumentException('Legacy audit checkpoint HMAC keys must be non-empty.');
         }
         if ($keyring === null && $legacyKey === null) {
             throw new \InvalidArgumentException('Audit checkpoint custody requires an application-master keyring or legacy key.');

@@ -724,7 +724,7 @@ final class PruneCommandTest extends TestCase
     public function keyed_prune_attaches_authorization_without_replacing_checkpoint_signature(): void
     {
         $db = $this->makeSealedRealDb();
-        $key = random_bytes(32);
+        $key = 'short-operator-compatibility-key';
         $past = new \DateTimeImmutable('-2 days')->format('Y-m-d H:i:s');
         $this->insertRealEvent($db, 'keyed-prune', 'entity.write', $past);
         $this->sealRealDb($db, $key);
