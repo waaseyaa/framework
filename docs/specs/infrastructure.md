@@ -1897,6 +1897,18 @@ decryption failures retain the stable non-secret
 `SECRET_CONSUMER_AUTHENTICATION_FAILED` reason instead of collapsing into a
 generic consumer failure.
 
+Non-ciphertext purposes use strict
+`waaseyaa.application-master.authentication.v1` tags carrying only the exact
+master version, registered purpose, and canonical SHA-256 HMAC output. Creating
+a write tag always uses the active version. Verification selects only the tag's
+declared readable version. Lookup-index purposes may compute one candidate per
+declared readable version so rows remain retrievable during transition; that
+legacy operation does not grant predecessor write authority. Authentication,
+verification, and lookup operations derive and erase their purpose/version key
+inside the guarded consumer and never export it. Ciphertext purposes refuse the
+authentication surface, and non-lookup purposes refuse multi-version lookup
+candidates before resolving external custody.
+
 This core cryptographic boundary does not itself claim the rekey transition is
 complete. Purpose inventory adapters, joint row transitions, persisted registry
 state, immutable ledger/cursors, resumable compare-and-swap batches, rollback,

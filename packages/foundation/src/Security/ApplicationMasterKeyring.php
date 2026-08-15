@@ -67,8 +67,18 @@ final class ApplicationMasterKeyring
         $handles = [];
         foreach ($references as $version => $reference) {
             $allowedConsumers = $version === $activeVersion
-                ? [ApplicationMasterSealOperation::class, ApplicationMasterOpenOperation::class]
-                : [ApplicationMasterOpenOperation::class];
+                ? [
+                    ApplicationMasterSealOperation::class,
+                    ApplicationMasterOpenOperation::class,
+                    ApplicationMasterAuthenticateOperation::class,
+                    ApplicationMasterVerifyOperation::class,
+                    ApplicationMasterLookupOperation::class,
+                ]
+                : [
+                    ApplicationMasterOpenOperation::class,
+                    ApplicationMasterVerifyOperation::class,
+                    ApplicationMasterLookupOperation::class,
+                ];
             $handles[$version] = SecretHandle::fromReference(
                 $resolver,
                 $reference,
@@ -84,6 +94,9 @@ final class ApplicationMasterKeyring
     {
         $registry->registerConsumer(self::PACKAGE, ApplicationMasterSealOperation::class);
         $registry->registerConsumer(self::PACKAGE, ApplicationMasterOpenOperation::class);
+        $registry->registerConsumer(self::PACKAGE, ApplicationMasterAuthenticateOperation::class);
+        $registry->registerConsumer(self::PACKAGE, ApplicationMasterVerifyOperation::class);
+        $registry->registerConsumer(self::PACKAGE, ApplicationMasterLookupOperation::class);
     }
 
     public function activeVersion(): int
@@ -140,6 +153,54 @@ final class ApplicationMasterKeyring
         }
 
         return $handle->consume(new ApplicationMasterOpenOperation($envelope));
+    }
+
+    public function authenticate(string $purpose, #[\SensitiveParameter] string $message): ApplicationMasterAuthenticationTag
+    {
+        $policy = $this->purposes->policy($purpose);
+        if ($policy->strategy === ApplicationMasterPurposeStrategy::ReencryptCiphertext) {
+            throw new \InvalidArgumentException('Ciphertext purposes cannot create application-master authentication tags.');
+        }
+
+        return $this->handles[$this->activeVersion]->consume(new ApplicationMasterAuthenticateOperation(
+            $this->activeVersion,
+            $purpose,
+            $message,
+        ));
+    }
+
+    public function verify(ApplicationMasterAuthenticationTag $tag, #[\SensitiveParameter] string $message): bool
+    {
+        $policy = $this->purposes->policy($tag->purpose);
+        if ($policy->strategy === ApplicationMasterPurposeStrategy::ReencryptCiphertext) {
+            throw new \InvalidArgumentException('Ciphertext purposes cannot verify application-master authentication tags.');
+        }
+        $handle = $this->handles[$tag->masterVersion] ?? null;
+        if ($handle === null) {
+            throw new \RuntimeException('Application-master authentication version is not declared readable.');
+        }
+
+        return $handle->consume(new ApplicationMasterVerifyOperation($tag, $message));
+    }
+
+    /** @return list<ApplicationMasterAuthenticationTag> */
+    public function lookupCandidates(string $purpose, #[\SensitiveParameter] string $lookupValue): array
+    {
+        $policy = $this->purposes->policy($purpose);
+        if ($policy->strategy !== ApplicationMasterPurposeStrategy::RecomputeLookupIndex) {
+            throw new \InvalidArgumentException('Only lookup-index purposes may create readable-version lookup candidates.');
+        }
+
+        $candidates = [];
+        foreach ($this->handles as $version => $handle) {
+            $candidates[] = $handle->consume(new ApplicationMasterLookupOperation(
+                $version,
+                $purpose,
+                $lookupValue,
+            ));
+        }
+
+        return $candidates;
     }
 
     /** @return array{keyring: string, active_version: int, legacy_versions: list<int>, purpose_registry_checksum: string} */

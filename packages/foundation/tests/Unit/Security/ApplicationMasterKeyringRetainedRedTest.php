@@ -64,7 +64,7 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
         self::assertTrue($rotated->verify($oldTag, 'synthetic-checkpoint-v1'));
         self::assertTrue($rotated->verify($newTag, 'synthetic-checkpoint-v2'));
         self::assertFalse($rotated->verify($oldTag, 'tampered-checkpoint'));
-        self::assertSame($oldTag, ApplicationMasterAuthenticationTag::fromArray($oldTag->toArray()));
+        self::assertEquals($oldTag, ApplicationMasterAuthenticationTag::fromArray($oldTag->toArray()));
     }
 
     #[Test]
@@ -147,6 +147,49 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
             self::fail('A non-lookup purpose created lookup candidates.');
         } catch (\InvalidArgumentException) {
             self::assertSame([], $provider->resolvedIdentifiers);
+        }
+
+        $unknownVersion = ApplicationMasterAuthenticationTag::seal(
+            99,
+            ApplicationSecret::PURPOSE_AUDIT_CHECKPOINT_HMAC,
+            str_repeat('d', 32),
+        );
+        try {
+            $keyring->verify($unknownVersion, 'synthetic-message');
+            self::fail('An undeclared application-master authentication version was verified.');
+        } catch (\RuntimeException) {
+            self::assertSame([], $provider->resolvedIdentifiers);
+        }
+    }
+
+    #[Test]
+    public function authentication_tag_parser_requires_exact_fields_types_and_canonical_digest(): void
+    {
+        $document = ApplicationMasterAuthenticationTag::seal(
+            1,
+            ApplicationSecret::PURPOSE_AUDIT_CHECKPOINT_HMAC,
+            str_repeat('d', 32),
+        )->toArray();
+
+        $reordered = array_reverse($document, true);
+        self::assertEquals(
+            ApplicationMasterAuthenticationTag::fromArray($document),
+            ApplicationMasterAuthenticationTag::fromArray($reordered),
+        );
+        $invalid = [
+            array_merge($document, ['extension' => 'not-allowed']),
+            array_diff_key($document, ['purpose' => true]),
+            array_merge($document, ['master_version' => '1']),
+            array_merge($document, ['digest' => $document['digest'] . '=']),
+            array_merge($document, ['digest' => base64_encode('short')]),
+        ];
+        foreach ($invalid as $candidate) {
+            try {
+                ApplicationMasterAuthenticationTag::fromArray($candidate);
+                self::fail('Malformed application-master authentication tag was accepted.');
+            } catch (\InvalidArgumentException) {
+                self::addToAssertionCount(1);
+            }
         }
     }
 
@@ -350,6 +393,42 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
 
         $this->expectException(\LogicException::class);
         serialize($operation);
+    }
+
+    #[Test]
+    public function authentication_operation_messages_are_non_exporting(): void
+    {
+        $tag = ApplicationMasterAuthenticationTag::seal(
+            1,
+            ApplicationSecret::PURPOSE_AUDIT_CHECKPOINT_HMAC,
+            str_repeat('d', 32),
+        );
+        $operations = [
+            new ApplicationMasterAuthenticateOperation(
+                1,
+                ApplicationSecret::PURPOSE_AUDIT_CHECKPOINT_HMAC,
+                'synthetic-authentication-message',
+            ),
+            new ApplicationMasterVerifyOperation($tag, 'synthetic-authentication-message'),
+            new ApplicationMasterLookupOperation(
+                1,
+                ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_LOOKUP,
+                'synthetic-authentication-message',
+            ),
+        ];
+
+        foreach ($operations as $operation) {
+            ob_start();
+            var_dump($operation);
+            $diagnostic = (string) ob_get_clean();
+            self::assertStringNotContainsString('synthetic-authentication-message', $diagnostic);
+            try {
+                serialize($operation);
+                self::fail('An application-master authentication operation was serializable.');
+            } catch (\LogicException) {
+                self::addToAssertionCount(1);
+            }
+        }
     }
 
     #[Test]
