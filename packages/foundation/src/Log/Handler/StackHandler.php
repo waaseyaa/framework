@@ -21,8 +21,8 @@ final class StackHandler implements HandlerInterface
         foreach ($this->handlers as $handler) {
             try {
                 $handler->handle($record);
-            } catch (\Throwable $e) {
-                error_log(sprintf('[log] Handler %s failed: %s', $handler::class, $e->getMessage()));
+            } catch (\Throwable) {
+                error_log('[log] LOG_HANDLER_FAILURE');
             }
         }
     }

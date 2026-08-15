@@ -6,6 +6,7 @@ namespace Waaseyaa\Foundation\Log;
 
 use Waaseyaa\Foundation\Log\Handler\HandlerInterface;
 use Waaseyaa\Foundation\Log\Processor\ProcessorInterface;
+use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
 
 final class ChannelLogger implements LoggerInterface
 {
@@ -14,6 +15,8 @@ final class ChannelLogger implements LoggerInterface
     /** @var list<ProcessorInterface> */
     private readonly array $processors;
 
+    private readonly RedactorProcessor $sinkSanitizer;
+
     /**
      * @param list<ProcessorInterface> $processors Global + per-channel processors (run in order).
      */
@@ -21,8 +24,10 @@ final class ChannelLogger implements LoggerInterface
         private readonly string $channel,
         private readonly HandlerInterface $handler,
         array $processors = [],
+        ?RedactorProcessor $sinkSanitizer = null,
     ) {
         $this->processors = array_values($processors);
+        $this->sinkSanitizer = $sinkSanitizer ?? new RedactorProcessor();
     }
 
     public function log(LogLevel $level, string|\Stringable $message, array $context = []): void
@@ -37,9 +42,17 @@ final class ChannelLogger implements LoggerInterface
         foreach ($this->processors as $processor) {
             try {
                 $record = $processor->process($record);
-            } catch (\Throwable $e) {
-                error_log(sprintf('[log] Processor %s failed: %s', $processor::class, $e->getMessage()));
+            } catch (\Throwable) {
+                error_log('[log] LOG_PROCESSOR_FAILURE');
             }
+        }
+
+        try {
+            $record = $this->sinkSanitizer->process($record);
+        } catch (\Throwable) {
+            error_log('[log] LOG_SANITIZER_FAILURE');
+
+            return;
         }
 
         $this->handler->handle($record);

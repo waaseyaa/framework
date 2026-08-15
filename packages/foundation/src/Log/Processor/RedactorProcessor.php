@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Waaseyaa\Foundation\Log\Processor;
 
 use Waaseyaa\Foundation\Log\LogRecord;
+use Waaseyaa\Foundation\Security\SensitiveValue;
 
 /**
- * Redacts secret-bearing values from log record context before the record reaches any handler.
+ * Redacts secret-bearing values from log messages and recursive context before
+ * the record reaches any handler or buffer.
  *
  * ## Redaction rules
  *
@@ -24,9 +26,9 @@ use Waaseyaa\Foundation\Log\LogRecord;
  *   - `'Authorization: Bearer eyJ...'`  (contains "authorization")
  *   - `'username=u&password=hunter2'`  (contains "password")
  *
- * Non-string values (integers, booleans, null, objects) are **never** redacted by the value
- * backstop — only the key denylist applies to them. This keeps the backstop conservative and
- * avoids false positives on numeric IDs, flags, and structured objects.
+ * Typed {@see SensitiveValue} objects are always replaced. Throwable chains and
+ * Stringable values are converted to a bounded sanitized view; unknown objects
+ * and resources are replaced rather than passed to formatters.
  *
  * **Recursive:** context arrays are walked to arbitrary depth; each sub-array receives the
  * same key+value inspection. Array structure and non-sensitive entries are preserved exactly.
@@ -55,26 +57,53 @@ final class RedactorProcessor implements ProcessorInterface
         'authorization',
         'api_key',
         'cookie',
+        'credential',
+        'private_key',
+        'passphrase',
     ];
 
     /** @var list<string> Lowercased union of DENYLIST + any caller-supplied extra keywords. */
     private readonly array $keywords;
 
+    /** @var \WeakMap<self, list<string>>|null */
+    private static ?\WeakMap $registeredRepresentations = null;
+
     /**
      * @param list<string> $extraKeys Additional keywords to add to the denylist.
      *                                The built-in {@see DENYLIST} is always applied.
+     * @param list<string> $registeredValues Synthetic or resolved values whose common encodings
+     *                                       must be structurally replaced. Values shorter than
+     *                                       eight bytes are ignored to avoid destructive matches.
      */
-    public function __construct(array $extraKeys = [])
-    {
+    public function __construct(
+        array $extraKeys = [],
+        #[\SensitiveParameter]
+        array $registeredValues = [],
+    ) {
         $merged = array_merge(self::DENYLIST, $extraKeys);
         $this->keywords = array_map('strtolower', $merged);
+        $representations = [];
+        foreach ($registeredValues as $value) {
+            if (strlen($value) < 8) {
+                continue;
+            }
+            foreach ($this->representations($value) as $representation) {
+                if ($representation !== '') {
+                    $representations[$representation] = true;
+                }
+            }
+        }
+        $registeredRepresentations = array_keys($representations);
+        usort($registeredRepresentations, static fn(string $left, string $right): int => strlen($right) <=> strlen($left));
+        self::$registeredRepresentations ??= new \WeakMap();
+        self::$registeredRepresentations[$this] = $registeredRepresentations;
     }
 
     public function process(LogRecord $record): LogRecord
     {
         return new LogRecord(
             level: $record->level,
-            message: $record->message,
+            message: $this->redactString($record->message),
             context: $this->redactContext($record->context),
             channel: $record->channel,
             timestamp: $record->timestamp,
@@ -84,30 +113,95 @@ final class RedactorProcessor implements ProcessorInterface
     /**
      * Walk a context array, applying key-denylist and value-backstop rules recursively.
      *
-     * @param array<string, mixed> $context
-     * @return array<string, mixed>
+     * @param array<array-key, mixed> $context
+     * @return array<array-key, mixed>
      */
     private function redactContext(array $context): array
     {
         $result = [];
 
         foreach ($context as $key => $value) {
-            if ($this->keyMatches($key)) {
+            if (is_string($key) && $this->keyMatches($key)) {
                 // Key denylist hit — redact regardless of value type.
                 $result[$key] = self::SENTINEL;
             } elseif (is_array($value)) {
                 // Recurse into nested arrays.
                 $result[$key] = $this->redactContext($value);
-            } elseif (is_string($value) && $this->valueMatches($value)) {
-                // Value backstop — string value contains a denylist keyword.
-                $result[$key] = self::SENTINEL;
             } else {
-                $result[$key] = $value;
+                $result[$key] = $this->redactValue($value);
             }
         }
 
         return $result;
     }
+
+    private function redactValue(mixed $value): mixed
+    {
+        if ($value instanceof SensitiveValue) {
+            return self::SENTINEL;
+        }
+        if (is_string($value)) {
+            return $this->redactString($value);
+        }
+        if ($value instanceof \Throwable) {
+            return [
+                'type' => $value::class,
+                'code' => $value->getCode(),
+                'message' => $this->redactString($value->getMessage()),
+                'previous' => $value->getPrevious() === null ? null : $this->redactValue($value->getPrevious()),
+            ];
+        }
+        if ($value instanceof \Stringable) {
+            try {
+                return $this->redactString((string) $value);
+            } catch (\Throwable) {
+                return self::SENTINEL;
+            }
+        }
+        if (is_object($value) || is_resource($value)) {
+            return self::SENTINEL;
+        }
+
+        return $value;
+    }
+
+    private function redactString(string $value): string
+    {
+        if ($this->valueMatches($value)) {
+            return self::SENTINEL;
+        }
+
+        return str_replace(self::$registeredRepresentations[$this] ?? [], self::SENTINEL, $value);
+    }
+
+    /** @return list<string> */
+    private function representations(#[\SensitiveParameter] string $value): array
+    {
+        $base64 = base64_encode($value);
+        $base64Url = rtrim(strtr($base64, '+/', '-_'), '=');
+        $representations = [
+            $value,
+            $base64,
+            $base64Url,
+            rawurlencode($value),
+        ];
+        try {
+            $json = json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+            $representations[] = substr($json, 1, -1);
+        } catch (\JsonException) {
+            // Binary values still retain raw, base64 and URL-encoded coverage.
+        }
+
+        return $representations;
+    }
+
+    /** @return never */
+    public function __serialize(): array
+    {
+        throw new \LogicException('Sink sanitizers cannot be serialized.');
+    }
+
+    private function __clone() {}
 
     /**
      * Returns true when the lowercased key name contains any denylist keyword as a substring.
