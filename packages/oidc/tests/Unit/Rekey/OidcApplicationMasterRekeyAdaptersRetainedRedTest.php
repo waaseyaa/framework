@@ -9,12 +9,20 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Foundation\Migration\Migration;
+use Waaseyaa\Foundation\Migration\SchemaBuilder;
+use Waaseyaa\Foundation\Security\ApplicationMasterPurposeRegistry;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyCoordinator;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyConflictException;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyContext;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyRecord;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyRequest;
 use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyState;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyStore;
+use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
 use Waaseyaa\Oidc\Key\SigningKeyRepository;
+use Waaseyaa\Oidc\OidcServiceProvider;
 use Waaseyaa\Oidc\Rekey\OidcAccessTokenRekeyAdapter;
 use Waaseyaa\Oidc\Rekey\OidcRefreshTokenRekeyAdapter;
 use Waaseyaa\Oidc\Rekey\OidcSigningKeyRekeyAdapter;
@@ -180,6 +188,129 @@ final class OidcApplicationMasterRekeyAdaptersRetainedRedTest extends TestCase
         self::assertSame($before['token'], $after['token']);
         self::assertNotSame($before['token_lookup'], $after['token_lookup']);
         self::assertSame(1_700_000_100, (int) $after['revoked_at']);
+    }
+
+    #[Test]
+    public function coordinator_rolls_back_token_pair_when_cursor_evidence_update_fails(): void
+    {
+        $database = $this->tokenDatabase();
+        $predecessor = new AccessTokenIssuer(
+            $database,
+            null,
+            null,
+            OidcApplicationMasterKeyring::create(1),
+        );
+        $token = $predecessor->issue(
+            'client',
+            'account',
+            ['openid'],
+            new DateTimeImmutable('@1700000000'),
+        );
+        $before = $database->getConnection()->fetchAssociative(
+            'SELECT token, token_lookup FROM oidc_access_token WHERE jti = ?',
+            [$token->jti],
+        );
+        self::assertIsArray($before);
+
+        $migration = require dirname(__DIR__, 4) . '/foundation/migrations/2026_08_15_000002_application_master_rekey.php';
+        self::assertInstanceOf(Migration::class, $migration);
+        $migration->up(new SchemaBuilder($database->getConnection()));
+
+        $provider = new OidcServiceProvider();
+        $provider->setKernelContext('', [], []);
+        $provider->setKernelServices(new class ($database) implements KernelServicesInterface {
+            public function __construct(private readonly DatabaseInterface $database) {}
+
+            public function get(string $abstract): ?object
+            {
+                return $abstract === DatabaseInterface::class ? $this->database : null;
+            }
+        });
+        $contributions = iterator_to_array($provider->applicationMasterRekeyContributions(), false);
+        $purposes = new ApplicationMasterPurposeRegistry();
+        $adapters = [];
+        foreach ($contributions as $contribution) {
+            $adapters[] = $contribution->adapter();
+            foreach ($contribution->policies() as $policy) {
+                $purposes->register($policy);
+            }
+        }
+        $purposes->freeze();
+        $keyring = OidcApplicationMasterKeyring::create(2, [1]);
+        self::assertSame($purposes->checksum(), $keyring->purposeRegistryChecksum());
+        $requestId = 'oidc-access-atomic-cursor-failure';
+        $store = new ApplicationMasterRekeyStore($database, static fn(): int => 1_200);
+        $store->prepare(new ApplicationMasterRekeyRequest(
+            requestId: $requestId,
+            fromVersion: 1,
+            toVersion: 2,
+            registryChecksum: $purposes->checksum(),
+            authorizationDigest: hash('sha256', 'oidc-atomic-authorization'),
+            actor: 'test-operator',
+            rollbackDeadline: 2_000,
+            retentionDeadline: 3_000,
+            createdAt: 1_000,
+        ), $purposes);
+        $store->installActive(
+            $requestId,
+            1,
+            $keyring->referenceFingerprint(1),
+            $keyring->referenceFingerprint(2),
+            1_100,
+        );
+        $coordinator = new ApplicationMasterRekeyCoordinator($store, $keyring, $purposes, $adapters);
+        $coordinator->snapshotAdapter($requestId, 2, OidcAccessTokenRekeyAdapter::ID);
+        $database->getConnection()->executeStatement(
+            "CREATE TRIGGER refuse_oidc_cursor_evidence BEFORE UPDATE ON waaseyaa_application_master_rekey_adapter WHEN NEW.cursor IS NOT OLD.cursor BEGIN SELECT RAISE(ABORT, 'synthetic cursor refusal'); END",
+        );
+
+        try {
+            $coordinator->transitionNextBatch($requestId, 3, OidcAccessTokenRekeyAdapter::ID, 1);
+            self::fail('OIDC owner effects committed without durable cursor evidence.');
+        } catch (\Throwable $failure) {
+            self::assertStringContainsString('synthetic cursor refusal', $failure->getMessage());
+        }
+
+        $after = $database->getConnection()->fetchAssociative(
+            'SELECT token, token_lookup FROM oidc_access_token WHERE jti = ?',
+            [$token->jti],
+        );
+        self::assertSame($before, $after);
+        $progress = $store->requireAdapter($requestId, OidcAccessTokenRekeyAdapter::ID);
+        self::assertNull($progress->cursor);
+        self::assertSame(0, $progress->transitionedRecords);
+    }
+
+    #[Test]
+    public function successor_writes_after_snapshot_stay_outside_the_frozen_predecessor_inventory(): void
+    {
+        $database = $this->tokenDatabase();
+        $oldIssuer = new AccessTokenIssuer(
+            $database,
+            null,
+            null,
+            OidcApplicationMasterKeyring::create(1),
+        );
+        $old = $oldIssuer->issue('client', 'account', ['openid'], new DateTimeImmutable('@1700000000'));
+        $adapter = new OidcAccessTokenRekeyAdapter($database);
+        $context = $this->forwardContext($database);
+        $snapshot = $adapter->snapshot($context);
+        $newIssuer = new AccessTokenIssuer(
+            $database,
+            null,
+            null,
+            OidcApplicationMasterKeyring::create(2, [1]),
+        );
+        $new = $newIssuer->issue('client', 'account', ['openid'], new DateTimeImmutable('@1700000001'));
+
+        $adapter->transitionBatch($context, $snapshot, null, 10);
+        $verification = $adapter->verify($context, $snapshot);
+
+        self::assertSame(1, $snapshot->totalRecords);
+        self::assertSame(1, $verification[ApplicationSecret::PURPOSE_OIDC_ACCESS_TOKEN_ENCRYPTION]->verifiedRecords);
+        self::assertSame($old->jti, $newIssuer->findByOpaqueToken($old->token)['jti'] ?? null);
+        self::assertSame($new->jti, $newIssuer->findByOpaqueToken($new->token)['jti'] ?? null);
+        self::assertSame(2, (int) $database->getConnection()->fetchOne('SELECT COUNT(*) FROM oidc_access_token'));
     }
 
     private function tokenDatabase(): DBALDatabase
