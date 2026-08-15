@@ -8,7 +8,6 @@ use Waaseyaa\Audit\Entity\AuditCheckpoint;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
-use Waaseyaa\Foundation\Security\SensitiveKey;
 
 /**
  * Seals the next segment of unsealed audit_event rows into an audit_checkpoint.
@@ -29,7 +28,7 @@ use Waaseyaa\Foundation\Security\SensitiveKey;
 final class AuditCheckpointBuilder
 {
     private readonly LoggerInterface $logger;
-    private readonly ?SensitiveKey $hmacKey;
+    private readonly ?AuditCheckpointCustody $custody;
 
     public function __construct(
         private readonly DatabaseInterface $database,
@@ -37,9 +36,15 @@ final class AuditCheckpointBuilder
         ?LoggerInterface $logger = null,
         #[\SensitiveParameter]
         ?string $hmacKey = null,
+        ?AuditCheckpointCustody $custody = null,
     ) {
+        if ($custody !== null && $hmacKey !== null && $hmacKey !== '') {
+            throw new \InvalidArgumentException('Supply composed audit custody or a legacy HMAC key, not both.');
+        }
         $this->logger = $logger ?? new NullLogger();
-        $this->hmacKey = ($hmacKey === '' || $hmacKey === null ? null : new SensitiveKey($hmacKey));
+        $this->custody = $custody ?? ($hmacKey === '' || $hmacKey === null
+            ? null
+            : new AuditCheckpointCustody(legacyKey: $hmacKey));
     }
 
     public function build(): ?AuditCheckpoint
@@ -134,9 +139,7 @@ final class AuditCheckpointBuilder
         // ----------------------------------------------------------------
         // Step 6: optional HMAC signature.
         // ----------------------------------------------------------------
-        $signature = $this->hmacKey !== null
-            ? 'hmac-sha256.hkdf-v1:' . hash_hmac('sha256', $checkpointHash, $this->hmacKey->bytes())
-            : '';
+        $signature = $this->custody?->sealCheckpoint($checkpointHash) ?? '';
 
         // ----------------------------------------------------------------
         // Step 7: INSERT the checkpoint row.
@@ -190,14 +193,14 @@ final class AuditCheckpointBuilder
     /** @param array<string, mixed> $latest */
     private function authenticatePristineGenesis(array $latest): void
     {
-        if ($this->hmacKey === null || !(bool) ($latest['is_genesis'] ?? false)) {
+        if ($this->custody === null || !(bool) ($latest['is_genesis'] ?? false)) {
             return;
         }
 
         $checkpointId = (int) $latest['id'];
         $checkpointHash = (string) $latest['checkpoint_hash'];
         $signature = (string) ($latest['signature'] ?? '');
-        $expected = 'hmac-sha256.hkdf-v1:' . hash_hmac('sha256', $checkpointHash, $this->hmacKey->bytes());
+        $expected = $this->custody->sealCheckpoint($checkpointHash);
 
         if ($signature === '') {
             $updated = $this->database->update('audit_checkpoint')
@@ -223,21 +226,21 @@ final class AuditCheckpointBuilder
             $signature = $rows === [] ? '' : (string) $rows[0]['signature'];
         }
 
-        if (!hash_equals($expected, $signature)) {
+        if (!$this->custody->verifyCheckpoint($signature, $checkpointHash)) {
             throw new \RuntimeException(
                 'Keyed audit checkpoint creation refused a genesis anchor authenticated by a different or malformed key.',
             );
         }
     }
 
-    /** @return array{database: string, sink: string, logger: string, hmac_key: string|null} */
+    /** @return array{database: string, sink: string, logger: string, custody: string|null} */
     public function __debugInfo(): array
     {
         return [
             'database' => $this->database::class,
             'sink' => $this->sink::class,
             'logger' => $this->logger::class,
-            'hmac_key' => $this->hmacKey === null ? null : '[REDACTED]',
+            'custody' => $this->custody === null ? null : '[NON_EXPORTING]',
         ];
     }
 

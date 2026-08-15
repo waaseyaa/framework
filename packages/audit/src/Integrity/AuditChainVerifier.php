@@ -7,7 +7,6 @@ namespace Waaseyaa\Audit\Integrity;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
-use Waaseyaa\Foundation\Security\SensitiveKey;
 
 /**
  * Verifies the tamper-evidence chain of all sealed audit_checkpoint segments.
@@ -26,16 +25,22 @@ use Waaseyaa\Foundation\Security\SensitiveKey;
 final class AuditChainVerifier
 {
     private readonly LoggerInterface $logger;
-    private readonly ?SensitiveKey $hmacKey;
+    private readonly ?AuditCheckpointCustody $custody;
 
     public function __construct(
         private readonly DatabaseInterface $database,
         ?LoggerInterface $logger = null,
         #[\SensitiveParameter]
         ?string $hmacKey = null,
+        ?AuditCheckpointCustody $custody = null,
     ) {
+        if ($custody !== null && $hmacKey !== null && $hmacKey !== '') {
+            throw new \InvalidArgumentException('Supply composed audit custody or a legacy HMAC key, not both.');
+        }
         $this->logger = $logger ?? new NullLogger();
-        $this->hmacKey = ($hmacKey === '' || $hmacKey === null ? null : new SensitiveKey($hmacKey));
+        $this->custody = $custody ?? ($hmacKey === '' || $hmacKey === null
+            ? null
+            : new AuditCheckpointCustody(legacyKey: $hmacKey));
     }
 
     public function verify(): AuditVerificationResult
@@ -181,10 +186,9 @@ final class AuditChainVerifier
                     );
                 }
 
-                if ($this->hmacKey !== null && !AuditPruneAuthorization::verify(
+                if ($this->custody !== null && !$this->custody->verifyPruneAuthorization(
                     (string) ($checkpoint['prune_authorization'] ?? ''),
                     (string) $checkpoint['checkpoint_hash'],
-                    $this->hmacKey->bytes(),
                 )) {
                     $this->logger->warning('audit.verify.prune_authorization_invalid', [
                         'segment_end_id' => $segEndId,
@@ -394,16 +398,11 @@ final class AuditChainVerifier
         foreach ($checkpoints as $checkpoint) {
             $signature = (string) ($checkpoint['signature'] ?? '');
             $segmentEndId = (int) $checkpoint['segment_end_id'];
-            $isVersioned = str_starts_with($signature, 'hmac-sha256.hkdf-v1:');
-
-            if ($isVersioned) {
-                $mac = substr($signature, strlen('hmac-sha256.hkdf-v1:'));
-                $validShape = preg_match('/^[0-9a-f]{64}$/D', $mac) === 1;
-                $expected = $this->hmacKey === null
-                    ? null
-                    : hash_hmac('sha256', (string) $checkpoint['checkpoint_hash'], $this->hmacKey->bytes());
-
-                if (!$validShape || $expected === null || !hash_equals($expected, $mac)) {
+            if ($this->custody !== null) {
+                if (!$this->custody->verifyCheckpoint(
+                    $signature,
+                    (string) $checkpoint['checkpoint_hash'],
+                )) {
                     return $this->signatureFailure($segmentEndId, 'invalid authenticated signature');
                 }
 
@@ -411,7 +410,7 @@ final class AuditChainVerifier
             }
 
             $isLegacy = $signature === '' || preg_match('/^[0-9a-f]{64}$/D', $signature) === 1;
-            if ($this->hmacKey !== null || !$isLegacy) {
+            if (!$isLegacy) {
                 return $this->signatureFailure($segmentEndId, 'missing or malformed authenticated signature');
             }
         }
@@ -436,13 +435,13 @@ final class AuditChainVerifier
         );
     }
 
-    /** @return array{database: string, logger: string, hmac_key: string|null} */
+    /** @return array{database: string, logger: string, custody: string|null} */
     public function __debugInfo(): array
     {
         return [
             'database' => $this->database::class,
             'logger' => $this->logger::class,
-            'hmac_key' => $this->hmacKey === null ? null : '[REDACTED]',
+            'custody' => $this->custody === null ? null : '[NON_EXPORTING]',
         ];
     }
 
