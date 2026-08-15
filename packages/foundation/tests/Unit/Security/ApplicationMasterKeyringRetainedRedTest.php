@@ -233,6 +233,93 @@ final class ApplicationMasterKeyringRetainedRedTest extends TestCase
     }
 
     #[Test]
+    public function rollback_topology_writes_with_the_predecessor_while_the_failed_successor_remains_read_only(): void
+    {
+        $provider = $this->provider();
+        $purposes = $this->purposes();
+        $resolver = $this->resolver($provider);
+        $successor = ApplicationMasterKeyring::fromReferences(
+            resolver: $resolver,
+            activeVersion: 2,
+            activeReference: $this->reference('master-v2'),
+            legacyReferences: [1 => $this->reference('master-v1')],
+            purposes: $purposes,
+        );
+        $successorEnvelope = $successor->seal(
+            ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION,
+            'record:successor-write',
+            1,
+            'synthetic-successor-plaintext',
+        );
+
+        $rollback = ApplicationMasterKeyring::fromRollbackReferences(
+            resolver: $resolver,
+            activeVersion: 1,
+            activeReference: $this->reference('master-v1'),
+            legacyReferences: [],
+            failedVersion: 2,
+            failedReference: $this->reference('master-v2'),
+            purposes: $purposes,
+        );
+        $predecessorEnvelope = $rollback->seal(
+            ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION,
+            'record:rollback-write',
+            1,
+            'synthetic-predecessor-plaintext',
+        );
+
+        self::assertSame(1, $rollback->activeVersion());
+        self::assertSame([1, 2], $rollback->readableVersions());
+        self::assertSame(1, $predecessorEnvelope->masterVersion);
+        self::assertSame('synthetic-successor-plaintext', $rollback->open($successorEnvelope));
+        self::assertSame('synthetic-predecessor-plaintext', $rollback->open($predecessorEnvelope));
+        self::assertSame([2], $rollback->__debugInfo()['failed_versions']);
+
+        $handles = (new \ReflectionProperty($rollback, 'handles'))->getValue($rollback);
+        self::assertIsArray($handles);
+        $allowed = (new \ReflectionProperty($handles[2], 'allowedConsumers'))->getValue($handles[2]);
+        self::assertSame(
+            [
+                ApplicationMasterOpenOperation::class,
+                ApplicationMasterVerifyOperation::class,
+                ApplicationMasterLookupOperation::class,
+            ],
+            array_keys($allowed),
+        );
+        self::assertArrayNotHasKey(ApplicationMasterSealOperation::class, $allowed);
+        self::assertArrayNotHasKey(ApplicationMasterAuthenticateOperation::class, $allowed);
+    }
+
+    #[Test]
+    public function rollback_topology_requires_one_distinct_higher_failed_successor_before_resolution(): void
+    {
+        $provider = $this->provider();
+        $resolver = $this->resolver($provider);
+        $invalid = [
+            [1, $this->reference('master-v1'), [], 1, $this->reference('master-v2')],
+            [2, $this->reference('master-v2'), [], 1, $this->reference('master-v1')],
+            [1, $this->reference('master-v1'), [], 2, $this->reference('master-v1')],
+            [2, $this->reference('master-v2'), [1 => $this->reference('master-v1')], 3, $this->reference('master-v1')],
+        ];
+        foreach ($invalid as [$activeVersion, $activeReference, $legacyReferences, $failedVersion, $failedReference]) {
+            try {
+                ApplicationMasterKeyring::fromRollbackReferences(
+                    $resolver,
+                    $activeVersion,
+                    $activeReference,
+                    $legacyReferences,
+                    $failedVersion,
+                    $failedReference,
+                    $this->purposes(),
+                );
+                self::fail('An invalid application-master rollback topology was accepted.');
+            } catch (\InvalidArgumentException) {
+                self::assertSame([], $provider->resolvedIdentifiers);
+            }
+        }
+    }
+
+    #[Test]
     public function envelope_authenticates_master_version_purpose_record_and_schema_identity(): void
     {
         $provider = $this->provider();
