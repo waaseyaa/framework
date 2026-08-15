@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **runtime-table catalogue custody coverage (`S1-FW-CFG-04`):** Catalogue the
+  eleven CFG-04 custody runtime tables — `cache_generation`,
+  `oidc_token_custody_sequence`, and the nine `waaseyaa_application_master_*`
+  coordination and evidence tables — in `FrameworkRuntimeTableCatalogue`
+  (mutable coordination state as `preserve`, insert-once custody evidence as
+  `append_only`) so `SqliteArtifactPreparer` preserves them during artifact
+  installation instead of rejecting a legitimate serving database. Add a
+  migration-to-catalogue completeness regression that fails closed whenever a
+  migration-installed table escapes catalogue classification.
+
 - **append-only audit succession substrate (`S1-FW-CFG-04`):** Add
   version-bound audit checkpoint authentication, non-secret application-master
   reference identities, and DB-02-owned succession plus anchored-prune evidence

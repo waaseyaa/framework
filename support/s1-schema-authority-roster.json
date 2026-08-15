@@ -3118,264 +3118,228 @@
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 60,
+            "line": 85,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "700e7c76c874c6085bb10574cabb9799aaaaff5da5970d24058e00554b52d169",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 61,
+            "line": 86,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "60173a4377e072b2b1384ee443c21cd1dfd5f2b21a5af41b2846842f2eea74dc",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 62,
+            "line": 87,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "bf67bb385167f73a33d8826cef54d4fb14be2298dd4b33bda2587724742955dc",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 63,
+            "line": 88,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "0c5b1532ce99413c172e5539edb070b6c8202f286f9f38b13df3036b85a391f9",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 64,
+            "line": 89,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "165dd6bf543ce77f3911305cd8e38046c956eeafbe95f851da210ed397614379",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 65,
+            "line": 90,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "ec45cdcf1ebed5a1611a5d0ef869845888b9d5586917dc312473d4475a526627",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 66,
+            "line": 91,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "63f9bea15a7f992ea7a6354efac4078c4326a48b58b235b4464c54606df29492",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 67,
+            "line": 92,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "a1eadebeeb508b6f13a4f9e717c07e5ecf82f23a0cbc3b61fe9e8d4140bf6204",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 68,
+            "line": 93,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "f9a9268267171b5db865756b7d10891ebab6ff16868a90f74ba12b222f6c30df",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 124,
+            "line": 149,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "700e7c76c874c6085bb10574cabb9799aaaaff5da5970d24058e00554b52d169",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 125,
+            "line": 150,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "60173a4377e072b2b1384ee443c21cd1dfd5f2b21a5af41b2846842f2eea74dc",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 126,
+            "line": 151,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "bf67bb385167f73a33d8826cef54d4fb14be2298dd4b33bda2587724742955dc",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 127,
+            "line": 152,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "ec45cdcf1ebed5a1611a5d0ef869845888b9d5586917dc312473d4475a526627",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 136,
+            "line": 161,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "700e7c76c874c6085bb10574cabb9799aaaaff5da5970d24058e00554b52d169",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 137,
+            "line": 162,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "60173a4377e072b2b1384ee443c21cd1dfd5f2b21a5af41b2846842f2eea74dc",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 138,
+            "line": 163,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "bf67bb385167f73a33d8826cef54d4fb14be2298dd4b33bda2587724742955dc",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 139,
+            "line": 164,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "ec45cdcf1ebed5a1611a5d0ef869845888b9d5586917dc312473d4475a526627",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 176,
+            "line": 201,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "3414fd384d13e860a18317a9510b9b3a56924b190761332770d034f81a93a381",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 177,
+            "line": 202,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "f9a9268267171b5db865756b7d10891ebab6ff16868a90f74ba12b222f6c30df",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 178,
+            "line": 203,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "2d52dcb3fc5e1214a87232f9f36b00313f5973a074b1d12bfd81d2874ab0e460",
             "line_sha256": "173546b9d4c96e0a755cf3685957db283cd9d82643a4f121587f1b6a16a926ea",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 184,
+            "line": 209,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "3414fd384d13e860a18317a9510b9b3a56924b190761332770d034f81a93a381",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 206,
+            "line": 231,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "c4b9b2c9090a073468a59ebc1a0b693684de0e6aec6e6ee7369fd9652d7daf80",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 207,
+            "line": 232,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "a0e6675c7934e8cf594d3c69e6370008a2052508b9e77213459076ce45d12970",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 210,
+            "line": 235,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "c4b9b2c9090a073468a59ebc1a0b693684de0e6aec6e6ee7369fd9652d7daf80",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 211,
+            "line": 236,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "58816246f77f83b5e9efaf5eb20115a0c53aa149fcc8693c1312a132fdf326c2",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
-        },
-        {
-            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 230,
-            "pattern": "ddl_sql",
-            "class": "test-only",
-            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "2af3eab3a0aecab40c5fca068ece4c716ec49b4d195a8a6caad7eb163ef126ed",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
-        },
-        {
-            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 233,
-            "pattern": "ddl_sql",
-            "class": "test-only",
-            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "bbee4573f1749cfeab68962967bd644affd3fc68bdf2edaf61dde8d203d64a37",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
-        },
-        {
-            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 251,
-            "pattern": "ddl_sql",
-            "class": "test-only",
-            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "a594bb19e50e011d463f2ab0d8a48df48213d38b79187fc02a3486510de38ab1",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
-        },
-        {
-            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 252,
-            "pattern": "ddl_sql",
-            "class": "test-only",
-            "match_sha256": "f72c69d56240d662918da2a012e6420655b21fccd4e21ab7931ddc0d4bbe5376",
-            "line_sha256": "bfa2ad4f5acf0995f07fe34ddac0dee48b58e682de91de6d5add151575f2e5b2",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
@@ -3383,89 +3347,89 @@
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "a594bb19e50e011d463f2ab0d8a48df48213d38b79187fc02a3486510de38ab1",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "line_sha256": "2af3eab3a0aecab40c5fca068ece4c716ec49b4d195a8a6caad7eb163ef126ed",
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 256,
+            "line": 258,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "bbee4573f1749cfeab68962967bd644affd3fc68bdf2edaf61dde8d203d64a37",
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
+            "line": 276,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "a594bb19e50e011d463f2ab0d8a48df48213d38b79187fc02a3486510de38ab1",
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
+            "line": 277,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "f72c69d56240d662918da2a012e6420655b21fccd4e21ab7931ddc0d4bbe5376",
+            "line_sha256": "bfa2ad4f5acf0995f07fe34ddac0dee48b58e682de91de6d5add151575f2e5b2",
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
+            "line": 280,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "a594bb19e50e011d463f2ab0d8a48df48213d38b79187fc02a3486510de38ab1",
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
+            "line": 281,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "f72c69d56240d662918da2a012e6420655b21fccd4e21ab7931ddc0d4bbe5376",
             "line_sha256": "5efe366660ebef99dfd8282713683bda14917836cfe9f6dbb2fe335ac6e64be9",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 273,
+            "line": 298,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "d7bae636ec94eb9e7e9c75ca9c4ce5df366200e816de2904ddd3c08d142043c2",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 274,
+            "line": 299,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "461c3cf83ae6d45d16282d181846ec045a158273851e82990dc18bc1963ff163",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 300,
+            "line": 325,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "d7bae636ec94eb9e7e9c75ca9c4ce5df366200e816de2904ddd3c08d142043c2",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 301,
+            "line": 326,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "461c3cf83ae6d45d16282d181846ec045a158273851e82990dc18bc1963ff163",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
-        },
-        {
-            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 322,
-            "pattern": "ddl_sql",
-            "class": "test-only",
-            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "c4b9b2c9090a073468a59ebc1a0b693684de0e6aec6e6ee7369fd9652d7daf80",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
-        },
-        {
-            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 323,
-            "pattern": "ddl_sql",
-            "class": "test-only",
-            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "c87069d04bd1044e487c8d1ce0b67098b3241e3cdb7d1a0e8f4bac997d0769e0",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
-        },
-        {
-            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 328,
-            "pattern": "ddl_sql",
-            "class": "test-only",
-            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "c4b9b2c9090a073468a59ebc1a0b693684de0e6aec6e6ee7369fd9652d7daf80",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
-        },
-        {
-            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 329,
-            "pattern": "ddl_sql",
-            "class": "test-only",
-            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "c87069d04bd1044e487c8d1ce0b67098b3241e3cdb7d1a0e8f4bac997d0769e0",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
@@ -3474,7 +3438,7 @@
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "c4b9b2c9090a073468a59ebc1a0b693684de0e6aec6e6ee7369fd9652d7daf80",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
@@ -3482,8 +3446,17 @@
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "b9381062ec4dcb9bbfa3c55c4e57f63efde10b9257c853ca881ac5915995465f",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "line_sha256": "c87069d04bd1044e487c8d1ce0b67098b3241e3cdb7d1a0e8f4bac997d0769e0",
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
+            "line": 353,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "c4b9b2c9090a073468a59ebc1a0b693684de0e6aec6e6ee7369fd9652d7daf80",
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
@@ -3491,17 +3464,17 @@
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "c4b9b2c9090a073468a59ebc1a0b693684de0e6aec6e6ee7369fd9652d7daf80",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "line_sha256": "c87069d04bd1044e487c8d1ce0b67098b3241e3cdb7d1a0e8f4bac997d0769e0",
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 355,
+            "line": 372,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "b9381062ec4dcb9bbfa3c55c4e57f63efde10b9257c853ca881ac5915995465f",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "line_sha256": "c4b9b2c9090a073468a59ebc1a0b693684de0e6aec6e6ee7369fd9652d7daf80",
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
@@ -3509,17 +3482,17 @@
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "c4b9b2c9090a073468a59ebc1a0b693684de0e6aec6e6ee7369fd9652d7daf80",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "line_sha256": "b9381062ec4dcb9bbfa3c55c4e57f63efde10b9257c853ca881ac5915995465f",
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 374,
+            "line": 379,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "102127f56b912ef76768b2356b524c90ba5df0307ca9055a99f0c721c234de4e",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "line_sha256": "c4b9b2c9090a073468a59ebc1a0b693684de0e6aec6e6ee7369fd9652d7daf80",
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
@@ -3527,17 +3500,17 @@
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "c4b9b2c9090a073468a59ebc1a0b693684de0e6aec6e6ee7369fd9652d7daf80",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "line_sha256": "b9381062ec4dcb9bbfa3c55c4e57f63efde10b9257c853ca881ac5915995465f",
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 381,
+            "line": 398,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "102127f56b912ef76768b2356b524c90ba5df0307ca9055a99f0c721c234de4e",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "line_sha256": "c4b9b2c9090a073468a59ebc1a0b693684de0e6aec6e6ee7369fd9652d7daf80",
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
@@ -3545,17 +3518,8 @@
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "c4b9b2c9090a073468a59ebc1a0b693684de0e6aec6e6ee7369fd9652d7daf80",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
-        },
-        {
-            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 400,
-            "pattern": "ddl_sql",
-            "class": "test-only",
-            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "0d3b29cd3742d82c2ec463c3d92b83335e3ecf24a96025676cbdfc3ea4e69a6a",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "line_sha256": "102127f56b912ef76768b2356b524c90ba5df0307ca9055a99f0c721c234de4e",
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
@@ -3564,7 +3528,7 @@
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "c4b9b2c9090a073468a59ebc1a0b693684de0e6aec6e6ee7369fd9652d7daf80",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
@@ -3572,17 +3536,17 @@
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "0d3b29cd3742d82c2ec463c3d92b83335e3ecf24a96025676cbdfc3ea4e69a6a",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "line_sha256": "102127f56b912ef76768b2356b524c90ba5df0307ca9055a99f0c721c234de4e",
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 423,
+            "line": 424,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "d7bae636ec94eb9e7e9c75ca9c4ce5df366200e816de2904ddd3c08d142043c2",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "line_sha256": "c4b9b2c9090a073468a59ebc1a0b693684de0e6aec6e6ee7369fd9652d7daf80",
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
@@ -3590,35 +3554,26 @@
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "0d3b29cd3742d82c2ec463c3d92b83335e3ecf24a96025676cbdfc3ea4e69a6a",
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
+            "line": 430,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "c4b9b2c9090a073468a59ebc1a0b693684de0e6aec6e6ee7369fd9652d7daf80",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 426,
+            "line": 431,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "882f0d46bdec9edd645fbf967a93adf650d99f566d9480305b29565a11e154b8",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
-        },
-        {
-            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 444,
-            "pattern": "ddl_sql",
-            "class": "test-only",
-            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "a6c0f793407a3fce43482e71bcb44a2bf50133f087202a9e9278f4ac6db3fbec",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
-        },
-        {
-            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 445,
-            "pattern": "ddl_sql",
-            "class": "test-only",
-            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "8659124c048742ba6653fc08784478b3dda1c36ba7089561314f0ddfc91a608a",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "line_sha256": "0d3b29cd3742d82c2ec463c3d92b83335e3ecf24a96025676cbdfc3ea4e69a6a",
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
@@ -3626,26 +3581,44 @@
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
-            "line_sha256": "a6c0f793407a3fce43482e71bcb44a2bf50133f087202a9e9278f4ac6db3fbec",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "line_sha256": "d7bae636ec94eb9e7e9c75ca9c4ce5df366200e816de2904ddd3c08d142043c2",
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 467,
+            "line": 450,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "c4b9b2c9090a073468a59ebc1a0b693684de0e6aec6e6ee7369fd9652d7daf80",
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
+            "line": 451,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "882f0d46bdec9edd645fbf967a93adf650d99f566d9480305b29565a11e154b8",
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
+            "line": 469,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "a6c0f793407a3fce43482e71bcb44a2bf50133f087202a9e9278f4ac6db3fbec",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 468,
+            "line": 470,
             "pattern": "ddl_sql",
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "8659124c048742ba6653fc08784478b3dda1c36ba7089561314f0ddfc91a608a",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
@@ -3654,7 +3627,34 @@
             "class": "test-only",
             "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
             "line_sha256": "a6c0f793407a3fce43482e71bcb44a2bf50133f087202a9e9278f4ac6db3fbec",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
+            "line": 492,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "a6c0f793407a3fce43482e71bcb44a2bf50133f087202a9e9278f4ac6db3fbec",
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
+            "line": 493,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "8659124c048742ba6653fc08784478b3dda1c36ba7089561314f0ddfc91a608a",
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
+        },
+        {
+            "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
+            "line": 498,
+            "pattern": "ddl_sql",
+            "class": "test-only",
+            "match_sha256": "c3e7064f11e017970477dce9df68f57e982fa964a7636db5c2c48de2df582c1a",
+            "line_sha256": "a6c0f793407a3fce43482e71bcb44a2bf50133f087202a9e9278f4ac6db3fbec",
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/entity-storage/migrations/2026_08_12_000001_entity_mutation_authority.php",

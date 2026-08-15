@@ -2488,21 +2488,21 @@
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 502,
+            "line": 527,
             "pattern": "pdo_constructor",
             "class": "test",
             "match_sha256": "312a5b2cf549260f2fd2637f570dbfed9d3a2b2759cd7ee075ce2ca432ffcd3c",
             "line_sha256": "31fe98d039e874af74fafa6c2737f5cc20ecdf3e4b65587a4dbd4b0d7e64271f",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/deployer/tests/Unit/SqliteArtifactPreparerTest.php",
-            "line": 502,
+            "line": 527,
             "pattern": "sqlite_dsn_token",
             "class": "test",
             "match_sha256": "6fdcdb032f4d5ef911abf570b30b734a067a4dccbb3b959f88cfd96b87b1ae25",
             "line_sha256": "31fe98d039e874af74fafa6c2737f5cc20ecdf3e4b65587a4dbd4b0d7e64271f",
-            "source_sha256": "aa52098bbbc12874e11c79d6ffb0d966ad6c63f7c109e73a5d8974d1e0b00547"
+            "source_sha256": "38af5ba5c8d335a3936de0f9bd2bbb76bf8cdd7c11ba9254f93408119735047e"
         },
         {
             "path": "packages/entity-storage/tests/Contract/SqlStorageDriverContractTest.php",
@@ -7282,6 +7282,24 @@
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "472e16e3801eece81abae0b4765814501133b7d4334524b73b8cbdf30d3eaedd",
             "source_sha256": "602ef50094d9a9d812fc0d2d1c9690b048fbed1806102983b2dfdec85eced23e"
+        },
+        {
+            "path": "tests/Integration/Migration/FrameworkRuntimeTableCatalogueCompletenessTest.php",
+            "line": 80,
+            "pattern": "doctrine_factory",
+            "class": "test",
+            "match_sha256": "65a741e0d55eb2861c610e5e9e76011723217735d85acbcae099c79eb496d73d",
+            "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
+            "source_sha256": "20b9bfaba88caea6fb5c159435457faa088c5986eb6bd57dd5f544b20ffde76c"
+        },
+        {
+            "path": "tests/Integration/Migration/FrameworkRuntimeTableCatalogueCompletenessTest.php",
+            "line": 80,
+            "pattern": "pdo_sqlite_token",
+            "class": "test",
+            "match_sha256": "29a8e4b3d55f88ed3e3ddf02855d00625f30b30c5e17d28365bd82d6c774b04b",
+            "line_sha256": "c12a3b1217f7500690b100f553f3497b9d957fe1811f86bb9aa2e7dc39333dce",
+            "source_sha256": "20b9bfaba88caea6fb5c159435457faa088c5986eb6bd57dd5f544b20ffde76c"
         },
         {
             "path": "tests/Integration/Migration/InfrastructureRuntimeSchemaAuthorityTest.php",
