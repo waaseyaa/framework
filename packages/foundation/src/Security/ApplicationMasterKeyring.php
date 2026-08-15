@@ -17,6 +17,8 @@ final class ApplicationMasterKeyring
     private function __construct(
         private readonly int $activeVersion,
         array $handles,
+        /** @var array<int, string> */
+        private readonly array $referenceFingerprints,
         private readonly ApplicationMasterPurposeRegistry $purposes,
         /** @var list<int> */
         private readonly array $failedVersions,
@@ -143,6 +145,12 @@ final class ApplicationMasterKeyring
     public function readableVersions(): array
     {
         return array_keys($this->handles);
+    }
+
+    public function referenceFingerprint(int $version): string
+    {
+        return $this->referenceFingerprints[$version]
+            ?? throw new \RuntimeException('Application-master reference version is not declared readable.');
     }
 
     public function purposeRegistryChecksum(): string
@@ -284,6 +292,7 @@ final class ApplicationMasterKeyring
         array $failedVersions,
     ): self {
         $handles = [];
+        $referenceFingerprints = [];
         foreach ($references as $version => $reference) {
             $allowedConsumers = $version === $activeVersion
                 ? [
@@ -304,8 +313,9 @@ final class ApplicationMasterKeyring
                 self::PACKAGE,
                 $allowedConsumers,
             );
+            $referenceFingerprints[$version] = $reference->fingerprint();
         }
 
-        return new self($activeVersion, $handles, $purposes, $failedVersions);
+        return new self($activeVersion, $handles, $referenceFingerprints, $purposes, $failedVersions);
     }
 }
