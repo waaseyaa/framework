@@ -1009,6 +1009,78 @@ final class ApplicationMasterRekeyStore
         });
     }
 
+    public function beginRollback(
+        string $requestId,
+        int $expectedRequestRevision,
+        string $reasonCode,
+        string $authorizationHash,
+        int $rollbackAt,
+    ): ApplicationMasterRekeyRecord {
+        self::assertStableIdentifier($reasonCode, 'rollback reason code');
+        self::assertHash($authorizationHash, 'rollback authorization hash');
+
+        return $this->mutateRequest(
+            $requestId,
+            $expectedRequestRevision,
+            [ApplicationMasterRekeyState::HoldAndOptionallyExecuteRollbackWindow],
+            ApplicationMasterRekeyState::RollingBack,
+            'rollback-started',
+            function (ApplicationMasterRekeyRecord $record) use (
+                $reasonCode,
+                $authorizationHash,
+                $rollbackAt,
+            ): array {
+                $requiredGates = [
+                    ApplicationMasterRekeyGate::WritersAndWorkersReconciled->value,
+                    ApplicationMasterRekeyGate::CachesReconciled->value,
+                ];
+                if ($record->unresolvedFailures !== 0
+                    || !$this->allAdaptersComplete($record->requestId)
+                    || !$this->allPurposesVerified($record->requestId)
+                    || $this->recordedGateIds($record->requestId) !== $requiredGates) {
+                    throw new ApplicationMasterRekeyConflictException(
+                        'Application-master rollback requires complete verified compatibility and reconciliation evidence.',
+                    );
+                }
+                if ($rollbackAt < $record->updatedAt || $rollbackAt > $record->rollbackDeadline) {
+                    throw new ApplicationMasterRekeyConflictException(
+                        'Application-master rollback authorization is outside its open hold window.',
+                    );
+                }
+
+                $failed = $this->database->update(self::VERSION_TABLE)->fields([
+                    'state' => 'failed-read-only',
+                    'retained_until' => $record->retentionDeadline,
+                ])->condition('master_version', $record->toVersion)
+                    ->condition('state', 'active-write')
+                    ->execute();
+                $reactivated = $this->database->update(self::VERSION_TABLE)->fields([
+                    'state' => 'active-write',
+                    'activated_at' => $rollbackAt,
+                    'retained_until' => null,
+                ])->condition('master_version', $record->fromVersion)
+                    ->condition('state', 'legacy-read-verify')
+                    ->execute();
+                if ($failed !== 1 || $reactivated !== 1) {
+                    throw new ApplicationMasterRekeyConflictException(
+                        'Application-master version topology changed before rollback activation.',
+                    );
+                }
+
+                return [
+                    'from_version' => $record->fromVersion,
+                    'to_version' => $record->toVersion,
+                    'reason_code' => $reasonCode,
+                    'authorization_hash' => $authorizationHash,
+                    'rollback_at' => $rollbackAt,
+                    'successor_reusable' => false,
+                    'external_destruction_claimed' => false,
+                ];
+            },
+            $rollbackAt,
+        );
+    }
+
     public function revokePredecessor(
         string $requestId,
         int $expectedRequestRevision,

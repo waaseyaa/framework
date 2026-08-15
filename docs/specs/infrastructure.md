@@ -1942,6 +1942,13 @@ The canonical writer/worker and cache reconciliation gates move the request into
 the still-open rollback-window state. Recording `rollback-window-closed` moves it
 forward to backup-retention proof; it never opens a window that its own evidence
 declares closed.
+An authorized rollback starts only from that open state, at a non-backdated time
+no later than the immutable rollback deadline, after complete adapter and purpose
+verification and with no unresolved failure. One transaction records the forward
+`rolling-back` event, returns active writes to the predecessor, and changes the
+failed successor to `failed-read-only`. The successor remains readable, recorded,
+and non-reusable; neither framework rollback nor its evidence claims external key
+destruction.
 
 Each inventoried adapter may have at most one open failure at its exact durable
 cursor. Recording a failure compare-and-swaps both adapter and request failure

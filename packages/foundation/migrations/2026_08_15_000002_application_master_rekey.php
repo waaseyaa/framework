@@ -55,7 +55,7 @@ return new class extends Migration {
                 retained_until INTEGER,
                 revoked_at INTEGER,
                 CHECK (master_version > 0),
-                CHECK (state IN ('active-write', 'legacy-read-verify', 'revoked'))
+                CHECK (state IN ('active-write', 'legacy-read-verify', 'failed-read-only', 'revoked'))
             )",
             'CREATE TABLE waaseyaa_application_master_rekey_purpose (
                 request_id TEXT NOT NULL,
