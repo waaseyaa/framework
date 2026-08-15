@@ -97,15 +97,33 @@ final class ApplicationMasterRekeyKernelCompositionRetainedRedTest extends TestC
         self::assertFalse($provider->bootedAfterContribution);
     }
 
+    #[Test]
+    public function a_later_boot_failure_exposes_no_successfully_composed_partial_graph(): void
+    {
+        $kernel = $this->kernelWithProviders([KernelRekeyContributionProvider::class], failAfterProviderBoot: true);
+
+        try {
+            $kernel->publicBoot();
+            self::fail('The synthetic post-provider boot failure must escape.');
+        } catch (\RuntimeException $exception) {
+            self::assertSame('synthetic-late-boot-failure', $exception->getMessage());
+        }
+
+        self::assertNull($kernel->getApplicationMasterRekeyComposition());
+    }
+
     /**
      * @param list<class-string<ServiceProvider>> $providers
      */
-    private function kernelWithProviders(array $providers): AbstractKernel
+    private function kernelWithProviders(array $providers, bool $failAfterProviderBoot = false): AbstractKernel
     {
-        return new class ($this->projectRoot, $providers) extends AbstractKernel {
+        return new class ($this->projectRoot, $providers, $failAfterProviderBoot) extends AbstractKernel {
             /** @param list<class-string<ServiceProvider>> $providerClasses */
-            public function __construct(string $projectRoot, private readonly array $providerClasses)
-            {
+            public function __construct(
+                string $projectRoot,
+                private readonly array $providerClasses,
+                private readonly bool $failAfterProviderBoot,
+            ) {
                 parent::__construct($projectRoot);
             }
 
@@ -122,6 +140,14 @@ final class ApplicationMasterRekeyKernelCompositionRetainedRedTest extends TestC
             protected function compileManifest(): void
             {
                 $this->manifest = new PackageManifest(providers: $this->providerClasses);
+            }
+
+            protected function bootProviders(): void
+            {
+                parent::bootProviders();
+                if ($this->failAfterProviderBoot) {
+                    throw new \RuntimeException('synthetic-late-boot-failure');
+                }
             }
         };
     }

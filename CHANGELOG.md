@@ -115,6 +115,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Active provider contributions now compose a deterministic frozen registry and
   adapter roster, reject duplicate ownership or a distinct database authority,
   and return no fabricated registry when an install has no active consumers.
+  Full kernel boot freezes that complete graph after registration and before
+  provider boot, while restricted, failed, and in-progress boots expose none.
   Executable package adapters and process reconciliation remain incomplete.
   A generic coordinator now composes every frozen registry owner exactly once,
   refuses mismatched database identities or purpose rosters before inventory,

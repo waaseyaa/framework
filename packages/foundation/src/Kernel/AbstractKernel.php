@@ -55,6 +55,7 @@ use Waaseyaa\Foundation\Migration\MigrationLoader;
 use Waaseyaa\Foundation\Migration\MigrationRepository;
 use Waaseyaa\Foundation\Migration\Migrator;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyComposition;
 use Waaseyaa\Foundation\Security\SecretResolverRegistry;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsAgentToolProvidersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsAiCatalogEntryProvidersInterface;
@@ -85,6 +86,7 @@ abstract class AbstractKernel
     protected EntityAuditLogger $entityAuditLogger;
     protected Migrator $migrator;
     private ?ApplicationSecret $applicationSecret = null;
+    private ?ApplicationMasterRekeyComposition $applicationMasterRekeyComposition = null;
     private readonly RedactorProcessor $sinkSanitizer;
     private readonly bool $rebuildLoggerFromConfig;
     private ?SecretResolverRegistry $secretResolverRegistry = null;
@@ -221,6 +223,7 @@ abstract class AbstractKernel
             $this->assertFieldAccessActivationReady();
         }
         if (!$this->restrictedDiscoveryOnly) {
+            $this->composeApplicationMasterRekeyOwners();
             $this->bootProviders();
             $this->discoverAccessPolicies();
             $this->installFieldReadRuntime();
@@ -675,6 +678,17 @@ abstract class AbstractKernel
         new ProviderRegistry($this->logger)->boot($this->providers);
     }
 
+    /** Freeze the complete active owner graph before any provider boot hook executes. */
+    private function composeApplicationMasterRekeyOwners(): void
+    {
+        $this->applicationMasterRekeyComposition = null;
+        $composition = ApplicationMasterRekeyComposition::fromProviders(
+            $this->database,
+            $this->providers,
+        );
+        $this->applicationMasterRekeyComposition = $composition;
+    }
+
     protected function discoverAccessPolicies(): void
     {
         $providers = $this->providers;
@@ -1050,6 +1064,16 @@ abstract class AbstractKernel
     public function getDatabase(): DatabaseInterface
     {
         return $this->database;
+    }
+
+    /**
+     * Return the exact active-purpose composition only after a complete runtime boot.
+     *
+     * Restricted discovery and failed or in-progress boots expose no partial graph.
+     */
+    public function getApplicationMasterRekeyComposition(): ?ApplicationMasterRekeyComposition
+    {
+        return $this->booted ? $this->applicationMasterRekeyComposition : null;
     }
 
     public function getEventDispatcher(): EventDispatcherInterface

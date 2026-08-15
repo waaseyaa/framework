@@ -249,10 +249,18 @@ Every `Waaseyaa\Foundation\ServiceProvider\ServiceProvider` exposes a fixed set 
 | `httpDomainRouters(HttpKernel): iterable<DomainRouterInterface>` | `Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface` | `HttpKernel::buildDomainRouterChain()` |
 | `withMigrationProviders(list<object>): void` | `Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsMigrationProvidersInterface` | `AbstractKernel::injectMigrationProviders()` |
 | `withAgentToolProviders(list<object>): void` | `Waaseyaa\Foundation\ServiceProvider\Capability\AcceptsAgentToolProvidersInterface` | `AbstractKernel::injectAgentToolProviders()` |
+| `applicationMasterRekeyContributions(): iterable<ApplicationMasterRekeyContribution>` | `Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApplicationMasterRekeyContributionsInterface` | `ApplicationMasterRekeyComposition::fromProviders()` during `AbstractKernel` boot |
 
 The `withMigrationProviders` hook lets the kernel hand the discovered migration providers (objects exposing application migrations, found via the Layer-3 `HasMigrationsInterface`) to the provider that owns the migration registry, before that provider's `boot()` resolves the registry. The capability interface lives in Foundation so the kernel guards the call site with a named interface (not a concrete FQCN) while the Layer-3 migration `ServiceProvider` opts in via a downward dependency; the interface param is `list<object>` and the implementation filters to migration providers.
 
 The `withAgentToolProviders` hook is the corresponding application-tool lifecycle. The kernel discovers providers implementing the Layer-5 `ProvidesAgentToolsInterface`, sorts them by provider class for deterministic registration, and supplies them to `AiToolsServiceProvider` before provider boot. The registry invokes each contributor exactly once when its singleton is first constructed. Contributors receive the registry directly and must not resolve it recursively or capture request-scoped state. Duplicate tool names remain hard failures.
+
+The application-master contribution hook runs only for a full runtime boot,
+after every provider has registered and before any provider boot hook executes.
+The kernel composes the complete set against its exact `DatabaseInterface`
+object, freezes purpose and adapter order deterministically, and exposes the
+result only after the whole boot succeeds. Restricted discovery, an install
+with no active consumers, and any failed or in-progress boot expose no registry.
 
 ### ServiceProvider kernel-services bus
 

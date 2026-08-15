@@ -27,6 +27,7 @@ use Waaseyaa\Foundation\ServiceProvider\Capability\HasHttpDomainRoutersInterface
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasMiddlewareInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\HasRenderCacheListenersInterface;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesConsoleCommandsInterface;
+use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApplicationMasterRekeyContributionsInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProviderInterface;
 
@@ -93,6 +94,7 @@ final class ServiceProviderContractTest extends TestCase
         'middleware' => HasMiddlewareInterface::class,
         'httpDomainRouters' => HasHttpDomainRoutersInterface::class,
         'finalizeProviderBoot' => FinalizesProviderBootInterface::class,
+        'applicationMasterRekeyContributions' => ProvidesApplicationMasterRekeyContributionsInterface::class,
     ];
 
     #[Test]
