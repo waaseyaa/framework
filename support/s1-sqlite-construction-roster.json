@@ -837,7 +837,7 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "cb99c6bcc0ff95a0d9549b8f914de0657e9168b87423cac6023568d3dafb24a0",
-            "source_sha256": "403f154bff1e5da85b7e0d9173cdae880b047dc3d10c32fbdf6d02cb8f56313b"
+            "source_sha256": "cdbaba83f9a696572523c453cf5e2b2cc928069069c2c4ec705939d044e0500f"
         },
         {
             "path": "packages/audit/tests/Integration/AuditChainSchemaTest.php",
@@ -846,43 +846,43 @@
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "7066fb0eb38ccf5d58f8d6d8f013325172352f8f6877d8ba2a85827e5a4eb33b",
-            "source_sha256": "403f154bff1e5da85b7e0d9173cdae880b047dc3d10c32fbdf6d02cb8f56313b"
+            "source_sha256": "cdbaba83f9a696572523c453cf5e2b2cc928069069c2c4ec705939d044e0500f"
         },
         {
             "path": "packages/audit/tests/Integration/AuditChainSchemaTest.php",
-            "line": 146,
+            "line": 147,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "313be20102afced7e51a2d96e150bf16d02a4fc3c912061ce9c7183f20db0841",
-            "source_sha256": "403f154bff1e5da85b7e0d9173cdae880b047dc3d10c32fbdf6d02cb8f56313b"
+            "source_sha256": "cdbaba83f9a696572523c453cf5e2b2cc928069069c2c4ec705939d044e0500f"
         },
         {
             "path": "packages/audit/tests/Integration/AuditChainSchemaTest.php",
-            "line": 174,
+            "line": 175,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "42ecf2128c3afb77339e5b5a5767ebf52158cda774105b97eddcc3d6ced24eae",
-            "source_sha256": "403f154bff1e5da85b7e0d9173cdae880b047dc3d10c32fbdf6d02cb8f56313b"
+            "source_sha256": "cdbaba83f9a696572523c453cf5e2b2cc928069069c2c4ec705939d044e0500f"
         },
         {
             "path": "packages/audit/tests/Integration/AuditChainVerifierTest.php",
-            "line": 26,
+            "line": 27,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "aaa214af10e013c3e98e471a15cad1f05ef9ac68a6261974f7a6af3700a944e6",
-            "source_sha256": "9c21b1306fe55415e518cc4541d1233d16215166ec2ee84a4062f837ee59ade0"
+            "source_sha256": "370014ea03651524f4674df1a229ce7e546240dc9e13da468ebcfd9b5d995430"
         },
         {
             "path": "packages/audit/tests/Integration/AuditChainVerifierTest.php",
-            "line": 37,
+            "line": 38,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "ca61aee2525e2ffe56ea9e4ec7a9d83056768ddcbc355d840156c65afa4de753",
-            "source_sha256": "9c21b1306fe55415e518cc4541d1233d16215166ec2ee84a4062f837ee59ade0"
+            "source_sha256": "370014ea03651524f4674df1a229ce7e546240dc9e13da468ebcfd9b5d995430"
         },
         {
             "path": "packages/audit/tests/Integration/AuditChaosTest.php",
@@ -1660,12 +1660,12 @@
         },
         {
             "path": "packages/cli/tests/Unit/Command/Audit/PruneCommandTest.php",
-            "line": 346,
+            "line": 347,
             "pattern": "dbal_factory",
             "class": "test",
             "match_sha256": "f020099965421542990d5177394cbaef7f44d2da354adb8dd019e1cff4a984bc",
             "line_sha256": "813d74f5c368411e32fb0bb6d06122dc96395ad193cd3ff3b1e9f8fe797e7afe",
-            "source_sha256": "f0ef463bb2bb9245d58eed1ae6feee126901441ff332395c78c1118c59f26c97"
+            "source_sha256": "1cf4ae715223a9c38b334856ffa0335d68f94f8d80f95bd4ed387fc2b7a02675"
         },
         {
             "path": "packages/cli/tests/Unit/Command/BearerTokenConsoleCommandsTest.php",

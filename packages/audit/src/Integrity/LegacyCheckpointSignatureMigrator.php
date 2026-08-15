@@ -38,7 +38,9 @@ final class LegacyCheckpointSignatureMigrator
         try {
             $checkpoints = iterator_to_array(
                 $this->database->select('audit_checkpoint')
-                    ->fields('audit_checkpoint', ['id', 'checkpoint_hash', 'signature'])
+                    ->fields('audit_checkpoint', [
+                        'id', 'checkpoint_hash', 'signature', 'pruned', 'prune_authorization',
+                    ])
                     ->orderBy('segment_end_id', 'ASC')
                     ->execute(),
                 false,
@@ -67,29 +69,40 @@ final class LegacyCheckpointSignatureMigrator
                 throw new \RuntimeException('Legacy checkpoint signature migration refused mixed authenticated and legacy history.');
             }
 
-            if ($versionedCount > 0) {
-                $result = new AuditChainVerifier($this->database, hmacKey: $this->hmacKey->bytes())->verify();
-                if (!$result->ok) {
-                    throw new \RuntimeException('Legacy checkpoint signature migration refused invalid authenticated history.');
+            if ($legacyCount > 0) {
+                $preflight = new AuditChainVerifier($this->database)->verify();
+                if (!$preflight->ok) {
+                    throw new \RuntimeException('Legacy checkpoint signature migration refused a broken hash chain.');
                 }
-                $transaction->commit();
-
-                return 0;
-            }
-
-            $preflight = new AuditChainVerifier($this->database)->verify();
-            if (!$preflight->ok) {
-                throw new \RuntimeException('Legacy checkpoint signature migration refused a broken hash chain.');
             }
 
             foreach ($checkpoints as $checkpoint) {
                 $oldSignature = (string) $checkpoint['signature'];
+                $oldPruneAuthorization = (string) ($checkpoint['prune_authorization'] ?? '');
                 $checkpointHash = (string) $checkpoint['checkpoint_hash'];
+                $fields = [];
+                if ($legacyCount > 0) {
+                    $fields['signature'] = 'hmac-sha256.hkdf-v1:' . hash_hmac(
+                        'sha256',
+                        $checkpointHash,
+                        $this->hmacKey->bytes(),
+                    );
+                }
+                if ((bool) ($checkpoint['pruned'] ?? false)) {
+                    $fields['prune_authorization'] = AuditPruneAuthorization::sign(
+                        $checkpointHash,
+                        $this->hmacKey->bytes(),
+                    );
+                }
+                if ($fields === []) {
+                    continue;
+                }
                 $updated = $this->database->update('audit_checkpoint')
-                    ->fields(['signature' => 'hmac-sha256.hkdf-v1:' . hash_hmac('sha256', $checkpointHash, $this->hmacKey->bytes())])
+                    ->fields($fields)
                     ->condition('id', (int) $checkpoint['id'])
                     ->condition('checkpoint_hash', $checkpointHash)
                     ->condition('signature', $oldSignature)
+                    ->condition('prune_authorization', $oldPruneAuthorization)
                     ->execute();
                 if ($updated !== 1) {
                     throw new \RuntimeException('Legacy checkpoint signature migration refused a concurrent checkpoint change.');

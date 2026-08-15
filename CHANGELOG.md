@@ -131,6 +131,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The first keyed checkpoint also authenticates the pristine genesis anchor by
   compare-and-swap and refuses a conflicting genesis key, avoiding a fresh
   install's otherwise-unrepairable mixed authenticated/unsigned history.
+  Keyed checkpoint pruning now commits a domain-separated detached
+  authorization with the `pruned` transition and sealed-row deletion in one
+  transaction. Verification rejects blank, replayed, wrong-key, or substituted
+  authorizations without rewriting the original checkpoint signature, and the
+  explicit trusted-history migration upgrades already-pruned legacy chains.
+  The destructive command first verifies the complete sealed chain, so it
+  cannot bless a pre-existing forged prune state as a legitimate retry.
   Remaining package adapters and process
   reconciliation remain incomplete.
   A generic coordinator now composes every frozen registry owner exactly once,

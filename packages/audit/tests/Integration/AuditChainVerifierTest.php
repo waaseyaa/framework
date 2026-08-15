@@ -14,6 +14,7 @@ use Waaseyaa\Audit\Entity\AuditCheckpoint;
 use Waaseyaa\Audit\Integrity\AuditChainVerifier;
 use Waaseyaa\Audit\Integrity\AuditCheckpointBuilder;
 use Waaseyaa\Audit\Integrity\AuditCheckpointHasher;
+use Waaseyaa\Audit\Integrity\AuditPruneAuthorization;
 use Waaseyaa\Audit\Integrity\CheckpointSink;
 use Waaseyaa\Audit\Integrity\LegacyCheckpointSignatureMigrator;
 use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
@@ -361,6 +362,48 @@ final class AuditChainVerifierTest extends TestCase
     }
 
     #[Test]
+    public function explicit_migration_authorizes_trusted_pruned_legacy_checkpoints(): void
+    {
+        $key = random_bytes(32);
+        $this->insertEvent('trusted-legacy-prune');
+        $this->seal();
+        $this->db->getConnection()->executeStatement('DELETE FROM audit_event');
+        $this->db->getConnection()->executeStatement(
+            'UPDATE audit_checkpoint SET pruned = 1 WHERE is_genesis = 0',
+        );
+
+        $migrated = new LegacyCheckpointSignatureMigrator($this->db, $key)->migrate();
+
+        self::assertSame(2, $migrated);
+        self::assertTrue($this->verifier($key)->verify()->ok);
+        self::assertMatchesRegularExpression(
+            '/^hmac-sha256\.audit-prune\.hkdf-v1:[a-f0-9]{64}$/D',
+            (string) $this->db->getConnection()->fetchOne(
+                'SELECT prune_authorization FROM audit_checkpoint WHERE is_genesis = 0',
+            ),
+        );
+    }
+
+    #[Test]
+    public function explicit_migration_repairs_trusted_pruned_versioned_history(): void
+    {
+        $key = random_bytes(32);
+        new LegacyCheckpointSignatureMigrator($this->db, $key)->migrate();
+        $this->insertEvent('trusted-versioned-prune');
+        $this->seal($key);
+        $this->db->getConnection()->executeStatement('DELETE FROM audit_event');
+        $this->db->getConnection()->executeStatement(
+            'UPDATE audit_checkpoint SET pruned = 1 WHERE is_genesis = 0',
+        );
+        self::assertFalse($this->verifier($key)->verify()->ok);
+
+        $migrated = new LegacyCheckpointSignatureMigrator($this->db, $key)->migrate();
+
+        self::assertSame(0, $migrated);
+        self::assertTrue($this->verifier($key)->verify()->ok);
+    }
+
+    #[Test]
     public function explicit_migration_refuses_tampered_legacy_history_without_writing_signatures(): void
     {
         $key = random_bytes(32);
@@ -444,6 +487,33 @@ final class AuditChainVerifierTest extends TestCase
 
         self::assertFalse($result->ok, 'A mutable pruned flag must not authenticate deletion of a signed segment.');
         self::assertSame('prune_authorization', $result->failureKind);
+    }
+
+    #[Test]
+    public function prune_authorization_cannot_be_replayed_onto_another_checkpoint(): void
+    {
+        $key = random_bytes(32);
+        new LegacyCheckpointSignatureMigrator($this->db, $key)->migrate();
+        $this->insertEvent('prune-replay-1');
+        $this->seal($key);
+        $this->insertEvent('prune-replay-2');
+        $this->seal($key);
+
+        $checkpoints = $this->db->getConnection()->fetchAllAssociative(
+            'SELECT id, segment_end_id, checkpoint_hash FROM audit_checkpoint WHERE is_genesis = 0 ORDER BY id',
+        );
+        $authorization = AuditPruneAuthorization::sign((string) $checkpoints[0]['checkpoint_hash'], $key);
+        $this->db->getConnection()->executeStatement('DELETE FROM audit_event');
+        $this->db->getConnection()->executeStatement(
+            'UPDATE audit_checkpoint SET pruned = 1, prune_authorization = ? WHERE is_genesis = 0',
+            [$authorization],
+        );
+
+        $result = $this->verifier($key)->verify();
+
+        self::assertFalse($result->ok);
+        self::assertSame('prune_authorization', $result->failureKind);
+        self::assertSame((int) $checkpoints[1]['segment_end_id'], $result->firstBrokenId);
     }
 
     // ------------------------------------------------------------------

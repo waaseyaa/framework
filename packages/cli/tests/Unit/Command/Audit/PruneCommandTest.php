@@ -16,6 +16,7 @@ use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Entity\AuditCheckpoint;
 use Waaseyaa\Audit\Enum\AuditEventKind;
 use Waaseyaa\Audit\Integrity\AuditCheckpointBuilder;
+use Waaseyaa\Audit\Integrity\AuditChainVerifier;
 use Waaseyaa\Audit\Integrity\CheckpointSink;
 use Waaseyaa\Audit\Query\AuditEventQuery;
 use Waaseyaa\Audit\Schema\AuditEventSchemaHandler;
@@ -366,12 +367,12 @@ final class PruneCommandTest extends TestCase
         ])->execute();
     }
 
-    private function sealRealDb(DBALDatabase $db): void
+    private function sealRealDb(DBALDatabase $db, ?string $hmacKey = null): void
     {
         $sink = new class implements CheckpointSink {
             public function export(AuditCheckpoint $checkpoint): void {}
         };
-        new AuditCheckpointBuilder($db, $sink)->build();
+        new AuditCheckpointBuilder($db, $sink, hmacKey: $hmacKey)->build();
     }
 
     private function countRealEventRows(DBALDatabase $db): int
@@ -704,6 +705,116 @@ final class PruneCommandTest extends TestCase
             3,
             $writer->recorded[0]->attributes['kind_filtered_match_count'],
             'the legacy kind-filtered number must be preserved under kind_filtered_match_count',
+        );
+    }
+
+    #[Test]
+    public function keyed_prune_attaches_authorization_without_replacing_checkpoint_signature(): void
+    {
+        $db = $this->makeSealedRealDb();
+        $key = random_bytes(32);
+        $past = new \DateTimeImmutable('-2 days')->format('Y-m-d H:i:s');
+        $this->insertRealEvent($db, 'keyed-prune', 'entity.write', $past);
+        $this->sealRealDb($db, $key);
+        $signatureBefore = (string) $db->getConnection()->fetchOne(
+            'SELECT signature FROM audit_checkpoint WHERE is_genesis = 0',
+        );
+
+        $command = new PruneCommand(
+            new AuditEventQuery($db),
+            $this->makeNullWriter(),
+            $db,
+            hmacKey: $key,
+        );
+        $exitCode = $command->execute($this->makeIo([
+            'older-than' => 'P1D',
+            'kind' => '*',
+            'confirm' => true,
+        ]));
+
+        self::assertSame(0, $exitCode);
+        self::assertTrue((new AuditChainVerifier($db, hmacKey: $key))->verify()->ok);
+        self::assertSame(
+            $signatureBefore,
+            (string) $db->getConnection()->fetchOne(
+                'SELECT signature FROM audit_checkpoint WHERE is_genesis = 0',
+            ),
+        );
+        self::assertMatchesRegularExpression(
+            '/^hmac-sha256\.audit-prune\.hkdf-v1:[a-f0-9]{64}$/D',
+            (string) $db->getConnection()->fetchOne(
+                'SELECT prune_authorization FROM audit_checkpoint WHERE is_genesis = 0',
+            ),
+        );
+    }
+
+    #[Test]
+    public function sealed_prune_rolls_back_when_authorization_cannot_be_persisted(): void
+    {
+        $db = $this->makeSealedRealDb();
+        $key = random_bytes(32);
+        $past = new \DateTimeImmutable('-2 days')->format('Y-m-d H:i:s');
+        $this->insertRealEvent($db, 'prune-authorization-failure', 'entity.write', $past);
+        $this->sealRealDb($db, $key);
+        $db->getConnection()->executeStatement(
+            "CREATE TRIGGER refuse_prune_authorization BEFORE UPDATE OF pruned ON audit_checkpoint BEGIN SELECT RAISE(ABORT, 'synthetic refusal'); END",
+        );
+
+        $command = new PruneCommand(
+            new AuditEventQuery($db),
+            $this->makeNullWriter(),
+            $db,
+            hmacKey: $key,
+        );
+        $exitCode = $command->execute($this->makeIo([
+            'older-than' => 'P1D',
+            'kind' => '*',
+            'confirm' => true,
+        ]));
+
+        self::assertSame(1, $exitCode);
+        self::assertSame(1, $this->countRealEventRows($db));
+        self::assertSame(
+            ['pruned' => 0, 'prune_authorization' => ''],
+            $db->getConnection()->fetchAssociative(
+                'SELECT pruned, prune_authorization FROM audit_checkpoint WHERE is_genesis = 0',
+            ),
+        );
+    }
+
+    #[Test]
+    public function keyed_prune_refuses_to_bless_a_preexisting_forged_pruned_state(): void
+    {
+        $db = $this->makeSealedRealDb();
+        $key = random_bytes(32);
+        $past = new \DateTimeImmutable('-2 days')->format('Y-m-d H:i:s');
+        $this->insertRealEvent($db, 'preexisting-forged-prune', 'entity.write', $past);
+        $this->sealRealDb($db, $key);
+        $db->getConnection()->executeStatement('DELETE FROM audit_event');
+        $db->getConnection()->executeStatement(
+            'UPDATE audit_checkpoint SET pruned = 1 WHERE is_genesis = 0',
+        );
+        $writer = $this->makeNullWriter();
+
+        $command = new PruneCommand(
+            new AuditEventQuery($db),
+            $writer,
+            $db,
+            hmacKey: $key,
+        );
+        $exitCode = $command->execute($this->makeIo([
+            'older-than' => 'P1D',
+            'kind' => '*',
+            'confirm' => true,
+        ]));
+
+        self::assertSame(1, $exitCode);
+        self::assertSame([], $writer->recorded);
+        self::assertSame(
+            '',
+            (string) $db->getConnection()->fetchOne(
+                'SELECT prune_authorization FROM audit_checkpoint WHERE is_genesis = 0',
+            ),
         );
     }
 

@@ -42,7 +42,7 @@ final class AuditEventSchemaHandler
         SchemaRequirement::assertAvailable(
             $this->database,
             'audit_checkpoint',
-            ['id', 'uuid', 'segment_start_id', 'segment_end_id', 'row_count', 'segment_hash', 'prev_checkpoint_hash', 'checkpoint_hash', 'signature', 'hash_version', 'is_genesis', 'pruned', 'created_at'],
+            ['id', 'uuid', 'segment_start_id', 'segment_end_id', 'row_count', 'segment_hash', 'prev_checkpoint_hash', 'checkpoint_hash', 'signature', 'hash_version', 'is_genesis', 'pruned', 'prune_authorization', 'created_at'],
             'waaseyaa/audit:2026_08_12_000003_audit_runtime_schema',
         );
     }

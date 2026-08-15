@@ -221,8 +221,8 @@ each row's `prev_hash` links to the previous row's `row_hash` (first row → pri
 `segment_hash`), each row's content recomputes to its stored `row_hash`
 (`AuditEventCanonicalizer`), the last `row_hash` equals the checkpoint's
 `segment_hash`, and the checkpoint's `checkpoint_hash` recomputes. It STOPS at the
-first break with a machine-readable `failureKind` ∈ {`genesis`, `checkpoint_signature`, `checkpoint_chain`,
-`row_count`, `chain_link`, `row_content`, `segment_hash`, `checkpoint_hash`}. Rows
+first break with a machine-readable `failureKind` ∈ {`genesis`, `checkpoint_signature`, `prune_authorization`,
+`checkpoint_chain`, `row_count`, `chain_link`, `row_content`, `segment_hash`, `checkpoint_hash`}. Rows
 `id ≤ genesis.segment_end_id` (predates chaining) and rows past the last checkpoint
 (unsealed/pending) are not failures. `bin/waaseyaa audit:verify [--json]` exits 0
 when intact and non-zero on tamper, and emits an `audit.verify` self-audit event
@@ -231,13 +231,19 @@ forged checkpoints — what the append-only decorator cannot *prevent* against a
 party with raw DB access.
 
 **Prune reconciliation — checkpoint-aware `audit:prune` (WP4):** retention pruning
-must not look like tampering. `audit_checkpoint` gains a `pruned` flag. `audit:prune`
+must not look like tampering. `audit_checkpoint` has a `pruned` flag and a
+detached `prune_authorization`. `audit:prune`
 deletes in two disjoint populations: **sealed** rows (covered by a non-genesis
 checkpoint) are pruned only at WHOLE checkpoint-segment boundaries — it computes a
 `horizon` = the highest `segment_end_id` whose entire segment is older than the
-cutoff, deletes `audit_event WHERE id <= horizon`, and marks those checkpoints
-`pruned=1` (`--kind` does NOT apply to sealed rows; whole-segment deletion is
-required for chain integrity); **unsealed-tail** rows (`id > MAX(segment_end_id)`)
+cutoff, marks those checkpoints `pruned=1`, attaches a domain-separated HMAC
+over each checkpoint hash when keyed custody is configured, and deletes
+`audit_event WHERE id <= horizon` in the same transaction (`--kind` does NOT
+apply to sealed rows; whole-segment deletion is
+required for chain integrity). Before it records intent or authorizes deletion,
+the command verifies the complete current sealed chain and refuses to bless a
+pre-existing forged or broken pruned state. **Unsealed-tail** rows
+(`id > MAX(segment_end_id)`)
 keep the legacy `created_at`(+`--kind`) deletion (no chain yet). The
 `audit.retention_pruned` self-audit records `sealed_pruned_through_id`,
 `pruned_checkpoint_hash`, and `unsealed_deleted_count`. Its `deleted_count`
@@ -250,13 +256,17 @@ real deletion when `--kind` is set (audit A7, F10). The confirmation prompt
 (refusal without `--confirm`) reports that same real total. The superseded
 kind-filtered number is kept separately under `kind_filtered_match_count` for
 anyone inspecting the self-audit trail. `audit:verify` treats a
-`pruned=1` checkpoint as a valid anchor: it still verifies the checkpoint's chain
-link **and recomputes its `checkpoint_hash`** (a forged pruned checkpoint is still
-caught), but skips the row-level checks (the rows are legitimately gone) and
+`pruned=1` checkpoint as a valid anchor only after it verifies the checkpoint's
+chain link, recomputes its `checkpoint_hash`, and, in keyed mode, validates the
+detached prune authorization. The authorization is bound to that exact
+checkpoint hash and cannot be replayed from another checkpoint or replaced by
+the ordinary checkpoint signature. The original checkpoint signature is never
+rewritten. The verifier then skips the row-level checks (the rows are
+legitimately gone) and
 advances the chain from the retained `segment_hash`, so the surviving chain still
 validates across the prune boundary. A row deleted from a sealed segment **without**
-the `pruned` flag still fails verification (`row_count`/`chain_link`) — that is what
-distinguishes a sanctioned prune from a malicious gap.
+the `pruned` flag still fails verification (`row_count`/`chain_link`), while a
+forged `pruned` flag in keyed mode fails `prune_authorization`.
 
 **v1 complete.** Remaining hardening is tracked separately: the external-sink
 cross-check at verify time.

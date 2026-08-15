@@ -94,6 +94,7 @@ final class RuntimeSchemaMigrations
             '2026_08_12_000003_audit_runtime_schema.php',
             '2026_08_12_000004_strict_audit_ledger_schema.php',
             '2026_08_12_000005_approval_event_schema.php',
+            '2026_08_15_000006_audit_prune_authorization.php',
         ] as $migration) {
             self::apply($database, 'packages/audit/migrations/' . $migration);
         }

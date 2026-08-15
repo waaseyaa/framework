@@ -86,7 +86,8 @@ final class AuditChainSchemaTest extends TestCase
         $requiredColumns = [
             'id', 'uuid', 'segment_start_id', 'segment_end_id', 'row_count',
             'segment_hash', 'prev_checkpoint_hash', 'checkpoint_hash',
-            'signature', 'hash_version', 'is_genesis', 'created_at',
+            'signature', 'hash_version', 'is_genesis', 'pruned',
+            'prune_authorization', 'created_at',
         ];
 
         foreach ($requiredColumns as $col) {

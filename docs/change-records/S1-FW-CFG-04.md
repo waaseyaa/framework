@@ -52,6 +52,17 @@ genesis anchor by compare-and-swap before it seals application events. A
 different or malformed genesis signature fails closed, while existing history
 still requires the explicit operator-confirmed migration path.
 
+Keyed audit pruning now distinguishes authorized retention from a database-only
+forgery. A DB-02 versioned migration adds a detached authorization column; the
+prune command binds a domain-separated HMAC to each exact checkpoint hash and
+commits authorization, `pruned=1`, and sealed-row deletion atomically. Strict
+verification rejects missing, replayed, wrong-key, and substituted
+authorizations while retaining the original checkpoint signature. The explicit
+trusted-history migrator can authorize pre-existing pruned legacy checkpoints
+inside its existing rollback-on-failure transaction.
+The prune command verifies the complete sealed chain before it records intent,
+so a blank or forged pre-existing prune state is refused rather than blessed.
+
 ## Evidence disposition
 
 Every implementation slice records exact commit/tree identity, split test and

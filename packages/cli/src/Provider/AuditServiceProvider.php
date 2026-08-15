@@ -46,8 +46,15 @@ final class AuditServiceProvider extends ServiceProvider implements ProvidesCons
                 $writer = $this->resolve(AuditWriterInterface::class);
                 /** @var DatabaseInterface $db */
                 $db = $this->resolve(DatabaseInterface::class);
+                $applicationSecret = $this->resolve(ApplicationSecret::class);
+                assert($applicationSecret instanceof ApplicationSecret);
 
-                return new PruneCommand($query, $writer, $db);
+                return new PruneCommand(
+                    $query,
+                    $writer,
+                    $db,
+                    hmacKey: $applicationSecret->derive(ApplicationSecret::PURPOSE_AUDIT_CHECKPOINT_HMAC),
+                );
             },
         );
 

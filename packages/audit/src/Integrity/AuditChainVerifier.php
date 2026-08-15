@@ -57,6 +57,7 @@ final class AuditChainVerifier
                     'is_genesis',
                     'pruned',
                     'signature',
+                    'prune_authorization',
                 ])
                 ->orderBy('segment_end_id', 'ASC')
                 ->execute(),
@@ -172,6 +173,28 @@ final class AuditChainVerifier
                         'checkpoint_hash',
                         sprintf(
                             'Pruned checkpoint hash mismatch at segment_end_id %d: recomputed hash does not match stored value',
+                            $segEndId,
+                        ),
+                        $segmentsVerified,
+                        $rowsVerified,
+                        $this->countUnsealedRows($lastSealedId),
+                    );
+                }
+
+                if ($this->hmacKey !== null && !AuditPruneAuthorization::verify(
+                    (string) ($checkpoint['prune_authorization'] ?? ''),
+                    (string) $checkpoint['checkpoint_hash'],
+                    $this->hmacKey->bytes(),
+                )) {
+                    $this->logger->warning('audit.verify.prune_authorization_invalid', [
+                        'segment_end_id' => $segEndId,
+                    ]);
+
+                    return AuditVerificationResult::broken(
+                        $segEndId,
+                        'prune_authorization',
+                        sprintf(
+                            'Pruned checkpoint at segment_end_id %d has no valid detached prune authorization',
                             $segEndId,
                         ),
                         $segmentsVerified,

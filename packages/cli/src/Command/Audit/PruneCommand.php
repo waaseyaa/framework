@@ -9,10 +9,13 @@ use Waaseyaa\Audit\Contract\AuditQuery;
 use Waaseyaa\Audit\Contract\AuditQueryInterface;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
+use Waaseyaa\Audit\Integrity\AuditChainVerifier;
+use Waaseyaa\Audit\Integrity\AuditPruneAuthorization;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
+use Waaseyaa\Foundation\Security\SensitiveKey;
 
 /**
  * `bin/waaseyaa audit:prune --older-than=<duration> [--kind=<glob>] [--dry-run] [--confirm]`
@@ -54,14 +57,18 @@ use Waaseyaa\Foundation\Log\NullLogger;
 final class PruneCommand
 {
     private readonly LoggerInterface $logger;
+    private readonly ?SensitiveKey $hmacKey;
 
     public function __construct(
         private readonly AuditQueryInterface $query,
         private readonly AuditWriterInterface $writer,
         private readonly DatabaseInterface $db,
         ?LoggerInterface $logger = null,
+        #[\SensitiveParameter]
+        ?string $hmacKey = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
+        $this->hmacKey = ($hmacKey === null || $hmacKey === '') ? null : new SensitiveKey($hmacKey);
     }
 
     public function execute(SymfonyCommandIO $io): int
@@ -190,6 +197,20 @@ final class PruneCommand
             return 0;
         }
 
+        $verification = new AuditChainVerifier(
+            $this->db,
+            hmacKey: $this->hmacKey?->bytes(),
+        )->verify();
+        if (!$verification->ok) {
+            $this->logger->error('audit.prune_preflight_failed', [
+                'failure_kind' => $verification->failureKind,
+                'first_broken_id' => $verification->firstBrokenId,
+            ]);
+            $io->error('audit:prune refused because the sealed audit chain failed verification.');
+
+            return 1;
+        }
+
         // ----------------------------------------------------------------
         // Resolve the pruned checkpoint's hash for the self-audit record.
         // ----------------------------------------------------------------
@@ -226,13 +247,24 @@ final class PruneCommand
         // integrity. Mark covered non-genesis checkpoints as pruned=1.
         // ----------------------------------------------------------------
         if ($horizon > 0) {
-            $this->db->delete('audit_event')
-                ->condition('id', $horizon, '<=')
-                ->execute();
+            $transaction = $this->db->transaction('audit_checkpoint_prune');
+            try {
+                // Authorize and mark every covered checkpoint before deleting
+                // its rows. Both changes commit together or neither does.
+                $this->markCheckpointsPruned($horizon);
+                $this->db->delete('audit_event')
+                    ->condition('id', $horizon, '<=')
+                    ->execute();
+                $transaction->commit();
+            } catch (\Throwable $exception) {
+                $transaction->rollBack();
+                $this->logger->error('audit.prune_transaction_failed', [
+                    'failure_class' => $exception::class,
+                ]);
+                $io->error('audit:prune failed before the sealed deletion committed.');
 
-            // Mark all non-genesis checkpoints whose segment is entirely inside
-            // the pruned range.
-            $this->markCheckpointsPruned($horizon);
+                return 1;
+            }
         }
 
         // ----------------------------------------------------------------
@@ -428,18 +460,43 @@ final class PruneCommand
     }
 
     /**
-     * Mark all non-genesis checkpoints with segment_end_id <= horizon as pruned.
-     * Uses raw SQL via getConnection() since DatabaseInterface::update() is
-     * blocked on the audit database but we operate on the raw db here.
+     * Mark all non-genesis checkpoints with segment_end_id <= horizon as pruned
+     * and attach a detached authorization when keyed custody is configured.
      */
     private function markCheckpointsPruned(int $horizon): void
     {
-        $this->db
-            ->update('audit_checkpoint')
-            ->fields(['pruned' => 1])
-            ->condition('is_genesis', 0)
-            ->condition('segment_end_id', $horizon, '<=')
-            ->execute();
+        $checkpoints = iterator_to_array(
+            $this->db->select('audit_checkpoint')
+                ->fields('audit_checkpoint', ['id', 'checkpoint_hash', 'pruned', 'prune_authorization'])
+                ->condition('is_genesis', 0)
+                ->condition('segment_end_id', $horizon, '<=')
+                ->orderBy('segment_end_id', 'ASC')
+                ->execute(),
+            false,
+        );
+
+        foreach ($checkpoints as $checkpoint) {
+            $checkpointHash = (string) $checkpoint['checkpoint_hash'];
+            $oldPruned = (int) $checkpoint['pruned'];
+            $oldAuthorization = (string) ($checkpoint['prune_authorization'] ?? '');
+            $authorization = $this->hmacKey === null
+                ? $oldAuthorization
+                : AuditPruneAuthorization::sign($checkpointHash, $this->hmacKey->bytes());
+
+            $updated = $this->db->update('audit_checkpoint')
+                ->fields([
+                    'pruned' => 1,
+                    'prune_authorization' => $authorization,
+                ])
+                ->condition('id', (int) $checkpoint['id'])
+                ->condition('checkpoint_hash', $checkpointHash)
+                ->condition('pruned', $oldPruned)
+                ->condition('prune_authorization', $oldAuthorization)
+                ->execute();
+            if ($updated !== 1) {
+                throw new \RuntimeException('Audit prune refused a concurrent checkpoint change.');
+            }
+        }
     }
 
     /**
