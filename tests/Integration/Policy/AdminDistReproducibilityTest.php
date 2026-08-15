@@ -100,6 +100,18 @@ final class AdminDistReproducibilityTest extends TestCase
         self::assertStringContainsString("in_array('--print-build-id'", $freshness);
     }
 
+    #[Test]
+    public function procedure_drift_stales_freshness_without_changing_the_content_build_identity(): void
+    {
+        $root = $this->makeSourceSignatureFixture();
+        $beforeFull = $this->signature($root, '--print');
+        $beforeBuild = $this->signature($root, '--print-build-id');
+        file_put_contents($root . '/bin/run-hermetic-admin-build', "procedure revision two\n");
+
+        self::assertNotSame($beforeFull, $this->signature($root, '--print'));
+        self::assertSame($beforeBuild, $this->signature($root, '--print-build-id'));
+    }
+
     private function makeFixture(int $timestamp, string $asset = 'compiled asset'): string
     {
         $root = sys_get_temp_dir() . '/waaseyaa_admin_dist_' . uniqid('', true);
@@ -122,6 +134,62 @@ final class AdminDistReproducibilityTest extends TestCase
         $this->tempDirs[] = $root;
 
         return $root;
+    }
+
+    private function makeSourceSignatureFixture(): string
+    {
+        $sourceRoot = dirname(__DIR__, 3);
+        $root = sys_get_temp_dir() . '/waaseyaa_admin_signature_' . bin2hex(random_bytes(6));
+        foreach ([
+            'bin',
+            'packages/admin/app',
+            'packages/admin-surface',
+            'packages/cli/src/AdminBuild',
+            'packages/foundation/src/Log/Processor',
+        ] as $directory) {
+            mkdir($root . '/' . $directory, 0o755, true);
+        }
+        copy($sourceRoot . '/bin/check-admin-dist-fresh', $root . '/bin/check-admin-dist-fresh');
+        foreach ([
+            '.nvmrc',
+            'bin/build-admin-dist',
+            'bin/normalize-admin-dist',
+            'bin/run-hermetic-admin-build',
+            'packages/admin/nuxt.config.ts',
+            'packages/admin/app.config.ts',
+            'packages/admin/package.json',
+            'packages/admin/package-lock.json',
+            'packages/foundation/src/Log/Processor/RedactorProcessor.php',
+        ] as $relative) {
+            $destination = $root . '/' . $relative;
+            if (!is_dir(dirname($destination))) {
+                mkdir(dirname($destination), 0o755, true);
+            }
+            file_put_contents($destination, $relative . " fixture\n");
+        }
+        file_put_contents($root . '/packages/admin/app/input.ts', 'export const fixture = true;');
+        file_put_contents($root . '/packages/cli/src/AdminBuild/Policy.php', '<?php // fixture');
+        file_put_contents($root . '/packages/admin-surface/dist.signature', "placeholder\n");
+        $this->tempDirs[] = $root;
+
+        return $root;
+    }
+
+    private function signature(string $root, string $mode): string
+    {
+        $process = proc_open(
+            [PHP_BINARY, $root . '/bin/check-admin-dist-fresh', $mode],
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+        );
+        self::assertIsResource($process);
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        self::assertSame(0, proc_close($process), (string) $stderr);
+
+        return trim((string) $stdout);
     }
 
     /** @return array{int, string, string} */

@@ -22,5 +22,5 @@ interface AdminBuildProcessRunnerInterface
         RedactorProcessor $sanitizer,
         callable $stdout,
         callable $stderr,
-    ): int;
+    ): AdminBuildProcessResult;
 }

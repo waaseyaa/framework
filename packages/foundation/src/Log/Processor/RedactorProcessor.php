@@ -141,7 +141,23 @@ final class RedactorProcessor implements ProcessorInterface
      */
     public function sanitizeText(string $value): string
     {
-        return $this->redactString($value);
+        $parts = preg_split('/(\r\n|\n|\r)/', $value, -1, PREG_SPLIT_DELIM_CAPTURE);
+        if (!is_array($parts)) {
+            return self::SENTINEL;
+        }
+        foreach ($parts as $index => $part) {
+            if (!in_array($part, ["\r\n", "\n", "\r"], true)) {
+                $parts[$index] = $this->redactString($part);
+            }
+        }
+
+        return implode('', $parts);
+    }
+
+    /** @api */
+    public function containsRegisteredRepresentation(string $value): bool
+    {
+        return $this->replaceRegisteredRepresentations($value) !== $value;
     }
 
     /**

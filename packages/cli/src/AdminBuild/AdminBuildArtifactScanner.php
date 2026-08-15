@@ -56,6 +56,7 @@ final class AdminBuildArtifactScanner
                 labelPrefix: '',
                 files: $files,
                 skipNodeModules: false,
+                allowInternalSymlinks: false,
             );
         }
         ksort($files, SORT_STRING);
@@ -135,6 +136,7 @@ final class AdminBuildArtifactScanner
                     labelPrefix: $labelPrefix,
                     files: $files,
                     skipNodeModules: false,
+                    allowInternalSymlinks: true,
                 );
             } elseif ($entry->isFile()) {
                 $this->addFile($entry->getPathname(), $adminPath, $labelRoot, $labelPrefix, $files);
@@ -150,6 +152,7 @@ final class AdminBuildArtifactScanner
                 labelPrefix: $labelPrefix,
                 files: $files,
                 skipNodeModules: false,
+                allowInternalSymlinks: true,
             );
         }
     }
@@ -162,6 +165,7 @@ final class AdminBuildArtifactScanner
         string $labelPrefix,
         array &$files,
         bool $skipNodeModules,
+        bool $allowInternalSymlinks,
     ): void {
         $directory = new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS);
         $filter = new \RecursiveCallbackFilterIterator(
@@ -174,7 +178,7 @@ final class AdminBuildArtifactScanner
         foreach ($iterator as $entry) {
             if ($entry->isLink()) {
                 $target = realpath($entry->getPathname());
-                if (!is_string($target) || !$this->isWithin($target, $boundaryRoot)) {
+                if (!$allowInternalSymlinks || !is_string($target) || !$this->isWithin($target, $boundaryRoot)) {
                     throw new AdminBuildArtifactScanException('artifact-symlink-refused');
                 }
                 // Internal generated aliases (Nuxt's dist -> .output/public)
@@ -264,7 +268,9 @@ final class AdminBuildArtifactScanner
             $matches,
         )) {
             foreach ($matches[1] as $candidate) {
-                if ($this->entropy($candidate) >= 4.0) {
+                if (preg_match('/^[a-f0-9]{32,}$/iD', $candidate) === 1
+                    || preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/iD', $candidate) === 1
+                    || $this->entropy($candidate) >= 4.0) {
                     return true;
                 }
             }

@@ -737,6 +737,7 @@ return [
 
     'Waaseyaa\CLI\Io\StdinSource' => 'public',
     'Waaseyaa\CLI\AdminBuild\AdminBuildPlatform' => 'internal',
+    'Waaseyaa\CLI\AdminBuild\AdminBuildProcessResult' => 'internal',
     'Waaseyaa\CLI\AdminBuild\AdminBuildProcessRunnerInterface' => 'internal',
 
     // Layer 6: Interfaces — internal

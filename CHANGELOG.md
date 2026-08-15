@@ -20,12 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   overlapping values redact globally longest-first, sanitizes recursive keys,
   wraps custom kernel loggers behind the same sink, canonicalizes environment
   identity, and keeps JSON diagnostics fingerprint-only. Admin generation and
-  distribution builds now resolve an absolute npm executable, install from the
-  exact lock offline with lifecycle scripts disabled, pass only fixed or
-  validated public build variables into disposable home/temp/npm/cache state,
-  neutralize dotenv and local Nuxt/npm configuration, sanitize bounded child
-  output, and deterministically inventory and scan generated, cached, source-map,
-  and publishable artifacts before success. Real provider adapters,
+  distribution builds now run the npm CLI through the same pinned absolute Node
+  executable, install from the exact lock offline with lifecycle scripts
+  disabled, seed only a dedicated credential-free content-addressed cache on an
+  explicitly authorized public-registry miss, pass only fixed or validated
+  public build variables into disposable home/temp/configuration state,
+  neutralize dotenv and local Nuxt/npm configuration, classify npm failures
+  before line-scoped output sanitization, enforce bounded child output/runtime,
+  and deterministically inventory and scan generated, cached, source-map, and
+  symlink-free publishable artifacts before readable static publication. Real provider adapters,
   purpose-specific consumers, signing custody, integration migrations, and the
   versioned application-master transition remain deliberately unimplemented.
 - **configuration schema and sync authority (`S1-FW-CFG-03`):** Add the strict

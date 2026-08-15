@@ -11,6 +11,7 @@ use Waaseyaa\CLI\AdminBuild\AdminBuildArtifactScanner;
 use Waaseyaa\CLI\AdminBuild\AdminBuildInputPolicy;
 use Waaseyaa\CLI\AdminBuild\AdminBuildPlatform;
 use Waaseyaa\CLI\AdminBuild\AdminBuildProcessRunnerInterface;
+use Waaseyaa\CLI\AdminBuild\AdminBuildProcessResult;
 use Waaseyaa\CLI\AdminBuild\HermeticAdminBuildPipeline;
 use Waaseyaa\CLI\AdminBuild\HermeticBuildEnvironmentFactory;
 use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
@@ -31,10 +32,12 @@ final class HermeticAdminBuildPipelineTest extends TestCase
         mkdir($this->adminPath . '/app', 0700, true);
         mkdir($bin, 0700, true);
         $this->npm = $bin . '/npm';
+        $npmCli = $bin . '/npm-cli.js';
         $this->node = $bin . '/node';
-        file_put_contents($this->npm, "#!/bin/sh\nexit 0\n");
+        file_put_contents($npmCli, "#!/usr/bin/env node\n");
+        symlink($npmCli, $this->npm);
         file_put_contents($this->node, "#!/bin/sh\nexit 0\n");
-        chmod($this->npm, 0700);
+        chmod($npmCli, 0700);
         chmod($this->node, 0700);
         file_put_contents($this->projectRoot . '/.nvmrc', "24\n");
         file_put_contents($this->adminPath . '/app/input.ts', 'export const synthetic = true');
@@ -161,24 +164,24 @@ final class CacheMissThenSuccessRunner implements AdminBuildProcessRunnerInterfa
         RedactorProcessor $sanitizer,
         callable $stdout,
         callable $stderr,
-    ): int {
+    ): AdminBuildProcessResult {
         $this->calls[] = ['command' => $command, 'environment' => $environment];
-        if ($command[1] === '--version') {
+        if (in_array('--version', $command, true)) {
             $stdout("v24.19.0\n");
 
-            return 0;
+            return new AdminBuildProcessResult(0);
         }
         if (in_array('--offline', $command, true)) {
-            $stderr("npm error code ENOTCACHED\n");
+            $stderr("npm error code ENOTCACHED\nnpm error request for cookie-es failed\n");
 
-            return 1;
+            return new AdminBuildProcessResult(1, 'ENOTCACHED');
         }
-        if ($command[1] === 'run') {
+        if (in_array('run', $command, true)) {
             mkdir($cwd . '/.output/public', 0700, true);
             file_put_contents($cwd . '/.output/public/index.html', '<main>synthetic retry</main>');
         }
 
-        return 0;
+        return new AdminBuildProcessResult(0);
     }
 }
 
@@ -195,16 +198,16 @@ final class RecordingAdminBuildProcessRunner implements AdminBuildProcessRunnerI
         RedactorProcessor $sanitizer,
         callable $stdout,
         callable $stderr,
-    ): int {
+    ): AdminBuildProcessResult {
         $this->calls[] = ['command' => $command, 'cwd' => $cwd, 'environment' => $environment];
         $this->sawNuxtRc = $this->sawNuxtRc || file_exists($cwd . '/.nuxtrc');
-        if ($command[1] === '--version') {
+        if (in_array('--version', $command, true)) {
             $stdout("v24.19.0\n");
         } elseif (count($this->calls) === 3) {
             mkdir($cwd . '/.output/public', 0700, true);
             file_put_contents($cwd . '/.output/public/index.html', '<main>synthetic</main>');
         }
 
-        return 0;
+        return new AdminBuildProcessResult(0);
     }
 }

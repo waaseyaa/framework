@@ -21,11 +21,17 @@ final class HermeticBuildEnvironmentFactory
     /**
      * @param array<string, string> $parent
      */
-    public function build(array $parent, string $workspace, AdminBuildPlatform $platform): AdminBuildEnvironment
-    {
+    public function build(
+        array $parent,
+        string $workspace,
+        AdminBuildPlatform $platform,
+        string $dependencyCache,
+    ): AdminBuildEnvironment {
         $workspace = $this->validatedDirectory($workspace, 'workspace-invalid');
+        $dependencyCache = $this->validatedDirectory($dependencyCache, 'dependency-cache-invalid');
         $path = $this->validatedPath($parent['PATH'] ?? '', $platform);
-        $npm = $this->resolveBinary('npm', 'NPM_BINARY', $parent, $path, $platform);
+        $npmLauncher = $this->resolveBinary('npm', 'NPM_BINARY', $parent, $path, $platform);
+        $npm = $this->resolveNpmCli($npmLauncher, $platform);
         $node = $this->resolveBinary('node', 'NODE_BINARY', $parent, $path, $platform);
 
         $variables = [
@@ -50,7 +56,6 @@ final class HermeticBuildEnvironmentFactory
 
         $home = $this->createDirectory($workspace . '/home');
         $temp = $this->createDirectory($workspace . '/tmp');
-        $cache = $this->createDirectory($workspace . '/npm-cache');
         $xdgCache = $this->createDirectory($workspace . '/xdg-cache');
         $userConfig = $this->createEmptyFile($workspace . '/npm-user.conf');
         $globalConfig = $this->createEmptyFile($workspace . '/npm-global.conf');
@@ -58,7 +63,7 @@ final class HermeticBuildEnvironmentFactory
             'HOME' => $home,
             'TMPDIR' => $temp,
             'XDG_CACHE_HOME' => $xdgCache,
-            'npm_config_cache' => $cache,
+            'npm_config_cache' => $dependencyCache,
             'npm_config_globalconfig' => $globalConfig,
             'npm_config_userconfig' => $userConfig,
         ];
@@ -90,6 +95,21 @@ final class HermeticBuildEnvironmentFactory
         ksort($variables, SORT_STRING);
 
         return new AdminBuildEnvironment($npm, $node, $variables);
+    }
+
+    private function resolveNpmCli(string $launcher, AdminBuildPlatform $platform): string
+    {
+        if (basename($launcher) === 'npm-cli.js') {
+            return $this->validatedReadableFile($launcher, 'npm-cli-invalid');
+        }
+        if ($platform === AdminBuildPlatform::Windows) {
+            return $this->validatedReadableFile(
+                dirname($launcher) . '/node_modules/npm/bin/npm-cli.js',
+                'npm-cli-invalid',
+            );
+        }
+
+        throw new AdminBuildPolicyException('npm-cli-invalid');
     }
 
     /** @param array<string, string> $parent */
@@ -188,6 +208,19 @@ final class HermeticBuildEnvironmentFactory
             throw new AdminBuildPolicyException($errorCode);
         }
         if (PHP_OS_FAMILY !== 'Windows' && !is_executable($real)) {
+            throw new AdminBuildPolicyException($errorCode);
+        }
+
+        return $real;
+    }
+
+    private function validatedReadableFile(string $path, string $errorCode): string
+    {
+        if (!$this->isAbsolute($path)) {
+            throw new AdminBuildPolicyException($errorCode);
+        }
+        $real = realpath($path);
+        if (!is_string($real) || !is_file($real) || !is_readable($real)) {
             throw new AdminBuildPolicyException($errorCode);
         }
 

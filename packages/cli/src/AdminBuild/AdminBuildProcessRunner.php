@@ -8,9 +8,11 @@ use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
 
 final class AdminBuildProcessRunner implements AdminBuildProcessRunnerInterface
 {
-    public function __construct(private readonly int $maxOutputBytesPerStream = 16_777_216)
-    {
-        if ($maxOutputBytesPerStream < 1) {
+    public function __construct(
+        private readonly int $maxOutputBytesPerStream = 16_777_216,
+        private readonly float $maxRuntimeSeconds = 900.0,
+    ) {
+        if ($maxOutputBytesPerStream < 1 || $maxRuntimeSeconds <= 0) {
             throw new \InvalidArgumentException('Admin build output limit must be positive.');
         }
     }
@@ -28,7 +30,7 @@ final class AdminBuildProcessRunner implements AdminBuildProcessRunnerInterface
         RedactorProcessor $sanitizer,
         callable $stdout,
         callable $stderr,
-    ): int {
+    ): AdminBuildProcessResult {
         $process = @proc_open(
             $command,
             [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
@@ -46,10 +48,17 @@ final class AdminBuildProcessRunner implements AdminBuildProcessRunnerInterface
         stream_set_blocking($pipes[2], false);
         $buffers = [1 => '', 2 => ''];
         $overflow = false;
+        $timedOut = false;
         $lastExitCode = -1;
+        $started = hrtime(true);
 
         try {
             while (true) {
+                if ((hrtime(true) - $started) / 1_000_000_000 >= $this->maxRuntimeSeconds) {
+                    $timedOut = true;
+                    $this->terminate($process);
+                    break;
+                }
                 $read = [];
                 foreach ([1, 2] as $index) {
                     if (!feof($pipes[$index])) {
@@ -74,6 +83,10 @@ final class AdminBuildProcessRunner implements AdminBuildProcessRunnerInterface
                     }
                 }
 
+                if ($read === []) {
+                    usleep(10_000);
+                }
+
                 $status = proc_get_status($process);
                 if (!$status['running']) {
                     $lastExitCode = $status['exitcode'];
@@ -96,16 +109,24 @@ final class AdminBuildProcessRunner implements AdminBuildProcessRunnerInterface
             $closedExitCode = proc_close($process);
         }
 
+        if ($timedOut) {
+            $buffers = [1 => '', 2 => ''];
+            throw new AdminBuildProcessException('child-runtime-limit');
+        }
         if ($overflow) {
             throw new AdminBuildProcessException('child-output-limit');
         }
 
+        $npmErrorCode = $this->npmErrorCode($buffers[1] . "\n" . $buffers[2]);
         $safeStdout = $sanitizer->sanitizeText($buffers[1]);
         $safeStderr = $sanitizer->sanitizeText($buffers[2]);
-        $safeCombined = $sanitizer->sanitizeText($buffers[1] . $buffers[2]);
-        if ($safeStdout === $buffers[1]
-            && $safeStderr === $buffers[2]
-            && $safeCombined !== $buffers[1] . $buffers[2]) {
+        $stdoutContainsRegistered = $sanitizer->containsRegisteredRepresentation($buffers[1]);
+        $stderrContainsRegistered = $sanitizer->containsRegisteredRepresentation($buffers[2]);
+        $crossStreamRegistered = !$stdoutContainsRegistered
+            && !$stderrContainsRegistered
+            && ($sanitizer->containsRegisteredRepresentation($buffers[1] . $buffers[2])
+                || $sanitizer->containsRegisteredRepresentation($buffers[2] . $buffers[1]));
+        if ($crossStreamRegistered) {
             $safeStdout = '';
             $safeStderr = RedactorProcessor::SENTINEL;
         }
@@ -117,6 +138,34 @@ final class AdminBuildProcessRunner implements AdminBuildProcessRunnerInterface
             $stderr($safeStderr);
         }
 
-        return $lastExitCode >= 0 ? $lastExitCode : $closedExitCode;
+        return new AdminBuildProcessResult(
+            exitCode: $lastExitCode >= 0 ? $lastExitCode : $closedExitCode,
+            npmErrorCode: $npmErrorCode,
+        );
+    }
+
+    /** @param resource $process */
+    private function terminate($process): void
+    {
+        @proc_terminate($process);
+        $deadline = hrtime(true) + 250_000_000;
+        do {
+            $status = proc_get_status($process);
+            if (!$status['running']) {
+                return;
+            }
+            usleep(10_000);
+        } while (hrtime(true) < $deadline);
+
+        @proc_terminate($process, 9);
+    }
+
+    private function npmErrorCode(string $output): ?string
+    {
+        if (preg_match('/(?:^|\R)npm (?:error|ERR!) code ([A-Z0-9_-]+)(?:\R|$)/', $output, $match) !== 1) {
+            return null;
+        }
+
+        return $match[1];
     }
 }

@@ -18,7 +18,7 @@ final class AdminBuildOutputPublisher
         $staging = $adminRoot . '/.waaseyaa-output-new-' . $nonce;
         $backup = $adminRoot . '/.waaseyaa-output-old-' . $nonce;
         $target = $adminRoot . '/.output';
-        if (!mkdir($staging, 0o700)) {
+        if (!mkdir($staging, 0o755)) {
             throw new AdminBuildPolicyException('generated-output-stage-failed');
         }
 
@@ -60,12 +60,12 @@ final class AdminBuildOutputPublisher
             }
             $target = $destination . '/' . $entry->getFilename();
             if ($entry->isDir()) {
-                if (!mkdir($target, 0o700)) {
+                if (!mkdir($target, 0o755)) {
                     throw new AdminBuildPolicyException('generated-output-stage-failed');
                 }
                 $this->copyDirectory($real, $target, $sourceRoot);
             } elseif ($entry->isFile()) {
-                if (!copy($real, $target) || !chmod($target, 0o600)) {
+                if (!copy($real, $target) || !chmod($target, 0o644)) {
                     throw new AdminBuildPolicyException('generated-output-stage-failed');
                 }
             } else {

@@ -31,7 +31,7 @@ fflush(STDERR);
 fwrite(STDERR, substr($value, 5) . "\n");
 PHP;
 
-        $exitCode = new AdminBuildProcessRunner()->run(
+        $result = new AdminBuildProcessRunner()->run(
             command: [PHP_BINARY, '-r', $code, $canary],
             cwd: sys_get_temp_dir(),
             environment: ['PATH' => dirname(PHP_BINARY)],
@@ -40,7 +40,7 @@ PHP;
             stderr: static function (string $chunk) use (&$stderr): void { $stderr .= $chunk; },
         );
 
-        self::assertSame(0, $exitCode);
+        self::assertSame(0, $result->exitCode);
         self::assertStringNotContainsString($canary, $stdout . $stderr);
         self::assertStringContainsString(RedactorProcessor::SENTINEL, $stdout);
         self::assertStringContainsString(RedactorProcessor::SENTINEL, $stderr);
@@ -101,7 +101,7 @@ PHP;
         $code = <<<'PHP'
 $value = $argv[1];
 $split = intdiv(strlen($value), 2);
-fwrite(STDERR, substr($value, 0, $split));
+fwrite(STDERR, "cookie warning\n" . substr($value, 0, $split));
 fwrite(STDOUT, substr($value, $split));
 PHP;
 
@@ -137,5 +137,26 @@ PHP;
             self::assertSame('child-runtime-limit', $e->errorCode);
             self::assertLessThan(3.0, microtime(true) - $started);
         }
+    }
+
+    #[Test]
+    public function npm_cache_miss_is_classified_before_sensitive_diagnostic_lines_are_sanitized(): void
+    {
+        $stderr = '';
+        $code = 'fwrite(STDERR, "npm error code ENOTCACHED\\nnpm error request for cookie-es failed\\n"); exit(1);';
+
+        $result = new AdminBuildProcessRunner()->run(
+            command: [PHP_BINARY, '-r', $code],
+            cwd: sys_get_temp_dir(),
+            environment: ['PATH' => dirname(PHP_BINARY)],
+            sanitizer: new RedactorProcessor(),
+            stdout: static function (string $chunk): void {},
+            stderr: static function (string $chunk) use (&$stderr): void { $stderr .= $chunk; },
+        );
+
+        self::assertSame(1, $result->exitCode);
+        self::assertSame('ENOTCACHED', $result->npmErrorCode);
+        self::assertStringContainsString('npm error code ENOTCACHED', $stderr);
+        self::assertStringContainsString(RedactorProcessor::SENTINEL, $stderr);
     }
 }

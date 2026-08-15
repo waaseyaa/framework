@@ -22,7 +22,7 @@ final class AdminBuildToolchainPolicy
 
         $stdout = '';
         $stderr = '';
-        $exit = $runner->run(
+        $result = $runner->run(
             command: [$environment->nodeExecutable, '--version'],
             cwd: $projectRoot,
             environment: $environment->variables,
@@ -35,7 +35,7 @@ final class AdminBuildToolchainPolicy
             },
         );
         $version = trim($stdout);
-        if ($exit !== 0 || $stderr !== '' || !preg_match('/^v([0-9]+)\.[0-9]+\.[0-9]+$/D', $version, $match)) {
+        if ($result->exitCode !== 0 || $stderr !== '' || !preg_match('/^v([0-9]+)\.[0-9]+\.[0-9]+$/D', $version, $match)) {
             throw new AdminBuildPolicyException('node-version-unavailable');
         }
         if ($match[1] !== $pin) {

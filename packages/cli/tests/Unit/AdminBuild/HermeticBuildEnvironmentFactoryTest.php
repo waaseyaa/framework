@@ -31,10 +31,12 @@ final class HermeticBuildEnvironmentFactoryTest extends TestCase
     {
         $bin = $this->directory('bin');
         $npm = $bin . '/npm';
+        $npmCli = $bin . '/npm-cli.js';
         $node = $bin . '/node';
-        file_put_contents($npm, "#!/bin/sh\nexit 0\n");
+        file_put_contents($npmCli, "#!/usr/bin/env node\n");
+        symlink($npmCli, $npm);
         file_put_contents($node, "#!/bin/sh\nexit 0\n");
-        chmod($npm, 0700);
+        chmod($npmCli, 0700);
         chmod($node, 0700);
         $canary = 'cfg04-' . 'runtime-' . 'credential-' . bin2hex(random_bytes(8));
 
@@ -50,9 +52,10 @@ final class HermeticBuildEnvironmentFactoryTest extends TestCase
             ],
             workspace: $this->directory('workspace'),
             platform: AdminBuildPlatform::Linux,
+            dependencyCache: $this->directory('dependency-cache'),
         );
 
-        self::assertSame(realpath($npm), $environment->npmExecutable);
+        self::assertSame(realpath($npmCli), $environment->npmExecutable);
         self::assertSame(realpath($node), $environment->nodeExecutable);
         self::assertSame([
             'CI',
@@ -90,9 +93,12 @@ final class HermeticBuildEnvironmentFactoryTest extends TestCase
         $system32 = $systemRoot . '/System32';
         mkdir($system32, 0700, true);
         $npm = $bin . '/npm.CMD';
+        $npmCli = $bin . '/node_modules/npm/bin/npm-cli.js';
         $node = $bin . '/node.EXE';
         $comspec = $system32 . '/cmd.exe';
         file_put_contents($npm, "@exit /b 0\r\n");
+        mkdir(dirname($npmCli), 0700, true);
+        file_put_contents($npmCli, 'synthetic');
         file_put_contents($node, 'synthetic');
         file_put_contents($comspec, 'synthetic');
         chmod($npm, 0700);
@@ -111,9 +117,10 @@ final class HermeticBuildEnvironmentFactoryTest extends TestCase
             ],
             workspace: $this->directory('windows-workspace'),
             platform: AdminBuildPlatform::Windows,
+            dependencyCache: $this->directory('windows-dependency-cache'),
         );
 
-        self::assertSame(realpath($npm), $environment->npmExecutable);
+        self::assertSame(realpath($npmCli), $environment->npmExecutable);
         self::assertSame(realpath($node), $environment->nodeExecutable);
         self::assertSame([
             'APPDATA',
@@ -155,7 +162,12 @@ final class HermeticBuildEnvironmentFactoryTest extends TestCase
             ['PATH' => $this->directory('bin-invalid'), 'NPM_BINARY' => 'relative/npm-bin', 'NODE_BINARY' => 'relative/node-bin'],
         ] as $parent) {
             try {
-                $factory->build($parent, $this->directory('invalid-' . bin2hex(random_bytes(2))), AdminBuildPlatform::Linux);
+                $factory->build(
+                    $parent,
+                    $this->directory('invalid-' . bin2hex(random_bytes(2))),
+                    AdminBuildPlatform::Linux,
+                    $this->directory('invalid-cache-' . bin2hex(random_bytes(2))),
+                );
                 self::fail('Invalid executable authority must refuse.');
             } catch (\RuntimeException $e) {
                 if (isset($parent['NPM_BINARY'])) {

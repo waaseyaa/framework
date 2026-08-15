@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\CLI\AdminBuild\AdminBuildEnvironment;
 use Waaseyaa\CLI\AdminBuild\AdminBuildPolicyException;
 use Waaseyaa\CLI\AdminBuild\AdminBuildProcessRunnerInterface;
+use Waaseyaa\CLI\AdminBuild\AdminBuildProcessResult;
 use Waaseyaa\CLI\AdminBuild\AdminBuildToolchainPolicy;
 use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
 
@@ -59,9 +60,9 @@ final class FixedVersionRunner implements AdminBuildProcessRunnerInterface
         RedactorProcessor $sanitizer,
         callable $stdout,
         callable $stderr,
-    ): int {
+    ): AdminBuildProcessResult {
         $stdout($this->version . "\n");
 
-        return 0;
+        return new AdminBuildProcessResult(0);
     }
 }

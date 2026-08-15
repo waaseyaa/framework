@@ -135,27 +135,35 @@ Resolution order:
 **CLI** (from the Waaseyaa app root): `vendor/bin/waaseyaa admin:dev` runs `npm run dev` in the resolved admin directory; `vendor/bin/waaseyaa admin:build` runs `npm run generate`. For `admin:dev`, set **`NUXT_BACKEND_URL`** to the PHP app’s base URL (e.g. `http://127.0.0.1:8081`). If unset, it defaults to `http://{APP_HOST}:{APP_PORT}` (`127.0.0.1` and `8080` when those env vars are empty).
 
 `admin:build` is a hermetic production-artifact operation rather than a dev
-process. It resolves npm to an absolute executable, validates an exact
+process. It resolves an absolute Node executable and npm CLI module, runs that
+module through the same pinned Node binary, validates an exact
 `package-lock.json`, performs `npm ci --include=dev` offline with lifecycle scripts disabled,
 and runs generation with an empty explicit dotenv file from a disposable copy
 containing only declared Nuxt source inputs. Local `.env`, `.nuxtrc`, arbitrary
 scripts, dependency trees, and generated state are neither copied nor read by
 the child. The child receives a
 new closed environment: fixed CI/production/telemetry policy, a validated PATH,
-disposable home, temp, npm configuration/cache and c12 cache paths, and only the
+disposable home, temp, npm configuration and c12 cache paths, a dedicated
+project-local content-addressed npm cache under `storage/framework/admin-build/`, and only the
 documented non-secret `NUXT_*`/build-ID inputs. Linux and Windows have distinct
 closed OS allowlists. Project or ancestor `.nuxtrc`, project dotenv files,
 unknown or credential-bearing project npm settings, unresolved npm environment
 expansion, relative executables, and invalid OS paths refuse before launch.
-An empty cache fails closed by default. The distribution builder explicitly
-authorizes one retry against exactly `https://registry.npmjs.org/`; that retry
-uses the same lock, disposable cache, empty user/global/project credential
+An empty dedicated cache fails closed by default. An operator may explicitly
+set `WAASEYAA_ADMIN_BUILD_ALLOW_PUBLIC_REGISTRY=1` to authorize one retry
+against exactly `https://registry.npmjs.org/`; the distribution builder does so
+for its supervised rebuild. That retry uses the same lock, dedicated cache, empty user/global/project credential
 configuration, and disabled lifecycle scripts. The authorization flag itself
 never enters the child environment, and no alternate registry is accepted.
+Successful credential-free retrieval seeds the dedicated cache, so subsequent
+builds can complete offline; lockfile integrity remains authoritative over
+cached bytes.
 
-Child stdout and stderr are captured to a fixed maximum before crossing the
-kernel's mandatory sink sanitizer; overflow drops the raw output and emits only
-a fixed code. Buffering the complete bounded stream prevents a registered value
+Child stdout and stderr are captured to a fixed maximum and a 15-minute runtime
+bound before crossing the kernel's mandatory sink sanitizer; overflow or timeout
+drops the raw output and emits only a fixed code. npm error codes are classified
+inside that boundary before line-scoped sanitization, so a sensitive dependency
+name cannot suppress the closed `ENOTCACHED` retry decision. Buffering the complete bounded stream prevents a registered value
 split across child writes—or across stdout and stderr—from bypassing exact
 replacement. Registered values shorter than eight bytes are deliberately
 ineligible for exact replacement to avoid destructive false positives, so all
@@ -164,11 +172,13 @@ synthetic build canaries exceed that floor.
 After generation, every generated top-level tree, source map, Nuxt cache,
 dependency build cache, and the final `admin-surface/dist` publishable tree is
 inventoried in stable path order and scanned as bytes. Internal generated
-aliases may point only within the Admin package; external symlinks, unreadable or
+aliases may point only within the Admin package; publishable-tree symlinks and external symlinks, unreadable or
 changing files, known provider/private-key forms, registered synthetic canaries,
-and credential-labelled high-entropy material fail closed without putting the
+and credential-labelled high-entropy, 32+-character hexadecimal, and UUID-shaped material fail closed without putting the
 matched bytes into evidence. Supported sibling/Composer Admin package paths use
-a stable `admin-package/` logical evidence prefix.
+a stable `admin-package/` logical evidence prefix. Published static directories
+and files are normalized to `0755` and `0644` so a separate serving account can
+read the verified output.
 
 ### WSL / Windows browser against a WSL-hosted dev server
 
@@ -188,7 +198,7 @@ Static assets (`_nuxt/*.js`, `_nuxt/*.css`, fonts, images) are served from the s
 
 **CI automation:** The `.github/workflows/admin-dist.yml` workflow runs `nuxt generate` when `packages/admin/` changes on `main`, commits the output to `packages/admin-surface/dist/`, and opens a PR. After merge, the next tag distributes the assets via the splitsh-lite pipeline to Packagist.
 
-**Freshness and reproducibility gates (blocking):** `bin/check-admin-dist-fresh` (D6) compares a line-ending-normalised content signature of the admin SPA source set (`packages/admin/app/**`, dependency/configuration files, `.nvmrc`, and the complete distribution/hermetic-build tool roster) against the committed `packages/admin-surface/dist.signature`, written by `bin/build-admin-dist` whenever the bundle is rebuilt. It fails when source or its build procedure advances without a rebuild, including a dependabot bump to the admin lockfile, so a stale committed bundle can never be tagged into a release. The build entrypoint also derives Nuxt's build ID and a stable positive metadata timestamp from that complete signature. `bin/normalize-admin-dist` rewrites only the known wall-clock fields in Nuxt's build manifests and prerender payloads; an unexpected manifest count, identifier, timestamp type, HTML build identity, or payload shape fails the build. The checked-in normalization fixture proves that known volatile fields converge while real compiled-asset drift remains visible; the hermetic pipeline separately proves a stable inventory roster and scan verdict for identical declared inputs. Bit-identical whole-toolchain output is claimed only when two clean builds under the pinned Node 24/npm lock independently demonstrate it. The gate runs in `composer verify` **and** in the blocking `ci/verify-gates` CI job, so staleness fails the PR rather than depending on the out-of-band `admin-dist.yml` fix-up workflow to catch it after merge. Rebuild and re-sign with `bin/build-admin-dist`, then commit `packages/admin-surface/dist/` together with `packages/admin-surface/dist.signature`.
+**Freshness and reproducibility gates (blocking):** `bin/check-admin-dist-fresh` (D6) compares a line-ending-normalised content signature of the admin SPA source set (`packages/admin/app/**`, dependency/configuration files, `.nvmrc`, and the complete distribution/hermetic-build tool roster) against the committed `packages/admin-surface/dist.signature`, written by `bin/build-admin-dist` whenever the bundle is rebuilt. It fails when source or its build procedure advances without a rebuild, including a dependabot bump to the admin lockfile, so a stale committed bundle can never be tagged into a release. The build entrypoint derives Nuxt's build ID and stable positive metadata timestamp from a separate content-only signature; policy-only edits still stale the freshness marker but do not rewrite every prerendered HTML file. `bin/normalize-admin-dist` rewrites only the known wall-clock fields in Nuxt's build manifests and prerender payloads; an unexpected manifest count, identifier, timestamp type, HTML build identity, or payload shape fails the build. The checked-in normalization fixture proves that known volatile fields converge while real compiled-asset drift remains visible; the hermetic pipeline separately proves a stable inventory roster and scan verdict for identical declared inputs. Bit-identical whole-toolchain output is claimed only when two clean builds under the pinned Node 24/npm lock independently demonstrate it. The gate runs in `composer verify` **and** in the blocking `ci/verify-gates` CI job, so staleness fails the PR rather than depending on the out-of-band `admin-dist.yml` fix-up workflow to catch it after merge. Rebuild and re-sign with `bin/build-admin-dist`, then commit `packages/admin-surface/dist/` together with `packages/admin-surface/dist.signature`.
 
 ### Dev fallback account (auto-login for local development)
 

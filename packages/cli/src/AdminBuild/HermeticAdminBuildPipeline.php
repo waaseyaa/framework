@@ -12,6 +12,7 @@ final class HermeticAdminBuildPipeline
         private readonly HermeticBuildEnvironmentFactory $environmentFactory = new HermeticBuildEnvironmentFactory(),
         private readonly AdminBuildInputPolicy $inputPolicy = new AdminBuildInputPolicy(),
         private readonly AdminBuildToolchainPolicy $toolchainPolicy = new AdminBuildToolchainPolicy(),
+        private readonly AdminBuildDependencyCache $dependencyCache = new AdminBuildDependencyCache(),
         private readonly AdminBuildSourceWorkspace $sourceWorkspace = new AdminBuildSourceWorkspace(),
         private readonly AdminBuildArtifactScanner $artifactScanner = new AdminBuildArtifactScanner(),
         private readonly AdminBuildOutputPublisher $outputPublisher = new AdminBuildOutputPublisher(),
@@ -39,10 +40,12 @@ final class HermeticAdminBuildPipeline
         }
         $workspace = $this->createWorkspace();
         try {
+            $dependencyCache = $this->dependencyCache->prepare($projectRoot);
             $environment = $this->environmentFactory->build(
                 $parentEnvironment,
                 $workspace,
                 $platform ?? AdminBuildPlatform::host(),
+                $dependencyCache,
             );
             $inputFingerprint = $this->inputPolicy->validate($adminPath, $environment->variables);
             $nodeVersion = $this->toolchainPolicy->validate(
@@ -63,8 +66,8 @@ final class HermeticAdminBuildPipeline
 
             $installStdout = '';
             $installStderr = '';
-            $installExit = $this->processRunner->run(
-                command: $this->installCommand($environment->npmExecutable, offline: true),
+            $installResult = $this->processRunner->run(
+                command: $this->installCommand($environment, offline: true),
                 cwd: $buildPath,
                 environment: $environment->variables,
                 sanitizer: $sanitizer,
@@ -75,15 +78,15 @@ final class HermeticAdminBuildPipeline
                     $installStderr .= $text;
                 },
             );
-            if ($installExit !== 0 && $allowPublicRegistry
-                && str_contains($installStdout . $installStderr, 'ENOTCACHED')) {
+            if ($installResult->exitCode !== 0 && $allowPublicRegistry
+                && $installResult->npmErrorCode === 'ENOTCACHED') {
                 $stdout("Admin dependency cache incomplete; using the authorized credential-free public registry.\n");
                 $networkEnvironment = $environment->variables;
                 $networkEnvironment['npm_config_offline'] = 'false';
                 $networkEnvironment['npm_config_registry'] = 'https://registry.npmjs.org/';
                 ksort($networkEnvironment, SORT_STRING);
-                $installExit = $this->processRunner->run(
-                    command: $this->installCommand($environment->npmExecutable, offline: false),
+                $installResult = $this->processRunner->run(
+                    command: $this->installCommand($environment, offline: false),
                     cwd: $buildPath,
                     environment: $networkEnvironment,
                     sanitizer: $sanitizer,
@@ -98,19 +101,19 @@ final class HermeticAdminBuildPipeline
                     $stderr($installStderr);
                 }
             }
-            if ($installExit !== 0) {
+            if ($installResult->exitCode !== 0) {
                 throw new AdminBuildProcessException('dependency-install-failed');
             }
 
-            $generateExit = $this->processRunner->run(
-                command: [$environment->npmExecutable, 'run', 'generate', '--', '--dotenv', $emptyDotenv],
+            $generateResult = $this->processRunner->run(
+                command: [$environment->nodeExecutable, $environment->npmExecutable, 'run', 'generate', '--', '--dotenv', $emptyDotenv],
                 cwd: $buildPath,
                 environment: $environment->variables,
                 sanitizer: $sanitizer,
                 stdout: $stdout,
                 stderr: $stderr,
             );
-            if ($generateExit !== 0) {
+            if ($generateResult->exitCode !== 0) {
                 throw new AdminBuildProcessException('generate-failed');
             }
 
@@ -129,9 +132,9 @@ final class HermeticAdminBuildPipeline
     }
 
     /** @return non-empty-list<string> */
-    private function installCommand(string $npmExecutable, bool $offline): array
+    private function installCommand(AdminBuildEnvironment $environment, bool $offline): array
     {
-        $command = [$npmExecutable, 'ci'];
+        $command = [$environment->nodeExecutable, $environment->npmExecutable, 'ci'];
         $command[] = $offline ? '--offline' : '--registry=https://registry.npmjs.org/';
         array_push($command, '--include=dev', '--ignore-scripts', '--no-audit', '--no-fund');
 
