@@ -47,6 +47,25 @@ PHP;
     }
 
     #[Test]
+    public function a_registered_multiline_canary_is_sanitized_before_callbacks(): void
+    {
+        $canary = "cfg04-multiline-canary-AAAAAAAA\nsecond-line-BBBBBBBB";
+        $captured = '';
+
+        new AdminBuildProcessRunner()->run(
+            command: [PHP_BINARY, '-r', 'fwrite(STDOUT, "prefix\\n" . $argv[1] . "\\nsuffix\\n");', $canary],
+            cwd: sys_get_temp_dir(),
+            environment: ['PATH' => dirname(PHP_BINARY)],
+            sanitizer: new RedactorProcessor(registeredValues: [$canary]),
+            stdout: static function (string $chunk) use (&$captured): void { $captured .= $chunk; },
+            stderr: static function (string $chunk): void {},
+        );
+
+        self::assertStringNotContainsString($canary, $captured);
+        self::assertStringContainsString(RedactorProcessor::SENTINEL, $captured);
+    }
+
+    #[Test]
     public function excessive_child_output_is_dropped_with_a_fixed_non_sensitive_code(): void
     {
         $canary = 'cfg04-' . 'overflow-' . 'credential-' . bin2hex(random_bytes(8));

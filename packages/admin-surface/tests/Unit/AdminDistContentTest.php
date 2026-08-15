@@ -147,8 +147,7 @@ final class AdminDistContentTest extends TestCase
             JSON_THROW_ON_ERROR,
         );
         $buildId = $latest['id'] ?? null;
-        self::assertIsString($buildId);
-        self::assertMatchesRegularExpression('/^waaseyaa-[a-f0-9]{32}$/D', $buildId);
+        self::assertSame('waaseyaa-' . substr($this->buildContentSignature(), 0, 32), $buildId);
 
         $metaFiles = glob($this->distDir() . '/_nuxt/builds/meta/*.json') ?: [];
         self::assertCount(1, $metaFiles, 'Exactly one normalized Nuxt build-meta file must ship.');
@@ -157,6 +156,27 @@ final class AdminDistContentTest extends TestCase
             'buildId:"' . $buildId . '"',
             (string) file_get_contents($this->distDir() . '/index.html'),
         );
+    }
+
+    private function buildContentSignature(): string
+    {
+        $root = dirname(__DIR__, 4);
+        $process = proc_open(
+            [PHP_BINARY, $root . '/bin/check-admin-dist-fresh', '--print-build-id'],
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+            $root,
+        );
+        self::assertIsResource($process);
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        self::assertSame(0, proc_close($process), (string) $stderr);
+        $signature = trim((string) $stdout);
+        self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/D', $signature);
+
+        return $signature;
     }
 
     #[Test]
