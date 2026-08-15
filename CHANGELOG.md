@@ -16,7 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   production-composed resolver registry that enforces exact
   provider/package/class/purpose/environment policy, freezes after provider
   registration, and registers resolved values with the same final sink
-  sanitizer before returning them. Real provider adapters, purpose-specific
+  sanitizer before returning them. Independent review hardening makes
+  overlapping values redact globally longest-first, sanitizes recursive keys,
+  wraps custom kernel loggers behind the same sink, canonicalizes environment
+  identity, and keeps JSON diagnostics fingerprint-only. Real provider adapters, purpose-specific
   consumers, signing custody, integration migrations, build isolation, and the
   versioned application-master transition remain deliberately unimplemented.
 - **configuration schema and sync authority (`S1-FW-CFG-03`):** Add the strict

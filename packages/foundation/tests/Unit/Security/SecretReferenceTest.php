@@ -58,6 +58,24 @@ final class SecretReferenceTest extends TestCase
     }
 
     #[Test]
+    public function json_diagnostic_view_discloses_only_fingerprint_class_and_purpose(): void
+    {
+        $reference = SecretReference::create(
+            'synthetic-vault',
+            'tenant/example/private/provider/path',
+            SecretClass::ProviderCredential,
+            'waaseyaa.ai.embedding.v1',
+        );
+
+        $json = json_encode($reference, JSON_THROW_ON_ERROR);
+
+        $this->assertStringContainsString($reference->fingerprint(), $json);
+        $this->assertStringNotContainsString('tenant/example/private/provider/path', $json);
+        $this->assertStringNotContainsString('synthetic-vault', $json);
+        $this->assertSame('synthetic-vault', $reference->toArray()['provider']);
+    }
+
+    #[Test]
     #[\PHPUnit\Framework\Attributes\DataProvider('invalidReferences')]
     public function rejects_malformed_reference_fields(string $provider, string $identifier, string $purpose): void
     {

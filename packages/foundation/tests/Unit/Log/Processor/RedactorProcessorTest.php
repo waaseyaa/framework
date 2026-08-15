@@ -38,6 +38,42 @@ final class RedactorProcessorTest extends TestCase
     }
 
     #[Test]
+    public function redacts_overlapping_resolved_values_independent_of_registration_order(): void
+    {
+        $short = 'cfg04-overlap-base-0001';
+        $long = $short . '.signature-suffix';
+
+        foreach ([[$short, $long], [$long, $short]] as $registrationOrder) {
+            $processor = new RedactorProcessor();
+            $holders = [];
+            foreach ($registrationOrder as $bytes) {
+                $holder = SensitiveValue::fromBytes($bytes, SecretClass::ProviderCredential, 'synthetic-v1');
+                $holder->registerWith($processor);
+                $holders[] = $holder;
+            }
+
+            $result = $processor->process(new LogRecord(LogLevel::INFO, 'auth=' . $long));
+
+            $this->assertSame('auth=' . self::REDACTED, $result->message);
+            $this->assertCount(2, $holders);
+        }
+    }
+
+    #[Test]
+    public function redacts_registered_values_from_recursive_context_keys(): void
+    {
+        $canary = 'cfg04-context-key-canary';
+        $processor = new RedactorProcessor(registeredValues: [$canary]);
+
+        $result = $processor->process(new LogRecord(LogLevel::INFO, 'lookup', [
+            'nested' => [$canary => 1],
+        ]));
+
+        $this->assertSame([self::REDACTED => 1], $result->context['nested']);
+        $this->assertStringNotContainsString($canary, serialize($result->context));
+    }
+
+    #[Test]
     public function redacts_typed_sensitive_values_and_throwable_chains(): void
     {
         $sensitive = SensitiveValue::fromBytes(

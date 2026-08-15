@@ -86,6 +86,7 @@ abstract class AbstractKernel
     protected Migrator $migrator;
     private ?ApplicationSecret $applicationSecret = null;
     private readonly RedactorProcessor $sinkSanitizer;
+    private readonly bool $rebuildLoggerFromConfig;
     private ?SecretResolverRegistry $secretResolverRegistry = null;
     protected MigrationLoader $migrationLoader;
     protected MigrationRepository $migrationRepository;
@@ -139,8 +140,9 @@ abstract class AbstractKernel
         $this->sinkSanitizer = $logger instanceof LogManager
             ? $logger->sinkSanitizer()
             : new RedactorProcessor();
-        $this->logger = $logger ?? new LogManager(
-            new HandlerErrorLogHandler(),
+        $this->rebuildLoggerFromConfig = $logger === null || $logger instanceof LogManager;
+        $this->logger = $logger instanceof LogManager ? $logger : new LogManager(
+            $logger ?? new HandlerErrorLogHandler(),
             $this->sinkSanitizer,
         );
     }
@@ -163,7 +165,7 @@ abstract class AbstractKernel
         $this->communityContext ??= new CommunityContextBootstrapper()->boot($this->config);
 
         // Upgrade logger from config.
-        if ($this->logger instanceof LogManager) {
+        if ($this->rebuildLoggerFromConfig && $this->logger instanceof LogManager) {
             $loggingConfig = $this->config['logging'] ?? [];
             if (is_array($loggingConfig) && isset($loggingConfig['channels'])) {
                 $this->logger = LogManager::fromConfig($loggingConfig, $this->sinkSanitizer);

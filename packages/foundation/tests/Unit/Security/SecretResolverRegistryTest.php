@@ -67,6 +67,17 @@ final class SecretResolverRegistryTest extends TestCase
     }
 
     #[Test]
+    public function canonicalizes_environment_identity_before_policy_matching(): void
+    {
+        $registry = new SecretResolverRegistry(new RedactorProcessor(), ' TESTING ');
+        $registry->registerProvider($this->provider('synthetic-vault', 'synthetic-value', SecretClass::ProviderCredential));
+        $registry->allow('synthetic-vault', 'waaseyaa/ai-vector', SecretClass::ProviderCredential, 'waaseyaa.ai.embedding.v1', ['testing']);
+        $registry->freeze();
+
+        $this->assertInstanceOf(SensitiveValue::class, $registry->resolve($this->reference(), 'waaseyaa/ai-vector'));
+    }
+
+    #[Test]
     public function missing_provider_fails_closed_without_identifier_disclosure(): void
     {
         $registry = new SecretResolverRegistry(new RedactorProcessor(), 'testing');

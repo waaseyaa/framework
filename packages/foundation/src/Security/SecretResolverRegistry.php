@@ -25,11 +25,15 @@ final class SecretResolverRegistry
 
     private bool $frozen = false;
 
+    private readonly string $environment;
+
     public function __construct(
         private readonly RedactorProcessor $sinkSanitizer,
-        private readonly string $environment,
+        string $environment,
     ) {
+        $environment = strtolower(trim($environment));
         self::assertStableIdentifier($environment, 'environment');
+        $this->environment = $environment;
     }
 
     public function registerProvider(SecretProviderInterface $provider): void

@@ -144,15 +144,16 @@ final class RedactorProcessor implements ProcessorInterface
         $result = [];
 
         foreach ($context as $key => $value) {
+            $redactedKey = is_string($key) ? $this->replaceRegisteredRepresentations($key) : $key;
             if (is_string($key) && $this->keyMatches($key)) {
                 // Key denylist hit — redact regardless of value type.
-                $result[$key] = self::SENTINEL;
+                $result[$redactedKey] = self::SENTINEL;
             } elseif (is_array($value)) {
-                $result[$key] = $depth >= self::MAX_CONTEXT_DEPTH - 1
+                $result[$redactedKey] = $depth >= self::MAX_CONTEXT_DEPTH - 1
                     ? self::SENTINEL
                     : $this->redactContext($value, $depth + 1);
             } else {
-                $result[$key] = $this->redactValue($value);
+                $result[$redactedKey] = $this->redactValue($value);
             }
         }
 
@@ -195,6 +196,12 @@ final class RedactorProcessor implements ProcessorInterface
             return self::SENTINEL;
         }
 
+        return $this->replaceRegisteredRepresentations($value);
+    }
+
+    private function replaceRegisteredRepresentations(string $value): string
+    {
+
         $representations = self::$registeredRepresentations[$this] ?? [];
         $sensitiveValues = self::$registeredSensitiveRepresentations[$this] ?? null;
         if ($sensitiveValues instanceof \WeakMap) {
@@ -202,6 +209,8 @@ final class RedactorProcessor implements ProcessorInterface
                 array_push($representations, ...$registered);
             }
         }
+        $representations = array_values(array_unique($representations));
+        usort($representations, static fn(string $left, string $right): int => strlen($right) <=> strlen($left));
 
         return str_replace($representations, self::SENTINEL, $value);
     }

@@ -5602,12 +5602,12 @@
         },
         {
             "path": "packages/foundation/src/Kernel/AbstractKernel.php",
-            "line": 821,
+            "line": 823,
             "pattern": "legacy_schema_method",
             "class": "explicit-exclusion",
             "match_sha256": "2e7917cd491926b73a66c334a800c5b1e479d36b3c7f11e9aceab8ea6c41f300",
             "line_sha256": "4af93b5c2fac46b866e8ce8880ae4de90071226c8ed7faa9e6338596895c60cc",
-            "source_sha256": "e8d973968e87b5d67ccc3cecbd257915e8704e4cfce6a1feaf7f89370d345fe2"
+            "source_sha256": "d00d27435936f7e66af949c1943f8a3c479c0c8c72528f200b081e8d4ee473b4"
         },
         {
             "path": "packages/foundation/src/Kernel/ConsoleKernel.php",

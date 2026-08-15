@@ -7,8 +7,9 @@ namespace Waaseyaa\Foundation\Security;
 /**
  * Non-secret, deployable reference to externally held secret material.
  *
- * Ordinary configuration may serialize the complete reference. Diagnostic
- * views intentionally expose only its stable fingerprint, class and purpose.
+ * Ordinary configuration may request the complete reference explicitly via
+ * toArray(). JSON and debug views expose only its stable fingerprint, class
+ * and purpose so diagnostic serializers do not disclose provider paths.
  *
  * @api
  */
@@ -93,16 +94,22 @@ final class SecretReference implements \JsonSerializable
     /** @return array{reference: string, class: string, purpose: string} */
     public function __debugInfo(): array
     {
+        return $this->redactedView();
+    }
+
+    /** @return array{reference: string, class: string, purpose: string} */
+    public function jsonSerialize(): array
+    {
+        return $this->redactedView();
+    }
+
+    /** @return array{reference: string, class: string, purpose: string} */
+    private function redactedView(): array
+    {
         return [
             'reference' => $this->fingerprint,
             'class' => $this->secretClass->value,
             'purpose' => $this->purpose,
         ];
-    }
-
-    /** @return array{provider: string, identifier: string, secret_class: string, purpose: string} */
-    public function jsonSerialize(): array
-    {
-        return $this->toArray();
     }
 }
