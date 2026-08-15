@@ -124,6 +124,20 @@ final class AdminBuildArtifactScannerTest extends TestCase
     }
 
     #[Test]
+    public function credential_labeled_hex_and_uuid_values_fail_even_below_the_entropy_backstop(): void
+    {
+        foreach ([
+            'api_key="57a526881015df858c2f4f712a65e99f"',
+            'token="72911244-f563-494a-a0a2-560e08a16934"',
+        ] as $index => $payload) {
+            $path = $this->adminPath . '/.output/public/credential-' . $index . '.js';
+            file_put_contents($path, $payload);
+            $this->assertScanFailure('artifact-secret-detected');
+            unlink($path);
+        }
+    }
+
+    #[Test]
     public function a_symlinked_output_refuses_instead_of_scanning_outside_the_project(): void
     {
         if (!function_exists('symlink')) {
@@ -142,6 +156,28 @@ final class AdminBuildArtifactScannerTest extends TestCase
         } finally {
             unlink($link);
             unlink($outside);
+        }
+    }
+
+    #[Test]
+    public function a_publishable_symlink_to_an_unscanned_project_file_refuses(): void
+    {
+        if (!function_exists('symlink')) {
+            self::markTestSkipped('Symlink support unavailable.');
+        }
+        $sensitive = $this->projectRoot . '/unscanned-sensitive.txt';
+        file_put_contents($sensitive, 'sk-' . str_repeat('a', 40));
+        $link = $this->projectRoot . '/packages/admin-surface/dist/leak.txt';
+        if (!@symlink($sensitive, $link)) {
+            unlink($sensitive);
+            self::markTestSkipped('Symlink creation unavailable.');
+        }
+
+        try {
+            $this->assertScanFailure('artifact-symlink-refused');
+        } finally {
+            unlink($link);
+            unlink($sensitive);
         }
     }
 

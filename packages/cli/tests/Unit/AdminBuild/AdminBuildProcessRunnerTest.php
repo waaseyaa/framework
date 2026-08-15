@@ -92,4 +92,50 @@ PHP;
         self::assertSame(RedactorProcessor::SENTINEL, $captured);
         self::assertStringNotContainsString($canary, $captured);
     }
+
+    #[Test]
+    public function a_canary_split_stderr_first_then_stdout_drops_both_raw_streams(): void
+    {
+        $canary = 'cfg04-' . 'reverse-stream-' . bin2hex(random_bytes(10));
+        $captured = '';
+        $code = <<<'PHP'
+$value = $argv[1];
+$split = intdiv(strlen($value), 2);
+fwrite(STDERR, substr($value, 0, $split));
+fwrite(STDOUT, substr($value, $split));
+PHP;
+
+        new AdminBuildProcessRunner()->run(
+            command: [PHP_BINARY, '-r', $code, $canary],
+            cwd: sys_get_temp_dir(),
+            environment: ['PATH' => dirname(PHP_BINARY)],
+            sanitizer: new RedactorProcessor(registeredValues: [$canary]),
+            stdout: static function (string $chunk) use (&$captured): void { $captured .= $chunk; },
+            stderr: static function (string $chunk) use (&$captured): void { $captured .= $chunk; },
+        );
+
+        self::assertSame(RedactorProcessor::SENTINEL, $captured);
+        self::assertStringNotContainsString($canary, $captured);
+    }
+
+    #[Test]
+    public function a_stalled_child_is_terminated_at_the_fixed_runtime_bound(): void
+    {
+        $started = microtime(true);
+
+        try {
+            new AdminBuildProcessRunner(maxRuntimeSeconds: 0.1)->run(
+                command: [PHP_BINARY, '-r', 'while (true) {}'],
+                cwd: sys_get_temp_dir(),
+                environment: ['PATH' => dirname(PHP_BINARY)],
+                sanitizer: new RedactorProcessor(),
+                stdout: static function (string $chunk): void {},
+                stderr: static function (string $chunk): void {},
+            );
+            self::fail('A stalled child must be terminated.');
+        } catch (AdminBuildProcessException $e) {
+            self::assertSame('child-runtime-limit', $e->errorCode);
+            self::assertLessThan(3.0, microtime(true) - $started);
+        }
+    }
 }

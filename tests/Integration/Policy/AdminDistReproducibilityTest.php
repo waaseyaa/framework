@@ -86,6 +86,7 @@ final class AdminDistReproducibilityTest extends TestCase
         $config = (string) file_get_contents($root . '/packages/admin/nuxt.config.ts');
 
         self::assertStringContainsString('check-admin-dist-fresh" --print', $build);
+        self::assertStringContainsString('check-admin-dist-fresh" --print-build-id', $build);
         self::assertStringContainsString('WAASEYAA_ADMIN_BUILD_ID', $build);
         self::assertStringContainsString('run-hermetic-admin-build', $build);
         self::assertStringContainsString('normalize-admin-dist', $build);
@@ -96,6 +97,7 @@ final class AdminDistReproducibilityTest extends TestCase
         self::assertStringContainsString("'bin/run-hermetic-admin-build'", $freshness);
         self::assertStringContainsString("'/packages/cli/src/AdminBuild'", $freshness);
         self::assertStringContainsString("'.nvmrc'", $freshness);
+        self::assertStringContainsString("in_array('--print-build-id'", $freshness);
     }
 
     private function makeFixture(int $timestamp, string $asset = 'compiled asset'): string

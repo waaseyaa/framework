@@ -38,6 +38,19 @@ final class RedactorProcessorTest extends TestCase
     }
 
     #[Test]
+    public function diagnostic_text_redacts_sensitive_lines_without_destroying_safe_error_codes(): void
+    {
+        $processor = new RedactorProcessor();
+        $diagnostic = "npm error code ENOTCACHED\nnpm error request for cookie-es failed\nretry unavailable\n";
+
+        $sanitized = $processor->sanitizeText($diagnostic);
+
+        self::assertStringContainsString('npm error code ENOTCACHED', $sanitized);
+        self::assertStringContainsString("\n" . self::REDACTED . "\n", $sanitized);
+        self::assertStringContainsString('retry unavailable', $sanitized);
+    }
+
+    #[Test]
     public function redacts_overlapping_resolved_values_independent_of_registration_order(): void
     {
         $short = 'cfg04-overlap-base-0001';

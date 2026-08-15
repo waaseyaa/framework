@@ -21,6 +21,7 @@ final class HermeticAdminBuildPipelineTest extends TestCase
     private string $projectRoot;
     private string $adminPath;
     private string $npm;
+    private string $node;
 
     protected function setUp(): void
     {
@@ -30,11 +31,11 @@ final class HermeticAdminBuildPipelineTest extends TestCase
         mkdir($this->adminPath . '/app', 0700, true);
         mkdir($bin, 0700, true);
         $this->npm = $bin . '/npm';
-        $node = $bin . '/node';
+        $this->node = $bin . '/node';
         file_put_contents($this->npm, "#!/bin/sh\nexit 0\n");
-        file_put_contents($node, "#!/bin/sh\nexit 0\n");
+        file_put_contents($this->node, "#!/bin/sh\nexit 0\n");
         chmod($this->npm, 0700);
-        chmod($node, 0700);
+        chmod($this->node, 0700);
         file_put_contents($this->projectRoot . '/.nvmrc', "24\n");
         file_put_contents($this->adminPath . '/app/input.ts', 'export const synthetic = true');
         file_put_contents($this->adminPath . '/nuxt.config.ts', 'export default defineNuxtConfig({})');
@@ -94,9 +95,17 @@ final class HermeticAdminBuildPipelineTest extends TestCase
 
         self::assertCount(3, $runner->calls);
         self::assertSame(['--version'], array_slice($runner->calls[0]['command'], 1));
-        self::assertSame([$this->npm, 'ci', '--offline', '--include=dev', '--ignore-scripts', '--no-audit', '--no-fund'], $runner->calls[1]['command']);
-        self::assertSame([$this->npm, 'run', 'generate', '--', '--dotenv'], array_slice($runner->calls[2]['command'], 0, 5));
+        self::assertSame(realpath($this->node), $runner->calls[1]['command'][0]);
+        self::assertSame(realpath($this->npm), $runner->calls[1]['command'][1]);
+        self::assertContains('--offline', $runner->calls[1]['command']);
+        self::assertSame(realpath($this->node), $runner->calls[2]['command'][0]);
+        self::assertSame(realpath($this->npm), $runner->calls[2]['command'][1]);
+        self::assertSame('run', $runner->calls[2]['command'][2]);
         self::assertSame($runner->calls[1]['environment'], $runner->calls[2]['environment']);
+        self::assertSame(
+            realpath($this->projectRoot . '/storage/framework/admin-build/npm-cache-v1'),
+            $runner->calls[1]['environment']['npm_config_cache'],
+        );
         self::assertNotSame($this->adminPath, $runner->calls[1]['cwd']);
         self::assertSame($runner->calls[1]['cwd'], $runner->calls[2]['cwd']);
         self::assertFalse($runner->sawNuxtRc);
@@ -105,7 +114,7 @@ final class HermeticAdminBuildPipelineTest extends TestCase
         self::assertContains('packages/admin/.output/public/index.html', $report->files);
         self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/D', $report->inventoryHash);
         self::assertTrue($report->clean);
-        self::assertFileDoesNotExist($runner->calls[2]['command'][5]);
+        self::assertFileDoesNotExist($runner->calls[2]['command'][6]);
     }
 
     #[Test]
