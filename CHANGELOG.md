@@ -97,8 +97,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   plaintext-bearing seal operation is non-exporting. References are immutable
   per master version and resolve afresh for each operation; providers must use a
   distinct reference rather than replacing application-master bytes in place.
-  Executable purpose adapters, coordinator-driven transitions, and migration of
-  compatibility `ApplicationSecret` consumers remain separate slices.
+  The OIDC package now owns its five persisted purposes through three physical
+  row-boundary adapters: signing private material, access-token ciphertext plus
+  lookup, and refresh-token ciphertext plus lookup. DB-02 widens ciphertext
+  storage and installs deterministic monotonic token custody sequences so
+  immutable snapshots remain bounded while successor-only writers continue.
+  Runtime reads use envelope-declared versions and bounded lookup candidates;
+  joint token CAS updates never touch revocation; rollback re-seals under the
+  restored predecessor; and legacy application-secret material is accepted
+  only through an explicit migration bridge. Token issuance and custody-sequence
+  allocation commit together, and the explicit legacy migrator now refuses
+  missing schema without lazy DDL.
   A DB-02 Foundation migration now installs non-secret master-version,
   immutable purpose-policy snapshot, joint-adapter cursor/count, per-purpose
   verification, closed revocation-gate, request-projection, and append-only
@@ -149,16 +158,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   explicit trusted-history migration upgrades already-pruned legacy chains.
   The destructive command first verifies the complete sealed chain, so it
   cannot bless a pre-existing forged prune state as a legitimate retry.
-  Remaining package adapters and process
-  reconciliation remain incomplete.
+  Remaining state/preview purpose disposition and process reconciliation remain
+  incomplete.
   A generic coordinator now composes every frozen registry owner exactly once,
   refuses mismatched database identities or purpose rosters before inventory,
   passes adapters the store's exact transaction authority, and commits owner CAS
   effects with validated cursor/count/commitment evidence in one transaction.
   Malformed adapter output rolls back both row and cursor; restart resumes from
   the durable cursor without replay; and all verification results for a joint
-  adapter commit atomically. Concrete audit/OIDC/state adapters and fleet/backup
-  evidence producers remain incomplete.
+  adapter commit atomically. State/preview disposition and fleet/backup evidence
+  producers remain incomplete.
 - **configuration schema and sync authority (`S1-FW-CFG-03`):** Add the strict
   v1 configuration contract with closed recursive schema validation, separate
   default-materialized effective documents, versioned canonical encoding,

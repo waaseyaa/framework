@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Waaseyaa\Oidc\Tests\Unit;
 
+use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -11,6 +12,7 @@ use RuntimeException;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy;
+use Waaseyaa\Foundation\Security\ApplicationMasterKeyring;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Foundation\ServiceProvider\Capability\ProvidesApplicationMasterRekeyContributionsInterface;
 use Waaseyaa\Foundation\ServiceProvider\KernelServicesInterface;
@@ -22,7 +24,10 @@ use Waaseyaa\Oidc\Keys\OpenSslKeyFactory;
 use Waaseyaa\Oidc\Keys\PemFileKeyLoader;
 use Waaseyaa\Oidc\OidcServiceProvider;
 use Waaseyaa\Oidc\Tests\Support\OidcSchema;
+use Waaseyaa\Oidc\Tests\Support\OidcApplicationMasterKeyring;
+use Waaseyaa\Oidc\Token\AccessTokenIssuer;
 use Waaseyaa\Oidc\Token\KeyMaterialProviderInterface;
+use Waaseyaa\Oidc\Token\RefreshTokenIssuer;
 
 #[CoversClass(OidcServiceProvider::class)]
 final class OidcServiceProviderTest extends TestCase
@@ -308,6 +313,57 @@ final class OidcServiceProviderTest extends TestCase
                 'rollback_behavior' => 'restore-predecessor-ciphertext',
             ],
         ], $records);
+    }
+
+    #[Test]
+    public function composed_keyring_is_the_only_runtime_custody_required_by_default(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        OidcSchema::installSigningKeys($database);
+        OidcSchema::installTokenStorage($database);
+        $keyring = OidcApplicationMasterKeyring::create(2, [1]);
+        $provider = new OidcServiceProvider();
+        $provider->setKernelContext('/tmp/oidc-test', [], []);
+        $provider->setKernelServices(new class ($database, $keyring) implements KernelServicesInterface {
+            public function __construct(
+                private readonly DatabaseInterface $database,
+                private readonly ApplicationMasterKeyring $keyring,
+            ) {}
+
+            public function get(string $abstract): ?object
+            {
+                return match ($abstract) {
+                    DatabaseInterface::class => $this->database,
+                    ApplicationMasterKeyring::class => $this->keyring,
+                    default => null,
+                };
+            }
+        });
+        $provider->register();
+
+        $signing = $provider->resolve(\Waaseyaa\Oidc\Key\SigningKeyRepository::class)->initialize();
+        $access = $provider->resolve(AccessTokenIssuer::class)
+            ->issue('client', 'account', ['openid'], new DateTimeImmutable('@1700000000'));
+        $refresh = $provider->resolve(RefreshTokenIssuer::class)->issue(
+            $access->jti,
+            'client',
+            'account',
+            ['openid'],
+            1_700_000_000,
+            new DateTimeImmutable('@1700000000'),
+        );
+
+        foreach ([
+            ['oidc_signing_key', 'kid', $signing->kid, 'private_key_pem'],
+            ['oidc_access_token', 'jti', $access->jti, 'token'],
+            ['oidc_refresh_token', 'jti', $refresh->jti, 'token'],
+        ] as [$table, $identityColumn, $identity, $ciphertextColumn]) {
+            $stored = (string) $database->getConnection()->fetchOne(
+                sprintf('SELECT %s FROM %s WHERE %s = ?', $ciphertextColumn, $table, $identityColumn),
+                [$identity],
+            );
+            self::assertSame(2, json_decode($stored, true, 32, JSON_THROW_ON_ERROR)['master_version']);
+        }
     }
 
     #[Test]

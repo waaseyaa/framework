@@ -10,6 +10,8 @@ use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Database\Schema\SchemaRequirement;
 use Waaseyaa\Entity\DateTime\EntityClockInterface;
 use Waaseyaa\Entity\DateTime\UtcEntityClock;
+use Waaseyaa\Foundation\Security\ApplicationMasterKeyring;
+use Waaseyaa\Foundation\Security\ApplicationSecret;
 use Waaseyaa\Oidc\Keys\OpenSslKeyFactory;
 use Waaseyaa\Oidc\Keys\RsaSigningKeySigner;
 use Waaseyaa\Oidc\Keys\SigningKey;
@@ -41,11 +43,18 @@ final class SigningKeyRepository
     public function __construct(
         private readonly DatabaseInterface $database,
         #[\SensitiveParameter]
-        string $encryptionKey,
+        ?string $encryptionKey,
         ?SigningKeyLifecyclePolicy $lifecyclePolicy = null,
         ?EntityClockInterface $clock = null,
+        ?ApplicationMasterKeyring $keyring = null,
     ) {
-        $this->envelope = new SecretBoxEnvelope($encryptionKey);
+        $this->envelope = $keyring === null
+            ? new SecretBoxEnvelope($encryptionKey)
+            : SecretBoxEnvelope::fromApplicationMasterKeyring(
+                $keyring,
+                ApplicationSecret::PURPOSE_OIDC_SIGNING_KEY_ENCRYPTION,
+                $encryptionKey,
+            );
         $this->lifecyclePolicy = $lifecyclePolicy ?? new SigningKeyLifecyclePolicy();
         $this->clock = $clock ?? new UtcEntityClock();
     }
@@ -79,7 +88,7 @@ final class SigningKeyRepository
         }
 
         $key = $this->hydrate($row);
-        $privateKeyPem = $this->envelope->open((string) $row['private_key_pem']);
+        $privateKeyPem = $this->envelope->open((string) $row['private_key_pem'], (string) $row['kid']);
         $signer = RsaSigningKeySigner::fromPrivatePem($key, $privateKeyPem);
         unset($privateKeyPem);
 
@@ -449,7 +458,7 @@ final class SigningKeyRepository
                 'key_version' => $version,
                 'algorithm' => self::ALGORITHM,
                 'state' => $state->value,
-                'private_key_pem' => $this->envelope->seal($privateKeyPem),
+                'private_key_pem' => $this->envelope->seal($privateKeyPem, $kid),
                 'public_key_pem' => $publicKeyPem,
                 'created_at' => $now->getTimestamp(),
                 'staged_at' => $now->getTimestamp(),
