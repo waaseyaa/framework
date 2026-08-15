@@ -10,12 +10,11 @@ use Waaseyaa\Audit\Contract\AuditQueryInterface;
 use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Enum\AuditEventKind;
 use Waaseyaa\Audit\Integrity\AuditChainVerifier;
-use Waaseyaa\Audit\Integrity\AuditPruneAuthorization;
+use Waaseyaa\Audit\Integrity\AuditCheckpointCustody;
 use Waaseyaa\CLI\Command\SymfonyCommandIO;
 use Waaseyaa\Database\DatabaseInterface;
 use Waaseyaa\Foundation\Log\LoggerInterface;
 use Waaseyaa\Foundation\Log\NullLogger;
-use Waaseyaa\Foundation\Security\SensitiveKey;
 
 /**
  * `bin/waaseyaa audit:prune --older-than=<duration> [--kind=<glob>] [--dry-run] [--confirm]`
@@ -57,7 +56,7 @@ use Waaseyaa\Foundation\Security\SensitiveKey;
 final class PruneCommand
 {
     private readonly LoggerInterface $logger;
-    private readonly ?SensitiveKey $hmacKey;
+    private readonly ?AuditCheckpointCustody $custody;
 
     public function __construct(
         private readonly AuditQueryInterface $query,
@@ -66,9 +65,15 @@ final class PruneCommand
         ?LoggerInterface $logger = null,
         #[\SensitiveParameter]
         ?string $hmacKey = null,
+        ?AuditCheckpointCustody $custody = null,
     ) {
+        if ($custody !== null && $hmacKey !== null && $hmacKey !== '') {
+            throw new \InvalidArgumentException('Supply composed audit custody or a legacy HMAC key, not both.');
+        }
         $this->logger = $logger ?? new NullLogger();
-        $this->hmacKey = ($hmacKey === null || $hmacKey === '') ? null : new SensitiveKey($hmacKey);
+        $this->custody = $custody ?? ($hmacKey === null || $hmacKey === ''
+            ? null
+            : new AuditCheckpointCustody(legacyKey: $hmacKey));
     }
 
     public function execute(SymfonyCommandIO $io): int
@@ -199,7 +204,7 @@ final class PruneCommand
 
         $verification = new AuditChainVerifier(
             $this->db,
-            hmacKey: $this->hmacKey?->bytes(),
+            custody: $this->custody,
         )->verify();
         if (!$verification->ok) {
             $this->logger->error('audit.prune_preflight_failed', [
@@ -479,9 +484,9 @@ final class PruneCommand
             $checkpointHash = (string) $checkpoint['checkpoint_hash'];
             $oldPruned = (int) $checkpoint['pruned'];
             $oldAuthorization = (string) ($checkpoint['prune_authorization'] ?? '');
-            $authorization = $this->hmacKey === null
+            $authorization = $this->custody === null
                 ? $oldAuthorization
-                : AuditPruneAuthorization::sign($checkpointHash, $this->hmacKey->bytes());
+                : $this->custody->sealPruneAuthorization($checkpointHash);
 
             $updated = $this->db->update('audit_checkpoint')
                 ->fields([

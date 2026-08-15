@@ -16,6 +16,7 @@ use Waaseyaa\Audit\Contract\AuditWriterInterface;
 use Waaseyaa\Audit\Entity\AuditCheckpoint;
 use Waaseyaa\Audit\Enum\AuditEventKind;
 use Waaseyaa\Audit\Integrity\AuditCheckpointBuilder;
+use Waaseyaa\Audit\Integrity\AuditCheckpointCustody;
 use Waaseyaa\Audit\Integrity\AuditChainVerifier;
 use Waaseyaa\Audit\Integrity\CheckpointSink;
 use Waaseyaa\Audit\Query\AuditEventQuery;
@@ -30,6 +31,17 @@ use Waaseyaa\Database\SchemaInterface;
 use Waaseyaa\Database\SelectInterface;
 use Waaseyaa\Database\TransactionInterface;
 use Waaseyaa\Database\UpdateInterface;
+use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
+use Waaseyaa\Foundation\Security\ApplicationMasterKeyring;
+use Waaseyaa\Foundation\Security\ApplicationMasterPurposePolicy;
+use Waaseyaa\Foundation\Security\ApplicationMasterPurposeRegistry;
+use Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy;
+use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\Security\SecretClass;
+use Waaseyaa\Foundation\Security\SecretProviderInterface;
+use Waaseyaa\Foundation\Security\SecretReference;
+use Waaseyaa\Foundation\Security\SecretResolverRegistry;
+use Waaseyaa\Foundation\Security\SensitiveValue;
 
 #[CoversClass(PruneCommand::class)]
 final class PruneCommandTest extends TestCase
@@ -749,6 +761,42 @@ final class PruneCommandTest extends TestCase
     }
 
     #[Test]
+    public function application_master_prune_emits_a_version_bound_authorization(): void
+    {
+        $db = $this->makeSealedRealDb();
+        $custody = new AuditCheckpointCustody($this->keyring(2));
+        $past = new \DateTimeImmutable('-2 days')->format('Y-m-d H:i:s');
+        $this->insertRealEvent($db, 'versioned-keyed-prune', 'entity.write', $past);
+        new AuditCheckpointBuilder(
+            $db,
+            new class implements CheckpointSink {
+                public function export(AuditCheckpoint $checkpoint): void {}
+            },
+            custody: $custody,
+        )->build();
+
+        $exitCode = new PruneCommand(
+            new AuditEventQuery($db),
+            $this->makeNullWriter(),
+            $db,
+            custody: $custody,
+        )->execute($this->makeIo([
+            'older-than' => 'P1D',
+            'kind' => '*',
+            'confirm' => true,
+        ]));
+
+        self::assertSame(0, $exitCode);
+        self::assertTrue((new AuditChainVerifier($db, custody: $custody))->verify()->ok);
+        self::assertStringStartsWith(
+            AuditCheckpointCustody::PRUNE_PREFIX . '2:',
+            (string) $db->getConnection()->fetchOne(
+                'SELECT prune_authorization FROM audit_checkpoint WHERE is_genesis = 0',
+            ),
+        );
+    }
+
+    #[Test]
     public function sealed_prune_rolls_back_when_authorization_cannot_be_persisted(): void
     {
         $db = $this->makeSealedRealDb();
@@ -946,5 +994,61 @@ final class PruneCommandTest extends TestCase
         $output = implode("\n", $io->outputLines());
         self::assertStringContainsString('Would prune 5 sealed event row(s)', $output);
         self::assertStringContainsString('0 unsealed tail row(s)', $output);
+    }
+
+    private function keyring(int $activeVersion): ApplicationMasterKeyring
+    {
+        $purposes = new ApplicationMasterPurposeRegistry();
+        $purposes->register(new ApplicationMasterPurposePolicy(
+            id: ApplicationSecret::PURPOSE_AUDIT_CHECKPOINT_HMAC,
+            ownerPackage: 'waaseyaa/audit',
+            strategy: ApplicationMasterPurposeStrategy::RetainHistoricVerifier,
+            maximumLifetimeSeconds: 0,
+            retentionSeconds: 0,
+            adapterId: 'audit-checkpoint-succession-v1',
+            rollbackBehavior: 'append-authenticated-rollback-marker',
+        ));
+        $purposes->freeze();
+        $resolver = new SecretResolverRegistry(new RedactorProcessor(), 'testing');
+        $resolver->registerProvider(new CliAuditSyntheticMasterProvider());
+        $resolver->allow(
+            'cli-audit-synthetic-master',
+            ApplicationMasterKeyring::PACKAGE,
+            SecretClass::ApplicationMaster,
+            ApplicationMasterKeyring::MASTER_PURPOSE,
+            ['testing'],
+        );
+        ApplicationMasterKeyring::registerResolverConsumers($resolver);
+        $resolver->freeze();
+
+        return ApplicationMasterKeyring::fromReferences(
+            $resolver,
+            $activeVersion,
+            SecretReference::create(
+                'cli-audit-synthetic-master',
+                'master-v' . $activeVersion,
+                SecretClass::ApplicationMaster,
+                ApplicationMasterKeyring::MASTER_PURPOSE,
+            ),
+            [],
+            $purposes,
+        );
+    }
+}
+
+final class CliAuditSyntheticMasterProvider implements SecretProviderInterface
+{
+    public function id(): string
+    {
+        return 'cli-audit-synthetic-master';
+    }
+
+    public function resolve(SecretReference $reference): SensitiveValue
+    {
+        return SensitiveValue::fromBytes(
+            hash('sha256', $reference->identifier(), true),
+            SecretClass::ApplicationMaster,
+            $reference->identifier(),
+        );
     }
 }

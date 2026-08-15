@@ -10,14 +10,7 @@ use Waaseyaa\Database\Schema\SchemaRequirement;
 /** Read-only runtime validation for the coordinator-owned audit schema. */
 final class AuditEventSchemaHandler
 {
-    public function __construct(
-        private readonly DatabaseInterface $database,
-        #[\SensitiveParameter]
-        ?string $hmacKey = null,
-    ) {
-        // Retained for API compatibility while CFG-01 migrates checkpoint key custody.
-        unset($hmacKey);
-    }
+    public function __construct(private readonly DatabaseInterface $database) {}
 
     public function ensureSchema(): void
     {

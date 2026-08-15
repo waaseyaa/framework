@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace Waaseyaa\Audit\Integrity;
 
 use Waaseyaa\Database\DatabaseInterface;
-use Waaseyaa\Foundation\Security\SensitiveKey;
 
 /**
- * Explicitly upgrades an intact, wholly legacy checkpoint chain to HKDF-v1.
+ * Explicitly upgrades an intact, wholly legacy checkpoint chain to active custody.
  *
  * The operator must establish trust in the current database/backup before
  * invoking this migration. Ordinary verification never performs this write.
@@ -17,18 +16,22 @@ use Waaseyaa\Foundation\Security\SensitiveKey;
  */
 final class LegacyCheckpointSignatureMigrator
 {
-    private readonly SensitiveKey $hmacKey;
+    private readonly AuditCheckpointCustody $custody;
 
     public function __construct(
         private readonly DatabaseInterface $database,
         #[\SensitiveParameter]
-        string $hmacKey,
+        ?string $hmacKey = null,
+        ?AuditCheckpointCustody $custody = null,
     ) {
-        if ($hmacKey === '') {
-            throw new \InvalidArgumentException('A derived audit HMAC key is required.');
+        if ($custody !== null && $hmacKey !== null && $hmacKey !== '') {
+            throw new \InvalidArgumentException('Supply composed audit custody or a legacy HMAC key, not both.');
+        }
+        if ($custody === null && ($hmacKey === null || $hmacKey === '')) {
+            throw new \InvalidArgumentException('Audit checkpoint custody is required.');
         }
 
-        $this->hmacKey = new SensitiveKey($hmacKey);
+        $this->custody = $custody ?? new AuditCheckpointCustody(legacyKey: $hmacKey);
     }
 
     public function migrate(): int
@@ -53,24 +56,41 @@ final class LegacyCheckpointSignatureMigrator
             }
 
             $legacyCount = 0;
-            $versionedCount = 0;
+            $currentCount = 0;
+            $legacyHkdfCount = 0;
+            $unauthenticatedLegacyCount = 0;
             foreach ($checkpoints as $checkpoint) {
                 $signature = (string) ($checkpoint['signature'] ?? '');
-                if (str_starts_with($signature, 'hmac-sha256.hkdf-v1:')) {
-                    ++$versionedCount;
-                } elseif ($signature === '' || preg_match('/^[0-9a-f]{64}$/D', $signature) === 1) {
+                $isApplicationMaster = $this->custody->checkpointEnvelopeVersion($signature) !== null;
+                $isLegacyHkdf = str_starts_with($signature, 'hmac-sha256.hkdf-v1:');
+                if ($isApplicationMaster || ($this->custody->activeVersion() === null && $isLegacyHkdf)) {
+                    ++$currentCount;
+                } elseif ($signature === ''
+                    || preg_match('/^[0-9a-f]{64}$/D', $signature) === 1
+                    || ($this->custody->activeVersion() !== null && $isLegacyHkdf)) {
                     ++$legacyCount;
+                    if ($isLegacyHkdf) {
+                        ++$legacyHkdfCount;
+                    } else {
+                        ++$unauthenticatedLegacyCount;
+                    }
                 } else {
                     throw new \RuntimeException('Legacy checkpoint signature migration refused malformed history.');
                 }
             }
 
-            if ($versionedCount > 0 && $legacyCount > 0) {
+            if ($currentCount > 0 && $legacyCount > 0) {
                 throw new \RuntimeException('Legacy checkpoint signature migration refused mixed authenticated and legacy history.');
+            }
+            if ($legacyHkdfCount > 0 && $unauthenticatedLegacyCount > 0) {
+                throw new \RuntimeException('Legacy checkpoint signature migration refused mixed authenticated and unauthenticated legacy history.');
             }
 
             if ($legacyCount > 0) {
-                $preflight = new AuditChainVerifier($this->database)->verify();
+                $preflight = new AuditChainVerifier(
+                    $this->database,
+                    custody: $legacyHkdfCount > 0 ? $this->custody : null,
+                )->verify();
                 if (!$preflight->ok) {
                     throw new \RuntimeException('Legacy checkpoint signature migration refused a broken hash chain.');
                 }
@@ -82,17 +102,10 @@ final class LegacyCheckpointSignatureMigrator
                 $checkpointHash = (string) $checkpoint['checkpoint_hash'];
                 $fields = [];
                 if ($legacyCount > 0) {
-                    $fields['signature'] = 'hmac-sha256.hkdf-v1:' . hash_hmac(
-                        'sha256',
-                        $checkpointHash,
-                        $this->hmacKey->bytes(),
-                    );
+                    $fields['signature'] = $this->custody->sealCheckpoint($checkpointHash);
                 }
                 if ((bool) ($checkpoint['pruned'] ?? false)) {
-                    $fields['prune_authorization'] = AuditPruneAuthorization::sign(
-                        $checkpointHash,
-                        $this->hmacKey->bytes(),
-                    );
+                    $fields['prune_authorization'] = $this->custody->sealPruneAuthorization($checkpointHash);
                 }
                 if ($fields === []) {
                     continue;
@@ -109,7 +122,7 @@ final class LegacyCheckpointSignatureMigrator
                 }
             }
 
-            $postflight = new AuditChainVerifier($this->database, hmacKey: $this->hmacKey->bytes())->verify();
+            $postflight = new AuditChainVerifier($this->database, custody: $this->custody)->verify();
             if (!$postflight->ok) {
                 throw new \RuntimeException('Legacy checkpoint signature migration refused to commit an invalid authenticated chain.');
             }
@@ -123,10 +136,10 @@ final class LegacyCheckpointSignatureMigrator
         }
     }
 
-    /** @return array{database: string, hmac_key: string} */
+    /** @return array{database: string, custody: string} */
     public function __debugInfo(): array
     {
-        return ['database' => $this->database::class, 'hmac_key' => '[REDACTED]'];
+        return ['database' => $this->database::class, 'custody' => '[NON_EXPORTING]'];
     }
 
     /** @return never */

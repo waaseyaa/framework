@@ -11,6 +11,7 @@ use Waaseyaa\Audit\Integrity\AuditChainVerifier;
 use Waaseyaa\Audit\Integrity\AuditCheckpointBuilder;
 use Waaseyaa\Audit\Integrity\AuditCheckpointCustody;
 use Waaseyaa\Audit\Integrity\CheckpointSink;
+use Waaseyaa\Audit\Integrity\LegacyCheckpointSignatureMigrator;
 use Waaseyaa\Database\DBALDatabase;
 use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
 use Waaseyaa\Foundation\Security\ApplicationMasterKeyring;
@@ -99,6 +100,36 @@ final class AuditCheckpointRuntimeCustodyRetainedRedTest extends TestCase
             $this->database,
             hmacKey: $legacyKey,
         ))->verify()->ok);
+    }
+
+    #[Test]
+    public function explicit_migration_upgrades_legacy_signatures_to_the_active_master_version(): void
+    {
+        $legacyKey = hash('sha256', 'runtime-migration-legacy-key', true);
+        $this->insertEvent('runtime-migration-versioned');
+        new AuditCheckpointBuilder(
+            $this->database,
+            $this->sink,
+            hmacKey: $legacyKey,
+        )->build();
+        $custody = new AuditCheckpointCustody($this->keyring(2), $legacyKey);
+
+        $migrated = new LegacyCheckpointSignatureMigrator(
+            $this->database,
+            custody: $custody,
+        )->migrate();
+
+        self::assertSame(2, $migrated);
+        $signatures = $this->database->getConnection()->fetchFirstColumn(
+            'SELECT signature FROM audit_checkpoint ORDER BY id',
+        );
+        foreach ($signatures as $signature) {
+            self::assertStringStartsWith(
+                AuditCheckpointCustody::CHECKPOINT_PREFIX . '2:',
+                (string) $signature,
+            );
+        }
+        self::assertTrue((new AuditChainVerifier($this->database, custody: $custody))->verify()->ok);
     }
 
     private function insertEvent(string $uuid): void
