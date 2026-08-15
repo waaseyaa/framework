@@ -20,6 +20,61 @@ use Waaseyaa\Foundation\Log\LogManager;
 final class LogManagerTest extends TestCase
 {
     #[Test]
+    public function constructor_path_sanitizes_immediately_before_the_default_handler(): void
+    {
+        $captured = null;
+        $handler = new class ($captured) implements \Waaseyaa\Foundation\Log\Handler\HandlerInterface {
+            public function __construct(private ?\Waaseyaa\Foundation\Log\LogRecord &$captured) {}
+
+            public function handle(\Waaseyaa\Foundation\Log\LogRecord $record): void
+            {
+                $this->captured = $record;
+            }
+        };
+        $manager = new LogManager($handler);
+
+        $manager->warning('Authorization: Bearer cfg04-default-message', [
+            'credential' => 'cfg04-default-context',
+        ]);
+
+        $this->assertNotNull($captured);
+        $this->assertStringNotContainsString('cfg04-default-message', $captured->message);
+        $this->assertSame('[REDACTED]', $captured->context['credential']);
+    }
+
+    #[Test]
+    public function final_sanitization_removes_values_added_by_later_processors(): void
+    {
+        $captured = null;
+        $handler = new class ($captured) implements \Waaseyaa\Foundation\Log\Handler\HandlerInterface {
+            public function __construct(private ?\Waaseyaa\Foundation\Log\LogRecord &$captured) {}
+
+            public function handle(\Waaseyaa\Foundation\Log\LogRecord $record): void
+            {
+                $this->captured = $record;
+            }
+        };
+        $manager = new LogManager($handler);
+        $manager->addGlobalProcessor(new class implements \Waaseyaa\Foundation\Log\Processor\ProcessorInterface {
+            public function process(\Waaseyaa\Foundation\Log\LogRecord $record): \Waaseyaa\Foundation\Log\LogRecord
+            {
+                return new \Waaseyaa\Foundation\Log\LogRecord(
+                    $record->level,
+                    $record->message,
+                    [...$record->context, 'private_key' => 'cfg04-late-canary'],
+                    $record->channel,
+                    $record->timestamp,
+                );
+            }
+        });
+
+        $manager->info('safe');
+
+        $this->assertNotNull($captured);
+        $this->assertSame('[REDACTED]', $captured->context['private_key']);
+    }
+
+    #[Test]
     public function implements_logger_interface(): void
     {
         $manager = new LogManager(new NullHandler());

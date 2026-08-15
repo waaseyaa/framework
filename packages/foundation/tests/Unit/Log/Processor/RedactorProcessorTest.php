@@ -10,11 +10,52 @@ use PHPUnit\Framework\TestCase;
 use Waaseyaa\Foundation\Log\LogLevel;
 use Waaseyaa\Foundation\Log\LogRecord;
 use Waaseyaa\Foundation\Log\Processor\RedactorProcessor;
+use Waaseyaa\Foundation\Security\SecretClass;
+use Waaseyaa\Foundation\Security\SensitiveValue;
 
 #[CoversClass(RedactorProcessor::class)]
 final class RedactorProcessorTest extends TestCase
 {
     private const REDACTED = '[REDACTED]';
+
+    #[Test]
+    public function redacts_registered_secret_representations_from_message_and_nested_context(): void
+    {
+        $canary = 'cfg04-synthetic-canary-7xQ9mP2k';
+        $processor = new RedactorProcessor(registeredValues: [$canary]);
+        $record = new LogRecord(LogLevel::INFO, 'raw=' . $canary, [
+            'nested' => [
+                'encoded' => base64_encode($canary),
+                'url' => rawurlencode($canary),
+            ],
+        ]);
+
+        $result = $processor->process($record);
+
+        $this->assertStringNotContainsString($canary, $result->message);
+        $this->assertStringNotContainsString(base64_encode($canary), serialize($result->context));
+        $this->assertStringNotContainsString(rawurlencode($canary), serialize($result->context));
+    }
+
+    #[Test]
+    public function redacts_typed_sensitive_values_and_throwable_chains(): void
+    {
+        $sensitive = SensitiveValue::fromBytes(
+            'cfg04-typed-canary-Y8v3nK6s',
+            SecretClass::ProviderCredential,
+            'synthetic-v1',
+        );
+        $throwable = new \RuntimeException('outer', 0, new \RuntimeException('cfg04-throwable-canary'));
+        $processor = new RedactorProcessor(registeredValues: ['cfg04-throwable-canary']);
+
+        $result = $processor->process(new LogRecord(LogLevel::ERROR, 'failed', [
+            'value' => $sensitive,
+            'exception' => $throwable,
+        ]));
+
+        $this->assertSame(self::REDACTED, $result->context['value']);
+        $this->assertStringNotContainsString('cfg04-throwable-canary', serialize($result->context));
+    }
 
     // -------------------------------------------------------------------------
     // Key denylist: case-insensitive substring match on context key names
