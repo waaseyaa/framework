@@ -42,6 +42,16 @@ failed-successor payloads without deleting jobs. `F-CFG-011` stays red until a
 separately authorized Sheg/operator workflow supplies deployment preflight,
 external custody, retained-backup, and ceremony evidence.
 
+OIDC application-master ownership follows
+`docs/history/plans/2026-08-15-s1-fw-cfg04-oidc-application-master.md`. Three
+adapters align with the physical persistence boundaries: signing keys, access
+tokens, and refresh tokens. Each opaque-token adapter jointly updates its
+ciphertext and lookup index in one CAS. DB-02-owned monotonic custody sequences,
+not random UUID ordering, freeze token inventories while successor-only writers
+continue. Versioned envelopes use the shared Foundation format; compact lookup
+tags retain the existing fixed lookup-column bound. Legacy OIDC ciphertext and
+indexes are accepted only through an explicit bounded migration bridge.
+
 Checkpoint export now preserves each detached authentication signature in the
 NDJSON record. External append-only sinks therefore retain the authentication
 material required to verify the exported hash-chain evidence independently;
