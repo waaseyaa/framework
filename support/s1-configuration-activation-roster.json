@@ -2508,25 +2508,16 @@
             "class": "epoch-composition",
             "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
             "line_sha256": "993b4a6497d6541494494051ae4fd58dab5950a8e26c7a8a6c799ea02259828e",
-            "source_sha256": "a23e5b20414a1a16f5c1f3b78deae8727a61e67326c2ac6a23b5c201733f2b07"
+            "source_sha256": "b448b2c520db1fd1cb38e9264e1e606efcb6a969fec116ab6b4cdf03a2788fd2"
         },
         {
             "path": "packages/queue/src/QueueServiceProvider.php",
-            "line": 88,
+            "line": 105,
             "pattern": "runtime_epoch",
             "class": "epoch-composition",
             "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
             "line_sha256": "155ff5ba7e6c4b65364b837f71493ecf4a6653a2e358ffe65691c20dcaca0529",
-            "source_sha256": "a23e5b20414a1a16f5c1f3b78deae8727a61e67326c2ac6a23b5c201733f2b07"
-        },
-        {
-            "path": "packages/queue/src/QueueServiceProvider.php",
-            "line": 92,
-            "pattern": "runtime_epoch",
-            "class": "epoch-composition",
-            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
-            "line_sha256": "452d22a6046b3d970507f58258ba96c429ddd922d9b0da588d765a483e078bce",
-            "source_sha256": "a23e5b20414a1a16f5c1f3b78deae8727a61e67326c2ac6a23b5c201733f2b07"
+            "source_sha256": "b448b2c520db1fd1cb38e9264e1e606efcb6a969fec116ab6b4cdf03a2788fd2"
         },
         {
             "path": "packages/queue/src/QueueServiceProvider.php",
@@ -2534,8 +2525,17 @@
             "pattern": "runtime_epoch",
             "class": "epoch-composition",
             "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
+            "line_sha256": "452d22a6046b3d970507f58258ba96c429ddd922d9b0da588d765a483e078bce",
+            "source_sha256": "b448b2c520db1fd1cb38e9264e1e606efcb6a969fec116ab6b4cdf03a2788fd2"
+        },
+        {
+            "path": "packages/queue/src/QueueServiceProvider.php",
+            "line": 126,
+            "pattern": "runtime_epoch",
+            "class": "epoch-composition",
+            "match_sha256": "e6b3c03b563424707b210b416361b5d0ab717ae14b4eb341157c7fb6a2f66803",
             "line_sha256": "3e3b80c72950e566f528ffacde281de8e7ffd68ff241163a980fb66038093c29",
-            "source_sha256": "a23e5b20414a1a16f5c1f3b78deae8727a61e67326c2ac6a23b5c201733f2b07"
+            "source_sha256": "b448b2c520db1fd1cb38e9264e1e606efcb6a969fec116ab6b4cdf03a2788fd2"
         },
         {
             "path": "packages/queue/src/Worker/Worker.php",
