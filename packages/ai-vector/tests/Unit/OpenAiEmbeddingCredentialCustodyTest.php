@@ -128,7 +128,10 @@ final class OpenAiEmbeddingCredentialCustodyTest extends TestCase
             ], $this->registry(new RotatingEmbeddingCredentialProvider()));
             self::fail('Empty default references must fail through the typed provider configuration boundary.');
         } catch (ProviderCredentialConfigurationException $exception) {
-            self::assertSame('OpenAI embedding credential reference fields are invalid.', $exception->getMessage());
+            self::assertSame(
+                '[PROVIDER_CREDENTIAL_CONFIGURATION_REFUSED] OpenAI embedding credential reference fields are invalid.',
+                $exception->getMessage(),
+            );
             self::assertNull($exception->getPrevious());
         }
     }

@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Waaseyaa\AI\Agent\Provider\AnthropicCredentialOperation;
 use Waaseyaa\AI\Agent\Provider\AnthropicProvider;
+use Waaseyaa\AI\Agent\Provider\ClientErrorException;
 use Waaseyaa\AI\Agent\Provider\MessageRequest;
 use Waaseyaa\AI\Agent\Provider\OpenAiCompatibleCredentialOperation;
 use Waaseyaa\AI\Agent\Provider\OpenAiCompatibleProvider;
@@ -162,6 +163,19 @@ final class ProviderCredentialCustodyTest extends TestCase
             self::fail('Transport taxonomy must survive guarded credential use.');
         } catch (TransportException $exception) {
             self::assertSame('Provider transport unavailable.', $exception->getMessage());
+            self::assertStringNotContainsString($canary, $exception->getMessage());
+            self::assertNull($exception->getPrevious());
+        }
+
+        $clientError = new OpenAiCompatibleProvider(
+            apiKey: 'synthetic-openai-key',
+            authenticatedTransport: static fn(): never => throw new ClientErrorException($canary),
+        );
+        try {
+            $clientError->sendMessage($request);
+            self::fail('Client-error taxonomy must survive guarded credential use.');
+        } catch (ClientErrorException $exception) {
+            self::assertSame('Provider request refused.', $exception->getMessage());
             self::assertStringNotContainsString($canary, $exception->getMessage());
             self::assertNull($exception->getPrevious());
         }

@@ -25,6 +25,7 @@ use Waaseyaa\Foundation\Security\SecretReference;
 use Waaseyaa\Foundation\Security\SecretResolverRegistry;
 use Waaseyaa\Foundation\Security\SensitiveValue;
 use Waaseyaa\HttpClient\HttpClientInterface;
+use Waaseyaa\HttpClient\HttpRequestException;
 use Waaseyaa\HttpClient\HttpResponse;
 use Waaseyaa\Tests\Integration\PhaseN\AgentRuntime\Fixture\InMemoryConfigStorage;
 use Waaseyaa\Tests\Integration\PhaseN\AgentRuntime\Fixture\StubMcpServerHttpClient;
@@ -341,7 +342,7 @@ final class FailingMcpHttpClient implements HttpClientInterface
 {
     public function request(string $method, string $url, array $headers = [], array|string|null $body = null): HttpResponse
     {
-        throw new \RuntimeException('synthetic MCP outage');
+        throw new HttpRequestException('synthetic MCP outage', $url, $method);
     }
 
     public function get(string $url, array $headers = []): HttpResponse

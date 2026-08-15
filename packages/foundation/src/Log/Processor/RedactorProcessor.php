@@ -73,6 +73,9 @@ final class RedactorProcessor implements ProcessorInterface
     /** @var \WeakMap<self, \WeakMap<SensitiveValue, list<string>>>|null */
     private static ?\WeakMap $registeredSensitiveRepresentations = null;
 
+    /** @var \WeakMap<SensitiveValue, list<string>>|null */
+    private static ?\WeakMap $processSensitiveRepresentations = null;
+
     /**
      * @param list<string> $extraKeys Additional keywords to add to the denylist.
      *                                The built-in {@see DENYLIST} is always applied.
@@ -120,6 +123,22 @@ final class RedactorProcessor implements ProcessorInterface
         $values = self::$registeredSensitiveRepresentations[$this] ?? new \WeakMap();
         $values[$value] = $representations;
         self::$registeredSensitiveRepresentations[$this] = $values;
+    }
+
+    /** @internal SensitiveValue calls this at every guarded raw-byte ingress. */
+    public static function registerProcessSensitiveBytes(
+        SensitiveValue $value,
+        #[\SensitiveParameter]
+        string $bytes,
+    ): void {
+        if (strlen($bytes) < 8) {
+            return;
+        }
+        $processor = new self();
+        $representations = array_values(array_unique($processor->representations($bytes)));
+        usort($representations, static fn(string $left, string $right): int => strlen($right) <=> strlen($left));
+        self::$processSensitiveRepresentations ??= new \WeakMap();
+        self::$processSensitiveRepresentations[$value] = $representations;
     }
 
     public function process(LogRecord $record): LogRecord
@@ -237,6 +256,11 @@ final class RedactorProcessor implements ProcessorInterface
         $sensitiveValues = self::$registeredSensitiveRepresentations[$this] ?? null;
         if ($sensitiveValues instanceof \WeakMap) {
             foreach ($sensitiveValues as $registered) {
+                array_push($representations, ...$registered);
+            }
+        }
+        if (self::$processSensitiveRepresentations instanceof \WeakMap) {
+            foreach (self::$processSensitiveRepresentations as $registered) {
                 array_push($representations, ...$registered);
             }
         }

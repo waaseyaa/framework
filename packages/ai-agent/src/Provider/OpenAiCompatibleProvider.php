@@ -92,15 +92,19 @@ final class OpenAiCompatibleProvider implements ProviderInterface
      */
     private function httpPost(string $url, array $body): array
     {
-        return $this->credential->consume(new OpenAiCompatibleCredentialOperation(
-            function (array $headers, string $version) use ($url, $body): array {
-                if ($this->authenticatedTransport !== null) {
-                    return ($this->authenticatedTransport)($url, $headers, $body);
-                }
+        $outcome = $this->credential->consume(new OpenAiCompatibleCredentialOperation(
+            fn(array $headers, string $version): ProviderCredentialOutcome => ProviderCredentialOutcome::capture(
+                function () use ($url, $headers, $body): array {
+                    if ($this->authenticatedTransport !== null) {
+                        return ($this->authenticatedTransport)($url, $headers, $body);
+                    }
 
-                return $this->httpPostAuthenticated($url, $body, $headers);
-            },
+                    return $this->httpPostAuthenticated($url, $body, $headers);
+                },
+            ),
         ));
+
+        return $outcome->unwrap();
     }
 
     /**

@@ -190,15 +190,19 @@ final class AnthropicProvider implements StreamingProviderInterface
      */
     private function httpPost(string $url, array $body): array
     {
-        return $this->credential->consume(new AnthropicCredentialOperation(
-            function (array $headers, string $version) use ($url, $body): array {
-                if ($this->authenticatedTransport !== null) {
-                    return ($this->authenticatedTransport)($url, $headers, $body);
-                }
+        $outcome = $this->credential->consume(new AnthropicCredentialOperation(
+            fn(array $headers, string $version): ProviderCredentialOutcome => ProviderCredentialOutcome::capture(
+                function () use ($url, $headers, $body): array {
+                    if ($this->authenticatedTransport !== null) {
+                        return ($this->authenticatedTransport)($url, $headers, $body);
+                    }
 
-                return $this->httpPostAuthenticated($url, $body, $headers);
-            },
+                    return $this->httpPostAuthenticated($url, $body, $headers);
+                },
+            ),
         ));
+
+        return $outcome->unwrap();
     }
 
     /**
@@ -286,14 +290,18 @@ final class AnthropicProvider implements StreamingProviderInterface
      */
     private function httpPostStreaming(string $url, array $body, callable $onChunk): MessageResponse
     {
-        return $this->credential->consume(new AnthropicCredentialOperation(
-            fn(array $headers, string $version): MessageResponse => $this->httpPostStreamingAuthenticated(
-                $url,
-                $body,
-                $onChunk,
-                $headers,
+        $outcome = $this->credential->consume(new AnthropicCredentialOperation(
+            fn(array $headers, string $version): ProviderCredentialOutcome => ProviderCredentialOutcome::capture(
+                fn(): MessageResponse => $this->httpPostStreamingAuthenticated(
+                    $url,
+                    $body,
+                    $onChunk,
+                    $headers,
+                ),
             ),
         ));
+
+        return $outcome->unwrap();
     }
 
     /**

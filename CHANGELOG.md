@@ -31,8 +31,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   registered purpose consumers, hide full references from diagnostic state,
   and replace credential-bearing transport failures with fixed custody codes.
   The embedding test transport now sits above authentication and receives only
-  endpoint and payload. A fail-on-new architecture gate rejects direct
-  environment access and unreviewed file reads in governed AI/MCP packages.
+  endpoint and payload; this is a **breaking** callable-signature correction for
+  that public constructor seam. Provider retry/client taxonomy and MCP transport
+  availability cross guarded custody only as fixed non-secret outcomes, while
+  arbitrary consumer failures still collapse without their message or exception
+  chain. Process-local compatibility handles join the sink-wide weak redaction
+  set while live. A fail-on-new architecture gate rejects direct environment
+  access, including fully qualified calls, and unreviewed file reads in governed
+  AI/MCP packages.
   Independent review hardening makes
   overlapping values redact globally longest-first, sanitizes recursive keys,
   wraps custom kernel loggers behind the same sink, canonicalizes environment

@@ -273,7 +273,7 @@ final class McpClientToolSource
                 try {
                     $remote = $this->callWithAuthentication($arguments);
                     $this->health->healthy($this->serverAlias);
-                } catch (SecretResolutionException|SecretConsumptionException|\LogicException) {
+                } catch (SecretResolutionException|SecretConsumptionException|McpCredentialUnavailableException) {
                     $this->recordCallFailure('credential_unavailable');
 
                     return AgentToolResult::error(
@@ -341,22 +341,26 @@ final class McpClientToolSource
                     return $this->client->callTool($this->url, null, $this->remoteName, $arguments);
                 }
                 if ($this->credentialReference === null || $this->secretResolverRegistry === null) {
-                    throw new \LogicException('MCP credential custody is unavailable.');
+                    throw new McpCredentialUnavailableException();
                 }
 
-                $result = $this->secretResolverRegistry->consume(
+                $outcome = $this->secretResolverRegistry->consume(
                     $this->credentialReference,
                     McpClientToolSource::PACKAGE,
                     new McpCredentialOperation(
-                        fn(#[\SensitiveParameter] string $authorization, string $version): McpRemoteToolResult => $this->client->callTool(
+                        fn(#[\SensitiveParameter] string $authorization, string $version): McpCredentialOutcome => McpCredentialOutcome::capture(
+                            fn(): McpRemoteToolResult => $this->client->callTool(
+                                $this->url,
+                                $authorization,
+                                $this->remoteName,
+                                $arguments,
+                            ),
                             $this->url,
-                            $authorization,
-                            $this->remoteName,
-                            $arguments,
                         ),
                     ),
                 );
-                return $result;
+
+                return $outcome->unwrap();
             }
 
             private function recordCallFailure(string $reason): void
@@ -373,6 +377,7 @@ final class McpClientToolSource
     /**
      * @template T
      * @param array{
+     *     url: string,
      *     auth_mode: McpAuthMode,
      *     credential_reference: SecretReference|null,
      * } $row
@@ -385,16 +390,21 @@ final class McpClientToolSource
             return $operation(null);
         }
         if ($row['credential_reference'] === null || $this->secretResolverRegistry === null) {
-            throw new \LogicException('MCP credential custody is unavailable.');
+            throw new McpCredentialUnavailableException();
         }
 
-        return $this->secretResolverRegistry->consume(
+        $outcome = $this->secretResolverRegistry->consume(
             $row['credential_reference'],
             self::PACKAGE,
             new McpCredentialOperation(
-                fn(#[\SensitiveParameter] string $authorization, string $version): mixed => $operation($authorization),
+                fn(#[\SensitiveParameter] string $authorization, string $version): McpCredentialOutcome => McpCredentialOutcome::capture(
+                    fn(): mixed => $operation($authorization),
+                    $row['url'],
+                ),
             ),
         );
+
+        return $outcome->unwrap();
     }
 
     /**
@@ -404,7 +414,7 @@ final class McpClientToolSource
     {
         $reason = $exception instanceof SecretResolutionException
             || $exception instanceof SecretConsumptionException
-            || $exception instanceof \LogicException
+            || $exception instanceof McpCredentialUnavailableException
                 ? 'credential_unavailable'
                 : 'server_unavailable';
 

@@ -57,12 +57,16 @@ final class EmbeddingProviderFactory
             throw new ProviderCredentialConfigurationException('OpenAI embedding credential reference fields are invalid.');
         }
 
-        $reference = SecretReference::create(
-            $provider,
-            $identifier,
-            SecretClass::ProviderCredential,
-            $purpose,
-        );
+        try {
+            $reference = SecretReference::create(
+                $provider,
+                $identifier,
+                SecretClass::ProviderCredential,
+                $purpose,
+            );
+        } catch (\InvalidArgumentException) {
+            throw new ProviderCredentialConfigurationException('OpenAI embedding credential reference fields are invalid.');
+        }
 
         return new OpenAiEmbeddingProvider(
             apiKey: SecretHandle::fromReference(

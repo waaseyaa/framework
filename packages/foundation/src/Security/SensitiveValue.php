@@ -32,6 +32,7 @@ final class SensitiveValue implements \JsonSerializable, \Stringable
     ) {
         self::$values ??= new \WeakMap();
         self::$values[$this] = $bytes;
+        RedactorProcessor::registerProcessSensitiveBytes($this, $bytes);
     }
 
     public static function fromBytes(
