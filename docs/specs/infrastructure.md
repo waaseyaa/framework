@@ -1923,6 +1923,19 @@ transaction. A stale cursor or projection revision rolls the transaction back;
 retry begins from the durable cursor. Adapter completion does not imply purpose
 verification: every purpose separately records a count and verification hash.
 
+Executable adapters implement one Foundation contract and expose the same
+non-secret `DatabaseIdentityProviderInterface` identity as the rekey store.
+Composition refuses a mismatch before inventory or mutation. Snapshot is
+read-only. A transition callback executes *inside* the store's database
+transaction after expected request/adapter revisions and cursor are checked; it
+returns the next cursor, row count, exact per-purpose deltas, and commitment.
+The store validates that result before committing both owner CAS effects and
+cursor evidence. A malformed result, owner CAS conflict, or ledger write failure
+rolls the whole batch back. Verification is likewise owner-supplied but is
+persisted separately for every purpose. Restart reconstructs context from the
+immutable request, registry snapshot, adapter snapshot, and durable cursor; no
+completed external effect is inferred from an in-memory coordinator object.
+
 Predecessor revocation additionally requires exact evidence for four closed
 gates: `writers-and-workers-reconciled`, `caches-reconciled`,
 `rollback-window-closed`, and `retained-backups-compatible-or-expired`. Missing
