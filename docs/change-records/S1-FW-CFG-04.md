@@ -52,6 +52,20 @@ continue. Versioned envelopes use the shared Foundation format; compact lookup
 tags retain the existing fixed lookup-column bound. Legacy OIDC ciphertext and
 indexes are accepted only through an explicit bounded migration bridge.
 
+Publishing preview signatures are the sole stateless application-master
+purpose in the framework roster. `waaseyaa/publishing` owns that purpose through
+one zero-row `ephemeral-no-persistence` adapter. New grants carry the exact
+active master version, reads accept only keyring-declared versions through the
+30-minute maximum grant lifetime, and unversioned application-secret signatures
+are accepted only when the explicit preview compatibility flag is enabled.
+There are no persisted preview rows to transition or export.
+
+The former state payload purpose declaration is removed rather than assigned a
+fabricated framework owner. `SqlState` has no production provider and requires
+an explicit caller-owned 32-byte HMAC key. Applications that compose persistent
+SQL state must own and document that key lifecycle; the state package does not
+silently derive it from the framework application master.
+
 Checkpoint export now preserves each detached authentication signature in the
 NDJSON record. External append-only sinks therefore retain the authentication
 material required to verify the exported hash-chain evidence independently;
@@ -82,4 +96,5 @@ keys, non-secret fingerprints, counts, hashes, versions, and command outcomes.
 
 This record remains open until signing lifecycle, emergency compromise,
 CFG-03 composition, application-master transition, exact verification, and
-independent review are all complete.
+independent review are all complete. The declared-purpose roster is closed:
+each of its nine purpose constants has exactly one real package contribution.

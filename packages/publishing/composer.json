@@ -61,7 +61,10 @@
     "prefer-stable": true,
     "extra": {
         "waaseyaa": {
-            "migrations": "migrations"
+            "migrations": "migrations",
+            "providers": [
+                "Waaseyaa\\Publishing\\PublishingServiceProvider"
+            ]
         },
         "branch-alias": {
             "dev-main": "0.1.x-dev",

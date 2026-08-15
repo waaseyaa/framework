@@ -14,6 +14,10 @@ use Waaseyaa\Foundation\Security\ApplicationMasterPurposePolicy;
 use Waaseyaa\Foundation\Security\ApplicationMasterPurposeRegistry;
 use Waaseyaa\Foundation\Security\ApplicationMasterPurposeStrategy;
 use Waaseyaa\Foundation\Security\ApplicationSecret;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyConflictException;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyContext;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyRecord;
+use Waaseyaa\Foundation\Security\Rekey\ApplicationMasterRekeyState;
 use Waaseyaa\Foundation\Security\SecretClass;
 use Waaseyaa\Foundation\Security\SecretProviderInterface;
 use Waaseyaa\Foundation\Security\SecretReference;
@@ -126,6 +130,47 @@ final class PreviewApplicationMasterCustodyRetainedRedTest extends TestCase
             'adapter_id' => PublishingPreviewRekeyAdapter::ID,
             'rollback_behavior' => 'verify-declared-version-until-expiry',
         ], $contributions[0]->policies()[0]->canonicalRecord());
+    }
+
+    #[Test]
+    public function ephemeral_adapter_binds_zero_row_evidence_to_the_exact_database_and_request(): void
+    {
+        $database = DBALDatabase::createSqlite();
+        $keyring = $this->keyring(2, [1]);
+        $context = new ApplicationMasterRekeyContext(
+            new ApplicationMasterRekeyRecord(
+                'preview-rekey-1',
+                hash('sha256', 'preview-request'),
+                1,
+                2,
+                hash('sha256', 'preview-registry'),
+                hash('sha256', 'preview-authorization'),
+                'test-operator',
+                1_000_100,
+                1_002_000,
+                ApplicationMasterRekeyState::EnumerateSnapshot,
+                0,
+                0,
+                1_000_000,
+                1_000_000,
+            ),
+            $keyring,
+            $database,
+        );
+        $adapter = new PublishingPreviewRekeyAdapter($database);
+
+        $snapshot = $adapter->snapshot($context);
+        $verification = $adapter->verify($context, $snapshot);
+
+        self::assertSame(0, $snapshot->totalRecords);
+        self::assertSame(0, $verification[ApplicationSecret::PURPOSE_PUBLISHING_PREVIEW_HMAC]->verifiedRecords);
+
+        $this->expectException(ApplicationMasterRekeyConflictException::class);
+        $adapter->snapshot(new ApplicationMasterRekeyContext(
+            $context->request,
+            $keyring,
+            DBALDatabase::createSqlite(),
+        ));
     }
 
     /** @param list<int> $legacyVersions */

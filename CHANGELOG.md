@@ -158,16 +158,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   explicit trusted-history migration upgrades already-pruned legacy chains.
   The destructive command first verifies the complete sealed chain, so it
   cannot bless a pre-existing forged prune state as a legitimate retry.
-  Remaining state/preview purpose disposition and process reconciliation remain
-  incomplete.
+  Publishing preview grants now use active-version, domain-separated
+  application-master authentication tags and read only explicitly declared
+  predecessor versions through their bounded 30-minute lifetime. The package
+  owns that stateless purpose with a zero-row ephemeral adapter; legacy raw-HMAC
+  grants require an explicit compatibility flag. The unused state purpose is
+  removed instead of assigning a fictional owner: `SqlState` remains an
+  application-composed service whose caller supplies and owns its 32-byte HMAC
+  key. Process reconciliation remains incomplete.
   A generic coordinator now composes every frozen registry owner exactly once,
   refuses mismatched database identities or purpose rosters before inventory,
   passes adapters the store's exact transaction authority, and commits owner CAS
   effects with validated cursor/count/commitment evidence in one transaction.
   Malformed adapter output rolls back both row and cursor; restart resumes from
   the durable cursor without replay; and all verification results for a joint
-  adapter commit atomically. State/preview disposition and fleet/backup evidence
-  producers remain incomplete.
+  adapter commit atomically. The exact nine-purpose owner roster now closes
+  audit, cache, OIDC, publishing preview, and queue ownership. Fleet/backup
+  evidence producers remain incomplete.
 - **configuration schema and sync authority (`S1-FW-CFG-03`):** Add the strict
   v1 configuration contract with closed recursive schema validation, separate
   default-materialized effective documents, versioned canonical encoding,
